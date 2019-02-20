@@ -253,6 +253,7 @@ def _normalize_view_ptr_expr(
     if compexpr is None:
         base_ptrcls = ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
         base_ptr_is_computable = ptrcls in ctx.source_map
+        ptr_name = ptrcls.get_shortname(ctx.env.schema)
 
         if target_typexpr is not None:
             ptr_target = schemactx.get_schema_type(
@@ -331,15 +332,20 @@ def _normalize_view_ptr_expr(
             qlexpr.offset = shape_el.offset
             qlexpr.limit = shape_el.limit
     else:
-        try:
+        if is_mutation:
+            # If this is a mutation, the pointer must exist.
             base_ptrcls = ptrcls = setgen.resolve_ptr(
                 ptrsource, ptrname, ctx=ctx)
 
             ptr_name = ptrcls.get_shortname(ctx.env.schema)
-        except errors.InvalidReferenceError:
-            if is_mutation:
-                raise
 
+        else:
+            # Otherwise, assume no pointer inheritance.
+            # Every computable is a new pointer derived from
+            # std::link or std::property.  There is one exception:
+            # pointer aliases (Foo {some := Foo.other}), where `foo`
+            # gets derived from `Foo.other`.  This logic is applied
+            # in compile_query_subject() by populating the base_ptrcls.
             base_ptrcls = ptrcls = None
 
             ptr_module = (
@@ -375,7 +381,10 @@ def _normalize_view_ptr_expr(
             irexpr.context = compexpr.context
 
             if base_ptrcls is None:
-                base_ptrcls = ptrcls = shape_expr_ctx.view_rptr.ptrcls
+                base_ptrcls = shape_expr_ctx.view_rptr.base_ptrcls
+
+            if ptrcls is None:
+                ptrcls = shape_expr_ctx.view_rptr.ptrcls
 
             derived_ptrcls = shape_expr_ctx.view_rptr.derived_ptrcls
             if derived_ptrcls is not None:
@@ -430,12 +439,33 @@ def _normalize_view_ptr_expr(
             else:
                 path_id_name = None
 
-            ptrcls = schemactx.derive_view(
-                ptrcls, src_scls, ptr_target,
-                is_insert=is_insert, is_update=is_update,
+            if ptrcls is not None:
+                derive_from = ptrcls
+            elif base_ptrcls is not None:
+                derive_from = base_ptrcls
+            else:
+                if ptr_target.is_object_type():
+                    derive_from = ctx.env.schema.get('std::link')
+                else:
+                    derive_from = ctx.env.schema.get('std::property')
+
+            derived_name = schemactx.derive_view_name(
+                ptrcls,
+                derived_name_base=ptr_name,
                 derived_name_quals=[view_scls.get_name(ctx.env.schema)],
-                attrs=dict(path_id_name=path_id_name),
                 ctx=ctx)
+
+            existing = ctx.env.schema.get(derived_name, None)
+            if existing is not None:
+                ptrcls = existing
+            else:
+                ptrcls = schemactx.derive_view(
+                    derive_from, src_scls, ptr_target,
+                    is_insert=is_insert,
+                    is_update=is_update,
+                    derived_name=derived_name,
+                    attrs=dict(path_id_name=path_id_name),
+                    ctx=ctx)
 
         if qlexpr is not None:
             ctx.source_map[ptrcls] = (qlexpr, ctx, path_id, path_id_namespace)
@@ -482,40 +512,42 @@ def derive_ptrcls(
         ctx: context.ContextLevel) -> s_pointers.Pointer:
 
     if view_rptr.ptrcls is None:
-        if view_rptr.base_ptrcls is not None:
-            derived_name = schemactx.derive_view_name(
-                view_rptr.base_ptrcls,
-                derived_name_base=view_rptr.ptrcls_name,
-                derived_name_quals=(
-                    view_rptr.source.get_name(ctx.env.schema),
-                ),
-                ctx=ctx)
-
-            attrs = {}
-            if transparent:
-                attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
-                    ctx.env.schema)
-
-            existing_ptrcls = ctx.env.schema.get(derived_name, default=None)
-            if existing_ptrcls is not None:
-                # The derived pointer class may already exist if
-                # the shape element is implicit (i.e. a type id),
-                # and the target type is not a view.
-                view_rptr.ptrcls = existing_ptrcls
+        if view_rptr.base_ptrcls is None:
+            if target_scls.is_object_type():
+                view_rptr.base_ptrcls = ctx.env.schema.get('std::link')
             else:
-                view_rptr.ptrcls = schemactx.derive_view(
-                    view_rptr.base_ptrcls, view_rptr.source, target_scls,
-                    derived_name=derived_name,
-                    is_insert=view_rptr.is_insert,
-                    is_update=view_rptr.is_update,
-                    attrs=attrs,
-                    ctx=ctx
-                )
+                view_rptr.base_ptrcls = ctx.env.schema.get('std::property')
 
-            view_rptr.derived_ptrcls = view_rptr.ptrcls
+        derived_name = schemactx.derive_view_name(
+            view_rptr.base_ptrcls,
+            derived_name_base=view_rptr.ptrcls_name,
+            derived_name_quals=(
+                view_rptr.source.get_name(ctx.env.schema),
+            ),
+            ctx=ctx)
+
+        attrs = {}
+        if transparent:
+            attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
+                ctx.env.schema)
+
+        existing_ptrcls = ctx.env.schema.get(derived_name, default=None)
+        if existing_ptrcls is not None:
+            # The derived pointer class may already exist if
+            # the shape element is implicit (i.e. a type id),
+            # and the target type is not a view.
+            view_rptr.ptrcls = existing_ptrcls
         else:
-            raise RuntimeError(
-                'ViewRPtr does not define ptrcls or base_ptrcls')
+            view_rptr.ptrcls = schemactx.derive_view(
+                view_rptr.base_ptrcls, view_rptr.source, target_scls,
+                derived_name=derived_name,
+                is_insert=view_rptr.is_insert,
+                is_update=view_rptr.is_update,
+                attrs=attrs,
+                ctx=ctx
+            )
+
+        view_rptr.derived_ptrcls = view_rptr.ptrcls
 
     else:
         attrs = {}

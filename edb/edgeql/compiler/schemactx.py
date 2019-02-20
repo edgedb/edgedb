@@ -117,7 +117,8 @@ def resolve_schema_name(
 
 
 def derive_view(
-        stype: s_obj.Object, source: typing.Optional[s_nodes.Node]=None,
+        stype: s_obj.Object,
+        source: typing.Optional[s_nodes.Node]=None,
         target: typing.Optional[s_nodes.Node]=None,
         *qualifiers,
         derived_name: typing.Optional[sn.SchemaName]=None,

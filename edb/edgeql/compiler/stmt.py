@@ -27,8 +27,6 @@ from edb import errors
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
-from edb.schema import links as s_links
-from edb.schema import lproperties as s_props
 from edb.schema import objtypes as s_objtypes
 from edb.schema import name as s_name
 from edb.schema import types as s_types
@@ -576,43 +574,31 @@ def compile_query_subject(
         is_update: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
 
-    need_rptr_derivation = (
-        view_rptr is not None and
-        view_rptr.ptrcls is None and
-        view_rptr.ptrcls_name is not None
+    expr_stype = setgen.get_set_type(expr, ctx=ctx)
+    expr_rptr = expr.rptr
+
+    is_ptr_alias = (
+        view_rptr is not None
+        and view_rptr.ptrcls is None
+        and view_rptr.ptrcls_name is not None
+        and expr_rptr is not None
+        and (
+            view_rptr.ptrcls_is_linkprop
+            == (expr_rptr.ptrref.parent_ptr is not None)
+        )
     )
 
-    if need_rptr_derivation:
-        matching_type = (
-            expr.rptr is not None and
-            view_rptr.ptrcls_is_linkprop ==
-            (expr.rptr.ptrref.parent_ptr is not None))
-        if matching_type:
-            # We are inside an expression that defines a link alias in
-            # the parent shape, ie. Spam { alias := Foo.bar }, so
-            # `Spam.alias` should be a subclass of `Foo.bar` inheriting
-            # its properties.
-            rptr = expr.rptr
-            # Unwind type indirections first.
-            while isinstance(rptr, irast.TypeIndirectionPointer):
-                rptr = rptr.source.rptr
-            view_rptr.base_ptrcls = irtyputils.ptrcls_from_ptrref(
-                rptr.ptrref, schema=ctx.env.schema)
-        else:
-            if expr.path_id.is_objtype_path():
-                ptr_metacls = s_links.Link
-            else:
-                ptr_metacls = s_props.Property
-
-            base_ptrcls = ctx.env.schema.get(view_rptr.ptrcls_name, None)
-            if base_ptrcls is None:
-                ctx.env.schema, view_rptr.base_ptrcls = \
-                    ptr_metacls.create_in_schema(
-                        ctx.env.schema, name=view_rptr.ptrcls_name)
-            else:
-                view_rptr.base_ptrcls = base_ptrcls
-
-    expr_stype = setgen.get_set_type(expr, ctx=ctx)
+    if is_ptr_alias:
+        # We are inside an expression that defines a link alias in
+        # the parent shape, ie. Spam { alias := Spam.bar }, so
+        # `Spam.alias` should be a subclass of `Spam.bar` inheriting
+        # its properties.
+        rptr = expr_rptr
+        # Unwind type indirections first.
+        while isinstance(rptr, irast.TypeIndirectionPointer):
+            rptr = rptr.source.rptr
+        view_rptr.base_ptrcls = irtyputils.ptrcls_from_ptrref(
+            rptr.ptrref, schema=ctx.env.schema)
 
     if shape is not None and view_scls is None:
         if (view_name is None and
@@ -624,10 +610,6 @@ def compile_query_subject(
             elements=shape, view_rptr=view_rptr,
             view_name=view_name, is_insert=is_insert,
             is_update=is_update, ctx=ctx)
-
-    if need_rptr_derivation and view_rptr.ptrcls is None:
-        target = view_scls if view_scls is not None else expr_stype
-        viewgen.derive_ptrcls(view_rptr, target_scls=target, ctx=ctx)
 
     if view_scls is not None:
         expr = setgen.ensure_set(expr, type_override=view_scls, ctx=ctx)

@@ -369,16 +369,15 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
         return self.get_shortname(schema) in {'std::source', 'std::target'}
 
     def is_special_pointer(self, schema):
-        return self.get_shortname(schema) in {
-            'std::source', 'std::target', 'std::id'
+        return self.get_shortname(schema).name in {
+            'source', 'target', 'id'
         }
 
     def is_property(self, schema):
         raise NotImplementedError
 
     def is_protected_pointer(self, schema):
-        return (self.is_special_pointer(schema) or
-                self.get_shortname(schema) in {'std::__type__'})
+        return self.get_shortname(schema).name in {'id', '__type__'}
 
     def generic(self, schema):
         return self.get_source(schema) is None
