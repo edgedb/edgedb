@@ -20,6 +20,15 @@
 CREATE MODULE sys;
 
 
+CREATE TYPE sys::Config {
+    CREATE PROPERTY sys::name -> std::str;
+    CREATE PROPERTY sys::value -> std::str;
+    CREATE PROPERTY sys::source -> std::str;
+    CREATE PROPERTY sys::internal -> std::bool;
+    CREATE PROPERTY sys::system -> std::bool;
+};
+
+
 CREATE FUNCTION
 sys::sleep(duration: std::float64) -> std::bool
 {

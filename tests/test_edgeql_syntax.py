@@ -3407,6 +3407,9 @@ aa';
         SET SYSTEM CONFIG foo := (SELECT User);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'SET supports at most one SET SYSTEM',
+                  line=2, col=9)
     def test_edgeql_syntax_set_command_05(self):
         """
         SET SYSTEM CONFIG foo += '12', SYSTEM CONFIG baz -= '11';
@@ -3418,7 +3421,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'SET SYSTEM commands cannot be grouped',
+                  r'SET supports at most one SET SYSTEM',
                   line=2, col=9)
     def test_edgeql_syntax_set_command_07(self):
         """
@@ -3426,7 +3429,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'SET SYSTEM commands cannot be grouped',
+                  r'SET supports at most one SET SYSTEM',
                   line=2, col=9)
     def test_edgeql_syntax_set_command_08(self):
         """

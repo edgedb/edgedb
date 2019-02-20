@@ -506,7 +506,7 @@ def put_path_rvar(
     # will not be exposed in a query namespace.  However, when the masked
     # path in the *main* path of a set, it must still be exposed, but no
     # further than the immediate parent query.
-    if path_id in rvar.query.path_id_mask:
+    if hasattr(rvar, 'query') and path_id in rvar.query.path_id_mask:
         stmt.path_id_mask.add(path_id)
 
 

@@ -100,7 +100,7 @@ def _runstate_dir(data_dir, runstate_dir):
 
 
 def _init_cluster(cluster, args):
-    from edb.pgsql import bootstrap
+    from edb.server import bootstrap
 
     bootstrap_args = {
         'default_database': (args['default_database'] or

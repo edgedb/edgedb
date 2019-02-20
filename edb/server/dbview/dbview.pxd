@@ -17,12 +17,25 @@
 #
 
 
+cdef class DatabaseIndex:
+    cdef:
+        dict _dbs
+
+        object _data_dir
+
+        object _sys_config
+        object _sys_config_ver
+
+    cdef apply_system_config_op(self, op)
+
+
 cdef class Database:
 
     cdef:
         str _name
         object _dbver
         object _eql_to_compiled
+        DatabaseIndex _index
 
     cdef _signal_ddl(self)
     cdef _invalidate_caches(self)
@@ -43,6 +56,7 @@ cdef class DatabaseConnectionView:
         object _eql_to_compiled
 
         object _txid
+        object _in_tx_config
         bint _in_tx
         bint _in_tx_with_ddl
         bint _in_tx_with_set
@@ -66,3 +80,8 @@ cdef class DatabaseConnectionView:
     cdef start(self, query_unit)
     cdef on_error(self, query_unit)
     cdef on_success(self, query_unit)
+
+    cdef apply_config_ops(self, ops)
+
+    cdef get_session_config(self)
+    cdef set_session_config(self, new_conf)

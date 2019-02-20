@@ -37,11 +37,35 @@ class TestServerProto(tb.QueryTestCase):
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
             CREATE PROPERTY test::name -> std::str;
         };
+
+        # Used by is_testmode_on() to ensure that config modifications
+        # persist correctly when set inside and outside of (potentially
+        # failing) transaction blocks.
+        SET CONFIG __internal_testmode := true;
     '''
 
     TEARDOWN = '''
         DROP TYPE test::Tmp;
     '''
+
+    async def is_testmode_on(self):
+        # The idea is that if __internal_testmode value config is lost
+        # (no longer "true") then this script fails.
+        try:
+            await self.con.execute('''
+                CREATE FUNCTION test::testconf() -> bool
+                    FROM SQL $$ SELECT true; $$;
+                DROP FUNCTION test::testconf();
+            ''')
+        except edgedb.InvalidFunctionDefinitionError:
+            return False
+
+        return await self.con.fetch_value('''
+            SELECT
+                (SELECT sys::Config
+                 FILTER .name = "__internal_testmode"
+                 LIMIT 1).value = 'true'
+        ''')
 
     async def test_server_proto_parse_error_recover_01(self):
         for _ in range(2):
@@ -63,6 +87,8 @@ class TestServerProto(tb.QueryTestCase):
                 self.assertEqual(
                     await self.con.fetch('select 1;'),
                     edgedb.Set((1,)))
+
+            self.assertTrue(await self.is_testmode_on())
 
     async def test_server_proto_parse_error_recover_02(self):
         for _ in range(2):
@@ -349,6 +375,21 @@ class TestServerProto(tb.QueryTestCase):
             '''),
             [0])
 
+    async def test_server_proto_set_reset_alias_04(self):
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                "unknown CONFIG setting 'blahhhhhh'"):
+
+            await self.con.execute('''
+                SET ALIAS foo AS MODULE std,
+                    CONFIG blahhhhhh := 123;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                'non-existent function: foo::min'):
+            await self.con.fetch('SELECT foo::min({3})')
+
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
@@ -498,8 +539,13 @@ class TestServerProto(tb.QueryTestCase):
         query = f'SELECT test::{typename}.prop1'
         con = self.con
 
+        # __internal_testmode should be ON
+        self.assertTrue(await self.is_testmode_on())
+
         await con.execute(f'''
             START TRANSACTION;
+
+            SET CONFIG __internal_testmode := false;
 
             DECLARE SAVEPOINT t1;
 
@@ -509,6 +555,11 @@ class TestServerProto(tb.QueryTestCase):
 
             DECLARE SAVEPOINT t1;
         ''')
+
+        # Make sure that __internal_testmode was indeed updated.
+        self.assertFalse(await self.is_testmode_on())
+        # is_testmode_on call caused an error; rollback
+        await con.execute('ROLLBACK TO SAVEPOINT t1')
 
         try:
             await con.execute(f'''
@@ -575,6 +626,10 @@ class TestServerProto(tb.QueryTestCase):
 
         finally:
             await con.execute('ROLLBACK')
+
+        # __internal_testmode should be ON, just as when the test method
+        # was called.
+        self.assertTrue(await self.is_testmode_on())
 
     async def test_server_proto_tx_savepoint_02(self):
         with self.assertRaisesRegex(
@@ -1189,6 +1244,8 @@ class TestServerProto(tb.QueryTestCase):
             DELETE (SELECT test::Tmp);
         ''')
 
+        self.assertTrue(await self.is_testmode_on())
+
     async def test_server_proto_tx_10(self):
         # Basic test that ROLLBACK works on SET ALIAS changes.
 
@@ -1198,6 +1255,7 @@ class TestServerProto(tb.QueryTestCase):
                 DECLARE SAVEPOINT c0;
                 SET ALIAS f1 AS MODULE std;
                 DECLARE SAVEPOINT c1;
+                SET CONFIG __internal_testmode := false;
                 COMMIT;
 
                 SET ALIAS f2 AS MODULE std;
@@ -1216,6 +1274,8 @@ class TestServerProto(tb.QueryTestCase):
 
         await self.con.fetch('ROLLBACK')
 
+        self.assertFalse(await self.is_testmode_on())
+
         self.assertEqual(
             await self.con.fetch('SELECT f1::min({1})'),
             [1])
@@ -1225,18 +1285,15 @@ class TestServerProto(tb.QueryTestCase):
                 async with self.con.transaction():
                     await self.con.fetch(f'SELECT {n}::min({{1}})')
 
+        await self.con.fetch('SET CONFIG __internal_testmode := true')
+        self.assertTrue(await self.is_testmode_on())
+
     async def test_server_proto_tx_11(self):
         # Test that SET ALIAS (and therefore SET CONFIG etc) tracked by
         # the server behaves exactly like DML tracked by Postgres
         # when applied around savepoints.
 
         async def test_funcs(*, count, working, not_working):
-            actual_count = await self.con.fetch(
-                '''SELECT count(
-                    test::Tmp FILTER test::Tmp.tmp = "test_server_proto_tx_11")
-                ''')
-            self.assertEqual(actual_count[0], count)
-
             for ns in working:
                 self.assertEqual(
                     await self.con.fetch(f'SELECT {ns}::min({{1}})'),
@@ -1251,31 +1308,42 @@ class TestServerProto(tb.QueryTestCase):
                         await self.con.execute('ROLLBACK TO SAVEPOINT _;')
             await self.con.execute('RELEASE SAVEPOINT _;')
 
+            actual_count = await self.con.fetch_value(
+                '''SELECT count(
+                    test::Tmp11
+                    FILTER test::Tmp11.tmp = "test_server_proto_tx_11")
+                ''')
+            self.assertEqual(actual_count, count)
+
         with self.assertRaises(edgedb.DivisionByZeroError):
             await self.con.execute('''
+                CREATE TYPE test::Tmp11 {
+                    CREATE REQUIRED PROPERTY tmp -> std::str;
+                };
+
                 START TRANSACTION;
                     DECLARE SAVEPOINT c0;
                         SET ALIAS f1 AS MODULE std;
-                        INSERT test::Tmp {
+                        INSERT test::Tmp11 {
                             tmp := 'test_server_proto_tx_11'
                         };
                     DECLARE SAVEPOINT c1;
                 COMMIT;
 
                 SET ALIAS f2 AS MODULE std;
-                INSERT test::Tmp {
+                INSERT test::Tmp11 {
                     tmp := 'test_server_proto_tx_11'
                 };
 
                 START TRANSACTION;
                     DECLARE SAVEPOINT a0;
                         SET ALIAS f3 AS MODULE std;
-                        INSERT test::Tmp {
+                        INSERT test::Tmp11 {
                             tmp := 'test_server_proto_tx_11'
                         };
                     DECLARE SAVEPOINT a1;
                         SET ALIAS f4 AS MODULE std;
-                        INSERT test::Tmp {
+                        INSERT test::Tmp11 {
                             tmp := 'test_server_proto_tx_11'
                         };
                         SELECT 1 / 0;
@@ -1283,7 +1351,7 @@ class TestServerProto(tb.QueryTestCase):
 
                 START TRANSACTION;  # this never executes
                     SET ALIAS f5 AS MODULE std;
-                    INSERT test::Tmp {
+                    INSERT test::Tmp11 {
                         tmp := 'test_server_proto_tx_11'
                     };
                 COMMIT;
@@ -1310,6 +1378,8 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.execute('''
             COMMIT;
         ''')
+
+        self.assertTrue(await self.is_testmode_on())
 
     async def test_server_proto_tx_12(self):
         # Test that savepoint's state isn't corrupted by repeated
@@ -1368,6 +1438,8 @@ class TestServerProto(tb.QueryTestCase):
                     await self.con.fetch(f'SELECT {ns}::min({{1}})')
 
         for exec_meth in (self.con.execute, self.con.fetch):
+            self.assertTrue(await self.is_testmode_on())
+
             try:
                 await self.con.execute('''
                     CREATE TYPE test::Tmp_tx_13 {
@@ -1397,6 +1469,7 @@ class TestServerProto(tb.QueryTestCase):
 
                 await self.con.execute('''
                     SET ALIAS f2 AS MODULE std;
+                    SET CONFIG __internal_testmode := false;
 
                     START TRANSACTION;
 
@@ -1408,6 +1481,14 @@ class TestServerProto(tb.QueryTestCase):
                     SET ALIAS f4 AS MODULE std;
                 ''')
 
+                self.assertFalse(
+                    await self.con.fetch_value('''
+                        SELECT
+                            (SELECT sys::Config
+                             FILTER .name = "__internal_testmode"
+                             LIMIT 1).value = 'true'
+                    '''))
+
                 with self.assertRaises(edgedb.ConstraintViolationError):
                     await exec_meth('COMMIT')
 
@@ -1418,6 +1499,8 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.execute('''
                     DROP TYPE test::Tmp_tx_13;
                 ''')
+
+        self.assertTrue(await self.is_testmode_on())
 
     async def test_server_proto_tx_14(self):
         await self.con.execute('''

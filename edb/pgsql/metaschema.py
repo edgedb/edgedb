@@ -43,6 +43,10 @@ from . import dbops
 from . import types
 
 
+DATABASE_ID_NAMESPACE = uuid.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
+CONFIG_ID_NAMESPACE = uuid.UUID('a48b38fa-349b-11e9-a6be-4f337f82f5ad')
+
+
 class Context:
     def __init__(self, conn):
         self.db = conn
@@ -1384,6 +1388,124 @@ class JSONSliceFunction(dbops.Function):
             text=self.text)
 
 
+class SysConfigFunction(dbops.Function):
+
+    # This is a function because "_edgecon_state" is a temporary table
+    # and therefore cannot be used in a view.
+
+    text = f'''
+        BEGIN
+        RETURN QUERY EXECUTE $$
+            WITH
+                data_dir AS
+                    (SELECT setting AS dir FROM pg_settings
+                     WHERE name = 'data_directory'),
+
+                config_spec AS
+                    (SELECT
+                        s.key AS name,
+                        s.value->'default'->>1 AS default,
+                        (s.value->>'internal')::bool AS internal,
+                        (s.value->>'system')::bool AS system
+                    FROM
+                        jsonb_each(
+                            (SELECT pg_read_file(
+                                (SELECT d.dir || '/config_spec.json'
+                                 FROM data_dir d)
+                            )::jsonb)
+                        ) s
+                    ),
+
+                config_defaults AS
+                    (SELECT
+                        s.name AS name,
+                        s.default AS value,
+                        'default' AS source,
+                        0 AS priority
+                    FROM
+                        config_spec s
+                    ),
+
+                config_sys AS
+                    (SELECT
+                        s.key AS name,
+                        s.value->>1 AS value,
+                        'system override' AS source,
+                        10 AS priority
+                    FROM
+                        jsonb_each(
+                            (SELECT pg_read_file(
+                                (SELECT d.dir || '/config_sys.json'
+                                 FROM data_dir d)
+                            )::jsonb)
+                        ) s
+                    ),
+
+                config_sess AS
+                    (SELECT
+                        s.name AS name,
+                        s.edgeql_value AS value,
+                        'session' AS source,
+                        20 AS priority
+                    FROM
+                        _edgecon_state s
+                    WHERE
+                        s.type = 'C'
+                    )
+
+            SELECT
+                NULL::uuid AS __edb_token,
+                edgedb.uuid_generate_v5(
+                    '{CONFIG_ID_NAMESPACE}'::uuid,
+                    q.name
+                ) AS id,
+                (SELECT id FROM edgedb.Object
+                     WHERE name = 'sys::Config'
+                ) AS __type__,
+                q.name,
+                q.value,
+                q.source,
+                cs.internal,
+                cs.system
+            FROM
+                (SELECT
+                    u.name,
+                    u.value,
+                    u.source,
+                    row_number() OVER (
+                        PARTITION BY u.name ORDER BY u.priority DESC) AS n
+                FROM
+                    (
+                        SELECT * FROM config_defaults UNION ALL
+                        SELECT * FROM config_sys UNION ALL
+                        SELECT * FROM config_sess
+                    ) AS u
+                ) AS q
+                INNER JOIN config_spec cs
+                    ON q.name = cs.name
+            WHERE
+                q.n = 1;
+        $$;
+        END;
+    '''
+
+    def __init__(self, schema):
+        sys_config = schema.get('sys::Config')
+        sys = schema.get('sys')
+        sys_config_tab = common.get_objtype_backend_name(
+            sys_config.id, sys.id, catenate=False)
+
+        super().__init__(
+            name=('edgedb', '_read_sys_config'),
+            args=[],
+            returns=sys_config_tab,
+            set_returning=True,
+            language='plpgsql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 def _field_to_column(field):
     ftype = field.type
     coltype = None
@@ -1785,9 +1907,6 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     return dbops.View(name=tabname(schema, ptr), query=link_query)
 
 
-DATABASE_ID_NAMESPACE = uuid.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
-
-
 def _generate_database_view(schema):
     Database = schema.get('schema::Database')
 
@@ -1932,6 +2051,22 @@ def _generate_types_views(schema, type_fields):
     views.append(dbops.View(name=tabname(schema, Tuple), query=view_query))
 
     return views
+
+
+async def generate_support_views(conn, schema):
+    commands = dbops.CommandGroup()
+
+    commands.add_commands([
+        dbops.CreateFunction(SysConfigFunction(schema)),
+        dbops.CreateView(
+            dbops.View(
+                name=tabname(schema, schema.get('sys::Config')),
+                query='SELECT * FROM edgedb._read_sys_config()'))
+    ])
+
+    block = dbops.PLTopBlock(disable_ddl_triggers=True)
+    commands.generate(block)
+    await _execute_block(conn, block)
 
 
 async def generate_views(conn, schema):

@@ -34,6 +34,7 @@ import edgedb
 
 import edb
 from edb.common import devmode
+
 from edb.server import defines as edgedb_defines
 
 from . import render_dsn

@@ -38,7 +38,7 @@ class Server:
         self._pg_addr = self._get_pgaddr()
         self._pg_data_dir = self._cluster.get_data_dir()
 
-        self._dbindex = dbview.DatabaseIndex()
+        self._dbindex = dbview.DatabaseIndex(self._pg_data_dir)
 
         self._runstate_dir = runstate_dir
         self._max_backend_connections = max_backend_connections

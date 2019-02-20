@@ -18,6 +18,7 @@
 
 
 import logging
+import os.path
 import pathlib
 import pickle
 import re
@@ -38,11 +39,12 @@ from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
 from edb.server import defines as edgedb_defines
+from edb.server import config
 from edb.server.backend import compiler
 
-from . import dbops
-from . import delta as delta_cmds
-from . import metaschema
+from edb.pgsql import dbops
+from edb.pgsql import delta as delta_cmds
+from edb.pgsql import metaschema
 
 
 CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
@@ -292,6 +294,7 @@ async def _init_stdlib(cluster, conn):
         pickle.dump(schema, file=f, protocol=pickle.HIGHEST_PROTOCOL)
 
     await metaschema.generate_views(conn, schema)
+    await metaschema.generate_support_views(conn, schema)
 
     return schema
 
@@ -395,6 +398,20 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster):
                 await dbconn.close()
 
 
+async def _ensure_configs(cluster):
+    data_dir = cluster.get_data_dir()
+    spec_fn = os.path.join(data_dir, 'config_spec.json')
+    sys_fn = os.path.join(data_dir, 'config_sys.json')
+
+    if not os.path.exists(spec_fn):
+        with open(spec_fn, 'wt') as f:
+            f.write(config.spec_to_json(config.settings))
+
+    if not os.path.exists(sys_fn):
+        with open(sys_fn, 'wt') as f:
+            f.write('{}')
+
+
 def _pg_log_listener(conn, msg):
     if msg.severity_en == 'WARNING':
         level = logging.WARNING
@@ -441,6 +458,8 @@ async def bootstrap(cluster, args):
         await _ensure_edgedb_database(
             pgconn, args['default_database'], args['default_database_user'],
             cluster=cluster)
+
+        await _ensure_configs(cluster)
 
     finally:
         await pgconn.close()

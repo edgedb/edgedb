@@ -27,6 +27,7 @@ import immutables
 from edb import errors
 
 from edb.schema import schema as s_schema
+from edb.server import config
 
 from . import enums
 from . import sertypes
@@ -60,28 +61,25 @@ class Query(BaseQuery):
     in_type_data: bytes
     in_type_id: bytes
 
-    single_unit: bool = False
-
 
 @dataclasses.dataclass(frozen=True)
 class SimpleQuery(BaseQuery):
 
     sql: typing.Tuple[bytes, ...]
-    single_unit: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
 class SessionStateQuery(BaseQuery):
 
     sql: typing.Tuple[bytes, ...]
-    single_unit: bool = False
+    has_system_settings: bool = False
+    config_ops: typing.Optional[typing.List[config.Operation]] = None
 
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
     sql: typing.Tuple[bytes, ...]
-    single_unit: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -92,7 +90,6 @@ class TxControlQuery(BaseQuery):
     single_unit: bool
     cacheable: bool
 
-    config: typing.Optional[immutables.Map]
     modaliases: typing.Optional[immutables.Map]
 
 
@@ -149,7 +146,7 @@ class QueryUnit:
     in_type_data: bytes = sertypes.EMPTY_TUPLE_DESC
     in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
 
-    config: typing.Optional[immutables.Map] = None
+    config_ops: typing.Optional[typing.List[config.Operation]] = None
     modaliases: typing.Optional[immutables.Map] = None
 
 
@@ -235,7 +232,7 @@ class Transaction:
                 name=name,
                 schema=self.get_schema(),
                 modaliases=self.get_modaliases(),
-                config=self.get_config()))
+                config=self.get_session_config()))
 
         # The top of the stack is the "current" state.
         self._stack.append(
@@ -244,7 +241,7 @@ class Transaction:
                 name=None,
                 schema=self.get_schema(),
                 modaliases=self.get_modaliases(),
-                config=self.get_config()))
+                config=self.get_session_config()))
 
         copy = self.copy()
         self._constate._savepoints_log[sp_id] = copy
@@ -293,7 +290,7 @@ class Transaction:
     def get_modaliases(self) -> immutables.Map:
         return self._stack[-1].modaliases
 
-    def get_config(self) -> immutables.Map:
+    def get_session_config(self) -> immutables.Map:
         return self._stack[-1].config
 
     def update_schema(self, new_schema: s_schema.Schema):
@@ -302,7 +299,7 @@ class Transaction:
     def update_modaliases(self, new_modaliases: immutables.Map):
         self._stack[-1] = self._stack[-1]._replace(modaliases=new_modaliases)
 
-    def update_config(self, new_config: immutables.Map):
+    def update_session_config(self, new_config: immutables.Map):
         self._stack[-1] = self._stack[-1]._replace(config=new_config)
 
 

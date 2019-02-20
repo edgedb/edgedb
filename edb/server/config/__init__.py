@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,22 +17,48 @@
 #
 
 
-import immutables
+from .ops import OpLevel, OpCode, Operation, apply, lookup
+from .ops import spec_to_json, to_json, from_json
+from .ops import value_to_json_edgeql, value_to_json_edgeql_value
+from .ops import value_to_json, value_from_json
+from .spec import Spec, Setting
+from .types import ConfigType, Port
 
-from .setting import setting, ConfigLevel
+
+__all__ = (
+    'settings',
+    'apply', 'lookup',
+    'Spec', 'Setting',
+    'spec_to_json', 'to_json', 'from_json',
+    'value_to_json_edgeql', 'value_to_json_edgeql_value',
+    'value_to_json', 'value_from_json',
+    'OpLevel', 'OpCode', 'Operation',
+    'ConfigType', 'Port',
+)
 
 
-__all__ = ('configs',)
+settings = Spec(
+    # === User-configurable settings: ===
 
+    Setting(
+        'ports',
+        type=Port, set_of=True, default=frozenset(),
+        system=True),
 
-configs = immutables.Map(
-    __internal_no_const_folding=setting(
-        type=bool,
-        default=False,
-        level=ConfigLevel.SESSION),
+    # === Internal settings (not part of stable API): ===
 
-    __internal_testmode=setting(
-        type=bool,
-        default=False,
-        level=ConfigLevel.SESSION),
+    Setting(
+        '__internal_no_const_folding',
+        type=bool, default=False,
+        internal=True),
+
+    Setting(
+        '__internal_testmode',
+        type=bool, default=False,
+        internal=True),
+
+    Setting(
+        '__internal_testvalue',
+        type=int, default=0,
+        internal=True),
 )

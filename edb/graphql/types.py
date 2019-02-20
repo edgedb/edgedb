@@ -92,7 +92,7 @@ class GQLCoreSchema:
         self.modules = {
             m.get_name(self.edb_schema)
             for m in self.edb_schema.get_objects(type=s_mod.Module)
-        } - {'schema', 'stdgraphql'}
+        } - {'schema', 'stdgraphql', 'sys'}
         self.modules = list(self.modules)
         self.modules.sort()
 

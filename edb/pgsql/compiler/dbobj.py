@@ -45,7 +45,7 @@ def range_for_material_objtype(
     table_schema_name, table_name = common.get_objtype_backend_name(
         typeref.id, typeref.module_id, catenate=False)
 
-    if typeref.name_hint.module == 'schema':
+    if typeref.name_hint.module in {'schema', 'sys'}:
         # Redirect all queries to schema tables to edgedbss
         table_schema_name = 'edgedbss'
 
@@ -152,7 +152,7 @@ def table_from_ptrref(
     table_schema_name, table_name = common.get_pointer_backend_name(
         ptrref.id, ptrref.module_id, catenate=False)
 
-    if ptrref.shortname.module == 'schema':
+    if ptrref.shortname.module in {'schema', 'sys'}:
         # Redirect all queries to schema tables to edgedbss
         table_schema_name = 'edgedbss'
 

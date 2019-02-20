@@ -85,15 +85,9 @@ class SetStmt(Nonterm):
             if isinstance(node, qlast.BaseSessionConfigSet)
         )
 
-        all_system_commands = all(
-            isinstance(node, qlast.BaseSessionConfigSet) and node.system
-            for node in kids[1].val
-        )
-
-        if has_system_commands and not all_system_commands:
+        if has_system_commands and len(kids[1].val) > 1:
             raise errors.EdgeQLSyntaxError(
-                "SET SYSTEM commands cannot be grouped with non-system "
-                "SET commands",
+                "SET supports at most one SET SYSTEM CONFIG command",
                 context=kids[0].context)
 
         self.val = qlast.SetSessionState(
