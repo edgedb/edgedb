@@ -41,6 +41,7 @@ from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import operators as s_opers
 from edb.schema import pseudo as s_pseudo
+from edb.schema import roles as s_roles
 from edb.schema import types as s_types
 
 from edb.pgsql import common
