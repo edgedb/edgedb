@@ -27,10 +27,9 @@ class QueryMode(enum.IntEnum):
 
     Normal = 0
     JSON = 1
-    GraphQL = 2
 
     def cycle(self):
-        return QueryMode((int(self) + 1) % 3)
+        return QueryMode((int(self) + 1) % 2)
 
 
 @dataclasses.dataclass

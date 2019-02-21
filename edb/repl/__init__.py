@@ -20,7 +20,6 @@
 import argparse
 import atexit
 import getpass
-import json
 import os
 import pathlib
 import select
@@ -327,11 +326,7 @@ class Cli:
                 qm = self.context.query_mode
                 results = []
                 try:
-                    if qm is context.QueryMode.GraphQL:
-                        command = command.rstrip(';')
-                        results.append(
-                            self.connection._execute_graphql(command))
-                    elif qm is context.QueryMode.Normal:
+                    if qm is context.QueryMode.Normal:
                         for query in lexutils.split_edgeql(command)[0]:
                             results.append(self.connection.fetch(query))
                     else:
@@ -351,14 +346,7 @@ class Cli:
 
                 max_width = self.prompt.output.get_size().columns
                 for result in results:
-                    if qm is context.QueryMode.GraphQL:
-                        out = render.render_json(
-                            self.context,
-                            json.dumps(result),
-                            max_width=min(max_width, 120),
-                            use_colors=use_colors)
-
-                    elif qm is context.QueryMode.JSON:
+                    if qm is context.QueryMode.JSON:
                         out = render.render_json(
                             self.context,
                             result,

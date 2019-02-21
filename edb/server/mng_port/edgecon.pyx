@@ -299,74 +299,6 @@ cdef class EdgeConnection:
         except Exception:
             self.dbview.raise_in_tx_error()
 
-    async def legacy(self):
-        cdef:
-            WriteBuffer msg
-            WriteBuffer packet
-
-        lang = self.buffer.read_byte()
-        graphql = lang == b'g'
-        if not graphql:
-            raise errors.BinaryProtocolError('only graphql is supported')
-
-        gql = self.buffer.read_null_str()
-        self.buffer.finish_message()
-        if not gql:
-            raise errors.BinaryProtocolError('empty query')
-
-        if self.debug:
-            self.debug_print('LEGACY', gql)
-
-        if self.dbview.in_tx():
-            raise errors.TransactionError(
-                'GraphQL queries cannot run in a transaction block')
-
-        query_unit = await self.backend.compiler.call(
-            'compile_graphql',
-            self.dbview.dbver,
-            gql.decode())
-
-        self.dbview.start(query_unit)
-        try:
-            res = await self.backend.pgcon.simple_query(
-                b';'.join(query_unit.sql), ignore_data=False)
-            if query_unit.config_ops is not None:
-                await self.dbview.apply_config_ops(query_unit.config_ops)
-        except ConnectionAbortedError:
-            raise
-        except Exception as ex:
-            self.dbview.on_error(query_unit)
-            if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
-                # COMMIT command can fail, in which case the
-                # transaction is aborted.  This check workarounds
-                # that (until a better solution is found.)
-                self.dbview.abort_tx()
-                await self.recover_current_tx_info()
-            raise
-        else:
-            self.dbview.on_success(query_unit)
-
-        if res is not None:
-            if len(res) > 1:
-                raise errors.TransactionError(
-                    'GraphQL query returned more than one data row')
-            out = list(r[0] for r in res if r)
-            if out:
-                result = out[0]
-            else:
-                result = b'null'
-        else:
-            result = b'null'
-
-        msg = WriteBuffer.new_message(b'L')
-        msg.write_bytes(result)
-
-        packet = WriteBuffer.new()
-        packet.write_buffer(msg.end_message())
-        packet.write_buffer(self.pgcon_last_sync_status())
-        self.write(packet)
-        self.flush()
-
     async def _recover_script_error(self, eql):
         assert self.dbview.in_tx_error()
 
@@ -794,11 +726,6 @@ cdef class EdgeConnection:
 
                     elif mtype == b'S':
                         await self.sync()
-
-                    elif mtype == b'L':
-                        flush_sync_on_error = True
-                        await self.legacy()
-                        self.flush()
 
                     else:
                         self.fallthrough(False)
