@@ -33,6 +33,7 @@ import tempfile
 import threading
 import time
 import types
+import typing
 import unittest.case
 import unittest.result
 import unittest.runner
@@ -50,7 +51,12 @@ from edb.server import cluster as edgedb_cluster
 from . import styles
 
 
-cache = {}
+class TestSuiteCache:
+
+    cache: typing.Mapping[unittest.TestCase, unittest.TestSuite] = {}
+
+
+suite_cache = TestSuiteCache()
 result = None
 
 
@@ -68,6 +74,15 @@ def init_worker(param_queue, result_queue):
         if server_addr is not None:
             cluster = edgedb_cluster.RunningCluster(**server_addr)
             tb._set_default_cluster(cluster)
+
+    multiprocessing.util.Finalize(suite_cache, finalize_result_testcases,
+                                  exitpriority=100)
+
+
+def finalize_result_testcases():
+    for case, suite in suite_cache.cache.items():
+        suite._tearDownPreviousClass(None, result)
+        suite._handleModuleTearDown(result)
 
 
 class StreamingTestSuite(unittest.TestSuite):
@@ -111,9 +126,9 @@ def _run_test(case):
     case_class = type(case)
 
     try:
-        suite = cache[case_class]
+        suite = suite_cache.cache[case_class]
     except KeyError:
-        suite = cache[case_class] = StreamingTestSuite()
+        suite = suite_cache.cache[case_class] = StreamingTestSuite()
 
     if isinstance(case, collections.abc.Iterable):
         # Got a test suite
@@ -259,17 +274,20 @@ class SequentialTestSuite(unittest.TestSuite):
         self.server_conn = server_conn
         self.stop_requested = False
 
-    def run(self, result):
+    def run(self, result_):
+        global result
+        result = result_
+
         if self.server_conn:
             cluster = edgedb_cluster.RunningCluster(**self.server_conn)
             tb._set_default_cluster(cluster)
 
-        suite = StreamingTestSuite()
-
         for test in self.tests:
-            suite.run(test, result)
+            _run_test(test)
             if self.stop_requested:
                 break
+
+        finalize_result_testcases()
 
         return result
 

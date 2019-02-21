@@ -407,9 +407,12 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                         cls.admin_conn.execute(script))
 
             finally:
-                if cls.admin_conn is not None:
-                    cls.loop.run_until_complete(
-                        cls.admin_conn.close())
+                try:
+                    if cls.admin_conn is not None:
+                        cls.loop.run_until_complete(
+                            cls.admin_conn.close())
+                finally:
+                    super().tearDownClass()
 
 
 class nullable:
