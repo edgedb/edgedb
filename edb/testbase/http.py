@@ -55,7 +55,8 @@ class GraphQLTestCase(server.QueryTestCase):
         cls.http_addr = f'http://127.0.0.1:{cls.http_port}'
 
     def graphql_query(self, query, *, operation_name=None,
-                      use_http_post=True):
+                      use_http_post=True,
+                      variables=None):
         req_data = {
             'query': query
         }
@@ -64,12 +65,16 @@ class GraphQLTestCase(server.QueryTestCase):
             req_data['operationName'] = operation_name
 
         if use_http_post:
+            if variables is not None:
+                req_data['variables'] = variables
             req = urllib.request.Request(self.http_addr)
             req.add_header('Content-Type', 'application/json')
             response = urllib.request.urlopen(
                 req, json.dumps(req_data).encode())
             resp_data = json.loads(response.read())
         else:
+            if variables is not None:
+                req_data['variables'] = json.dumps(variables)
             response = urllib.request.urlopen(
                 f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}')
             resp_data = json.loads(response.read())
@@ -94,11 +99,13 @@ class GraphQLTestCase(server.QueryTestCase):
     def assert_graphql_query_result(self, query, result, *,
                                     msg=None, sort=None,
                                     operation_name=None,
-                                    use_http_post=True):
+                                    use_http_post=True,
+                                    variables=None):
         res = self.graphql_query(
             query,
             operation_name=operation_name,
-            use_http_post=use_http_post)
+            use_http_post=use_http_post,
+            variables=variables)
 
         if sort is not None:
             # GQL will always have a single object returned. The data is

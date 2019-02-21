@@ -1854,10 +1854,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_01(self):
-        # FIXME: don't have a way of supplying the parameter $name
-        self.assert_graphql_query_result(r"""
+        query = r"""
             query($name: String) {
                 User(filter: {name: {eq: $name}}) {
                     name,
@@ -1866,14 +1864,65 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     }
                 }
             }
-        """, {
+        """
+
+        expected_result = {
             'User': [{
                 'name': 'John',
                 'groups': [{
                     'name': 'basic',
                 }]
             }],
-        })
+        }
+
+        self.assert_graphql_query_result(
+            query,
+            expected_result,
+            variables={'name': 'John'},
+            use_http_post=True
+        )
+
+        self.assert_graphql_query_result(
+            query,
+            expected_result,
+            variables={'name': 'John'},
+            use_http_post=False
+        )
+
+    def test_graphql_functional_variables_02(self):
+        self.assert_graphql_query_result(
+            r"""
+                query($name: String, $age: Int) {
+                    User(filter: {or: [{name: {eq: $name}},
+                                       {age: {gt: $age}}]},
+                         order: {name: {dir: ASC}})
+                    {
+                        name
+                        age
+                    }
+                }
+            """,
+            {
+                "User": [
+                    {
+                        "name": "Alice",
+                        "age": 27,
+                    },
+                    {
+                        "name": "Jane",
+                        "age": 25,
+                    },
+                    {
+                        "name": "John",
+                        "age": 25,
+                    },
+                ]
+            },
+            variables={
+                "age": 24,
+                "name": "Alice"
+            }
+        )
 
     @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_03(self):
@@ -2295,6 +2344,24 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     }
                 }
             """)
+
+    def test_graphql_functional_variables_33(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'expected json string'):
+
+            self.graphql_query(
+                r"""
+                    query($name: String) {
+                        User(filter: {name: {eq: $name}}) {
+                            name,
+                            groups {
+                                name
+                            }
+                        }
+                    }
+                """,
+                variables={'name': 11})
 
     def test_graphql_functional_enum_01(self):
         with self.assertRaisesRegex(

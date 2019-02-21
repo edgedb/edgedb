@@ -396,9 +396,30 @@ def compile_TypeCast(
                     f'{pt.get_displayname(ctx.env.schema)}',
                     context=expr.expr.context)
 
-        param = irast.Parameter(
-            typeref=irtyputils.type_to_typeref(ctx.env.schema, pt),
-            name=param_name, context=expr.expr.context)
+        if ctx.env.json_parameters:
+            if param_name.isdecimal():
+                raise errors.QueryError(
+                    'queries compiled to accept JSON parameters do not '
+                    'accept positional parameters',
+                    context=expr.expr.context)
+
+            json_typeref = irtyputils.type_to_typeref(
+                ctx.env.schema, ctx.env.schema.get('std::json'))
+
+            param = irast.Parameter(
+                typeref=json_typeref,
+                name=param_name, context=expr.expr.context)
+
+            param = cast.compile_cast(
+                param, pt,
+                srcctx=expr.expr.context,
+                ctx=ctx)
+
+        else:
+            param = irast.Parameter(
+                typeref=irtyputils.type_to_typeref(ctx.env.schema, pt),
+                name=param_name, context=expr.expr.context)
+
         return setgen.ensure_set(param, ctx=ctx)
 
     else:

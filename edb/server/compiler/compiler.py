@@ -977,23 +977,38 @@ class Compiler:
             gql: str,
             operation_name: str=None):
 
-        ctx = await self._ctx_new_con_state(
-            dbver=dbver,
-            json_mode=False,
-            modaliases=EMPTY_MAP,
-            session_config=EMPTY_MAP,
-            stmt_mode=enums.CompileStatementMode.SINGLE,
-            capability=enums.Capability.QUERY)
+        db = await self._get_database(dbver)
 
         eql = graphql.translate(
-            ctx.state.current_tx().get_schema(),
+            db.schema,
             gql,
             variables={},
-            operation_name=operation_name).encode()
+            operation_name=operation_name)
 
-        units = self._compile(ctx=ctx, eql=eql)
-        assert len(units) == 1
-        return units[0]
+        statements = edgeql.parse_block(eql)
+        if len(statements) != 1:
+            raise errors.ProtocolError(
+                f'expected GraphQL query to result in one EdgeQL statement, '
+                f'got {len(statements)}')
+
+        ir = ql_compiler.compile_ast_to_ir(
+            statements[0],
+            schema=db.schema,
+            json_parameters=True)
+
+        sql_text, argmap = pg_compiler.compile_ir_to_sql(
+            ir,
+            pretty=debug.flags.edgeql_compile,
+            output_format=pg_compiler.OutputFormat.NATIVE)
+
+        args = [None] * len(argmap)
+        for argname, argpos in argmap.items():
+            args[argpos - 1] = argname
+
+        return {
+            'sql': sql_text.encode(),
+            'args': args,
+        }
 
     async def compile_eql(
             self,

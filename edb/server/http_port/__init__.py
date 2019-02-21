@@ -33,6 +33,7 @@ from edb.common import debug
 from edb.common import markup
 from edb.common import taskgroup
 from edb.server import baseport
+from edb.server.pgcon import errors as pgerrors
 
 
 class HttpRequest(typing.NamedTuple):
@@ -120,11 +121,17 @@ class HttpProtocol(asyncio.Protocol):
     async def handle(self, request, response):
         try:
             operation_name = None
+            variables = None
             if request.method == 'POST':
                 if request.content_type and 'json' in request.content_type:
                     body = json.loads(request.body)
                     query = body['query']
                     operation_name = body.get('operationName')
+                    if operation_name:
+                        assert isinstance(operation_name, str)
+                    variables = body.get('variables')
+                    if variables:
+                        assert isinstance(variables, dict)
                 elif request.content_type == 'application/graphql':
                     query = body.decode('utf-8')
                 else:
@@ -138,6 +145,9 @@ class HttpProtocol(asyncio.Protocol):
                 operation_name = qs.get('operationName')
                 if operation_name is not None:
                     operation_name = operation_name[0]
+                variables = qs.get('variables')
+                if variables is not None:
+                    variables = json.loads(variables[0])
                 if not query:
                     raise RuntimeError(
                         'unable to interpret GraphQL GET request')
@@ -165,16 +175,28 @@ class HttpProtocol(asyncio.Protocol):
             finally:
                 self._server._compilers.put_nowait(compiler)
 
+            sql = qu['sql']
+            argmap = qu['args']
+
+            args = []
+            if argmap:
+                for name in argmap:
+                    if variables is None or name not in variables:
+                        raise errors.QueryError(
+                            f'no value for the {name!r} variable')
+                    args.append(variables[name])
+
             pgcon = await self._server._pgcons.get()
             try:
-                data = await pgcon.simple_query(qu.sql[0], False)
+                data = await pgcon.parse_execute_json(sql, args)
             finally:
                 self._server._pgcons.put_nowait(pgcon)
 
-            response.write(b'{"data":' + data[0][0] + b'}')
+            response.write(b'{"data":' + data + b'}')
         except Exception as ex:
             ex_type = type(ex)
-            if issubclass(ex_type, gql_errors.GraphQLError):
+            if issubclass(ex_type, (gql_errors.GraphQLError,
+                                    pgerrors.BackendError)):
                 # XXX Fix this when LSP "location" objects are implemented
                 ex_type = errors.QueryError
 

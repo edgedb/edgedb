@@ -18,6 +18,8 @@
 
 
 import asyncio
+import codecs
+import json
 
 cimport cython
 cimport cpython
@@ -34,6 +36,7 @@ from edb.server import defines
 from edb.pgsql import common as pg_common
 
 from edb.server.pgproto cimport hton
+from edb.server.pgproto cimport pgproto
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
     ReadBuffer,
@@ -64,6 +67,22 @@ async def connect(addr, dbname):
 
     await protocol.connect()
     return protocol
+
+
+@cython.final
+cdef class EdegDBCodecContext(pgproto.CodecContext):
+
+    cdef:
+        object _codec
+
+    def __cinit__(self):
+        self._codec = codecs.lookup('utf-8')
+
+    cpdef get_text_codec(self):
+        return self._codec
+
+    cdef is_encoding_utf8(self):
+        return True
 
 
 @cython.final
@@ -162,6 +181,123 @@ cdef class PGProto:
                         print(f'PGCon.wait_for_sync: discarding '
                               f'{chr(mtype)!r} message')
                     self.buffer.discard_message()
+
+    async def parse_execute_json(self, sql, args):
+        cdef:
+            WriteBuffer parse
+            WriteBuffer bind
+            WriteBuffer execute
+            WriteBuffer buf
+            char *str
+            ssize_t size
+
+        parse = WriteBuffer.new_message(b'P')
+        parse.write_bytestring(b'')  # statement name
+        parse.write_bytestring(sql)
+        parse.write_int16(0)  # we don't want to specify parameter types
+        parse.end_message()
+
+        bind = WriteBuffer.new_message(b'B')
+        bind.write_bytestring(b'')  # portal name
+        bind.write_bytestring(b'')  # statement name
+        bind.write_int32(0x00010001)  # binary for all parameters
+        bind.write_int16(len(args))  # number of parameters
+
+        for arg in args:
+            jarg = json.dumps(arg)
+            pgproto.jsonb_encode(DEFAULT_CODEC_CONTEXT, bind, jarg)
+
+        bind.write_int32(0x00010001)  # binary for the output
+        bind.end_message()
+
+        execute = WriteBuffer.new_message(b'E')
+        execute.write_bytestring(b'')  # portal name
+        execute.write_int32(0)  # return all rows
+        execute.end_message()
+
+        buf = WriteBuffer.new()
+        buf.write_buffer(parse)
+        buf.write_buffer(bind)
+        buf.write_buffer(execute)
+        buf.write_bytes(SYNC_MESSAGE)
+
+        self.write(buf)
+        error = None
+        self.waiting_for_sync = True
+        data = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == b'D':
+                    # DataRow
+                    if data is not None:
+                        error = RuntimeError(
+                            f'received more than one DataRow '
+                            f'for a JSON query {sql!r}')
+                        self.buffer.discard_message()
+                        continue
+
+                    ncol = self.buffer.read_int16()
+                    if ncol != 1:
+                        error = RuntimeError(
+                            f'received more than column in DataRow '
+                            f'for a JSON query {sql!r}')
+                        self.buffer.discard_message()
+                        continue
+
+                    coll = self.buffer.read_int32()
+                    if coll == -1:
+                        error = RuntimeError(
+                            f'received NULL for a JSON query {sql!r}')
+                        self.buffer.discard_message()
+                        continue
+                    if coll <= 2:
+                        error = RuntimeError(
+                            f'unable to unpack DataRow '
+                            f'for a JSON query {sql!r}')
+                        self.buffer.discard_message()
+                        continue
+
+                    b = self.buffer.read_byte()
+                    if b != 1:
+                        error = RuntimeError(
+                            f'invalid JSONB format for a JSON query {sql!r}')
+                        self.buffer.discard_message()
+                        continue
+
+                    data = self.buffer.read_bytes(coll - 1)
+
+                elif mtype == b'E':
+                    # ErrorResponse
+                    fields = self.parse_error_message()
+                    error = pgerror.BackendError(fields=fields)
+
+                elif mtype in {b'C', b'n', b'1', b'2', b'I'}:
+                    # CommandComplete
+                    # NoData
+                    # ParseComplete
+                    # BindComplete
+                    # EmptyQueryResponse
+                    self.buffer.discard_message()
+
+                elif mtype == b'Z':
+                    # ReadyForQuery
+                    self.parse_sync_message()
+                    break
+
+                else:
+                    self.fallthrough()
+
+            finally:
+                self.buffer.finish_message()
+
+        if error is not None:
+            raise error
+
+        return data
 
     async def parse_execute(self,
                             bint parse,
@@ -642,3 +778,5 @@ cdef class PGProto:
 
 cdef bytes SYNC_MESSAGE = bytes(WriteBuffer.new_message(b'S').end_message())
 cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
+
+cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()
