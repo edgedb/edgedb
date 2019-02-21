@@ -110,8 +110,8 @@ class GraphQLTranslator(ast.NodeVisitor):
             for err in gqlresult.errors:
                 raise g_errors.GraphQLCoreError(
                     err.message,
-                    line=err.locations[0].line,
-                    col=err.locations[0].column,
+                    line=err.locations[0].line if err.locations else None,
+                    col=err.locations[0].column if err.locations else None,
                 )
 
         translated = dict(

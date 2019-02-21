@@ -119,10 +119,12 @@ class HttpProtocol(asyncio.Protocol):
 
     async def handle(self, request, response):
         try:
+            operation_name = None
             if request.method == 'POST':
                 if request.content_type and 'json' in request.content_type:
                     body = json.loads(request.body)
                     query = body['query']
+                    operation_name = body.get('operationName')
                 elif request.content_type == 'application/graphql':
                     query = body.decode('utf-8')
                 else:
@@ -133,6 +135,9 @@ class HttpProtocol(asyncio.Protocol):
                 url_query = url.query.decode('ascii')
                 qs = urllib.parse.parse_qs(url_query)
                 query = qs.get('query')[0]
+                operation_name = qs.get('operationName')
+                if operation_name is not None:
+                    operation_name = operation_name[0]
                 if not query:
                     raise RuntimeError(
                         'unable to interpret GraphQL GET request')
@@ -155,7 +160,8 @@ class HttpProtocol(asyncio.Protocol):
                 qu = await compiler.call(
                     'compile_graphql',
                     self._server._dbindex.get_dbver(self._server.database),
-                    query)
+                    query,
+                    operation_name)
             finally:
                 self._server._compilers.put_nowait(compiler)
 

@@ -61,13 +61,23 @@ class GraphQLTestCase(server.QueryTestCase):
         cls.loop.run_until_complete(cls.http_session.close())
         super().tearDownClass()
 
-    async def graphql_query(self, query):
+    async def graphql_query(self, query, *, operation_name=None,
+                            use_http_post=True):
         req_data = {
             'query': query
         }
 
-        async with self.http_session.post(self.http_addr, json=req_data) as r:
-            resp_data = await r.json()
+        if operation_name is not None:
+            req_data['operationName'] = operation_name
+
+        if use_http_post:
+            async with self.http_session.post(self.http_addr,
+                                              json=req_data) as r:
+                resp_data = await r.json()
+        else:
+            async with self.http_session.get(self.http_addr,
+                                             params=req_data) as r:
+                resp_data = await r.json()
 
         if 'data' in resp_data:
             return resp_data['data']
@@ -87,8 +97,13 @@ class GraphQLTestCase(server.QueryTestCase):
         raise ex
 
     async def assert_graphql_query_result(self, query, result, *,
-                                          msg=None, sort=None):
-        res = await self.graphql_query(query)
+                                          msg=None, sort=None,
+                                          operation_name=None,
+                                          use_http_post=True):
+        res = await self.graphql_query(
+            query,
+            operation_name=operation_name,
+            use_http_post=use_http_post)
 
         if sort is not None:
             # GQL will always have a single object returned. The data is

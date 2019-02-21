@@ -196,6 +196,76 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
+    async def test_graphql_functional_query_08(self):
+        await self.assert_graphql_query_result(
+            r"""
+                query names {
+                    Setting {
+                        name
+                    }
+                }
+
+                query values {
+                    Setting {
+                        value
+                    }
+                }
+            """,
+            {
+                'Setting': [{
+                    'name': 'perks',
+                }, {
+                    'name': 'template',
+                }],
+            },
+            sort=lambda x: x['name'],
+            operation_name='names'
+        )
+
+        await self.assert_graphql_query_result(
+            r"""
+                query names {
+                    Setting {
+                        name
+                    }
+                }
+
+                query values {
+                    Setting {
+                        value
+                    }
+                }
+            """,
+            {
+                'Setting': [{
+                    'value': 'blue',
+                }, {
+                    'value': 'full',
+                }],
+            },
+            sort=lambda x: x['value'],
+            operation_name='values',
+            use_http_post=False
+        )
+
+    async def test_graphql_functional_query_09(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'provide operation name'):
+
+            await self.graphql_query('''
+                query names {
+                    Setting {
+                        name
+                    }
+                }
+
+                query values {
+                    Setting {
+                        value
+                    }
+                }
+            ''')
+
     async def test_graphql_functional_arguments_01(self):
         result = await self.graphql_query(r"""
             query {

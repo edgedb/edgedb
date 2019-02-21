@@ -974,7 +974,8 @@ class Compiler:
     async def compile_graphql(
             self,
             dbver: int,
-            gql: str):
+            gql: str,
+            operation_name: str=None):
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
@@ -987,7 +988,8 @@ class Compiler:
         eql = graphql.translate(
             ctx.state.current_tx().get_schema(),
             gql,
-            variables={}).encode()
+            variables={},
+            operation_name=operation_name).encode()
 
         units = self._compile(ctx=ctx, eql=eql)
         assert len(units) == 1
