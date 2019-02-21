@@ -18,11 +18,24 @@
 
 
 import os
+import logging
 import urllib.parse
 
 from edb.common import taskgroup
 
+from edb.edgeql import parser as ql_parser
+
+from edb.server import compiler
+from edb.server import config
+from edb.server import http_port
+from edb.server import pgcon
+from edb.server import procpool
+
+
 from . import dbview
+
+
+logger = logging.getLogger('edb.server')
 
 
 class Server:
@@ -43,8 +56,10 @@ class Server:
         self._runstate_dir = runstate_dir
         self._max_backend_connections = max_backend_connections
 
+        self._compiler_manager = None
+
         self._ports = []
-        self._ports_index = {}
+        self._sys_conf_ports = {}
 
     def _get_pgaddr(self):
         pg_con_spec = self._cluster.get_connection_spec()
@@ -59,13 +74,78 @@ class Server:
 
         return os.path.join(host, f'.s.PGSQL.{port}')
 
+    async def new_pgcon(self, dbname):
+        return await pgcon.connect(self._pg_addr, dbname)
+
+    async def new_compiler(self, dbname, dbver):
+        compiler_worker = await self._compiler_manager.spawn_worker()
+        try:
+            await compiler_worker.call('connect', dbname, dbver)
+        except Exception:
+            await compiler_worker.close()
+            raise
+        return compiler_worker
+
+    async def _start_portconf(self, portconf: config.Port, *,
+                              suppress_errors=False):
+        if portconf in self._sys_conf_ports:
+            logging.info('port for config %r has been already started',
+                         portconf)
+            return
+
+        port = http_port.HttpPort(
+            server=self,
+            loop=self._loop,
+            pg_addr=self._pg_addr,
+            pg_data_dir=self._pg_data_dir,
+            runstate_dir=self._runstate_dir,
+            dbindex=self._dbindex,
+            netport=portconf.port,
+            nethost=portconf.address,
+            database=portconf.database,
+            user=portconf.user,
+            protocol=portconf.protocol,
+            concurrency=portconf.concurrency)
+
+        try:
+            await port.start()
+        except Exception as ex:
+            if suppress_errors:
+                logging.error(
+                    'failed to start port for config: %r', portconf,
+                    exc_info=True)
+            else:
+                raise ex
+        else:
+            logging.info('started port for config: %r', portconf)
+
+        self._sys_conf_ports[portconf] = port
+        return port
+
+    async def _stop_portconf(self, portconf):
+        if portconf not in self._sys_conf_ports:
+            logging.warning('no port to stop for config: %r', portconf)
+            return
+
+        try:
+            port = self._sys_conf_ports.pop(portconf)
+            await port.stop()
+        except Exception:
+            logging.error(
+                'failed to stop port for config: %r', portconf,
+                exc_info=True)
+        else:
+            logging.info('stopped port for config: %r', portconf)
+
     async def _on_system_config_add(self, setting_name, value):
         # SET SYSTEM CONFIG setting_name += value;
-        pass
+        if setting_name == 'ports':
+            await self._start_portconf(value)
 
     async def _on_system_config_rem(self, setting_name, value):
         # SET SYSTEM CONFIG setting_name -= value;
-        pass
+        if setting_name == 'ports':
+            await self._stop_portconf(value)
 
     async def _on_system_config_set(self, setting_name, value):
         # SET SYSTEM CONFIG setting_name := value;
@@ -81,6 +161,7 @@ class Server:
 
         self._ports.append(
             portcls(
+                server=self,
                 loop=self._loop,
                 pg_addr=self._pg_addr,
                 pg_data_dir=self._pg_data_dir,
@@ -89,13 +170,34 @@ class Server:
                 **kwargs))
 
     async def start(self):
+
+        # Make sure that EdgeQL parser is preloaded; edgecon might use
+        # it to restore config values.
+        ql_parser.preload()
+
+        self._compiler_manager = await procpool.create_manager(
+            runstate_dir=self._runstate_dir,
+            name='edgedb-compiler',
+            worker_cls=compiler.Compiler,
+            worker_args=(dict(host=self._pg_addr), self._pg_data_dir))
+
         async with taskgroup.TaskGroup() as g:
             for port in self._ports:
                 g.create_task(port.start())
 
+        sys_config = self._dbindex.get_system_overrides()
+        if 'ports' in sys_config:
+            for portconf in sys_config['ports']:
+                await self._start_portconf(portconf, suppress_errors=True)
+
         self._serving = True
 
     async def stop(self):
-        async with taskgroup.TaskGroup() as g:
-            for port in self._ports:
-                g.create_task(port.stop())
+        try:
+            async with taskgroup.TaskGroup() as g:
+                for port in self._ports:
+                    g.create_task(port.stop())
+                for port in self._sys_conf_ports.values():
+                    g.create_task(port.stop())
+        finally:
+            await self._compiler_manager.stop()

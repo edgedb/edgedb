@@ -17,12 +17,31 @@
 #
 
 
-from edb.common import taskgroup
+import weakref
 
-from edb.server import backend
+from edb.common import taskgroup
 from edb.server import baseport
 
 from . import edgecon
+
+
+class Backend:
+
+    def __init__(self, pgcon, compiler):
+        self._pgcon = pgcon
+        self._compiler = compiler
+
+    @property
+    def pgcon(self):
+        return self._pgcon
+
+    @property
+    def compiler(self):
+        return self._compiler
+
+    async def close(self):
+        self._pgcon.terminate()
+        await self._compiler.close()
 
 
 class ManagementPort(baseport.Port):
@@ -35,18 +54,28 @@ class ManagementPort(baseport.Port):
 
         self._edgecon_id = 0
 
-        self._backend_manager = None
         self._serving = False
 
         self._servers = []
+        self._backends = weakref.WeakSet()
 
     def new_view(self, *, dbname, user, query_cache):
         return self._dbindex.new_view(
             dbname, user=user, query_cache=query_cache)
 
     async def new_backend(self, *, dbname: str, dbver: int):
-        return await self._backend_manager.new_backend(
-            dbname=dbname, dbver=dbver)
+        server = self.get_server()
+
+        async with taskgroup.TaskGroup() as g:
+            new_pgcon_task = g.create_task(server.new_pgcon(dbname))
+            compiler_task = g.create_task(server.new_compiler(dbname, dbver))
+
+        backend = Backend(
+            new_pgcon_task.result(),
+            compiler_task.result())
+
+        self._backends.add(backend)
+        return backend
 
     def new_edgecon_id(self):
         self._edgecon_id += 1
@@ -57,12 +86,6 @@ class ManagementPort(baseport.Port):
             raise RuntimeError('already serving')
         self._serving = True
 
-        self._backend_manager = backend.BackendManager(
-            runstate_dir=self._runstate_dir,
-            data_dir=self._pg_data_dir,
-            pgaddr=self._pg_addr)
-        await self._backend_manager.start()
-
         srv = await self._loop.create_server(
             lambda: edgecon.EdgeConnection(self),
             host=self._nethost, port=self._netport)
@@ -72,11 +95,12 @@ class ManagementPort(baseport.Port):
     async def stop(self):
         self._serving = False
 
-        async with taskgroup.TaskGroup() as g:
-            for srv in self._servers:
-                srv.close()
-                g.create_task(srv.wait_closed())
-
-        await self._backend_manager.stop()
-
-        self._backend_manager = None
+        try:
+            async with taskgroup.TaskGroup() as g:
+                for srv in self._servers:
+                    srv.close()
+                    g.create_task(srv.wait_closed())
+        finally:
+            async with taskgroup.TaskGroup() as g:
+                for backend in self._backends:
+                    g.create_task(backend.close())

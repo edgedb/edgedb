@@ -17,20 +17,14 @@
 #
 
 
-import enum
+import pathlib
+import pickle
 
 
-class CompileStatementMode(enum.Enum):
-    SKIP_FIRST = 'skip_first'
-    ALL = 'all'
-    SINGLE = 'single'
-
-
-class Capability(enum.Flag):
-
-    DDL = enum.auto()
-    TRANSACTION = enum.auto()
-    SESSION = enum.auto()
-    QUERY = enum.auto()
-
-    ALL = DDL | TRANSACTION | SESSION | QUERY
+def load_std_schema(data_dir: pathlib.Path):
+    with open(data_dir / 'stdschema.pickle', 'rb') as f:
+        try:
+            return pickle.load(f)
+        except Exception as e:
+            raise RuntimeError(
+                'could not load std schema pickle') from e

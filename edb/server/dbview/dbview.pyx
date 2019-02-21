@@ -26,7 +26,7 @@ import immutables
 from edb import errors
 from edb.common import lru
 from edb.server import defines, config
-from edb.server.backend import dbstate
+from edb.server.compiler import dbstate
 
 
 __all__ = ('DatabaseIndex', 'DatabaseConnectionView')
@@ -263,8 +263,18 @@ cdef class DatabaseIndex:
 
         self._server = server
 
-        self._sys_config = immutables.Map()
+        self._sys_overrides_fn = os.path.join(
+            self._server.get_datadir(), 'config_sys.json')
+        self._load_system_overrides()
+
         self._sys_config_ver = time.monotonic_ns()
+
+    def get_system_overrides(self):
+        return self._sys_config
+
+    def get_dbver(self, dbname):
+        db = self._get_db(dbname)
+        return (<Database>db)._dbver
 
     def _get_db(self, dbname):
         try:
@@ -274,13 +284,23 @@ cdef class DatabaseIndex:
             self._dbs[dbname] = db
         return db
 
+    cdef _load_system_overrides(self):
+        with open(self._sys_overrides_fn, 'rt') as f:
+            data = f.read()
+        self._sys_config = config.from_json(config.settings, data)
+
+    cdef _save_system_overrides(self):
+        data = config.to_json(config.settings, self._sys_config)
+        with open(self._sys_overrides_fn, 'wt') as f:
+            f.write(data)
+
     async def apply_system_config_op(self, op):
         op_value = op.coerce_value(op.get_setting(config.settings))
 
         if op.opcode is config.OpCode.CONFIG_ADD:
             await self._server._on_system_config_add(op.setting_name, op_value)
         elif op.opcode is config.OpCode.CONFIG_REM:
-            await self._server._on_sysyem_config_rem(op.setting_name, op_value)
+            await self._server._on_system_config_rem(op.setting_name, op_value)
         elif op.opcode is config.OpCode.CONFIG_SET:
             await self._server._on_system_config_set(op.setting_name, op_value)
         else:
@@ -288,10 +308,7 @@ cdef class DatabaseIndex:
                 f'unsupported config operation: {op.opcode}')
 
         self._sys_config = op.apply(config.settings, self._sys_config)
-
-        fn = os.path.join(self._server.get_datadir(), 'config_sys.json')
-        with open(fn, 'wt') as f:
-            f.write(config.to_json(config.settings, self._sys_config))
+        self._save_system_overrides()
 
         self._sys_config_ver = time.monotonic_ns()
 

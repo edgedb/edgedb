@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import importlib
 import base64
+import os
 import pickle
 import signal
 import traceback
@@ -84,7 +85,8 @@ async def worker(cls, cls_args, sockname):
 
 
 def on_terminate_worker():
-    raise SystemExit
+    # sys.exit() might not do it, apparently.
+    os._exit(-1)
 
 
 def run_worker(cls, cls_args, sockname):

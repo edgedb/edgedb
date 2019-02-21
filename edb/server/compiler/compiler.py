@@ -39,7 +39,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import quote as ql_quote
 from edb.edgeql import qltypes
-from edb.edgeql import parser as ql_parser
 
 from edb.ir import staeval as ireval
 
@@ -126,13 +125,10 @@ class Compiler:
 
         if data_dir is not None:
             self._data_dir = pathlib.Path(data_dir)
-            self._std_schema = stdschema.load(self._data_dir)
+            self._std_schema = stdschema.load_std_schema(self._data_dir)
         else:
             self._data_dir = None
             self._std_schema = None
-
-        # Preload parsers.
-        ql_parser.preload()
 
     async def _get_database(self, dbver: int) -> CompilerDatabaseState:
         if self._cached_db is not None and self._cached_db.dbver == dbver:
@@ -978,21 +974,19 @@ class Compiler:
     async def compile_graphql(
             self,
             dbver: int,
-            gql: bytes,
-            sess_modaliases: immutables.Map,
-            sess_config: immutables.Map):
+            gql: str):
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
             json_mode=False,
-            modaliases=sess_modaliases,
-            session_config=sess_config,
+            modaliases=EMPTY_MAP,
+            session_config=EMPTY_MAP,
             stmt_mode=enums.CompileStatementMode.SINGLE,
             capability=enums.Capability.QUERY)
 
         eql = graphql.translate(
             ctx.state.current_tx().get_schema(),
-            gql.decode(),
+            gql,
             variables={}).encode()
 
         units = self._compile(ctx=ctx, eql=eql)

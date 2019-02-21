@@ -44,7 +44,7 @@ from edb.server.dbview cimport dbview
 from edb.server import config
 from edb.server import defines
 
-from edb.server.backend import enums
+from edb.server import compiler
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
@@ -58,7 +58,7 @@ DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes ZERO_UUID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
 
-cdef object CAP_ALL = enums.Capability.ALL
+cdef object CAP_ALL = compiler.Capability.ALL
 
 
 cdef bytes INIT_CON_SCRIPT = (b'''
@@ -324,9 +324,7 @@ cdef class EdgeConnection:
         query_unit = await self.backend.compiler.call(
             'compile_graphql',
             self.dbview.dbver,
-            gql,
-            self.dbview.modaliases,
-            self.dbview.get_session_config())
+            gql.decode())
 
         self.dbview.start(query_unit)
         try:

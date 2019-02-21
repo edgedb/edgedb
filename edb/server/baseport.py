@@ -22,8 +22,10 @@ from edb.common import devmode
 
 class Port:
 
-    def __init__(self, *, loop, pg_addr, pg_data_dir, runstate_dir, dbindex):
+    def __init__(self, *, server, loop,
+                 pg_addr, pg_data_dir, runstate_dir, dbindex):
 
+        self._server = server
         self._loop = loop
         self._pg_addr = pg_addr
         self._pg_data_dir = pg_data_dir
@@ -37,6 +39,9 @@ class Port:
 
     def get_loop(self):
         return self._loop
+
+    def get_server(self):
+        return self._server
 
     async def start(self):
         raise NotImplementedError
