@@ -24,6 +24,8 @@ import typing
 import immutables
 
 from edb import errors
+from edb.edgeql import qltypes
+from edb.schema import objects as s_obj
 
 from . import spec
 from . import types
@@ -97,7 +99,24 @@ class Operation(typing.NamedTuple):
 
 def spec_to_json(spec: spec.Spec):
     dct = {}
+
     for setting in spec.values():
+        if issubclass(setting.type, str):
+            typeid = s_obj.get_known_type_id('std::str')
+        elif issubclass(setting.type, bool):
+            typeid = s_obj.get_known_type_id('std::bool')
+        elif issubclass(setting.type, int):
+            typeid = s_obj.get_known_type_id('std::int64')
+        elif issubclass(setting.type, types.ConfigType):
+            typeid = setting.type.get_edgeql_typeid()
+        else:
+            raise RuntimeError(
+                f'cannot serialize type for config setting {setting.name}')
+
+        typemod = qltypes.TypeModifier.SINGLETON
+        if setting.set_of:
+            typemod = qltypes.TypeModifier.SET_OF
+
         dct[setting.name] = {
             'default': [
                 value_to_json_value(setting, setting.default),
@@ -105,8 +124,10 @@ def spec_to_json(spec: spec.Spec):
             ],
             'internal': setting.internal,
             'system': setting.system,
-            'set_of': setting.set_of,
+            'typeid': str(typeid),
+            'typemod': str(typemod),
         }
+
     return json.dumps(dct)
 
 

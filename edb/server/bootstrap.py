@@ -40,7 +40,7 @@ from edb.schema import std as s_std
 
 from edb.server import defines as edgedb_defines
 from edb.server import config
-from edb.server.backend import compiler
+from edb.server import compiler
 
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
@@ -401,14 +401,13 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster):
 async def _ensure_configs(cluster):
     data_dir = cluster.get_data_dir()
     spec_fn = os.path.join(data_dir, 'config_spec.json')
-    sys_fn = os.path.join(data_dir, 'config_sys.json')
+    sys_overrides_fn = os.path.join(data_dir, 'config_sys.json')
 
-    if not os.path.exists(spec_fn):
-        with open(spec_fn, 'wt') as f:
-            f.write(config.spec_to_json(config.settings))
+    with open(spec_fn, 'wt') as f:
+        f.write(config.spec_to_json(config.settings))
 
-    if not os.path.exists(sys_fn):
-        with open(sys_fn, 'wt') as f:
+    if not os.path.exists(sys_overrides_fn):
+        with open(sys_overrides_fn, 'wt') as f:
             f.write('{}')
 
 

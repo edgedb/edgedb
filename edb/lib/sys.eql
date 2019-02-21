@@ -29,6 +29,9 @@ CREATE TYPE sys::Config {
     CREATE REQUIRED PROPERTY sys::source -> std::str;
     CREATE REQUIRED PROPERTY sys::internal -> std::bool;
     CREATE REQUIRED PROPERTY sys::system -> std::bool;
+
+    CREATE REQUIRED LINK sys::type -> schema::Type;
+    CREATE REQUIRED PROPERTY sys::typemod -> std::str;
 };
 
 

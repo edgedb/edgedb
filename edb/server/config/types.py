@@ -22,6 +22,7 @@ import json
 import typing
 
 from edb import errors
+from edb.schema import objects as s_obj
 
 
 class ConfigType:
@@ -41,6 +42,10 @@ class ConfigType:
     def to_edgeql(self):
         raise NotImplementedError
 
+    @classmethod
+    def get_edgeql_typeid(cls):
+        raise NotImplementedError
+
 
 @dataclasses.dataclass(frozen=True, eq=True)
 class Port(ConfigType):
@@ -50,7 +55,11 @@ class Port(ConfigType):
     port: int
     concurrency: int
     user: str
-    address: typing.Union[typing.List[str], str] = 'localhost'
+    address: typing.FrozenSet[str] = frozenset({'localhost'})
+
+    @classmethod
+    def get_edgeql_typeid(cls):
+        return s_obj.get_known_type_id('std::json')
 
     @classmethod
     def from_json(cls, s):
@@ -103,6 +112,8 @@ class Port(ConfigType):
                         'an array of strings')
                 if isinstance(value, list):
                     value = frozenset(value)
+                else:
+                    value = frozenset({value})
             else:
                 fieldtype = fields[fieldname].type
                 if not isinstance(value, fieldtype):

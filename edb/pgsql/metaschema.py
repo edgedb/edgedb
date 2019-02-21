@@ -1410,7 +1410,9 @@ class SysConfigFunction(dbops.Function):
                         s.key AS name,
                         s.value->'default'->>1 AS default,
                         (s.value->>'internal')::bool AS internal,
-                        (s.value->>'system')::bool AS system
+                        (s.value->>'system')::bool AS system,
+                        (s.value->>'typeid')::uuid AS typeid,
+                        (s.value->>'typemod') AS typemod
                     FROM
                         jsonb_each(
                             (SELECT pg_read_file(
@@ -1468,7 +1470,8 @@ class SysConfigFunction(dbops.Function):
                 q.value,
                 q.source,
                 cs.internal,
-                cs.system
+                cs.system,
+                cs.typemod
             FROM
                 (SELECT
                     u.name,
@@ -2058,12 +2061,51 @@ def _generate_types_views(schema, type_fields):
 async def generate_support_views(conn, schema):
     commands = dbops.CommandGroup()
 
+    sys_conf_view = '''
+        SELECT * FROM edgedb._read_sys_config()
+    '''
+
+    sys_conf_type_view = f'''
+        WITH
+            data_dir AS
+                (SELECT setting AS dir FROM pg_settings
+                 WHERE name = 'data_directory'),
+
+            config_spec AS
+                (SELECT
+                    s.key AS name,
+                    (s.value->>'typeid')::uuid AS typeid
+                FROM
+                    jsonb_each(
+                        (SELECT pg_read_file(
+                            (SELECT d.dir || '/config_spec.json'
+                             FROM data_dir d)
+                        )::jsonb)
+                    ) s
+                )
+
+        SELECT
+            edgedb.uuid_generate_v5(
+                '{CONFIG_ID_NAMESPACE}'::uuid,
+                cs.name
+            ) AS source,
+            cs.typeid AS target
+        FROM
+            config_spec cs;
+    '''
+
+    sys_conf = schema.get('sys::Config')
+
     commands.add_commands([
         dbops.CreateFunction(SysConfigFunction(schema)),
         dbops.CreateView(
             dbops.View(
-                name=tabname(schema, schema.get('sys::Config')),
-                query='SELECT * FROM edgedb._read_sys_config()'))
+                name=tabname(schema, sys_conf),
+                query=sys_conf_view)),
+        dbops.CreateView(
+            dbops.View(
+                name=tabname(schema, sys_conf.getptr(schema, 'type')),
+                query=sys_conf_type_view)),
     ])
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)

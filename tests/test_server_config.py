@@ -23,6 +23,7 @@ import unittest
 import immutables
 
 from edb import errors
+from edb.schema import objects as s_obj
 
 from edb.server.config import ops
 from edb.server.config import spec
@@ -99,7 +100,7 @@ class TestServerConfigUtils(unittest.TestCase):
                 ],
                 'ports': [[], '{}'],
                 'str': ['hello', "'hello'"],
-                'strings': [[], '{}']
+                'strings': [[], '{}'],
             }
         )
 
@@ -212,6 +213,18 @@ class TestServerConfigUtils(unittest.TestCase):
         )
         op.apply(testspec1, storage)
 
+        self.assertEqual(
+            types.Port.from_pyvalue(make_port_json(address='aaa')),
+            types.Port.from_pyvalue(make_port_json(address=['aaa'])))
+
+        self.assertEqual(
+            types.Port.from_pyvalue(make_port_json(address=['aaa', 'bbb'])),
+            types.Port.from_pyvalue(make_port_json(address=['bbb', 'aaa'])))
+
+        self.assertNotEqual(
+            types.Port.from_pyvalue(make_port_json(address=['aaa', 'bbb'])),
+            types.Port.from_pyvalue(make_port_json(address=['bbb', 'aa1'])))
+
     def test_server_config_04(self):
         storage = immutables.Map()
 
@@ -271,6 +284,7 @@ class TestServerConfigUtils(unittest.TestCase):
                 'default': [True, 'true'],
                 'internal': False,
                 'system': False,
-                'set_of': False,
+                'typemod': 'SINGLETON',
+                'typeid': str(s_obj.get_known_type_id('std::bool')),
             }
         )
