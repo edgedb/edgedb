@@ -349,3 +349,7 @@ def main(**kwargs):
 def main_dev():
     devmode.enable_dev_mode()
     main()
+
+
+if __name__ == '__main__':
+    main()

@@ -132,7 +132,11 @@ class Cluster:
 
         self._data_dir = data_dir
         self._location = data_dir
-        self._edgedb_cmd = ['edgedb-server', '-D', self._data_dir]
+        self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main',
+                            '-D', self._data_dir]
+
+        if devmode.is_in_dev_mode():
+            self._edgedb_cmd.append('--devmode')
 
         if runstate_dir is not None:
             self._edgedb_cmd.extend(['--runstate-dir', runstate_dir])
