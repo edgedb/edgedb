@@ -244,7 +244,6 @@ class GraphQLTranslator(ast.NodeVisitor):
             variables[varname] = Var(
                 val=var.val, defn=node, critical=var.critical)
 
-
     def visit_SelectionSet(self, node):
         elements = []
 
