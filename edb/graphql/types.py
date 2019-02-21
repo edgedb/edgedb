@@ -71,6 +71,17 @@ EDB_TO_GQL_SCALARS_MAP = {
 }
 
 
+GQL_TO_EDB_SCALARS_MAP = {
+    'String': 'str',
+    'Int': 'int64',
+    'Float': 'float64',
+    'Boolean': 'bool',
+    # for compatibility with GraphQL ID we cast uuid into a str in
+    # expressions
+    'ID': 'str',
+}
+
+
 GQL_TO_OPS_MAP = {
     'eq': '=',
     'neq': '!=',
@@ -521,7 +532,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     def is_field_shadowed(self, name):
         return name in self._shadow_fields
 
-    def get_field_type(self, name, argsmap=None):
+    def get_field_type(self, name):
         if self.dummy:
             return None
 
@@ -618,7 +629,7 @@ class GQLQuery(GQLBaseType):
         super().__init__(schema, **kwargs)
         self._shadow_fields = ('__typename',)
 
-    def get_field_type(self, name, argsmap=None):
+    def get_field_type(self, name):
         fkey = (name, self.dummy)
         target = None
 
@@ -629,7 +640,7 @@ class GQLQuery(GQLBaseType):
             target = self.convert_edb_to_gql_type('Query', dummy=True)
 
         else:
-            target = super().get_field_type(name, argsmap)
+            target = super().get_field_type(name)
 
             if target is None:
                 for module in self.modules:

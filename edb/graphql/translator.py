@@ -54,6 +54,7 @@ class GraphQLTranslatorContext:
 
 Step = namedtuple('Step', ['name', 'type'])
 Field = namedtuple('Field', ['name', 'value'])
+Var = namedtuple('Var', ['val', 'defn', 'critical'])
 
 
 class GraphQLTranslator(ast.NodeVisitor):
@@ -74,7 +75,7 @@ class GraphQLTranslator(ast.NodeVisitor):
 
     def get_field_type(self, base, name, *, args=None, context=None):
         try:
-            target = base.get_field_type(name, args)
+            target = base.get_field_type(name)
         except errors.SchemaError:
             if not context:
                 raise
@@ -136,7 +137,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         # create a dict of variables that will be marked as
         # critical or not
         self._context.vars = {
-            name: [val, False]
+            name: Var(val, None, False)
             for name, val in self._context.variables.items()}
         opname = None
 
@@ -157,8 +158,8 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         # produce the list of variables critical to the shape
         # of the query
-        critvars = [(name, val) for name, (val, crit)
-                    in self._context.vars.items() if crit]
+        critvars = [(name, var.val) for name, var
+                    in self._context.vars.items() if var.critical]
         critvars.sort()
 
         return (opname, (stmt, critvars))
@@ -207,9 +208,12 @@ class GraphQLTranslator(ast.NodeVisitor):
                         if a.name == 'if'][0]
 
                 if isinstance(cond, gqlast.Variable):
-                    var = self._context.vars[cond.value]
-                    cond = var[0]
-                    var[1] = True  # mark the variable as critical
+                    varname = cond.value[1:]
+                    var = self._context.vars[varname]
+                    # mark the variable as critical
+                    self._context.vars[varname] = Var(
+                        var.val, var.defn, True)
+                    cond = var.val
 
                 if not isinstance(cond, gqlast.BooleanLiteral):
                     raise g_errors.GraphQLValidationError(
@@ -225,12 +229,13 @@ class GraphQLTranslator(ast.NodeVisitor):
         return True
 
     def visit_VariableDefinition(self, node):
+        varname = node.name[1:]
         variables = self._context.vars
-        if not variables.get(node.name):
+        if not variables.get(varname):
             if node.value is None:
-                variables[node.name] = [None, False]
+                variables[varname] = Var(None, node, False)
             else:
-                variables[node.name] = [node.value, False]
+                variables[varname] = Var(node.value, node, False)
 
     def visit_SelectionSet(self, node):
         elements = []
@@ -273,10 +278,6 @@ class GraphQLTranslator(ast.NodeVisitor):
         prevt = path[-1].type
         target = self.get_field_type(
             prevt, node.name,
-            args={
-                arg.name: self._get_field_arg_value(arg)
-                for arg in node.arguments
-            },
             context=node.context)
         path.append(Step(name=node.name, type=target))
 
@@ -286,16 +287,6 @@ class GraphQLTranslator(ast.NodeVisitor):
                 context=node.context)
 
         return top
-
-    def _get_field_arg_value(self, arg):
-        if isinstance(arg.value, gqlast.Variable):
-            return self._context.vars[arg.value.value]
-        elif isinstance(arg.value, gqlast.InputObjectLiteral):
-            # this value only matters for introspection, but
-            # introspection can never have an InputObjectLiteral
-            return {}
-        else:
-            return arg.value
 
     def _get_parent_and_current_type(self):
         path = self._context.path[-1]
@@ -702,7 +693,25 @@ class GraphQLTranslator(ast.NodeVisitor):
         return name, direction, nulls
 
     def visit_Variable(self, node):
-        return qlast.Parameter(name=node.value[1:])
+        varname = node.value[1:]
+        var = self._context.vars[varname]
+        vartype = var.defn.type
+
+        casttype = qlast.TypeName(
+            maintype=qlast.ObjectRef(
+                name=gt.GQL_TO_EDB_SCALARS_MAP[var.defn.type.name])
+        )
+        # potentially this is an array
+        if vartype.list:
+            casttype = qlast.TypeName(
+                maintype=qlast.ObjectRef(name='array'),
+                subtypes=[casttype]
+            )
+
+        return qlast.TypeCast(
+            type=casttype,
+            expr=qlast.Parameter(name=varname)
+        )
 
     def visit_StringLiteral(self, node):
         return qlast.StringConstant(value=node.value, quote='"')
