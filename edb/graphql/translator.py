@@ -137,7 +137,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         # create a dict of variables that will be marked as
         # critical or not
         self._context.vars = {
-            name: Var(val, None, False)
+            name: Var(val=val, defn=None, critical=False)
             for name, val in self._context.variables.items()}
         opname = None
 
@@ -212,7 +212,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     var = self._context.vars[varname]
                     # mark the variable as critical
                     self._context.vars[varname] = Var(
-                        var.val, var.defn, True)
+                        val=var.val, defn=var.defn, critical=True)
                     cond = var.val
 
                 if not isinstance(cond, gqlast.BooleanLiteral):
@@ -231,11 +231,19 @@ class GraphQLTranslator(ast.NodeVisitor):
     def visit_VariableDefinition(self, node):
         varname = node.name[1:]
         variables = self._context.vars
-        if not variables.get(varname):
+        var = variables.get(varname)
+        if not var:
             if node.value is None:
-                variables[varname] = Var(None, node, False)
+                variables[varname] = Var(
+                    val=None, defn=node, critical=False)
             else:
-                variables[varname] = Var(node.value, node, False)
+                variables[varname] = Var(
+                    val=node.value, defn=node, critical=False)
+        else:
+            # we have the variable, but we still need to update the defn field
+            variables[varname] = Var(
+                val=var.val, defn=node, critical=var.critical)
+
 
     def visit_SelectionSet(self, node):
         elements = []
