@@ -374,6 +374,7 @@ def top_output_as_value(
         )
 
         result.ctes = stmt.ctes
+        result.argnames = stmt.argnames
         stmt.ctes = []
 
         return result

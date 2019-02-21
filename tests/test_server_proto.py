@@ -586,6 +586,20 @@ class TestServerProto(tb.QueryTestCase):
                                     'combine positional and named parameters'):
             await self.con.fetch('select <int64>$0 + <int64>$bar;')
 
+    async def test_server_proto_args_04(self):
+        self.assertEqual(
+            await self.con.fetch_json(
+                'select (<array<str>>$0)[0] ++ (<array<str>>$1)[0];',
+                ['aaa'], ['bbb']),
+            '["aaabbb"]')
+
+    async def test_server_proto_args_05(self):
+        self.assertEqual(
+            await self.con.fetch_json(
+                'select (<array<str>>$foo)[0] ++ (<array<str>>$bar)[0];',
+                foo=['aaa'], bar=['bbb']),
+            '["aaabbb"]')
+
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.
