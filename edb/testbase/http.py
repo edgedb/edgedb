@@ -17,7 +17,10 @@
 #
 
 
-import aiohttp
+import json
+import urllib.parse
+import urllib.request
+
 import edgedb
 
 from edb.server import cluster
@@ -51,18 +54,8 @@ class GraphQLTestCase(server.QueryTestCase):
 
         cls.http_addr = f'http://127.0.0.1:{cls.http_port}'
 
-        async def make_http_session():
-            return aiohttp.ClientSession()
-
-        cls.http_session = cls.loop.run_until_complete(make_http_session())
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.loop.run_until_complete(cls.http_session.close())
-        super().tearDownClass()
-
-    async def graphql_query(self, query, *, operation_name=None,
-                            use_http_post=True):
+    def graphql_query(self, query, *, operation_name=None,
+                      use_http_post=True):
         req_data = {
             'query': query
         }
@@ -71,13 +64,15 @@ class GraphQLTestCase(server.QueryTestCase):
             req_data['operationName'] = operation_name
 
         if use_http_post:
-            async with self.http_session.post(self.http_addr,
-                                              json=req_data) as r:
-                resp_data = await r.json()
+            req = urllib.request.Request(self.http_addr)
+            req.add_header('Content-Type', 'application/json')
+            response = urllib.request.urlopen(
+                req, json.dumps(req_data).encode())
+            resp_data = json.loads(response.read())
         else:
-            async with self.http_session.get(self.http_addr,
-                                             params=req_data) as r:
-                resp_data = await r.json()
+            response = urllib.request.urlopen(
+                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}')
+            resp_data = json.loads(response.read())
 
         if 'data' in resp_data:
             return resp_data['data']
@@ -96,11 +91,11 @@ class GraphQLTestCase(server.QueryTestCase):
 
         raise ex
 
-    async def assert_graphql_query_result(self, query, result, *,
-                                          msg=None, sort=None,
-                                          operation_name=None,
-                                          use_http_post=True):
-        res = await self.graphql_query(
+    def assert_graphql_query_result(self, query, result, *,
+                                    msg=None, sort=None,
+                                    operation_name=None,
+                                    use_http_post=True):
+        res = self.graphql_query(
             query,
             operation_name=operation_name,
             use_http_post=use_http_post)

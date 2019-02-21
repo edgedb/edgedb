@@ -37,8 +37,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     # GraphQL queries cannot run in a transaction
     ISOLATED_METHODS = False
 
-    async def test_graphql_functional_query_01(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_query_01(self):
+        self.assert_graphql_query_result(r"""
             query {
                 Setting {
                     name
@@ -55,8 +55,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_query_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_query_02(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     name
@@ -93,8 +93,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_query_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_query_03(self):
+        self.assert_graphql_query_result(r"""
             query mixed {
                 User {
                     name
@@ -120,8 +120,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_query_04(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_query_04(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(filter: {name: {eq: "John"}}) {
                     name
@@ -143,12 +143,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_query_05(self):
+    def test_graphql_functional_query_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Cannot query field "Bogus" on type "Query"',
                 line=3, col=21):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     Bogus {
                         name,
@@ -160,12 +160,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_query_06(self):
+    def test_graphql_functional_query_06(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Cannot query field "bogus" on type "User"',
                 line=5, col=25):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     User {
                         name,
@@ -178,12 +178,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_query_07(self):
+    def test_graphql_functional_query_07(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Cannot query field "age" on type "NamedObject"',
                 line=5, col=25):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     NamedObject {
                         name,
@@ -196,8 +196,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_query_08(self):
-        await self.assert_graphql_query_result(
+    def test_graphql_functional_query_08(self):
+        self.assert_graphql_query_result(
             r"""
                 query names {
                     Setting {
@@ -222,7 +222,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             operation_name='names'
         )
 
-        await self.assert_graphql_query_result(
+        self.assert_graphql_query_result(
             r"""
                 query names {
                     Setting {
@@ -248,11 +248,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             use_http_post=False
         )
 
-    async def test_graphql_functional_query_09(self):
+    def test_graphql_functional_query_09(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'provide operation name'):
 
-            await self.graphql_query('''
+            self.graphql_query('''
                 query names {
                     Setting {
                         name
@@ -266,8 +266,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             ''')
 
-    async def test_graphql_functional_arguments_01(self):
-        result = await self.graphql_query(r"""
+    def test_graphql_functional_arguments_01(self):
+        result = self.graphql_query(r"""
             query {
                 User {
                     id
@@ -280,7 +280,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         alice = [res for res in result['User']
                  if res['name'] == 'Alice'][0]
 
-        result = await self.assert_graphql_query_result(f"""
+        result = self.assert_graphql_query_result(f"""
             query {{
                 User(filter: {{id: {{eq: "{alice['id']}"}}}}) {{
                     id
@@ -292,8 +292,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'User': [alice]
         })
 
-    async def test_graphql_functional_arguments_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_02(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     name: {eq: "Bob"},
@@ -316,8 +316,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_arguments_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_03(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     and: [{name: {eq: "Bob"}}, {active: {eq: true}}],
@@ -334,8 +334,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_arguments_04(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_04(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     not: {name: {eq: "Bob"}},
@@ -349,8 +349,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'User': [],
         })
 
-    async def test_graphql_functional_arguments_05(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_05(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(
                     filter: {
@@ -373,8 +373,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    async def test_graphql_functional_arguments_06(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_06(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(
                     filter: {
@@ -397,8 +397,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    async def test_graphql_functional_arguments_07(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_07(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     name: {ilike: "%o%"},
@@ -414,8 +414,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_arguments_08(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_08(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     name: {like: "J%"},
@@ -434,8 +434,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_arguments_09(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_09(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(filter: {
                     name: {ilike: "%e"},
@@ -451,8 +451,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_arguments_10(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_10(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(
                     order: {
@@ -473,8 +473,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    async def test_graphql_functional_arguments_11(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_11(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(
                     order: {
@@ -495,8 +495,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    async def test_graphql_functional_arguments_12(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_12(self):
+        self.assert_graphql_query_result(r"""
             query {
                 Foo(
                     order: {
@@ -515,8 +515,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    async def test_graphql_functional_arguments_13(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_13(self):
+        self.assert_graphql_query_result(r"""
             query {
                 Foo(
                     order: {
@@ -535,8 +535,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    async def test_graphql_functional_arguments_14(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_14(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(
                     order: {name: {dir: ASC}},
@@ -553,8 +553,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    async def test_graphql_functional_arguments_15(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_15(self):
+        self.assert_graphql_query_result(r"""
             query {
                 u0: User(
                     order: {name: {dir: ASC}},
@@ -605,8 +605,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         'last' is not fully implemented in all cases and ideally
         requires negative OFFSET to be implemented
     ''')
-    async def test_graphql_functional_arguments_16(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_16(self):
+        self.assert_graphql_query_result(r"""
             query {
                 u4: User(
                     order: {name: {dir: ASC}},
@@ -645,8 +645,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    async def test_graphql_functional_arguments_17(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_arguments_17(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(filter: {name: {eq: "Jane"}}) {
                     name
@@ -673,12 +673,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }]
         })
 
-    async def test_graphql_functional_arguments_18(self):
+    def test_graphql_functional_arguments_18(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Expected type "String", found 42',
                 line=3, col=34):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     User(filter: {name: {eq: 42}}) {
                         id,
@@ -686,12 +686,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_arguments_19(self):
+    def test_graphql_functional_arguments_19(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Expected type "String", found 20\.5',
                 line=3, col=34):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     User(filter: {name: {eq: 20.5}}) {
                         id,
@@ -699,12 +699,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_arguments_20(self):
+    def test_graphql_functional_arguments_20(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Expected type "Float", found "3\.5"',
                 line=3, col=34):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     User(filter: {score: {eq: "3.5"}}) {
                         id,
@@ -712,12 +712,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_arguments_21(self):
+    def test_graphql_functional_arguments_21(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Expected type "Boolean", found 0',
                 line=3, col=34):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     User(filter: {active: {eq: 0}}) {
                         id,
@@ -725,8 +725,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_fragment_01(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_01(self):
+        self.assert_graphql_query_result(r"""
             fragment groupFrag on UserGroup {
                 id
                 name
@@ -750,8 +750,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_fragment_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_02(self):
+        self.assert_graphql_query_result(r"""
             fragment userFrag1 on User {
                 name
                 ... userFrag2
@@ -783,8 +783,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_fragment_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_03(self):
+        self.assert_graphql_query_result(r"""
             fragment userFrag2 on User {
                 groups {
                     ... groupFrag
@@ -814,8 +814,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_fragment_04(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_04(self):
+        self.assert_graphql_query_result(r"""
             fragment userFrag1 on User {
                 name
                 ... {
@@ -845,8 +845,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_fragment_type_01(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_type_01(self):
+        self.assert_graphql_query_result(r"""
             fragment userFrag on User {
                 id,
                 name,
@@ -864,8 +864,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_fragment_type_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_type_02(self):
+        self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
                 name,
@@ -883,8 +883,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_fragment_type_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_type_03(self):
+        self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
                 name,
@@ -908,13 +908,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    async def test_graphql_functional_fragment_type_04(self):
+    def test_graphql_functional_fragment_type_04(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'userFrag cannot be spread.*?'
                 r'UserGroup can never be of type User',
                 line=9, col=25):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 fragment userFrag on User {
                     id,
                     name,
@@ -927,13 +927,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_fragment_type_05(self):
+    def test_graphql_functional_fragment_type_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'userFrag cannot be spread.*?'
                 r'UserGroup can never be of type User',
                 line=8, col=21):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 fragment userFrag on User {
                     id,
                     name,
@@ -953,8 +953,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_fragment_type_06(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_type_06(self):
+        self.assert_graphql_query_result(r"""
             fragment userFrag on User {
                 age
                 score
@@ -979,8 +979,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_fragment_type_07(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_type_07(self):
+        self.assert_graphql_query_result(r"""
             fragment frag on NamedObject {
                 id,
                 name,
@@ -1004,12 +1004,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_fragment_type_08(self):
+    def test_graphql_functional_fragment_type_08(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'Cannot query field "age" on type "NamedObject"',
                 line=5, col=21):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 fragment frag on NamedObject {
                     id,
                     name,
@@ -1023,12 +1023,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_fragment_type_09(self):
+    def test_graphql_functional_fragment_type_09(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'Cannot query field "age" on type "NamedObject"',
                 line=7, col=29):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     User {
                         ... on NamedObject {
@@ -1040,8 +1040,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_fragment_type_10(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_type_10(self):
+        self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
                 name,
@@ -1070,8 +1070,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_fragment_type_11(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_type_11(self):
+        self.assert_graphql_query_result(r"""
             fragment namedFrag on NamedObject {
                 id,
                 name,
@@ -1096,8 +1096,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_fragment_type_12(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_fragment_type_12(self):
+        self.assert_graphql_query_result(r"""
             query {
                 NamedObject(order: {name: {dir: ASC}}) {
                     ... on User {
@@ -1118,8 +1118,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_directives_01(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_directives_01(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     name @include(if: true),
@@ -1138,8 +1138,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_directives_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_directives_02(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     name @skip(if: true),
@@ -1158,8 +1158,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_directives_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_directives_03(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     name @skip(if: true), @include(if: true),
@@ -1179,8 +1179,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_directives_04(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_directives_04(self):
+        self.assert_graphql_query_result(r"""
             fragment userFrag1 on User {
                 name
                 ... {
@@ -1209,8 +1209,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_directives_05(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_directives_05(self):
+        self.assert_graphql_query_result(r"""
             fragment userFrag1 on User {
                 name
                 ... @skip(if: true) {
@@ -1239,8 +1239,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_directives_06(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_directives_06(self):
+        self.assert_graphql_query_result(r"""
             fragment userFrag1 on User {
                 name
                 ... {
@@ -1269,12 +1269,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_directives_07(self):
+    def test_graphql_functional_directives_07(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'invalid value "true"',
                 line=4, col=43):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     User {
                         name @include(if: "true"),
@@ -1283,8 +1283,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_typename_01(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_typename_01(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User {
                     name
@@ -1324,8 +1324,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         }, sort=lambda x: x['name'])
 
-    async def test_graphql_functional_typename_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_typename_02(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __typename
                 __schema {
@@ -1339,8 +1339,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             },
         })
 
-    async def test_graphql_functional_typename_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_typename_03(self):
+        self.assert_graphql_query_result(r"""
             query {
                 foo: __typename
                 User(order: {name: {dir: ASC}}) {
@@ -1358,8 +1358,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_schema_01(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_schema_01(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __schema {
                     directives {
@@ -1475,8 +1475,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'directives': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_schema_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_schema_02(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __schema {
                     mutationType {
@@ -1490,8 +1490,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         })
 
-    async def test_graphql_functional_schema_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_schema_03(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __schema {
                     queryType {
@@ -1530,8 +1530,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         })
 
-    async def test_graphql_functional_schema_04(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_schema_04(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __schema {
                     __typename
@@ -1546,12 +1546,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             },
         })
 
-    async def test_graphql_functional_schema_05(self):
+    def test_graphql_functional_schema_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Unknown argument "name" on field "__schema" of type "Query"',
                 line=3, col=30):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     __schema(name: "foo") {
                         __typename
@@ -1559,8 +1559,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_schema_06(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_schema_06(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __schema {
                     types {
@@ -1630,8 +1630,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'types': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_schema_07(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_schema_07(self):
+        self.assert_graphql_query_result(r"""
             query {
                 Foo : __schema {
                     types {
@@ -1701,8 +1701,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'types': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_duplicates_01(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_duplicates_01(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     name
@@ -1720,8 +1720,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_duplicates_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_duplicates_02(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     name @include(if: true)
@@ -1738,8 +1738,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_duplicates_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_duplicates_03(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     ... on User @skip(if: false) {
@@ -1758,8 +1758,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_duplicates_04(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_duplicates_04(self):
+        self.assert_graphql_query_result(r"""
             fragment f1 on User {
                 name @include(if: true)
             }
@@ -1786,8 +1786,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_duplicates_05(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_duplicates_05(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     age
@@ -1806,8 +1806,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.xfail('graphql parser has an issue here')
-    async def test_graphql_functional_duplicates_06(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_duplicates_06(self):
+        self.assert_graphql_query_result(r"""
             query {
                 User(order: {name: {dir: ASC}}) {
                     ... @skip(if: false) {
@@ -1826,8 +1826,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_duplicates_07(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_duplicates_07(self):
+        self.assert_graphql_query_result(r"""
             fragment f1 on User {
                 name @skip(if: false)
             }
@@ -1855,9 +1855,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_01(self):
+    def test_graphql_functional_variables_01(self):
         # FIXME: don't have a way of supplying the parameter $name
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($name: String) {
                 User(filter: {name: {eq: $name}}) {
                     name,
@@ -1876,9 +1876,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_03(self):
+    def test_graphql_functional_variables_03(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
                 User(filter: {score: {eq: $val}}) {
                     id,
@@ -1889,9 +1889,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_04(self):
+    def test_graphql_functional_variables_04(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: Boolean = true) {
                 User(order: {name: {dir: ASC}}) {
                     name @include(if: $val),
@@ -1909,13 +1909,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    async def test_graphql_functional_variables_05(self):
+    def test_graphql_functional_variables_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Boolean!" is required and '
                 r'will not use the default value',
                 line=2, col=40):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Boolean! = true) {
                     User {
                         name @include(if: $val),
@@ -1924,13 +1924,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_06(self):
+    def test_graphql_functional_variables_06(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of required type "Boolean!" '
                 r'was not provided',
                 line=2, col=23):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Boolean!) {
                     User {
                         name @include(if: $val),
@@ -1940,9 +1940,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             """)
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_07(self):
+    def test_graphql_functional_variables_07(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: String = "John") {
                 User(filter: {name: {eq: $val}}) {
                     age,
@@ -1955,9 +1955,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_08(self):
+    def test_graphql_functional_variables_08(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: Int = 20) {
                 User(filter: {age: {eq: $val}}) {
                     name,
@@ -1968,9 +1968,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_09(self):
+    def test_graphql_functional_variables_09(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: Float = 3.5) {
                 User(filter: {score: {eq: $val}}) {
                     name,
@@ -1981,9 +1981,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_10(self):
+    def test_graphql_functional_variables_10(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
                 User(filter: {score: {eq: $val}}) {
                     id,
@@ -1994,9 +1994,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_11(self):
+    def test_graphql_functional_variables_11(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: Float = 3) {
                 User(filter: {score: {eq: $val}}) {
                     id,
@@ -2006,13 +2006,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             "User": []
         })
 
-    async def test_graphql_functional_variables_12(self):
+    def test_graphql_functional_variables_12(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Boolean" '
                 r'has invalid default value: 1',
                 line=2, col=39):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Boolean = 1) {
                     User {
                         name @include(if: $val),
@@ -2021,13 +2021,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_13(self):
+    def test_graphql_functional_variables_13(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Boolean" '
                 r'has invalid default value: "1"',
                 line=2, col=39):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Boolean = "1") {
                     User {
                         name @include(if: $val),
@@ -2036,13 +2036,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_14(self):
+    def test_graphql_functional_variables_14(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Boolean" '
                 r'has invalid default value: 1\.3',
                 line=2, col=39):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Boolean = 1.3) {
                     User {
                         name @include(if: $val),
@@ -2051,13 +2051,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_15(self):
+    def test_graphql_functional_variables_15(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "String" '
                 r'has invalid default value: 1',
                 line=2, col=38):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: String = 1) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2065,13 +2065,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_16(self):
+    def test_graphql_functional_variables_16(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "String" '
                 r'has invalid default value: 1\.1',
                 line=2, col=38):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: String = 1.1) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2079,13 +2079,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_17(self):
+    def test_graphql_functional_variables_17(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "String" '
                 r'has invalid default value: true',
                 line=2, col=38):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: String = true) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2093,13 +2093,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_18(self):
+    def test_graphql_functional_variables_18(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Int" '
                 r'has invalid default value: 1\.1',
                 line=2, col=35):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Int = 1.1) {
                     User(filter: {age: {eq: $val}}) {
                         id
@@ -2107,13 +2107,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_19(self):
+    def test_graphql_functional_variables_19(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Int" '
                 r'has invalid default value: "1"',
                 line=2, col=35):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Int = "1") {
                     User(filter: {age: {eq: $val}}) {
                         id
@@ -2121,13 +2121,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_20(self):
+    def test_graphql_functional_variables_20(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Int" '
                 r'has invalid default value: true',
                 line=2, col=35):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Int = true) {
                     User(filter: {age: {eq: $val}}) {
                         id
@@ -2135,13 +2135,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_21(self):
+    def test_graphql_functional_variables_21(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Float" '
                 r'has invalid default value: "1"',
                 line=2, col=37):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Float = "1") {
                     User(filter: {score: {eq: $val}}) {
                         id
@@ -2149,13 +2149,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_22(self):
+    def test_graphql_functional_variables_22(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "Float" '
                 r'has invalid default value: true',
                 line=2, col=37):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: Float = true) {
                     User(filter: {score: {eq: $val}}) {
                         id
@@ -2164,9 +2164,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             """)
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_23(self):
+    def test_graphql_functional_variables_23(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: ID = "1") {
                 User(filter: {id: {eq: $val}}) {
                     name
@@ -2177,9 +2177,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     @test.not_implemented('query parameters are not yet implemented')
-    async def test_graphql_functional_variables_24(self):
+    def test_graphql_functional_variables_24(self):
         # FIXME: don't have a way of supplying the parameter $val
-        await self.assert_graphql_query_result(r"""
+        self.assert_graphql_query_result(r"""
             query($val: ID = 1) {
                 User(filter: {id: {eq: $val}}) {
                     name
@@ -2189,13 +2189,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             "User": []
         })
 
-    async def test_graphql_functional_variables_25(self):
+    def test_graphql_functional_variables_25(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "ID" '
                 r'has invalid default value: 1\.1',
                 line=2, col=34):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: ID = 1.1) {
                     User(filter: {id: {eq: $val}}) {
                         name
@@ -2203,13 +2203,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_26(self):
+    def test_graphql_functional_variables_26(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "ID" '
                 r'has invalid default value: true',
                 line=2, col=34):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: ID = true) {
                     User(filter: {id: {eq: $val}}) {
                         name
@@ -2217,12 +2217,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_27(self):
+    def test_graphql_functional_variables_27(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "\[String\]" '
                 r'used in position expecting type "String"'):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: [String] = "Foo") {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2230,12 +2230,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_28(self):
+    def test_graphql_functional_variables_28(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "\[String\]" '
                 r'used in position expecting type "String"'):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: [String]) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2243,12 +2243,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_29(self):
+    def test_graphql_functional_variables_29(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "\[String\]!" '
                 r'used in position expecting type "String"'):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: [String]!) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2256,12 +2256,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_30(self):
+    def test_graphql_functional_variables_30(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of required type "String!" '
                 r'was not provided'):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: String!) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2269,13 +2269,13 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_31(self):
+    def test_graphql_functional_variables_31(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "\[String\]" '
                 r'has invalid default value: \["Foo", 123\]',
                 line=2, col=40):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: [String] = ["Foo", 123]) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2283,12 +2283,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_variables_32(self):
+    def test_graphql_functional_variables_32(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'val. of type "\[String\]" '
                 r'used in position expecting type "String"'):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query($val: [String]) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2296,12 +2296,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_enum_01(self):
+    def test_graphql_functional_enum_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'Expected type "String", found admin',
                 line=4, col=39):
-            await self.graphql_query(r"""
+            self.graphql_query(r"""
                 query {
                     # enum supplied instead of a string
                     UserGroup(filter: {name: {eq: admin}}) {
@@ -2311,8 +2311,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    async def test_graphql_functional_type_01(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_01(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __type(name: "User") {
                     __typename
@@ -2328,8 +2328,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         })
 
-    async def test_graphql_functional_type_02(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_02(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __type(name: "UserType") {
                     __typename
@@ -2373,8 +2373,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'interfaces': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_03(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_03(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __type(name: "User") {
                     __typename
@@ -2417,8 +2417,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'possibleTypes': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_04(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_04(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __type(name: "UserGroup") {
                     __typename
@@ -2532,8 +2532,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'fields': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_05(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_05(self):
+        self.assert_graphql_query_result(r"""
             fragment _t on __Type {
                 __typename
                 name
@@ -2641,8 +2641,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'fields': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_06(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_06(self):
+        self.assert_graphql_query_result(r"""
             query {
                 __type(name: "ProfileType") {
                     __typename
@@ -2807,8 +2807,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'fields': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_07(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_07(self):
+        self.assert_graphql_query_result(r"""
             fragment _t on __Type {
                 __typename
                 name
@@ -3503,8 +3503,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             },
         })
 
-    async def test_graphql_functional_type_08(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_08(self):
+        self.assert_graphql_query_result(r"""
         query {
             __type(name: "UserGroupType") {
                 __typename
@@ -3684,8 +3684,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         })
 
-    async def test_graphql_functional_type_09(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_09(self):
+        self.assert_graphql_query_result(r"""
             fragment _t on __Type {
                 name
                 kind
@@ -3804,8 +3804,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'inputFields': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_10(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_10(self):
+        self.assert_graphql_query_result(r"""
             fragment _t on __Type {
                 name
                 kind
@@ -3884,8 +3884,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'inputFields': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_11(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_11(self):
+        self.assert_graphql_query_result(r"""
             fragment _t on __Type {
                 name
                 kind
@@ -3947,8 +3947,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'inputFields': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_12(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_12(self):
+        self.assert_graphql_query_result(r"""
             query {
                 directionEnum: __type(name: "directionEnum") {
                     __typename
@@ -3990,8 +3990,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'enumValues': lambda x: x['name'],
         })
 
-    async def test_graphql_functional_type_13(self):
-        await self.assert_graphql_query_result(r"""
+    def test_graphql_functional_type_13(self):
+        self.assert_graphql_query_result(r"""
             query IntrospectionQuery {
                 __schema {
                   queryType { name }
