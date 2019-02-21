@@ -55,6 +55,7 @@ BUILD_DEPS = [
 
 EXTRA_DEPS = {
     'test': [
+        'aiohttp~=3.5.4',
         'flake8~=3.7.5',
         'pycodestyle~=2.5.0',
         'coverage~=4.5.2',

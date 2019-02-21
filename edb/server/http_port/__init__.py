@@ -26,6 +26,11 @@ import urllib.parse
 
 import httptools
 
+from edb import errors
+from edb.graphql import errors as gql_errors
+
+from edb.common import debug
+from edb.common import markup
 from edb.common import taskgroup
 from edb.server import baseport
 
@@ -140,7 +145,8 @@ class HttpProtocol(asyncio.Protocol):
             response.write(f'{type(ex).__name__}: {ex}'.encode(),
                            status=400,
                            content_type='text/plain')
-            self._transport.close()
+            if debug.flags.server:
+                markup.dump(ex)
             return
 
         try:
@@ -161,12 +167,24 @@ class HttpProtocol(asyncio.Protocol):
 
             response.write(b'{"data":' + data[0][0] + b'}')
         except Exception as ex:
-            response.write(
-                b'{"errors":[{"message":' +
-                json.dumps(f'{type(ex).__name__}: {ex}').encode() +
-                b'}]}')
+            ex_type = type(ex)
+            if issubclass(ex_type, gql_errors.GraphQLError):
+                # XXX Fix this when LSP "location" objects are implemented
+                ex_type = errors.QueryError
 
-        self._transport.close()
+            err_dct = {
+                'message': f'{ex_type.__name__}: {ex}',
+            }
+
+            if (isinstance(ex, errors.EdgeDBError) and
+                    hasattr(ex, 'line') and
+                    hasattr(ex, 'col')):
+                err_dct['locations'] = [{'line': ex.line, 'column': ex.col}]
+
+            response.write(json.dumps({'errors': [err_dct]}).encode())
+
+            if debug.flags.server:
+                markup.dump(ex)
 
 
 class HttpPort(baseport.Port):

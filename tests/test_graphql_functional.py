@@ -23,11 +23,11 @@ import uuid
 
 import edgedb
 
-from edb.testbase import server as tb
+from edb.testbase import http as tb
 from edb.tools import test
 
 
-class TestGraphQLFunctional(tb.QueryTestCase):
+class TestGraphQLFunctional(tb.GraphQLTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'graphql.eschema')
 
@@ -148,7 +148,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Cannot query field "Bogus" on type "Query"',
                 line=3, col=21):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     Bogus {
                         name,
@@ -165,7 +165,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Cannot query field "bogus" on type "User"',
                 line=5, col=25):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     User {
                         name,
@@ -183,7 +183,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Cannot query field "age" on type "NamedObject"',
                 line=5, col=25):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     NamedObject {
                         name,
@@ -608,7 +608,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Expected type "String", found 42',
                 line=3, col=34):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     User(filter: {name: {eq: 42}}) {
                         id,
@@ -621,7 +621,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Expected type "String", found 20\.5',
                 line=3, col=34):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     User(filter: {name: {eq: 20.5}}) {
                         id,
@@ -634,7 +634,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Expected type "Float", found "3\.5"',
                 line=3, col=34):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     User(filter: {score: {eq: "3.5"}}) {
                         id,
@@ -647,7 +647,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Expected type "Boolean", found 0',
                 line=3, col=34):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     User(filter: {active: {eq: 0}}) {
                         id,
@@ -844,7 +844,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'userFrag cannot be spread.*?'
                 r'UserGroup can never be of type User',
                 line=9, col=25):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 fragment userFrag on User {
                     id,
                     name,
@@ -863,7 +863,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'userFrag cannot be spread.*?'
                 r'UserGroup can never be of type User',
                 line=8, col=21):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 fragment userFrag on User {
                     id,
                     name,
@@ -939,7 +939,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 'Cannot query field "age" on type "NamedObject"',
                 line=5, col=21):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 fragment frag on NamedObject {
                     id,
                     name,
@@ -958,7 +958,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 'Cannot query field "age" on type "NamedObject"',
                 line=7, col=29):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     User {
                         ... on NamedObject {
@@ -1204,7 +1204,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 'invalid value "true"',
                 line=4, col=43):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     User {
                         name @include(if: "true"),
@@ -1481,7 +1481,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Unknown argument "name" on field "__schema" of type "Query"',
                 line=3, col=30):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     __schema(name: "foo") {
                         __typename
@@ -1845,7 +1845,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Boolean!" is required and '
                 r'will not use the default value',
                 line=2, col=40):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Boolean! = true) {
                     User {
                         name @include(if: $val),
@@ -1860,7 +1860,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of required type "Boolean!" '
                 r'was not provided',
                 line=2, col=23):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Boolean!) {
                     User {
                         name @include(if: $val),
@@ -1942,7 +1942,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Boolean" '
                 r'has invalid default value: 1',
                 line=2, col=39):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Boolean = 1) {
                     User {
                         name @include(if: $val),
@@ -1957,7 +1957,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Boolean" '
                 r'has invalid default value: "1"',
                 line=2, col=39):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Boolean = "1") {
                     User {
                         name @include(if: $val),
@@ -1972,7 +1972,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Boolean" '
                 r'has invalid default value: 1\.3',
                 line=2, col=39):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Boolean = 1.3) {
                     User {
                         name @include(if: $val),
@@ -1987,7 +1987,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "String" '
                 r'has invalid default value: 1',
                 line=2, col=38):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: String = 1) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2001,7 +2001,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "String" '
                 r'has invalid default value: 1\.1',
                 line=2, col=38):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: String = 1.1) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2015,7 +2015,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "String" '
                 r'has invalid default value: true',
                 line=2, col=38):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: String = true) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2029,7 +2029,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Int" '
                 r'has invalid default value: 1\.1',
                 line=2, col=35):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Int = 1.1) {
                     User(filter: {age: {eq: $val}}) {
                         id
@@ -2043,7 +2043,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Int" '
                 r'has invalid default value: "1"',
                 line=2, col=35):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Int = "1") {
                     User(filter: {age: {eq: $val}}) {
                         id
@@ -2057,7 +2057,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Int" '
                 r'has invalid default value: true',
                 line=2, col=35):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Int = true) {
                     User(filter: {age: {eq: $val}}) {
                         id
@@ -2071,7 +2071,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Float" '
                 r'has invalid default value: "1"',
                 line=2, col=37):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Float = "1") {
                     User(filter: {score: {eq: $val}}) {
                         id
@@ -2085,7 +2085,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "Float" '
                 r'has invalid default value: true',
                 line=2, col=37):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: Float = true) {
                     User(filter: {score: {eq: $val}}) {
                         id
@@ -2125,7 +2125,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "ID" '
                 r'has invalid default value: 1\.1',
                 line=2, col=34):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: ID = 1.1) {
                     User(filter: {id: {eq: $val}}) {
                         name
@@ -2139,7 +2139,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "ID" '
                 r'has invalid default value: true',
                 line=2, col=34):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: ID = true) {
                     User(filter: {id: {eq: $val}}) {
                         name
@@ -2152,7 +2152,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'val. of type "\[String\]" '
                 r'used in position expecting type "String"'):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: [String] = "Foo") {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2165,7 +2165,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'val. of type "\[String\]" '
                 r'used in position expecting type "String"'):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: [String]) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2178,7 +2178,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'val. of type "\[String\]!" '
                 r'used in position expecting type "String"'):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: [String]!) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2191,7 +2191,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'val. of required type "String!" '
                 r'was not provided'):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: String!) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2205,7 +2205,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 r'val. of type "\[String\]" '
                 r'has invalid default value: \["Foo", 123\]',
                 line=2, col=40):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: [String] = ["Foo", 123]) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2218,7 +2218,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'val. of type "\[String\]" '
                 r'used in position expecting type "String"'):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query($val: [String]) {
                     User(filter: {name: {eq: $val}}) {
                         id
@@ -2231,7 +2231,7 @@ class TestGraphQLFunctional(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'Expected type "String", found admin',
                 line=4, col=39):
-            await self.con._execute_graphql(r"""
+            await self.graphql_query(r"""
                 query {
                     # enum supplied instead of a string
                     UserGroup(filter: {name: {eq: admin}}) {

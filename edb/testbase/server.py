@@ -28,7 +28,6 @@ import math
 import os
 import pprint
 import re
-import textwrap
 import unittest
 
 import edgedb
@@ -477,23 +476,6 @@ class BaseQueryTestCase(DatabaseTestCase):
         except Exception:
             self.add_fail_notes(serialization='binary')
             raise
-
-    async def graphql_query(self, query):
-        query = textwrap.dedent(query)
-        return await self.con._execute_graphql(query)
-
-    async def assert_graphql_query_result(self, query, result, *,
-                                          msg=None, sort=None):
-        res = await self.con._execute_graphql(query)
-
-        if sort is not None:
-            # GQL will always have a single object returned. The data is
-            # in the top-level fields, so that's what needs to be sorted.
-            for r in res.values():
-                self._sort_results(r, sort)
-
-        self._assert_data_shape(res, result, message=msg)
-        return res
 
     def _sort_results(self, results, sort):
         if sort is True:
