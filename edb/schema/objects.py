@@ -1240,6 +1240,20 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
         return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
 
 
+class UnqualifiedObject(Object):
+
+    name = SchemaField(
+        str,
+        inheritable=False, compcoef=0.670)
+
+    def get_displayname(self, schema):
+        return self.get_name(schema)
+
+
+class GlobalObject(UnqualifiedObject):
+    pass
+
+
 class ObjectRef(Object):
 
     def __init__(self, *, name: str):

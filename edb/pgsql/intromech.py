@@ -69,6 +69,8 @@ class IntrospectionMech:
             schema = so.Schema()
 
         async with self.connection.transaction(isolation='repeatable_read'):
+            schema = await self.read_roles(
+                schema)
             schema = await self.read_modules(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_scalars(
@@ -99,6 +101,38 @@ class IntrospectionMech:
             schema = await self.order_link_properties(schema)
             schema = await self.order_links(schema)
             schema = await self.order_objtypes(schema)
+
+        return schema
+
+    async def read_roles(self, schema):
+        roles = await datasources.schema.roles.fetch(self.connection)
+        basemap = {}
+
+        for row in roles:
+            schema, role = s_roles.Role.create_in_schema(
+                schema,
+                id=row['id'],
+                name=row['name'],
+                is_superuser=row['is_superuser'],
+                allow_login=row['allow_login'],
+                password=row['password'],
+            )
+
+            basemap[role.id] = tuple(row['bases']) if row['bases'] else ()
+
+        for role in schema.get_objects(type=s_roles.Role):
+            try:
+                bases = basemap[role.id]
+            except KeyError:
+                pass
+            else:
+                schema = role.set_field_value(
+                    schema,
+                    'bases',
+                    [schema.get_by_id(b) for b in bases])
+
+        for role in schema.get_objects(type=s_roles.Role):
+            schema = role.acquire_ancestor_inheritance(schema)
 
         return schema
 

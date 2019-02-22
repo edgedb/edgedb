@@ -688,15 +688,8 @@ class IntrospectIndexesFunction(dbops.Function):
                         AND (ia.attnum IS NULL OR ia.attnum >= 1)
                     )                               AS index_columns,
 
-                    (SELECT
-                        substr(cmt.description, 5)::jsonb
-                     FROM
-                        pg_description AS cmt
-                     WHERE
-                        cmt.objoid = i.indexrelid
-                        AND cmt.classoid = 'pg_class'::regclass
-                        AND substr(cmt.description, 1, 4) = '$CMR'
-                    )                               AS index_metadata
+                    obj_description(i.indexrelid, 'pg_class')::jsonb
+                                                    AS index_metadata
 
                  FROM
                     pg_class AS c
@@ -832,14 +825,7 @@ class IntrospectTriggersFunction(dbops.Function):
 
                     pg_get_triggerdef(t.oid)::text          AS trg_definition,
 
-                    (SELECT
-                        substr(cmt.description, 5)::jsonb
-                     FROM
-                        pg_description AS cmt
-                     WHERE
-                        cmt.objoid = t.oid
-                        AND cmt.classoid = 'pg_trigger'::regclass
-                        AND substr(cmt.description, 1, 4) = '$CMR')
+                    obj_description(t.oid, 'pg_trigger')::jsonb
                                                             AS trg_metadata
 
                  FROM
@@ -1931,6 +1917,56 @@ def _generate_database_view(schema):
     return dbops.View(name=tabname(schema, Database), query=view_query)
 
 
+def _generate_role_views(schema):
+    Role = schema.get('sys::Role')
+
+    view_query = f'''
+        SELECT
+            ((d.description)->>'id')::uuid              AS id,
+            (SELECT id FROM edgedb.Object
+                 WHERE name = 'sys::Role')              AS __type__,
+            a.rolname                                   AS name,
+            a.rolsuper                                  AS is_superuser,
+            a.rolcanlogin                               AS allow_login,
+            a.rolpassword                               AS password
+        FROM
+            pg_authid AS a
+            CROSS JOIN LATERAL (
+                SELECT
+                    shobj_description(a.oid, 'pg_authid')::jsonb
+                        AS description
+            ) AS d
+        WHERE
+            (d.description)->>'__edgedb__' = '1';
+    '''
+
+    link_query = f'''
+        SELECT
+            ((d.description)->>'id')::uuid              AS source,
+            ((md.description)->>'id')::uuid             AS target
+        FROM
+            pg_authid AS a
+            CROSS JOIN LATERAL (
+                SELECT
+                    shobj_description(a.oid, 'pg_authid')::jsonb
+                        AS description
+            ) AS d
+            INNER JOIN pg_auth_members m ON m.member = a.oid
+            CROSS JOIN LATERAL (
+                SELECT
+                    shobj_description(m.roleid, 'pg_authid')::jsonb
+                        AS description
+            ) AS md
+    '''
+
+    return [
+        dbops.View(name=tabname(schema, Role),
+                   query=view_query),
+        dbops.View(name=tabname(schema, Role.getptr(schema, 'member_of')),
+                   query=link_query),
+    ]
+
+
 def _lookup_type(qual):
     return f'''(
         SELECT
@@ -2244,6 +2280,10 @@ async def generate_views(conn, schema):
 
     db_view = _generate_database_view(schema)
     views[db_view.name] = db_view
+
+    role_views = _generate_role_views(schema)
+    for role_view in role_views:
+        views[role_view.name] = role_view
 
     types_view = views[tabname(schema, schema.get('schema::Type'))]
     types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''

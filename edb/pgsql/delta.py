@@ -46,6 +46,7 @@ from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import operators as s_opers
 from edb.schema import referencing as s_referencing
+from edb.schema import roles as s_roles
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 
@@ -3073,6 +3074,68 @@ class DropDatabase(ObjectMetaCommand, adapts=s_db.DropDatabase):
         schema, _ = s_db.CreateDatabase.apply(self, schema, context)
         self.pgops.add(dbops.DropDatabase(self.classname))
         return schema, None
+
+
+class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
+    def apply(self, schema, context):
+        schema, role = s_roles.CreateRole.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+
+        role = dbops.Role(
+            name=role.get_name(schema),
+            allow_login=role.get_allow_login(schema),
+            is_superuser=role.get_is_superuser(schema),
+            password=role.get_password(schema),
+            metadata=dict(id=str(role.id), __edgedb__='1'),
+            membership=list(role.get_bases(schema).names(schema)),
+        )
+        self.pgops.add(dbops.CreateRole(role))
+        return schema, role
+
+
+class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
+    def apply(self, schema, context):
+        schema, role = s_roles.AlterRole.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        dbrole = dbops.Role(
+            name=role.get_name(schema),
+            allow_login=role.get_allow_login(schema),
+            is_superuser=role.get_is_superuser(schema),
+            password=role.get_password(schema),
+        )
+        self.pgops.add(dbops.AlterRole(dbrole))
+
+        return schema, role
+
+
+class RebaseRole(ObjectMetaCommand, adapts=s_roles.RebaseRole):
+    def apply(self, schema, context):
+        orig_schema = schema
+        schema, role = s_roles.RebaseRole.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+
+        for dropped in self.removed_bases:
+            self.pgops.add(dbops.AlterRoleDropMember(
+                name=dropped.get_name(orig_schema),
+                member=role.get_name(schema),
+            ))
+
+        for bases, pos in self.added_bases:
+            for added in bases:
+                self.pgops.add(dbops.AlterRoleAddMember(
+                    name=added.get_name(schema),
+                    member=role.get_name(schema),
+                ))
+
+        return schema, role
+
+
+class DeleteRole(ObjectMetaCommand, adapts=s_roles.DeleteRole):
+    def apply(self, schema, context):
+        schema, role = s_roles.DeleteRole.apply(self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        self.pgops.add(dbops.DropRole(self.classname))
+        return schema, role
 
 
 class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):

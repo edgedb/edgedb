@@ -153,14 +153,13 @@ class GetMetadata(base.Command):
 
         return textwrap.dedent(f'''\
             SELECT
-                substr(description, 5)::jsonb
+                description::jsonb
              FROM
                 pg_description
              WHERE
                 objoid = {objoid}
                 AND classoid = {classoid}
                 AND objsubid = {objsubid}
-                AND substr(description, 1, 4) = '$CMR'
         ''')
 
 
@@ -182,7 +181,7 @@ class PutMetadata(DDLOperation):
 class SetMetadata(PutMetadata):
     def code(self, block: base.PLBlock) -> str:
         metadata = self.metadata
-        desc = '$CMR{}'.format(json.dumps(metadata))
+        desc = json.dumps(metadata)
 
         object_type = self.object.get_type()
         object_id = self.object.get_id()
@@ -201,7 +200,7 @@ class UpdateMetadata(PutMetadata):
 
         upd_metadata = common.quote_literal(json.dumps(self.metadata))
         block.add_command(
-            f"{upd_v} := '$CMR' || ({json_v} || {upd_metadata})::text;")
+            f"{upd_v} := '({json_v} || {upd_metadata})::text;")
 
         object_type = self.object.get_type()
         object_id = self.object.get_id()

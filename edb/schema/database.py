@@ -17,7 +17,6 @@
 #
 
 
-from edb.common import struct
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
@@ -26,25 +25,17 @@ from . import delta as sd
 from . import objects as so
 
 
-class Database(attributes.AttributeSubject, s_abc.Database):
-
-    # Override 'name' to str type, since databases don't have
-    # fully-qualified names.
-    name = so.SchemaField(str)
+class Database(so.GlobalObject, attributes.AttributeSubject, s_abc.Database):
+    pass
 
 
 class DatabaseCommandContext(sd.CommandContextToken):
     pass
 
 
-class DatabaseCommand(sd.ObjectCommand, schema_metaclass=Database,
+class DatabaseCommand(sd.GlobalObjectCommand, schema_metaclass=Database,
                       context_class=DatabaseCommandContext):
-
-    classname = struct.Field(str)
-
-    @classmethod
-    def _classname_from_ast(cls, schema, astnode, context):
-        return astnode.name.name
+    pass
 
 
 class CreateDatabase(DatabaseCommand):

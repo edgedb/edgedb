@@ -17,42 +17,24 @@
 #
 
 
-from edb.common import struct
 from edb.edgeql import ast as qlast
 
 from . import attributes
 from . import delta as sd
-from . import name as sn
 from . import objects as so
 
 
-class Module(attributes.AttributeSubject):
-    # Override 'name' to str type, since modules don't have
-    # fully-qualified names.
-    name = so.SchemaField(str)
-
-    def get_displayname(self, schema):
-        return self.get_name(schema)
+class Module(so.UnqualifiedObject, attributes.AttributeSubject):
+    pass
 
 
 class ModuleCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class ModuleCommand(sd.ObjectCommand, schema_metaclass=Module,
+class ModuleCommand(sd.UnqualifiedObjectCommand, schema_metaclass=Module,
                     context_class=ModuleCommandContext):
-
-    classname = struct.Field(str)
-
-    @classmethod
-    def _classname_from_ast(cls, schema, astnode, context):
-        if astnode.name.module:
-            classname = sn.Name(module=astnode.name.module,
-                                name=astnode.name.name)
-        else:
-            classname = astnode.name.name
-
-        return classname
+    pass
 
 
 class CreateModule(ModuleCommand, sd.CreateObject):

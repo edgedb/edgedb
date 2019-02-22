@@ -31,6 +31,7 @@ from edb.common import context as parser_context
 from edb.common import debug
 from edb.common import devmode
 from edb.common import exceptions
+from edb.common import uuidgen
 
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
@@ -73,39 +74,23 @@ async def _execute_block(conn, block: dbops.PLBlock) -> None:
 
 
 async def _ensure_edgedb_user(conn, username, *, is_superuser=False):
-    result = await conn.fetchrow('''
-        SELECT
-            rolsuper,
-            rolcanlogin
-        FROM
-            pg_catalog.pg_roles
-        WHERE
-            rolname = $1
-    ''', username)
+    role = dbops.Role(
+        name=username,
+        is_superuser=is_superuser,
+        allow_login=True,
+        metadata=dict(
+            id=str(uuidgen.uuid1mc()),
+            __edgedb__='1',
+        )
+    )
 
-    if not result:
-        logger.info(f'Creating {username} role...')
-        if is_superuser:
-            extra = 'SUPERUSER'
-        else:
-            extra = 'CREATEDB'
-        await _execute(
-            conn,
-            'CREATE ROLE {} WITH LOGIN {}'.format(username, extra))
-    else:
-        alter = []
+    create_role = dbops.CreateRole(
+        role=role, neg_conditions=[dbops.RoleExists(username)])
 
-        if not result['rolsuper'] and is_superuser:
-            alter.append('SUPERUSER')
+    block = dbops.PLTopBlock()
+    create_role.generate(block)
 
-        if not result['rolcanlogin']:
-            alter.append('LOGIN')
-
-        if alter:
-            logger.info('Altering superuser role privileges...')
-            await _execute(
-                conn,
-                'ALTER ROLE {} WITH {}'.format(username, ' '.join(alter)))
+    await _execute_block(conn, block)
 
 
 async def _get_db_info(conn, dbname):

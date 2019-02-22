@@ -187,7 +187,7 @@ class RebaseInheritingObject(sd.ObjectCommand):
 
     def apply(self, schema, context):
         metaclass = self.get_schema_metaclass()
-        scls = schema.get(self.classname, type=metaclass)
+        scls = self.get_object(schema)
         self.scls = scls
 
         objects = [scls] + list(scls.descendants(schema))
@@ -227,19 +227,24 @@ class RebaseInheritingObject(sd.ObjectCommand):
             if isinstance(pos, tuple):
                 pos, ref = pos
 
-            if pos == 'LAST':
+            if pos is None or pos == 'LAST':
                 idx = len(bases)
             elif pos == 'FIRST':
                 idx = 0
             else:
                 idx = index[ref]
 
-            bases[idx:idx] = [schema.get(b.get_name(schema)) for b in new_bases
+            bases[idx:idx] = [self.get_object(schema, name=b.get_name(schema))
+                              for b in new_bases
                               if b.get_name(schema) not in existing_bases]
             index = {b.get_name(schema): i for i, b in enumerate(bases)}
 
         if not bases:
-            bases = [schema.get(metaclass.get_default_base_name())]
+            default = metaclass.get_default_base_name()
+            if default:
+                bases = [self.get_object(schema, name=default)]
+            else:
+                bases = []
 
         schema = scls.set_field_value(schema, 'bases', bases)
         new_mro = compute_mro(schema, scls)[1:]

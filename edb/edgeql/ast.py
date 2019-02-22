@@ -639,7 +639,7 @@ class DropModule(DropObject):
 
 
 class CreateRole(CreateObject):
-    bases: typing.List[ObjectRef]
+    bases: typing.List[TypeName]
 
 
 class AlterRole(AlterObject):

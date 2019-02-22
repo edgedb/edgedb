@@ -35,6 +35,22 @@ CREATE TYPE sys::Config {
 };
 
 
+CREATE TYPE sys::Role {
+    CREATE REQUIRED PROPERTY sys::name -> std::str {
+        CREATE CONSTRAINT std::exclusive;
+    };
+
+    CREATE REQUIRED PROPERTY sys::allow_login -> std::bool;
+    CREATE REQUIRED PROPERTY sys::is_superuser -> std::bool;
+    CREATE PROPERTY sys::password -> std::str;
+};
+
+
+ALTER TYPE sys::Role {
+    CREATE MULTI LINK sys::member_of -> sys::Role;
+};
+
+
 CREATE FUNCTION
 sys::sleep(duration: std::float64) -> std::bool
 {

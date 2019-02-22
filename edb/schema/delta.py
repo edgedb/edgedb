@@ -689,12 +689,36 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
                     f'module {modname} is read-only',
                     context=self.source_context)
 
+    def get_object(self, schema, *, name=None):
+        if name is None:
+            name = self.classname
+        metaclass = self.get_schema_metaclass()
+        return schema.get(name, type=metaclass)
+
 
 class ObjectCommandContext(CommandContextToken):
     def __init__(self, schema, op, scls):
         super().__init__(op)
         self.scls = scls
         self.original_schema = schema
+
+
+class UnqualifiedObjectCommand(ObjectCommand):
+
+    classname = struct.Field(str)
+
+    @classmethod
+    def _classname_from_ast(cls, schema, astnode, context):
+        return astnode.name.name
+
+
+class GlobalObjectCommand(UnqualifiedObjectCommand):
+
+    def get_object(self, schema, *, name=None):
+        metaclass = self.get_schema_metaclass()
+        if name is None:
+            name = self.classname
+        return schema.get_global(metaclass, name)
 
 
 class CreateOrAlterObject(ObjectCommand):
@@ -825,8 +849,7 @@ class RenameObject(ObjectCommand):
         return schema
 
     def apply(self, schema, context):
-        metaclass = self.get_schema_metaclass()
-        scls = schema.get(self.classname, type=metaclass)
+        scls = self.get_object(schema)
         self.scls = scls
 
         schema = self._rename_begin(schema, context, scls)
@@ -898,30 +921,35 @@ class AlterObject(CreateOrAlterObject):
             for astcmd in astnode.commands:
                 if isinstance(astcmd, qlast.AlterDropInherit):
                     dropped_bases.extend(
-                        so.ObjectRef(
-                            name=sn.Name(
-                                module=b.maintype.module,
-                                name=b.maintype.name
-                            )
+                        utils.ast_objref_to_objref(
+                            b.maintype,
+                            metaclass=cls.get_schema_metaclass(),
+                            modaliases=context.modaliases,
+                            schema=schema,
                         )
                         for b in astcmd.bases
                     )
 
                 elif isinstance(astcmd, qlast.AlterAddInherit):
                     bases = [
-                        so.ObjectRef(
-                            name=sn.Name(
-                                module=b.maintype.module,
-                                name=b.maintype.name))
+                        utils.ast_objref_to_objref(
+                            b.maintype,
+                            metaclass=cls.get_schema_metaclass(),
+                            modaliases=context.modaliases,
+                            schema=schema,
+                        )
                         for b in astcmd.bases
                     ]
 
                     pos_node = astcmd.position
-                    if pos_node.ref is not None:
-                        ref = pos_node.ref.module + '::' + pos_node.ref.name
-                        pos = (pos_node.position, ref)
+                    if pos_node is not None:
+                        if pos_node.ref is not None:
+                            ref = f'{pos_node.ref.module}::{pos_node.ref.name}'
+                            pos = (pos_node.position, ref)
+                        else:
+                            pos = pos_node.position
                     else:
-                        pos = pos_node.position
+                        pos = None
 
                     added_bases.append((bases, pos))
 
@@ -929,7 +957,7 @@ class AlterObject(CreateOrAlterObject):
             from . import inheriting
 
             parent_class = cmd.get_schema_metaclass()
-            rebase_class = ObjectCommandMeta.get_command_class(
+            rebase_class = ObjectCommandMeta.get_command_class_or_die(
                 inheriting.RebaseInheritingObject, parent_class)
 
             cmd.add(
@@ -1044,8 +1072,7 @@ class AlterObject(CreateOrAlterObject):
         return schema
 
     def apply(self, schema, context):
-        metaclass = self.get_schema_metaclass()
-        scls = schema.get(self.classname, type=metaclass)
+        scls = self.get_object(schema)
         self.scls = scls
 
         with self.new_context(schema, context):
@@ -1100,8 +1127,7 @@ class DeleteObject(ObjectCommand):
         return schema
 
     def apply(self, schema, context=None):
-        metaclass = self.get_schema_metaclass()
-        scls = schema.get(self.classname, type=metaclass)
+        scls = self.get_object(schema)
         self.scls = scls
 
         with self.new_context(schema, context):
@@ -1173,6 +1199,11 @@ class AlterObjectProperty(Command):
                 new_value = utils.ast_objref_to_objref(
                     astnode.value, modaliases=context.modaliases,
                     schema=schema)
+
+            elif (isinstance(astnode.value, qlast.Set)
+                    and not astnode.value.elements):
+                # empty set
+                new_value = None
 
             else:
                 raise ValueError(

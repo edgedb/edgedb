@@ -268,7 +268,7 @@ class CreateTrigger(tables.CreateInheritableTableObject):
             EXECUTE
                 'COMMENT ON TRIGGER ' || quote_ident({desc_var}.name)
                 || ' ON ' || {table_name} || ' IS '
-                || quote_literal('$CMR' || {desc_var}.metadata::text)
+                || quote_literal({desc_var}.metadata::text)
                 ;
         ''')
 

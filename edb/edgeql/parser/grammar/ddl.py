@@ -576,10 +576,10 @@ class DropDatabaseStmt(Nonterm):
 #
 class ShortExtending(Nonterm):
     def reduce_EXTENDING_ShortNodeName(self, *kids):
-        self.val = [kids[1].val]
+        self.val = [qlast.TypeName(maintype=kids[1].val)]
 
     def reduce_EXTENDING_LPAREN_ShortNodeNameList_RPAREN(self, *kids):
-        self.val = kids[2].val
+        self.val = [qlast.TypeName(maintype=v) for v in kids[2].val]
 
 
 class OptShortExtending(Nonterm):
@@ -607,11 +607,13 @@ class CreateRoleStmt(Nonterm):
 #
 class AlterRoleExtending(Nonterm):
     def reduce_EXTENDING_ShortNodeNameList_OptInheritPosition(self, *kids):
-        self.val = qlast.AlterAddInherit(bases=kids[1].val,
-                                         position=kids[2].val)
+        self.val = qlast.AlterAddInherit(
+            bases=[qlast.TypeName(maintype=b) for b in kids[1].val],
+            position=kids[2].val)
 
     def reduce_DROP_EXTENDING_ShortNodeNameList(self, *kids):
-        self.val = qlast.AlterDropInherit(bases=kids[2].val)
+        self.val = qlast.AlterDropInherit(
+            bases=[qlast.TypeName(maintype=b) for b in kids[2].val])
 
 
 commands_block(

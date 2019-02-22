@@ -49,11 +49,12 @@ class Schema:
         self._id_to_type = immu.Map()
         self._shortname_to_id = immu.Map()
         self._name_to_id = immu.Map()
+        self._globalname_to_id = immu.Map()
         self._refs_to = immu.Map()
         self._generation = 0
 
     def _replace(self, *, id_to_data=None, id_to_type=None,
-                 name_to_id=None, shortname_to_id=None,
+                 name_to_id=None, shortname_to_id=None, globalname_to_id=None,
                  modules=None, refs_to=None):
         new = Schema.__new__(Schema)
 
@@ -82,6 +83,11 @@ class Schema:
         else:
             new._shortname_to_id = shortname_to_id
 
+        if globalname_to_id is None:
+            new._globalname_to_id = self._globalname_to_id
+        else:
+            new._globalname_to_id = globalname_to_id
+
         if refs_to is None:
             new._refs_to = self._refs_to
         else:
@@ -94,12 +100,17 @@ class Schema:
     def _update_obj_name(self, obj_id, scls, old_name, new_name):
         name_to_id = self._name_to_id
         shortname_to_id = self._shortname_to_id
+        globalname_to_id = self._globalname_to_id
         stype = type(scls)
+        is_global = issubclass(stype, so.GlobalObject)
 
         has_sn_cache = issubclass(stype, (s_func.Function, s_oper.Operator))
 
         if old_name is not None:
-            name_to_id = name_to_id.delete(old_name)
+            if is_global:
+                globalname_to_id = globalname_to_id.delete((stype, old_name))
+            else:
+                name_to_id = name_to_id.delete(old_name)
             if has_sn_cache:
                 old_shortname = sn.shortname_from_fullname(old_name)
                 sn_key = (stype, old_shortname)
@@ -112,10 +123,19 @@ class Schema:
                     shortname_to_id = shortname_to_id.delete(sn_key)
 
         if new_name is not None:
-            if new_name in name_to_id:
-                raise errors.SchemaError(
-                    f'name {new_name!r} is already in the schema')
-            name_to_id = name_to_id.set(new_name, obj_id)
+            if is_global:
+                key = (stype, new_name)
+                if key in globalname_to_id:
+                    raise errors.SchemaError(
+                        f'{stype.__name__} {new_name!r} '
+                        f'is already in the schema')
+                globalname_to_id = globalname_to_id.set(key, obj_id)
+            else:
+                if new_name in name_to_id:
+                    raise errors.SchemaError(
+                        f'name {new_name!r} is already in the schema')
+                name_to_id = name_to_id.set(new_name, obj_id)
+
             if has_sn_cache:
                 new_shortname = sn.shortname_from_fullname(new_name)
                 sn_key = (stype, new_shortname)
@@ -128,7 +148,7 @@ class Schema:
                 shortname_to_id = shortname_to_id.set(
                     sn_key, ids | {obj_id})
 
-        return name_to_id, shortname_to_id
+        return name_to_id, shortname_to_id, globalname_to_id
 
     def _update_obj(self, obj_id, updates):
         if not updates:
@@ -141,14 +161,18 @@ class Schema:
 
         name_to_id = None
         shortname_to_id = None
+        globalname_to_id = None
         with data.mutate() as mm:
             for field, value in updates.items():
                 if field == 'name':
-                    name_to_id, shortname_to_id = self._update_obj_name(
-                        obj_id,
-                        self._id_to_type[obj_id],
-                        mm.get('name'),
-                        value)
+                    name_to_id, shortname_to_id, globalname_to_id = (
+                        self._update_obj_name(
+                            obj_id,
+                            self._id_to_type[obj_id],
+                            mm.get('name'),
+                            value
+                        )
+                    )
 
                 if value is None:
                     mm.pop(field, None)
@@ -162,6 +186,7 @@ class Schema:
         refs_to = self._update_refs_to(scls, data, new_data)
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
+                             globalname_to_id=globalname_to_id,
                              id_to_data=id_to_data,
                              refs_to=refs_to)
 
@@ -185,13 +210,17 @@ class Schema:
 
         name_to_id = None
         shortname_to_id = None
+        globalname_to_id = None
         if field == 'name':
             old_name = data.get('name')
-            name_to_id, shortname_to_id = self._update_obj_name(
-                obj_id,
-                self._id_to_type[obj_id],
-                old_name,
-                value)
+            name_to_id, shortname_to_id, globalname_to_id = (
+                self._update_obj_name(
+                    obj_id,
+                    self._id_to_type[obj_id],
+                    old_name,
+                    value
+                )
+            )
 
         new_data = data.set(field, value)
         id_to_data = self._id_to_data.set(obj_id, new_data)
@@ -206,6 +235,7 @@ class Schema:
 
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
+                             globalname_to_id=globalname_to_id,
                              id_to_data=id_to_data,
                              refs_to=refs_to)
 
@@ -217,13 +247,17 @@ class Schema:
 
         name_to_id = None
         shortname_to_id = None
+        globalname_to_id = None
         name = data.get('name')
         if field == 'name' and name is not None:
-            name_to_id, shortname_to_id = self._update_obj_name(
-                obj_id,
-                self._id_to_type[obj_id],
-                name,
-                None)
+            name_to_id, shortname_to_id, globalname_to_id = (
+                self._update_obj_name(
+                    obj_id,
+                    self._id_to_type[obj_id],
+                    name,
+                    None
+                )
+            )
             new_data = data.delete(field)
         else:
             try:
@@ -237,6 +271,7 @@ class Schema:
 
         return self._replace(name_to_id=name_to_id,
                              shortname_to_id=shortname_to_id,
+                             globalname_to_id=globalname_to_id,
                              id_to_data=id_to_data,
                              refs_to=refs_to)
 
@@ -328,7 +363,7 @@ class Schema:
 
         data = immu.Map(data)
 
-        name_to_id, shortname_to_id = self._update_obj_name(
+        name_to_id, shortname_to_id, globalname_to_id = self._update_obj_name(
             id, scls, None, name)
 
         updates = dict(
@@ -336,11 +371,14 @@ class Schema:
             id_to_type=self._id_to_type.set(id, scls),
             name_to_id=name_to_id,
             shortname_to_id=shortname_to_id,
+            globalname_to_id=globalname_to_id,
             refs_to=self._update_refs_to(scls, None, data),
         )
 
         if isinstance(scls, s_modules.Module):
             updates['modules'] = self._modules.set(name, id)
+        elif isinstance(scls, so.GlobalObject):
+            pass
         elif name.module not in self._modules:
             raise errors.UnknownModuleError(
                 f'module {name.module!r} is not in this schema')
@@ -360,7 +398,7 @@ class Schema:
         if isinstance(obj, s_modules.Module):
             updates['modules'] = self._modules.delete(name)
 
-        name_to_id, shortname_to_id = self._update_obj_name(
+        name_to_id, shortname_to_id, globalname_to_id = self._update_obj_name(
             obj.id, self._id_to_type[obj.id], name, None)
 
         refs_to = self._update_refs_to(obj, self._id_to_data[obj.id], None)
@@ -368,6 +406,7 @@ class Schema:
         updates.update(dict(
             name_to_id=name_to_id,
             shortname_to_id=shortname_to_id,
+            globalname_to_id=globalname_to_id,
             id_to_data=self._id_to_data.delete(obj.id),
             id_to_type=self._id_to_type.delete(obj.id),
             refs_to=refs_to,
@@ -535,6 +574,16 @@ class Schema:
 
         return obj
 
+    def get_global(self, objtype, name, default=_void):
+        obj_id = self._globalname_to_id.get((objtype, name))
+        if obj_id is not None:
+            return self._id_to_type[obj_id]
+        elif default is not _void:
+            return default
+        else:
+            raise errors.InvalidReferenceError(
+                f'reference to a non-existent {objtype.__name__}: {name}')
+
     def get(self, name, default=_void, *, module_aliases=None, type=None):
         def getter(schema, name):
             return schema._get_by_name(name, type=type)
@@ -602,7 +651,7 @@ class SchemaIterator:
             modules = frozenset(modules)
             filters.append(
                 lambda obj:
-                    not isinstance(obj, s_modules.Module) and
+                    not isinstance(obj, so.UnqualifiedObject) and
                     obj.get_name(schema).module in modules)
 
         self._filters = filters

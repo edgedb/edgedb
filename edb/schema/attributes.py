@@ -161,7 +161,7 @@ class AttributeSubjectCommandContext:
     pass
 
 
-class AttributeSubjectCommand(inheriting.InheritingObjectCommand):
+class AttributeSubjectCommand(sd.ObjectCommand):
     pass
 
 

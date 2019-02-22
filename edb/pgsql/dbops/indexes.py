@@ -133,7 +133,7 @@ class Index(tables.InheritableTableObject):
                 ;
             EXECUTE
                 'COMMENT ON ' || quote_ident({desc_var}.name) || ' IS '
-                || quote_literal('$CMR' || {desc_var}.metadata::text)
+                || quote_literal({desc_var}.metadata::text)
                 ;
         ''')
 

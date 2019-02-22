@@ -1746,6 +1746,148 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 DROP MODULE test_other;
             """)
 
+    async def test_edgeql_ddl_role_01(self):
+        await self.con.execute(r"""
+            CREATE ROLE foo;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name,
+                    allow_login,
+                    is_superuser,
+                    password,
+                } FILTER .name = 'foo'
+            """,
+            [{
+                'name': 'foo',
+                'allow_login': False,
+                'is_superuser': False,
+                'password': None,
+            }]
+        )
+
+    async def test_edgeql_ddl_role_02(self):
+        await self.con.execute(r"""
+            CREATE ROLE foo2 {
+                SET allow_login := true;
+                SET is_superuser := true;
+                SET password := 'secret';
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name,
+                    allow_login,
+                    is_superuser,
+                } FILTER .name = 'foo2'
+            """,
+            [{
+                'name': 'foo2',
+                'allow_login': True,
+                'is_superuser': True,
+            }]
+        )
+
+        role = await self.con.fetch_value('''
+            SELECT sys::Role { password }
+            FILTER .name = 'foo2'
+        ''')
+
+        self.assertIsNotNone(role.password)
+
+        await self.con.execute(r"""
+            ALTER ROLE foo2 {
+                SET password := {}
+            };
+        """)
+
+        role = await self.con.fetch_value('''
+            SELECT sys::Role { password }
+            FILTER .name = 'foo2'
+        ''')
+
+        self.assertIsNone(role.password)
+
+    async def test_edgeql_ddl_role_03(self):
+        await self.con.execute(r"""
+            CREATE ROLE foo3 {
+                SET allow_login := true;
+                SET is_superuser := true;
+                SET password := 'secret';
+            };
+        """)
+
+        await self.con.execute(r"""
+            CREATE ROLE foo4 EXTENDING foo3;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name,
+                    allow_login,
+                    is_superuser,
+                    password,
+                    member_of: {
+                        name
+                    },
+                } FILTER .name = 'foo4'
+            """,
+            [{
+                'name': 'foo4',
+                'allow_login': False,
+                'is_superuser': False,
+                'password': None,
+                'member_of': [{
+                    'name': 'foo3'
+                }]
+            }]
+        )
+
+        await self.con.execute(r"""
+            ALTER ROLE foo4 DROP EXTENDING foo3;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name,
+                    member_of: {
+                        name
+                    },
+                } FILTER .name = 'foo4'
+            """,
+            [{
+                'name': 'foo4',
+                'member_of': [],
+            }]
+        )
+
+        await self.con.execute(r"""
+            ALTER ROLE foo4 EXTENDING foo3;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name,
+                    member_of: {
+                        name
+                    },
+                } FILTER .name = 'foo4'
+            """,
+            [{
+                'name': 'foo4',
+                'member_of': [{
+                    'name': 'foo3',
+                }],
+            }]
+        )
+
     async def test_edgeql_ddl_rename_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::RenameObj01 {

@@ -401,6 +401,10 @@ class Compiler(BaseCompiler):
 
         current_tx.update_schema(schema)
 
+        if debug.flags.delta_execute:
+            debug.header('Delta Script')
+            debug.dump_code(sql, lexer='sql')
+
         return dbstate.DDLQuery(sql=(sql,))
 
     def _compile_command(

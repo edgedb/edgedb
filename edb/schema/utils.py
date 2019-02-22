@@ -34,8 +34,12 @@ from . import types as s_types
 
 def ast_objref_to_objref(
         node: ql_ast.ObjectRef, *,
+        metaclass: typing.Optional[so.ObjectMeta] = None,
         modaliases: typing.Dict[typing.Optional[str], str],
-        schema) -> so.ObjectRef:
+        schema) -> so.Object:
+
+    if metaclass is not None and issubclass(metaclass, so.GlobalObject):
+        return schema.get_global(metaclass, node.name)
 
     nqname = node.name
     module = node.module
@@ -45,7 +49,7 @@ def ast_objref_to_objref(
         lname = nqname
     obj = schema.get(lname, module_aliases=modaliases, default=None)
     if obj is not None:
-        module = obj.get_name(schema).module
+        return obj
 
     if module is None:
         raise errors.InvalidReferenceError(

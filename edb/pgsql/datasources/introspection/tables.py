@@ -241,15 +241,8 @@ async def fetch_indexes(
                         AND (ia.attnum IS NULL OR ia.attnum >= 1)
                     )                               AS index_columns,
 
-                    (SELECT
-                        substr(cmt.description, 5)::json
-                     FROM
-                        pg_description AS cmt
-                     WHERE
-                        cmt.objoid = i.indexrelid
-                        AND cmt.classoid = 'pg_class'::regclass
-                        AND substr(cmt.description, 1, 4) = '$CMR'
-                    )                               AS index_metadata
+                    obj_description(i.indexrelid, 'pg_class')::jsonb
+                                                    AS index_metadata
 
                  FROM
                     pg_class AS c
@@ -467,14 +460,7 @@ async def fetch_triggers(
 
                     pg_get_triggerdef(t.oid)::text          AS trg_definition,
 
-                    (SELECT
-                        substr(cmt.description, 5)::json
-                     FROM
-                        pg_description AS cmt
-                     WHERE
-                        cmt.objoid = t.oid
-                        AND cmt.classoid = 'pg_trigger'::regclass
-                        AND substr(cmt.description, 1, 4) = '$CMR')
+                    obj_description(t.oid, 'pg_trigger')::jsonb
                                                             AS trg_metadata
 
                  FROM
