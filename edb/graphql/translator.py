@@ -157,8 +157,6 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         if node.type is None or node.type == 'query':
             stmt = self._visit_query(node)
-        elif node.type == 'mutation':
-            stmt = self._visit_mutation(node)
         else:
             raise ValueError(f'unsupported definition type: {node.type!r}')
 
@@ -210,9 +208,6 @@ class GraphQLTranslator(ast.NodeVisitor):
                 maintype=qlast.ObjectRef(module='std', name='json')))
 
         return query
-
-    def _visit_mutation(self, node):
-        raise NotImplementedError
 
     def _should_include(self, directives):
         for directive in directives:
