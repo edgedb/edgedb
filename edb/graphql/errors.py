@@ -16,25 +16,27 @@
 # limitations under the License.
 #
 
+import typing
 
 from edb import errors
 
 
-from edb.common.exceptions import add_context
-
-
 class GraphQLError(errors.QueryError):
-    pass
+
+    def __init__(self, msg, *,
+                 loc: typing.Optional[typing.Tuple[int, int]]=None):
+
+        super().__init__(msg)
+
+        if loc:
+            # XXX Will be fixes when we have proper LSP SourceLocation
+            # abstraction.
+            self._attrs['L'] = loc[0]
+            self._attrs['C'] = loc[1]
 
 
 class GraphQLTranslationError(GraphQLError):
-    def __init__(self, msg, *, context=None):
-        super().__init__(msg)
-
-        if context:
-            add_context(self, context)
-            self._attrs['L'] = context.start.line
-            self._attrs['C'] = context.start.column
+    pass
 
 
 class GraphQLValidationError(GraphQLTranslationError):
@@ -42,10 +44,4 @@ class GraphQLValidationError(GraphQLTranslationError):
 
 
 class GraphQLCoreError(GraphQLError):
-    def __init__(self, msg, *, line=None, col=None):
-        super().__init__(msg)
-
-        if line:
-            self._attrs['L'] = line
-        if col:
-            self._attrs['C'] = col
+    pass

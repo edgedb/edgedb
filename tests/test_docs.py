@@ -20,8 +20,9 @@ try:
 except ImportError:
     docutils = None
 
+from graphql.language import parser as graphql_parser
+
 from edb.edgeql import parser as edgeql_parser
-from edb.graphql import parser as graphql_parser
 from edb.eschema import parser as schema_parser
 
 

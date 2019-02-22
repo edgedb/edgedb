@@ -284,6 +284,18 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             ''', operation_name='foo')
 
+    def test_graphql_functional_query_11(self):
+        # Test that parse error marshal from the compiler correctly.
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'Expected Name, found \}',
+                                    line=4, col=21):
+            self.graphql_query(r"""
+                query {
+                    Setting {
+                    }
+                }
+            """)
+
     def test_graphql_functional_arguments_01(self):
         result = self.graphql_query(r"""
             query {
@@ -739,6 +751,23 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 query {
                     User(filter: {active: {eq: 0}}) {
                         id,
+                    }
+                }
+            """)
+
+    def test_graphql_functional_arguments_22(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"invalid value for 'after'",
+                line=5, col=32):
+            self.graphql_query(r"""
+                query {
+                    u0: User(
+                        order: {name: {dir: ASC}},
+                        after: "aaaaa",
+                        first: 2
+                    ) {
+                        name
                     }
                 }
             """)
@@ -1990,9 +2019,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_06(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of required type "Boolean!" '
-                r'was not provided',
-                line=2, col=23):
+                r"no value for the 'val' variable",
+                line=4, col=31):
             self.graphql_query(r"""
                 query($val: Boolean!) {
                     User {
@@ -2309,8 +2337,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_30(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of required type "String!" '
-                r'was not provided'):
+                r"no value for the 'val' variable"):
             self.graphql_query(r"""
                 query($val: String!) {
                     User(filter: {name: {eq: $val}}) {
@@ -2363,6 +2390,36 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     }
                 """,
                 variables={'name': 11})
+
+    def test_graphql_functional_variables_34(self):
+        # Test multiple requests to make sure that caching works correctly
+        for _ in range(2):
+            for _ in range(2):
+                self.assert_graphql_query_result(
+                    r"""
+                        query($val: Boolean!, $min_age: Int!) {
+                            User(filter: {age: {gt: $min_age}}) {
+                                name @include(if: $val),
+                                age
+                            }
+                        }
+                    """,
+                    {'User': [{'age': 27, 'name': 'Alice'}]},
+                    variables={'val': True, 'min_age': 26}
+                )
+
+            self.assert_graphql_query_result(
+                r"""
+                    query($val: Boolean!, $min_age: Int!) {
+                        User(filter: {age: {gt: $min_age}}) {
+                            name @include(if: $val),
+                            age
+                        }
+                    }
+                """,
+                {'User': [{'age': 27}]},
+                variables={'val': False, 'min_age': 26}
+            )
 
     def test_graphql_functional_enum_01(self):
         with self.assertRaisesRegex(

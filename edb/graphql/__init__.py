@@ -17,9 +17,7 @@
 #
 
 
-from . import ast  # NOQA
 from .codegen import generate_source  # NOQA
-from .parser import parse, parse_fragment  # NOQA
 from .translator import translate  # NOQA
 
 from . import _patch_core

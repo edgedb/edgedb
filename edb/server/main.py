@@ -139,11 +139,9 @@ def _init_parsers():
 
     from edb.edgeql import parser as ql_parser
     from edb.eschema import parser as e_parser
-    from edb.graphql import parser as gql_parser
 
     ql_parser.preload()
     e_parser.preload()
-    gql_parser.preload()
 
 
 def _run_server(cluster, args, runstate_dir):
