@@ -975,14 +975,15 @@ class Compiler:
             self,
             dbver: int,
             gql: str,
-            operation_name: str=None):
+            operation_name: str=None,
+            variables: typing.Optional[typing.Mapping[str, object]]=None):
 
         db = await self._get_database(dbver)
 
         trans = graphql.translate(
             db.schema,
             gql,
-            variables={})
+            variables=variables)
 
         result = {}
         for op_name, op_desc in trans.items():

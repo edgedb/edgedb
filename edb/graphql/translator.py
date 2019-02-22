@@ -18,22 +18,16 @@
 
 
 import json
-import re
 import typing
 
-from graphql import graphql as gql_proc, GraphQLString, GraphQLID, GraphQLError
+import graphql
+from graphql.language import ast as gql_ast
 
-from edb import errors
-
-from edb.common import ast
 from edb.common import typeutils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 from edb.edgeql import quote as eql_quote
-
-from edb.graphql import ast as gqlast
-from edb.graphql import parser as gqlparser
 
 from . import types as gt
 from . import errors as g_errors
@@ -41,7 +35,7 @@ from . import codegen as gqlcodegen
 
 
 class GraphQLTranslatorContext:
-    def __init__(self, *, schema, gqlcore, variables, query):
+    def __init__(self, *, schema, gqlcore, variables, query, document_ast):
         self.schema = schema
         self.variables = variables
         self.fragments = {}
@@ -53,6 +47,7 @@ class GraphQLTranslatorContext:
         self.include_base = [False]
         self.gqlcore = gqlcore
         self.query = query
+        self.document_ast = document_ast
 
 
 class Step(typing.NamedTuple):
@@ -67,7 +62,7 @@ class Field(typing.NamedTuple):
 
 class Var(typing.NamedTuple):
     val: object
-    defn: gqlast.VariableDefinition
+    defn: gql_ast.VariableDefinition
     critical: bool
 
 
@@ -78,45 +73,55 @@ class Operation(typing.NamedTuple):
     vars: object
 
 
-class GraphQLTranslator(ast.NodeVisitor):
-    def get_type(self, name, *, context=None):
+class GraphQLTranslator:
+
+    def __init__(self, *, context=None):
+        self._context = context
+
+    def node_visit(self, node):
+        for cls in node.__class__.__mro__:
+            method = 'visit_' + cls.__name__
+            visitor = getattr(self, method, None)
+            if visitor is not None:
+                break
+        result = visitor(node)
+        return result
+
+    def visit(self, node):
+        if typeutils.is_container(node):
+            return [self.node_visit(n) for n in node]
+        else:
+            return self.node_visit(node)
+
+    def get_loc(self, node):
+        if node.loc:
+            position = node.loc.start
+            lines = self._context.query[:position].splitlines()
+            if lines:
+                line = len(lines)
+                column = len(lines[-1]) + 1
+            else:
+                line = 1
+                column = 1
+            return (line, column)
+        else:
+            return None
+
+    def get_type(self, name):
         # the type may be from the EdgeDB schema or some special
         # GraphQL type/adapter
         assert isinstance(name, str)
-
-        try:
-            return self._context.gqlcore.get(name)
-
-        except errors.SchemaError:
-            if context:
-                raise g_errors.GraphQLValidationError(
-                    f"{name!r} does not exist in the schema",
-                    context=context)
-            raise
+        return self._context.gqlcore.get(name)
 
     def is_list_type(self, node):
         return (
-            isinstance(node, gqlast.ListType) or
-            (isinstance(node, gqlast.NonNullType) and
+            isinstance(node, gql_ast.ListType) or
+            (isinstance(node, gql_ast.NonNullType) and
                 self.is_list_type(node.type))
         )
 
-    def get_field_type(self, base, name, *, args=None, context=None):
-        try:
-            target = base.get_field_type(name)
-        except errors.SchemaError:
-            if not context:
-                raise
-            target = None
-
-        if target is None:
-            if context:
-                raise g_errors.GraphQLValidationError(
-                    f"field {name!r} is " +
-                    f"invalid for {base.short_name}",
-                    context=context)
-
-        return target
+    def get_field_type(self, base, name, *, args=None):
+        return base.get_field_type(name)
 
     def get_optname(self, node):
         if node.name:
@@ -126,54 +131,50 @@ class GraphQLTranslator(ast.NodeVisitor):
 
     def visit_Document(self, node):
         # we need to index all of the fragments before we process operations
-        self._context.fragments = {
-            f.name.value: f for f in node.definitions
-            if isinstance(f, gqlast.FragmentDefinition)
-        }
+        if node.definitions:
+            self._context.fragments = {
+                f.name.value: f for f in node.definitions
+                if isinstance(f, gql_ast.FragmentDefinition)
+            }
+        else:
+            self._context.fragments = {}
 
-        # we need to check the document w.r.t. all operations so that we can
-        # inline the introspection JSON if needed
-        gqlresult = {}
-        for op in node.definitions:
-            if not isinstance(op, gqlast.OperationDefinition):
-                continue
+        if node.definitions:
+            translated = {d.name: d
+                          for d in self.visit(node.definitions)
+                          if d is not None}
+        else:
+            translated = {}
 
-            opname = self.get_optname(op)
-            gqlresult[opname] = gql_proc(
-                self._context.gqlcore._gql_schema,
-                self._context.query,
-                variables={
-                    name: val.value
-                    for name, val in self._context.variables.items()
-                },
-                operation_name=opname,
-            )
-
-            if gqlresult[opname].errors:
-                for err in gqlresult[opname].errors:
-                    if isinstance(err, GraphQLError):
-                        raise g_errors.GraphQLCoreError(
-                            err.message,
-                            line=err.locations[0].line,
-                            col=err.locations[0].column,
-                        )
-                    else:
-                        raise err
-
-        translated = {d.name: d
-                      for d in self.visit(node.definitions)
-                      if d is not None}
         for opname in translated:
             stmt = translated[opname].stmt
-            gqlres = gqlresult[opname]
 
             for el in stmt.result.expr.elements:
                 # swap in the json bits
                 if (isinstance(el.compexpr, qlast.FunctionCall) and
                         el.compexpr.func == 'to_json'):
+
+                    # An introspection query; let graphql evaluate it for us.
+                    result = graphql.execute(
+                        self._context.gqlcore._gql_schema,
+                        self._context.document_ast,
+                        operation_name=opname,
+                        variables=self._context.variables)
+
+                    if result.errors:
+                        err = result.errors[0]
+                        if isinstance(err, graphql.GraphQLError):
+                            err_loc = (err.locations[0].line,
+                                       err.locations[0].column)
+                            raise g_errors.GraphQLCoreError(
+                                err.message,
+                                loc=err_loc)
+                        else:
+                            raise err
+
                     name = el.expr.steps[0].ptr.name
                     el.compexpr.args[0].arg = qlast.StringConstant.from_python(
-                        json.dumps(gqlres.data[name], indent=4))
+                        json.dumps(result.data[name]))
 
         return translated
 
@@ -251,19 +252,23 @@ class GraphQLTranslator(ast.NodeVisitor):
                 cond = [a.value for a in directive.arguments
                         if a.name.value == 'if'][0]
 
-                if isinstance(cond, gqlast.Variable):
+                if isinstance(cond, gql_ast.Variable):
                     varname = cond.name.value
                     var = self._context.vars[varname]
                     # mark the variable as critical
-                    self._context.vars[varname] = Var(
-                        val=var.val, defn=var.defn, critical=True)
+                    self._context.vars[varname] = var._replace(critical=True)
                     cond = var.val
 
-                if not isinstance(cond, gqlast.BooleanValue):
+                    if cond is None:
+                        raise g_errors.GraphQLValidationError(
+                            f"no value for the {varname!r} variable",
+                            loc=self.get_loc(directive.name))
+
+                if not isinstance(cond, gql_ast.BooleanValue):
                     raise g_errors.GraphQLValidationError(
                         f"'if' argument of {directive.name.value} " +
                         "directive must be a Boolean",
-                        context=directive.context)
+                        loc=self.get_loc(directive.name))
 
                 if directive.name.value == 'include' and cond.value == 'false':
                     return False
@@ -328,15 +333,14 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         prevt = path[-1].type
         target = self.get_field_type(
-            prevt, node.name.value,
-            context=node.context)
+            prevt, node.name.value)
         path.append(Step(name=node.name.value, type=target))
 
         if not top and fail:
             raise g_errors.GraphQLValidationError(
                 f"field {node.name.value!r} can only appear "
                 f"at the top-level Query",
-                context=node.context)
+                loc=self.get_loc(node))
 
         return top
 
@@ -523,7 +527,8 @@ class GraphQLTranslator(ast.NodeVisitor):
             else:
                 raise g_errors.GraphQLValidationError(
                     f"{base_type.short_name} and {frag_type.short_name} " +
-                    "are not related", context=spread.context)
+                    "are not related",
+                    loc=self.get_loc(frag))
 
         self._context.path.append([Step(frag.type_condition, frag_type)])
         self._context.include_base.append(is_specialized)
@@ -534,31 +539,31 @@ class GraphQLTranslator(ast.NodeVisitor):
         first = last = before = after = None
 
         def validate_positive_int(arg):
-            if not isinstance(arg.value, gqlast.IntValue):
+            if not isinstance(arg.value, gql_ast.IntValue):
                 raise g_errors.GraphQLValidationError(
                     f"invalid value for {arg.name.value!r}: "
                     f"expected an int",
-                    context=arg.context) from None
+                    loc=self.get_loc(arg.value)) from None
             try:
                 val = int(arg.value.value)
             except (TypeError, ValueError):
                 raise g_errors.GraphQLValidationError(
                     f"invalid value for {arg.name.value!r}: "
                     f"expected an int, got {arg.value.value!r}",
-                    context=arg.context) from None
+                    loc=self.get_loc(arg.value)) from None
             if val < 0:
                 raise g_errors.GraphQLValidationError(
                     f"invalid value for {arg.name.value!r}: "
                     f"expected a non-negative int",
-                    context=arg.context)
+                    loc=self.get_loc(arg.value))
             return val
 
         def validate_positive_str_int(arg):
-            if not isinstance(arg.value, gqlast.StringValue):
+            if not isinstance(arg.value, gql_ast.StringValue):
                 raise g_errors.GraphQLValidationError(
                     f"invalid value for {arg.name.value!r}: "
                     f"expected a string castable to an int",
-                    context=arg.context) from None
+                    loc=self.get_loc(arg.value)) from None
             try:
                 val = int(arg.value.value)
             except (TypeError, ValueError):
@@ -566,13 +571,13 @@ class GraphQLTranslator(ast.NodeVisitor):
                     f"invalid value for {arg.name.value!r}: "
                     f"expected a string castable to a non-negative int, "
                     f"got {arg.value.value!r}",
-                    context=arg.context) from None
+                    loc=self.get_loc(arg.value)) from None
             if val < 0:
                 raise g_errors.GraphQLValidationError(
                     f"invalid value for {arg.name.value!r}: "
                     f"expected a string castable to a non-negative int, "
                     f"got {val}",
-                    context=arg.context)
+                    loc=self.get_loc(arg.value))
             return val
 
         for arg in arguments:
@@ -584,7 +589,6 @@ class GraphQLTranslator(ast.NodeVisitor):
                 first = validate_positive_int(arg)
             elif arg.name.value == 'last':
                 last = validate_positive_int(arg)
-                last_context = arg.context
             elif arg.name.value == 'before':
                 before = validate_positive_str_int(arg)
             elif arg.name.value == 'after':
@@ -618,8 +622,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                 # implementation
                 raise g_errors.GraphQLTranslationError(
                     f'last={last} translates to a negative OFFSET in '
-                    f'EdgeQL which is currently unsupported',
-                    context=last_context)
+                    f'EdgeQL which is currently unsupported')
 
         # convert integers into qlast literals
         if offset is not None and not isinstance(offset, qlast.Base):
@@ -705,8 +708,8 @@ class GraphQLTranslator(ast.NodeVisitor):
         # to be compatible with the 'value'
         typename = target.get_field_type(fname).short_name
         if (typename != 'str' and
-            gt.EDB_TO_GQL_SCALARS_MAP[typename] in {GraphQLString,
-                                                    GraphQLID}):
+            gt.EDB_TO_GQL_SCALARS_MAP[typename] in {graphql.GraphQLString,
+                                                    graphql.GraphQLID}):
             name = qlast.TypeCast(
                 expr=name,
                 type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
@@ -717,10 +720,9 @@ class GraphQLTranslator(ast.NodeVisitor):
         return self.visit(node.value)
 
     def visit_order(self, node):
-        if not isinstance(node, gqlast.ObjectValue):
+        if not isinstance(node, gql_ast.ObjectValue):
             raise g_errors.GraphQLTranslationError(
-                f'an object is expected for "order"',
-                context=node.context)
+                f'an object is expected for "order"')
 
         # if there is no specific ordering, then order by id
         if not node.fields:
@@ -749,15 +751,13 @@ class GraphQLTranslator(ast.NodeVisitor):
         return orderby
 
     def _visit_order_item(self, node):
-        if not isinstance(node, gqlast.ObjectField):
+        if not isinstance(node, gql_ast.ObjectField):
             raise g_errors.GraphQLTranslationError(
-                f'an object is expected for "order"',
-                context=node.context)
+                f'an object is expected for "order"')
 
-        if not isinstance(node.value, gqlast.ObjectValue):
+        if not isinstance(node.value, gql_ast.ObjectValue):
             raise g_errors.GraphQLTranslationError(
-                f'an object is expected for "order"',
-                context=node.context)
+                f'an object is expected for "order"')
 
         name = node.name.value
         direction = nulls = None
@@ -791,11 +791,15 @@ class GraphQLTranslator(ast.NodeVisitor):
     def visit_Variable(self, node):
         varname = node.name.value
         var = self._context.vars[varname]
+
         vartype = var.defn.type
+        if isinstance(vartype, gql_ast.NonNullType):
+            # TODO: Add non-null validation to the produced EdgeQL?
+            vartype = vartype.type
 
         casttype = qlast.TypeName(
             maintype=qlast.ObjectRef(
-                name=gt.GQL_TO_EDB_SCALARS_MAP[var.defn.type.name.value])
+                name=gt.GQL_TO_EDB_SCALARS_MAP[vartype.name.value])
         )
         # potentially this is an array
         if self.is_list_type(vartype):
@@ -823,10 +827,9 @@ class GraphQLTranslator(ast.NodeVisitor):
         return qlast.BooleanConstant(value=value)
 
     def _visit_list_of_inputs(self, inputlist, op):
-        if not isinstance(inputlist, gqlast.ListValue):
+        if not isinstance(inputlist, gql_ast.ListValue):
             raise g_errors.GraphQLTranslationError(
-                f'a list was expected',
-                context=inputlist.context)
+                f'a list was expected')
 
         result = [self.visit(node) for node in inputlist.values]
         return self._join_expressions(result, op)
@@ -870,34 +873,33 @@ def value_node_from_pyvalue(val: object):
     if isinstance(val, str):
         val = val.replace('\\', '\\\\')
         value = eql_quote.quote_literal(val)
-        return gqlast.StringValue(value=value[1:-1])
+        return gql_ast.StringValue(value=value[1:-1])
     elif isinstance(val, bool):
-        return gqlast.BooleanValue(value=bool(val))
+        return gql_ast.BooleanValue(value=bool(val))
     elif isinstance(val, int):
-        return gqlast.IntValue(value=str(val))
+        return gql_ast.IntValue(value=str(val))
     elif isinstance(val, float):
-        return gqlast.FloatValue(value=str(val))
+        return gql_ast.FloatValue(value=str(val))
     elif isinstance(val, list):
-        return gqlast.ListValue(
+        return gql_ast.ListValue(
             values=[value_node_from_pyvalue(v) for v in val])
     elif isinstance(val, dict):
-        return gqlast.ObjectValue(
+        return gql_ast.ObjectValue(
             fields=[
-                gqlast.ObjectField(name=n, value=value_node_from_pyvalue(v))
+                gql_ast.ObjectField(name=n, value=value_node_from_pyvalue(v))
                 for n, v in val.items()
             ])
     else:
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 
 
-def translate(schema, graphql, *, variables=None):
-    # Try to parse the query first.
-    query = re.sub(r'@edgedb\(.*?\)', '', graphql)
-    parser = gqlparser.GraphQLParser()
-    gqltree = parser.parse(graphql)
-    results = {}
-
-    # If "query" is a valid GraphQL proceed with compiling it to EdgeQL.
+def translate(schema, query, *, variables=None):
+    try:
+        document_ast = graphql.parse(query)
+    except graphql.GraphQLError as err:
+        err_loc = (err.locations[0].line,
+                   err.locations[0].column)
+        raise g_errors.GraphQLCoreError(err.message, loc=err_loc) from None
 
     if variables is None:
         variables = {}
@@ -908,20 +910,34 @@ def translate(schema, graphql, *, variables=None):
 
     gqlcore = gt.GQLCoreSchema(schema)
 
+    validation_errors = graphql.validate(gqlcore._gql_schema, document_ast)
+    if validation_errors:
+        err = validation_errors[0]
+        if isinstance(err, graphql.GraphQLError):
+            err_loc = (err.locations[0].line, err.locations[0].column)
+            raise g_errors.GraphQLCoreError(err.message, loc=err_loc)
+        else:
+            raise err
+
     context = GraphQLTranslatorContext(
         schema=schema, gqlcore=gqlcore, query=query,
-        variables=gql_vars)
-    edge_forest_map = GraphQLTranslator(context=context).visit(gqltree)
+        variables=gql_vars, document_ast=document_ast)
+
+    results = {}
+    edge_forest_map = GraphQLTranslator(context=context).visit(document_ast)
+
     for name, op in sorted(edge_forest_map.items()):
         # convert critvars and vars to JSON-like format
         critvars = {}
         for name, val in op.critvars.items():
             if val is not None:
                 critvars[name] = json.loads(gqlcodegen.generate_source(val))
+
         defvars = {}
         for name, val in op.vars.items():
             if val is not None:
                 defvars[name] = json.loads(gqlcodegen.generate_source(val))
+
         # generate the specific result
         results[name] = {
             'operation_name': name,

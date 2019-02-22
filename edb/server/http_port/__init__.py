@@ -171,7 +171,8 @@ class HttpProtocol(asyncio.Protocol):
                     'compile_graphql',
                     self._server._dbindex.get_dbver(self._server.database),
                     query,
-                    operation_name)
+                    operation_name,
+                    variables)
             finally:
                 self._server._compilers.put_nowait(compiler)
 
