@@ -433,12 +433,16 @@ class ReturningStatement(Statement):
     result_alias: str
 
 
-class SelectQuery(ReturningStatement):
+class SelectClauseStatement(Statement):
     where: Expr
     orderby: typing.List[SortExpr]
     offset: Expr
     limit: Expr
     implicit: bool = False
+
+
+class SelectQuery(ReturningStatement, SelectClauseStatement):
+    pass
 
 
 class GroupQuery(SelectQuery, SubjStatement):
@@ -456,8 +460,8 @@ class UpdateQuery(SubjStatement):
     where: Expr
 
 
-class DeleteQuery(SubjStatement):
-    where: Expr
+class DeleteQuery(SubjStatement, SelectClauseStatement):
+    pass
 
 
 class ForQuery(SelectQuery):

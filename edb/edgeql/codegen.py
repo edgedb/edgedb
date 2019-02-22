@@ -176,10 +176,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if parenthesise:
             self.write('(')
-        self._visit_aliases(node)
-        self.write('DELETE ')
-        self.visit(node.subject)
 
+        self._visit_aliases(node)
+
+        self.write('DELETE')
+        self._block_ws(1)
+        if node.subject_alias:
+            self.write(node.subject_alias, ' := ')
+        self.visit(node.subject)
+        self._block_ws(-1)
+        self._visit_filter(node)
+        self._visit_order(node)
+        self._visit_offset_limit(node)
         if parenthesise:
             self.write(')')
 

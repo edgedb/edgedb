@@ -10,18 +10,33 @@ DELETE
 
 .. eql:synopsis::
 
-    [ WITH <with-spec> [ , ... ] ]
-    DELETE <expr> ;
+    [ WITH <with-item> [, ...] ]
+
+    DELETE <expr>
+
+    [ FILTER <filter-expr> ]
+
+    [ ORDER BY <order-expr> [direction] [THEN ...] ]
+
+    [ OFFSET <offset-expr> ]
+
+    [ LIMIT  <limit-expr> ] ;
 
 :eql:synopsis:`WITH`
     Alias declarations.
 
     The ``WITH`` clause allows specifying module aliases as well
-    as expression aliases that can be referenced by the ``UPDATE``
+    as expression aliases that can be referenced by the ``DELETE``
     statement.  See :ref:`ref_eql_with` for more information.
 
-:eql:synopsis:`DELETE <expr>`
-    Remove objects returned by *expr* from the database.
+:eql:synopsis:`DELETE ...`
+    The entire :eql:synopsis:`DELETE ...` statement is syntactic
+    sugar for ``DELETE (SELECT ...)``. Therefore, the base
+    :eql:synopsis:`<expr>` and the following :eql:synopsis:`FILTER`,
+    :eql:synopsis:`ORDER BY`, :eql:synopsis:`OFFSET`, and
+    :eql:synopsis:`LIMIT` clauses shape the set to
+    be deleted the same way an explicit :ref:`SELECT
+    <ref_eql_statements_select>` would.
 
 
 Output
@@ -35,6 +50,14 @@ Examples
 ~~~~~~~~
 
 Here's a simple example of deleting a specific user:
+
+.. code-block:: edgeql
+
+    WITH MODULE example
+    DELETE User
+    FILTER User.name = 'Alice Smith';
+
+And here's the equivalent ``DELETE (SELECT ...)`` statement:
 
 .. code-block:: edgeql
 

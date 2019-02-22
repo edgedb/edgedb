@@ -204,10 +204,15 @@ class SimpleUpdate(Nonterm):
 
 class SimpleDelete(Nonterm):
     def reduce_Delete(self, *kids):
-        "%reduce DELETE OptionallyAliasedExpr"
+        r"%reduce DELETE OptionallyAliasedExpr \
+                  OptFilterClause OptSortClause OptSelectLimit"
         self.val = qlast.DeleteQuery(
             subject=kids[1].val.expr,
             subject_alias=kids[1].val.alias,
+            where=kids[2].val,
+            orderby=kids[3].val,
+            offset=kids[4].val[0],
+            limit=kids[4].val[1],
         )
 
 

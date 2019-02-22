@@ -180,13 +180,20 @@ class EdgeQLOptimizer:
         elif isinstance(expr, qlast.DeleteQuery):
             self._process_aliases(context, expr)
 
-            self._process_expr(context, expr.subject)
-
             if expr.where:
                 self._process_expr(context, expr.where)
 
-            if expr.result is not None:
-                self._process_expr(context, expr.result)
+            self._process_expr(context, expr.subject)
+
+            if expr.orderby:
+                for sort in expr.orderby:
+                    self._process_expr(context, sort.path)
+
+            if expr.offset:
+                self._process_expr(context, expr.offset)
+
+            if expr.limit:
+                self._process_expr(context, expr.limit)
 
         elif isinstance(expr, qlast.BinOp):
             self._process_expr(context, expr.left)

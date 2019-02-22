@@ -353,6 +353,22 @@ def compile_DeleteQuery(
         ictx.implicit_tid_in_shapes = False
 
         stmt = irast.DeleteStmt()
+        # Expand the DELETE from sugar into full DELETE (SELECT ...)
+        # form, if there's any additional clauses.
+        if any([expr.where, expr.orderby, expr.offset, expr.limit]):
+            expr = qlast.DeleteQuery(
+                aliases=expr.aliases,
+                subject=qlast.SelectQuery(
+                    result=expr.subject,
+                    result_alias=expr.subject_alias,
+                    where=expr.where,
+                    orderby=expr.orderby,
+                    offset=expr.offset,
+                    limit=expr.limit,
+                    context=expr.context,
+                ),
+                context=expr.context,
+            )
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         # DELETE Expr is a delete(SET OF X), so we need a scope fence.
@@ -367,8 +383,7 @@ def compile_DeleteQuery(
                 context=expr.subject.context
             )
 
-        stmt.subject = compile_query_subject(
-            subject, shape=None, result_alias=expr.subject_alias, ctx=ictx)
+        stmt.subject = compile_query_subject(subject, shape=None, ctx=ictx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
         result = setgen.class_set(

@@ -2322,6 +2322,18 @@ aa';
         DELETE Foo{bar};
         """
 
+    def test_edgeql_syntax_delete_05(self):
+        """
+        WITH MODULE test
+        DELETE
+            User.name
+        FILTER
+            (User.age > 42)
+        ORDER BY
+            User.name ASC
+        OFFSET 2 LIMIT 5;
+        """
+
     def test_edgeql_syntax_update_01(self):
         """
         UPDATE Foo SET {bar := 42};

@@ -158,8 +158,8 @@ class TestDelete(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT (DELETE (SELECT DeleteTest
-                        FILTER DeleteTest.name = 'delete-test1'));
+                SELECT (DELETE DeleteTest
+                        FILTER DeleteTest.name = 'delete-test1');
             """,
             [{'id': id1}],
         )
@@ -168,8 +168,8 @@ class TestDelete(tb.QueryTestCase):
             r"""
                 WITH
                     MODULE test,
-                    D := (DELETE (SELECT DeleteTest
-                        FILTER DeleteTest.name = 'delete-test2'))
+                    D := (DELETE DeleteTest
+                          FILTER DeleteTest.name = 'delete-test2')
                 SELECT D {name};
             """,
             [{'name': 'delete-test2'}],
@@ -179,10 +179,9 @@ class TestDelete(tb.QueryTestCase):
             r"""
                 WITH MODULE test
                 SELECT
-                    (DELETE (
-                        SELECT DeleteTest
-                        FILTER DeleteTest.name = 'delete-test3'
-                    )).name ++ '--DELETED';
+                    (DELETE DeleteTest
+                     FILTER DeleteTest.name = 'delete-test3'
+                    ).name ++ '--DELETED';
             """,
             ['delete-test3--DELETED'],
         )
@@ -342,4 +341,36 @@ class TestDelete(tb.QueryTestCase):
             [{
                 'name': 'dt2.1',
             }],
+        )
+
+    async def test_edgeql_delete_sugar_01(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR x IN {'1', '2', '3', '4', '5', '6'}
+            UNION (INSERT DeleteTest {
+                name := 'sugar delete ' ++ x
+            });
+        """)
+
+        await self.con.execute(r"""
+            WITH MODULE test
+            DELETE
+                DeleteTest
+            FILTER
+                .name[-1] != '2'
+            ORDER BY .name
+            OFFSET 2 LIMIT 2;
+            # should delete 4 and 5
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::DeleteTest.name;
+            """,
+            {
+                'sugar delete 1',
+                'sugar delete 2',
+                'sugar delete 3',
+                'sugar delete 6',
+            },
         )

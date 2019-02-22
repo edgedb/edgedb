@@ -336,10 +336,8 @@ Let's delete them now:
 
 .. code-block:: edgeql
 
-    DELETE (
-      SELECT AuthoredText
-      FILTER .author.login = 'carol'
-    );
+    DELETE AuthoredText
+    FILTER .author.login = 'carol';
 
 Result:
 
