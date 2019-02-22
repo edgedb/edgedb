@@ -24,7 +24,6 @@ import re
 
 from edb import errors
 
-from edb import edgeql
 from edb.common import ast
 from edb.common import typeutils
 from edb.edgeql import ast as qlast
@@ -34,13 +33,13 @@ from edb.graphql import parser as gqlparser
 
 from . import types as gt
 from . import errors as g_errors
+from . import codegen as gqlcodegen
 
 
 class GraphQLTranslatorContext:
-    def __init__(self, *, schema, gqlcore, variables, operation_name, query):
+    def __init__(self, *, schema, gqlcore, variables, query):
         self.schema = schema
         self.variables = variables
-        self.operation_name = operation_name
         self.fragments = {}
         self.validated_fragments = {}
         self.vars = {}
@@ -55,6 +54,7 @@ class GraphQLTranslatorContext:
 Step = namedtuple('Step', ['name', 'type'])
 Field = namedtuple('Field', ['name', 'value'])
 Var = namedtuple('Var', ['val', 'defn', 'critical'])
+Operation = namedtuple('Operation', ['name', 'stmt', 'critvars', 'vars'])
 
 
 class GraphQLTranslator(ast.NodeVisitor):
@@ -97,35 +97,44 @@ class GraphQLTranslator(ast.NodeVisitor):
             if isinstance(f, gqlast.FragmentDefinition)
         }
 
-        gqlresult = gql_proc(
-            self._context.gqlcore._gql_schema,
-            self._context.query,
-            variables={
-                name[1:]: val.value
-                for name, val in self._context.variables.items()
-            },
-            operation_name=self._context.operation_name,
-        )
+        # we need to check the document w.r.t. all operations so that we can
+        # inline the introspection JSON if needed
+        gqlresult = {}
+        for op in node.definitions:
+            if not isinstance(op, gqlast.OperationDefinition):
+                continue
 
-        if gqlresult.errors:
-            for err in gqlresult.errors:
-                raise g_errors.GraphQLCoreError(
-                    err.message,
-                    line=err.locations[0].line if err.locations else None,
-                    col=err.locations[0].column if err.locations else None,
-                )
+            gqlresult[op.name] = gql_proc(
+                self._context.gqlcore._gql_schema,
+                self._context.query,
+                variables={
+                    name[1:]: val.value
+                    for name, val in self._context.variables.items()
+                },
+                operation_name=op.name,
+            )
 
-        translated = dict(
-            d for d in self.visit(node.definitions) if d is not None)
-        eql = next(v for v in translated.values())
+            if gqlresult[op.name].errors:
+                for err in gqlresult[op.name].errors:
+                    raise g_errors.GraphQLCoreError(
+                        err.message,
+                        line=err.locations[0].line if err.locations else None,
+                        col=err.locations[0].column if err.locations else None,
+                    )
 
-        for el in eql[0].result.expr.elements:
-            # swap in the json bits
-            if (isinstance(el.compexpr, qlast.FunctionCall) and
-                    el.compexpr.func == 'to_json'):
-                name = el.expr.steps[0].ptr.name
-                el.compexpr.args[0].arg = qlast.StringConstant.from_python(
-                    json.dumps(gqlresult.data[name], indent=4))
+        translated = {d.name: d for d in self.visit(node.definitions)
+                      if d is not None}
+        for opname in translated:
+            stmt = translated[opname].stmt
+            gqlres = gqlresult[opname]
+
+            for el in stmt.result.expr.elements:
+                # swap in the json bits
+                if (isinstance(el.compexpr, qlast.FunctionCall) and
+                        el.compexpr.func == 'to_json'):
+                    name = el.expr.steps[0].ptr.name
+                    el.compexpr.args[0].arg = qlast.StringConstant.from_python(
+                        json.dumps(gqlres.data[name], indent=4))
 
         return translated
 
@@ -140,29 +149,30 @@ class GraphQLTranslator(ast.NodeVisitor):
             name: Var(val=val, defn=None, critical=False)
             for name, val in self._context.variables.items()}
         opname = None
-
-        if (self._context.operation_name and
-                node.name != self._context.operation_name):
-            return None
+        if node.name:
+            opname = node.name
 
         if node.type is None or node.type == 'query':
             stmt = self._visit_query(node)
-            if node.name:
-                opname = f'query {node.name}'
         elif node.type == 'mutation':
             stmt = self._visit_mutation(node)
-            if node.name:
-                opname = f'mutation {node.name}'
         else:
             raise ValueError(f'unsupported definition type: {node.type!r}')
 
         # produce the list of variables critical to the shape
         # of the query
-        critvars = [(name, var.val) for name, var
-                    in self._context.vars.items() if var.critical]
-        critvars.sort()
+        critvars = {name: var.val for name, var
+                    in self._context.vars.items() if var.critical}
+        # variables that were defined in this operation
+        defvars = {name: var.val for name, var in self._context.vars.items()
+                   if var.defn is not None}
 
-        return (opname, (stmt, critvars))
+        return Operation(
+            name=opname,
+            stmt=stmt,
+            critvars=critvars,
+            vars=defvars,
+        )
 
     def _visit_query(self, node):
         # populate input variables with defaults, where applicable
@@ -771,11 +781,12 @@ class GraphQLTranslator(ast.NodeVisitor):
             return results
 
 
-def translate(schema, graphql, *, variables=None, operation_name=None):
+def translate(schema, graphql, *, variables=None):
     # Try to parse the query first.
     query = re.sub(r'@edgedb\(.*?\)', '', graphql)
     parser = gqlparser.GraphQLParser()
     gqltree = parser.parse(graphql)
+    results = {}
 
     # If "query" is a valid GraphQL proceed with compiling it to EdgeQL.
 
@@ -790,15 +801,25 @@ def translate(schema, graphql, *, variables=None, operation_name=None):
 
     context = GraphQLTranslatorContext(
         schema=schema, gqlcore=gqlcore, query=query,
-        variables=gql_vars, operation_name=operation_name)
+        variables=gql_vars)
     edge_forest_map = GraphQLTranslator(context=context).visit(gqltree)
-    code = []
-    for name, (tree, critvars) in sorted(edge_forest_map.items()):
-        if name:
-            code.append(f'# {name}')
-        if critvars:
-            crit = [f'{vname}={val.value}' for vname, val in critvars]
-            code.append(f'# critical variables: {", ".join(crit)}')
-        code += [edgeql.generate_source(tree), ';']
+    for name, op in sorted(edge_forest_map.items()):
+        # convert critvars and vars to JSON-like format
+        critvars = {}
+        for name, val in op.critvars.items():
+            if val is not None:
+                critvars[name] = json.loads(gqlcodegen.generate_source(val))
+        defvars = {}
+        for name, val in op.vars.items():
+            if val is not None:
+                defvars[name] = json.loads(gqlcodegen.generate_source(val))
+        # generate the specific result
+        results[name] = {
+            'operation_name': name,
+            'edgeql': op.stmt,
+            'cacheable': True,
+            'cache_deps_vars': dict(critvars) if critvars else None,
+            'variables_desc': defvars,
+        }
 
-    return '\n'.join(code)
+    return results
