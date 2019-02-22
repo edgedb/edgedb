@@ -93,8 +93,9 @@ class BinaryRenderer:
                 pointers_len = len(pointers)
 
                 if pointers_len > 0:
-                    buf.write(',')
-                    buf.mark_line_break()
+                    if non_empty:
+                        buf.write(',')
+                        buf.mark_line_break()
 
                     i = 0
                     for name in pointers:
