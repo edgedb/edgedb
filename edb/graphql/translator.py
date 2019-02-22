@@ -435,7 +435,10 @@ class GraphQLTranslator:
                         )
                     )]
                 ),
-                compexpr=eql
+                compexpr=eql,
+                # preserve the original cardinality of the computable
+                # aliased fields
+                cardinality=prevt.get_field_cardinality(node.name.value),
             )
 
         else:
@@ -450,7 +453,11 @@ class GraphQLTranslator:
                         )
                     )]
                 ),
-                compexpr=eql
+                compexpr=eql,
+                # preserve the original cardinality of the computable,
+                # which is basically one of the top-level query
+                # fields, all of which are returning lists
+                cardinality=qltypes.Cardinality.MANY,
             )
 
         if node.selection_set is not None:
@@ -473,15 +480,6 @@ class GraphQLTranslator:
                     filterable.orderby = orderby
                     filterable.offset = offset
                     filterable.limit = limit
-                    # just to make sure that limit doesn't change the
-                    # serialization from list to a single object, we
-                    # need to force multi-cardinality, while being careful
-                    # as to not set the cardinality qualifier on a
-                    # non-computable shape element.
-                    if (limit is not None and
-                            (isinstance(filterable, qlast.Statement) or
-                             filterable.compexpr is not None)):
-                        spec.cardinality = qltypes.Cardinality.MANY
 
         path.pop()
         return spec
@@ -704,20 +702,27 @@ class GraphQLTranslator:
         name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
         name = qlast.Path(steps=name)
 
-        # potentially need to cast the 'name' side into a <str>, so as
-        # to be compatible with the 'value'
         typename = target.get_field_type(fname).short_name
-        if (typename != 'str' and
-            gt.EDB_TO_GQL_SCALARS_MAP[typename] in {graphql.GraphQLString,
-                                                    graphql.GraphQLID}):
-            name = qlast.TypeCast(
-                expr=name,
-                type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
-            )
+        if typename not in {'str', 'uuid'}:
+            if gt.EDB_TO_GQL_SCALARS_MAP[typename] == graphql.GraphQLString:
+                # potentially need to cast the 'name' side into a
+                # <str>, so as to be compatible with the 'value'
+                name = qlast.TypeCast(
+                    expr=name,
+                    type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
+                )
 
         self._context.filter = name
 
-        return self.visit(node.value)
+        value = self.visit(node.value)
+        # we need to cast a target string into <uuid>
+        if typename == 'uuid' and not isinstance(value.right, qlast.TypeCast):
+            value.right = qlast.TypeCast(
+                expr=value.right,
+                type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),
+            )
+
+        return value
 
     def visit_order(self, node):
         if not isinstance(node, gql_ast.ObjectValue):

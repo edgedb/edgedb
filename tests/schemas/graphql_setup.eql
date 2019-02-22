@@ -17,30 +17,25 @@
 #
 
 
-WITH MODULE test
 INSERT Setting {
     name := 'template',
     value := 'blue'
 };
 
-WITH MODULE test
 INSERT Setting {
     name := 'perks',
     value := 'full'
 };
 
-WITH MODULE test
 INSERT UserGroup {
     name := 'basic'
 };
 
-WITH MODULE test
 INSERT UserGroup {
     name := 'upgraded',
     settings := (SELECT Setting)
 };
 
-WITH MODULE test
 INSERT User {
     name := 'John',
     age := 25,
@@ -49,7 +44,6 @@ INSERT User {
     groups := (SELECT UserGroup FILTER UserGroup.name = 'basic')
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Jane',
     age := 25,
@@ -58,15 +52,18 @@ INSERT User {
     groups := (SELECT UserGroup FILTER UserGroup.name = 'upgraded')
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Alice',
     age := 27,
     active := True,
-    score := 5.0
+    score := 5.0,
+    profile: {
+        name := 'Alice profile',
+        value := 'special',
+        tags := ['1st', '2nd'],
+    }
 };
 
-WITH MODULE test
 INSERT Person {
     name := 'Bob',
     age := 21,
@@ -74,18 +71,15 @@ INSERT Person {
     score := 4.2
 };
 
-WITH MODULE test
 INSERT Foo {
     `select` := 'a',
 };
 
-WITH MODULE test
 INSERT Foo {
     `select` := 'b',
     after := 'w',
 };
 
-WITH MODULE test
 INSERT Foo {
     after := 'q',
 };

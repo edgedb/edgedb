@@ -29,8 +29,8 @@ from edb.tools import test
 
 
 class TestGraphQLFunctional(tb.GraphQLTestCase):
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'graphql.eschema')
+    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'graphql.eschema')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'graphql_setup.eql')
@@ -1106,6 +1106,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "NamedObject": [
                 {"age": 27, "name": "Alice", "score": 5},
+                {"age": None, "name": "Alice profile", "score": None},
                 {"age": 21, "name": "Bob", "score": 4.2},
                 {"age": 25, "name": "Jane", "score": 1.23},
                 {"age": 25, "name": "John", "score": 3.14},
@@ -1131,6 +1132,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "NamedObject": [
                 {"id": uuid.UUID, "name": "Alice"},
+                {"id": uuid.UUID, "name": "Alice profile"},
                 {"id": uuid.UUID, "name": "Bob"},
                 {"id": uuid.UUID, "name": "Jane"},
                 {"id": uuid.UUID, "name": "John"},
@@ -1197,6 +1199,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "NamedObject": [
                 {"id": uuid.UUID, "name": "Alice", "age": 27},
+                {"id": uuid.UUID, "name": "Alice profile", "age": None},
                 {"id": uuid.UUID, "name": "Bob", "age": 21},
                 {"id": uuid.UUID, "name": "Jane", "age": 25},
                 {"id": uuid.UUID, "name": "John", "age": 25},
@@ -1245,6 +1248,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "NamedObject": [
                 {"age": 27},
+                {"age": None},
                 {"age": 21},
                 {"age": 25},
                 {"age": 25},
@@ -2248,7 +2252,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     def test_graphql_functional_variables_23(self):
         self.assert_graphql_query_result(r"""
-            query($val: ID = "1") {
+            query($val: ID = "00000000-3576-11e9-8723-cf18c8790091") {
                 User(filter: {id: {eq: $val}}) {
                     name
                 }
