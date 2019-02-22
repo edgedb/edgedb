@@ -28,25 +28,16 @@ from .tokens import *  # NOQA
 from . import keywords
 
 
-def non_unique_error(node, entity=None):
-    if entity is None:
-        entity = node.__class__.__name__.lower()
-
-    return errors.GraphQLSyntaxError(
-        f"{entity} with name {node.name!r} already exists",
-        context=node.context)
-
-
 def check_const(expr):
     if isinstance(expr, gqlast.Variable):
         raise errors.GraphQLSyntaxError(
             'unexpected variable, must be a constant value',
             context=expr.context)
-    elif isinstance(expr, gqlast.ListLiteral):
+    elif isinstance(expr, gqlast.ListValue):
         for val in expr.value:
             check_const(val)
-    elif isinstance(expr, gqlast.InputObjectLiteral):
-        for field in expr.value:
+    elif isinstance(expr, gqlast.ObjectValue):
+        for field in expr.fields:
             check_const(field.value)
 
 
@@ -81,7 +72,10 @@ class NameTokNontermMeta(parsing.NontermMeta):
 
 class NameTokNonTerm(Nonterm, metaclass=NameTokNontermMeta):
     def _reduce_token(self, *kids):
-        self.val = kids[0].val
+        val = kids[0].val
+        if isinstance(val, str):
+            val = gqlast.Name(value=val)
+        self.val = val
 
 
 class NameTok(NameTokNonTerm):
@@ -111,7 +105,7 @@ INVALID_STRING_RE = re.compile(r'''
 FORWARD_SLASH_ESCAPE_RE = re.compile(r'(?<!\\)((?:\\{2})*)(\\/)')
 
 
-class StringLiteral(Nonterm):
+class StringValue(Nonterm):
 
     def reduce_STRING(self, *kids):
         val = kids[0].val
@@ -129,42 +123,42 @@ class StringLiteral(Nonterm):
 
         val = FORWARD_SLASH_ESCAPE_RE.sub(r'\1/', val)
 
-        self.val = gqlast.StringLiteral(value=val[1:-1])
+        self.val = gqlast.StringValue(value=val[1:-1])
 
 
 class BaseValue(Nonterm):
     def reduce_INTEGER(self, *kids):
-        self.val = gqlast.IntegerLiteral(value=kids[0].val)
+        self.val = gqlast.IntValue(value=kids[0].val)
 
     def reduce_FLOAT(self, *kids):
-        self.val = gqlast.FloatLiteral(value=kids[0].val)
+        self.val = gqlast.FloatValue(value=kids[0].val)
 
     def reduce_TRUE(self, *kids):
-        self.val = gqlast.BooleanLiteral(value='true')
+        self.val = gqlast.BooleanValue(value=True)
 
     def reduce_FALSE(self, *kids):
-        self.val = gqlast.BooleanLiteral(value='false')
+        self.val = gqlast.BooleanValue(value=False)
 
     def reduce_NULL(self, *kids):
-        self.val = gqlast.NullLiteral()
+        self.val = gqlast.NullValue()
 
-    def reduce_StringLiteral(self, *kids):
+    def reduce_StringValue(self, *kids):
         self.val = kids[0].val
 
     def reduce_NameNotBoolTok(self, *kids):
-        self.val = gqlast.EnumLiteral(value=kids[0].val)
+        self.val = gqlast.EnumValue(value=kids[0].val.value)
 
     def reduce_LSBRACKET_RSBRACKET(self, *kids):
-        self.val = gqlast.ListLiteral(value=[])
+        self.val = gqlast.ListValue(values=[])
 
     def reduce_LSBRACKET_ValueList_RSBRACKET(self, *kids):
-        self.val = gqlast.ListLiteral(value=kids[1].val)
+        self.val = gqlast.ListValue(values=kids[1].val)
 
     def reduce_LCBRACKET_RCBRACKET(self, *kids):
-        self.val = gqlast.InputObjectLiteral(value={})
+        self.val = gqlast.ObjectValue(fields=[])
 
     def reduce_LCBRACKET_ObjectFieldList_RCBRACKET(self, *kids):
-        self.val = gqlast.InputObjectLiteral(value=kids[1].val)
+        self.val = gqlast.ObjectValue(fields=kids[1].val)
 
 
 class Value(Nonterm):
@@ -172,7 +166,8 @@ class Value(Nonterm):
         self.val = kids[0].val
 
     def reduce_VAR(self, *kids):
-        self.val = gqlast.Variable(value=kids[0].val)
+        self.val = gqlast.Variable(
+            name=gqlast.Name(value=kids[0].val[1:]))
 
 
 class ValueList(ListNonterm, element=Value):
@@ -214,24 +209,28 @@ class Document(Nonterm):
         for defn in kids[0].val:
             if isinstance(defn, gqlast.OperationDefinition):
                 if defn.name is not None:
-                    if defn.name not in opnames:
-                        opnames.add(defn.name)
+                    if defn.name.value not in opnames:
+                        opnames.add(defn.name.value)
                     else:
-                        raise non_unique_error(defn, 'operation')
+                        raise errors.GraphQLSyntaxError(
+                            f"redefinition of operation {defn.name.value!r}",
+                            context=defn.context)
 
                 elif (short is None and
-                        defn.type is None and
-                        not defn.variables and
+                        defn.operation is None and
+                        not defn.variable_definitions and
                         not defn.directives):
                     short = unnamed = defn
                 elif unnamed is None:
                     unnamed = defn
 
             elif isinstance(defn, gqlast.FragmentDefinition):
-                if defn.name not in fragnames:
-                    fragnames.add(defn.name)
+                if defn.name.value not in fragnames:
+                    fragnames.add(defn.name.value)
                 else:
-                    raise non_unique_error(defn, 'fragment')
+                    raise errors.GraphQLSyntaxError(
+                        f"redefinition of fragment {defn.name.value!r}",
+                        context=defn.context)
 
         if len(kids[0].val) - len(fragnames) > 1:
             if short is not None:
@@ -268,9 +267,9 @@ class Query(Nonterm):
     def reduce_QueryTypeTok_OptNameTok_OptVariables_OptDirectives_SelectionSet(
             self, *kids):
         self.val = gqlast.OperationDefinition(
-            type=kids[0].val,
+            operation=kids[0].val,
             name=kids[1].val if kids[1].val else None,
-            variables=kids[2].val,
+            variable_definitions=kids[2].val,
             directives=kids[3].val,
             selection_set=kids[4].val)
 
@@ -293,7 +292,7 @@ class Fragment(Nonterm):
     def reduce_FRAGMENT_NameNotONTok_TypeCondition_OptDirectives_SelectionSet(
             self, *kids):
         self.val = gqlast.FragmentDefinition(name=kids[1].val,
-                                             on=kids[2].val,
+                                             type_condition=kids[2].val,
                                              directives=kids[3].val,
                                              selection_set=kids[4].val)
 
@@ -331,13 +330,13 @@ class AliasedField(Nonterm):
 
 class FieldName(Nonterm):
     def reduce_SCHEMA(self, *kids):
-        self.val = gqlast.Field(name=kids[0].val)
+        self.val = gqlast.Field(name=gqlast.Name(value=kids[0].val))
 
     def reduce_TYPE(self, *kids):
-        self.val = gqlast.Field(name=kids[0].val)
+        self.val = gqlast.Field(name=gqlast.Name(value=kids[0].val))
 
     def reduce_TYPENAME(self, *kids):
-        self.val = gqlast.Field(name=kids[0].val)
+        self.val = gqlast.Field(name=gqlast.Name(value=kids[0].val))
 
     def reduce_NameNotDunderTok(self, *kids):
         self.val = gqlast.Field(name=kids[0].val)
@@ -353,7 +352,7 @@ class InlineFragment(Nonterm):
     def reduce_ELLIPSIS_OptTypeCondition_OptDirectives_SelectionSet(self,
                                                                     *kids):
         self.val = gqlast.InlineFragment(selection_set=kids[3].val,
-                                         on=kids[1].val,
+                                         type_condition=kids[1].val,
                                          directives=kids[2].val)
 
 
@@ -387,10 +386,12 @@ class Arguments(Nonterm):
         #
         argnames = set()
         for arg in self.val:
-            if arg.name not in argnames:
-                argnames.add(arg.name)
+            if arg.name.value not in argnames:
+                argnames.add(arg.name.value)
             else:
-                raise non_unique_error(arg)
+                raise errors.GraphQLSyntaxError(
+                    f"redefinition of argument with name {arg.name.value!r}",
+                    context=arg.context)
 
 
 class Argument(Nonterm):
@@ -430,7 +431,7 @@ class OptTypeCondition(Nonterm):
 
 class TypeCondition(Nonterm):
     def reduce_ON_NameTok(self, *kids):
-        self.val = kids[1].val
+        self.val = gqlast.NamedType(name=kids[1].val)
 
 
 class OptVariables(Nonterm):
@@ -448,17 +449,20 @@ class Variables(Nonterm):
         #
         variables = set()
         for var in self.val:
-            if var.name not in variables:
-                variables.add(var.name)
+            if var.variable.name.value not in variables:
+                variables.add(var.variable.name.value)
             else:
-                raise non_unique_error(var)
+                raise errors.GraphQLSyntaxError(
+                    f"redefinition of variable {var.variable.name.value!r}",
+                    context=var.context)
 
 
 class Variable(Nonterm):
     def reduce_VAR_COLON_VarType_DefaultValue(self, *kids):
-        self.val = gqlast.VariableDefinition(name=kids[0].val,
-                                             type=kids[2].val,
-                                             value=kids[3].val)
+        self.val = gqlast.VariableDefinition(
+            variable=gqlast.Variable(name=gqlast.Name(value=kids[0].val[1:])),
+            type=kids[2].val,
+            default_value=kids[3].val)
 
 
 class VariableList(ListNonterm, element=Variable):
@@ -467,20 +471,18 @@ class VariableList(ListNonterm, element=Variable):
 
 class VarType(Nonterm):
     def reduce_NameTok(self, *kids):
-        self.val = gqlast.VariableType(name=kids[0].val)
+        self.val = gqlast.NamedType(name=kids[0].val)
 
     def reduce_NameTok_BANG(self, *kids):
-        self.val = gqlast.VariableType(name=kids[0].val,
-                                       nullable=False)
+        self.val = gqlast.NonNullType(
+            type=gqlast.NamedType(name=kids[0].val))
 
     def reduce_LSBRACKET_VarType_RSBRACKET(self, *kids):
-        self.val = gqlast.VariableType(name=kids[1].val,
-                                       list=True)
+        self.val = gqlast.ListType(type=kids[1].val)
 
     def reduce_LSBRACKET_VarType_RSBRACKET_BANG(self, *kids):
-        self.val = gqlast.VariableType(name=kids[1].val,
-                                       list=True,
-                                       nullable=False)
+        self.val = gqlast.NonNullType(
+            type=gqlast.ListType(type=kids[1].val))
 
 
 class DefaultValue(Nonterm):
