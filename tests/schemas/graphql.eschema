@@ -39,7 +39,7 @@ type User extending NamedObject:
     required property score -> float64
     link profile -> Profile
 
-type Person extending test::User
+type Person extending User
 
 type Foo:
     property `select` -> str

@@ -40,6 +40,7 @@ from graphql.type import GraphQLEnumValue
 import itertools
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 from edb.edgeql import codegen
 from edb.edgeql.parser import parse_fragment
 
@@ -78,7 +79,7 @@ GQL_TO_EDB_SCALARS_MAP = {
     'Boolean': 'bool',
     # for compatibility with GraphQL ID we cast uuid into a str in
     # expressions
-    'ID': 'str',
+    'ID': 'uuid',
 }
 
 
@@ -622,6 +623,16 @@ class GQLBaseType(metaclass=GQLTypeMeta):
                 ''')
 
         return eql, shape, filterable
+
+    def get_field_cardinality(self, name):
+        if not self.is_field_shadowed(name):
+            return None
+
+        ptr = self.edb_base.getptr(self.edb_schema, name)
+        if not ptr.singular(self.edb_schema):
+            return qltypes.Cardinality.MANY
+
+        return None
 
 
 class GQLShadowType(GQLBaseType):
