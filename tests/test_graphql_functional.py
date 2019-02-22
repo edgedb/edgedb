@@ -1942,7 +1942,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         )
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_03(self):
         self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
@@ -2038,7 +2037,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             "User": []
         })
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_10(self):
         self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
