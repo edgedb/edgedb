@@ -18,7 +18,7 @@
 
 
 from collections import namedtuple
-from graphql import graphql as gql_proc, GraphQLString, GraphQLID
+from graphql import graphql as gql_proc, GraphQLString, GraphQLID, GraphQLError
 import json
 import re
 
@@ -116,11 +116,14 @@ class GraphQLTranslator(ast.NodeVisitor):
 
             if gqlresult[op.name].errors:
                 for err in gqlresult[op.name].errors:
-                    raise g_errors.GraphQLCoreError(
-                        err.message,
-                        line=err.locations[0].line if err.locations else None,
-                        col=err.locations[0].column if err.locations else None,
-                    )
+                    if isinstance(err, GraphQLError):
+                        raise g_errors.GraphQLCoreError(
+                            err.message,
+                            line=err.locations[0].line,
+                            col=err.locations[0].column,
+                        )
+                    else:
+                        raise err
 
         translated = {d.name: d for d in self.visit(node.definitions)
                       if d is not None}
