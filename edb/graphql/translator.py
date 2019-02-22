@@ -17,17 +17,21 @@
 #
 
 
-from collections import namedtuple
-from graphql import graphql as gql_proc, GraphQLString, GraphQLID, GraphQLError
 import json
 import re
+import typing
+
+from graphql import graphql as gql_proc, GraphQLString, GraphQLID, GraphQLError
 
 from edb import errors
 
 from edb.common import ast
 from edb.common import typeutils
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.edgeql import quote as eql_quote
+
 from edb.graphql import ast as gqlast
 from edb.graphql import parser as gqlparser
 
@@ -51,10 +55,27 @@ class GraphQLTranslatorContext:
         self.query = query
 
 
-Step = namedtuple('Step', ['name', 'type'])
-Field = namedtuple('Field', ['name', 'value'])
-Var = namedtuple('Var', ['val', 'defn', 'critical'])
-Operation = namedtuple('Operation', ['name', 'stmt', 'critvars', 'vars'])
+class Step(typing.NamedTuple):
+    name: object
+    type: object
+
+
+class Field(typing.NamedTuple):
+    name: object
+    value: object
+
+
+class Var(typing.NamedTuple):
+    val: object
+    defn: gqlast.VariableDefinition
+    critical: bool
+
+
+class Operation(typing.NamedTuple):
+    name: object
+    stmt: object
+    critvars: object
+    vars: object
 
 
 class GraphQLTranslator(ast.NodeVisitor):
@@ -73,6 +94,13 @@ class GraphQLTranslator(ast.NodeVisitor):
                     context=context)
             raise
 
+    def is_list_type(self, node):
+        return (
+            isinstance(node, gqlast.ListType) or
+            (isinstance(node, gqlast.NonNullType) and
+                self.is_list_type(node.type))
+        )
+
     def get_field_type(self, base, name, *, args=None, context=None):
         try:
             target = base.get_field_type(name)
@@ -90,10 +118,16 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         return target
 
+    def get_optname(self, node):
+        if node.name:
+            return node.name.value
+        else:
+            return None
+
     def visit_Document(self, node):
         # we need to index all of the fragments before we process operations
         self._context.fragments = {
-            f.name: f for f in node.definitions
+            f.name.value: f for f in node.definitions
             if isinstance(f, gqlast.FragmentDefinition)
         }
 
@@ -104,18 +138,19 @@ class GraphQLTranslator(ast.NodeVisitor):
             if not isinstance(op, gqlast.OperationDefinition):
                 continue
 
-            gqlresult[op.name] = gql_proc(
+            opname = self.get_optname(op)
+            gqlresult[opname] = gql_proc(
                 self._context.gqlcore._gql_schema,
                 self._context.query,
                 variables={
-                    name[1:]: val.value
+                    name: val.value
                     for name, val in self._context.variables.items()
                 },
-                operation_name=op.name,
+                operation_name=opname,
             )
 
-            if gqlresult[op.name].errors:
-                for err in gqlresult[op.name].errors:
+            if gqlresult[opname].errors:
+                for err in gqlresult[opname].errors:
                     if isinstance(err, GraphQLError):
                         raise g_errors.GraphQLCoreError(
                             err.message,
@@ -125,7 +160,8 @@ class GraphQLTranslator(ast.NodeVisitor):
                     else:
                         raise err
 
-        translated = {d.name: d for d in self.visit(node.definitions)
+        translated = {d.name: d
+                      for d in self.visit(node.definitions)
                       if d is not None}
         for opname in translated:
             stmt = translated[opname].stmt
@@ -153,12 +189,12 @@ class GraphQLTranslator(ast.NodeVisitor):
             for name, val in self._context.variables.items()}
         opname = None
         if node.name:
-            opname = node.name
+            opname = node.name.value
 
-        if node.type is None or node.type == 'query':
+        if node.operation is None or node.operation == 'query':
             stmt = self._visit_query(node)
         else:
-            raise ValueError(f'unsupported definition type: {node.type!r}')
+            raise ValueError(f'unsupported operation: {node.operation!r}')
 
         # produce the list of variables critical to the shape
         # of the query
@@ -177,8 +213,8 @@ class GraphQLTranslator(ast.NodeVisitor):
 
     def _visit_query(self, node):
         # populate input variables with defaults, where applicable
-        if node.variables:
-            self.visit(node.variables)
+        if node.variable_definitions:
+            self.visit(node.variable_definitions)
 
         # base Query needs to be configured specially
         base = self._context.gqlcore.get('Query')
@@ -211,42 +247,42 @@ class GraphQLTranslator(ast.NodeVisitor):
 
     def _should_include(self, directives):
         for directive in directives:
-            if directive.name in ('include', 'skip'):
+            if directive.name.value in ('include', 'skip'):
                 cond = [a.value for a in directive.arguments
-                        if a.name == 'if'][0]
+                        if a.name.value == 'if'][0]
 
                 if isinstance(cond, gqlast.Variable):
-                    varname = cond.value[1:]
+                    varname = cond.name.value
                     var = self._context.vars[varname]
                     # mark the variable as critical
                     self._context.vars[varname] = Var(
                         val=var.val, defn=var.defn, critical=True)
                     cond = var.val
 
-                if not isinstance(cond, gqlast.BooleanLiteral):
+                if not isinstance(cond, gqlast.BooleanValue):
                     raise g_errors.GraphQLValidationError(
-                        f"'if' argument of {directive.name} " +
+                        f"'if' argument of {directive.name.value} " +
                         "directive must be a Boolean",
                         context=directive.context)
 
-                if directive.name == 'include' and cond.value == 'false':
+                if directive.name.value == 'include' and cond.value == 'false':
                     return False
-                elif directive.name == 'skip' and cond.value == 'true':
+                elif directive.name.value == 'skip' and cond.value == 'true':
                     return False
 
         return True
 
     def visit_VariableDefinition(self, node):
-        varname = node.name[1:]
+        varname = node.variable.name.value
         variables = self._context.vars
         var = variables.get(varname)
         if not var:
-            if node.value is None:
+            if node.default_value is None:
                 variables[varname] = Var(
                     val=None, defn=node, critical=False)
             else:
                 variables[varname] = Var(
-                    val=node.value, defn=node, critical=False)
+                    val=node.default_value, defn=node, critical=False)
         else:
             # we have the variable, but we still need to update the defn field
             variables[varname] = Var(
@@ -270,7 +306,7 @@ class GraphQLTranslator(ast.NodeVisitor):
     def _is_duplicate_field(self, node):
         # if this field is a duplicate, that is not identical to the
         # original, throw an exception
-        name = node.alias or node.name
+        name = (node.alias or node.name).value
         dup = self._context.fields[-1].get(name)
         if dup:
             return True
@@ -292,13 +328,14 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         prevt = path[-1].type
         target = self.get_field_type(
-            prevt, node.name,
+            prevt, node.name.value,
             context=node.context)
-        path.append(Step(name=node.name, type=target))
+        path.append(Step(name=node.name.value, type=target))
 
         if not top and fail:
             raise g_errors.GraphQLValidationError(
-                f"field {node.name!r} can only appear at the top-level Query",
+                f"field {node.name.value!r} can only appear "
+                f"at the top-level Query",
                 context=node.context)
 
         return top
@@ -336,7 +373,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             ))
         steps.append(qlast.Ptr(
             ptr=qlast.ObjectRef(
-                name=node.name
+                name=node.name.value
             )
         ))
 
@@ -350,7 +387,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             self._prepare_field(node)
 
         json_mode = False
-        is_shadowed = prevt.is_field_shadowed(node.name)
+        is_shadowed = prevt.is_field_shadowed(node.name.value)
 
         # determine if there needs to be extra subqueries
         if not prevt.dummy and target.dummy:
@@ -363,7 +400,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                 expr=qlast.Path(
                     steps=[qlast.Ptr(
                         ptr=qlast.ObjectRef(
-                            name=node.alias or node.name
+                            name=(node.alias or node.name).value
                         )
                     )]
                 ),
@@ -381,7 +418,7 @@ class GraphQLTranslator(ast.NodeVisitor):
             # shadowed field
             prefix = qlast.Path(steps=self.get_path_prefix(-1))
             eql, shape, filterable = prevt.get_field_template(
-                node.name,
+                node.name.value,
                 parent=prefix,
                 has_shape=bool(node.selection_set)
             )
@@ -390,7 +427,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     steps=[qlast.Ptr(
                         ptr=qlast.ObjectRef(
                             # this is already a sub-query
-                            name=node.alias or node.name
+                            name=(node.alias or node.name).value
                         )
                     )]
                 ),
@@ -405,7 +442,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     steps=[qlast.Ptr(
                         ptr=qlast.ObjectRef(
                             # this is already a sub-query
-                            name=node.alias or node.name
+                            name=(node.alias or node.name).value
                         )
                     )]
                 ),
@@ -448,12 +485,12 @@ class GraphQLTranslator(ast.NodeVisitor):
     def visit_InlineFragment(self, node):
         self._validate_fragment_type(node, node)
         result = self.visit(node.selection_set)
-        if node.on is not None:
+        if node.type_condition is not None:
             self._context.path.pop()
         return result
 
     def visit_FragmentSpread(self, node):
-        frag = self._context.fragments[node.name]
+        frag = self._context.fragments[node.name.value]
         self._validate_fragment_type(frag, node)
         # in case of secondary type, recurse into a copy to avoid
         # memoized results
@@ -468,14 +505,14 @@ class GraphQLTranslator(ast.NodeVisitor):
         base_type = None
 
         # validate the fragment type w.r.t. the base
-        if frag.on is None:
+        if frag.type_condition is None:
             return
 
         # validate the base if it's nested
         if len(self._context.path) > 0:
             path = self._context.path[-1]
             base_type = path[-1].type
-            frag_type = self.get_type(frag.on)
+            frag_type = self.get_type(frag.type_condition.name.value)
 
             if base_type.issubclass(frag_type):
                 # legal hierarchy, no change
@@ -488,7 +525,7 @@ class GraphQLTranslator(ast.NodeVisitor):
                     f"{base_type.short_name} and {frag_type.short_name} " +
                     "are not related", context=spread.context)
 
-        self._context.path.append([Step(frag.on, frag_type)])
+        self._context.path.append([Step(frag.type_condition, frag_type)])
         self._context.include_base.append(is_specialized)
 
     def _visit_arguments(self, arguments):
@@ -496,40 +533,69 @@ class GraphQLTranslator(ast.NodeVisitor):
         orderby = []
         first = last = before = after = None
 
-        for arg in arguments:
-            try:
-                if arg.name == 'filter':
-                    where = self.visit(arg.value)
-                elif arg.name == 'order':
-                    orderby = self.visit_order(arg.value)
-                elif arg.name == 'first':
-                    first = int(arg.value.value)
-                    if first < 0:
-                        raise ValueError(f"{arg.name!r} cannot be negative")
-                elif arg.name == 'last':
-                    last = int(arg.value.value)
-                    last_context = arg.context
-                    if last < 0:
-                        raise ValueError(f"{arg.name!r} cannot be negative")
-                elif arg.name == 'before':
-                    before = int(arg.value.value)
-                    if before < 0:
-                        raise ValueError(f"{arg.name!r} cannot be negative")
-                elif arg.name == 'after':
-                    after = int(arg.value.value)
-                    if after < 0:
-                        raise ValueError(f"{arg.name!r} cannot be negative")
-                    # The +1 is to make 'after' into an appropriate index.
-                    #
-                    # 0--a--1--b--2--c--3-- ... we call element at
-                    # index 0 (or "element 0" for short), the element
-                    # immediately after the mark 0. So after "element
-                    # 0" really means after "index 1".
-                    after += 1
-            except Exception:
+        def validate_positive_int(arg):
+            if not isinstance(arg.value, gqlast.IntValue):
                 raise g_errors.GraphQLValidationError(
-                    f"invalid value for {arg.name!r}: {arg.value.value!r}",
+                    f"invalid value for {arg.name.value!r}: "
+                    f"expected an int",
                     context=arg.context) from None
+            try:
+                val = int(arg.value.value)
+            except (TypeError, ValueError):
+                raise g_errors.GraphQLValidationError(
+                    f"invalid value for {arg.name.value!r}: "
+                    f"expected an int, got {arg.value.value!r}",
+                    context=arg.context) from None
+            if val < 0:
+                raise g_errors.GraphQLValidationError(
+                    f"invalid value for {arg.name.value!r}: "
+                    f"expected a non-negative int",
+                    context=arg.context)
+            return val
+
+        def validate_positive_str_int(arg):
+            if not isinstance(arg.value, gqlast.StringValue):
+                raise g_errors.GraphQLValidationError(
+                    f"invalid value for {arg.name.value!r}: "
+                    f"expected a string castable to an int",
+                    context=arg.context) from None
+            try:
+                val = int(arg.value.value)
+            except (TypeError, ValueError):
+                raise g_errors.GraphQLValidationError(
+                    f"invalid value for {arg.name.value!r}: "
+                    f"expected a string castable to a non-negative int, "
+                    f"got {arg.value.value!r}",
+                    context=arg.context) from None
+            if val < 0:
+                raise g_errors.GraphQLValidationError(
+                    f"invalid value for {arg.name.value!r}: "
+                    f"expected a string castable to a non-negative int, "
+                    f"got {val}",
+                    context=arg.context)
+            return val
+
+        for arg in arguments:
+            if arg.name.value == 'filter':
+                where = self.visit(arg.value)
+            elif arg.name.value == 'order':
+                orderby = self.visit_order(arg.value)
+            elif arg.name.value == 'first':
+                first = validate_positive_int(arg)
+            elif arg.name.value == 'last':
+                last = validate_positive_int(arg)
+                last_context = arg.context
+            elif arg.name.value == 'before':
+                before = validate_positive_str_int(arg)
+            elif arg.name.value == 'after':
+                after = validate_positive_str_int(arg)
+                # The +1 is to make 'after' into an appropriate index.
+                #
+                # 0--a--1--b--2--c--3-- ... we call element at
+                # index 0 (or "element 0" for short), the element
+                # immediately after the mark 0. So after "element
+                # 0" really means after "index 1".
+                after += 1
 
         # convert before, after, first and last into offset and limit
         if after is not None:
@@ -599,25 +665,25 @@ class GraphQLTranslator(ast.NodeVisitor):
 
         return prefix
 
-    def visit_ListLiteral(self, node):
-        return qlast.Array(elements=self.visit(node.value))
+    def visit_ListValue(self, node):
+        return qlast.Array(elements=self.visit(node.values))
 
-    def visit_InputObjectLiteral(self, node):
+    def visit_ObjectValue(self, node):
         # this represents some expression to be used in filter
         result = []
-        for field in node.value:
+        for field in node.fields:
             result.append(self.visit(field))
 
         return self._join_expressions(result)
 
     def visit_ObjectField(self, node):
-        fname = node.name
+        fname = node.name.value
 
         # handle boolean ops
         if fname == 'and':
-            return self._visit_list_of_inputs(node.value.value, 'AND')
+            return self._visit_list_of_inputs(node.value, 'AND')
         elif fname == 'or':
-            return self._visit_list_of_inputs(node.value.value, 'OR')
+            return self._visit_list_of_inputs(node.value, 'OR')
         elif fname == 'not':
             return qlast.UnaryOp(op='NOT', operand=self.visit(node.value))
 
@@ -651,8 +717,13 @@ class GraphQLTranslator(ast.NodeVisitor):
         return self.visit(node.value)
 
     def visit_order(self, node):
+        if not isinstance(node, gqlast.ObjectValue):
+            raise g_errors.GraphQLTranslationError(
+                f'an object is expected for "order"',
+                context=node.context)
+
         # if there is no specific ordering, then order by id
-        if not node.value:
+        if not node.fields:
             return [qlast.SortExpr(
                 path=qlast.Path(
                     steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='id'))],
@@ -664,7 +735,7 @@ class GraphQLTranslator(ast.NodeVisitor):
         # Ordering is handled by specifying a list of special Ordering objects.
         # Validation is already handled by this point.
         orderby = []
-        for enum in node.value:
+        for enum in node.fields:
             name, direction, nulls = self._visit_order_item(enum)
             orderby.append(qlast.SortExpr(
                 path=qlast.Path(
@@ -678,13 +749,23 @@ class GraphQLTranslator(ast.NodeVisitor):
         return orderby
 
     def _visit_order_item(self, node):
-        name = node.name
+        if not isinstance(node, gqlast.ObjectField):
+            raise g_errors.GraphQLTranslationError(
+                f'an object is expected for "order"',
+                context=node.context)
+
+        if not isinstance(node.value, gqlast.ObjectValue):
+            raise g_errors.GraphQLTranslationError(
+                f'an object is expected for "order"',
+                context=node.context)
+
+        name = node.name.value
         direction = nulls = None
 
-        for part in node.value.value:
-            if part.name == 'dir':
+        for part in node.value.fields:
+            if part.name.value == 'dir':
                 direction = part.value.value
-            if part.name == 'nulls':
+            if part.name.value == 'nulls':
                 nulls = part.value.value
 
         # direction is a required field, so we can rely on it having
@@ -708,16 +789,16 @@ class GraphQLTranslator(ast.NodeVisitor):
         return name, direction, nulls
 
     def visit_Variable(self, node):
-        varname = node.value[1:]
+        varname = node.name.value
         var = self._context.vars[varname]
         vartype = var.defn.type
 
         casttype = qlast.TypeName(
             maintype=qlast.ObjectRef(
-                name=gt.GQL_TO_EDB_SCALARS_MAP[var.defn.type.name])
+                name=gt.GQL_TO_EDB_SCALARS_MAP[var.defn.type.name.value])
         )
         # potentially this is an array
-        if vartype.list:
+        if self.is_list_type(vartype):
             casttype = qlast.TypeName(
                 maintype=qlast.ObjectRef(name='array'),
                 subtypes=[casttype]
@@ -728,20 +809,26 @@ class GraphQLTranslator(ast.NodeVisitor):
             expr=qlast.Parameter(name=varname)
         )
 
-    def visit_StringLiteral(self, node):
+    def visit_StringValue(self, node):
         return qlast.StringConstant(value=node.value, quote='"')
 
-    def visit_IntegerLiteral(self, node):
+    def visit_IntValue(self, node):
         return qlast.IntegerConstant(value=node.value)
 
-    def visit_FloatLiteral(self, node):
+    def visit_FloatValue(self, node):
         return qlast.FloatConstant(value=node.value)
 
-    def visit_BooleanLiteral(self, node):
-        return qlast.BooleanConstant(value=node.value)
+    def visit_BooleanValue(self, node):
+        value = 'true' if node.value else 'false'
+        return qlast.BooleanConstant(value=value)
 
-    def _visit_list_of_inputs(self, inputs, op):
-        result = [self.visit(node) for node in inputs]
+    def _visit_list_of_inputs(self, inputlist, op):
+        if not isinstance(inputlist, gqlast.ListValue):
+            raise g_errors.GraphQLTranslationError(
+                f'a list was expected',
+                context=inputlist.context)
+
+        result = [self.visit(node) for node in inputlist.values]
         return self._join_expressions(result, op)
 
     def _join_expressions(self, exprs, op='AND'):
@@ -779,6 +866,30 @@ class GraphQLTranslator(ast.NodeVisitor):
             return results
 
 
+def value_node_from_pyvalue(val: object):
+    if isinstance(val, str):
+        val = val.replace('\\', '\\\\')
+        value = eql_quote.quote_literal(val)
+        return gqlast.StringValue(value=value[1:-1])
+    elif isinstance(val, bool):
+        return gqlast.BooleanValue(value=bool(val))
+    elif isinstance(val, int):
+        return gqlast.IntValue(value=str(val))
+    elif isinstance(val, float):
+        return gqlast.FloatValue(value=str(val))
+    elif isinstance(val, list):
+        return gqlast.ListValue(
+            values=[value_node_from_pyvalue(v) for v in val])
+    elif isinstance(val, dict):
+        return gqlast.ObjectValue(
+            fields=[
+                gqlast.ObjectField(name=n, value=value_node_from_pyvalue(v))
+                for n, v in val.items()
+            ])
+    else:
+        raise ValueError(f'unexpected constant type: {type(val)!r}')
+
+
 def translate(schema, graphql, *, variables=None):
     # Try to parse the query first.
     query = re.sub(r'@edgedb\(.*?\)', '', graphql)
@@ -793,7 +904,7 @@ def translate(schema, graphql, *, variables=None):
 
     gql_vars = {}
     for n, v in variables.items():
-        gql_vars[n] = gqlast.BaseLiteral.from_python(v)
+        gql_vars[n] = value_node_from_pyvalue(v)
 
     gqlcore = gt.GQLCoreSchema(schema)
 

@@ -43,7 +43,7 @@ class Validator(NodeVisitor):
         # now detect cycles in fragments
         #
         for frag in fragnodes:
-            cycle = self.detect_cycle(frag.name, {frag.name})
+            cycle = self.detect_cycle(frag.name.value, {frag.name.value})
             if cycle:
                 cycle.reverse()
                 raise errors.GraphQLSyntaxError(
@@ -72,7 +72,8 @@ class Validator(NodeVisitor):
                     {k: v for k, v in frag['usedvars'].items()
                      if k not in op['usedvars']})
 
-            vardefs = {var.name for var in opnode.variables or ()}
+            vardefs = {var.variable.name.value
+                       for var in opnode.variable_definitions or ()}
             if not vardefs.issuperset(op['usedvars'].keys()):
                 uvars = [v for k, v in op['usedvars'].items()
                          if k not in vardefs]
@@ -80,25 +81,25 @@ class Validator(NodeVisitor):
                                           x.context.start.column))
                 uvar = uvars[0]
                 if opnode.name:
-                    op_str = f"{opnode.name!r} "
+                    op_str = repr(opnode.name.value)
                 else:
-                    op_str = ""
+                    op_str = "<unnamed>"
                 octx_start = opnode.context.start
-                op_str += f"at {octx_start.line}, {octx_start.column}"
+                op_str += f" at {octx_start.line}, {octx_start.column}"
 
                 uctx_start = uvar.context.start
                 raise errors.GraphQLSyntaxError(
                     f"operation {op_str} uses an undefined variable " +
-                    f"{uvar.value!r} at " +
+                    f"{uvar.name.value!r} at " +
                     f"{uctx_start.line}, {uctx_start.column}",
                     context=uvar.context)
 
         # detect unused fragments
         #
         for frag in fragnodes:
-            if not self._fragments[frag.name].get('used_in_spead'):
+            if not self._fragments[frag.name.value].get('used_in_spead'):
                 raise errors.GraphQLSyntaxError(
-                    f"unused fragment definition {frag.name!r}",
+                    f"unused fragment definition {frag.name.value!r}",
                     context=frag.context)
 
     def detect_cycle(self, fragname, visited):
@@ -127,7 +128,7 @@ class Validator(NodeVisitor):
 
     def visit_FragmentDefinition(self, node):
         self._curroot = {'usedvars': {}, 'spreads': {}}
-        self._fragments[node.name] = self._curroot
+        self._fragments[node.name.value] = self._curroot
         self.generic_visit(node)
 
     def visit_OperationDefinition(self, node):
@@ -136,12 +137,12 @@ class Validator(NodeVisitor):
         self.generic_visit(node)
 
     def visit_Variable(self, node):
-        val = self._curroot['usedvars'].get(node.value, node)
-        self._curroot['usedvars'][node.value] = val
+        val = self._curroot['usedvars'].get(node.name.value, node)
+        self._curroot['usedvars'][node.name.value] = val
 
     def visit_FragmentSpread(self, node):
-        val = self._curroot['spreads'].get(node.name, node)
-        self._curroot['spreads'][node.name] = val
+        val = self._curroot['spreads'].get(node.name.value, node)
+        self._curroot['spreads'][node.name.value] = val
 
 
 class GraphQLParser(parsing.Parser):

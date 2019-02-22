@@ -455,7 +455,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         """
 
     @tb.must_fail(errors.GraphQLSyntaxError,
-                  r'operation with name \S+ already exists',
+                  r"redefinition of operation 'myQuery'",
                   line=3, col=9)
     def test_graphql_syntax_query09(self):
         """
@@ -722,7 +722,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$var'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable 'var'",
                   line=2, col=45)
     def test_graphql_syntax_values17(self):
         r"""
@@ -799,7 +799,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$var'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable 'var'",
                   line=3, col=49)
     def test_graphql_syntax_scope01(self):
         r"""
@@ -818,7 +818,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$bad'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable 'bad'",
                   line=3, col=46)
     def test_graphql_syntax_scope03(self):
         r"""
@@ -832,7 +832,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$bad'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable 'bad'",
                   line=10, col=53)
     def test_graphql_syntax_scope04(self):
         r"""
@@ -870,7 +870,7 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         }
         """
 
-    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable '\$bad'",
+    @tb.must_fail(errors.GraphQLSyntaxError, r"undefined variable 'bad'",
                   line=10, col=53)
     def test_graphql_syntax_scope06(self):
         r"""
@@ -1100,14 +1100,16 @@ class TestGraphQLParser(GraphQLSyntaxTest):
         """
 
     @tb.must_fail(errors.GraphQLSyntaxError,
-                  'variabledefinition', line=2, col=32)
+                  r"redefinition of variable 'x'",
+                  line=2, col=32)
     def test_graphql_syntax_names15(self):
         r"""
         query myQuery($x: Int, $x: Int) { id }
         """
 
     @tb.must_fail(errors.GraphQLSyntaxError,
-                  'variabledefinition', line=2, col=32)
+                  r"redefinition of variable 'x'",
+                  line=2, col=32)
     def test_graphql_syntax_names16(self):
         r"""
         query myQuery($x: Int, $x: Float) { id }

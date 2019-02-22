@@ -20,7 +20,6 @@
 import typing
 
 from edb.common import ast, parsing
-from edb.edgeql import quote as eql_quote
 
 
 class Base(ast.AST):
@@ -38,71 +37,53 @@ class Base(ast.AST):
                f'{id(self):#x}{ar}>'
 
 
-class BaseLiteral(Base):
-    value: object
-
-    @classmethod
-    def from_python(cls, val: object) -> 'BaseLiteral':
-        if isinstance(val, str):
-            return StringLiteral.from_python(val)
-        elif isinstance(val, bool):
-            return BooleanLiteral(value='true' if val else 'false')
-        elif isinstance(val, int):
-            return IntegerLiteral(value=str(val))
-        elif isinstance(val, float):
-            return FloatLiteral(value=str(val))
-        elif isinstance(val, list):
-            return ListLiteral(value=[BaseLiteral.from_python(v) for v in val])
-        elif isinstance(val, dict):
-            return InputObjectLiteral(
-                value=[ObjectField(name=n, value=BaseLiteral.from_python(v))
-                       for n, v in val.items()])
-        else:
-            raise ValueError(f'unexpected constant type: {type(val)!r}')
+class Value(Base):
+    pass
 
 
-class ScalarLiteral(BaseLiteral):
+class Name(Base):
     value: str
 
 
-class StringLiteral(ScalarLiteral):
-    @classmethod
-    def from_python(cls, s: str):
-        s = s.replace('\\', '\\\\')
-        value = eql_quote.quote_literal(s)
-        return cls(value=value[1:-1])
+class StringValue(Value):
+    value: object
 
 
-class IntegerLiteral(ScalarLiteral):
-    pass
+class IntValue(Value):
+    value: object
 
 
-class FloatLiteral(ScalarLiteral):
-    pass
+class FloatValue(Value):
+    value: object
 
 
-class BooleanLiteral(ScalarLiteral):
-    pass
+class BooleanValue(Value):
+    value: bool
 
 
-class EnumLiteral(ScalarLiteral):
-    pass
+class EnumValue(Value):
+    value: object
 
 
-class NullLiteral(ScalarLiteral):
+class NullValue(Value):
     value: None
 
 
-class ListLiteral(BaseLiteral):
-    pass
+class ListValue(Value):
+    values: object
 
 
-class InputObjectLiteral(BaseLiteral):
-    pass
+class ObjectField(Base):
+    name: Name
+    value: object
+
+
+class ObjectValue(Value):
+    fields: typing.List[ObjectField]
 
 
 class Variable(Base):
-    value: object
+    name: Name
 
 
 class Document(Base):
@@ -110,31 +91,36 @@ class Document(Base):
 
 
 class Definition(Base):
-    name: str
+    name: typing.Optional[Name]
     selection_set: object
 
 
 class OperationDefinition(Definition):
-    type: str
-    variables: list
+    operation: str
+    variable_definitions: list
     directives: list
 
 
-class FragmentDefinition(Definition):
-    on: object
-    directives: list
+class Type(Base):
+    pass
+
+
+class NamedType(Type):
+    name: Name
+
+
+class NonNullType(Type):
+    type: Type
+
+
+class ListType(Type):
+    type: Type
 
 
 class VariableDefinition(Base):
-    name: object
-    type: object
-    value: object
-
-
-class VariableType(Base):
-    name: object
-    nullable: bool = True
-    list: bool = False
+    variable: Variable
+    type: Type
+    default_value: object
 
 
 class Selection(Base):
@@ -146,34 +132,34 @@ class SelectionSet(Base):
 
 
 class Argument(Base):
-    name: str
+    name: Name
     value: object
 
 
 class Field(Selection):
-    alias: str
-    name: object
+    alias: typing.Optional[Name]
+    name: Name
     arguments: typing.List[Argument]
     directives: list
     selection_set: SelectionSet
 
 
 class FragmentSpread(Selection):
-    name: object
+    name: Name
+    directives: list
+
+
+class FragmentDefinition(Definition):
+    type_condition: typing.Optional[NamedType]
     directives: list
 
 
 class InlineFragment(Selection):
-    on: object
+    type_condition: typing.Optional[NamedType]
     directives: list
     selection_set: object
 
 
 class Directive(Base):
-    name: object
+    name: Name
     arguments: typing.List[Argument]
-
-
-class ObjectField(Base):
-    name: object
-    value: object
