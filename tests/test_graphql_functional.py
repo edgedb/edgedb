@@ -266,6 +266,24 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             ''')
 
+    def test_graphql_functional_query_10(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'unknown operation named "foo"'):
+
+            self.graphql_query('''
+                query names {
+                    Setting {
+                        name
+                    }
+                }
+
+                query values {
+                    Setting {
+                        value
+                    }
+                }
+            ''', operation_name='foo')
+
     def test_graphql_functional_arguments_01(self):
         result = self.graphql_query(r"""
             query {
@@ -1926,7 +1944,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_03(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
                 User(filter: {score: {eq: $val}}) {
@@ -1937,9 +1954,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             'User': [],
         })
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_04(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: Boolean = true) {
                 User(order: {name: {dir: ASC}}) {
@@ -1951,10 +1966,10 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             "User": [
-                {"name": "Alice", "groups": []},
-                {"name": "Bob", "groups": []},
-                {"name": "Jane", "groups": [{"name": "upgraded"}]},
-                {"name": "John", "groups": [{"name": "basic"}]},
+                {"name": "Alice"},
+                {"name": "Bob"},
+                {"name": "Jane"},
+                {"name": "John"},
             ]
         })
 
@@ -1988,9 +2003,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_07(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: String = "John") {
                 User(filter: {name: {eq: $val}}) {
@@ -2003,9 +2016,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_08(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: Int = 20) {
                 User(filter: {age: {eq: $val}}) {
@@ -2016,9 +2027,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             "User": []
         })
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_09(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: Float = 3.5) {
                 User(filter: {score: {eq: $val}}) {
@@ -2031,7 +2040,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_10(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
                 User(filter: {score: {eq: $val}}) {
@@ -2042,9 +2050,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             "User": []
         })
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_11(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: Float = 3) {
                 User(filter: {score: {eq: $val}}) {
@@ -2212,9 +2218,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
-    @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_23(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: ID = "1") {
                 User(filter: {id: {eq: $val}}) {
@@ -2227,7 +2231,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     @test.not_implemented('query parameters are not yet implemented')
     def test_graphql_functional_variables_24(self):
-        # FIXME: don't have a way of supplying the parameter $val
         self.assert_graphql_query_result(r"""
             query($val: ID = 1) {
                 User(filter: {id: {eq: $val}}) {

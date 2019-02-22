@@ -175,6 +175,20 @@ class HttpProtocol(asyncio.Protocol):
             finally:
                 self._server._compilers.put_nowait(compiler)
 
+            if operation_name is None:
+                if len(qu) == 1:
+                    operation_name = next(iter(qu))
+                else:
+                    raise errors.QueryError(
+                        'must provide operation name if query contains '
+                        'multiple operations')
+
+            try:
+                qu = qu[operation_name]
+            except KeyError:
+                raise errors.QueryError(
+                    f'unknown operation named "{operation_name}"')
+
             sql = qu['sql']
             argmap = qu['args']
 
@@ -182,9 +196,13 @@ class HttpProtocol(asyncio.Protocol):
             if argmap:
                 for name in argmap:
                     if variables is None or name not in variables:
-                        raise errors.QueryError(
-                            f'no value for the {name!r} variable')
-                    args.append(variables[name])
+                        default = qu['variables_desc'].get(name)
+                        if default is None:
+                            raise errors.QueryError(
+                                f'no value for the {name!r} variable')
+                        args.append(default)
+                    else:
+                        args.append(variables[name])
 
             pgcon = await self._server._pgcons.get()
             try:

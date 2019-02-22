@@ -979,36 +979,37 @@ class Compiler:
 
         db = await self._get_database(dbver)
 
-        eql = graphql.translate(
+        trans = graphql.translate(
             db.schema,
             gql,
-            variables={},
-            operation_name=operation_name)
+            variables={})
 
-        statements = edgeql.parse_block(eql)
-        if len(statements) != 1:
-            raise errors.ProtocolError(
-                f'expected GraphQL query to result in one EdgeQL statement, '
-                f'got {len(statements)}')
+        result = {}
+        for op_name, op_desc in trans.items():
 
-        ir = ql_compiler.compile_ast_to_ir(
-            statements[0],
-            schema=db.schema,
-            json_parameters=True)
+            ir = ql_compiler.compile_ast_to_ir(
+                op_desc['edgeql'],
+                schema=db.schema,
+                json_parameters=True)
 
-        sql_text, argmap = pg_compiler.compile_ir_to_sql(
-            ir,
-            pretty=debug.flags.edgeql_compile,
-            output_format=pg_compiler.OutputFormat.NATIVE)
+            sql_text, argmap = pg_compiler.compile_ir_to_sql(
+                ir,
+                pretty=debug.flags.edgeql_compile,
+                output_format=pg_compiler.OutputFormat.NATIVE)
 
-        args = [None] * len(argmap)
-        for argname, argpos in argmap.items():
-            args[argpos - 1] = argname
+            args = [None] * len(argmap)
+            for argname, argpos in argmap.items():
+                args[argpos - 1] = argname
 
-        return {
-            'sql': sql_text.encode(),
-            'args': args,
-        }
+            result[op_name] = {
+                'sql': sql_text.encode(),
+                'args': args,
+                'cacheable': op_desc['cacheable'],
+                'cache_deps_vars': op_desc['cache_deps_vars'],
+                'variables_desc': op_desc['variables_desc'],
+            }
+
+        return result
 
     async def compile_eql(
             self,

@@ -17,6 +17,7 @@
 #
 
 
+import builtins
 import json
 import urllib.parse
 import urllib.request
@@ -87,7 +88,15 @@ class GraphQLTestCase(server.QueryTestCase):
         typename, msg = err['message'].split(':', 1)
         msg = msg.strip()
 
-        ex = getattr(edgedb, typename)(msg)
+        try:
+            ex_type = getattr(edgedb, typename)
+        except AttributeError:
+            try:
+                ex_type = getattr(builtins, typename)
+            except AttributeError:
+                ex_type = Exception
+
+        ex = ex_type(msg)
 
         if 'locations' in err:
             # XXX Fix this when LSP "location" objects are implemented
