@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,10 +17,17 @@
 #
 
 
-from . import ast  # NOQA
-from .codegen import generate_source  # NOQA
-from .parser import parse, parse_fragment  # NOQA
-from .translator import translate  # NOQA
+def patch_graphql_core():
+    import graphql
+    import graphql.utils.type_comparators as type_comparators
 
-from . import _patch_core
-_patch_core.patch_graphql_core()
+    old_is_type_sub_type_of = type_comparators.is_type_sub_type_of
+
+    def is_type_sub_type_of(schema, maybe_subtype, super_type):
+        # allow coercing ints to floats
+        if super_type is graphql.GraphQLFloat:
+            if maybe_subtype is graphql.GraphQLInt:
+                return True
+        return old_is_type_sub_type_of(schema, maybe_subtype, super_type)
+
+    type_comparators.is_type_sub_type_of = is_type_sub_type_of
