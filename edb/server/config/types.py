@@ -22,6 +22,8 @@ import json
 import typing
 
 from edb import errors
+from edb.common import typeutils
+from edb.common.vendor import typing_inspect
 from edb.schema import objects as s_obj
 
 
@@ -47,15 +49,69 @@ class ConfigType:
         raise NotImplementedError
 
 
-@dataclasses.dataclass(frozen=True, eq=True)
-class Port(ConfigType):
+class CompositeConfigType(ConfigType):
 
-    protocol: str
-    database: str
-    port: int
-    concurrency: int
-    user: str
-    address: typing.FrozenSet[str] = frozenset({'localhost'})
+    @classmethod
+    def from_pyvalue(cls, s):
+        if not isinstance(s, str):
+            raise cls._err(f'expected a std::str value, got {type(s)!r}')
+
+        try:
+            data = json.loads(s)
+        except Exception:
+            raise cls._err('not a valid JSON string')
+
+        if not isinstance(data, dict):
+            raise cls._err('a JSON object expected')
+
+        fields = {f.name: f for f in dataclasses.fields(cls)}
+
+        if data.keys() - fields.keys():
+            inv_keys = ', '.join(repr(r) for r in data.keys() - fields.keys())
+            raise cls._err(f'unknown fields: {inv_keys}')
+
+        items = {}
+        for fieldname, value in data.items():
+            field = fields[fieldname]
+            f_type = field.type
+
+            if typing_inspect.is_generic_type(f_type):
+                container = typing_inspect.get_origin(f_type)
+                if container not in (frozenset, list):
+                    raise RuntimeError(
+                        f'invalid type annotation on '
+                        f'{cls.__name__}.{fieldname}: '
+                        f'{f_type!r} is not supported')
+
+                eltype = typing_inspect.get_args(f_type, evaluate=True)[0]
+                if isinstance(value, eltype):
+                    value = container((value,))
+                elif (typeutils.is_container(value)
+                        and all(isinstance(v, eltype) for v in value)):
+                    value = container(value)
+                else:
+                    raise cls._err(
+                        f'invalid {fieldname!r} field value: expecting '
+                        f'{eltype.__name__} or a list thereof, but got '
+                        f'{type(value).__name__}'
+                    )
+            else:
+                if not isinstance(value, f_type):
+                    raise cls._err(
+                        f'invalid {fieldname!r} field value: expecting '
+                        f'{f_type.__name__}, but got {type(value).__name__}'
+                    )
+
+            items[fieldname] = value
+
+        for fieldname, field in fields.items():
+            if fieldname not in items and field.default is dataclasses.MISSING:
+                raise cls._err(f'missing required field: {fieldname!r}')
+
+        try:
+            return cls(**items)
+        except (TypeError, ValueError) as ex:
+            raise cls._err(str(ex))
 
     @classmethod
     def get_edgeql_typeid(cls):
@@ -67,71 +123,28 @@ class Port(ConfigType):
 
     def to_json(self):
         dct = dataclasses.asdict(self)
-        if 'address' in dct and isinstance(dct['address'], frozenset):
-            dct['address'] = list(dct['address'])
+        fields = {f.name: f for f in dataclasses.fields(self)}
+        for fieldname, value in dct.items():
+            f_type = fields[fieldname].type
+            if typing_inspect.is_generic_type(f_type):
+                dct[fieldname] = list(value)
         return json.dumps(dct)
 
     def to_edgeql(self):
         return repr(self.to_json())
 
     @classmethod
-    def from_pyvalue(cls, s):
-        if not isinstance(s, str):
-            raise errors.ConfigurationError(
-                'invalid "ports" config value: a std::str expected')
+    def _err(cls, msg):
+        return errors.ConfigurationError(
+            f'invalid {cls.__name__.lower()!r} value: {msg}')
 
-        try:
-            data = json.loads(s)
-        except Exception:
-            raise errors.ConfigurationError(
-                'invalid "ports" config value: not a valid JSON string')
 
-        if not isinstance(data, dict):
-            raise errors.ConfigurationError(
-                'invalid "ports" config value: a JSON object expected')
+@dataclasses.dataclass(frozen=True, eq=True)
+class Port(CompositeConfigType):
 
-        fields = {f.name: f for f in dataclasses.fields(cls)}
-
-        if data.keys() - fields.keys():
-            inv_keys = ', '.join(repr(r) for r in data.keys() - fields.keys())
-            raise errors.ConfigurationError(
-                f'invalid "ports" config value: unknown fields: {inv_keys}')
-
-        items = {}
-        for fieldname, value in data.items():
-            if fieldname == 'address':
-                is_valid = (
-                    isinstance(value, str) or
-                    isinstance(value, list) and
-                    all(isinstance(el, str) for el in value)
-                )
-                if not is_valid:
-                    raise errors.ConfigurationError(
-                        'invalid "ports" config value: '
-                        '"address" field must be a string or '
-                        'an array of strings')
-                if isinstance(value, list):
-                    value = frozenset(value)
-                else:
-                    value = frozenset({value})
-            else:
-                fieldtype = fields[fieldname].type
-                if not isinstance(value, fieldtype):
-                    raise errors.ConfigurationError(
-                        f'invalid "ports" config value: '
-                        f'"{fieldname}" field must be a {fieldtype.__name__}, '
-                        f'got {type(value).__name__} instead')
-
-            items[fieldname] = value
-
-        for fieldname, field in fields.items():
-            if fieldname not in items and field.default is dataclasses.MISSING:
-                raise errors.ConfigurationError(
-                    f'invalid "ports" config value: '
-                    f'"{fieldname}" field is required')
-
-        try:
-            return cls(**items)
-        except (TypeError, ValueError) as ex:
-            raise errors.ConfigurationError(
-                f'invalid "ports" config value: {ex}')
+    protocol: str
+    database: str
+    port: int
+    concurrency: int
+    user: str
+    address: typing.FrozenSet[str] = frozenset({'localhost'})

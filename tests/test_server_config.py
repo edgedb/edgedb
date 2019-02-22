@@ -182,7 +182,7 @@ class TestServerConfigUtils(unittest.TestCase):
             make_port_json(concurrency='a')
         )
         with self.assertRaisesRegex(errors.ConfigurationError,
-                                    '"concurrency" field must be a int'):
+                                    "invalid 'concurrency'.*expecting int"):
             op.apply(testspec1, storage)
 
         op = ops.Operation(
@@ -202,7 +202,7 @@ class TestServerConfigUtils(unittest.TestCase):
             make_port_json(address=["aaa", 123])
         )
         with self.assertRaisesRegex(errors.ConfigurationError,
-                                    "string or an array of strings"):
+                                    "str or a list"):
             op.apply(testspec1, storage)
 
         op = ops.Operation(
