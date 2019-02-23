@@ -84,12 +84,10 @@ def _compile_parsers(build_lib, inplace=False):
     import edb.edgeql.parser.grammar.single as edgeql_spec
     import edb.edgeql.parser.grammar.block as edgeql_spec2
     import edb.eschema.parser.grammar.declarations as schema_spec
-    import edb.graphql.parser.grammar.document as graphql_spec
 
     base_path = pathlib.Path(__file__).parent.resolve()
 
-    for spec in (edgeql_spec, edgeql_spec2,
-                 schema_spec, graphql_spec):
+    for spec in (edgeql_spec, edgeql_spec2, schema_spec):
         spec_path = pathlib.Path(spec.__file__).parent
         subpath = pathlib.Path(str(spec_path)[len(str(base_path)) + 1:])
         pickle_name = spec.__name__.rpartition('.')[2] + '.pickle'
