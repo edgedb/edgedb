@@ -35,6 +35,8 @@ from edb.common import taskgroup
 from edb.server import baseport
 from edb.server.pgcon import errors as pgerrors
 
+from . import explore
+
 
 class HttpRequest(typing.NamedTuple):
 
@@ -119,6 +121,13 @@ class HttpProtocol(asyncio.Protocol):
         self._req_parser.feed_data(data)
 
     async def handle(self, request, response):
+        url = httptools.parse_url(request.url)
+
+        url_path = url.path.strip(b'/')
+        if url_path == b'explore':
+            response.write(explore.EXPLORE_HTML, content_type='text/html')
+            return
+
         try:
             operation_name = None
             variables = None
@@ -138,7 +147,6 @@ class HttpProtocol(asyncio.Protocol):
                     raise RuntimeError(
                         'unable to interpret GraphQL POST request')
             elif request.method == 'GET':
-                url = httptools.parse_url(request.url)
                 url_query = url.query.decode('ascii')
                 qs = urllib.parse.parse_qs(url_query)
                 query = qs.get('query')[0]
