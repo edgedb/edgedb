@@ -403,7 +403,8 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
             return self.is_exclusive(schema)
 
 
-class PointerCommandContext(sd.ObjectCommandContext):
+class PointerCommandContext(sd.ObjectCommandContext,
+                            attributes.AttributeSubjectCommandContext):
     pass
 
 

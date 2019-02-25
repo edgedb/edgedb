@@ -21,12 +21,12 @@ from .ops import OpLevel, OpCode, Operation, lookup
 from .ops import spec_to_json, to_json, from_json
 from .ops import value_to_json_edgeql, value_to_json_edgeql_value
 from .ops import value_to_json, value_from_json
-from .spec import Spec, Setting
-from .types import ConfigType, Port
+from .spec import Spec, Setting, load_spec_from_schema
+from .types import ConfigType
 
 
 __all__ = (
-    'settings',
+    'get_settings', 'set_settings',
     'lookup',
     'Spec', 'Setting',
     'spec_to_json', 'to_json', 'from_json',
@@ -34,31 +34,17 @@ __all__ = (
     'value_to_json', 'value_from_json',
     'OpLevel', 'OpCode', 'Operation',
     'ConfigType', 'Port',
+    'load_spec_from_schema',
 )
 
 
-settings = Spec(
-    # === User-configurable settings: ===
+_settings = None
 
-    Setting(
-        'ports',
-        type=Port, set_of=True, default=frozenset(),
-        system=True),
 
-    # === Internal settings (not part of stable API): ===
+def get_settings():
+    return _settings
 
-    Setting(
-        '__internal_no_const_folding',
-        type=bool, default=False,
-        internal=True),
 
-    Setting(
-        '__internal_testmode',
-        type=bool, default=False,
-        internal=True),
-
-    Setting(
-        '__internal_testvalue',
-        type=int, default=0,
-        internal=True, system=True),
-)
+def set_settings(settings):
+    global _settings
+    _settings = settings

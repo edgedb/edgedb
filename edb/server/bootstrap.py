@@ -383,13 +383,16 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster):
                 await dbconn.close()
 
 
-async def _ensure_configs(cluster):
+async def _bootstrap_config_spec(schema, cluster):
+    config_spec = config.load_spec_from_schema(schema)
+    config.set_settings(config_spec)
+
     data_dir = cluster.get_data_dir()
     spec_fn = os.path.join(data_dir, 'config_spec.json')
     sys_overrides_fn = os.path.join(data_dir, 'config_sys.json')
 
     with open(spec_fn, 'wt') as f:
-        f.write(config.spec_to_json(config.settings))
+        f.write(config.spec_to_json(config_spec))
 
     if not os.path.exists(sys_overrides_fn):
         with open(sys_overrides_fn, 'wt') as f:
@@ -407,6 +410,7 @@ def _pg_log_listener(conn, msg):
 async def bootstrap(cluster, args):
     pgconn = await cluster.connect()
     pgconn.add_log_listener(_pg_log_listener)
+    std_schema = None
 
     try:
         await _ensure_edgedb_user(pgconn, edgedb_defines.EDGEDB_SUPERUSER,
@@ -424,10 +428,16 @@ async def bootstrap(cluster, args):
                 await _ensure_meta_schema(conn)
 
                 std_schema = await _init_stdlib(cluster, conn)
+                await _bootstrap_config_spec(std_schema, cluster)
                 schema = await _init_defaults(std_schema, std_schema, conn)
                 schema = await _populate_data(std_schema, schema, conn)
             finally:
                 await conn.close()
+        else:
+            std_schema = compiler.load_std_schema(
+                pathlib.Path(cluster.get_data_dir()))
+            config_spec = config.load_spec_from_schema(std_schema)
+            config.set_settings(config_spec)
 
         await _ensure_edgedb_database(
             pgconn, edgedb_defines.EDGEDB_SUPERUSER_DB,
@@ -442,8 +452,6 @@ async def bootstrap(cluster, args):
         await _ensure_edgedb_database(
             pgconn, args['default_database'], args['default_database_user'],
             cluster=cluster)
-
-        await _ensure_configs(cluster)
 
     finally:
         await pgconn.close()

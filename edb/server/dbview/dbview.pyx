@@ -246,7 +246,7 @@ cdef class DatabaseConnectionView:
             else:
                 self.set_session_config(
                     op.apply(
-                        config.settings,
+                        config.get_settings(),
                         self.get_session_config()))
 
     @staticmethod
@@ -287,15 +287,15 @@ cdef class DatabaseIndex:
     cdef _load_system_overrides(self):
         with open(self._sys_overrides_fn, 'rt') as f:
             data = f.read()
-        self._sys_config = config.from_json(config.settings, data)
+        self._sys_config = config.from_json(config.get_settings(), data)
 
     cdef _save_system_overrides(self):
-        data = config.to_json(config.settings, self._sys_config)
+        data = config.to_json(config.get_settings(), self._sys_config)
         with open(self._sys_overrides_fn, 'wt') as f:
             f.write(data)
 
     async def apply_system_config_op(self, op):
-        op_value = op.coerce_value(op.get_setting(config.settings))
+        op_value = op.coerce_value(op.get_setting(config.get_settings()))
 
         if op.opcode is config.OpCode.CONFIG_ADD:
             await self._server._on_system_config_add(op.setting_name, op_value)
@@ -307,7 +307,7 @@ cdef class DatabaseIndex:
             raise errors.UnsupportedFeatureError(
                 f'unsupported config operation: {op.opcode}')
 
-        self._sys_config = op.apply(config.settings, self._sys_config)
+        self._sys_config = op.apply(config.get_settings(), self._sys_config)
         self._save_system_overrides()
 
         self._sys_config_ver = time.monotonic_ns()

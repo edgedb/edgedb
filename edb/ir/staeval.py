@@ -20,8 +20,12 @@
 """Static evaluation of EdgeQL IR."""
 
 
+import dataclasses
 import decimal
 import functools
+import types
+import typing
+import uuid
 
 from edb import errors
 
@@ -31,6 +35,7 @@ from edb.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.ir import ast as irast
 
+from edb.schema import types as s_types
 from edb.schema import schema as s_schema
 
 
@@ -159,3 +164,65 @@ def bool_const_to_python(
         schema: s_schema.Schema) -> bool:
 
     return ir.value == 'true'
+
+
+def schema_type_to_python_type(
+        stype: s_types.Type,
+        schema: s_schema.Schema) -> type:
+    if stype.is_scalar():
+        return scalar_type_to_python_type(stype, schema)
+    elif stype.is_object_type():
+        return object_type_to_python_type(stype, schema)
+    else:
+        raise UnsupportedExpressionError(
+            f'{stype.get_displayname(schema)} is not representable in Python')
+
+
+def scalar_type_to_python_type(
+        stype: s_types.Type,
+        schema: s_schema.Schema) -> type:
+
+    typemap = {
+        'std::str': str,
+        'std::anyint': int,
+        'std::anyfloat': float,
+        'std::decimal': decimal.Decimal,
+        'std::bool': bool,
+        'std::json': str,
+        'std::uuid': uuid.UUID,
+    }
+
+    for basetype, python_type in typemap.items():
+        if stype.issubclass(schema, schema.get(basetype)):
+            return python_type
+
+    raise UnsupportedExpressionError(
+        f'{stype.get_displayname(schema)} is not representable in Python')
+
+
+def object_type_to_python_type(
+        objtype: s_types.Type,
+        schema: s_schema.Schema, *,
+        base_class: typing.Optional[type] = None) -> type:
+
+    fields = {}
+
+    for pn, p in objtype.get_pointers(schema).items(schema):
+        if pn in ('id', '__type__'):
+            continue
+
+        ptype = p.get_target(schema)
+        pytype = schema_type_to_python_type(ptype, schema)
+        fields[pn] = pytype
+
+    def exec_body(ns):
+        ns.update({fn: None for fn in fields})
+        ns['__annotations__'] = dict(fields)
+        return ns
+
+    cls = types.new_class(
+        objtype.get_name(schema).name,
+        bases=(base_class,) if base_class is not None else (),
+        exec_body=exec_body)
+
+    return dataclasses.dataclass(frozen=True)(cls)

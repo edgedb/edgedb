@@ -160,6 +160,11 @@ def compile_ast_to_ir(tree,
     return ir_expr
 
 
+def evaluate_to_python_val(expr, schema, *, modaliases=None) -> object:
+    tree = ql_parser.parse_fragment(expr)
+    return evaluate_ast_to_python_val(tree, schema, modaliases=modaliases)
+
+
 def evaluate_ast_to_python_val(tree, schema, *, modaliases=None) -> object:
     ir = compile_ast_fragment_to_ir(tree, schema, modaliases=modaliases)
     return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)

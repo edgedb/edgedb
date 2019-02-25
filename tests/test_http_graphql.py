@@ -1697,7 +1697,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             """)
 
     def test_graphql_functional_schema_06(self):
-        self.assert_graphql_query_result(r"""
+        result = self.graphql_query(r"""
             query {
                 __schema {
                     types {
@@ -1706,69 +1706,25 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     }
                 }
             }
-        """, {
-            "__schema": {
-                "types": [
-                    {'kind': 'SCALAR', 'name': 'Boolean'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterBoolean'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterFloat'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterFoo'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterID'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterInt'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterNamedObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterPerson'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterProfile'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterSetting'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterString'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterUser'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterUserGroup'},
-                    {'kind': 'SCALAR', 'name': 'Float'},
-                    {'kind': 'INTERFACE', 'name': 'Foo'},
-                    {'kind': 'OBJECT', 'name': 'FooType'},
-                    {'kind': 'SCALAR', 'name': 'ID'},
-                    {'kind': 'SCALAR', 'name': 'Int'},
-                    {'kind': 'INTERFACE', 'name': 'NamedObject'},
-                    {'kind': 'INTERFACE', 'name': 'Object'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderFoo'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderNamedObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderPerson'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderProfile'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderSetting'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderUser'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderUserGroup'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'Ordering'},
-                    {'kind': 'INTERFACE', 'name': 'Person'},
-                    {'kind': 'OBJECT', 'name': 'PersonType'},
-                    {'kind': 'INTERFACE', 'name': 'Profile'},
-                    {'kind': 'OBJECT', 'name': 'ProfileType'},
-                    {'kind': 'OBJECT', 'name': 'Query'},
-                    {'kind': 'INTERFACE', 'name': 'Setting'},
-                    {'kind': 'OBJECT', 'name': 'SettingType'},
-                    {'kind': 'SCALAR', 'name': 'String'},
-                    {'kind': 'INTERFACE', 'name': 'User'},
-                    {'kind': 'INTERFACE', 'name': 'UserGroup'},
-                    {'kind': 'OBJECT', 'name': 'UserGroupType'},
-                    {'kind': 'OBJECT', 'name': 'UserType'},
-                    {'kind': 'OBJECT', 'name': '__Directive'},
-                    {'kind': 'ENUM', 'name': '__DirectiveLocation'},
-                    {'kind': 'OBJECT', 'name': '__EnumValue'},
-                    {'kind': 'OBJECT', 'name': '__Field'},
-                    {'kind': 'OBJECT', 'name': '__InputValue'},
-                    {'kind': 'OBJECT', 'name': '__Schema'},
-                    {'kind': 'OBJECT', 'name': '__Type'},
-                    {'kind': 'ENUM', 'name': '__TypeKind'},
-                    {'kind': 'ENUM', 'name': 'directionEnum'},
-                    {'kind': 'ENUM', 'name': 'nullsOrderingEnum'},
-                ]
-            }
-        }, sort={
-            'types': lambda x: x['name'],
-        })
+        """)
+
+        types = [(t['kind'], t['name']) for t in result['__schema']['types']]
+
+        items = [
+            ('INPUT_OBJECT', 'FilterFoo'),
+            ('INPUT_OBJECT', 'OrderFoo'),
+            ('INTERFACE', 'Foo'),
+            ('OBJECT', 'FooType'),
+            ('SCALAR', 'ID'),
+            ('ENUM', 'directionEnum'),
+            ('OBJECT', '__Schema'),
+        ]
+
+        for item in items:
+            self.assertIn(item, types)
 
     def test_graphql_functional_schema_07(self):
-        self.assert_graphql_query_result(r"""
+        result = self.graphql_query(r"""
             query {
                 Foo : __schema {
                     types {
@@ -1777,66 +1733,22 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     }
                 }
             }
-        """, {
-            "Foo": {
-                "types": [
-                    {'kind': 'SCALAR', 'name': 'Boolean'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterBoolean'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterFloat'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterFoo'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterID'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterInt'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterNamedObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterPerson'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterProfile'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterSetting'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterString'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterUser'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterUserGroup'},
-                    {'kind': 'SCALAR', 'name': 'Float'},
-                    {'kind': 'INTERFACE', 'name': 'Foo'},
-                    {'kind': 'OBJECT', 'name': 'FooType'},
-                    {'kind': 'SCALAR', 'name': 'ID'},
-                    {'kind': 'SCALAR', 'name': 'Int'},
-                    {'kind': 'INTERFACE', 'name': 'NamedObject'},
-                    {'kind': 'INTERFACE', 'name': 'Object'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderFoo'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderNamedObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderPerson'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderProfile'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderSetting'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderUser'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderUserGroup'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'Ordering'},
-                    {'kind': 'INTERFACE', 'name': 'Person'},
-                    {'kind': 'OBJECT', 'name': 'PersonType'},
-                    {'kind': 'INTERFACE', 'name': 'Profile'},
-                    {'kind': 'OBJECT', 'name': 'ProfileType'},
-                    {'kind': 'OBJECT', 'name': 'Query'},
-                    {'kind': 'INTERFACE', 'name': 'Setting'},
-                    {'kind': 'OBJECT', 'name': 'SettingType'},
-                    {'kind': 'SCALAR', 'name': 'String'},
-                    {'kind': 'INTERFACE', 'name': 'User'},
-                    {'kind': 'INTERFACE', 'name': 'UserGroup'},
-                    {'kind': 'OBJECT', 'name': 'UserGroupType'},
-                    {'kind': 'OBJECT', 'name': 'UserType'},
-                    {'kind': 'OBJECT', 'name': '__Directive'},
-                    {'kind': 'ENUM', 'name': '__DirectiveLocation'},
-                    {'kind': 'OBJECT', 'name': '__EnumValue'},
-                    {'kind': 'OBJECT', 'name': '__Field'},
-                    {'kind': 'OBJECT', 'name': '__InputValue'},
-                    {'kind': 'OBJECT', 'name': '__Schema'},
-                    {'kind': 'OBJECT', 'name': '__Type'},
-                    {'kind': 'ENUM', 'name': '__TypeKind'},
-                    {'kind': 'ENUM', 'name': 'directionEnum'},
-                    {'kind': 'ENUM', 'name': 'nullsOrderingEnum'},
-                ]
-            }
-        }, sort={
-            'types': lambda x: x['name'],
-        })
+        """)
+
+        types = [(t['kind'], t['name']) for t in result['Foo']['types']]
+
+        items = [
+            ('INPUT_OBJECT', 'FilterFoo'),
+            ('INPUT_OBJECT', 'OrderFoo'),
+            ('INTERFACE', 'Foo'),
+            ('OBJECT', 'FooType'),
+            ('SCALAR', 'ID'),
+            ('ENUM', 'directionEnum'),
+            ('OBJECT', '__Schema'),
+        ]
+
+        for item in items:
+            self.assertIn(item, types)
 
     def test_graphql_functional_duplicates_01(self):
         self.assert_graphql_query_result(r"""
@@ -4206,7 +4118,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     def test_graphql_functional_type_13(self):
-        self.assert_graphql_query_result(r"""
+        result = self.graphql_query(r"""
             query IntrospectionQuery {
                 __schema {
                   queryType { name }
@@ -4298,65 +4210,19 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                   }
                 }
               }
-        """, {
-            # NOTE: we mainly care about the GraphQL query being
-            # parsed here, so we only test a portion of the output
-            "__schema": {
-                "types": [
-                    {'kind': 'SCALAR', 'name': 'Boolean'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterBoolean'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterFloat'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterFoo'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterID'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterInt'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterNamedObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterPerson'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterProfile'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterSetting'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterString'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterUser'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'FilterUserGroup'},
-                    {'kind': 'SCALAR', 'name': 'Float'},
-                    {'kind': 'INTERFACE', 'name': 'Foo'},
-                    {'kind': 'OBJECT', 'name': 'FooType'},
-                    {'kind': 'SCALAR', 'name': 'ID'},
-                    {'kind': 'SCALAR', 'name': 'Int'},
-                    {'kind': 'INTERFACE', 'name': 'NamedObject'},
-                    {'kind': 'INTERFACE', 'name': 'Object'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderFoo'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderNamedObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderObject'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderPerson'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderProfile'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderSetting'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderUser'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'OrderUserGroup'},
-                    {'kind': 'INPUT_OBJECT', 'name': 'Ordering'},
-                    {'kind': 'INTERFACE', 'name': 'Person'},
-                    {'kind': 'OBJECT', 'name': 'PersonType'},
-                    {'kind': 'INTERFACE', 'name': 'Profile'},
-                    {'kind': 'OBJECT', 'name': 'ProfileType'},
-                    {'kind': 'OBJECT', 'name': 'Query'},
-                    {'kind': 'INTERFACE', 'name': 'Setting'},
-                    {'kind': 'OBJECT', 'name': 'SettingType'},
-                    {'kind': 'SCALAR', 'name': 'String'},
-                    {'kind': 'INTERFACE', 'name': 'User'},
-                    {'kind': 'INTERFACE', 'name': 'UserGroup'},
-                    {'kind': 'OBJECT', 'name': 'UserGroupType'},
-                    {'kind': 'OBJECT', 'name': 'UserType'},
-                    {'kind': 'OBJECT', 'name': '__Directive'},
-                    {'kind': 'ENUM', 'name': '__DirectiveLocation'},
-                    {'kind': 'OBJECT', 'name': '__EnumValue'},
-                    {'kind': 'OBJECT', 'name': '__Field'},
-                    {'kind': 'OBJECT', 'name': '__InputValue'},
-                    {'kind': 'OBJECT', 'name': '__Schema'},
-                    {'kind': 'OBJECT', 'name': '__Type'},
-                    {'kind': 'ENUM', 'name': '__TypeKind'},
-                    {'kind': 'ENUM', 'name': 'directionEnum'},
-                    {'kind': 'ENUM', 'name': 'nullsOrderingEnum'},
-                ]
-            }
-        }, sort={
-            'types': lambda x: x['name'],
-        })
+        """)
+
+        types = [(t['kind'], t['name']) for t in result['__schema']['types']]
+
+        items = [
+            ('INPUT_OBJECT', 'FilterFoo'),
+            ('INPUT_OBJECT', 'OrderFoo'),
+            ('INTERFACE', 'Foo'),
+            ('OBJECT', 'FooType'),
+            ('SCALAR', 'ID'),
+            ('ENUM', 'directionEnum'),
+            ('OBJECT', '__Schema'),
+        ]
+
+        for item in items:
+            self.assertIn(item, types)

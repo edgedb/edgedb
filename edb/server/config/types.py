@@ -19,7 +19,6 @@
 
 import dataclasses
 import json
-import typing
 
 from edb import errors
 from edb.common import typeutils
@@ -137,14 +136,3 @@ class CompositeConfigType(ConfigType):
     def _err(cls, msg):
         return errors.ConfigurationError(
             f'invalid {cls.__name__.lower()!r} value: {msg}')
-
-
-@dataclasses.dataclass(frozen=True, eq=True)
-class Port(CompositeConfigType):
-
-    protocol: str
-    database: str
-    port: int
-    concurrency: int
-    user: str
-    address: typing.FrozenSet[str] = frozenset({'localhost'})

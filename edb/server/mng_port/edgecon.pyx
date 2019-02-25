@@ -247,7 +247,7 @@ cdef class EdgeConnection:
                 svalue = svalue.decode()
 
                 if stype == b'C':
-                    setting = config.settings[sname]
+                    setting = config.get_settings()[sname]
                     pyval = config.value_from_json(setting, svalue)
                     conf = conf.set(sname, pyval)
                 elif stype == b'A':

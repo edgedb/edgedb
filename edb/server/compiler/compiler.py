@@ -130,6 +130,8 @@ class BaseCompiler:
         if data_dir is not None:
             self._data_dir = pathlib.Path(data_dir)
             self._std_schema = stdschema.load_std_schema(self._data_dir)
+            config_spec = config.load_spec_from_schema(self._std_schema)
+            config.set_settings(config_spec)
         else:
             self._data_dir = None
             self._std_schema = None
@@ -200,7 +202,7 @@ class Compiler(BaseCompiler):
         session_config = current_tx.get_session_config()
 
         return config.lookup(
-            config.settings,
+            config.get_settings(),
             '__internal_testmode',
             session_config)
 
@@ -246,7 +248,7 @@ class Compiler(BaseCompiler):
         )
 
         disable_constant_folding = config.lookup(
-            config.settings,
+            config.get_settings(),
             '__internal_no_const_folding',
             session_config)
 
@@ -604,7 +606,7 @@ class Compiler(BaseCompiler):
 
             name = ql.alias
             try:
-                setting = config.settings[name]
+                setting = config.get_settings()[name]
             except KeyError:
                 raise errors.ConfigurationError(
                     f'invalid SET expression: '
@@ -663,7 +665,7 @@ class Compiler(BaseCompiler):
 
             if not ql.system:
                 session_config = config_op.apply(
-                    config.settings,
+                    config.get_settings(),
                     session_config)
 
             if not self._bootstrap_mode and not ql.system:

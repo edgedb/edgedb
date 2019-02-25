@@ -17,7 +17,9 @@
 #
 
 
+import dataclasses
 import json
+import typing
 import unittest
 
 import immutables
@@ -41,6 +43,17 @@ def make_port_json(*, protocol='graphql+http',
         concurrency=concurrency, port=port, **kwargs))
 
 
+@dataclasses.dataclass(frozen=True, eq=True)
+class Port(types.CompositeConfigType):
+
+    protocol: str
+    database: str
+    port: int
+    concurrency: int
+    user: str
+    address: typing.FrozenSet[str] = frozenset({'localhost'})
+
+
 testspec1 = spec.Spec(
     spec.Setting(
         'int',
@@ -57,8 +70,8 @@ testspec1 = spec.Spec(
 
     spec.Setting(
         'port',
-        type=types.Port,
-        default=types.Port.from_pyvalue(make_port_json())),
+        type=Port,
+        default=Port.from_pyvalue(make_port_json())),
 
     spec.Setting(
         'ints',
@@ -75,7 +88,7 @@ testspec1 = spec.Spec(
 
     spec.Setting(
         'ports',
-        type=types.Port, set_of=True,
+        type=Port, set_of=True,
         default=frozenset()),
 )
 
@@ -131,8 +144,8 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             storage2['ports'],
             {
-                types.Port.from_pyvalue(make_port_json(database='f1')),
-                types.Port.from_pyvalue(make_port_json(database='f2')),
+                Port.from_pyvalue(make_port_json(database='f1')),
+                Port.from_pyvalue(make_port_json(database='f2')),
             })
 
         j = ops.to_json(testspec1, storage2)
@@ -150,7 +163,7 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             storage3['ports'],
             {
-                types.Port.from_pyvalue(make_port_json(database='f2')),
+                Port.from_pyvalue(make_port_json(database='f2')),
             })
 
         op = ops.Operation(
@@ -214,16 +227,16 @@ class TestServerConfigUtils(unittest.TestCase):
         op.apply(testspec1, storage)
 
         self.assertEqual(
-            types.Port.from_pyvalue(make_port_json(address='aaa')),
-            types.Port.from_pyvalue(make_port_json(address=['aaa'])))
+            Port.from_pyvalue(make_port_json(address='aaa')),
+            Port.from_pyvalue(make_port_json(address=['aaa'])))
 
         self.assertEqual(
-            types.Port.from_pyvalue(make_port_json(address=['aaa', 'bbb'])),
-            types.Port.from_pyvalue(make_port_json(address=['bbb', 'aaa'])))
+            Port.from_pyvalue(make_port_json(address=['aaa', 'bbb'])),
+            Port.from_pyvalue(make_port_json(address=['bbb', 'aaa'])))
 
         self.assertNotEqual(
-            types.Port.from_pyvalue(make_port_json(address=['aaa', 'bbb'])),
-            types.Port.from_pyvalue(make_port_json(address=['bbb', 'aa1'])))
+            Port.from_pyvalue(make_port_json(address=['aaa', 'bbb'])),
+            Port.from_pyvalue(make_port_json(address=['bbb', 'aa1'])))
 
     def test_server_config_04(self):
         storage = immutables.Map()

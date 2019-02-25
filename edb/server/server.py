@@ -84,7 +84,7 @@ class Server:
             raise
         return compiler_worker
 
-    async def _start_portconf(self, portconf: config.Port, *,
+    async def _start_portconf(self, portconf: config.ConfigType, *,
                               suppress_errors=False):
         if portconf in self._sys_conf_ports:
             logging.info('port for config %r has been already started',

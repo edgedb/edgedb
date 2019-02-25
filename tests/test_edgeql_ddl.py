@@ -1563,7 +1563,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         name,
                         inheritable,
                         @value,
-                    } ORDER BY .name
+                    }
+                    FILTER .name LIKE 'test::%'
+                    ORDER BY .name
                 }
                 FILTER
                     .name LIKE 'test::TestAttr%'

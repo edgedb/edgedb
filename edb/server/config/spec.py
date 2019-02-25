@@ -19,7 +19,11 @@
 
 import collections.abc
 import dataclasses
+import json
 
+from edb.edgeql import compiler as qlcompiler
+from edb.edgeql import qltypes
+from edb.ir import staeval
 
 from . import types
 
@@ -86,3 +90,51 @@ class Spec(collections.abc.Mapping):
 
     def __len__(self):
         return len(self._settings)
+
+
+def load_spec_from_schema(schema):
+    cfg = schema.get('cfg::Config')
+    settings = []
+
+    for pn, p in cfg.get_pointers(schema).items(schema):
+        if pn in ('id', '__type__'):
+            continue
+
+        ptype = p.get_target(schema)
+
+        if ptype.is_object_type():
+            pytype = staeval.object_type_to_python_type(
+                ptype, schema, base_class=types.CompositeConfigType)
+        else:
+            pytype = staeval.schema_type_to_python_type(ptype, schema)
+
+        attributes = {
+            a: json.loads(v.get_value(schema))
+            for a, v in p.get_attributes(schema).items(schema)
+        }
+
+        set_of = p.get_cardinality(schema) is qltypes.Cardinality.MANY
+
+        deflt = p.get_default(schema)
+        if deflt is not None:
+            deflt = qlcompiler.evaluate_to_python_val(
+                deflt.text, schema=schema)
+
+        if deflt is None:
+            if set_of:
+                deflt = frozenset()
+            else:
+                raise RuntimeError(f'cfg::Config.{pn} has no default')
+
+        setting = Setting(
+            pn,
+            type=pytype,
+            set_of=set_of,
+            internal=attributes.get('cfg::internal', False),
+            system=attributes.get('cfg::system', False),
+            default=deflt,
+        )
+
+        settings.append(setting)
+
+    return Spec(*settings)

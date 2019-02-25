@@ -1,0 +1,79 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2018-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+CREATE MODULE cfg;
+
+
+CREATE ABSTRACT ATTRIBUTE cfg::internal;
+CREATE ABSTRACT ATTRIBUTE cfg::system;
+
+
+CREATE TYPE cfg::Port {
+    CREATE REQUIRED PROPERTY cfg::port -> std::int64 {
+        CREATE CONSTRAINT std::exclusive;
+        SET readonly := true;
+    };
+
+    CREATE REQUIRED PROPERTY cfg::protocol -> std::str {
+        SET readonly := true;
+    };
+
+    CREATE REQUIRED PROPERTY cfg::database -> std::str {
+        SET readonly := true;
+    };
+
+    CREATE REQUIRED PROPERTY cfg::concurrency -> std::int64 {
+        SET readonly := true;
+    };
+
+    CREATE REQUIRED PROPERTY cfg::user -> std::str {
+        SET readonly := true;
+    };
+
+    CREATE REQUIRED MULTI PROPERTY cfg::address -> std::str {
+        SET readonly := true;
+        SET default := {'localhost'};
+    };
+};
+
+
+CREATE TYPE cfg::Config {
+    CREATE MULTI LINK cfg::ports -> cfg::Port {
+        SET ATTRIBUTE cfg::system := 'true';
+    };
+
+    # === Internal settings (not part of stable API): ===
+    # ===      DO NOT USE IN APPLICATION CODE         ===
+    CREATE PROPERTY cfg::__internal_testmode -> std::bool {
+        SET ATTRIBUTE cfg::internal := 'true';
+        SET default := false;
+    };
+
+    CREATE PROPERTY cfg::__internal_no_const_folding -> std::bool {
+        SET ATTRIBUTE cfg::internal := 'true';
+        SET default := false;
+    };
+
+    CREATE PROPERTY cfg::__internal_testvalue -> std::int64 {
+        SET ATTRIBUTE cfg::internal := 'true';
+        SET ATTRIBUTE cfg::system := 'true';
+        SET default := 0;
+    };
+
+};
