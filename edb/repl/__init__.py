@@ -50,6 +50,12 @@ from . import lexutils
 from . import render
 
 
+STATUSES_WITH_OUTPUT = frozenset({
+    'SELECT', 'INSERT', 'DELETE', 'UPDATE',
+    'GET MIGRATION',
+})
+
+
 @pt_filters.Condition
 def is_multiline():
     doc = pt_app.get_app().layout.get_buffer_by_name(
@@ -288,7 +294,7 @@ class Cli:
     def run(self):
         self.prompt = self.build_propmpt()
         self.ensure_connection()
-        use_colors = term.use_colors(sys.stdout.fileno())
+        self.context.use_colors = term.use_colors(sys.stdout.fileno())
 
         try:
             while True:
@@ -328,38 +334,45 @@ class Cli:
                 try:
                     if qm is context.QueryMode.Normal:
                         for query in lexutils.split_edgeql(command)[0]:
-                            results.append(self.connection.fetch(query))
+                            results.append((
+                                self.connection.fetch(query),
+                                self.connection._get_last_status()
+                            ))
                     else:
                         for query in lexutils.split_edgeql(command)[0]:
-                            results.append(self.connection.fetch_json(query))
+                            results.append((
+                                self.connection.fetch_json(query),
+                                self.connection._get_last_status()
+                            ))
 
                 except KeyboardInterrupt:
                     self.connection.close()
                     self.connection = None
-                    print('\r             ')
+                    print('\r', end='')
+                    render.render_error(
+                        self.context,
+                        '{aborting query and closing the connection}')
                     continue
                 except Exception as ex:
-                    self.connection.close()
-                    self.connection = None
-                    print('{}: {}'.format(type(ex).__name__, str(ex)))
+                    render.render_error(
+                        self.context, f'{type(ex).__name__}: {ex}')
                     continue
 
                 max_width = self.prompt.output.get_size().columns
-                for result in results:
-                    if qm is context.QueryMode.JSON:
-                        out = render.render_json(
-                            self.context,
-                            result,
-                            max_width=min(max_width, 120),
-                            use_colors=use_colors)
+                for result, status in results:
+                    if status in STATUSES_WITH_OUTPUT:
+                        if qm is context.QueryMode.JSON:
+                            render.render_json(
+                                self.context,
+                                result,
+                                max_width=min(max_width, 120))
+                        else:
+                            render.render_binary(
+                                self.context,
+                                result,
+                                max_width=min(max_width, 120))
                     else:
-                        out = render.render_binary(
-                            self.context,
-                            result,
-                            max_width=min(max_width, 120),
-                            use_colors=use_colors)
-
-                    print(out)
+                        render.render_status(self.context, status)
 
         except EOFError:
             return
@@ -371,12 +384,10 @@ def execute_script(conn_args, data):
     ctx = context.ReplContext()
     for query in queries:
         ret = con.fetch(query)
-        out = render.render_binary(
+        render.render_binary(
             ctx,
             ret,
-            max_width=80,
-            use_colors=False)
-        print(out)
+            max_width=80)
 
 
 def parse_connect_args():

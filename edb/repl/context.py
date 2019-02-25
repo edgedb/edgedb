@@ -35,6 +35,7 @@ class QueryMode(enum.IntEnum):
 @dataclasses.dataclass
 class ReplContext:
 
+    use_colors: bool = False
     show_implicit_fields: bool = False
     introspect_types: bool = False
     query_mode: QueryMode = QueryMode.Normal

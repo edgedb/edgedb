@@ -295,15 +295,29 @@ class JSONRenderer:
 
 
 def render_binary(repl_ctx: context.ReplContext,
-                  data, max_width=None, use_colors=False):
-    buf = terminal.Buffer(max_width=max_width, styled=use_colors)
+                  data, max_width=None):
+    buf = terminal.Buffer(max_width=max_width, styled=repl_ctx.use_colors)
     BinaryRenderer.walk(data, repl_ctx, buf)
-    return buf.flush()
+    print(buf.flush())
 
 
 def render_json(repl_ctx: context.ReplContext,
-                data: str, max_width=None, use_colors=False):
+                data: str, max_width=None):
     data = json.loads(data)
-    buf = terminal.Buffer(max_width=max_width, styled=use_colors)
+    buf = terminal.Buffer(max_width=max_width, styled=repl_ctx.use_colors)
     JSONRenderer.walk(data, repl_ctx, buf)
-    return buf.flush()
+    print(buf.flush())
+
+
+def render_status(repl_ctx: context.ReplContext, status):
+    if repl_ctx.use_colors:
+        print(style.code_comment.apply(status))
+    else:
+        print(status)
+
+
+def render_error(repl_ctx: context.ReplContext, error):
+    if repl_ctx.use_colors:
+        print(style.exc_title.apply(error))
+    else:
+        print(error)
