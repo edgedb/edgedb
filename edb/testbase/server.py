@@ -153,7 +153,7 @@ def _init_cluster(data_dir=None, *, pg_cluster=None,
         _env = {}
 
     if data_dir is None:
-        cluster = edgedb_cluster.TempCluster(env=_env)
+        cluster = edgedb_cluster.TempCluster(env=_env, testmode=True)
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
@@ -269,7 +269,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def setUp(self):
         if self.INTERNAL_TESTMODE:
             self.loop.run_until_complete(
-                self.con.execute('SET CONFIG __internal_testmode := true;'))
+                self.con.execute(
+                    'CONFIGURE SESSION SET __internal_testmode := true;'))
 
         if self.ISOLATED_METHODS:
             self.xact = self.con.transaction()

@@ -36,7 +36,7 @@ def compile_SelectStmt(
         stmt: irast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
-    if ctx.env.singleton_mode:
+    if ctx.singleton_mode:
         return dispatch.compile(stmt.result, ctx=ctx)
 
     parent_ctx = ctx

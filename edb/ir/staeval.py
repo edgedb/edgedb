@@ -23,7 +23,6 @@
 import dataclasses
 import decimal
 import functools
-import types
 import typing
 import uuid
 
@@ -31,12 +30,15 @@ from edb import errors
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
+from edb.edgeql import qltypes
 from edb.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.ir import ast as irast
 
 from edb.schema import types as s_types
 from edb.schema import schema as s_schema
+
+from edb.server import config
 
 
 class StaticEvaluationError(errors.QueryError):
@@ -205,7 +207,7 @@ def object_type_to_python_type(
         schema: s_schema.Schema, *,
         base_class: typing.Optional[type] = None) -> type:
 
-    fields = {}
+    fields = []
 
     for pn, p in objtype.get_pointers(schema).items(schema):
         if pn in ('id', '__type__'):
@@ -213,16 +215,56 @@ def object_type_to_python_type(
 
         ptype = p.get_target(schema)
         pytype = schema_type_to_python_type(ptype, schema)
-        fields[pn] = pytype
+        if p.get_cardinality(schema) is qltypes.Cardinality.MANY:
+            pytype = typing.FrozenSet[pytype]
 
-    def exec_body(ns):
-        ns.update({fn: None for fn in fields})
-        ns['__annotations__'] = dict(fields)
-        return ns
+        constraints = p.get_constraints(schema).objects(schema)
+        exclusive = schema.get('std::exclusive')
+        unique = any(c.issubclass(schema, exclusive) for c in constraints)
+        field = dataclasses.field(
+            compare=unique,
+            hash=unique,
+            repr=True,
+        )
+        fields.append((pn, pytype, field))
 
-    cls = types.new_class(
+    return dataclasses.make_dataclass(
         objtype.get_name(schema).name,
+        fields=fields,
         bases=(base_class,) if base_class is not None else (),
-        exec_body=exec_body)
+        frozen=True,
+    )
 
-    return dataclasses.dataclass(frozen=True)(cls)
+
+@functools.singledispatch
+def evaluate_to_config_op(
+        ir: irast.Base,
+        schema: s_schema.Schema) -> irast.BaseConstant:
+    raise UnsupportedExpressionError(
+        f'no config op evaluation handler for {ir.__class__}')
+
+
+@evaluate_to_config_op.register
+def evaluate_config_set(
+        ir: irast.ConfigSet,
+        schema: s_schema.Schema):
+
+    return config.Operation(
+        opcode=config.OpCode.CONFIG_SET,
+        level=config.OpLevel.SYSTEM if ir.system else config.OpLevel.SESSION,
+        setting_name=ir.name,
+        value=evaluate_to_python_val(ir.expr, schema),
+    )
+
+
+@evaluate_to_config_op.register
+def evaluate_config_reset(
+        ir: irast.ConfigReset,
+        schema: s_schema.Schema):
+
+    return config.Operation(
+        opcode=config.OpCode.CONFIG_RESET,
+        level=config.OpLevel.SYSTEM if ir.system else config.OpLevel.SESSION,
+        setting_name=ir.name,
+        value=None,
+    )

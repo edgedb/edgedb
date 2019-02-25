@@ -38,7 +38,7 @@ class TestDeltas(tb.DDLTestCase):
 
                 type NamedObject:
                     required property name -> str
-                    required multi link related -> NamedObject
+                    multi link related -> NamedObject
             $$;
 
             COMMIT MIGRATION test::d1;

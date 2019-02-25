@@ -115,18 +115,6 @@ class SessionSetAliasDecl(ModuleAliasDecl, BaseSessionSet):
     pass
 
 
-class SessionSetConfigAssignDecl(AliasedExpr, BaseSessionConfigSet):
-    pass
-
-
-class SessionSetConfigAddAssignDecl(AliasedExpr, BaseSessionConfigSet):
-    pass
-
-
-class SessionSetConfigRemAssignDecl(AliasedExpr, BaseSessionConfigSet):
-    pass
-
-
 class BaseSessionReset(BaseSessionCommand):
     pass
 
@@ -894,6 +882,32 @@ class DropCast(DropObject, CastCommand):
 
 class _Optional(Expr):
     expr: Expr
+
+
+#
+# Config
+#
+
+
+class ConfigOp(Expr):
+
+    name: str
+    system: bool
+
+
+class ConfigSet(ConfigOp):
+
+    expr: Expr
+
+
+class ConfigInsert(ConfigOp):
+
+    shape: typing.List[ShapeElement]
+
+
+class ConfigReset(ConfigOp):
+
+    where: typing.Optional[Expr]
 
 
 #

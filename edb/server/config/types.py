@@ -29,7 +29,7 @@ from edb.schema import objects as s_obj
 class ConfigType:
 
     @classmethod
-    def from_pyvalue(cls, v):
+    def from_pyvalue(cls, v, *, allow_missing=False):
         """Subclasses override this to allow creation from Python scalars."""
         raise NotImplementedError
 
@@ -51,17 +51,9 @@ class ConfigType:
 class CompositeConfigType(ConfigType):
 
     @classmethod
-    def from_pyvalue(cls, s):
-        if not isinstance(s, str):
-            raise cls._err(f'expected a std::str value, got {type(s)!r}')
-
-        try:
-            data = json.loads(s)
-        except Exception:
-            raise cls._err('not a valid JSON string')
-
+    def from_pyvalue(cls, data, *, allow_missing=False):
         if not isinstance(data, dict):
-            raise cls._err('a JSON object expected')
+            raise cls._err(f'expected a dict value, got {type(data)!r}')
 
         fields = {f.name: f for f in dataclasses.fields(cls)}
 
@@ -105,7 +97,10 @@ class CompositeConfigType(ConfigType):
 
         for fieldname, field in fields.items():
             if fieldname not in items and field.default is dataclasses.MISSING:
-                raise cls._err(f'missing required field: {fieldname!r}')
+                if allow_missing:
+                    items[fieldname] = None
+                else:
+                    raise cls._err(f'missing required field: {fieldname!r}')
 
         try:
             return cls(**items)
@@ -118,7 +113,7 @@ class CompositeConfigType(ConfigType):
 
     @classmethod
     def from_json(cls, s):
-        return cls.from_pyvalue(s)
+        return cls.from_pyvalue(json.loads(s))
 
     def to_json(self):
         dct = dataclasses.asdict(self)

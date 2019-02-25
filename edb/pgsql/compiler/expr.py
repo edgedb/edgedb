@@ -34,6 +34,7 @@ from edb.pgsql import common
 from edb.pgsql import types as pg_types
 
 from . import astutils
+from . import config
 from . import context
 from . import dispatch
 from . import expr as expr_compiler  # NOQA
@@ -48,7 +49,7 @@ def compile_Set(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.Base:
 
-    if ctx.env.singleton_mode:
+    if ctx.singleton_mode:
         return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
 
     is_toplevel = ctx.toplevel_stmt is None
@@ -56,7 +57,11 @@ def compile_Set(
     _compile_set_impl(ir_set, ctx=ctx)
 
     if is_toplevel:
-        return output.top_output_as_value(ctx.rel, env=ctx.env)
+        if isinstance(ir_set.expr, irast.ConfigCommand):
+            return config.top_output_as_config_op(
+                ir_set, ctx.rel, env=ctx.env)
+        else:
+            return output.top_output_as_value(ctx.rel, env=ctx.env)
     else:
         value = pathctx.get_path_value_var(
             ctx.rel, ir_set.path_id, env=ctx.env)
@@ -69,7 +74,7 @@ def visit_Set(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> None:
 
-    if ctx.env.singleton_mode:
+    if ctx.singleton_mode:
         return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
 
     _compile_set_impl(ir_set, ctx=ctx)

@@ -199,9 +199,7 @@ def _process_toplevel_query(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
 
-    ctx.toplevel_stmt = ctx.stmt = ctx.rel = pgast.SelectStmt()
-    relctx.update_scope(ir_set, ctx.rel, ctx=ctx)
-    ctx.pending_query = ctx.rel
+    relctx.init_toplevel_query(ir_set, ctx=ctx)
     rvars = _get_set_rvar(ir_set, ctx=ctx)
     return rvars.main.rvar
 

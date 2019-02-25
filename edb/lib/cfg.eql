@@ -57,23 +57,4 @@ CREATE TYPE cfg::Config {
     CREATE MULTI LINK cfg::ports -> cfg::Port {
         SET ATTRIBUTE cfg::system := 'true';
     };
-
-    # === Internal settings (not part of stable API): ===
-    # ===      DO NOT USE IN APPLICATION CODE         ===
-    CREATE PROPERTY cfg::__internal_testmode -> std::bool {
-        SET ATTRIBUTE cfg::internal := 'true';
-        SET default := false;
-    };
-
-    CREATE PROPERTY cfg::__internal_no_const_folding -> std::bool {
-        SET ATTRIBUTE cfg::internal := 'true';
-        SET default := false;
-    };
-
-    CREATE PROPERTY cfg::__internal_testvalue -> std::int64 {
-        SET ATTRIBUTE cfg::internal := 'true';
-        SET ATTRIBUTE cfg::system := 'true';
-        SET default := 0;
-    };
-
 };

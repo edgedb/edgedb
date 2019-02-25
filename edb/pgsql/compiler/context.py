@@ -56,6 +56,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.env = None
             self.argmap = collections.OrderedDict()
 
+            self.singleton_mode = False
+
             self.toplevel_stmt = None
             self.stmt = None
             self.rel = None
@@ -79,6 +81,8 @@ class CompilerContextLevel(compiler.ContextLevel):
         else:
             self.env = prevlevel.env
             self.argmap = prevlevel.argmap
+
+            self.singleton_mode = prevlevel.singleton_mode
 
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.stmt = prevlevel.stmt
@@ -139,8 +143,7 @@ class CompilerContext(compiler.CompilerContext):
 class Environment:
     """Static compilation environment."""
 
-    def __init__(self, *, output_format, singleton_mode, use_named_params):
-        self.singleton_mode = singleton_mode
+    def __init__(self, *, output_format, use_named_params):
         self.aliases = aliases.AliasGenerator()
         self.root_rels = set()
         self.rel_overlays = collections.defaultdict(list)

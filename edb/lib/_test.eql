@@ -1,0 +1,56 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2018-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Bits used for testing of the std-only functionality.
+# These definitions are picked up if the EdgeDB instance is bootstrapped
+# with --testmode.
+
+CREATE TYPE cfg::SessionComposite {
+    CREATE REQUIRED PROPERTY cfg::name -> std::str {
+        CREATE CONSTRAINT std::exclusive;
+    }
+};
+
+
+CREATE TYPE cfg::SystemComposite {
+    CREATE REQUIRED PROPERTY cfg::name -> std::str {
+        CREATE CONSTRAINT std::exclusive;
+    }
+};
+
+
+ALTER TYPE cfg::Config {
+    CREATE MULTI LINK sessobj -> cfg::SessionComposite;
+    CREATE MULTI LINK sysobj -> cfg::SystemComposite;
+
+    CREATE PROPERTY cfg::__internal_testvalue -> std::int64 {
+        SET ATTRIBUTE cfg::internal := 'true';
+        SET ATTRIBUTE cfg::system := 'true';
+        SET default := 0;
+    };
+
+    CREATE PROPERTY cfg::__internal_no_const_folding -> std::bool {
+        SET ATTRIBUTE cfg::internal := 'true';
+        SET default := false;
+    };
+
+    CREATE PROPERTY cfg::__internal_testmode -> std::bool {
+        SET ATTRIBUTE cfg::internal := 'true';
+        SET default := false;
+    };
+};

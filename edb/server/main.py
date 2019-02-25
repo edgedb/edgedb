@@ -106,6 +106,7 @@ def _init_cluster(cluster, args):
         'default_database': (args['default_database'] or
                              args['default_database_user']),
         'default_database_user': args['default_database_user'],
+        'testmode': args['testmode'],
     }
 
     asyncio.run(bootstrap.bootstrap(cluster, bootstrap_args))
@@ -299,6 +300,10 @@ def run_server(args):
     '--devmode/--no-devmode',
     help='enable or disable the development mode',
     default=None)
+@click.option(
+    '--testmode/--no-testmode',
+    help='enable or disable the test mode',
+    default=False)
 @click.option(
     '-I', '--bind-address', type=str, default='127.0.0.1',
     help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS')

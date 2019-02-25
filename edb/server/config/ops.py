@@ -16,14 +16,16 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
 
-import enum
+
 import json
 import typing
 
 import immutables
 
 from edb import errors
+from edb.common import enum
 from edb.edgeql import qltypes
 from edb.schema import objects as s_obj
 
@@ -31,17 +33,18 @@ from . import spec
 from . import types
 
 
-class OpLevel(enum.Enum):
+class OpLevel(enum.StrEnum):
 
-    SESSION = enum.auto()
-    SYSTEM = enum.auto()
+    SESSION = 'SESSION'
+    SYSTEM = 'SYSTEM'
 
 
-class OpCode(enum.Enum):
+class OpCode(enum.StrEnum):
 
-    CONFIG_ADD = enum.auto()
-    CONFIG_REM = enum.auto()
-    CONFIG_SET = enum.auto()
+    CONFIG_ADD = 'ADD'
+    CONFIG_REM = 'REM'
+    CONFIG_SET = 'SET'
+    CONFIG_RESET = 'RESET'
 
 
 class Operation(typing.NamedTuple):
@@ -58,16 +61,20 @@ class Operation(typing.NamedTuple):
             raise errors.ConfigurationError(
                 f'unknown setting {self.setting_name!r}') from None
 
-    def coerce_value(self, setting: spec.Setting):
+    def coerce_value(self, setting: spec.Setting, *,
+                     allow_missing: bool = False):
         if issubclass(setting.type, types.ConfigType):
             try:
-                return setting.type.from_pyvalue(self.value)
+                return setting.type.from_pyvalue(
+                    self.value, allow_missing=allow_missing)
             except (ValueError, TypeError):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
         else:
             if isinstance(self.value, setting.type):
                 return self.value
+            elif self.value is None and allow_missing:
+                return None
             else:
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
@@ -76,11 +83,23 @@ class Operation(typing.NamedTuple):
               storage: typing.Mapping) -> typing.Mapping:
 
         setting = self.get_setting(spec)
-        value = self.coerce_value(setting)
+        allow_missing = (
+            self.opcode is OpCode.CONFIG_REM
+            or self.opcode is OpCode.CONFIG_RESET
+        )
+
+        value = self.coerce_value(setting, allow_missing=allow_missing)
 
         if self.opcode is OpCode.CONFIG_SET:
             assert not setting.set_of
             storage = storage.set(self.setting_name, value)
+
+        elif self.opcode is OpCode.CONFIG_RESET:
+            assert not setting.set_of
+            try:
+                storage = storage.delete(self.setting_name)
+            except KeyError:
+                pass
 
         elif self.opcode is OpCode.CONFIG_ADD:
             assert setting.set_of
@@ -95,6 +114,11 @@ class Operation(typing.NamedTuple):
             storage = storage.set(self.setting_name, new_value)
 
         return storage
+
+    @classmethod
+    def from_json(cls, json_value: str) -> Operation:
+        op_str, lev_str, name, value = json.loads(json_value)
+        return Operation(OpCode(op_str), OpLevel(lev_str), name, value)
 
 
 def spec_to_json(spec: spec.Spec):
@@ -118,10 +142,7 @@ def spec_to_json(spec: spec.Spec):
             typemod = qltypes.TypeModifier.SET_OF
 
         dct[setting.name] = {
-            'default': [
-                value_to_json_value(setting, setting.default),
-                value_to_json_edgeql_value(setting, setting.default),
-            ],
+            'default': value_to_json_value(setting, setting.default),
             'internal': setting.internal,
             'system': setting.system,
             'typeid': str(typeid),
@@ -165,36 +186,11 @@ def value_to_json(setting: spec.Setting, value: object):
     return json.dumps(value_to_json_value(setting, value))
 
 
-def value_to_json_edgeql_value(setting: spec.Setting, value: object):
-    def py_to_edgeql(v):
-        if isinstance(v, bool):
-            return repr(v).lower()
-        return repr(v)
-
-    if setting.set_of:
-        if issubclass(setting.type, types.ConfigType):
-            return '{' + ','.join(v.to_edgeql() for v in value) + '}'
-        else:
-            return '{' + ','.join(py_to_edgeql(v) for v in value) + '}'
-    else:
-        if issubclass(setting.type, types.ConfigType):
-            return value.to_edgeql()
-        else:
-            return py_to_edgeql(value)
-
-
-def value_to_json_edgeql(setting: spec.Setting, value: object):
-    return json.dumps(value_to_json_edgeql_value(setting, value))
-
-
 def to_json(spec: spec.Spec, storage: typing.Mapping) -> str:
     dct = {}
     for name, value in storage.items():
         setting = spec[name]
-        dct[name] = [
-            value_to_json_value(setting, value),
-            value_to_json_edgeql_value(setting, value)
-        ]
+        dct[name] = value_to_json_value(setting, value)
     return json.dumps(dct)
 
 
@@ -207,26 +203,26 @@ def from_json(spec: spec.Spec, js: str) -> typing.Mapping:
                 'invalid JSON: top-level dict was expected')
 
         for key, value in dct.items():
-            if not isinstance(value, list) or len(value) != 2:
-                raise errors.ConfigurationError(
-                    f'invalid JSON: invalid setting value {value!r} '
-                    f'(a two-element list was expected)')
-
             setting = spec.get(key)
             if setting is None:
                 raise errors.ConfigurationError(
                     f'invalid JSON: unknown setting name {key!r}')
 
-            mm[key] = value_from_json_value(setting, value[0])
+            mm[key] = value_from_json_value(setting, value)
 
     return mm.finish()
 
 
-def lookup(spec: spec.Spec, name: str, *configs: typing.Mapping):
+def lookup(spec: spec.Spec, name: str, *configs: typing.Mapping,
+           allow_unrecognized: bool = False):
     try:
         setting = spec[name]
     except KeyError:
-        raise errors.ConfigurationError(f'unknown setting {name!r}')
+        if allow_unrecognized:
+            return None
+        else:
+            raise errors.ConfigurationError(
+                f'unrecognized configuration parameter {name!r}')
 
     for c in configs:
         try:

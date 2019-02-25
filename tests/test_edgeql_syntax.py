@@ -3412,10 +3412,6 @@ aa';
     def test_edgeql_syntax_set_command_03(self):
         """
         SET MODULE default;
-        SET CONFIG foo := (SELECT User);
-        SET SYSTEM CONFIG foo := (SELECT User);
-        SET CONFIG foo -= 'aa';
-        SET CONFIG bar += 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3424,7 +3420,7 @@ aa';
         # Old and no longer supported syntax that allowed to
         # specify multiple comma-separated SET subcommands.
         """
-        SET SYSTEM CONFIG foo += '12', SYSTEM CONFIG baz -= '11';
+        SET ALIAS foo AS MODULE foo1, ALIAS bar AS MODULE foo2;
         """
 
     def test_edgeql_syntax_reset_command_01(self):
@@ -3432,6 +3428,18 @@ aa';
         RESET MODULE;
         RESET ALIAS foo;
         RESET ALIAS *;
+        """
+
+    def test_edgeql_syntax_configure_01(self):
+        """
+        CONFIGURE SYSTEM SET foo := (SELECT User);
+        CONFIGURE SESSION SET foo := (SELECT User);
+        CONFIGURE SYSTEM RESET foo;
+        CONFIGURE SESSION RESET foo;
+        CONFIGURE SYSTEM INSERT Foo {bar := (SELECT 1)};
+        CONFIGURE SESSION INSERT Foo {bar := (SELECT 1)};
+        CONFIGURE SYSTEM RESET Foo FILTER (.bar = 2);
+        CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
         """
 
     def test_edgeql_syntax_ddl_view_01(self):

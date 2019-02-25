@@ -19,7 +19,6 @@
 
 from .ops import OpLevel, OpCode, Operation, lookup
 from .ops import spec_to_json, to_json, from_json
-from .ops import value_to_json_edgeql, value_to_json_edgeql_value
 from .ops import value_to_json, value_from_json
 from .spec import Spec, Setting, load_spec_from_schema
 from .types import ConfigType
@@ -30,7 +29,6 @@ __all__ = (
     'lookup',
     'Spec', 'Setting',
     'spec_to_json', 'to_json', 'from_json',
-    'value_to_json_edgeql', 'value_to_json_edgeql_value',
     'value_to_json', 'value_from_json',
     'OpLevel', 'OpCode', 'Operation',
     'ConfigType', 'Port',

@@ -29,6 +29,7 @@ from edb.ir import ast as irast
 from edb.pgsql import ast as pgast
 from edb.pgsql import codegen as pgcodegen
 
+from . import config as _config_compiler  # NOQA
 from . import expr as _expr_compiler  # NOQA
 from . import stmt as _stmt_compiler  # NOQA
 
@@ -52,9 +53,9 @@ def compile_ir_to_sql_tree(
         if expr_is_stmt:
             ctx.scope_tree = ir_expr.scope_tree
             ir_expr = ir_expr.expr
+        ctx.singleton_mode = singleton_mode
         ctx.env = context.Environment(
             output_format=output_format,
-            singleton_mode=singleton_mode,
             use_named_params=use_named_params)
         if ignore_shapes:
             ctx.expr_exposed = False

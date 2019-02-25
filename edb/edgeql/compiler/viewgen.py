@@ -116,10 +116,22 @@ def _process_view(
 
         scls_pointers = stype.get_pointers(ctx.env.schema)
         for pn, ptrcls in scls_pointers.items(ctx.env.schema):
-            if (not ptrcls.get_default(ctx.env.schema) or
-                    pn in explicit_ptrs or
+            if (pn in explicit_ptrs or
                     ptrcls.is_pure_computable(ctx.env.schema)):
                 continue
+
+            if not ptrcls.get_default(ctx.env.schema):
+                if ptrcls.get_required(ctx.env.schema):
+                    if ptrcls.is_property(ctx.env.schema):
+                        what = 'property'
+                    else:
+                        what = 'link'
+                    raise errors.MissingRequiredError(
+                        f'missing value for required {what} '
+                        f'{stype.get_displayname(ctx.env.schema)}.'
+                        f'{ptrcls.get_displayname(ctx.env.schema)}')
+                else:
+                    continue
 
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
             default_ql = qlast.ShapeElement(expr=qlast.Path(steps=[

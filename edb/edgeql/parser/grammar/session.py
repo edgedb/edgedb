@@ -31,14 +31,6 @@ class SessionStmt(Nonterm):
         self.val = kids[0].val
 
 
-class OptSystem(Nonterm):
-    def reduce_empty(self, *kids):
-        self.val = False
-
-    def reduce_SYSTEM(self, *kids):
-        self.val = True
-
-
 class SetStmt(Nonterm):
     def reduce_SET_ALIAS_Identifier_AS_MODULE_ModuleName(self, *kids):
         self.val = qlast.SessionSetAliasDecl(
@@ -48,24 +40,6 @@ class SetStmt(Nonterm):
     def reduce_SET_MODULE_ModuleName(self, *kids):
         self.val = qlast.SessionSetAliasDecl(
             module='.'.join(kids[2].val))
-
-    def reduce_SET_OptSystem_CONFIG_Identifier_ASSIGN_Expr(self, *kids):
-        self.val = qlast.SessionSetConfigAssignDecl(
-            system=kids[1].val,
-            alias=kids[3].val,
-            expr=kids[5].val)
-
-    def reduce_SET_OptSystem_CONFIG_Identifier_ADDASSIGN_Expr(self, *kids):
-        self.val = qlast.SessionSetConfigAddAssignDecl(
-            system=kids[1].val,
-            alias=kids[3].val,
-            expr=kids[5].val)
-
-    def reduce_SET_OptSystem_CONFIG_Identifier_REMASSIGN_Expr(self, *kids):
-        self.val = qlast.SessionSetConfigRemAssignDecl(
-            system=kids[1].val,
-            alias=kids[3].val,
-            expr=kids[5].val)
 
 
 class ResetStmt(Nonterm):

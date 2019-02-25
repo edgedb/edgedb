@@ -65,7 +65,6 @@ cdef bytes INIT_CON_SCRIPT = (b'''
     CREATE TEMPORARY TABLE _edgecon_state (
         name text NOT NULL,
         value text NOT NULL,
-        edgeql_value text,
         type text NOT NULL CHECK(type = 'C' OR type = 'A'),
         UNIQUE(name, type)
     );
@@ -76,10 +75,10 @@ cdef bytes INIT_CON_SCRIPT = (b'''
         UNIQUE(_sentinel)
     );
 
-    INSERT INTO _edgecon_state(name, value, edgeql_value, type)
+    INSERT INTO _edgecon_state(name, value, type)
     VALUES ('', \'''' +
        defines.DEFAULT_MODULE_ALIAS.replace("'", "''").encode() +
-    b'''\', NULL, 'A');
+    b'''\', 'A');
     '''
 )
 
@@ -351,10 +350,14 @@ cdef class EdgeConnection:
         for query_unit in units:
             self.dbview.start(query_unit)
             try:
-                await self.backend.pgcon.simple_query(
-                    b';'.join(query_unit.sql), ignore_data=True)
-                if query_unit.config_ops is not None:
-                    await self.dbview.apply_config_ops(query_unit.config_ops)
+                if query_unit.system_config:
+                    await self._execute_system_config(query_unit)
+                else:
+                    await self.backend.pgcon.simple_query(
+                        b';'.join(query_unit.sql), ignore_data=True)
+                    if query_unit.config_ops is not None:
+                        await self.dbview.apply_config_ops(
+                            query_unit.config_ops)
             except ConnectionAbortedError:
                 raise
             except Exception:
@@ -529,6 +532,15 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unsupported "describe" message mode {chr(rtype)!r}')
 
+    async def _execute_system_config(self, query_unit):
+        data = await self.backend.pgcon.simple_query(
+            b';'.join(query_unit.sql), ignore_data=False)
+        if len(data) != 1:
+            raise errors.InternalServerError(
+                'CONFIGURE SYSTEM did not return an exactly one record')
+        config_op = config.Operation.from_json(data[0][0])
+        await self.dbview.apply_config_ops([config_op])
+
     async def _execute(self, query_unit, bind_args,
                        bint parse, bint use_prep_stmt):
         if self.dbview.in_tx_error():
@@ -558,17 +570,21 @@ cdef class EdgeConnection:
         try:
             self.dbview.start(query_unit)
             try:
-                await self.backend.pgcon.parse_execute(
-                    parse,              # =parse
-                    1,                  # =execute
-                    query_unit,         # =query
-                    self,               # =edgecon
-                    bound_args_buf,     # =bind_data
-                    process_sync,       # =send_sync
-                    use_prep_stmt,      # =use_prep_stmt
-                )
-                if query_unit.config_ops is not None:
-                    await self.dbview.apply_config_ops(query_unit.config_ops)
+                if query_unit.system_config:
+                    await self._execute_system_config(query_unit)
+                else:
+                    await self.backend.pgcon.parse_execute(
+                        parse,              # =parse
+                        1,                  # =execute
+                        query_unit,         # =query
+                        self,               # =edgecon
+                        bound_args_buf,     # =bind_data
+                        process_sync,       # =send_sync
+                        use_prep_stmt,      # =use_prep_stmt
+                    )
+                    if query_unit.config_ops is not None:
+                        await self.dbview.apply_config_ops(
+                            query_unit.config_ops)
             except ConnectionAbortedError:
                 raise
             except Exception:

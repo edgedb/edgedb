@@ -161,7 +161,7 @@ def get_test_items(**flags):
 class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
 
     SETUP = """
-        SET CONFIG __internal_no_const_folding := true;
+        CONFIGURE SESSION SET __internal_no_const_folding := true;
     """
 
     async def test_edgeql_no_const_folding_str_concat_01(self):

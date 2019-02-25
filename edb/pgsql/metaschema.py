@@ -1394,7 +1394,7 @@ class SysConfigFunction(dbops.Function):
                 config_spec AS
                     (SELECT
                         s.key AS name,
-                        s.value->'default'->>1 AS default,
+                        s.value->>'default' AS default,
                         (s.value->>'internal')::bool AS internal,
                         (s.value->>'system')::bool AS system,
                         (s.value->>'typeid')::uuid AS typeid,
@@ -1421,11 +1421,11 @@ class SysConfigFunction(dbops.Function):
                 config_sys AS
                     (SELECT
                         s.key AS name,
-                        s.value->>1 AS value,
+                        s.value AS value,
                         'system override' AS source,
                         10 AS priority
                     FROM
-                        jsonb_each(
+                        jsonb_each_text(
                             (SELECT pg_read_file(
                                 (SELECT d.dir || '/config_sys.json'
                                  FROM data_dir d)
@@ -1436,7 +1436,7 @@ class SysConfigFunction(dbops.Function):
                 config_sess AS
                     (SELECT
                         s.name AS name,
-                        s.edgeql_value AS value,
+                        s.value AS value,
                         'session' AS source,
                         20 AS priority
                     FROM

@@ -37,6 +37,15 @@ from . import dbobj
 from . import pathctx
 
 
+def init_toplevel_query(
+        ir_set: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> None:
+
+    ctx.toplevel_stmt = ctx.stmt = ctx.rel = pgast.SelectStmt()
+    update_scope(ir_set, ctx.rel, ctx=ctx)
+    ctx.pending_query = ctx.rel
+
+
 def pull_path_namespace(
         *, target: pgast.Query, source: pgast.BaseRangeVar,
         replace_bonds: bool=True, ctx: context.CompilerContextLevel):

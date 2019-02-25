@@ -132,8 +132,6 @@ def _sess_reset_alias(ql):
     return b'RESET ALIAS'
 
 
-@get_status.register(qlast.SessionSetConfigAssignDecl)
-@get_status.register(qlast.SessionSetConfigAddAssignDecl)
-@get_status.register(qlast.SessionSetConfigRemAssignDecl)
+@get_status.register(qlast.ConfigOp)
 def _sess_set_config(ql):
-    return b'SET CONFIG'
+    return b'CONFIGURE'

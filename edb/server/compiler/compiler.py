@@ -204,7 +204,8 @@ class Compiler(BaseCompiler):
         return config.lookup(
             config.get_settings(),
             '__internal_testmode',
-            session_config)
+            session_config,
+            allow_unrecognized=True)
 
     def _new_delta_context(self, ctx: CompileContext):
         context = s_delta.CommandContext()
@@ -250,7 +251,8 @@ class Compiler(BaseCompiler):
         disable_constant_folding = config.lookup(
             config.get_settings(),
             '__internal_no_const_folding',
-            session_config)
+            session_config,
+            allow_unrecognized=True)
 
         ir = ql_compiler.compile_ast_to_ir(
             ql,
@@ -563,19 +565,14 @@ class Compiler(BaseCompiler):
         schema = current_tx.get_schema()
 
         aliases = ctx.state.current_tx().get_modaliases()
-        session_config = ctx.state.current_tx().get_session_config()
-
-        config_op = None
-        is_system_setting = False
 
         sqlbuf = []
 
         alias_tpl = lambda alias, module: f'''
-            INSERT INTO _edgecon_state(name, value, edgeql_value, type)
+            INSERT INTO _edgecon_state(name, value, type)
             VALUES (
                 {pg_ql(alias or '')},
                 {pg_ql(module)},
-                NULL,
                 'A'
             )
             ON CONFLICT (name, type) DO
@@ -595,103 +592,6 @@ class Compiler(BaseCompiler):
             if not self._bootstrap_mode:
                 sql = alias_tpl(ql.alias, ql.module)
                 sqlbuf.append(sql)
-
-        elif isinstance(ql, qlast.BaseSessionConfigSet):
-            if ql.system:
-                if not current_tx.is_implicit():
-                    raise errors.QueryError(
-                        'SET SYSTEM CONFIG cannot be executed in a '
-                        'transaction block')
-                is_system_setting = True
-
-            name = ql.alias
-            try:
-                setting = config.get_settings()[name]
-            except KeyError:
-                raise errors.ConfigurationError(
-                    f'invalid SET expression: '
-                    f'unknown CONFIG setting {name!r}')
-
-            if ql.system and not setting.system:
-                raise errors.ConfigurationError(
-                    f'{name!r} is not a system-level config setting; '
-                    f'use "SET CONFIG {name}" command')
-            if not ql.system and setting.system:
-                raise errors.ConfigurationError(
-                    f'{name!r} is a system-level config setting; '
-                    f'use "SET SYSTEM CONFIG {name}" command')
-
-            try:
-                val_ir = ql_compiler.compile_ast_fragment_to_ir(
-                    ql.expr, schema=self._std_schema)
-                config_val = ireval.evaluate_to_python_val(
-                    val_ir.expr, schema=self._std_schema)
-            except ireval.StaticEvaluationError:
-                raise errors.ConfigurationError(
-                    f'invalid CONFIG value for the {name!r} setting')
-
-            opcode = None
-            if setting.set_of:
-                if isinstance(ql, qlast.SessionSetConfigAssignDecl):
-                    raise errors.ConfigurationError(
-                        f'invalid SET expression: '
-                        f'cannot use := on set config settings')
-
-                if isinstance(ql, qlast.SessionSetConfigAddAssignDecl):
-                    opcode = config.OpCode.CONFIG_ADD
-                elif isinstance(ql, qlast.SessionSetConfigRemAssignDecl):
-                    opcode = config.OpCode.CONFIG_REM
-
-            else:
-                if isinstance(ql, qlast.SessionSetConfigAddAssignDecl):
-                    raise errors.ConfigurationError(
-                        f'invalid SET expression: '
-                        f'cannot use += on scalar config settings')
-
-                if isinstance(ql, qlast.SessionSetConfigRemAssignDecl):
-                    raise errors.ConfigurationError(
-                        f'invalid SET expression: '
-                        f'cannot use -= on scalar config settings')
-
-                opcode = config.OpCode.CONFIG_SET
-
-            config_op = config.Operation(
-                opcode,
-                (config.OpLevel.SYSTEM
-                    if ql.system else config.OpLevel.SESSION),
-                name,
-                config_val
-            )
-
-            if not ql.system:
-                session_config = config_op.apply(
-                    config.get_settings(),
-                    session_config)
-
-            if not self._bootstrap_mode and not ql.system:
-                # We only want to persist session-level config
-                # changes in the temporary table.  System-level
-                # configs are persisted in a JSON file in the
-                # data-dir.
-                value_json = config.value_to_json(setting, config_val)
-                value_edgeql = config.value_to_json_edgeql_value(
-                    setting, config_val)
-
-                sql = f'''
-                    INSERT INTO
-                        _edgecon_state(name, value, edgeql_value, type)
-                    VALUES (
-                        {pg_ql(name)},
-                        {pg_ql(value_json)},
-                        {pg_ql(value_edgeql)},
-                        'C'
-                    )
-                    ON CONFLICT (name, type) DO
-                    UPDATE
-                        SET value = {pg_ql(value_json)},
-                            edgeql_value = {pg_ql(value_edgeql)};
-                '''
-                sqlbuf.append(sql.encode())
 
         elif isinstance(ql, qlast.SessionResetModule):
             aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
@@ -724,7 +624,6 @@ class Compiler(BaseCompiler):
                 f'unsupported SET command type {type(ql)!r}')
 
         ctx.state.current_tx().update_modaliases(aliases)
-        ctx.state.current_tx().update_session_config(session_config)
 
         if len(sqlbuf) == 1:
             sql = sqlbuf[0]
@@ -737,7 +636,45 @@ class Compiler(BaseCompiler):
 
         return dbstate.SessionStateQuery(
             sql=(sql,),
-            is_system_setting=is_system_setting,
+        )
+
+    def _compile_ql_config_op(self, ctx: CompileContext, ql: qlast.Base):
+
+        current_tx = ctx.state.current_tx()
+        schema = current_tx.get_schema()
+
+        modaliases = ctx.state.current_tx().get_modaliases()
+        session_config = ctx.state.current_tx().get_session_config()
+
+        if ql.system and not current_tx.is_implicit():
+            raise errors.QueryError(
+                'CONFIGURE SYSTEM cannot be executed in a '
+                'transaction block')
+
+        ir = ql_compiler.compile_ast_to_ir(
+            ql,
+            schema=schema,
+            modaliases=modaliases,
+        )
+
+        sql_text, _ = pg_compiler.compile_ir_to_sql(
+            ir,
+            pretty=debug.flags.edgeql_compile,
+            output_format=pg_compiler.OutputFormat.JSON)
+
+        if not ql.system:
+            config_op = ireval.evaluate_to_config_op(ir, schema=schema)
+
+            session_config = config_op.apply(
+                config.get_settings(),
+                session_config)
+            ctx.state.current_tx().update_session_config(session_config)
+        else:
+            config_op = None
+
+        return dbstate.SessionStateQuery(
+            sql=(sql_text.encode(),),
+            is_system_setting=ql.system,
             config_op=config_op,
         )
 
@@ -768,6 +705,13 @@ class Compiler(BaseCompiler):
                     f'cannot execute session control commands '
                     f'for the current connection')
             return self._compile_ql_sess_state(ctx, ql)
+
+        elif isinstance(ql, qlast.ConfigOp):
+            if not (ctx.state.capability & enums.Capability.SESSION):
+                raise errors.ProtocolError(
+                    f'cannot execute session control commands '
+                    f'for the current connection')
+            return self._compile_ql_config_op(ctx, ql)
 
         else:
             if not (ctx.state.capability & enums.Capability.QUERY):
@@ -883,12 +827,14 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql += comp.sql
 
-                if comp.is_system_setting and (
-                        not ctx.state.current_tx().is_implicit() or
-                        statements_len > 1):
-                    raise errors.QueryError(
-                        'SET SYSTEM CONFIG cannot be executed in a '
-                        'transaction block')
+                if comp.is_system_setting:
+                    if (not ctx.state.current_tx().is_implicit() or
+                            statements_len > 1):
+                        raise errors.QueryError(
+                            'CONFIGURE SYSTEM cannot be executed in a '
+                            'transaction block')
+
+                    unit.system_config = True
 
                 if single_stmt_mode:
                     unit.singleton_result = True

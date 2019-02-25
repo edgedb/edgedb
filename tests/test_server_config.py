@@ -32,15 +32,15 @@ from edb.server.config import spec
 from edb.server.config import types
 
 
-def make_port_json(*, protocol='graphql+http',
-                   database='testdb',
-                   user='test',
-                   concurrency=4,
-                   port=1000,
-                   **kwargs):
-    return json.dumps(dict(
+def make_port_value(*, protocol='graphql+http',
+                    database='testdb',
+                    user='test',
+                    concurrency=4,
+                    port=1000,
+                    **kwargs):
+    return dict(
         protocol=protocol, user=user, database=database,
-        concurrency=concurrency, port=port, **kwargs))
+        concurrency=concurrency, port=port, **kwargs)
 
 
 @dataclasses.dataclass(frozen=True, eq=True)
@@ -71,7 +71,7 @@ testspec1 = spec.Spec(
     spec.Setting(
         'port',
         type=Port,
-        default=Port.from_pyvalue(make_port_json())),
+        default=Port.from_pyvalue(make_port_value())),
 
     spec.Setting(
         'ints',
@@ -103,17 +103,14 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             json.loads(j),
             {
-                'bool': [True, 'true'],
-                'bools': [[], '{}'],
-                'int': [0, '0'],
-                'ints': [[], '{}'],
-                'port': [
-                    testspec1['port'].default.to_json(),
-                    testspec1['port'].default.to_edgeql(),
-                ],
-                'ports': [[], '{}'],
-                'str': ['hello', "'hello'"],
-                'strings': [[], '{}'],
+                'bool': True,
+                'bools': [],
+                'int': 0,
+                'ints': [],
+                'port': testspec1['port'].default.to_json(),
+                'ports': [],
+                'str': 'hello',
+                'strings': [],
             }
         )
 
@@ -129,7 +126,7 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            make_port_json(database='f1')
+            make_port_value(database='f1')
         )
         storage1 = op.apply(testspec1, storage)
 
@@ -137,15 +134,15 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            make_port_json(database='f2')
+            make_port_value(database='f2')
         )
         storage2 = op.apply(testspec1, storage1)
 
         self.assertEqual(
             storage2['ports'],
             {
-                Port.from_pyvalue(make_port_json(database='f1')),
-                Port.from_pyvalue(make_port_json(database='f2')),
+                Port.from_pyvalue(make_port_value(database='f1')),
+                Port.from_pyvalue(make_port_value(database='f2')),
             })
 
         j = ops.to_json(testspec1, storage2)
@@ -156,21 +153,21 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_REM,
             ops.OpLevel.SYSTEM,
             'ports',
-            make_port_json(database='f1')
+            make_port_value(database='f1')
         )
         storage3 = op.apply(testspec1, storage2)
 
         self.assertEqual(
             storage3['ports'],
             {
-                Port.from_pyvalue(make_port_json(database='f2')),
+                Port.from_pyvalue(make_port_value(database='f2')),
             })
 
         op = ops.Operation(
             ops.OpCode.CONFIG_REM,
             ops.OpLevel.SYSTEM,
             'ports',
-            make_port_json(database='f1')
+            make_port_value(database='f1')
         )
         storage4 = op.apply(testspec1, storage3)
         self.assertEqual(storage3, storage4)
@@ -182,7 +179,7 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            make_port_json(zzzzzzz='zzzzz')
+            make_port_value(zzzzzzz='zzzzz')
         )
         with self.assertRaisesRegex(errors.ConfigurationError,
                                     "unknown fields: 'zzz"):
@@ -192,7 +189,7 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            make_port_json(concurrency='a')
+            make_port_value(concurrency='a')
         )
         with self.assertRaisesRegex(errors.ConfigurationError,
                                     "invalid 'concurrency'.*expecting int"):
@@ -202,7 +199,7 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'por',
-            make_port_json(concurrency='a')
+            make_port_value(concurrency='a')
         )
         with self.assertRaisesRegex(errors.ConfigurationError,
                                     "unknown setting"):
@@ -212,7 +209,7 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            make_port_json(address=["aaa", 123])
+            make_port_value(address=["aaa", 123])
         )
         with self.assertRaisesRegex(errors.ConfigurationError,
                                     "str or a list"):
@@ -222,21 +219,21 @@ class TestServerConfigUtils(unittest.TestCase):
             ops.OpCode.CONFIG_ADD,
             ops.OpLevel.SYSTEM,
             'ports',
-            make_port_json(address="aaa")
+            make_port_value(address="aaa")
         )
         op.apply(testspec1, storage)
 
         self.assertEqual(
-            Port.from_pyvalue(make_port_json(address='aaa')),
-            Port.from_pyvalue(make_port_json(address=['aaa'])))
+            Port.from_pyvalue(make_port_value(address='aaa')),
+            Port.from_pyvalue(make_port_value(address=['aaa'])))
 
         self.assertEqual(
-            Port.from_pyvalue(make_port_json(address=['aaa', 'bbb'])),
-            Port.from_pyvalue(make_port_json(address=['bbb', 'aaa'])))
+            Port.from_pyvalue(make_port_value(address=['aaa', 'bbb'])),
+            Port.from_pyvalue(make_port_value(address=['bbb', 'aaa'])))
 
         self.assertNotEqual(
-            Port.from_pyvalue(make_port_json(address=['aaa', 'bbb'])),
-            Port.from_pyvalue(make_port_json(address=['bbb', 'aa1'])))
+            Port.from_pyvalue(make_port_value(address=['aaa', 'bbb'])),
+            Port.from_pyvalue(make_port_value(address=['bbb', 'aa1'])))
 
     def test_server_config_04(self):
         storage = immutables.Map()
@@ -294,7 +291,7 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             json.loads(j)['bool'],
             {
-                'default': [True, 'true'],
+                'default': True,
                 'internal': False,
                 'system': False,
                 'typemod': 'SINGLETON',

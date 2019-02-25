@@ -600,3 +600,30 @@ class SessionStateCmd(Command):
 
     modaliases: typing.Dict[typing.Optional[str], s_modules.Module]
     testmode: bool
+
+
+class ConfigCommand(Command):
+
+    name: str
+    system: bool
+
+
+class ConfigSet(ConfigCommand):
+
+    expr: Set
+
+
+class ConfigFilter(Base):
+
+    property_name: str
+    value: Set
+
+
+class ConfigReset(ConfigCommand):
+
+    filter_properties: typing.List[ConfigFilter]
+
+
+class ConfigInsert(ConfigCommand):
+
+    expr: Set

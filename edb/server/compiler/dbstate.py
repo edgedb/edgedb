@@ -156,6 +156,8 @@ class QueryUnit:
     # Set only when a query is compiled with "json_parameters=True"
     in_type_args: typing.Optional[typing.Tuple[str, ...]] = None
 
+    # Set only when this unit contains a CONFIGURE SYSTEM command.
+    system_config: bool = False
     config_ops: typing.Optional[typing.List[config.Operation]] = None
     modaliases: typing.Optional[immutables.Map] = None
 

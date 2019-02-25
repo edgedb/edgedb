@@ -58,16 +58,14 @@ class BaseHttpTest:
         cls.loop.run_until_complete(
             cls.con.execute(
                 f'''
-                    SET SYSTEM CONFIG ports += $$
-                    {{
-                        "protocol": "{cls.get_port_proto()}",
-                        "database": "{dbname}",
-                        "address": "{cls.http_host}",
-                        "port": {cls.http_port},
-                        "user": "http",
-                        "concurrency": 4
-                    }}
-                    $$;
+                    CONFIGURE SYSTEM INSERT Port {{
+                        protocol := "{cls.get_port_proto()}",
+                        database := "{dbname}",
+                        address := "{cls.http_host}",
+                        port := {cls.http_port},
+                        user := "http",
+                        concurrency := 4,
+                    }};
                 '''))
 
         cls.http_addr = f'http://127.0.0.1:{cls.http_port}'

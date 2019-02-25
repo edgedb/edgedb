@@ -212,7 +212,7 @@ cdef class DatabaseConnectionView:
     cdef on_success(self, query_unit):
         if query_unit.tx_savepoint_rollback:
             # Need to invalidate the cache in case there were
-            # SET ALIAS/SET CONFIG or DDL commands.
+            # SET ALIAS or CONFIGURE or DDL commands.
             self._invalidate_local_cache()
 
         if not self._in_tx and query_unit.has_ddl:
@@ -295,7 +295,13 @@ cdef class DatabaseIndex:
             f.write(data)
 
     async def apply_system_config_op(self, op):
-        op_value = op.coerce_value(op.get_setting(config.get_settings()))
+        op_value = op.get_setting(config.get_settings())
+        if op.opcode is not None:
+            allow_missing = (
+                op.opcode is config.OpCode.CONFIG_REM
+                or op.opcode is config.OpCode.CONFIG_RESET
+            )
+            op_value = op.coerce_value(op_value, allow_missing=allow_missing)
 
         if op.opcode is config.OpCode.CONFIG_ADD:
             await self._server._on_system_config_add(op.setting_name, op_value)
@@ -303,6 +309,8 @@ cdef class DatabaseIndex:
             await self._server._on_system_config_rem(op.setting_name, op_value)
         elif op.opcode is config.OpCode.CONFIG_SET:
             await self._server._on_system_config_set(op.setting_name, op_value)
+        elif op.opcode is config.OpCode.CONFIG_RESET:
+            await self._server._on_system_config_reset(op.setting_name)
         else:
             raise errors.UnsupportedFeatureError(
                 f'unsupported config operation: {op.opcode}')

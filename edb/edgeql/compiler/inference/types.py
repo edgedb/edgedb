@@ -240,6 +240,11 @@ def __infer_stmt(ir, env):
     return infer_type(ir.result, env)
 
 
+@_infer_type.register(irast.ConfigInsert)
+def __infer_config_insert(ir, env):
+    return infer_type(ir.expr, env)
+
+
 @_infer_type.register(irast.SliceIndirection)
 def __infer_slice(ir, env):
     node_type = infer_type(ir.expr, env)

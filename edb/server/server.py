@@ -144,17 +144,21 @@ class Server:
             logging.info('stopped port for config: %r', portconf)
 
     async def _on_system_config_add(self, setting_name, value):
-        # SET SYSTEM CONFIG setting_name += value;
+        # CONFIGURE SYSTEM INSERT ConfigObject;
         if setting_name == 'ports':
             await self._start_portconf(value)
 
     async def _on_system_config_rem(self, setting_name, value):
-        # SET SYSTEM CONFIG setting_name -= value;
+        # CONFIGURE SYSTEM RESET ConfigObject;
         if setting_name == 'ports':
             await self._stop_portconf(value)
 
     async def _on_system_config_set(self, setting_name, value):
-        # SET SYSTEM CONFIG setting_name := value;
+        # CONFIGURE SYSTEM SET setting_name := value;
+        pass
+
+    async def _on_system_config_reset(self, setting_name):
+        # CONFIGURE SYSTEM RESET setting_name;
         pass
 
     def get_datadir(self):

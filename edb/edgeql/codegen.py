@@ -1090,32 +1090,29 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' = ')
             self.visit(node.default)
 
-    def visit_SessionSetConfigAssignDecl(self, node):
-        self.write('SET')
-        if node.system:
-            self.write(' SYSTEM')
-        self.write(' CONFIG ')
-        self.write(ident_to_str(node.alias))
+    def visit_ConfigSet(self, node):
+        self.write('CONFIGURE')
+        self.write(' SYSTEM' if node.system else ' SESSION')
+        self.write(' SET ')
+        self.write(ident_to_str(node.name))
         self.write(' := ')
         self.visit(node.expr)
 
-    def visit_SessionSetConfigAddAssignDecl(self, node):
-        self.write('SET')
-        if node.system:
-            self.write(' SYSTEM')
-        self.write(' CONFIG ')
-        self.write(ident_to_str(node.alias))
-        self.write(' += ')
-        self.visit(node.expr)
+    def visit_ConfigInsert(self, node):
+        self.write('CONFIGURE')
+        self.write(' SYSTEM' if node.system else ' SESSION')
+        self.write(' INSERT ')
+        self.write(ident_to_str(node.name))
+        self.indentation += 1
+        self._visit_shape(node.shape)
+        self.indentation -= 1
 
-    def visit_SessionSetConfigRemAssignDecl(self, node):
-        self.write('SET')
-        if node.system:
-            self.write(' SYSTEM')
-        self.write(' CONFIG ')
-        self.write(ident_to_str(node.alias))
-        self.write(' -= ')
-        self.visit(node.expr)
+    def visit_ConfigReset(self, node):
+        self.write('CONFIGURE')
+        self.write(' SYSTEM' if node.system else ' SESSION')
+        self.write(' RESET ')
+        self.write(ident_to_str(node.name))
+        self._visit_filter(node)
 
     def visit_SessionSetAliasDecl(self, node):
         self.write('SET')

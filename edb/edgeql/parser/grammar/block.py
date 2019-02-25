@@ -25,6 +25,7 @@ from .tokens import *  # NOQA
 from .statements import *  # NOQA
 from .ddl import *  # NOQA
 from .session import *  # NOQA
+from .config import *  # NOQA
 
 
 class SingleStatement(Nonterm):
@@ -38,6 +39,10 @@ class SingleStatement(Nonterm):
 
     def reduce_SessionStmt(self, *kids):
         # Session-local utility commands
+        self.val = kids[0].val
+
+    def reduce_ConfigStmt(self, *kids):
+        # Configuration commands
         self.val = kids[0].val
 
 

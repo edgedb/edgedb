@@ -200,13 +200,13 @@ def pg_type_from_ir_typeref(
         else:
             material = ir_typeref
 
-        if irtyputils.is_abstract(material):
-            return ('anynonarray',)
-        elif irtyputils.is_object(material):
+        if irtyputils.is_object(material):
             if serialized:
                 return ('record',)
             else:
                 return ('uuid',)
+        elif irtyputils.is_abstract(material):
+            return ('anynonarray',)
         else:
             pg_type = base_type_name_map.get(material.id)
             if pg_type is None:

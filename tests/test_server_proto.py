@@ -41,7 +41,7 @@ class TestServerProto(tb.QueryTestCase):
         # Used by is_testmode_on() to ensure that config modifications
         # persist correctly when set inside and outside of (potentially
         # failing) transaction blocks.
-        SET CONFIG __internal_testmode := true;
+        CONFIGURE SESSION SET __internal_testmode := true;
     '''
 
     TEARDOWN = '''
@@ -380,11 +380,11 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_set_reset_alias_04(self):
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
-                "unknown CONFIG setting 'blahhhhhh'"):
+                "unrecognized configuration parameter 'blahhhhhh'"):
 
             await self.con.execute('''
                 SET ALIAS foo AS MODULE std;
-                SET CONFIG blahhhhhh := 123;
+                CONFIGURE SESSION SET blahhhhhh := 123;
             ''')
 
         with self.assertRaisesRegex(
@@ -392,35 +392,28 @@ class TestServerProto(tb.QueryTestCase):
                 'non-existent function: foo::min'):
             await self.con.fetch('SELECT foo::min({3})')
 
-    async def test_server_proto_set_config_01(self):
-        with self.assertRaisesRegex(
-                edgedb.ConfigurationError,
-                'is not a system-level'):
-            await self.con.execute('''
-                SET SYSTEM CONFIG __internal_no_const_folding := true;
-            ''')
-
+    async def test_server_proto_configure_01(self):
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
                 'invalid value type'):
             await self.con.execute('''
-                SET CONFIG __internal_no_const_folding := 1;
+                CONFIGURE SESSION SET __internal_no_const_folding := 1;
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'cannot be executed in a transaction block'):
             await self.con.execute('''
-                SET CONFIG __internal_no_const_folding := false;
-                SET SYSTEM CONFIG __internal_testvalue := 1;
+                CONFIGURE SESSION SET __internal_no_const_folding := false;
+                CONFIGURE SYSTEM SET __internal_testvalue := 1;
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'cannot be executed in a transaction block'):
             await self.con.execute('''
-                SET SYSTEM CONFIG __internal_testvalue := 1;
-                SET CONFIG __internal_no_const_folding := false;
+                CONFIGURE SYSTEM SET __internal_testvalue := 1;
+                CONFIGURE SESSION SET __internal_no_const_folding := false;
             ''')
 
         with self.assertRaisesRegex(
@@ -428,10 +421,17 @@ class TestServerProto(tb.QueryTestCase):
                 'cannot be executed in a transaction block'):
             async with self.con.transaction():
                 await self.con.fetch('''
-                    SET SYSTEM CONFIG __internal_testvalue := 1;
+                    CONFIGURE SYSTEM SET __internal_testvalue := 1;
                 ''')
 
-    async def test_server_proto_set_config_02(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'CONFIGURE SESSION INSERT is not supported'):
+            await self.con.fetch('''
+                CONFIGURE SESSION INSERT SessionComposite { name := 'foo' };
+            ''')
+
+    async def test_server_proto_configure_02(self):
         conf = await self.con.fetch_value('''
             SELECT sys::Config {
                 name,
@@ -452,7 +452,7 @@ class TestServerProto(tb.QueryTestCase):
         self.assertTrue(conf.internal)
 
         await self.con.fetch('''
-            SET SYSTEM CONFIG __internal_testvalue := 1;
+            CONFIGURE SYSTEM SET __internal_testvalue := 1;
         ''')
 
         conf = await self.con.fetch_value('''
@@ -637,7 +637,7 @@ class TestServerProto(tb.QueryTestCase):
         await con.execute(f'''
             START TRANSACTION;
 
-            SET CONFIG __internal_testmode := false;
+            CONFIGURE SESSION SET __internal_testmode := false;
 
             DECLARE SAVEPOINT t1;
 
@@ -1353,7 +1353,7 @@ class TestServerProto(tb.QueryTestCase):
                 DECLARE SAVEPOINT c0;
                 SET ALIAS f1 AS MODULE std;
                 DECLARE SAVEPOINT c1;
-                SET CONFIG __internal_testmode := false;
+                CONFIGURE SESSION SET __internal_testmode := false;
                 COMMIT;
 
                 SET ALIAS f2 AS MODULE std;
@@ -1383,12 +1383,13 @@ class TestServerProto(tb.QueryTestCase):
                 async with self.con.transaction():
                     await self.con.fetch(f'SELECT {n}::min({{1}})')
 
-        await self.con.fetch('SET CONFIG __internal_testmode := true')
+        await self.con.fetch(
+            'CONFIGURE SESSION SET __internal_testmode := true')
         self.assertTrue(await self.is_testmode_on())
 
     async def test_server_proto_tx_11(self):
-        # Test that SET ALIAS (and therefore SET CONFIG etc) tracked by
-        # the server behaves exactly like DML tracked by Postgres
+        # Test that SET ALIAS (and therefore CONFIGURE SESSION SET etc)
+        # tracked by the server behaves exactly like DML tracked by Postgres
         # when applied around savepoints.
 
         async def test_funcs(*, count, working, not_working):
@@ -1567,7 +1568,7 @@ class TestServerProto(tb.QueryTestCase):
 
                 await self.con.execute('''
                     SET ALIAS f2 AS MODULE std;
-                    SET CONFIG __internal_testmode := false;
+                    CONFIGURE SESSION SET __internal_testmode := false;
 
                     START TRANSACTION;
 

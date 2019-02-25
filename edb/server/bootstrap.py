@@ -188,7 +188,7 @@ def _process_delta(delta, schema):
     return schema, delta
 
 
-async def _make_stdlib():
+async def _make_stdlib(testmode: bool):
     schema = s_schema.Schema()
 
     current_block = None
@@ -196,6 +196,9 @@ async def _make_stdlib():
     std_texts = []
     for modname in s_schema.STD_LIB + ['stdgraphql']:
         std_texts.append(s_std.get_std_module_text(modname))
+
+    if testmode:
+        std_texts.append(s_std.get_std_module_text('_test'))
 
     ddl_text = '\n'.join(std_texts)
 
@@ -245,7 +248,7 @@ async def _make_stdlib():
     return schema, sql_text
 
 
-async def _init_stdlib(cluster, conn):
+async def _init_stdlib(cluster, conn, testmode):
     data_dir = pathlib.Path(cluster.get_data_dir())
     in_dev_mode = devmode.is_in_dev_mode()
 
@@ -257,15 +260,20 @@ async def _init_stdlib(cluster, conn):
     if in_dev_mode:
         schema_cache = 'backend-stdschema.pickle'
         script_cache = 'backend-stdinitsql.pickle'
+        testmode_flag = 'backend-stdtestmode.pickle'
 
         src_hash = devmode.hash_dirs(CACHE_SRC_DIRS)
-        sql_text = devmode.read_dev_mode_cache(src_hash, script_cache)
+
+        cached_testmode = devmode.read_dev_mode_cache(src_hash, testmode_flag)
+
+        if cached_testmode is not None and cached_testmode == testmode:
+            sql_text = devmode.read_dev_mode_cache(src_hash, script_cache)
 
         if sql_text is not None:
             schema = devmode.read_dev_mode_cache(src_hash, schema_cache)
 
     if sql_text is None or schema is None:
-        schema, sql_text = await _make_stdlib()
+        schema, sql_text = await _make_stdlib(testmode)
     else:
         cache_hit = True
 
@@ -274,6 +282,7 @@ async def _init_stdlib(cluster, conn):
     if not cache_hit and in_dev_mode:
         devmode.write_dev_mode_cache(schema, src_hash, schema_cache)
         devmode.write_dev_mode_cache(sql_text, src_hash, script_cache)
+        devmode.write_dev_mode_cache(testmode, src_hash, testmode_flag)
 
     with open(cluster_schema_cache, 'wb') as f:
         pickle.dump(schema, file=f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -427,7 +436,8 @@ async def bootstrap(cluster, args):
 
                 await _ensure_meta_schema(conn)
 
-                std_schema = await _init_stdlib(cluster, conn)
+                std_schema = await _init_stdlib(
+                    cluster, conn, testmode=args['testmode'])
                 await _bootstrap_config_spec(std_schema, cluster)
                 schema = await _init_defaults(std_schema, std_schema, conn)
                 schema = await _populate_data(std_schema, schema, conn)

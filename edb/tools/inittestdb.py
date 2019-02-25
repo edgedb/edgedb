@@ -82,7 +82,7 @@ def inittestdb(*, data_dir, jobs, tests_dir):
     if not jobs:
         jobs = os.cpu_count()
 
-    cluster = edgedb_cluster.Cluster(data_dir)
+    cluster = edgedb_cluster.Cluster(data_dir, testmode=True)
     print(f'Bootstrapping test EdgeDB instance in {data_dir}...')
 
     try:

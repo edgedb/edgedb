@@ -75,6 +75,11 @@ def __infer_statement(ir, scope_tree, env):
     return infer_cardinality(ir.expr, scope_tree, env)
 
 
+@_infer_cardinality.register(irast.ConfigInsert)
+def __infer_config_insert(ir, scope_tree, env):
+    return infer_cardinality(ir.expr, scope_tree, env)
+
+
 @_infer_cardinality.register(irast.EmptySet)
 def __infer_emptyset(ir, scope_tree, env):
     return ONE
@@ -194,16 +199,17 @@ def _is_ptr_or_self_ref(
         )
 
 
-def _extract_filters(
-        result_set: irast.Set, ir_set: irast.Set,
+def extract_filters(
+        result_set: irast.Set,
+        filter_set: irast.Set,
         scope_tree: typing.Set[irast.PathId],
-        env) -> typing.Sequence[s_pointers.Pointer]:
+        env) -> typing.Sequence[typing.Tuple[s_pointers.Pointer, irast.Set]]:
 
     schema = env.schema
-    scope_tree = _get_set_scope(ir_set, scope_tree)
+    scope_tree = _get_set_scope(filter_set, scope_tree)
 
     ptr_filters = []
-    expr = ir_set.expr
+    expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
         if expr.func_shortname == 'std::=':
             left, right = (a.expr for a in expr.args)
@@ -214,28 +220,34 @@ def _extract_filters(
 
             if op_card == MANY:
                 pass
+
             elif _is_ptr_or_self_ref(left, result_set, env):
                 if infer_cardinality(right, scope_tree, env) == ONE:
                     left_stype = env.set_types[left]
                     if left_stype == result_stype:
-                        ptr_filters.append(left_stype.getptr(schema, 'id'))
+                        ptr = left_stype.getptr(schema, 'id')
                     else:
-                        ptr_filters.append(schema.get(left.rptr.ptrref.name))
+                        ptr = schema.get(left.rptr.ptrref.name)
+
+                    ptr_filters.append((ptr, right))
+
             elif _is_ptr_or_self_ref(right, result_set, env):
                 if infer_cardinality(left, scope_tree, env) == ONE:
                     right_stype = env.set_types[right]
                     if right_stype == result_stype:
-                        ptr_filters.append(right_stype.getptr(schema, 'id'))
+                        ptr = right_stype.getptr(schema, 'id')
                     else:
-                        ptr_filters.append(schema.get(right.rptr.ptrref.name))
+                        ptr = schema.get(right.rptr.ptrref.name)
+
+                    ptr_filters.append((ptr, left))
 
         elif expr.func_shortname == 'std::AND':
             left, right = (a.expr for a in expr.args)
 
             ptr_filters.extend(
-                _extract_filters(result_set, left, scope_tree, env))
+                extract_filters(result_set, left, scope_tree, env))
             ptr_filters.extend(
-                _extract_filters(result_set, right, scope_tree, env))
+                extract_filters(result_set, right, scope_tree, env))
 
     return ptr_filters
 
@@ -246,13 +258,12 @@ def _analyse_filter_clause(
         env) -> qltypes.Cardinality:
 
     schema = env.schema
-    filtered_ptrs = _extract_filters(result_set, filter_clause,
-                                     scope_tree, env)
+    filtered_ptrs = extract_filters(result_set, filter_clause, scope_tree, env)
 
     if filtered_ptrs:
         exclusive_constr = schema.get('std::exclusive')
 
-        for ptr in filtered_ptrs:
+        for ptr, _ in filtered_ptrs:
             is_unique = (
                 ptr.is_id_pointer(schema) or
                 any(c.issubclass(schema, exclusive_constr)
