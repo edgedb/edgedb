@@ -27,7 +27,7 @@ from edb.edgeql import parser as ql_parser
 
 from edb.server import compiler
 from edb.server import config
-from edb.server import http_port
+from edb.server import http_graphql_port
 from edb.server import pgcon
 from edb.server import procpool
 
@@ -93,7 +93,7 @@ class Server:
                          portconf)
             return
 
-        port = http_port.HttpPort(
+        port = http_graphql_port.HttpGraphQLPort(
             server=self,
             loop=self._loop,
             pg_addr=self._pg_addr,

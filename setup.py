@@ -439,6 +439,18 @@ setuptools.setup(
             ["edb/server/pgcon/pgcon.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
+            "edb.server.http.http",
+            ["edb/server/http/http.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
+            "edb.server.http_graphql_port.protocol",
+            ["edb/server/http_graphql_port/protocol.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
     ],
     install_requires=RUNTIME_DEPS,
     extras_require=EXTRA_DEPS,
