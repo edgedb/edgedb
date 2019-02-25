@@ -291,6 +291,32 @@ class Cli:
         self.prompt.app.current_buffer.reset()
         print('\r                ')
 
+    def fetch(self, query: str, *, json: bool, retry: bool=True):
+        self.ensure_connection()
+
+        if json:
+            meth = self.connection.fetch_json
+        else:
+            meth = self.connection.fetch
+
+        try:
+            result = meth(query)
+        except (ConnectionAbortedError, BrokenPipeError):
+            # The connection is closed; try again with a new one.
+            if retry:
+                self.connection.close()
+                self.connection = None
+
+                render.render_error(
+                    self.context,
+                    '== connection is closed; attempting to open a new one ==')
+
+                return self.fetch(query, json=json, retry=False)
+            else:
+                raise
+
+        return result, self.connection._get_last_status()
+
     def run(self):
         self.prompt = self.build_propmpt()
         self.ensure_connection()
@@ -328,22 +354,15 @@ class Cli:
                         print(R'Try \? to see the list of supported commands.')
                     continue
 
-                self.ensure_connection()
                 qm = self.context.query_mode
                 results = []
                 try:
                     if qm is context.QueryMode.Normal:
                         for query in lexutils.split_edgeql(command)[0]:
-                            results.append((
-                                self.connection.fetch(query),
-                                self.connection._get_last_status()
-                            ))
+                            results.append(self.fetch(query, json=False))
                     else:
                         for query in lexutils.split_edgeql(command)[0]:
-                            results.append((
-                                self.connection.fetch_json(query),
-                                self.connection._get_last_status()
-                            ))
+                            results.append(self.fetch(query, json=True))
 
                 except KeyboardInterrupt:
                     self.connection.close()
@@ -351,7 +370,7 @@ class Cli:
                     print('\r', end='')
                     render.render_error(
                         self.context,
-                        '{aborting query and closing the connection}')
+                        '== aborting query and closing the connection ==')
                     continue
                 except Exception as ex:
                     render.render_error(
