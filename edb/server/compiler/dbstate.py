@@ -72,8 +72,8 @@ class SimpleQuery(BaseQuery):
 @dataclasses.dataclass(frozen=True)
 class SessionStateQuery(BaseQuery):
 
-    has_system_settings: bool = False
-    config_ops: typing.Optional[typing.List[config.Operation]] = None
+    is_system_setting: bool = False
+    config_op: typing.Optional[config.Operation] = None
 
 
 @dataclasses.dataclass(frozen=True)

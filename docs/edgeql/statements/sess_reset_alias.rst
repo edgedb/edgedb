@@ -1,4 +1,4 @@
-.. _ref_eql_statements_session_reset:
+.. _ref_eql_statements_session_reset_alias:
 
 RESET
 =====
@@ -10,13 +10,9 @@ RESET
 
 .. eql:synopsis::
 
-    RESET <reset-command> [ , ... ] ;
-
-    # where <reset-command> is one of the following:
-
-    MODULE
-    ALIAS <alias>
-    ALIAS *
+    RESET MODULE ;
+    RESET ALIAS <alias> ;
+    RESET ALIAS * ;
 
 
 Description
@@ -26,10 +22,10 @@ This command allows resetting one or many configuration parameters of
 the current session.
 
 
-Parameters
+Variations
 ----------
 
-:eql:synopsis:`MODULE`
+:eql:synopsis:`RESET MODULE`
     Reset the default module name back to "default" for the current
     session.
 
@@ -52,7 +48,7 @@ Parameters
         SELECT FooType;
 
 
-:eql:synopsis:`ALIAS <alias>`
+:eql:synopsis:`RESET ALIAS <alias>`
     Reset :eql:synopsis:`<alias>` for the current session.
 
     For example:
@@ -73,11 +69,11 @@ Parameters
         # module "foo".
         SELECT foo::min({1});
 
-:eql:synopsis:`ALIAS *`
+:eql:synopsis:`RESET ALIAS *`
     Reset all aliases defined in the current session.  This command
     affects aliases set with
-    :ref:`SET ALIAS <ref_eql_statements_session_set>` and
-    :ref:`SET MODULE <ref_eql_statements_session_set>`.
+    :ref:`SET ALIAS <ref_eql_statements_session_set_alias>` and
+    :ref:`SET MODULE <ref_eql_statements_session_set_alias>`.
     The default module will be set to "default".
 
     Example:
@@ -95,9 +91,7 @@ Examples
 
     RESET MODULE;
 
-    RESET ALIAS foo, ALIAS bar;
-
-    RESET MODULE, ALIAS foo;
+    RESET ALIAS foo;
 
     RESET ALIAS *;
 
@@ -105,4 +99,4 @@ Examples
 See Also
 --------
 
-:ref:`SET <ref_eql_statements_session_set>` command.
+:ref:`SET ALIAS <ref_eql_statements_session_set_alias>` command.

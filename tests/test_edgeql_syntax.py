@@ -3399,48 +3399,26 @@ aa';
 
     def test_edgeql_syntax_set_command_03(self):
         """
-        SET MODULE default, CONFIG foo := (SELECT User);
-        """
-
-    def test_edgeql_syntax_set_command_04(self):
-        """
+        SET MODULE default;
+        SET CONFIG foo := (SELECT User);
         SET SYSTEM CONFIG foo := (SELECT User);
+        SET CONFIG foo -= 'aa';
+        SET CONFIG bar += 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'SET supports at most one SET SYSTEM',
-                  line=2, col=9)
-    def test_edgeql_syntax_set_command_05(self):
+                  r"Unexpected ','")
+    def test_edgeql_syntax_set_command_04(self):
+        # Old and no longer supported syntax that allowed to
+        # specify multiple comma-separated SET subcommands.
         """
         SET SYSTEM CONFIG foo += '12', SYSTEM CONFIG baz -= '11';
-        """
-
-    def test_edgeql_syntax_set_command_06(self):
-        """
-        SET CONFIG foo -= 'aa', CONFIG bar += 'aaa';
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'SET supports at most one SET SYSTEM',
-                  line=2, col=9)
-    def test_edgeql_syntax_set_command_07(self):
-        """
-        SET CONFIG foo -= 'aa', SYSTEM CONFIG bar += 'aaa';
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'SET supports at most one SET SYSTEM',
-                  line=2, col=9)
-    def test_edgeql_syntax_set_command_08(self):
-        """
-        SET ALIAS foo AS MODULE aa, SYSTEM CONFIG bar += 'aaa';
         """
 
     def test_edgeql_syntax_reset_command_01(self):
         """
         RESET MODULE;
-        RESET ALIAS foo, ALIAS bar;
-        RESET ALIAS foo, MODULE;
+        RESET ALIAS foo;
         RESET ALIAS *;
         """
 

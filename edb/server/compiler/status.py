@@ -120,11 +120,20 @@ def _tx_sp_release(ql):
     return b'RELEASE SAVEPOINT'
 
 
-@get_status.register(qlast.SetSessionState)
-def _sess_set(ql):
-    return b'SET'
+@get_status.register(qlast.SessionSetAliasDecl)
+def _sess_set_alias(ql):
+    return b'SET ALIAS'
 
 
-@get_status.register(qlast.ResetSessionState)
-def _sess_reset(ql):
-    return b'RESET'
+@get_status.register(qlast.SessionResetAliasDecl)
+@get_status.register(qlast.SessionResetModule)
+@get_status.register(qlast.SessionResetAllAliases)
+def _sess_reset_alias(ql):
+    return b'RESET ALIAS'
+
+
+@get_status.register(qlast.SessionSetConfigAssignDecl)
+@get_status.register(qlast.SessionSetConfigAddAssignDecl)
+@get_status.register(qlast.SessionSetConfigRemAssignDecl)
+def _sess_set_config(ql):
+    return b'SET CONFIG'

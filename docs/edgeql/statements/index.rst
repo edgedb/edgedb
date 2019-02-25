@@ -57,6 +57,11 @@ Transaction control statements:
 
   Release a previously declared savepoint.
 
+Session state control statements:
+
+* :ref:`SET ALIAS <ref_eql_statements_session_set_alias>` and
+  :ref:`RESET ALIAS <ref_eql_statements_session_reset_alias>`.
+
 
 .. toctree::
     :maxdepth: 3
@@ -76,5 +81,5 @@ Transaction control statements:
     tx_sp_release
     tx_sp_rollback
 
-    sess_set
-    sess_reset
+    sess_set_alias
+    sess_reset_alias

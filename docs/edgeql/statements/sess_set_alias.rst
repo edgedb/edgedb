@@ -1,4 +1,4 @@
-.. _ref_eql_statements_session_set:
+.. _ref_eql_statements_session_set_alias:
 
 SET
 ===
@@ -10,12 +10,8 @@ SET
 
 .. eql:synopsis::
 
-    SET <set-command> [ , ... ] ;
-
-    # where <set-command> is one of the following:
-
-    MODULE <module>
-    ALIAS <alias> AS MODULE <module>
+    SET MODULE <module> ;
+    SET ALIAS <alias> AS MODULE <module> ;
 
 
 Description
@@ -24,10 +20,10 @@ Description
 This command allows altering the configuration of the current session.
 
 
-Parameters
+Variations
 ----------
 
-:eql:synopsis:`MODULE <module>`
+:eql:synopsis:`SET MODULE <module>`
     Set the default module for the current section to *module*.
 
     For example, if a module ``foo`` contains type ``FooType``,
@@ -48,7 +44,7 @@ Parameters
         SELECT FooType;
 
 
-:eql:synopsis:`ALIAS <alias> AS MODULE <module>`
+:eql:synopsis:`SET ALIAS <alias> AS MODULE <module>`
     Define :eql:synopsis:`<alias>` for the
     :eql:synopsis:`<module>`.
 
@@ -78,12 +74,10 @@ Examples
 
     SET MODULE foo;
 
-    SET ALIAS foo AS MODULE std, MODULE bar;
-
-    SET ALIAS foo AS MODULE std, ALIAS bar AS MODULE sys;
+    SET ALIAS foo AS MODULE std;
 
 
 See Also
 --------
 
-:ref:`RESET <ref_eql_statements_session_reset>` command.
+:ref:`RESET ALIAS <ref_eql_statements_session_reset_alias>` command.

@@ -16,12 +16,8 @@
 # limitations under the License.
 #
 
-from edb import errors
-
-from edb.common.parsing import ListNonterm
 from edb.edgeql import ast as qlast
 
-from . import tokens
 from .expressions import Nonterm
 from .tokens import *  # NOQA
 from .expressions import *  # NOQA
@@ -43,77 +39,42 @@ class OptSystem(Nonterm):
         self.val = True
 
 
-class SetDecl(Nonterm):
-    def reduce_ALIAS_Identifier_AS_MODULE_ModuleName(self, *kids):
-        self.val = qlast.SessionSetAliasDecl(
-            module='.'.join(kids[4].val),
-            alias=kids[1].val)
-
-    def reduce_MODULE_ModuleName(self, *kids):
-        self.val = qlast.SessionSetAliasDecl(
-            module='.'.join(kids[1].val))
-
-    def reduce_OptSystem_CONFIG_Identifier_ASSIGN_Expr(self, *kids):
-        self.val = qlast.SessionSetConfigAssignDecl(
-            system=kids[0].val,
-            alias=kids[2].val,
-            expr=kids[4].val)
-
-    def reduce_OptSystem_CONFIG_Identifier_ADDASSIGN_Expr(self, *kids):
-        self.val = qlast.SessionSetConfigAddAssignDecl(
-            system=kids[0].val,
-            alias=kids[2].val,
-            expr=kids[4].val)
-
-    def reduce_OptSystem_CONFIG_Identifier_REMASSIGN_Expr(self, *kids):
-        self.val = qlast.SessionSetConfigRemAssignDecl(
-            system=kids[0].val,
-            alias=kids[2].val,
-            expr=kids[4].val)
-
-
-class SetDeclList(ListNonterm, element=SetDecl,
-                  separator=tokens.T_COMMA):
-    pass
-
-
 class SetStmt(Nonterm):
-    def reduce_SET_SetDeclList(self, *kids):
-        has_system_commands = any(
-            node.system
-            for node in kids[1].val
-            if isinstance(node, qlast.BaseSessionConfigSet)
-        )
+    def reduce_SET_ALIAS_Identifier_AS_MODULE_ModuleName(self, *kids):
+        self.val = qlast.SessionSetAliasDecl(
+            module='.'.join(kids[5].val),
+            alias=kids[2].val)
 
-        if has_system_commands and len(kids[1].val) > 1:
-            raise errors.EdgeQLSyntaxError(
-                "SET supports at most one SET SYSTEM CONFIG command",
-                context=kids[0].context)
+    def reduce_SET_MODULE_ModuleName(self, *kids):
+        self.val = qlast.SessionSetAliasDecl(
+            module='.'.join(kids[2].val))
 
-        self.val = qlast.SetSessionState(
-            items=kids[1].val
-        )
+    def reduce_SET_OptSystem_CONFIG_Identifier_ASSIGN_Expr(self, *kids):
+        self.val = qlast.SessionSetConfigAssignDecl(
+            system=kids[1].val,
+            alias=kids[3].val,
+            expr=kids[5].val)
 
+    def reduce_SET_OptSystem_CONFIG_Identifier_ADDASSIGN_Expr(self, *kids):
+        self.val = qlast.SessionSetConfigAddAssignDecl(
+            system=kids[1].val,
+            alias=kids[3].val,
+            expr=kids[5].val)
 
-class ResetDecl(Nonterm):
-    def reduce_ALIAS_Identifier(self, *kids):
-        self.val = qlast.SessionResetAliasDecl(
-            alias=kids[1].val)
-
-    def reduce_MODULE(self, *kids):
-        self.val = qlast.SessionResetModule()
-
-    def reduce_ALIAS_STAR(self, *kids):
-        self.val = qlast.SessionResetAllAliases()
-
-
-class ResetDeclList(ListNonterm, element=ResetDecl,
-                    separator=tokens.T_COMMA):
-    pass
+    def reduce_SET_OptSystem_CONFIG_Identifier_REMASSIGN_Expr(self, *kids):
+        self.val = qlast.SessionSetConfigRemAssignDecl(
+            system=kids[1].val,
+            alias=kids[3].val,
+            expr=kids[5].val)
 
 
 class ResetStmt(Nonterm):
-    def reduce_RESET_ResetDeclList(self, *kids):
-        self.val = qlast.ResetSessionState(
-            items=kids[1].val
-        )
+    def reduce_RESET_ALIAS_Identifier(self, *kids):
+        self.val = qlast.SessionResetAliasDecl(
+            alias=kids[2].val)
+
+    def reduce_RESET_MODULE(self, *kids):
+        self.val = qlast.SessionResetModule()
+
+    def reduce_RESET_ALIAS_STAR(self, *kids):
+        self.val = qlast.SessionResetAllAliases()

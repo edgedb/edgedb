@@ -516,15 +516,15 @@ class Compiler:
             modaliases=modaliases)
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
-                               ql: qlast.SetSessionState):
+                               ql: qlast.BaseSessionCommand):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema()
 
         aliases = ctx.state.current_tx().get_modaliases()
         session_config = ctx.state.current_tx().get_session_config()
 
-        config_ops = []
-        has_system_settings = False
+        config_op = None
+        is_system_setting = False
 
         sqlbuf = []
 
@@ -541,146 +541,144 @@ class Compiler:
                 SET value = {pg_ql(module)};
         '''.encode()
 
-        for item in ql.items:
-            if isinstance(item, qlast.SessionSetAliasDecl):
-                try:
-                    schema.get(item.module)
-                except errors.InvalidReferenceError:
-                    raise errors.UnknownModuleError(
-                        f'module {item.module!r} does not exist') from None
+        if isinstance(ql, qlast.SessionSetAliasDecl):
+            try:
+                schema.get(ql.module)
+            except errors.InvalidReferenceError:
+                raise errors.UnknownModuleError(
+                    f'module {ql.module!r} does not exist') from None
 
-                aliases = aliases.set(item.alias, item.module)
+            aliases = aliases.set(ql.alias, ql.module)
 
-                if not self._bootstrap_mode:
-                    sql = alias_tpl(item.alias, item.module)
-                    sqlbuf.append(sql)
+            if not self._bootstrap_mode:
+                sql = alias_tpl(ql.alias, ql.module)
+                sqlbuf.append(sql)
 
-            elif isinstance(item, qlast.BaseSessionConfigSet):
-                if item.system:
-                    if not current_tx.is_implicit():
-                        raise errors.QueryError(
-                            'SET SYSTEM CONFIG cannot be executed in a '
-                            'transaction block')
-                    has_system_settings = True
+        elif isinstance(ql, qlast.BaseSessionConfigSet):
+            if ql.system:
+                if not current_tx.is_implicit():
+                    raise errors.QueryError(
+                        'SET SYSTEM CONFIG cannot be executed in a '
+                        'transaction block')
+                is_system_setting = True
 
-                name = item.alias
-                try:
-                    setting = config.settings[name]
-                except KeyError:
+            name = ql.alias
+            try:
+                setting = config.settings[name]
+            except KeyError:
+                raise errors.ConfigurationError(
+                    f'invalid SET expression: '
+                    f'unknown CONFIG setting {name!r}')
+
+            if ql.system and not setting.system:
+                raise errors.ConfigurationError(
+                    f'{name!r} is not a system-level config setting; '
+                    f'use "SET CONFIG {name}" command')
+            if not ql.system and setting.system:
+                raise errors.ConfigurationError(
+                    f'{name!r} is a system-level config setting; '
+                    f'use "SET SYSTEM CONFIG {name}" command')
+
+            try:
+                val_ir = ql_compiler.compile_ast_fragment_to_ir(
+                    ql.expr, schema=self._std_schema)
+                config_val = ireval.evaluate_to_python_val(
+                    val_ir.expr, schema=self._std_schema)
+            except ireval.StaticEvaluationError:
+                raise errors.ConfigurationError(
+                    f'invalid CONFIG value for the {name!r} setting')
+
+            opcode = None
+            if setting.set_of:
+                if isinstance(ql, qlast.SessionSetConfigAssignDecl):
                     raise errors.ConfigurationError(
                         f'invalid SET expression: '
-                        f'unknown CONFIG setting {name!r}')
+                        f'cannot use := on set config settings')
 
-                if item.system and not setting.system:
+                if isinstance(ql, qlast.SessionSetConfigAddAssignDecl):
+                    opcode = config.OpCode.CONFIG_ADD
+                elif isinstance(ql, qlast.SessionSetConfigRemAssignDecl):
+                    opcode = config.OpCode.CONFIG_REM
+
+            else:
+                if isinstance(ql, qlast.SessionSetConfigAddAssignDecl):
                     raise errors.ConfigurationError(
-                        f'{name!r} is not a system-level config setting; '
-                        f'use "SET CONFIG {name}" command')
-                if not item.system and setting.system:
+                        f'invalid SET expression: '
+                        f'cannot use += on scalar config settings')
+
+                if isinstance(ql, qlast.SessionSetConfigRemAssignDecl):
                     raise errors.ConfigurationError(
-                        f'{name!r} is a system-level config setting; '
-                        f'use "SET SYSTEM CONFIG {name}" command')
+                        f'invalid SET expression: '
+                        f'cannot use -= on scalar config settings')
 
-                try:
-                    val_ir = ql_compiler.compile_ast_fragment_to_ir(
-                        item.expr, schema=self._std_schema)
-                    config_val = ireval.evaluate_to_python_val(
-                        val_ir.expr, schema=self._std_schema)
-                except ireval.StaticEvaluationError:
-                    raise errors.ConfigurationError(
-                        f'invalid CONFIG value for the {name!r} setting')
+                opcode = config.OpCode.CONFIG_SET
 
-                opcode = None
-                if setting.set_of:
-                    if isinstance(item, qlast.SessionSetConfigAssignDecl):
-                        raise errors.ConfigurationError(
-                            f'invalid SET expression: '
-                            f'cannot use := on set config settings')
+            config_op = config.Operation(
+                opcode,
+                (config.OpLevel.SYSTEM
+                    if ql.system else config.OpLevel.SESSION),
+                name,
+                config_val
+            )
 
-                    if isinstance(item, qlast.SessionSetConfigAddAssignDecl):
-                        opcode = config.OpCode.CONFIG_ADD
-                    elif isinstance(item, qlast.SessionSetConfigRemAssignDecl):
-                        opcode = config.OpCode.CONFIG_REM
+            if not ql.system:
+                session_config = config_op.apply(
+                    config.settings,
+                    session_config)
 
-                else:
-                    if isinstance(item, qlast.SessionSetConfigAddAssignDecl):
-                        raise errors.ConfigurationError(
-                            f'invalid SET expression: '
-                            f'cannot use += on scalar config settings')
+            if not self._bootstrap_mode and not ql.system:
+                # We only want to persist session-level config
+                # changes in the temporary table.  System-level
+                # configs are persisted in a JSON file in the
+                # data-dir.
+                value_json = config.value_to_json(setting, config_val)
+                value_edgeql = config.value_to_json_edgeql_value(
+                    setting, config_val)
 
-                    if isinstance(item, qlast.SessionSetConfigRemAssignDecl):
-                        raise errors.ConfigurationError(
-                            f'invalid SET expression: '
-                            f'cannot use -= on scalar config settings')
+                sql = f'''
+                    INSERT INTO
+                        _edgecon_state(name, value, edgeql_value, type)
+                    VALUES (
+                        {pg_ql(name)},
+                        {pg_ql(value_json)},
+                        {pg_ql(value_edgeql)},
+                        'C'
+                    )
+                    ON CONFLICT (name, type) DO
+                    UPDATE
+                        SET value = {pg_ql(value_json)},
+                            edgeql_value = {pg_ql(value_edgeql)};
+                '''
+                sqlbuf.append(sql.encode())
 
-                    opcode = config.OpCode.CONFIG_SET
+        elif isinstance(ql, qlast.SessionResetModule):
+            aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
 
-                op = config.Operation(
-                    opcode,
-                    (config.OpLevel.SYSTEM
-                        if item.system else config.OpLevel.SESSION),
-                    name,
-                    config_val
-                )
-                config_ops.append(op)
+            if not self._bootstrap_mode:
+                sql = alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
+                sqlbuf.append(sql)
 
-                if not item.system:
-                    session_config = op.apply(
-                        config.settings,
-                        session_config)
+        elif isinstance(ql, qlast.SessionResetAllAliases):
+            aliases = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
 
-                if not self._bootstrap_mode and not item.system:
-                    # We only want to persist session-level config
-                    # changes in the temporary table.  System-level
-                    # configs are persisted in a JSON file in the
-                    # data-dir.
-                    value_json = config.value_to_json(setting, config_val)
-                    value_edgeql = config.value_to_json_edgeql_value(
-                        setting, config_val)
+            if not self._bootstrap_mode:
+                sql = b"DELETE FROM _edgecon_state s WHERE s.type = 'A';"
+                sql += alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
+                sqlbuf.append(sql)
 
-                    sql = f'''
-                        INSERT INTO
-                            _edgecon_state(name, value, edgeql_value, type)
-                        VALUES (
-                            {pg_ql(name)},
-                            {pg_ql(value_json)},
-                            {pg_ql(value_edgeql)},
-                            'C'
-                        )
-                        ON CONFLICT (name, type) DO
-                        UPDATE
-                            SET value = {pg_ql(value_json)},
-                                edgeql_value = {pg_ql(value_edgeql)};
-                    '''
-                    sqlbuf.append(sql.encode())
+        elif isinstance(ql, qlast.SessionResetAliasDecl):
+            aliases = aliases.delete(ql.alias)
 
-            elif isinstance(item, qlast.SessionResetModule):
-                aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
+            if not self._bootstrap_mode:
+                sql = f'''
+                    DELETE FROM _edgecon_state s
+                    WHERE s.name = {pg_ql(ql.alias)} AND s.type = 'A';
+                '''.encode()
+                sqlbuf.append(sql)
 
-                if not self._bootstrap_mode:
-                    sql = alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
-                    sqlbuf.append(sql)
-
-            elif isinstance(item, qlast.SessionResetAllAliases):
-                aliases = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
-
-                if not self._bootstrap_mode:
-                    sql = b"DELETE FROM _edgecon_state s WHERE s.type = 'A';"
-                    sql += alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
-                    sqlbuf.append(sql)
-
-            elif isinstance(item, qlast.SessionResetAliasDecl):
-                aliases = aliases.delete(item.alias)
-
-                if not self._bootstrap_mode:
-                    sql = f'''
-                        DELETE FROM _edgecon_state s
-                        WHERE s.name = {pg_ql(item.alias)} AND s.type = 'A';
-                    '''.encode()
-                    sqlbuf.append(sql)
-
-            else:  # pragma: no cover
-                raise errors.InternalServerError(
-                    f'unsupported SET command type {type(item)!r}')
+        else:  # pragma: no cover
+            raise errors.InternalServerError(
+                f'unsupported SET command type {type(ql)!r}')
 
         ctx.state.current_tx().update_modaliases(aliases)
         ctx.state.current_tx().update_session_config(session_config)
@@ -696,8 +694,8 @@ class Compiler:
 
         return dbstate.SessionStateQuery(
             sql=(sql,),
-            has_system_settings=has_system_settings,
-            config_ops=config_ops if config_ops else None,
+            is_system_setting=is_system_setting,
+            config_op=config_op,
         )
 
     def _compile_dispatch_ql(self, ctx: CompileContext, ql: qlast.Base):
@@ -721,7 +719,7 @@ class Compiler:
                     f'for the current connection')
             return self._compile_ql_transaction(ctx, ql)
 
-        elif isinstance(ql, (qlast.SetSessionState, qlast.ResetSessionState)):
+        elif isinstance(ql, (qlast.BaseSessionSet, qlast.BaseSessionReset)):
             if not (ctx.state.capability & enums.Capability.SESSION):
                 raise errors.ProtocolError(
                     f'cannot execute session control commands '
@@ -841,7 +839,7 @@ class Compiler:
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql += comp.sql
 
-                if comp.has_system_settings and (
+                if comp.is_system_setting and (
                         not ctx.state.current_tx().is_implicit() or
                         statements_len > 1):
                     raise errors.QueryError(
@@ -854,10 +852,10 @@ class Compiler:
                 if ctx.state.current_tx().is_implicit():
                     unit.modaliases = ctx.state.current_tx().get_modaliases()
 
-                if comp.config_ops:
+                if comp.config_op is not None:
                     if unit.config_ops is None:
                         unit.config_ops = []
-                    unit.config_ops.extend(comp.config_ops)
+                    unit.config_ops.append(comp.config_op)
 
                 unit.has_set = True
 

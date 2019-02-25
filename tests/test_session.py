@@ -84,14 +84,16 @@ class TestSession(tb.QueryTestCase):
             await self.con.fetch('SELECT User {name};')
 
     async def test_session_set_command_03(self):
-        await self.con.execute('SET MODULE foo, ALIAS bar AS MODULE default;')
+        await self.con.execute(
+            'SET MODULE foo; SET ALIAS bar AS MODULE default;')
         await self.assert_query_result(
             """SELECT (Entity.name, bar::User.name);""",
             [['entity', 'user']]
         )
 
     async def test_session_set_command_05(self):
-        await self.con.execute('SET MODULE default, ALIAS bar AS MODULE foo;')
+        await self.con.execute(
+            'SET MODULE default; SET ALIAS bar AS MODULE foo;')
         # Check that local WITH overrides the session level setting.
         await self.assert_query_result(
             """

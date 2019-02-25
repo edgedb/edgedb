@@ -201,11 +201,10 @@ class TestServerProto(tb.QueryTestCase):
             SET MODULE default;
         ''')
         self.assertEqual(r, [])
-        self.assertEqual(self.con._get_last_status(), 'SET')
+        self.assertEqual(self.con._get_last_status(), 'SET ALIAS')
 
         r = await self.con.fetch('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            SET ALIAS foo AS MODULE default;
         ''')
         self.assertEqual(r, [])
 
@@ -215,8 +214,7 @@ class TestServerProto(tb.QueryTestCase):
         self.assertIsNone(r)
 
         r = await self.con.fetch_value('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            SET ALIAS foo AS MODULE default;
         ''')
         self.assertIsNone(r)
 
@@ -226,8 +224,7 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(r, '[]')
 
         r = await self.con.fetch_json('''
-            SET ALIAS foo AS MODULE default,
-                ALIAS bar AS MODULE std;
+            SET ALIAS foo AS MODULE default;
         ''')
         self.assertEqual(r, '[]')
 
@@ -386,8 +383,8 @@ class TestServerProto(tb.QueryTestCase):
                 "unknown CONFIG setting 'blahhhhhh'"):
 
             await self.con.execute('''
-                SET ALIAS foo AS MODULE std,
-                    CONFIG blahhhhhh := 123;
+                SET ALIAS foo AS MODULE std;
+                SET CONFIG blahhhhhh := 123;
             ''')
 
         with self.assertRaisesRegex(
@@ -396,15 +393,6 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.fetch('SELECT foo::min({3})')
 
     async def test_server_proto_set_config_01(self):
-        with self.assertRaisesRegex(
-                edgedb.EdgeQLSyntaxError,
-                'SET supports at most one SET SYSTEM'):
-
-            await self.con.execute('''
-                SET ALIAS foo AS MODULE std,
-                    SYSTEM CONFIG __internal_testvalue := 1;
-            ''')
-
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
                 'is not a system-level'):
@@ -978,7 +966,7 @@ class TestServerProto(tb.QueryTestCase):
             SET ALIAS t2 AS MODULE std;
         ''')
 
-        self.assertEqual(self.con._get_last_status(), 'SET')
+        self.assertEqual(self.con._get_last_status(), 'SET ALIAS')
 
         try:
 
@@ -1067,7 +1055,7 @@ class TestServerProto(tb.QueryTestCase):
                 ROLLBACK TO SAVEPOINT t1;
                 SET ALIAS t2 AS MODULE std;
             ''')
-            self.assertEqual(self.con._get_last_status(), 'SET')
+            self.assertEqual(self.con._get_last_status(), 'SET ALIAS')
 
             self.assertEqual(
                 await con.fetch('SELECT t2::min({2})'),

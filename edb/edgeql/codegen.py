@@ -1083,6 +1083,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.default)
 
     def visit_SessionSetConfigAssignDecl(self, node):
+        self.write('SET')
         if node.system:
             self.write(' SYSTEM')
         self.write(' CONFIG ')
@@ -1091,6 +1092,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_SessionSetConfigAddAssignDecl(self, node):
+        self.write('SET')
         if node.system:
             self.write(' SYSTEM')
         self.write(' CONFIG ')
@@ -1099,6 +1101,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_SessionSetConfigRemAssignDecl(self, node):
+        self.write('SET')
         if node.system:
             self.write(' SYSTEM')
         self.write(' CONFIG ')
@@ -1107,36 +1110,25 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_SessionSetAliasDecl(self, node):
+        self.write('SET')
         if node.alias:
             self.write(' ALIAS ')
             self.write(ident_to_str(node.alias))
             self.write(' AS MODULE ')
             self.write(node.module)
         else:
-            self.write(' MODULE')
+            self.write(' MODULE ')
             self.write(node.module)
 
-    def visit_SetSessionState(self, node):
-        self.write('SET')
-        self._block_ws(1)
-        self.visit_list(node.items)
-        self._block_ws(-1)
-
     def visit_SessionResetAllAliases(self, node):
-        self.write(' ALIAS *')
+        self.write('RESET ALIAS *')
 
     def visit_SessionResetModule(self, node):
-        self.write(' MODULE')
+        self.write('RESET MODULE')
 
     def visit_SessionResetAliasDecl(self, node):
-        self.write(' ALIAS ')
+        self.write('RESET ALIAS ')
         self.write(node.alias)
-
-    def visit_ResetSessionState(self, node):
-        self.write('RESET')
-        self._block_ws(1)
-        self.visit_list(node.items)
-        self._block_ws(-1)
 
     def visit_StartTransaction(self, node):
         self.write('START TRANSACTION')
