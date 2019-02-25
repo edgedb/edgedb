@@ -247,7 +247,13 @@ class Cli:
 
     @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args):
-        result = self.connection.fetch('SELECT schema::Database.name')
+        result, _ = self.fetch(
+            '''
+                SELECT name := schema::Database.name
+                ORDER BY name ASC
+            ''',
+            json=False
+        )
 
         print('List of databases:')
         for dbn in result:
