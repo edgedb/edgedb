@@ -662,9 +662,10 @@ class Compiler:
             aliases = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
 
             if not self._bootstrap_mode:
-                sql = b"DELETE FROM _edgecon_state s WHERE s.type = 'A';"
-                sql += alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
-                sqlbuf.append(sql)
+                sqlbuf.append(
+                    b"DELETE FROM _edgecon_state s WHERE s.type = 'A';")
+                sqlbuf.append(
+                    alias_tpl('', defines.DEFAULT_MODULE_ALIAS))
 
         elif isinstance(ql, qlast.SessionResetAliasDecl):
             aliases = aliases.delete(ql.alias)

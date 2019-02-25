@@ -305,7 +305,7 @@ class TestServerProto(tb.QueryTestCase):
                 'non-existent function: bar::min'):
             await self.con.fetch('SELECT bar::min({1})')
 
-        await self.con.execute('''
+        await self.con.fetch('''
             RESET ALIAS *;
         ''')
 
