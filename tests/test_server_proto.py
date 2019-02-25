@@ -108,11 +108,13 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaises(edgedb.DivisionByZeroError):
                 await self.con.fetch('select 1 / 0;')
+            self.assertEqual(self.con._get_last_status(), None)
 
             for _ in range(10):
                 self.assertEqual(
                     await self.con.fetch('select 1;'),
                     edgedb.Set((1,)))
+                self.assertEqual(self.con._get_last_status(), 'SELECT')
 
     async def test_server_proto_exec_error_recover_02(self):
         for _ in range(2):
@@ -160,11 +162,13 @@ class TestServerProto(tb.QueryTestCase):
             };
         ''')
         self.assertEqual(r, [])
+        self.assertEqual(self.con._get_last_status(), 'CREATE')
 
         r = await self.con.fetch('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, [])
+        self.assertEqual(self.con._get_last_status(), 'DROP')
 
         r = await self.con.fetch_value('''
             CREATE TYPE test::server_fetch_single_command_01 {
@@ -197,6 +201,7 @@ class TestServerProto(tb.QueryTestCase):
             SET MODULE default;
         ''')
         self.assertEqual(r, [])
+        self.assertEqual(self.con._get_last_status(), 'SET')
 
         r = await self.con.fetch('''
             SET ALIAS foo AS MODULE default,
@@ -561,6 +566,8 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.fetch_json('SELECT <int64>{}'),
                 '[]')
 
+        self.assertEqual(self.con._get_last_status(), 'SELECT')
+
     async def test_server_proto_args_01(self):
         self.assertEqual(
             await self.con.fetch(
@@ -652,6 +659,8 @@ class TestServerProto(tb.QueryTestCase):
 
             DECLARE SAVEPOINT t1;
         ''')
+
+        self.assertEqual(self.con._get_last_status(), 'DECLARE SAVEPOINT')
 
         # Make sure that __internal_testmode was indeed updated.
         self.assertFalse(await self.is_testmode_on())
@@ -969,6 +978,8 @@ class TestServerProto(tb.QueryTestCase):
             SET ALIAS t2 AS MODULE std;
         ''')
 
+        self.assertEqual(self.con._get_last_status(), 'SET')
+
         try:
 
             for _ in range(5):
@@ -1026,6 +1037,7 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
         await con.execute('ROLLBACK;')
+        self.assertEqual(self.con._get_last_status(), 'ROLLBACK')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
@@ -1055,6 +1067,7 @@ class TestServerProto(tb.QueryTestCase):
                 ROLLBACK TO SAVEPOINT t1;
                 SET ALIAS t2 AS MODULE std;
             ''')
+            self.assertEqual(self.con._get_last_status(), 'SET')
 
             self.assertEqual(
                 await con.fetch('SELECT t2::min({2})'),

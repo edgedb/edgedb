@@ -59,6 +59,7 @@ from . import dbstate
 from . import enums
 from . import errormech
 from . import sertypes
+from . import status
 from . import stdschema
 
 
@@ -756,9 +757,12 @@ class Compiler:
                 # before using SKIP_FIRST.
                 raise errors.ProtocolError(
                     f'no statements to compile in SKIP_FIRST mode')
-        elif single_stmt_mode and statements_len > 1:
+        elif single_stmt_mode and statements_len != 1:
             raise errors.ProtocolError(
                 f'expected one statement, got {statements_len}')
+
+        if not len(statements):  # pragma: no cover
+            raise errors.ProtocolError('nothing to compile')
 
         units = []
         unit = None
@@ -766,14 +770,19 @@ class Compiler:
         for stmt in statements:
             comp: dbstate.BaseQuery = self._compile_dispatch_ql(ctx, stmt)
 
-            if (unit is not None and
-                    isinstance(comp, dbstate.TxControlQuery) and
-                    comp.single_unit):
-                units.append(unit)
-                unit = None
+            if unit is not None:
+                if (isinstance(comp, dbstate.TxControlQuery) and
+                        comp.single_unit):
+                    units.append(unit)
+                    unit = None
 
             if unit is None:
-                unit = dbstate.QueryUnit(dbver=ctx.state.dbver, sql=())
+                unit = dbstate.QueryUnit(
+                    dbver=ctx.state.dbver,
+                    sql=(),
+                    status=status.get_status(stmt))
+            else:
+                unit.status = status.get_status(stmt)
 
             if isinstance(comp, dbstate.Query):
                 if single_stmt_mode:
@@ -857,6 +866,10 @@ class Compiler:
 
         if unit is not None:
             units.append(unit)
+
+        if single_stmt_mode and len(units) != 1:  # pragma: no cover
+            raise errors.InternalServerError(
+                f'expected 1 compiled unit; got {len(units)}')
 
         for unit in units:  # pragma: no cover
             # Sanity checks
@@ -952,6 +965,7 @@ class Compiler:
             sql = b'ROLLBACK;'
             unit = dbstate.QueryUnit(
                 dbver=dbver,
+                status=b'ROLLBACK',
                 sql=(sql,),
                 tx_rollback=True,
                 cacheable=False)
@@ -960,6 +974,7 @@ class Compiler:
             sql = f'ROLLBACK TO {pg_common.quote_ident(stmt.name)};'.encode()
             unit = dbstate.QueryUnit(
                 dbver=dbver,
+                status=b'ROLLBACK TO SAVEPOINT',
                 sql=(sql,),
                 tx_savepoint_rollback=True,
                 cacheable=False)
@@ -1030,13 +1045,7 @@ class Compiler:
             stmt_mode=enums.CompileStatementMode(stmt_mode),
             capability=capability)
 
-        units = self._compile(ctx=ctx, eql=eql)
-        if (stmt_mode is enums.CompileStatementMode.SINGLE and
-                len(units) != 1):  # pragma: no cover
-            raise errors.InternalServerError(
-                f'expected 1 compiled unit; got {len(units)}')
-
-        return units
+        return self._compile(ctx=ctx, eql=eql)
 
     async def compile_eql_in_tx(
             self,
@@ -1051,12 +1060,7 @@ class Compiler:
             json_mode=json_mode,
             stmt_mode=enums.CompileStatementMode(stmt_mode))
 
-        units = self._compile(ctx=ctx, eql=eql)
-        if (stmt_mode is enums.CompileStatementMode.SINGLE and
-                len(units) != 1):  # pragma: no cover
-            raise errors.InternalServerError(
-                f'expected 1 compiled unit; got {len(units)}')
-        return units
+        return self._compile(ctx=ctx, eql=eql)
 
     async def interpret_backend_error(self, dbver, fields):
         db = await self._get_database(dbver)

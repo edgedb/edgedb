@@ -44,14 +44,15 @@ class TxAction(enum.IntEnum):
     ROLLBACK_TO_SAVEPOINT = 6
 
 
+@dataclasses.dataclass(frozen=True)
 class BaseQuery:
-    pass
+
+    sql: typing.Tuple[bytes, ...]
 
 
 @dataclasses.dataclass(frozen=True)
 class Query(BaseQuery):
 
-    sql: typing.Tuple[bytes, ...]
     sql_hash: bytes
 
     singleton_result: bool
@@ -71,21 +72,18 @@ class SimpleQuery(BaseQuery):
 @dataclasses.dataclass(frozen=True)
 class SessionStateQuery(BaseQuery):
 
-    sql: typing.Tuple[bytes, ...]
     has_system_settings: bool = False
     config_ops: typing.Optional[typing.List[config.Operation]] = None
 
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
-
-    sql: typing.Tuple[bytes, ...]
+    pass
 
 
 @dataclasses.dataclass(frozen=True)
 class TxControlQuery(BaseQuery):
 
-    sql: typing.Tuple[bytes, ...]
     action: TxAction
     single_unit: bool
     cacheable: bool
@@ -102,6 +100,12 @@ class QueryUnit:
     dbver: int
 
     sql: typing.Tuple[bytes, ...]
+
+    # Status-line for the compiled command; returned to front-end
+    # in a CommandComplete protocol message if the command is
+    # executed successfully.  When a QueryUnit contains multiple
+    # EdgeQL queries, the status reflects the last query in the unit.
+    status: bytes
 
     # Set only for units that contain queries that can be cached
     # as prepared statements in Postgres.

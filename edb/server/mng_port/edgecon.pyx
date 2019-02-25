@@ -317,9 +317,9 @@ cdef class EdgeConnection:
             self.dbview.abort_tx()
 
         if num_remain:
-            return 'skip_first'
+            return 'skip_first', query_unit
         else:
-            return 'done'
+            return 'done', query_unit
 
     async def simple_query(self):
         cdef:
@@ -336,11 +336,11 @@ cdef class EdgeConnection:
 
         stmt_mode = 'all'
         if self.dbview.in_tx_error():
-            stmt_mode = await self._recover_script_error(eql)
+            stmt_mode, query_unit = await self._recover_script_error(eql)
             if stmt_mode == 'done':
                 packet = WriteBuffer.new()
                 packet.write_buffer(
-                    WriteBuffer.new_message(b'C').end_message())
+                    self.make_command_complete_msg(query_unit))
                 packet.write_buffer(self.pgcon_last_sync_status())
                 self.write(packet)
                 self.flush()
@@ -370,7 +370,7 @@ cdef class EdgeConnection:
                 self.dbview.on_success(query_unit)
 
         packet = WriteBuffer.new()
-        packet.write_buffer(WriteBuffer.new_message(b'C').end_message())
+        packet.write_buffer(self.make_command_complete_msg(query_unit))
         packet.write_buffer(self.pgcon_last_sync_status())
         self.write(packet)
         self.flush()
@@ -473,7 +473,7 @@ cdef class EdgeConnection:
 
     #############
 
-    cdef make_describe_response(self, query_unit):
+    cdef WriteBuffer make_describe_msg(self, query_unit):
         cdef:
             WriteBuffer msg
 
@@ -494,6 +494,16 @@ cdef class EdgeConnection:
         msg.end_message()
         return msg
 
+    cdef WriteBuffer make_command_complete_msg(self, query_unit,
+                                               bytes details=b''):
+        cdef:
+            WriteBuffer msg
+
+        msg = WriteBuffer.new_message(b'C')
+        msg.write_bytestring(query_unit.status)
+        msg.write_bytestring(details)
+        return msg.end_message()
+
     async def describe(self):
         cdef:
             char rtype
@@ -512,7 +522,7 @@ cdef class EdgeConnection:
                     raise errors.TypeSpecNotFoundError(
                         'no prepared anonymous statement found')
 
-                msg = self.make_describe_response(self._last_anon_compiled)
+                msg = self.make_describe_msg(self._last_anon_compiled)
                 self.write(msg)
 
         else:
@@ -534,7 +544,7 @@ cdef class EdgeConnection:
                 assert query_unit.tx_rollback
                 self.dbview.abort_tx()
 
-            self.write(WriteBuffer.new_message(b'C').end_message())
+            self.write(self.make_command_complete_msg(query_unit))
             return
 
         bound_args_buf = self.recode_bind_args(bind_args)
@@ -573,7 +583,7 @@ cdef class EdgeConnection:
             else:
                 self.dbview.on_success(query_unit)
 
-            self.write(WriteBuffer.new_message(b'C').end_message())
+            self.write(self.make_command_complete_msg(query_unit))
 
             if process_sync:
                 self.write(self.pgcon_last_sync_status())
@@ -646,7 +656,7 @@ cdef class EdgeConnection:
             if self.debug:
                 self.debug_print('OPPORTUNISTIC EXECUTE /MISMATCH', query)
 
-            self.write(self.make_describe_response(query_unit))
+            self.write(self.make_describe_msg(query_unit))
             return
 
         if self.debug:

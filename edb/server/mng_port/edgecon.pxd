@@ -75,7 +75,7 @@ cdef class EdgeConnection:
         bint debug
         bint query_cache_enabled
 
-    cdef int32_t compute_parse_flags(self, compiled) except -1
+    cdef int32_t compute_parse_flags(self, query_unit) except -1
     cdef is_json_mode(self, bytes mode)
 
     cdef write(self, WriteBuffer buf)
@@ -88,4 +88,6 @@ cdef class EdgeConnection:
 
     cdef WriteBuffer recode_bind_args(self, bytes bind_args)
 
-    cdef make_describe_response(self, compiled)
+    cdef WriteBuffer make_describe_msg(self, query_unit)
+    cdef WriteBuffer make_command_complete_msg(
+        self, query_unit, bytes details=?)
