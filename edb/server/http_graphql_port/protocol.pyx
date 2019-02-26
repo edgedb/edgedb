@@ -58,6 +58,7 @@ cdef class Protocol(http.HttpProtocol):
 
         operation_name = None
         variables = None
+        query = None
 
         try:
             if request.method == b'POST':
@@ -76,20 +77,25 @@ cdef class Protocol(http.HttpProtocol):
                         'unable to interpret GraphQL POST request')
 
             elif request.method == b'GET':
-                url_query = request.url.query.decode('ascii')
-                qs = urllib.parse.parse_qs(url_query)
+                if request.url.query:
+                    url_query = request.url.query.decode('ascii')
+                    qs = urllib.parse.parse_qs(url_query)
 
-                query = qs.get('query')
-                if query is not None:
-                    query = query[0]
+                    query = qs.get('query')
+                    if query is not None:
+                        query = query[0]
 
-                operation_name = qs.get('operationName')
-                if operation_name is not None:
-                    operation_name = operation_name[0]
+                    operation_name = qs.get('operationName')
+                    if operation_name is not None:
+                        operation_name = operation_name[0]
 
-                variables = qs.get('variables')
-                if variables is not None:
-                    variables = json.loads(variables[0])
+                    variables = qs.get('variables')
+                    if variables is not None:
+                        try:
+                            variables = json.loads(variables[0])
+                        except Exception:
+                            raise TypeError(
+                                '"variables" must be a JSON object')
 
             else:
                 raise TypeError('expected a GET or a POST request')
@@ -102,7 +108,7 @@ cdef class Protocol(http.HttpProtocol):
                 raise TypeError('operationName must be a string')
 
             if variables is not None and not isinstance(variables, dict):
-                raise TypeError('variables must be a JSON object')
+                raise TypeError('"variables" must be a JSON object')
 
         except Exception as ex:
             if debug.flags.server:

@@ -17,6 +17,7 @@
 #
 
 
+import collections
 import http
 
 import httptools
@@ -47,22 +48,21 @@ cdef class HttpProtocol:
         self.loop = loop
         self.transport = None
 
-        self.current_parser = None
-        self.current_request = None
+        self.parser = httptools.HttpRequestParser(self)
+        self.current_request = HttpRequest()
+        self.in_response = False
+        self.unprocessed = None
 
     def connection_made(self, transport):
         self.transport = transport
 
     def connection_lost(self, exc):
         self.transport = None
+        self.unprocessed = None
 
     def data_received(self, data):
-        if self.current_parser is None:
-            self.current_parser = httptools.HttpRequestParser(self)
-            self.current_request = HttpRequest()
-
         try:
-            self.current_parser.feed_data(data)
+            self.parser.feed_data(data)
         except Exception as ex:
             self.unhandled_exception(ex)
 
@@ -80,12 +80,26 @@ cdef class HttpProtocol:
     def on_message_complete(self):
         self.transport.pause_reading()
 
-        parser = self.current_parser
-        self.current_request.version = parser.get_http_version().encode()
-        self.current_request.should_keep_alive = parser.should_keep_alive()
-        self.current_request.method = parser.get_method().upper()
+        req = self.current_request
+        self.current_request = HttpRequest()
 
-        self.loop.create_task(self._handle_request())
+        req.version = self.parser.get_http_version().encode()
+        req.should_keep_alive = self.parser.should_keep_alive()
+        req.method = self.parser.get_method().upper()
+
+        if self.in_response:
+            # pipelining support
+            if self.unprocessed is None:
+                self.unprocessed = collections.deque()
+            self.unprocessed.append(req)
+        else:
+            self.in_response = True
+            self.loop.create_task(self._handle_request(req))
+
+    cdef close(self):
+        self.transport.close()
+        self.transport = None
+        self.unprocessed = None
 
     cdef unhandled_exception(self, ex):
         if debug.flags.server:
@@ -97,11 +111,23 @@ cdef class HttpProtocol:
             b'text/plain',
             f'{type(ex).__name__}: {ex}'.encode(),
             True)
-        self.transport.close()
-        self.transport = None
+
+        self.close()
+
+    cdef resume(self):
+        if self.transport is None:
+            return
+
+        if self.unprocessed:
+            req = self.unprocessed.popleft()
+            self.loop.create_task(self._handle_request(req))
+        else:
+            self.transport.resume_reading()
 
     cdef _write(self, bytes req_version, bytes resp_status,
                 bytes content_type, bytes body, bint close_connection):
+        if self.transport is None:
+            return
         data = [
             b'HTTP/', req_version, b' ', resp_status, b'\r\n',
             b'Content-Type: ', content_type, b'\r\n',
@@ -123,10 +149,12 @@ cdef class HttpProtocol:
             response.body,
             response.close_connection)
 
-    async def _handle_request(self):
+    async def _handle_request(self, HttpRequest request):
         cdef:
             HttpResponse response = HttpResponse()
-            HttpRequest request = self.current_request
+
+        if self.transport is None:
+            return
 
         try:
             await self.handle_request(request, response)
@@ -135,14 +163,12 @@ cdef class HttpProtocol:
             return
 
         self.write(request, response)
+        self.in_response = False
+
         if response.close_connection or not request.should_keep_alive:
-            self.transport.close()
-            self.transport = None
+            self.close()
         else:
-            self.current_parser = None
-            self.current_request = None
-            if self.transport is not None:
-                self.transport.resume_reading()
+            self.resume()
 
     async def handle_request(self, request, response):
         raise NotImplementedError

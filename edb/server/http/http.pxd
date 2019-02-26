@@ -41,8 +41,10 @@ cdef class HttpProtocol:
 
     cdef:
         object loop
-        object current_parser
+        object parser
         object transport
+        object unprocessed
+        bint in_response
 
         HttpRequest current_request
 
@@ -52,3 +54,5 @@ cdef class HttpProtocol:
     cdef write(self, HttpRequest request, HttpResponse response)
 
     cdef unhandled_exception(self, ex)
+    cdef resume(self)
+    cdef close(self)
