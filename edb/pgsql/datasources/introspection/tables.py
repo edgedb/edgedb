@@ -241,7 +241,7 @@ async def fetch_indexes(
                         AND (ia.attnum IS NULL OR ia.attnum >= 1)
                     )                               AS index_columns,
 
-                    obj_description(i.indexrelid, 'pg_class')::jsonb
+                    edgedb.obj_metadata(i.indexrelid, 'pg_class')
                                                     AS index_metadata
 
                  FROM
@@ -460,8 +460,7 @@ async def fetch_triggers(
 
                     pg_get_triggerdef(t.oid)::text          AS trg_definition,
 
-                    obj_description(t.oid, 'pg_trigger')::jsonb
-                                                            AS trg_metadata
+                    edgedb.obj_metadata(t.oid, 'pg_trigger') AS trg_metadata
 
                  FROM
                     pg_trigger AS t

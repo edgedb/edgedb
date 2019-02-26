@@ -38,7 +38,7 @@ async def fetch(
                         INNER JOIN pg_authid ma ON m.roleid = ma.oid
                         CROSS JOIN LATERAL (
                             SELECT
-                                shobj_description(ma.oid, 'pg_authid')::jsonb
+                                edgedb.shobj_metadata(ma.oid, 'pg_authid')
                                     AS description
                         ) AS md
                     WHERE m.member = a.oid
@@ -48,7 +48,7 @@ async def fetch(
                 pg_authid AS a
                 CROSS JOIN LATERAL (
                     SELECT
-                        shobj_description(a.oid, 'pg_authid')::jsonb
+                        edgedb.shobj_metadata(a.oid, 'pg_authid')
                             AS description
                 ) AS d
             WHERE

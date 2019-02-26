@@ -181,7 +181,7 @@ class PutMetadata(DDLOperation):
 class SetMetadata(PutMetadata):
     def code(self, block: base.PLBlock) -> str:
         metadata = self.metadata
-        desc = json.dumps(metadata)
+        desc = '$EDB:{}'.format(json.dumps(metadata))
 
         object_type = self.object.get_type()
         object_id = self.object.get_id()
@@ -200,7 +200,7 @@ class UpdateMetadata(PutMetadata):
 
         upd_metadata = common.quote_literal(json.dumps(self.metadata))
         block.add_command(
-            f"{upd_v} := '({json_v} || {upd_metadata})::text;")
+            f"{upd_v} := '$EDB:' || ({json_v} || {upd_metadata})::text;")
 
         object_type = self.object.get_type()
         object_id = self.object.get_id()

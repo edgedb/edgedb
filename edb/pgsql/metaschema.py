@@ -127,6 +127,48 @@ class ExpressionType(dbops.CompositeType):
         ])
 
 
+class GetObjectMetadata(dbops.Function):
+    """Return EdgeDB metadata associated with a backend object."""
+    text = '''
+        SELECT
+            CASE WHEN substr(d, 1, 5) = '$EDB:'
+            THEN substr(d, 6)::jsonb
+            ELSE '{}'::jsonb
+            END
+        FROM
+            obj_description("objoid", "objclass") AS d
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', 'obj_metadata'),
+            args=[('objoid', ('oid',)), ('objclass', ('text',))],
+            returns=('jsonb',),
+            volatility='stable',
+            text=self.text)
+
+
+class GetSharedObjectMetadata(dbops.Function):
+    """Return EdgeDB metadata associated with a backend object."""
+    text = '''
+        SELECT
+            CASE WHEN substr(d, 1, 5) = '$EDB:'
+            THEN substr(d, 6)::jsonb
+            ELSE '{}'::jsonb
+            END
+        FROM
+            shobj_description("objoid", "objclass") AS d
+    '''
+
+    def __init__(self):
+        super().__init__(
+            name=('edgedb', 'shobj_metadata'),
+            args=[('objoid', ('oid',)), ('objclass', ('text',))],
+            returns=('jsonb',),
+            volatility='stable',
+            text=self.text)
+
+
 class RaiseExceptionFunction(dbops.Function):
     text = '''
     BEGIN
@@ -696,7 +738,7 @@ class IntrospectIndexesFunction(dbops.Function):
                         AND (ia.attnum IS NULL OR ia.attnum >= 1)
                     )                               AS index_columns,
 
-                    obj_description(i.indexrelid, 'pg_class')::jsonb
+                    edgedb.obj_metadata(i.indexrelid, 'pg_class')
                                                     AS index_metadata
 
                  FROM
@@ -833,8 +875,7 @@ class IntrospectTriggersFunction(dbops.Function):
 
                     pg_get_triggerdef(t.oid)::text          AS trg_definition,
 
-                    obj_description(t.oid, 'pg_trigger')::jsonb
-                                                            AS trg_metadata
+                    edgedb.obj_metadata(t.oid, 'pg_trigger') AS trg_metadata
 
                  FROM
                     pg_trigger AS t
@@ -1658,6 +1699,8 @@ async def bootstrap(conn):
         for mcls, table in list(metaclass_tables.items())[1:])
 
     commands.add_commands([
+        dbops.CreateFunction(GetObjectMetadata()),
+        dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseSpecificExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
@@ -1933,7 +1976,7 @@ def _generate_role_views(schema):
             pg_authid AS a
             CROSS JOIN LATERAL (
                 SELECT
-                    shobj_description(a.oid, 'pg_authid')::jsonb
+                    edgedb.shobj_metadata(a.oid, 'pg_authid')
                         AS description
             ) AS d
         WHERE
@@ -1948,13 +1991,13 @@ def _generate_role_views(schema):
             pg_authid AS a
             CROSS JOIN LATERAL (
                 SELECT
-                    shobj_description(a.oid, 'pg_authid')::jsonb
+                    edgedb.shobj_metadata(a.oid, 'pg_authid')
                         AS description
             ) AS d
             INNER JOIN pg_auth_members m ON m.member = a.oid
             CROSS JOIN LATERAL (
                 SELECT
-                    shobj_description(m.roleid, 'pg_authid')::jsonb
+                    edgedb.shobj_metadata(m.roleid, 'pg_authid')
                         AS description
             ) AS md
     '''
