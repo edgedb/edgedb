@@ -225,8 +225,10 @@ class Cli:
             self.connection = None
 
         if self.connection is None:
-            print(f'Could not establish connection to '
-                  f'{self.conn_args["database"]!r}')
+            dbname = self.conn_args.get("database")
+            if not dbname:
+                dbname = 'EdgeDB'
+            print(f'Could not establish connection to {dbname}')
             exit(1)
 
     @_command('c', R'\c DBNAME', 'connect to database DBNAME')
