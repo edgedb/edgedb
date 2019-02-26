@@ -17,6 +17,7 @@
 #
 
 
+import json
 import os
 import unittest  # NOQA
 import uuid
@@ -36,6 +37,95 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     # GraphQL queries cannot run in a transaction
     ISOLATED_METHODS = False
+
+    def test_graphql_http_keepalive_01(self):
+        with self.http_con() as con:
+            for _ in range(3):
+                req1_data = {
+                    'query': '''
+                        {
+                            Setting(order: {value: {dir: ASC}}) {
+                                value
+                            }
+                        }
+                    '''
+                }
+                data, headers, status = self.http_con_request(con, req1_data)
+                self.assertEqual(status, 200)
+                self.assertNotIn('connection', headers)
+                self.assertEqual(
+                    headers.get('content-type'),
+                    'application/json')
+                self.assertEqual(
+                    json.loads(data)['data'],
+                    {'Setting': [{'value': 'blue'}, {'value': 'full'}]})
+
+                req2_data = {
+                    'query': '''
+                        {
+                            NON_EXISTING_TYPE {
+                                name
+                            }
+                        }
+                    '''
+                }
+                data, headers, status = self.http_con_request(con, req2_data)
+                self.assertEqual(status, 200)
+                self.assertNotIn('connection', headers)
+                self.assertEqual(
+                    headers.get('content-type'),
+                    'application/json')
+                self.assertIn(
+                    'QueryError:',
+                    json.loads(data)['errors'][0]['message'])
+
+    def test_graphql_http_errors_01(self):
+        with self.http_con() as con:
+            data, headers, status = self.http_con_request(
+                con, {}, path='non-existant')
+
+            self.assertEqual(status, 404)
+            self.assertEqual(headers['connection'], 'close')
+            self.assertIn(b'Unknown path', data)
+
+            with self.assertRaises(OSError):
+                self.http_con_request(con, {}, path='non-existant2')
+
+    def test_graphql_http_errors_02(self):
+        with self.http_con() as con:
+            data, headers, status = self.http_con_request(con, {})
+
+            self.assertEqual(status, 400)
+            self.assertEqual(headers['connection'], 'close')
+            self.assertIn(b'query is missing', data)
+
+            with self.assertRaises(OSError):
+                self.http_con_request(con, {}, path='non-existant')
+
+    def test_graphql_http_errors_03(self):
+        with self.http_con() as con:
+            data, headers, status = self.http_con_request(
+                con, {'query': 'blah', 'variables': 'bazz'})
+
+            self.assertEqual(status, 400)
+            self.assertEqual(headers['connection'], 'close')
+            self.assertIn(b'must be a JSON object', data)
+
+            with self.assertRaises(OSError):
+                self.http_con_request(con, {}, path='non-existant')
+
+    def test_graphql_http_errors_04(self):
+        with self.http_con() as con:
+            con.send(b'blah\r\n\r\n\r\n\r\n')
+            data, headers, status = self.http_con_request(
+                con, {'query': 'blah', 'variables': 'bazz'})
+
+            self.assertEqual(status, 400)
+            self.assertEqual(headers['connection'], 'close')
+            self.assertIn(b'invalid HTTP method', data)
+
+            with self.assertRaises(OSError):
+                self.http_con_request(con, {}, path='non-existant')
 
     def test_graphql_functional_query_01(self):
         self.assert_graphql_query_result(r"""
