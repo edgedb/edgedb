@@ -198,7 +198,7 @@ async def _make_stdlib(testmode: bool):
         std_texts.append(s_std.get_std_module_text(modname))
 
     if testmode:
-        std_texts.append(s_std.get_std_module_text('_test'))
+        std_texts.append(s_std.get_std_module_text('_testmode'))
 
     ddl_text = '\n'.join(std_texts)
 
