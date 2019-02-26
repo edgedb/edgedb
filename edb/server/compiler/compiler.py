@@ -77,9 +77,12 @@ class CompileContext:
     state: dbstate.CompilerConnectionState
     output_format: pg_compiler.OutputFormat
     stmt_mode: enums.CompileStatementMode
+    json_parameters: bool = False
 
 
 EMPTY_MAP = immutables.Map()
+DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
+    {None: defines.DEFAULT_MODULE_ALIAS})
 
 
 pg_ql = lambda o: pg_common.quote_literal(str(o))
@@ -253,7 +256,8 @@ class Compiler(BaseCompiler):
             modaliases=current_tx.get_modaliases(),
             implicit_tid_in_shapes=implicit_fields,
             implicit_id_in_shapes=implicit_fields,
-            disable_constant_folding=disable_constant_folding)
+            disable_constant_folding=disable_constant_folding,
+            json_parameters=ctx.json_parameters)
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,
@@ -295,6 +299,12 @@ class Compiler(BaseCompiler):
             in_type_data, in_type_id = sertypes.TypeSerializer.describe(
                 ir.schema, params_type, {}, {})
 
+            in_type_args = None
+            if ctx.json_parameters:
+                in_type_args = [None] * len(argmap)
+                for argname, argpos in argmap.items():
+                    in_type_args[argpos - 1] = argname
+
             sql_hash = self._hash_sql(
                 sql_bytes, mode=str(ctx.output_format).encode())
 
@@ -304,6 +314,7 @@ class Compiler(BaseCompiler):
                 singleton_result=ir.cardinality is qltypes.Cardinality.ONE,
                 in_type_id=in_type_id.bytes,
                 in_type_data=in_type_data,
+                in_type_args=in_type_args,
                 out_type_id=out_type_id.bytes,
                 out_type_data=out_type_data,
             )
@@ -684,7 +695,7 @@ class Compiler(BaseCompiler):
                 sqlbuf.append(sql)
 
         elif isinstance(ql, qlast.SessionResetAllAliases):
-            aliases = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
+            aliases = DEFAULT_MODULE_ALIASES_MAP
 
             if not self._bootstrap_mode:
                 sqlbuf.append(
@@ -816,6 +827,7 @@ class Compiler(BaseCompiler):
                     unit.out_type_data = comp.out_type_data
                     unit.out_type_id = comp.out_type_id
                     unit.in_type_data = comp.in_type_data
+                    unit.in_type_args = comp.in_type_args
                     unit.in_type_id = comp.in_type_id
 
                     unit.cacheable = True
@@ -910,11 +922,18 @@ class Compiler(BaseCompiler):
 
         return units
 
-    async def _ctx_new_con_state(self, *, dbver: int, json_mode: bool,
-                                 modaliases,
-                                 session_config: immutables.Map,
-                                 stmt_mode: enums.CompileStatementMode,
-                                 capability: enums.Capability):
+    async def _ctx_new_con_state(
+            self, *, dbver: int, json_mode: bool,
+            modaliases,
+            session_config: typing.Optional[immutables.Map],
+            stmt_mode: typing.Optional[enums.CompileStatementMode],
+            capability: enums.Capability,
+            json_parameters: bool=False):
+
+        if session_config is None:
+            session_config = EMPTY_MAP
+        if modaliases is None:
+            modaliases = DEFAULT_MODULE_ALIASES_MAP
 
         assert isinstance(modaliases, immutables.Map)
         assert isinstance(session_config, immutables.Map)
@@ -937,7 +956,8 @@ class Compiler(BaseCompiler):
         ctx = CompileContext(
             state=state,
             output_format=of,
-            stmt_mode=stmt_mode)
+            stmt_mode=stmt_mode,
+            json_parameters=json_parameters)
 
         return ctx
 
@@ -1009,11 +1029,12 @@ class Compiler(BaseCompiler):
             self,
             dbver: int,
             eql: bytes,
-            sess_modaliases: immutables.Map,
-            sess_config: immutables.Map,
+            sess_modaliases: typing.Optional[immutables.Map],
+            sess_config: typing.Optional[immutables.Map],
             json_mode: bool,
             stmt_mode: enums.CompileStatementMode,
-            capability: enums.Capability) -> typing.List[dbstate.QueryUnit]:
+            capability: enums.Capability,
+            json_parameters: bool=False) -> typing.List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
@@ -1021,7 +1042,8 @@ class Compiler(BaseCompiler):
             modaliases=sess_modaliases,
             session_config=sess_config,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
-            capability=capability)
+            capability=capability,
+            json_parameters=json_parameters)
 
         return self._compile(ctx=ctx, eql=eql)
 

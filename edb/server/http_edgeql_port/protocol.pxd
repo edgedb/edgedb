@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,20 +17,11 @@
 #
 
 
-EDGEDB_PORT = 5656
-EDGEDB_SUPERUSER = 'edgedb'
-EDGEDB_TEMPLATE_DB = 'edgedb0'
-EDGEDB_SUPERUSER_DB = 'edgedb'
-EDGEDB_ENCODING = 'utf-8'
+from edb.server.http cimport http
+from edb.server.cache cimport stmt_cache
 
 
-_MAX_QUERIES_CACHE = 1000
-
-_QUERY_ROLLING_AVG_LEN = 10
-_QUERIES_ROLLING_AVG_LEN = 300
-
-DEFAULT_MODULE_ALIAS = 'default'
-
-
-HTTP_PORT_QUERY_CACHE_SIZE = 500
-HTTP_PORT_MAX_CONCURRENCY = 250
+cdef class Protocol(http.HttpProtocol):
+    cdef:
+        object server
+        stmt_cache.StatementsCache query_cache

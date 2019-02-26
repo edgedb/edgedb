@@ -21,11 +21,14 @@ import os
 import logging
 import urllib.parse
 
+from edb import errors
+
 from edb.common import taskgroup
 
 from edb.edgeql import parser as ql_parser
 
 from edb.server import config
+from edb.server import http_edgeql_port
 from edb.server import http_graphql_port
 from edb.server import pgcon
 
@@ -88,7 +91,15 @@ class Server:
                          portconf)
             return
 
-        port = http_graphql_port.HttpGraphQLPort(
+        if portconf.protocol == 'http+graphql':
+            port_cls = http_graphql_port.HttpGraphQLPort
+        elif portconf.protocol == 'http+edgeql':
+            port_cls = http_edgeql_port.HttpEdgeQLPort
+        else:
+            raise errors.InvalidReferenceError(
+                f'unknown protocol {portconf.protocol!r}')
+
+        port = port_cls(
             server=self,
             loop=self._loop,
             pg_addr=self._pg_addr,

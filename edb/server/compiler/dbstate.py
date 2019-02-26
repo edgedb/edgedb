@@ -62,6 +62,9 @@ class Query(BaseQuery):
     in_type_data: bytes
     in_type_id: bytes
 
+    # Set only when a query is compiled with "json_parameters=True"
+    in_type_args: typing.Optional[typing.Tuple[str, ...]] = None
+
 
 @dataclasses.dataclass(frozen=True)
 class SimpleQuery(BaseQuery):
@@ -149,6 +152,9 @@ class QueryUnit:
     out_type_id: bytes = sertypes.NULL_TYPE_ID
     in_type_data: bytes = sertypes.EMPTY_TUPLE_DESC
     in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
+
+    # Set only when a query is compiled with "json_parameters=True"
+    in_type_args: typing.Optional[typing.Tuple[str, ...]] = None
 
     config_ops: typing.Optional[typing.List[config.Operation]] = None
     modaliases: typing.Optional[immutables.Map] = None

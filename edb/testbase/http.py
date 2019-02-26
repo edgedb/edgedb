@@ -17,7 +17,6 @@
 #
 
 
-import builtins
 import contextlib
 import http.client
 import json
@@ -42,7 +41,11 @@ class StubbornHttpConnection(http.client.HTTPConnection):
         http.client.HTTPConnection.close(self)
 
 
-class GraphQLTestCase(server.QueryTestCase):
+class BaseHttpTest:
+
+    @classmethod
+    def get_port_proto(cls):
+        raise NotImplementedError
 
     @classmethod
     def setUpClass(cls):
@@ -57,7 +60,7 @@ class GraphQLTestCase(server.QueryTestCase):
                 f'''
                     SET SYSTEM CONFIG ports += $$
                     {{
-                        "protocol": "http+graphql",
+                        "protocol": "{cls.get_port_proto()}",
                         "database": "{dbname}",
                         "address": "{cls.http_host}",
                         "port": {cls.http_port},
@@ -92,6 +95,68 @@ class GraphQLTestCase(server.QueryTestCase):
     def http_con_request(self, con, params: dict, *, path=''):
         self.http_con_send_request(con, params, path=path)
         return self.http_con_read_response(con)
+
+
+class EdgeQLTestCase(BaseHttpTest, server.QueryTestCase):
+
+    @classmethod
+    def get_port_proto(cls):
+        return 'http+edgeql'
+
+    def edgeql_query(self, query, *, use_http_post=True, variables=None):
+        req_data = {
+            'query': query
+        }
+
+        if use_http_post:
+            if variables is not None:
+                req_data['variables'] = variables
+            req = urllib.request.Request(self.http_addr, method='POST')
+            req.add_header('Content-Type', 'application/json')
+            response = urllib.request.urlopen(
+                req, json.dumps(req_data).encode())
+            resp_data = json.loads(response.read())
+        else:
+            if variables is not None:
+                req_data['variables'] = json.dumps(variables)
+            response = urllib.request.urlopen(
+                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}')
+            resp_data = json.loads(response.read())
+
+        if 'data' in resp_data:
+            return resp_data['data']
+
+        err = resp_data['error']
+
+        ex_msg = err['message'].strip()
+        ex_code = err['code']
+
+        raise edgedb.EdgeDBError._from_code(ex_code, ex_msg)
+
+    def assert_edgeql_query_result(self, query, result, *,
+                                   msg=None, sort=None,
+                                   use_http_post=True,
+                                   variables=None):
+        res = self.edgeql_query(
+            query,
+            use_http_post=use_http_post,
+            variables=variables)
+
+        if sort is not None:
+            # GQL will always have a single object returned. The data is
+            # in the top-level fields, so that's what needs to be sorted.
+            for r in res.values():
+                self._sort_results(r, sort)
+
+        self._assert_data_shape(res, result, message=msg)
+        return res
+
+
+class GraphQLTestCase(BaseHttpTest, server.QueryTestCase):
+
+    @classmethod
+    def get_port_proto(cls):
+        return 'http+graphql'
 
     def graphql_query(self, query, *, operation_name=None,
                       use_http_post=True,
@@ -129,10 +194,8 @@ class GraphQLTestCase(server.QueryTestCase):
         try:
             ex_type = getattr(edgedb, typename)
         except AttributeError:
-            try:
-                ex_type = getattr(builtins, typename)
-            except AttributeError:
-                ex_type = Exception
+            raise AssertionError(
+                f'server returned an invalid exception typename: {typename!r}')
 
         ex = ex_type(msg)
 

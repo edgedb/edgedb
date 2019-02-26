@@ -453,6 +453,12 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
+            "edb.server.http_edgeql_port.protocol",
+            ["edb/server/http_edgeql_port/protocol.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
             "edb.server.http_graphql_port.protocol",
             ["edb/server/http_graphql_port/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
