@@ -91,9 +91,9 @@ class Server:
                          portconf)
             return
 
-        if portconf.protocol == 'http+graphql':
+        if portconf.protocol == 'graphql+http':
             port_cls = http_graphql_port.HttpGraphQLPort
-        elif portconf.protocol == 'http+edgeql':
+        elif portconf.protocol == 'edgeql+http':
             port_cls = http_edgeql_port.HttpEdgeQLPort
         else:
             raise errors.InvalidReferenceError(

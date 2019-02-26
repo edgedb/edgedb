@@ -30,7 +30,7 @@ from edb.server.config import spec
 from edb.server.config import types
 
 
-def make_port_json(*, protocol='http+graphql',
+def make_port_json(*, protocol='graphql+http',
                    database='testdb',
                    user='test',
                    concurrency=4,

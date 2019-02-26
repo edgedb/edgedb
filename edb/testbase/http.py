@@ -101,7 +101,7 @@ class EdgeQLTestCase(BaseHttpTest, server.QueryTestCase):
 
     @classmethod
     def get_port_proto(cls):
-        return 'http+edgeql'
+        return 'edgeql+http'
 
     def edgeql_query(self, query, *, use_http_post=True, variables=None):
         req_data = {
@@ -156,7 +156,7 @@ class GraphQLTestCase(BaseHttpTest, server.QueryTestCase):
 
     @classmethod
     def get_port_proto(cls):
-        return 'http+graphql'
+        return 'graphql+http'
 
     def graphql_query(self, query, *, operation_name=None,
                       use_http_post=True,

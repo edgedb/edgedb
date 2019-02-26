@@ -33,4 +33,4 @@ class HttpEdgeQLPort(http.BaseHttpPort):
 
     @classmethod
     def get_proto_name(cls):
-        return 'http+edgeql'
+        return 'edgeql+http'

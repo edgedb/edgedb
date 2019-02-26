@@ -33,4 +33,4 @@ class HttpGraphQLPort(http.BaseHttpPort):
 
     @classmethod
     def get_proto_name(cls):
-        return 'http+graphql'
+        return 'graphql+http'
