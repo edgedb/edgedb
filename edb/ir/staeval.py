@@ -34,6 +34,7 @@ from edb.edgeql import qltypes
 from edb.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 
 from edb.schema import types as s_types
 from edb.schema import schema as s_schema
@@ -62,6 +63,18 @@ def evaluate(
         schema: s_schema.Schema) -> irast.BaseConstant:
     raise UnsupportedExpressionError(
         f'no static IR evaluation handler for {ir.__class__}')
+
+
+@evaluate.register(irast.SelectStmt)
+def evaluate_SelectStmt(
+        ir_stmt: irast.SelectStmt,
+        schema: s_schema.Schema) -> irast.BaseConstant:
+
+    if irutils.is_trivial_select(ir_stmt):
+        return evaluate(ir_stmt.result, schema)
+    else:
+        raise UnsupportedExpressionError(
+            'expression is not constant', context=ir_stmt.context)
 
 
 @evaluate.register(irast.Set)

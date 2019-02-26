@@ -17,6 +17,7 @@
 #
 
 import asyncio
+import json
 
 import edgedb
 
@@ -61,10 +62,7 @@ class TestServerProto(tb.QueryTestCase):
             return False
 
         return await self.con.fetch_value('''
-            SELECT
-                (SELECT sys::Config
-                 FILTER .name = "__internal_testmode"
-                 LIMIT 1).value = 'true'
+            SELECT cfg::Config.__internal_testmode LIMIT 1
         ''')
 
     async def test_server_proto_parse_error_recover_01(self):
@@ -428,43 +426,122 @@ class TestServerProto(tb.QueryTestCase):
                 edgedb.UnsupportedFeatureError,
                 'CONFIGURE SESSION INSERT is not supported'):
             await self.con.fetch('''
-                CONFIGURE SESSION INSERT SessionComposite { name := 'foo' };
+                CONFIGURE SESSION INSERT SessionConfig { name := 'foo' };
             ''')
 
     async def test_server_proto_configure_02(self):
         conf = await self.con.fetch_value('''
-            SELECT sys::Config {
-                name,
-                value,
-                source,
-                internal,
-                system,
-                type: { name },
-                typemod,
-            }
-            FILTER .name = "__internal_testvalue"
+            SELECT cfg::Config.__internal_testvalue LIMIT 1
         ''')
-        self.assertEqual(conf.value, '0')
-        self.assertEqual(conf.source, 'default')
-        self.assertEqual(conf.type.name, 'std::int64')
-        self.assertEqual(conf.typemod, 'SINGLETON')
-        self.assertTrue(conf.system)
-        self.assertTrue(conf.internal)
+        self.assertEqual(conf, 0)
+
+        jsonconf = await self.con.fetch_value('''
+            SELECT cfg::get_config_json()
+        ''')
+
+        all_conf = json.loads(jsonconf)
+        conf = all_conf['__internal_testvalue']
+
+        self.assertEqual(conf['value'], 0)
+        self.assertEqual(conf['source'], 'default')
 
         await self.con.fetch('''
             CONFIGURE SYSTEM SET __internal_testvalue := 1;
         ''')
 
         conf = await self.con.fetch_value('''
-            SELECT sys::Config {
-                name,
-                value,
-                source,
-            }
-            FILTER .name = "__internal_testvalue"
+            SELECT cfg::Config.__internal_testvalue LIMIT 1
         ''')
-        self.assertEqual(conf.value, '1')
-        self.assertEqual(conf.source, 'system override')
+        self.assertEqual(conf, 1)
+
+        jsonconf = await self.con.fetch_value('''
+            SELECT cfg::get_config_json()
+        ''')
+
+        all_conf = json.loads(jsonconf)
+        conf = all_conf['__internal_testvalue']
+
+        self.assertEqual(conf['value'], 1)
+        self.assertEqual(conf['source'], 'system override')
+
+    async def test_server_proto_configure_03(self):
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name };
+            ''',
+            [],
+        )
+
+        await self.con.fetch('''
+            CONFIGURE SYSTEM INSERT SystemConfig { name := 'test_03' };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name };
+            ''',
+            [
+                {
+                    'name': 'test_03'
+                }
+            ]
+        )
+
+        await self.con.fetch('''
+            CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03';
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name };
+            ''',
+            [],
+        )
+
+    async def test_server_proto_configure_04(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'CONFIGURE SESSION INSERT is not supported'):
+            await self.con.fetch('''
+                CONFIGURE SESSION INSERT SessionConfig {name := 'test_04'}
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                "unrecognized configuration object 'Unrecognized'"):
+            await self.con.fetch('''
+                CONFIGURE SYSTEM INSERT Unrecognized {name := 'test_04'}
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "must have a FILTER clause"):
+            await self.con.fetch('''
+                CONFIGURE SYSTEM RESET SystemConfig;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "at least one exclusive property"):
+            await self.con.fetch('''
+                CONFIGURE SYSTEM RESET SystemConfig FILTER 1 = 0;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "must not have a FILTER clause"):
+            await self.con.fetch('''
+                CONFIGURE SYSTEM RESET __internal_testvalue FILTER 1 = 1;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "non-constant expression"):
+            await self.con.fetch('''
+                CONFIGURE SYSTEM INSERT SystemConfig {
+                    name := <str>random()
+                };
+            ''')
 
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
@@ -1582,11 +1659,9 @@ class TestServerProto(tb.QueryTestCase):
 
                 self.assertFalse(
                     await self.con.fetch_value('''
-                        SELECT
-                            (SELECT sys::Config
-                             FILTER .name = "__internal_testmode"
-                             LIMIT 1).value = 'true'
-                    '''))
+                        SELECT cfg::Config.__internal_testmode LIMIT 1
+                    ''')
+                )
 
                 with self.assertRaises(edgedb.ConstraintViolationError):
                     await exec_meth('COMMIT')

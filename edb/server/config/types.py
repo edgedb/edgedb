@@ -18,7 +18,6 @@
 
 
 import dataclasses
-import json
 
 from edb import errors
 from edb.common import typeutils
@@ -34,13 +33,10 @@ class ConfigType:
         raise NotImplementedError
 
     @classmethod
-    def from_json(cls, v):
+    def from_json_value(cls, v):
         raise NotImplementedError
 
-    def to_json(self):
-        raise NotImplementedError
-
-    def to_edgeql(self):
+    def to_json_value(self):
         raise NotImplementedError
 
     @classmethod
@@ -112,20 +108,17 @@ class CompositeConfigType(ConfigType):
         return s_obj.get_known_type_id('std::json')
 
     @classmethod
-    def from_json(cls, s):
-        return cls.from_pyvalue(json.loads(s))
+    def from_json_value(cls, s):
+        return cls.from_pyvalue(s)
 
-    def to_json(self):
+    def to_json_value(self):
         dct = dataclasses.asdict(self)
         fields = {f.name: f for f in dataclasses.fields(self)}
         for fieldname, value in dct.items():
             f_type = fields[fieldname].type
             if typing_inspect.is_generic_type(f_type):
                 dct[fieldname] = list(value)
-        return json.dumps(dct)
-
-    def to_edgeql(self):
-        return repr(self.to_json())
+        return dct
 
     @classmethod
     def _err(cls, msg):

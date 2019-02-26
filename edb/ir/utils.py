@@ -175,6 +175,19 @@ def is_implicit_wrapper(ir_expr):
     )
 
 
+def is_trivial_select(ir_expr):
+    if not isinstance(ir_expr, irast.SelectStmt):
+        return False
+
+    return (
+        not ir_expr.orderby
+        and ir_expr.iterator_stmt is None
+        and ir_expr.where is None
+        and ir_expr.limit is None
+        and ir_expr.offset is None
+    )
+
+
 def unwrap_set(ir_set):
     if is_implicit_wrapper(ir_set.expr):
         return ir_set.expr.result

@@ -28,6 +28,8 @@ from edb.common import adapter, debug, typed
 from edb.common import context as parser_context
 from edb.common import exceptions
 
+from edb.edgeql import qltypes
+
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constraints
 from edb.schema import database as s_db
@@ -43,8 +45,14 @@ from . import dbops
 from . import types
 
 
+q = common.qname
+qi = common.quote_ident
+ql = common.quote_literal
+
+
 DATABASE_ID_NAMESPACE = uuid.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
 CONFIG_ID_NAMESPACE = uuid.UUID('a48b38fa-349b-11e9-a6be-4f337f82f5ad')
+CONFIG_ID = uuid.UUID('172097a4-39f4-11e9-b189-9321eb2f4b97')
 
 
 class Context:
@@ -1374,6 +1382,18 @@ class JSONSliceFunction(dbops.Function):
             text=self.text)
 
 
+class SysConfigValueType(dbops.CompositeType):
+    """Type of values returned by _read_sys_config."""
+    def __init__(self):
+        super().__init__(name=('edgedb', '_sys_config_val_t'))
+
+        self.add_columns([
+            dbops.Column(name='name', type='text'),
+            dbops.Column(name='value', type='jsonb'),
+            dbops.Column(name='source', type='text'),
+        ])
+
+
 class SysConfigFunction(dbops.Function):
 
     # This is a function because "_edgecon_state" is a temporary table
@@ -1387,14 +1407,10 @@ class SysConfigFunction(dbops.Function):
                     (SELECT setting AS dir FROM pg_settings
                      WHERE name = 'data_directory'),
 
-                config_type AS
-                    (SELECT id FROM edgedb.Object
-                     WHERE name = 'sys::Config'),
-
                 config_spec AS
                     (SELECT
                         s.key AS name,
-                        s.value->>'default' AS default,
+                        s.value->'default' AS default,
                         (s.value->>'internal')::bool AS internal,
                         (s.value->>'system')::bool AS system,
                         (s.value->>'typeid')::uuid AS typeid,
@@ -1425,7 +1441,7 @@ class SysConfigFunction(dbops.Function):
                         'system override' AS source,
                         10 AS priority
                     FROM
-                        jsonb_each_text(
+                        jsonb_each(
                             (SELECT pg_read_file(
                                 (SELECT d.dir || '/config_sys.json'
                                  FROM data_dir d)
@@ -1436,7 +1452,7 @@ class SysConfigFunction(dbops.Function):
                 config_sess AS
                     (SELECT
                         s.name AS name,
-                        s.value AS value,
+                        s.value::jsonb AS value,
                         'session' AS source,
                         20 AS priority
                     FROM
@@ -1446,18 +1462,9 @@ class SysConfigFunction(dbops.Function):
                     )
 
             SELECT
-                NULL::uuid AS __edb_token,
-                edgedb.uuid_generate_v5(
-                    '{CONFIG_ID_NAMESPACE}'::uuid,
-                    q.name
-                ) AS id,
-                (SELECT config_type.id FROM config_type) AS __type__,
                 q.name,
                 q.value,
-                q.source,
-                cs.internal,
-                cs.system,
-                cs.typemod
+                q.source
             FROM
                 (SELECT
                     u.name,
@@ -1472,24 +1479,17 @@ class SysConfigFunction(dbops.Function):
                         SELECT * FROM config_sess
                     ) AS u
                 ) AS q
-                INNER JOIN config_spec cs
-                    ON q.name = cs.name
             WHERE
                 q.n = 1;
         $$;
         END;
     '''
 
-    def __init__(self, schema):
-        sys_config = schema.get('sys::Config')
-        sys = schema.get('sys')
-        sys_config_tab = common.get_objtype_backend_name(
-            sys_config.id, sys.id, catenate=False)
-
+    def __init__(self):
         super().__init__(
             name=('edgedb', '_read_sys_config'),
             args=[],
-            returns=sys_config_tab,
+            returns=('edgedb', '_sys_config_val_t'),
             set_returning=True,
             language='plpgsql',
             volatility='volatile',
@@ -1702,6 +1702,8 @@ async def bootstrap(conn):
         dbops.CreateFunction(JSONIndexByIntFunction()),
         dbops.CreateFunction(JSONSliceFunction()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
+        dbops.CreateCompositeType(SysConfigValueType()),
+        dbops.CreateFunction(SysConfigFunction()),
     ])
 
     # Register "any" pseudo-type.
@@ -1722,8 +1724,6 @@ dbname = lambda n: \
     common.quote_ident(common.edgedb_name_to_pg_name(sn.Name(n)))
 tabname = lambda schema, obj: \
     ('edgedbss', common.get_backend_name(schema, obj, catenate=False)[1])
-q = common.quote_ident
-ql = common.quote_literal
 
 
 def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
@@ -1745,7 +1745,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     {reftab}
             '''.format(
                 reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
-                refattr=q(refdict.backref_attr),
+                refattr=qi(refdict.backref_attr),
                 src='source',
                 tgt='target',
             )
@@ -1781,7 +1781,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         '''.format(
             schematab=schematab,
             reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
-            refattr=q(refdict.backref_attr),
+            refattr=qi(refdict.backref_attr),
             src='source',
             tgt='target',
         )
@@ -1827,7 +1827,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
 
             # ObjectSet and ObjectList fields are stored as uuid[],
             # so we just need to unnest the array here.
-            refattr = 'UNNEST(' + q(pn.name) + ')'
+            refattr = 'UNNEST(' + qi(pn.name) + ')'
 
         elif pn.name == 'args' and mcls is s_constraints.Constraint:
             # Constraint args need special handling.
@@ -1864,7 +1864,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                                 AS target
                 FROM
                     edgedb.{mcls.__name__} AS s,
-                    LATERAL UNNEST ((s.{q(pn.name)}).types) AS t(
+                    LATERAL UNNEST ((s.{qi(pn.name)}).types) AS t(
                         id, maintype, name, collection,
                         subtypes, dimensions, is_root
                     )
@@ -1879,7 +1879,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     'singular'.format(
                         '(' + schema_cls.name + ')' + '.' + pn.name))
 
-            refattr = q(pn.name)
+            refattr = qi(pn.name)
 
         if link_query is None:
             link_query = '''
@@ -2005,7 +2005,7 @@ def _generate_type_element_view(schema, type_fields):
             t.*
         FROM
             {table},
-            LATERAL UNNEST (({table}.{q(field)}).types)
+            LATERAL UNNEST (({table}.{qi(field)}).types)
                 WITH ORDINALITY AS t(
                     id, maintype, name, collection, subtypes,
                     dimensions, is_root, num
@@ -2044,7 +2044,7 @@ def _generate_types_views(schema, type_fields):
             t.*
         FROM
             {table},
-            LATERAL UNNEST (({table}.{q(field)}).types)
+            LATERAL UNNEST (({table}.{qi(field)}).types)
                 AS t(
                     id, maintype, name, collection, subtypes,
                     dimensions, is_root
@@ -2094,54 +2094,223 @@ def _generate_types_views(schema, type_fields):
     return views
 
 
+def _make_json_caster(schema, json_casts, stype, context):
+    cast = json_casts.get(stype)
+
+    if cast is None:
+        raise RuntimeError(
+            f'there is no direct cast from std::json to '
+            f'the type of {context!r} '
+            f'({stype.get_displayname(schema)})'
+        )
+
+    if cast.get_from_cast(schema):
+        pgtype = types.pg_type_from_object(schema, stype)
+
+        def _cast(val):
+            return f'({val})::{q(*pgtype)}'
+    else:
+        if cast.get_code(schema):
+            cast_name = cast.get_name(schema)
+            cast_module = schema.get(cast_name.module)
+            func_name = common.get_cast_backend_name(
+                cast_name, cast_module.id, aspect='function')
+        else:
+            func_name = cast.get_from_function(schema)
+
+        def _cast(val):
+            return f'{q(*func_name)}({val})'
+
+    return _cast
+
+
 async def generate_support_views(conn, schema):
     commands = dbops.CommandGroup()
 
-    sys_conf_view = '''
-        SELECT * FROM edgedb._read_sys_config()
-    '''
+    conf = schema.get('cfg::Config')
+    exc = schema.get('std::exclusive')
+    json_t = schema.get('std::json')
 
-    sys_conf_type_view = f'''
-        WITH
-            data_dir AS
-                (SELECT setting AS dir FROM pg_settings
-                 WHERE name = 'data_directory'),
+    cols = [
+        f"'{CONFIG_ID}'::uuid AS id",
+        f"(SELECT id FROM edgedb.Object "
+        f"WHERE name = 'cfg::Config') AS __type__",
+    ]
 
-            config_spec AS
-                (SELECT
-                    s.key AS name,
-                    (s.value->>'typeid')::uuid AS typeid
-                FROM
-                    jsonb_each(
-                        (SELECT pg_read_file(
-                            (SELECT d.dir || '/config_spec.json'
-                             FROM data_dir d)
-                        )::jsonb)
-                    ) s
-                )
+    views = []
+    json_casts = {
+        c.get_to_type(schema): c
+        for c in schema.get_casts_from_type(json_t)
+    }
 
+    for pn, p in conf.get_pointers(schema).items(schema):
+        if pn in ('id', '__type__'):
+            continue
+
+        ptype = p.get_target(schema)
+        multi = p.get_cardinality(schema) is qltypes.Cardinality.MANY
+
+        if not ptype.is_object_type() and not multi:
+            cast = _make_json_caster(
+                schema, json_casts, ptype, f'cfg::Config.{pn}')
+
+            cols.append(
+                f'(SELECT {cast("value")} FROM _sysconfig '
+                f'WHERE name = {ql(pn)}) AS {qi(pn)}'
+            )
+        else:
+            if ptype.is_object_type():
+                target_tab = tabname(schema, ptype)
+                exclusive_props = []
+                multi_props = []
+                target_cols = []
+                target_extract_cols = []
+                exclusive_extract_cols = []
+
+                for pp_name, pp in ptype.get_pointers(schema).items(schema):
+                    if pp_name in ('id', '__type__'):
+                        continue
+
+                    pp_type = pp.get_target(schema)
+                    pp_cast = _make_json_caster(
+                        schema, json_casts, pp_type,
+                        f'cfg::Config.{pn}.{pp_name}')
+
+                    pp_multi = (
+                        pp.get_cardinality(schema) is qltypes.Cardinality.MANY
+                    )
+
+                    extract_col = (
+                        f'{pp_cast(f"q->{ql(pp_name)}")}'
+                        f' AS {qi(pp_name)}')
+
+                    if pp_multi:
+                        multi_props.append((pp, pp_cast))
+                    else:
+                        constraints = pp.get_constraints(schema).objects(
+                            schema)
+                        if any(c.issubclass(schema, exc) for c in constraints):
+                            exclusive_props.append(pp_name)
+                            exclusive_extract_cols.append(extract_col)
+
+                        target_cols.append(qi(pp_name))
+                        target_extract_cols.append(extract_col)
+
+                target_cols = ',\n'.join(target_cols)
+                target_extract_cols = ',\n'.join(target_extract_cols)
+                exclusive_extract_cols = ',\n'.join(exclusive_extract_cols)
+
+                exclusive_props.sort()
+                id_string = ';'.join(exclusive_props)
+
+                target_query = textwrap.dedent(f'''\
+                    SELECT
+                        edgedb.uuid_generate_v5(
+                            '{DATABASE_ID_NAMESPACE}'::uuid,
+                            {ql(id_string)}) AS id,
+                        (SELECT id FROM edgedb.Object
+                         WHERE name = {ql(ptype.get_name(schema))})
+                                         AS __type__,
+                        {textwrap.indent(target_cols, ' ' * 24).strip()}
+                    FROM
+                        (SELECT
+                            {textwrap.indent(
+                                target_extract_cols, ' ' * 28).strip()}
+                         FROM
+                            jsonb_array_elements(
+                                (SELECT value::jsonb
+                                 FROM edgedb._read_sys_config() cfg
+                                 WHERE cfg.name = {ql(pn)})
+                            ) AS q
+                        ) AS q
+                ''')
+
+                views.append((target_tab, target_query))
+
+                link_query = textwrap.dedent(f'''\
+                    SELECT
+                        '{CONFIG_ID}'::uuid AS source,
+                        edgedb.uuid_generate_v5(
+                            '{DATABASE_ID_NAMESPACE}'::uuid,
+                            {ql(id_string)}) AS target
+                    FROM
+                        (SELECT
+                            {textwrap.indent(
+                                target_extract_cols, ' ' * 28).strip()}
+                         FROM
+                            jsonb_array_elements(
+                                (SELECT value::jsonb
+                                 FROM edgedb._read_sys_config() cfg
+                                 WHERE cfg.name = {ql(pn)})
+                            ) AS q
+                        ) AS q
+                ''')
+
+                views.append((tabname(schema, p), link_query))
+
+                for prop, pp_cast in multi_props:
+                    pp_name = prop.get_shortname(schema).name
+
+                    link_query = textwrap.dedent(f'''\
+                        SELECT
+                            edgedb.uuid_generate_v5(
+                                '{DATABASE_ID_NAMESPACE}'::uuid,
+                                {ql(id_string)}) AS source,
+                            {pp_cast('v')}       AS target
+                        FROM
+                            (SELECT
+                                {textwrap.indent(
+                                    exclusive_extract_cols, ' ' * 32).strip()},
+                                q->{ql(pp_name)} AS {qi(pp_name)}
+                            FROM
+                                jsonb_array_elements(
+                                    (SELECT value::jsonb
+                                    FROM edgedb._read_sys_config() cfg
+                                    WHERE cfg.name = {ql(pn)})
+                                ) AS q
+                            ) AS q,
+                            LATERAL
+                                jsonb_array_elements(q.{qi(pp_name)})
+                                AS v
+                    ''')
+
+                    views.append((tabname(schema, prop), link_query))
+
+            else:
+                # MULTI PROPERTY
+                cast = _make_json_caster(
+                    schema, json_casts, ptype, f'cfg::Config.{pn}')
+
+                link_query = textwrap.dedent(f'''\
+                    SELECT
+                        '{CONFIG_ID}'::uuid AS source,
+                        {cast('q')}         AS target
+                    FROM
+                        jsonb_array_elements(
+                            (SELECT value::jsonb
+                                FROM edgedb._read_sys_config() cfg
+                                WHERE cfg.name = {ql(pn)})
+                        ) AS q
+                ''')
+
+                views.append((tabname(schema, p), link_query))
+
+    view_query = textwrap.dedent('''\
+        WITH _sysconfig AS (SELECT * FROM edgedb._read_sys_config())
         SELECT
-            edgedb.uuid_generate_v5(
-                '{CONFIG_ID_NAMESPACE}'::uuid,
-                cs.name
-            ) AS source,
-            cs.typeid AS target
-        FROM
-            config_spec cs;
-    '''
+            {cols}
+    ''').format(
+        cols='\n,    '.join(cols)
+    )
 
-    sys_conf = schema.get('sys::Config')
+    views.append((
+        tabname(schema, conf),
+        view_query,
+    ))
 
     commands.add_commands([
-        dbops.CreateFunction(SysConfigFunction(schema)),
-        dbops.CreateView(
-            dbops.View(
-                name=tabname(schema, sys_conf),
-                query=sys_conf_view)),
-        dbops.CreateView(
-            dbops.View(
-                name=tabname(schema, sys_conf.getptr(schema, 'type')),
-                query=sys_conf_type_view)),
+        dbops.CreateView(dbops.View(name=tn, query=q))
+        for tn, q in views
     ])
 
     block = dbops.PLTopBlock(disable_ddl_triggers=True)
@@ -2230,17 +2399,17 @@ async def generate_views(conn, schema):
             if ptrstor.table_type == 'ObjectType':
                 if pn == 'name' and issubclass(mcls, s_obj.Object):
                     col_expr = 'edgedb.shortname_from_fullname(t.{})'.format(
-                        q(ptrstor.column_name))
+                        qi(ptrstor.column_name))
                 elif field.type is s_expr.Expression:
-                    col_expr = f'(t.{q(ptrstor.column_name)}).text'
+                    col_expr = f'(t.{qi(ptrstor.column_name)}).text'
                 elif field.type is s_expr.ExpressionList:
                     col_expr = f'''
                         (SELECT array_agg(q.text)
-                         FROM unnest(t.{q(ptrstor.column_name)})
-                                AS q(text, _, _, _))
+                         FROM unnest(t.{qi(ptrstor.column_name)})
+                                AS qi(text, _, _, _))
                     '''
                 else:
-                    col_expr = f't.{q(ptrstor.column_name)}'
+                    col_expr = f't.{qi(ptrstor.column_name)}'
 
                 cols.append((col_expr, pn))
             else:

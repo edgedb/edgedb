@@ -20,21 +20,6 @@
 CREATE MODULE sys;
 
 
-CREATE TYPE sys::Config {
-    CREATE REQUIRED PROPERTY sys::name -> std::str {
-        CREATE CONSTRAINT std::exclusive;
-    };
-
-    CREATE REQUIRED PROPERTY sys::value -> std::str;
-    CREATE REQUIRED PROPERTY sys::source -> std::str;
-    CREATE REQUIRED PROPERTY sys::internal -> std::bool;
-    CREATE REQUIRED PROPERTY sys::system -> std::bool;
-
-    CREATE REQUIRED LINK sys::type -> schema::Type;
-    CREATE REQUIRED PROPERTY sys::typemod -> std::str;
-};
-
-
 CREATE TYPE sys::Role {
     CREATE REQUIRED PROPERTY sys::name -> std::str {
         CREATE CONSTRAINT std::exclusive;

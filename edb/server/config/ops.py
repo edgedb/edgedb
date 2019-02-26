@@ -155,12 +155,12 @@ def spec_to_json(spec: spec.Spec):
 def value_to_json_value(setting: spec.Setting, value: object):
     if setting.set_of:
         if issubclass(setting.type, types.ConfigType):
-            return [v.to_json() for v in value]
+            return [v.to_json_value() for v in value]
         else:
             return list(value)
     else:
         if issubclass(setting.type, types.ConfigType):
-            return value.to_json()
+            return value.to_json_value()
         else:
             return value
 
@@ -168,22 +168,18 @@ def value_to_json_value(setting: spec.Setting, value: object):
 def value_from_json_value(setting: spec.Setting, value: object):
     if setting.set_of:
         if issubclass(setting.type, types.ConfigType):
-            return frozenset(setting.type.from_json(v) for v in value)
+            return frozenset(setting.type.from_json_value(v) for v in value)
         else:
             return frozenset(value)
     else:
         if issubclass(setting.type, types.ConfigType):
-            return setting.type.from_json(value)
+            return setting.type.from_json_value(value)
         else:
             return value
 
 
 def value_from_json(setting, value: str):
     return value_from_json_value(setting, json.loads(value))
-
-
-def value_to_json(setting: spec.Setting, value: object):
-    return json.dumps(value_to_json_value(setting, value))
 
 
 def to_json(spec: spec.Spec, storage: typing.Mapping) -> str:

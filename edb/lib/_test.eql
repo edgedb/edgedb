@@ -20,14 +20,14 @@
 # These definitions are picked up if the EdgeDB instance is bootstrapped
 # with --testmode.
 
-CREATE TYPE cfg::SessionComposite {
+CREATE TYPE cfg::SessionConfig {
     CREATE REQUIRED PROPERTY cfg::name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     }
 };
 
 
-CREATE TYPE cfg::SystemComposite {
+CREATE TYPE cfg::SystemConfig {
     CREATE REQUIRED PROPERTY cfg::name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     }
@@ -35,8 +35,8 @@ CREATE TYPE cfg::SystemComposite {
 
 
 ALTER TYPE cfg::Config {
-    CREATE MULTI LINK sessobj -> cfg::SessionComposite;
-    CREATE MULTI LINK sysobj -> cfg::SystemComposite;
+    CREATE MULTI LINK cfg::sessobj -> cfg::SessionConfig;
+    CREATE MULTI LINK cfg::sysobj -> cfg::SystemConfig;
 
     CREATE PROPERTY cfg::__internal_testvalue -> std::int64 {
         SET ATTRIBUTE cfg::internal := 'true';

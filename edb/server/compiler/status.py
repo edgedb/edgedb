@@ -134,4 +134,7 @@ def _sess_reset_alias(ql):
 
 @get_status.register(qlast.ConfigOp)
 def _sess_set_config(ql):
-    return b'CONFIGURE'
+    if ql.system:
+        return b'CONFIGURE SYSTEM'
+    else:
+        return b'CONFIGURE SESSION'

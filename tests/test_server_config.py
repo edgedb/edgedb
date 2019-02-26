@@ -107,7 +107,7 @@ class TestServerConfigUtils(unittest.TestCase):
                 'bools': [],
                 'int': 0,
                 'ints': [],
-                'port': testspec1['port'].default.to_json(),
+                'port': testspec1['port'].default.to_json_value(),
                 'ports': [],
                 'str': 'hello',
                 'strings': [],
