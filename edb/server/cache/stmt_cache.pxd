@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2018-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,11 +17,15 @@
 #
 
 
-from edb.server.http cimport http
-from edb.server.cache cimport stmt_cache
+cdef class StatementsCache:
 
-
-cdef class Protocol(http.HttpProtocol):
     cdef:
-        object server
-        stmt_cache.StatementsCache query_cache
+        object _dict
+        int _maxsize
+        object _dict_move_to_end
+        object _dict_get
+
+    cdef get(self, key, default)
+
+    cdef needs_cleanup(self)
+    cdef cleanup_one(self)

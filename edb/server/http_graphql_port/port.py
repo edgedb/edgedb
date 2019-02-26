@@ -21,9 +21,13 @@ import asyncio
 
 from edb.common import taskgroup
 from edb.server import baseport
+from edb.server import cache
 
 from . import compiler
 from . import protocol
+
+
+QUERY_CACHE_SIZE = 500
 
 
 class HttpGraphQLPort(baseport.Port):
@@ -55,6 +59,7 @@ class HttpGraphQLPort(baseport.Port):
         self.concurrency = concurrency
 
         self._servers = []
+        self._query_cache = cache.StatementsCache(maxsize=QUERY_CACHE_SIZE)
 
     @property
     def compilers(self):
@@ -96,7 +101,7 @@ class HttpGraphQLPort(baseport.Port):
             self._pgcons_list.append(con_task.result())
 
         srv = await self._loop.create_server(
-            lambda: protocol.Protocol(self._loop, self),
+            lambda: protocol.Protocol(self._loop, self, self._query_cache),
             host=self._nethost, port=self._netport)
 
         self._servers.append(srv)

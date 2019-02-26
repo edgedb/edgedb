@@ -141,7 +141,8 @@ cdef class HttpProtocol:
         else:
             self.current_parser = None
             self.current_request = None
-            self.transport.resume_reading()
+            if self.transport is not None:
+                self.transport.resume_reading()
 
     async def handle_request(self, request, response):
         raise NotImplementedError

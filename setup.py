@@ -435,6 +435,12 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
+            "edb.server.cache.stmt_cache",
+            ["edb/server/cache/stmt_cache.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        distutils_extension.Extension(
             "edb.server.pgcon.pgcon",
             ["edb/server/pgcon/pgcon.pyx"],
             extra_compile_args=EXT_CFLAGS,

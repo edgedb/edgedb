@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2018-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,15 +17,7 @@
 #
 
 
-cdef class StatementsCache:
+from .stmt_cache import StatementsCache
 
-    cdef:
-        object _dict
-        int _maxsize
-        object _dict_move_to_end
-        object _dict_get
 
-    cdef get(self, key, default)
-
-    cdef needs_cleanup(self)
-    cdef cleanup_one(self)
+__all__ = ('StatementsCache',)

@@ -20,7 +20,10 @@
 import dataclasses
 import typing
 
+from edb import errors
+
 from edb import graphql
+
 from edb.common import debug
 from edb.edgeql import compiler as ql_compiler
 from edb.pgsql import compiler as pg_compiler
@@ -33,7 +36,38 @@ class CompilerDatabaseState(compiler.CompilerDatabaseState):
     gqlcore: graphql.GQLCoreSchema
 
 
-class Compiler(compiler.Compiler):
+@dataclasses.dataclass(frozen=True)
+class CompiledOperation:
+
+    sql: bytes
+    sql_args: typing.List[str]
+    cacheable: bool
+    cache_deps_vars: typing.Dict
+    variables: typing.Dict
+
+
+@dataclasses.dataclass(frozen=True)
+class CompiledQuery:
+
+    ops: typing.Mapping[str, CompiledOperation]
+
+    def get_op(self, operation_name):
+        if operation_name is None:
+            if len(self.ops) == 1:
+                operation_name = next(iter(self.ops))
+            else:
+                raise errors.QueryError(
+                    'must provide operation name if query contains '
+                    'multiple operations')
+
+        try:
+            return self.ops[operation_name]
+        except KeyError:
+            raise errors.QueryError(
+                f'unknown operation named "{operation_name}"')
+
+
+class Compiler(compiler.BaseCompiler):
 
     def _wrap_schema(self, dbver, con_args, schema) -> CompilerDatabaseState:
         gqlcore = graphql.GQLCoreSchema(schema)
@@ -57,7 +91,7 @@ class Compiler(compiler.Compiler):
             gql,
             variables=variables)
 
-        result = {}
+        ops = {}
         for op_name, op_desc in trans.items():
             ir = ql_compiler.compile_ast_to_ir(
                 op_desc['edgeql'],
@@ -73,12 +107,12 @@ class Compiler(compiler.Compiler):
             for argname, argpos in argmap.items():
                 args[argpos - 1] = argname
 
-            result[op_name] = {
-                'sql': sql_text.encode(),
-                'args': args,
-                'cacheable': op_desc['cacheable'],
-                'cache_deps_vars': op_desc['cache_deps_vars'],
-                'variables_desc': op_desc['variables_desc'],
-            }
+            ops[op_name] = CompiledOperation(
+                sql=sql_text.encode(),
+                sql_args=args,
+                cacheable=op_desc['cacheable'],
+                cache_deps_vars=op_desc['cache_deps_vars'],
+                variables=op_desc['variables_desc'],
+            )
 
-        return result
+        return CompiledQuery(ops=ops)

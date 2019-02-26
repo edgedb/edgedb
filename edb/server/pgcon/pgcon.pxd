@@ -30,8 +30,7 @@ from edb.server.pgproto.pgproto cimport (
 
 from edb.server.pgproto.debug cimport PG_DEBUG
 
-
-include './stmt_cache.pxd'
+from edb.server.cache cimport stmt_cache
 
 
 cdef enum PGTransactionStatus:
@@ -63,7 +62,7 @@ cdef class PGProto:
         readonly int32_t backend_pid
         readonly int32_t backend_secret
 
-        StatementsCache prep_stmts
+        stmt_cache.StatementsCache prep_stmts
         list last_parse_prep_stmts
 
         bint debug

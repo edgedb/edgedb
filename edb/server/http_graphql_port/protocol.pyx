@@ -31,13 +31,15 @@ from edb.server.http import http
 from edb.server.http cimport http
 
 from . import explore
+from . import compiler
 
 
 cdef class Protocol(http.HttpProtocol):
 
-    def __init__(self, loop, server):
+    def __init__(self, loop, server, query_cache):
         http.HttpProtocol.__init__(self, loop)
         self.server = server
+        self.query_cache = query_cache
 
     async def handle_request(self, http.HttpRequest request,
                              http.HttpResponse response):
@@ -138,40 +140,42 @@ cdef class Protocol(http.HttpProtocol):
         else:
             response.body = b'{"data":' + result + b'}'
 
-    async def execute(self, query, operation_name, variables):
+    async def compile(self, dbver, query, operation_name, variables):
         compiler = await self.server.compilers.get()
         try:
-            qu = await compiler.call(
+            return await compiler.call(
                 'compile_graphql',
-                self.server.get_dbver(),
+                dbver,
                 query,
                 operation_name,
                 variables)
         finally:
             self.server.compilers.put_nowait(compiler)
 
-        if operation_name is None:
-            if len(qu) == 1:
-                operation_name = next(iter(qu))
-            else:
-                raise errors.QueryError(
-                    'must provide operation name if query contains '
-                    'multiple operations')
+    async def execute(self, query, operation_name, variables):
+        dbver = self.server.get_dbver()
+        cache_key = (query, dbver)
 
-        try:
-            qu = qu[operation_name]
-        except KeyError:
-            raise errors.QueryError(
-                f'unknown operation named "{operation_name}"')
+        compiled: compiler.CompiledQuery = self.query_cache.get(
+            cache_key, None)
 
-        sql = qu['sql']
-        argmap = qu['args']
+        if compiled is None:
+            compiled = await self.compile(
+                dbver, query, operation_name, variables)
+            self.query_cache[cache_key] = compiled
+            op: compiler.CompiledOperation = compiled.get_op(operation_name)
+        else:
+            op: compiler.CompiledOperation = compiled.get_op(operation_name)
+            if op.cache_deps_vars:
+                compiled = await self.compile(
+                    dbver, query, operation_name, variables)
+                op = compiled.get_op(operation_name)
 
         args = []
-        if argmap:
-            for name in argmap:
+        if op.sql_args:
+            for name in op.sql_args:
                 if variables is None or name not in variables:
-                    default = qu['variables_desc'].get(name)
+                    default = op.variables.get(name)
                     if default is None:
                         raise errors.QueryError(
                             f'no value for the {name!r} variable')
@@ -181,7 +185,7 @@ cdef class Protocol(http.HttpProtocol):
 
         pgcon = await self.server.pgcons.get()
         try:
-            data = await pgcon.parse_execute_json(sql, args)
+            data = await pgcon.parse_execute_json(op.sql, args)
         finally:
             self.server.pgcons.put_nowait(pgcon)
 

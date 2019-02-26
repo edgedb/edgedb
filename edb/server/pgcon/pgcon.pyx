@@ -45,14 +45,12 @@ from edb.server.pgproto.pgproto cimport (
     frb_read,
 )
 
+from edb.server.cache cimport stmt_cache
 from edb.server.mng_port cimport edgecon
 
 from edb.common import debug
 
 from . import errors as pgerror
-
-
-include './stmt_cache.pyx'
 
 
 DEF DATA_BUFFER_SIZE = 100_000
@@ -97,7 +95,7 @@ cdef class PGProto:
         self.transport = None
         self.msg_waiter = None
 
-        self.prep_stmts = StatementsCache(maxsize=PREP_STMTS_CACHE)
+        self.prep_stmts = stmt_cache.StatementsCache(maxsize=PREP_STMTS_CACHE)
 
         self.connected_fut = loop.create_future()
         self.connected = False
