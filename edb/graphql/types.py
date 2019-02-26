@@ -133,6 +133,14 @@ class GQLCoreSchema:
         # this map is used for GQL -> EQL translator needs
         self._type_map = {}
 
+    @property
+    def edgedb_schema(self):
+        return self.edb_schema
+
+    @property
+    def graphql_schema(self):
+        return self._gql_schema
+
     def get_short_name(self, name):
         return name.split('::', 1)[-1]
 

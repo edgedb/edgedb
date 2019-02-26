@@ -18,6 +18,7 @@
 
 
 from edb.common import devmode
+from edb.server import procpool
 
 
 class Port:
@@ -34,6 +35,9 @@ class Port:
 
         self._devmode = devmode.is_in_dev_mode()
 
+        self._compiler_manager = None
+        self._serving = False
+
     def in_dev_mode(self):
         return self._devmode
 
@@ -43,8 +47,34 @@ class Port:
     def get_server(self):
         return self._server
 
-    async def start(self):
+    def get_compiler_worker_cls(self):
         raise NotImplementedError
 
-    async def stop(self):
+    def get_compiler_worker_name(self):
         raise NotImplementedError
+
+    async def new_compiler(self, dbname, dbver):
+        compiler_worker = await self._compiler_manager.spawn_worker()
+        try:
+            await compiler_worker.call('connect', dbname, dbver)
+        except Exception:
+            await compiler_worker.close()
+            raise
+        return compiler_worker
+
+    async def start(self):
+        if self._serving:
+            raise RuntimeError('already serving')
+        self._serving = True
+
+        self._compiler_manager = await procpool.create_manager(
+            runstate_dir=self._runstate_dir,
+            worker_args=(dict(host=self._pg_addr), self._pg_data_dir),
+            worker_cls=self.get_compiler_worker_cls(),
+            name=self.get_compiler_worker_name(),
+        )
+
+    async def stop(self):
+        await self._compiler_manager.stop()
+        self._compiler_manager = None
+        self._serving = False

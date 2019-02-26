@@ -17,14 +17,15 @@
 #
 
 
-from .compiler import Compiler, compile_bootstrap_script
+from .compiler import Compiler, BaseCompiler, CompilerDatabaseState
+from .compiler import compile_bootstrap_script
 from .dbstate import QueryUnit
 from .enums import Capability, CompileStatementMode
 from .stdschema import load_std_schema
 
 
 __all__ = (
-    'Compiler',
+    'Compiler', 'BaseCompiler', 'CompilerDatabaseState',
     'QueryUnit',
     'Capability', 'CompileStatementMode',
     'compile_bootstrap_script',

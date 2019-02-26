@@ -35,8 +35,8 @@ from . import codegen as gqlcodegen
 
 
 class GraphQLTranslatorContext:
-    def __init__(self, *, schema, gqlcore, variables, query, document_ast):
-        self.schema = schema
+    def __init__(self, *, gqlcore: gt.GQLCoreSchema,
+                 variables, query, document_ast):
         self.variables = variables
         self.fragments = {}
         self.validated_fragments = {}
@@ -156,7 +156,7 @@ class GraphQLTranslator:
 
                     # An introspection query; let graphql evaluate it for us.
                     result = graphql.execute(
-                        self._context.gqlcore._gql_schema,
+                        self._context.gqlcore.graphql_schema,
                         self._context.document_ast,
                         operation_name=opname,
                         variables=self._context.variables)
@@ -893,7 +893,7 @@ def value_node_from_pyvalue(val: object):
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 
 
-def translate(schema, query, *, variables=None):
+def translate(gqlcore: gt.GQLCoreSchema, query, *, variables=None):
     try:
         document_ast = graphql.parse(query)
     except graphql.GraphQLError as err:
@@ -908,9 +908,7 @@ def translate(schema, query, *, variables=None):
     for n, v in variables.items():
         gql_vars[n] = value_node_from_pyvalue(v)
 
-    gqlcore = gt.GQLCoreSchema(schema)
-
-    validation_errors = graphql.validate(gqlcore._gql_schema, document_ast)
+    validation_errors = graphql.validate(gqlcore.graphql_schema, document_ast)
     if validation_errors:
         err = validation_errors[0]
         if isinstance(err, graphql.GraphQLError):
@@ -920,7 +918,7 @@ def translate(schema, query, *, variables=None):
             raise err
 
     context = GraphQLTranslatorContext(
-        schema=schema, gqlcore=gqlcore, query=query,
+        gqlcore=gqlcore, query=query,
         variables=gql_vars, document_ast=document_ast)
 
     results = {}

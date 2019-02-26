@@ -21,6 +21,7 @@ import weakref
 
 from edb.common import taskgroup
 from edb.server import baseport
+from edb.server import compiler
 
 from . import edgecon
 
@@ -54,8 +55,6 @@ class ManagementPort(baseport.Port):
 
         self._edgecon_id = 0
 
-        self._serving = False
-
         self._servers = []
         self._backends = weakref.WeakSet()
 
@@ -63,12 +62,18 @@ class ManagementPort(baseport.Port):
         return self._dbindex.new_view(
             dbname, user=user, query_cache=query_cache)
 
+    def get_compiler_worker_cls(self):
+        return compiler.Compiler
+
+    def get_compiler_worker_name(self):
+        return 'compiler-mng'
+
     async def new_backend(self, *, dbname: str, dbver: int):
         server = self.get_server()
 
         async with taskgroup.TaskGroup() as g:
             new_pgcon_task = g.create_task(server.new_pgcon(dbname))
-            compiler_task = g.create_task(server.new_compiler(dbname, dbver))
+            compiler_task = g.create_task(self.new_compiler(dbname, dbver))
 
         backend = Backend(
             new_pgcon_task.result(),
@@ -82,9 +87,7 @@ class ManagementPort(baseport.Port):
         return str(self._edgecon_id)
 
     async def start(self):
-        if self._serving:
-            raise RuntimeError('already serving')
-        self._serving = True
+        await super().start()
 
         srv = await self._loop.create_server(
             lambda: edgecon.EdgeConnection(self),
@@ -93,14 +96,15 @@ class ManagementPort(baseport.Port):
         self._servers.append(srv)
 
     async def stop(self):
-        self._serving = False
-
         try:
             async with taskgroup.TaskGroup() as g:
                 for srv in self._servers:
                     srv.close()
                     g.create_task(srv.wait_closed())
         finally:
-            async with taskgroup.TaskGroup() as g:
-                for backend in self._backends:
-                    g.create_task(backend.close())
+            try:
+                async with taskgroup.TaskGroup() as g:
+                    for backend in self._backends:
+                        g.create_task(backend.close())
+            finally:
+                await super().stop()

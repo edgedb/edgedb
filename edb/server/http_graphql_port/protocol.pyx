@@ -139,16 +139,16 @@ cdef class Protocol(http.HttpProtocol):
             response.body = b'{"data":' + result + b'}'
 
     async def execute(self, query, operation_name, variables):
-        compiler = await self.server._compilers.get()
+        compiler = await self.server.compilers.get()
         try:
             qu = await compiler.call(
                 'compile_graphql',
-                self.server._dbindex.get_dbver(self.server.database),
+                self.server.get_dbver(),
                 query,
                 operation_name,
                 variables)
         finally:
-            self.server._compilers.put_nowait(compiler)
+            self.server.compilers.put_nowait(compiler)
 
         if operation_name is None:
             if len(qu) == 1:
@@ -179,10 +179,10 @@ cdef class Protocol(http.HttpProtocol):
                 else:
                     args.append(variables[name])
 
-        pgcon = await self.server._pgcons.get()
+        pgcon = await self.server.pgcons.get()
         try:
             data = await pgcon.parse_execute_json(sql, args)
         finally:
-            self.server._pgcons.put_nowait(pgcon)
+            self.server.pgcons.put_nowait(pgcon)
 
         return data

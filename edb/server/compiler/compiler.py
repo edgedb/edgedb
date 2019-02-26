@@ -18,6 +18,7 @@
 
 
 import collections
+import dataclasses
 import hashlib
 import pathlib
 import typing
@@ -32,7 +33,6 @@ from edb.pgsql import compiler as pg_compiler
 from edb.pgsql import intromech
 
 from edb import edgeql
-from edb import graphql
 from edb.common import debug
 
 from edb.edgeql import ast as qlast
@@ -63,14 +63,16 @@ from . import status
 from . import stdschema
 
 
-class CompilerDatabaseState(typing.NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class CompilerDatabaseState:
 
     dbver: int
     con_args: dict
     schema: s_schema.Schema
 
 
-class CompileContext(typing.NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class CompileContext:
 
     state: dbstate.CompilerConnectionState
     output_format: pg_compiler.OutputFormat
@@ -111,7 +113,7 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
     return new_schema, sql.decode()
 
 
-class Compiler:
+class BaseCompiler:
 
     _connect_args: dict
     _dbname: typing.Optional[str]
@@ -121,8 +123,6 @@ class Compiler:
         self._connect_args = connect_args
         self._dbname = None
         self._cached_db = None
-        self._current_db_state = None
-        self._bootstrap_mode = False
 
         if data_dir is not None:
             self._data_dir = pathlib.Path(data_dir)
@@ -130,6 +130,12 @@ class Compiler:
         else:
             self._data_dir = None
             self._std_schema = None
+
+    def _wrap_schema(self, dbver, con_args, schema) -> CompilerDatabaseState:
+        return CompilerDatabaseState(
+            dbver=dbver,
+            con_args=con_args,
+            schema=schema)
 
     async def _get_database(self, dbver: int) -> CompilerDatabaseState:
         if self._cached_db is not None and self._cached_db.dbver == dbver:
@@ -150,15 +156,34 @@ class Compiler:
                 schema=self._std_schema,
                 exclude_modules=s_schema.STD_MODULES)
 
-            db = CompilerDatabaseState(
-                dbver=dbver,
-                con_args=con_args,
-                schema=schema)
-
+            db = self._wrap_schema(dbver, con_args, schema)
             self._cached_db = db
             return db
         finally:
             await con.close()
+
+    # API
+
+    async def connect(self, dbname: str, dbver: int) -> CompilerDatabaseState:
+        self._dbname = dbname
+        self._cached_db = None
+        await self._get_database(dbver)
+
+
+class Compiler(BaseCompiler):
+
+    def __init__(self, connect_args: dict, data_dir: str):
+        super().__init__(connect_args, data_dir)
+
+        self._current_db_state = None
+        self._bootstrap_mode = False
+
+        if data_dir is not None:
+            self._data_dir = pathlib.Path(data_dir)
+            self._std_schema = stdschema.load_std_schema(self._data_dir)
+        else:
+            self._data_dir = None
+            self._std_schema = None
 
     def _hash_sql(self, sql: bytes, **kwargs: bytes):
         h = hashlib.sha1(sql)
@@ -950,11 +975,6 @@ class Compiler:
 
     # API
 
-    async def connect(self, dbname: str, dbver: int) -> CompilerDatabaseState:
-        self._dbname = dbname
-        self._cached_db = None
-        await self._get_database(dbver)
-
     async def try_compile_rollback(self, dbver: int, eql: bytes):
         statements = edgeql.parse_block(eql.decode())
 
@@ -984,47 +1004,6 @@ class Compiler:
         raise errors.TransactionError(
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
         )  # pragma: no cover
-
-    async def compile_graphql(
-            self,
-            dbver: int,
-            gql: str,
-            operation_name: str=None,
-            variables: typing.Optional[typing.Mapping[str, object]]=None):
-
-        db = await self._get_database(dbver)
-
-        trans = graphql.translate(
-            db.schema,
-            gql,
-            variables=variables)
-
-        result = {}
-        for op_name, op_desc in trans.items():
-
-            ir = ql_compiler.compile_ast_to_ir(
-                op_desc['edgeql'],
-                schema=db.schema,
-                json_parameters=True)
-
-            sql_text, argmap = pg_compiler.compile_ir_to_sql(
-                ir,
-                pretty=debug.flags.edgeql_compile,
-                output_format=pg_compiler.OutputFormat.NATIVE)
-
-            args = [None] * len(argmap)
-            for argname, argpos in argmap.items():
-                args[argpos - 1] = argname
-
-            result[op_name] = {
-                'sql': sql_text.encode(),
-                'args': args,
-                'cacheable': op_desc['cacheable'],
-                'cache_deps_vars': op_desc['cache_deps_vars'],
-                'variables_desc': op_desc['variables_desc'],
-            }
-
-        return result
 
     async def compile_eql(
             self,

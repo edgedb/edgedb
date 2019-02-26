@@ -25,12 +25,9 @@ from edb.common import taskgroup
 
 from edb.edgeql import parser as ql_parser
 
-from edb.server import compiler
 from edb.server import config
 from edb.server import http_graphql_port
 from edb.server import pgcon
-from edb.server import procpool
-
 
 from . import dbview
 
@@ -55,8 +52,6 @@ class Server:
 
         self._runstate_dir = runstate_dir
         self._max_backend_connections = max_backend_connections
-
-        self._compiler_manager = None
 
         self._ports = []
         self._sys_conf_ports = {}
@@ -170,16 +165,9 @@ class Server:
                 **kwargs))
 
     async def start(self):
-
         # Make sure that EdgeQL parser is preloaded; edgecon might use
         # it to restore config values.
         ql_parser.preload()
-
-        self._compiler_manager = await procpool.create_manager(
-            runstate_dir=self._runstate_dir,
-            name='edgedb-compiler',
-            worker_cls=compiler.Compiler,
-            worker_args=(dict(host=self._pg_addr), self._pg_data_dir))
 
         async with taskgroup.TaskGroup() as g:
             for port in self._ports:
@@ -193,11 +181,8 @@ class Server:
         self._serving = True
 
     async def stop(self):
-        try:
-            async with taskgroup.TaskGroup() as g:
-                for port in self._ports:
-                    g.create_task(port.stop())
-                for port in self._sys_conf_ports.values():
-                    g.create_task(port.stop())
-        finally:
-            await self._compiler_manager.stop()
+        async with taskgroup.TaskGroup() as g:
+            for port in self._ports:
+                g.create_task(port.stop())
+            for port in self._sys_conf_ports.values():
+                g.create_task(port.stop())

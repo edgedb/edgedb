@@ -17,8 +17,12 @@
 #
 
 
-from .codegen import generate_source  # NOQA
-from .translator import translate  # NOQA
+from .translator import translate
+from .types import GQLCoreSchema
+
 
 from . import _patch_core
 _patch_core.patch_graphql_core()
+
+
+__all__ = ('translate', 'GQLCoreSchema')
