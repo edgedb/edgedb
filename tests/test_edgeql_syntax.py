@@ -2876,7 +2876,8 @@ aa';
 
     def test_edgeql_syntax_ddl_constraint_06(self):
         """
-        CREATE ABSTRACT CONSTRAINT std::length ON (len(<std::str>__subject__))
+        CREATE ABSTRACT CONSTRAINT std::len_constraint ON
+                (len(<std::str>__subject__))
             EXTENDING std::constraint
         {
             SET errmessage := 'invalid {subject}';
