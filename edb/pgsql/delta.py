@@ -1546,9 +1546,12 @@ class CreateSourceIndex(SourceIndexCommand, CreateObject,
             # parentheses. since it expects only a single set around the column
             # list.
             sql_expr = sql_expr[1:-1]
-        index_name = '{}_reg_idx'.format(index.get_name(schema))
+
+        module = schema.get(index.get_name(schema).module)
+        index_name = common.get_index_backend_name(
+            index.id, module.id, catenate=False)
         pg_index = dbops.Index(
-            name=index_name, table_name=table_name, expr=sql_expr,
+            name=index_name[1], table_name=table_name, expr=sql_expr,
             unique=False, inherit=True,
             metadata={'schemaname': index.get_name(schema)})
         self.pgops.add(dbops.CreateIndex(pg_index, priority=3))
@@ -1571,15 +1574,19 @@ class RenameSourceIndex(SourceIndexCommand, RenameObject,
             subject.original_schema, index, catenate=False)
 
         index_ctx = context.get(s_indexes.SourceIndexCommandContext)
-        new_index_name = '{}_reg_idx'.format(index.get_name(schema))
 
         orig_schema = index_ctx.original_schema
-        orig_idx_name = '{}_reg_idx'.format(index.get_name(orig_schema))
+        module = schema.get(index.get_name(orig_schema).module)
+        orig_idx_name = common.get_index_backend_name(
+            index.id, module.id, catenate=False)
+
+        new_index_name = orig_idx_name
+
         orig_pg_idx = dbops.Index(
-            name=orig_idx_name, table_name=orig_table_name, inherit=True,
+            name=orig_idx_name[1], table_name=orig_table_name, inherit=True,
             metadata={'schemaname': index.get_name(schema)})
 
-        rename = dbops.RenameIndex(orig_pg_idx, new_name=new_index_name)
+        rename = dbops.RenameIndex(orig_pg_idx, new_name=new_index_name[1])
         self.pgops.add(rename)
 
         return schema, index
@@ -1598,6 +1605,7 @@ class DeleteSourceIndex(SourceIndexCommand, DeleteObject,
                         adapts=s_indexes.DeleteSourceIndex):
 
     def apply(self, schema, context=None):
+        orig_schema = schema
         schema, index = s_indexes.DeleteSourceIndex.apply(
             self, schema, context)
         schema, _ = DeleteObject.apply(self, schema, context)
@@ -1612,9 +1620,11 @@ class DeleteSourceIndex(SourceIndexCommand, DeleteObject,
             #
             table_name = common.get_backend_name(
                 schema, source.scls, catenate=False)
-            index_name = '{}_reg_idx'.format(index.get_name(schema))
+            module = schema.get(index.get_name(orig_schema).module)
+            orig_idx_name = common.get_index_backend_name(
+                index.id, module.id, catenate=False)
             index = dbops.Index(
-                name=index_name, table_name=table_name, inherit=True)
+                name=orig_idx_name[1], table_name=table_name, inherit=True)
             index_exists = dbops.IndexExists(
                 (table_name[0], index.name_in_catalog))
             self.pgops.add(

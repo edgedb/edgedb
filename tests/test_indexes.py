@@ -33,6 +33,8 @@ class TestIndexes(tb.DDLTestCase):
 
                     index name_index on (__subject__.first_name,
                                          __subject__.last_name)
+
+                type Person2 extending Person
             $$;
 
             COMMIT MIGRATION test::d1;

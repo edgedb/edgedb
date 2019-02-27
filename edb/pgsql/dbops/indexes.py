@@ -79,10 +79,7 @@ class Index(tables.InheritableTableObject):
 
     @property
     def name_in_catalog(self):
-        if self.inherit:
-            return base.pack_name(self.table_name[1] + '__' + self.name)
-        else:
-            return self.name
+        return base.pack_name(self.table_name[1] + '__' + self.name)
 
     def add_columns(self, columns):
         self._columns.update(columns)
@@ -94,7 +91,7 @@ class Index(tables.InheritableTableObject):
         code = textwrap.dedent(f'''\
             {desc_var}.table_name := ARRAY[
                 {ql(self.table_name[0])}, {ql(self.table_name[1])}];
-            {desc_var}.name := {ql(self.name_in_catalog)};
+            {desc_var}.name := {ql(self.name)};
             {desc_var}.is_unique := {self.unique};
             {desc_var}.predicate := {ql(self.predicate) if self.predicate
                                      else 'NULL'};
@@ -114,9 +111,15 @@ class Index(tables.InheritableTableObject):
             f"(CASE WHEN {desc_var}.is_unique THEN 'UNIQUE '"
             f" ELSE '' END)"
         )
+        schema_name = (
+            f"quote_ident({desc_var}.table_name[1])"
+        )
         table_name = (
-            f"(quote_ident({desc_var}.table_name[1])"
-            f" || '.' || quote_ident({desc_var}.table_name[2]))"
+            f"({schema_name} || '.' || quote_ident({desc_var}.table_name[2]))"
+        )
+        index_name = (
+            f"quote_ident(edgedb.edgedb_name_to_pg_name("
+            f"{desc_var}.table_name[2] || '__' || {desc_var}.name))"
         )
         expr = (
             f"COALESCE ({desc_var}.expression,\n"
@@ -127,13 +130,14 @@ class Index(tables.InheritableTableObject):
         return textwrap.dedent(f'''\
             EXECUTE
                 'CREATE ' || {unique} || 'INDEX '
-                || quote_ident({desc_var}.name)
-                || 'ON ' || {table_name}
+                || {index_name}
+                || ' ON ' || {table_name}
                 || '(' || {expr} || ')'
                 ;
             EXECUTE
-                'COMMENT ON ' || quote_ident({desc_var}.name) || ' IS '
-                || quote_literal('$EDB:' || {desc_var}.metadata::text)
+                'COMMENT ON INDEX ' || {schema_name} || '.' || {index_name}
+                || ' IS ' || quote_literal('$EDB:'
+                || {desc_var}.metadata::text)
                 ;
         ''')
 

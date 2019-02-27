@@ -252,6 +252,13 @@ def get_constraint_backend_name(id, module_id, catenate=True, *, aspect=None):
     return convert_name(name, aspect, catenate)
 
 
+def get_index_backend_name(id, module_id, catenate=True, *, aspect=None):
+    if aspect is None:
+        aspect = 'index'
+    name = s_name.Name(module=str(module_id), name=str(id))
+    return convert_name(name, aspect, catenate)
+
+
 def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)

@@ -521,7 +521,7 @@ class IntrospectionMech:
     async def read_indexes(self, schema, only_modules, exclude_modules):
         pg_index_data = await introspection.tables.fetch_indexes(
             self.connection,
-            schema_pattern='edgedb%', index_pattern='%_reg_idx')
+            schema_pattern='edgedb%', index_pattern='%_index')
 
         pg_indexes = set()
         for row in pg_index_data:
