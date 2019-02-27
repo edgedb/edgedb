@@ -928,6 +928,17 @@ def process_set_as_membership_expr(
         newctx.expr_exposed = False
         left_expr = dispatch.compile(left_arg, ctx=newctx)
 
+        right_arg = irutils.unwrap_set(right_arg)
+        # If the right operand of [NOT] IN is an array_unpack call,
+        # then use the ANY/ALL array comparison operator directly,
+        # since that has a higher chance of using the indexes.
+        is_array_unpack = (
+            isinstance(right_arg.expr, irast.FunctionCall)
+            and right_arg.expr.func_shortname == 'std::array_unpack'
+        )
+        if is_array_unpack:
+            right_arg = right_arg.expr.args[0].expr
+
         with newctx.subrel() as _, _.newscope() as subctx:
             dispatch.compile(right_arg, ctx=subctx)
             pathctx.get_path_value_output(
@@ -935,6 +946,15 @@ def process_set_as_membership_expr(
                 env=subctx.env)
 
             right_rel = subctx.rel
+
+            if is_array_unpack:
+                right_rel = pgast.TypeCast(
+                    arg=right_rel,
+                    type_name=pgast.TypeName(
+                        name=pg_types.pg_type_from_ir_typeref(
+                            right_arg.typeref)
+                    )
+                )
 
     negated = expr.func_shortname == 'std::NOT IN'
     op = '!=' if negated else '='
