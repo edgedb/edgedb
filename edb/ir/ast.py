@@ -562,9 +562,14 @@ class Stmt(Base):
     iterator_stmt: Base
 
 
-class SelectStmt(Stmt):
+class FilteredStmt(Stmt):
 
     where: Base
+    where_card: qltypes.Cardinality
+
+
+class SelectStmt(FilteredStmt):
+
     orderby: typing.List[SortExpr]
     offset: Base
     limit: Base
@@ -586,14 +591,12 @@ class InsertStmt(MutatingStmt):
     pass
 
 
-class UpdateStmt(MutatingStmt):
+class UpdateStmt(MutatingStmt, FilteredStmt):
+    pass
 
-    where: Base
 
-
-class DeleteStmt(MutatingStmt):
-
-    where: Base
+class DeleteStmt(MutatingStmt, FilteredStmt):
+    pass
 
 
 class SessionStateCmd(Command):

@@ -190,6 +190,7 @@ def get_dml_range(
     """
     target_ir_set = ir_stmt.subject
     ir_qual_expr = ir_stmt.where
+    ir_qual_card = ir_stmt.where_card
 
     with ctx.newscope() as scopectx, scopectx.newrel() as subctx:
         subctx.expr_exposed = False
@@ -224,7 +225,8 @@ def get_dml_range(
         if ir_qual_expr is not None:
             range_stmt.where_clause = astutils.extend_binop(
                 range_stmt.where_clause,
-                clauses.compile_filter_clause(ir_qual_expr, ctx=subctx))
+                clauses.compile_filter_clause(
+                    ir_qual_expr, ir_qual_card, ctx=subctx))
 
         range_cte = pgast.CommonTableExpr(
             query=range_stmt,

@@ -112,8 +112,8 @@ def compile_SelectQuery(
                 view_name=ctx.toplevel_result_view_name,
                 ctx=sctx)
 
-            stmt.where = clauses.compile_where_clause(
-                expr.where, ctx=sctx)
+            clauses.compile_where_clause(
+                stmt, expr.where, ctx=sctx)
 
             stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=sctx)
@@ -162,8 +162,8 @@ def compile_ForQuery(
             forward_rptr=True,
             ctx=sctx)
 
-        stmt.where = clauses.compile_where_clause(
-            qlstmt.where, ctx=sctx)
+        clauses.compile_where_clause(
+            stmt, qlstmt.where, ctx=sctx)
 
         stmt.orderby = clauses.compile_orderby_clause(
             qlstmt.orderby, ctx=sctx)
@@ -227,8 +227,8 @@ def compile_GroupQuery(
                 view_name=ctx.toplevel_result_view_name,
                 ctx=sctx)
 
-            o_stmt.where = clauses.compile_where_clause(
-                expr.where, ctx=sctx)
+            clauses.compile_where_clause(
+                o_stmt, expr.where, ctx=sctx)
 
             o_stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=sctx)
@@ -337,8 +337,8 @@ def compile_UpdateQuery(
             compile_views=ictx.stmt is ictx.toplevel_stmt,
             ctx=ictx)
 
-        stmt.where = clauses.compile_where_clause(
-            expr.where, ctx=ictx)
+        clauses.compile_where_clause(
+            stmt, expr.where, ctx=ictx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

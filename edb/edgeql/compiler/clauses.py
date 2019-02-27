@@ -36,6 +36,7 @@ from . import stmtctx
 
 
 def compile_where_clause(
+        ir_stmt: irast.FilteredStmt,
         where: qlast.Base, *,
         ctx: context.ContextLevel) -> typing.Optional[irast.Base]:
 
@@ -51,7 +52,10 @@ def compile_where_clause(
             bool_t = ctx.env.schema.get('std::bool')
             ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
 
-        return ir_set
+        ir_stmt.where = ir_set
+        stmtctx.get_expr_cardinality_later(
+            target=ir_stmt, field='where_card', irexpr=ir_set,
+            ctx=ctx)
 
 
 def compile_orderby_clause(

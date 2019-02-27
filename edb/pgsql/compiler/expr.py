@@ -321,7 +321,14 @@ def compile_OperatorCall(
     else:
         raise RuntimeError(f'unexpected operator kind: {expr.operator_kind!r}')
 
-    if expr.sql_operator:
+    if (expr.func_shortname == 'std::='
+            and expr.args[0].expr.typeref is not None
+            and irtyputils.is_object(expr.args[0].expr.typeref)
+            and expr.args[1].expr.typeref is not None
+            and irtyputils.is_object(expr.args[1].expr.typeref)):
+        sql_oper = '='
+
+    elif expr.sql_operator:
         sql_oper = expr.sql_operator[0]
         if len(expr.sql_operator) > 1:
             # Explicit operand types given in FROM SQL OPERATOR

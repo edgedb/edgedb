@@ -19,6 +19,7 @@
 
 import typing
 
+from edb.edgeql import qltypes
 from edb.ir import ast as irast
 from edb.pgsql import ast as pgast
 
@@ -93,7 +94,8 @@ def compile_output(
 
 
 def compile_filter_clause(
-        ir_set: typing.Optional[irast.Set], *,
+        ir_set: typing.Optional[irast.Set],
+        cardinality: qltypes.Cardinality, *,
         ctx: context.CompilerContextLevel) -> typing.Optional[pgast.Expr]:
     if ir_set is None:
         return None
@@ -104,18 +106,21 @@ def compile_filter_clause(
             ctx1.toplevel_clause = ctx1.clause
         ctx1.expr_exposed = False
 
-        # In WHERE we compile ir.Set as a boolean disjunction:
-        #    EXISTS(SELECT FROM SetRel WHERE SetRel.value)
-        with ctx1.subrel() as subctx:
-            dispatch.visit(ir_set, ctx=subctx)
-            wrapper = subctx.rel
-            wrapper.where_clause = pathctx.get_path_value_var(
-                wrapper, ir_set.path_id, env=subctx.env)
+        if cardinality is qltypes.Cardinality.ONE:
+            where_clause = dispatch.compile(ir_set, ctx=ctx)
+        else:
+            # In WHERE we compile ir.Set as a boolean disjunction:
+            #    EXISTS(SELECT FROM SetRel WHERE SetRel.value)
+            with ctx1.subrel() as subctx:
+                dispatch.visit(ir_set, ctx=subctx)
+                wrapper = subctx.rel
+                wrapper.where_clause = pathctx.get_path_value_var(
+                    wrapper, ir_set.path_id, env=subctx.env)
 
-        where_clause = pgast.SubLink(
-            type=pgast.SubLinkType.EXISTS,
-            expr=wrapper
-        )
+            where_clause = pgast.SubLink(
+                type=pgast.SubLinkType.EXISTS,
+                expr=wrapper
+            )
 
     return where_clause
 

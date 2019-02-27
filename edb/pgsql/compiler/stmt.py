@@ -58,7 +58,8 @@ def compile_SelectStmt(
         # The FILTER clause.
         query.where_clause = astutils.extend_binop(
             query.where_clause,
-            clauses.compile_filter_clause(stmt.where, ctx=ctx))
+            clauses.compile_filter_clause(
+                stmt.where, stmt.where_card, ctx=ctx))
 
         if outvar.nullable and query is ctx.toplevel_stmt:
             # A nullable var has bubbled up to the top,
@@ -268,7 +269,8 @@ def compile_GroupStmt(
             # The WHERE clause
             selquery.where_clause = astutils.extend_binop(
                 selquery.where_clause,
-                clauses.compile_filter_clause(o_stmt.where, ctx=selctx))
+                clauses.compile_filter_clause(
+                    o_stmt.where, o_stmt.where_card, ctx=selctx))
 
             for ir_sortexpr in o_stmt.orderby:
                 alias = ctx.env.aliases.get('s')

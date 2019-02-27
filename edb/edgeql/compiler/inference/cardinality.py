@@ -323,13 +323,27 @@ def __infer_insert_stmt(ir, scope_tree, env):
 
 
 @_infer_cardinality.register(irast.UpdateStmt)
-@_infer_cardinality.register(irast.DeleteStmt)
-def __infer_update_delete_stmt(ir, scope_tree, env):
+def __infer_update_stmt(ir, scope_tree, env):
     if ir.cardinality:
         return ir.cardinality
     else:
         stmt_card = _infer_stmt_cardinality(
             ir.subject, ir.where, scope_tree, env)
+
+        if ir.iterator_stmt:
+            iter_card = infer_cardinality(ir.iterator_stmt, scope_tree, env)
+            stmt_card = _max_cardinality((stmt_card, iter_card))
+
+        return stmt_card
+
+
+@_infer_cardinality.register(irast.DeleteStmt)
+def __infer_delete_stmt(ir, scope_tree, env):
+    if ir.cardinality:
+        return ir.cardinality
+    else:
+        stmt_card = _infer_stmt_cardinality(
+            ir.subject, None, scope_tree, env)
 
         if ir.iterator_stmt:
             iter_card = infer_cardinality(ir.iterator_stmt, scope_tree, env)
