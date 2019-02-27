@@ -437,7 +437,7 @@ class TestIntrospection(tb.QueryTestCase):
                 } FILTER .subject.name = 'test::body';
             """,
             [{
-                'name': 'std::maxlength',
+                'name': 'std::max_len',
                 'subject': {
                     'name': 'test::body'
                 },

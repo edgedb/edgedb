@@ -18,14 +18,14 @@
 
 
 scalar type constraint_length extending str:
-    constraint maxlength(16)
-    constraint maxlength(10)
-    constraint minlength(5)
-    constraint minlength(8)
+    constraint max_len(16)
+    constraint max_len(10)
+    constraint min_len(5)
+    constraint min_len(8)
 
 
 scalar type constraint_length_2 extending constraint_length:
-    constraint minlength(9)
+    constraint min_len(9)
 
 
 scalar type constraint_minmax extending str:
@@ -83,7 +83,7 @@ type Object:
     property c_length -> constraint_length
     property c_length_2 -> constraint_length_2
     property c_length_3 -> constraint_length_2:
-        constraint minlength(10)
+        constraint min_len(10)
 
     property c_minmax -> constraint_minmax
     property c_strvalue -> constraint_strvalue

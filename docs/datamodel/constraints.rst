@@ -169,7 +169,7 @@ The standard library defines the following constraints:
         scalar type max_100 extending int64:
             constraint max(100)
 
-.. eql:constraint:: std::maxexclusive(max: anytype)
+.. eql:constraint:: std::max_ex(max: anytype)
 
     Specifies the maximum value (as an open interval) for the subject.
 
@@ -178,9 +178,9 @@ The standard library defines the following constraints:
     .. code-block:: eschema
 
         scalar type maxex_100 extending int64:
-            constraint maxexclusive(100)
+            constraint max_ex(100)
 
-.. eql:constraint:: std::maxlength(max: int64)
+.. eql:constraint:: std::max_len(max: int64)
 
     Specifies the maximum length of subject string representation.
 
@@ -189,7 +189,7 @@ The standard library defines the following constraints:
     .. code-block:: eschema
 
         scalar type username_t extending str:
-            constraint maxlength(30)
+            constraint max_len(30)
 
 .. eql:constraint:: std::min(min: anytype)
 
@@ -202,7 +202,7 @@ The standard library defines the following constraints:
         scalar type non_negative extending int64:
             constraint min(0)
 
-.. eql:constraint:: std::minexclusive(min: anytype)
+.. eql:constraint:: std::min_ex(min: anytype)
 
     Specifies the minimum value (as an open interval) for the subject.
 
@@ -211,9 +211,9 @@ The standard library defines the following constraints:
     .. code-block:: eschema
 
         scalar type positive_float extending float64:
-            constraint minexclusive(0)
+            constraint min_ex(0)
 
-.. eql:constraint:: std::minlength(min: int64)
+.. eql:constraint:: std::min_len(min: int64)
 
     Specifies the minimum length of subject string representation.
 
@@ -222,7 +222,7 @@ The standard library defines the following constraints:
     .. code-block:: eschema
 
         scalar type four_decimal_places extending int64:
-            constraint minlength(4)
+            constraint min_len(4)
 
 .. eql:constraint:: std::regexp(pattern: str)
 

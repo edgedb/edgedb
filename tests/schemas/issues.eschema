@@ -21,7 +21,7 @@ abstract type Text:
     # This is an abstract object containing text.
     required property body -> str:
         # Maximum length of text is 10000 characters.
-        constraint maxlength(10000)
+        constraint max_len(10000)
 
 
 abstract type Named:
