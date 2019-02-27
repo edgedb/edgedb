@@ -397,12 +397,12 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
             any.
 
-        .. eql:constraint:: std::maxlength(v: any)
+        .. eql:constraint:: std::max_len(v: any)
 
             blah
 
-        Testing :eql:constraint:`XXX <maxlength>` ref.
-        Testing :eql:constraint:`maxlength` ref.
+        Testing :eql:constraint:`XXX <max_len>` ref.
+        Testing :eql:constraint:`max_len` ref.
         '''
 
         out = self.build(src, format='xml')
@@ -418,10 +418,10 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
             x.xpath('''
                 //paragraph /
                 reference[@eql-type="constraint" and
-                    @refid="constraint::std::maxlength"] /
+                    @refid="constraint::std::max_len"] /
                 literal / text()
             '''),
-            ['XXX', 'maxlength'])
+            ['XXX', 'max_len'])
 
     def test_sphinx_eql_constr_02(self):
         src = '''

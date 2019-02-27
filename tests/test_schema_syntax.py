@@ -162,7 +162,7 @@ abstract type OwnedObject:
         """
         abstract type Text:
             required property body -> str:
-                constraint maxlength (10000)
+                constraint max_len (10000)
         """
 
     def test_eschema_syntax_type_04(self):
@@ -661,13 +661,13 @@ scalar type special extending int:
     def test_eschema_syntax_scalar_11(self):
         """
 scalar type constraint_length extending str:
-     constraint maxlength(16+1, len(([1])))
+     constraint max_len(16+1, len(([1])))
         """
 
     def test_eschema_syntax_scalar_12(self):
         """
 scalar type constraint_length extending str:
-     constraint maxlength((16+(4*2))/((4)-1), len(([1])))
+     constraint max_len((16+(4*2))/((4)-1), len(([1])))
         """
 
     def test_eschema_syntax_constraint_01(self):
@@ -690,7 +690,7 @@ delegated constraint length:
 
     def test_eschema_syntax_constraint_03(self):
         """
-abstract constraint maxlength(param:anytype) extending max, length:
+abstract constraint max_len(param:anytype) extending max, length:
     errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
@@ -703,7 +703,7 @@ abstract constraint max(param:anytype):
 abstract constraint length:
     subject := str::len(<str>__subject__)
 
-abstract constraint maxlength(param:anytype) extending max, length:
+abstract constraint max_len(param:anytype) extending max, length:
     errmessage := '{subject} must be no longer than {$param} characters.'
         """
 
@@ -719,10 +719,10 @@ abstract constraint maxldistance extending max, distance:
 
     @tb.must_fail(errors.SchemaSyntaxError,
                   r"missing type declaration.*`param`",
-                  line=2, col=31)
+                  line=2, col=29)
     def test_eschema_syntax_constraint_06(self):
         """
-abstract constraint maxlength(param) extending max, length
+abstract constraint max_len(param) extending max, length
         """
 
     @tb.must_fail(errors.SchemaSyntaxError,
@@ -754,7 +754,7 @@ type Foo:
     constraint maxldistance:
         errmessage := '{subject} must be no longer than {$param} meters.'
 
-    constraint maxlength(4)
+    constraint max_len(4)
         """
 
     def test_eschema_syntax_property_01(self):

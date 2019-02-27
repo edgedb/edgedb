@@ -19,7 +19,7 @@ containing the following schema:
         property synopsis -> str
         link author -> Author
         property isbn -> str:
-            constraint maxlength(10)
+            constraint max_len(10)
 
 From the schema above EdgeDB will expose to GraphQL:
 
