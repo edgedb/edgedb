@@ -920,10 +920,6 @@ def process_set_as_subquery(
 def process_set_as_membership_expr(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> None:
-    # A [NOT] IN B is transformed into
-    # SELECT [NOT] bool_or(val(A) = val(B)) FOR A CROSS JOIN B
-    # bool_or is used instead of an IN sublink because it is necessary
-    # to partition `B` properly considering the path scope.
     expr = ir_set.expr
 
     with ctx.new() as newctx:
@@ -933,44 +929,31 @@ def process_set_as_membership_expr(
         left_expr = dispatch.compile(left_arg, ctx=newctx)
 
         with newctx.subrel() as _, _.newscope() as subctx:
-            right_rvar = get_set_rvar(right_arg, ctx=subctx)
-            right_expr = pathctx.get_rvar_path_var(
-                right_rvar, right_arg.path_id,
-                aspect='value', env=subctx.env)
-
-            if right_expr.nullable:
-                op = 'IS NOT DISTINCT FROM'
-            else:
-                op = '='
-
-            check_expr = astutils.new_binop(left_expr, right_expr, op=op)
-            check_expr = pgast.FuncCall(
-                name=('bool_or',), args=[check_expr])
-
-            negated = expr.func_shortname == 'std::NOT IN'
-            if negated:
-                check_expr = astutils.new_unop('NOT', check_expr)
-
-            wrapper = subctx.rel
-            pathctx.put_path_value_var(
-                wrapper, ir_set.path_id, check_expr, env=ctx.env)
+            dispatch.compile(right_arg, ctx=subctx)
             pathctx.get_path_value_output(
-                wrapper, ir_set.path_id, env=ctx.env)
+                subctx.rel, right_arg.path_id,
+                env=subctx.env)
 
-            coalesce_val = 'TRUE' if negated else 'FALSE'
-            with subctx.subrel() as subsubctx:
-                coalesce = pgast.CoalesceExpr(
-                    args=[wrapper, pgast.BooleanConstant(val=coalesce_val)])
+            right_rel = subctx.rel
 
-                wrapper = subsubctx.rel
-                pathctx.put_path_value_var(
-                    wrapper, ir_set.path_id, coalesce, env=subsubctx.env)
+    negated = expr.func_shortname == 'std::NOT IN'
+    op = '!=' if negated else '='
+    sublink_type = pgast.SubLinkType.ALL if negated else pgast.SubLinkType.ANY
 
-            sub_rvar = relctx.new_rel_rvar(ir_set, wrapper, ctx=subctx)
+    set_expr = astutils.new_binop(
+        lexpr=left_expr,
+        rexpr=pgast.SubLink(
+            type=sublink_type,
+            expr=right_rel,
+        ),
+        op=op,
+    )
 
-    relctx.include_rvar(stmt, sub_rvar, path_id=ir_set.path_id, ctx=ctx)
-    sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
-    return new_simple_set_rvar(ir_set, sub_rvar)
+    pathctx.put_path_value_var_if_not_exists(
+        stmt, ir_set.path_id, set_expr, env=ctx.env)
+
+    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_setop(
