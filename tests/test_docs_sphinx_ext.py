@@ -425,7 +425,7 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_constr_02(self):
         src = '''
-        .. eql:constraint:: std::length on (len(<std::str>__subject__))
+        .. eql:constraint:: std::len_constraint on (len(<std::str>__subject__))
 
             blah
         '''
@@ -440,7 +440,7 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
         self.assertEqual(
             sig.xpath('@eql-signature'),
-            ['std::length ON (len(<std::str>__subject__))'])
+            ['std::len_constraint ON (len(<std::str>__subject__))'])
 
         self.assertEqual(
             sig.xpath('@eql-subjexpr'),
