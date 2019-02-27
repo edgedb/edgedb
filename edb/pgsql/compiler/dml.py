@@ -370,8 +370,9 @@ def process_insert_body(
     # Process necessary updates to the link tables.
     for shape_el, props_only in external_inserts:
         process_link_update(
-            ir_stmt, shape_el, props_only, wrapper,
-            insert_cte, iterator_cte, ctx=ctx)
+            ir_stmt=ir_stmt, ir_set=shape_el, props_only=props_only,
+            wrapper=wrapper, dml_cte=insert_cte, iterator_cte=iterator_cte,
+            is_insert=True, ctx=ctx)
 
     if parent_link_props:
         prop_elements = []
@@ -538,7 +539,9 @@ def process_update_body(
                 ir_stmt, expr, wrapper, update_cte, ctx=ctx)
         else:
             process_link_update(
-                ir_stmt, expr, False, wrapper, update_cte, None, ctx=ctx)
+                ir_stmt=ir_stmt, ir_set=expr, props_only=False,
+                wrapper=wrapper, dml_cte=update_cte, iterator_cte=None,
+                is_insert=False, ctx=ctx)
 
 
 def is_props_only_update(shape_el: irast.Set, *,
@@ -558,12 +561,14 @@ def is_props_only_update(shape_el: irast.Set, *,
 
 
 def process_link_update(
+        *,
         ir_stmt: irast.MutatingStmt,
         ir_set: irast.Set,
         props_only: bool,
+        is_insert: bool,
         wrapper: pgast.Query,
         dml_cte: pgast.CommonTableExpr,
-        iterator_cte: pgast.CommonTableExpr, *,
+        iterator_cte: pgast.CommonTableExpr,
         ctx: context.CompilerContextLevel) -> typing.Optional[pgast.Query]:
     """Perform updates to a link relation as part of a DML statement.
 
@@ -620,35 +625,36 @@ def process_link_update(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env)
     }
 
-    # Drop all previous link records for this source.
-    delcte = pgast.CommonTableExpr(
-        query=pgast.DeleteStmt(
-            relation=target_rvar,
-            where_clause=astutils.new_binop(
-                lexpr=col_data['source'],
-                op='=',
-                rexpr=pgast.ColumnRef(
-                    name=[target_alias, 'source'])
+    if not is_insert:
+        # Drop all previous link records for this source.
+        delcte = pgast.CommonTableExpr(
+            query=pgast.DeleteStmt(
+                relation=target_rvar,
+                where_clause=astutils.new_binop(
+                    lexpr=col_data['source'],
+                    op='=',
+                    rexpr=pgast.ColumnRef(
+                        name=[target_alias, 'source'])
+                ),
+                using_clause=[dml_cte_rvar],
+                returning_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(
+                            name=[target_alias, pgast.Star()]))
+                ]
             ),
-            using_clause=[dml_cte_rvar],
-            returning_list=[
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(
-                        name=[target_alias, pgast.Star()]))
-            ]
-        ),
-        name=ctx.env.aliases.get(hint='d')
-    )
+            name=ctx.env.aliases.get(hint='d')
+        )
 
-    pathctx.put_path_value_rvar(
-        delcte.query, path_id.ptr_path(), target_rvar, env=ctx.env)
+        pathctx.put_path_value_rvar(
+            delcte.query, path_id.ptr_path(), target_rvar, env=ctx.env)
 
-    # Record the effect of this removal in the relation overlay
-    # context to ensure that the RETURNING clause potentially
-    # referencing this link yields the expected results.
-    overlays = ctx.env.rel_overlays[ptrref.shortname]
-    overlays.append(('except', delcte))
-    toplevel.ctes.append(delcte)
+        # Record the effect of this removal in the relation overlay
+        # context to ensure that the RETURNING clause potentially
+        # referencing this link yields the expected results.
+        overlays = ctx.env.rel_overlays[ptrref.shortname]
+        overlays.append(('except', delcte))
+        toplevel.ctes.append(delcte)
 
     # Turn the IR of the expression on the right side of :=
     # into a subquery returning records for the link table.
@@ -669,58 +675,64 @@ def process_link_update(
         ]
     )
 
-    # Inserting rows into the link table may produce cardinality
-    # constraint violations, since the INSERT into the link table
-    # is executed in the snapshot where the above DELETE from
-    # the link table is not visible.  Hence, we need to use
-    # the ON CONFLICT clause to resolve this.
-    conflict_cols = ['source', 'target', 'ptr_item_id']
-    conflict_inference = []
-    conflict_exc_row = []
-
-    for col in conflict_cols:
-        conflict_inference.append(
-            pgast.ColumnRef(name=[col])
-        )
-        conflict_exc_row.append(
-            pgast.ColumnRef(name=['excluded', col])
-        )
-
-    conflict_data = pgast.SelectStmt(
-        target_list=[
-            pgast.ResTarget(
-                val=pgast.ColumnRef(
-                    name=[data_cte.name, pgast.Star()]))
-        ],
-        from_clause=[
-            pgast.RangeVar(relation=data_cte)
-        ],
-        where_clause=astutils.new_binop(
-            lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
-            rexpr=pgast.ImplicitRowExpr(args=conflict_exc_row),
-            op='='
-        )
-    )
-
     cols = [pgast.ColumnRef(name=[col]) for col in specified_cols]
+
+    if is_insert:
+        conflict_clause = None
+    else:
+        # Inserting rows into the link table may produce cardinality
+        # constraint violations, since the INSERT into the link table
+        # is executed in the snapshot where the above DELETE from
+        # the link table is not visible.  Hence, we need to use
+        # the ON CONFLICT clause to resolve this.
+        conflict_cols = ['source', 'target', 'ptr_item_id']
+        conflict_inference = []
+        conflict_exc_row = []
+
+        for col in conflict_cols:
+            conflict_inference.append(
+                pgast.ColumnRef(name=[col])
+            )
+            conflict_exc_row.append(
+                pgast.ColumnRef(name=['excluded', col])
+            )
+
+        conflict_data = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(
+                        name=[data_cte.name, pgast.Star()]))
+            ],
+            from_clause=[
+                pgast.RangeVar(relation=data_cte)
+            ],
+            where_clause=astutils.new_binop(
+                lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
+                rexpr=pgast.ImplicitRowExpr(args=conflict_exc_row),
+                op='='
+            )
+        )
+
+        conflict_clause = pgast.OnConflictClause(
+            action='update',
+            infer=pgast.InferClause(
+                index_elems=conflict_inference
+            ),
+            target_list=[
+                pgast.MultiAssignRef(
+                    columns=cols,
+                    source=conflict_data
+                )
+            ]
+        )
+
     updcte = pgast.CommonTableExpr(
         name=ctx.env.aliases.get(hint='i'),
         query=pgast.InsertStmt(
             relation=target_rvar,
             select_stmt=data_select,
             cols=cols,
-            on_conflict=pgast.OnConflictClause(
-                action='update',
-                infer=pgast.InferClause(
-                    index_elems=conflict_inference
-                ),
-                target_list=[
-                    pgast.MultiAssignRef(
-                        columns=cols,
-                        source=conflict_data
-                    )
-                ]
-            ),
+            on_conflict=conflict_clause,
             returning_list=[
                 pgast.ResTarget(
                     val=pgast.ColumnRef(name=[pgast.Star()])
