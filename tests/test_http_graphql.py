@@ -32,6 +32,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
                                   'graphql.eschema')
 
+    SCHEMA_OTHER = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'graphql_other.eschema')
+
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'graphql_setup.eql')
 
@@ -618,7 +621,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_arguments_12(self):
         self.assert_graphql_query_result(r"""
             query {
-                Foo(
+                other__Foo(
                     order: {
                         select: {dir: ASC, nulls: BIGGEST}
                     }
@@ -628,7 +631,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             }
         """, {
-            'Foo': [
+            'other__Foo': [
                 {'after': None, 'select': 'a'},
                 {'after': 'w', 'select': 'b'},
                 {'after': 'q', 'select': None},
@@ -638,7 +641,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_arguments_13(self):
         self.assert_graphql_query_result(r"""
             query {
-                Foo(
+                other__Foo(
                     order: {
                         select: {dir: DESC, nulls: SMALLEST}
                     }
@@ -648,7 +651,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             }
         """, {
-            'Foo': [
+            'other__Foo': [
                 {'after': 'w', 'select': 'b'},
                 {'after': None, 'select': 'a'},
                 {'after': 'q', 'select': None},
@@ -1715,10 +1718,10 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         types = [(t['kind'], t['name']) for t in result['__schema']['types']]
 
         items = [
-            ('INPUT_OBJECT', 'FilterFoo'),
-            ('INPUT_OBJECT', 'OrderFoo'),
-            ('INTERFACE', 'Foo'),
-            ('OBJECT', 'FooType'),
+            ('INPUT_OBJECT', 'other__FilterFoo'),
+            ('INPUT_OBJECT', 'other__OrderFoo'),
+            ('INTERFACE', 'other__Foo'),
+            ('OBJECT', 'other__FooType'),
             ('SCALAR', 'ID'),
             ('ENUM', 'directionEnum'),
             ('OBJECT', '__Schema'),
@@ -1742,10 +1745,10 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         types = [(t['kind'], t['name']) for t in result['Foo']['types']]
 
         items = [
-            ('INPUT_OBJECT', 'FilterFoo'),
-            ('INPUT_OBJECT', 'OrderFoo'),
-            ('INTERFACE', 'Foo'),
-            ('OBJECT', 'FooType'),
+            ('INPUT_OBJECT', 'other__FilterFoo'),
+            ('INPUT_OBJECT', 'other__OrderFoo'),
+            ('INTERFACE', 'other__Foo'),
+            ('OBJECT', 'other__FooType'),
             ('SCALAR', 'ID'),
             ('ENUM', 'directionEnum'),
             ('OBJECT', '__Schema'),
@@ -4219,10 +4222,10 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         types = [(t['kind'], t['name']) for t in result['__schema']['types']]
 
         items = [
-            ('INPUT_OBJECT', 'FilterFoo'),
-            ('INPUT_OBJECT', 'OrderFoo'),
-            ('INTERFACE', 'Foo'),
-            ('OBJECT', 'FooType'),
+            ('INPUT_OBJECT', 'other__FilterFoo'),
+            ('INPUT_OBJECT', 'other__OrderFoo'),
+            ('INTERFACE', 'other__Foo'),
+            ('OBJECT', 'other__FooType'),
             ('SCALAR', 'ID'),
             ('ENUM', 'directionEnum'),
             ('OBJECT', '__Schema'),

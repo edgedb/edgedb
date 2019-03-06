@@ -17,27 +17,6 @@
 #
 
 
-CREATE MODULE stdgraphql;
-
-
-# these are just some placeholders for packaging GraphQL queries
-CREATE TYPE stdgraphql::Query;
-ALTER TYPE stdgraphql::Query {
-    CREATE PROPERTY stdgraphql::__typename := 'Query';
-};
-
-
-CREATE TYPE stdgraphql::Mutation;
-ALTER TYPE stdgraphql::Mutation {
-    CREATE PROPERTY stdgraphql::__typename := 'Mutation';
-};
-
-
-CREATE FUNCTION stdgraphql::short_name(name: std::str) -> std::str
-    FROM EdgeQL $$
-        SELECT (
-            name[5:] IF name LIKE 'std::%' ELSE
-            name[9:] IF name LIKE 'default::%' ELSE
-            re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
-        ) ++ 'Type'
-    $$;
+type Foo:
+    property `select` -> str
+    property after -> str

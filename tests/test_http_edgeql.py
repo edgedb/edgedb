@@ -26,8 +26,11 @@ from edb.testbase import http as tb
 
 class TestHttpEdgeQL(tb.EdgeQLTestCase):
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'graphql.eschema')
+    SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
+                                  'graphql.eschema')
+
+    SCHEMA_OTHER = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'graphql_other.eschema')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'graphql_setup.eql')
@@ -75,7 +78,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
         for use_http_post in [True, False]:
             self.assert_edgeql_query_result(
                 r"""
-                    SELECT test::Setting {
+                    SELECT Setting {
                         name,
                         value
                     }
@@ -92,7 +95,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
         for use_http_post in [True, False]:
             self.assert_edgeql_query_result(
                 r"""
-                    SELECT test::Setting {
+                    SELECT Setting {
                         name,
                         value
                     }
@@ -108,7 +111,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
     def test_http_edgeql_query_03(self):
         self.assert_edgeql_query_result(
             r"""
-                SELECT test::User {
+                SELECT User {
                     name,
                     age,
                     groups: { name }
@@ -127,7 +130,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 r'no value for the \$name query parameter'):
             self.edgeql_query(
                 r"""
-                    SELECT test::Setting {
+                    SELECT Setting {
                         name,
                         value
                     }
@@ -140,7 +143,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                                     r'UNRECOGNIZABLE'):
             self.edgeql_query(
                 r"""
-                    SELECT test::UNRECOGNIZABLE {
+                    SELECT UNRECOGNIZABLE {
                         value
                     };
                 """
@@ -150,7 +153,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
         queries = [
             'START TRANSACTION;',
             'SET ALIAS blah AS MODULE std;',
-            'CREATE TYPE test::Tmp { CREATE PROPERTY tmp -> std::str; };',
+            'CREATE TYPE default::Tmp { CREATE PROPERTY tmp -> std::str; };',
         ]
 
         for query in queries:

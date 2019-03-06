@@ -40,7 +40,3 @@ type User extending NamedObject:
     link profile -> Profile
 
 type Person extending User
-
-type Foo:
-    property `select` -> str
-    property after -> str
