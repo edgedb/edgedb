@@ -93,12 +93,7 @@ def new_unop(op, expr):
 
 
 def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
-    if lref.nullable or rref.nullable:
-        op = 'IS NOT DISTINCT FROM'
-    else:
-        op = '='
-
-    path_cond = new_binop(lref, rref, op=op)
+    path_cond = new_binop(lref, rref, op='=')
 
     if lref.optional:
         opt_cond = pgast.NullTest(arg=lref)
