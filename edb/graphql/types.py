@@ -104,7 +104,7 @@ class GQLCoreSchema:
         self.modules = {
             m.get_name(self.edb_schema)
             for m in self.edb_schema.get_objects(type=s_mod.Module)
-        } - {'schema', 'stdgraphql', 'sys'}
+        } - {'schema', 'stdgraphql', 'sys', 'cfg'}
         self.modules = list(self.modules)
         self.modules.sort()
 
@@ -142,8 +142,19 @@ class GQLCoreSchema:
     def graphql_schema(self):
         return self._gql_schema
 
-    def get_short_name(self, name):
-        return name.split('::', 1)[-1]
+    def get_gql_name(self, name):
+        module, shortname = name.split('::', 1)
+        if module in {'default', 'std'}:
+            return shortname
+        else:
+            return f'{module}__{shortname}'
+
+    def get_input_name(self, inputtype, name):
+        if '__' in name:
+            module, shortname = name.split('__', 1)
+            return f'{module}__{inputtype}{shortname}'
+        else:
+            return f'{inputtype}{name}'
 
     def _convert_edb_type(self, edb_target):
         target = None
@@ -200,7 +211,7 @@ class GQLCoreSchema:
                                         key=lambda x: x[1].name):
                 if name == typename:
                     continue
-                fields[name.split('::', 1)[1]] = GraphQLField(
+                fields[gqltype.name] = GraphQLField(
                     GraphQLList(GraphQLNonNull(gqltype)),
                     args=self._get_args(name),
                 )
@@ -353,9 +364,9 @@ class GQLCoreSchema:
         # interfaces
         for t in interface_types:
             t_name = t.get_name(self.edb_schema)
-            short_name = self.get_short_name(t_name)
+            gql_name = self.get_gql_name(t_name)
             gqltype = GraphQLInterfaceType(
-                name=short_name,
+                name=gql_name,
                 fields=partial(self.get_fields, t_name),
                 resolve_type=lambda obj, info: obj,
             )
@@ -363,14 +374,14 @@ class GQLCoreSchema:
 
             # input object types corresponding to this interface
             gqlfiltertype = GraphQLInputObjectType(
-                name='Filter' + short_name,
+                name=self.get_input_name('Filter', gql_name),
                 fields=partial(self.get_filter_fields, t_name),
             )
             self._gql_inobjtypes[t_name] = gqlfiltertype
 
             # ordering input type
             gqlordertype = GraphQLInputObjectType(
-                name='Order' + short_name,
+                name=self.get_input_name('Order', gql_name),
                 fields=partial(self.get_order_fields, t_name),
             )
             self._gql_ordertypes[t_name] = gqlordertype
@@ -393,9 +404,9 @@ class GQLCoreSchema:
                     interfaces.append(
                         self._gql_interfaces[st.get_name(self.edb_schema)])
 
-            short_name = self.get_short_name(t_name)
+            gql_name = self.get_gql_name(t_name)
             gqltype = GraphQLObjectType(
-                name=short_name + 'Type',
+                name=gql_name + 'Type',
                 fields=partial(self.get_fields, t_name),
                 interfaces=interfaces,
             )
@@ -648,6 +659,14 @@ class GQLQuery(GQLBaseType):
         super().__init__(schema, **kwargs)
         self._shadow_fields = ('__typename',)
 
+    def get_module_and_name(self, name):
+        if name == 'Object':
+            return ('std', name)
+        elif '__' in name:
+            return name.split('__', 1)
+        else:
+            return ('default', name)
+
     def get_field_type(self, name):
         fkey = (name, self.dummy)
         target = None
@@ -662,11 +681,8 @@ class GQLQuery(GQLBaseType):
             target = super().get_field_type(name)
 
             if target is None:
-                for module in self.modules:
-                    target = self.edb_schema.get((module, name), None)
-                    if target:
-                        break
-
+                module, edb_name = self.get_module_and_name(name)
+                target = self.edb_schema.get((module, edb_name), None)
                 if target is not None:
                     target = self.convert_edb_to_gql_type(target)
 

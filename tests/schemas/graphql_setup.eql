@@ -71,15 +71,15 @@ INSERT Person {
     score := 4.2
 };
 
-INSERT Foo {
+INSERT other::Foo {
     `select` := 'a',
 };
 
-INSERT Foo {
+INSERT other::Foo {
     `select` := 'b',
     after := 'w',
 };
 
-INSERT Foo {
+INSERT other::Foo {
     after := 'q',
 };
