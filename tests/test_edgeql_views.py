@@ -21,7 +21,6 @@ import os.path
 import unittest  # NOQA
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLViews(tb.QueryTestCase):
