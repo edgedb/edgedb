@@ -38,6 +38,8 @@ type User extending Named:
     property deck_cost := sum(__source__.deck.cost)
 
     multi link friends -> User
+    multi link awards -> Award:
+        constraint exclusive
 
 
 type Card extending Named:
@@ -50,3 +52,6 @@ type Card extending Named:
 
 
 type SpecialCard extending Card
+
+
+type Award extending Named

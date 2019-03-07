@@ -1953,7 +1953,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('No method to generate code for TupleVar')
     async def test_edgeql_expr_valid_collection_23(self):
         await self.assert_query_result(
             r'''

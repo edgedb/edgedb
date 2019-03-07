@@ -21,6 +21,7 @@ import os.path
 import unittest  # NOQA
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLViews(tb.QueryTestCase):
@@ -590,5 +591,62 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 ['Golem', 'no'],
                 ['Imp', 'no'],
                 ['Sprite', 'no'],
+            ],
+        )
+
+    async def test_edgeql_views_nested_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT AwardView {
+                    name,
+                    winner: {
+                        name
+                    }
+                } ORDER BY .name;
+            """,
+            [
+                {'name': '1st', 'winner': {'name': 'Alice'}},
+                {'name': '2nd', 'winner': {'name': 'Alice'}},
+                {'name': '3rd', 'winner': {'name': 'Bob'}},
+            ],
+        )
+
+    @test.xfail('''
+        Fails to correctly isolate the view sub-query, resulting in
+        incorrect cardinality of 'winner' among other things.
+
+        A shorter query that still illustrates the problem is:
+
+        WITH MODULE test
+        SELECT stdgraphql::Query {
+            foo := AwardView {
+                winner
+            }
+        };
+    ''')
+    async def test_edgeql_views_nested_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT stdgraphql::Query {
+                    foo := (
+                        SELECT AwardView {
+                            name,
+                            winner: {
+                                name
+                            }
+                        } ORDER BY .name
+                    )
+                };
+            """,
+            [
+                {
+                    'foo': [
+                        {'name': '1st', 'winner': {'name': 'Alice'}},
+                        {'name': '2nd', 'winner': {'name': 'Alice'}},
+                        {'name': '3rd', 'winner': {'name': 'Bob'}},
+                    ]
+                }
             ],
         )
