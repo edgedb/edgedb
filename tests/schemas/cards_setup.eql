@@ -80,6 +80,19 @@ INSERT SpecialCard {
     cost := 4
 };
 
+
+WITH MODULE test
+INSERT Award {
+    name := '1st'
+};
+
+
+WITH MODULE test
+INSERT Award {
+    name := '2nd'
+};
+
+
 # create players & decks
 WITH MODULE test
 INSERT User {
@@ -87,7 +100,8 @@ INSERT User {
     deck := (
         SELECT Card {@count := len(Card.element) - 2}
         FILTER .element IN {'Fire', 'Water'}
-    )
+    ),
+    awards := Award,
 };
 
 WITH MODULE test
@@ -95,7 +109,10 @@ INSERT User {
     name := 'Bob',
     deck := (
         SELECT Card {@count := 3} FILTER .element IN {'Earth', 'Water'}
-    )
+    ),
+    awards: {
+        name := '3rd'
+    }
 };
 
 WITH MODULE test
