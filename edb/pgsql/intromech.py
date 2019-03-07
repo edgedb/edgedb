@@ -580,6 +580,7 @@ class IntrospectionMech:
         links_list = {sn.Name(r['name']): r for r in links_list}
 
         basemap = {}
+        dermap = {}
 
         for name, r in links_list.items():
             bases = tuple()
@@ -592,9 +593,7 @@ class IntrospectionMech:
                 bases = (sn.Name('std::link'), )
 
             if r['derived_from']:
-                derived_from = schema.get(r['derived_from'])
-            else:
-                derived_from = None
+                dermap[name] = r['derived_from']
 
             source = schema.get(r['source']) if r['source'] else None
             if r['spectargets']:
@@ -627,7 +626,6 @@ class IntrospectionMech:
                 spectargets=spectargets,
                 cardinality=cardinality,
                 required=required,
-                derived_from=derived_from,
                 is_derived=r['is_derived'],
                 is_abstract=r['is_abstract'],
                 is_final=r['is_final'],
@@ -655,6 +653,16 @@ class IntrospectionMech:
                     schema,
                     'bases',
                     [schema.get(b) for b in bases])
+
+            try:
+                derived_from = dermap[link.get_name(schema)]
+            except KeyError:
+                pass
+            else:
+                schema = link.set_field_value(
+                    schema,
+                    'derived_from',
+                    schema.get(derived_from))
 
         for link in schema.get_objects(type=s_links.Link):
             schema = link.acquire_ancestor_inheritance(schema)

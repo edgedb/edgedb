@@ -389,6 +389,91 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_functional_view_01(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    SettingView {
+                        __typename
+                        name
+                        value
+                    }
+                    Setting {
+                        __typename
+                        name
+                        value
+                    }
+                }
+            """,
+            {
+                "SettingView": [
+                    {
+                        "__typename": "SettingViewType",
+                        "name": "perks",
+                        "value": "full",
+                    },
+                    {
+                        "__typename": "SettingViewType",
+                        "name": "template",
+                        "value": "blue",
+                    },
+                ],
+                "Setting": [
+                    {
+                        "__typename": "SettingType",
+                        "name": "perks",
+                        "value": "full",
+                    },
+                    {
+                        "__typename": "SettingType",
+                        "name": "template",
+                        "value": "blue",
+                    },
+                ],
+            },
+            sort=lambda x: x['name']
+        )
+
+    def test_graphql_functional_view_02(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    SettingView {
+                        __typename
+                        name
+                        value
+                        of_group {
+                            __typename
+                            name
+                        }
+                    }
+                }
+            """,
+            {
+                "SettingView": [
+                    {
+                        "__typename": "SettingViewType",
+                        "name": "perks",
+                        "value": "full",
+                        "of_group": {
+                            "__typename": "UserGroupType",
+                            "name": "upgraded",
+                        }
+                    },
+                    {
+                        "__typename": "SettingViewType",
+                        "name": "template",
+                        "value": "blue",
+                        "of_group": {
+                            "__typename": "UserGroupType",
+                            "name": "upgraded",
+                        }
+                    },
+                ],
+            },
+            sort=lambda x: x['name']
+        )
+
     def test_graphql_functional_arguments_01(self):
         result = self.graphql_query(r"""
             query {
@@ -3391,6 +3476,104 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                             {
                                 "__typename": "__Type",
                                 "name": "Setting",
+                                "kind": "INTERFACE"
+                            },
+                        ],
+                        "possibleTypes": None,
+                        "enumValues": None,
+                        "inputFields": None,
+                        "ofType": None
+                    },
+                    {
+                        "__typename": "__Type",
+                        "kind": "OBJECT",
+                        "name": "SettingViewType",
+                        "description": None,
+                        "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "id",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": None,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "ID",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "name",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": None,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "of_group",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": 'UserGroup',
+                                    "kind": "INTERFACE",
+                                    "ofType": None
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "value",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": None,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            }
+                        ],
+                        "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Object",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Setting",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "SettingView",
                                 "kind": "INTERFACE"
                             },
                         ],
