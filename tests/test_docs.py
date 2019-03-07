@@ -9,6 +9,7 @@
 import collections
 import json
 import os
+import re
 import textwrap
 import unittest
 
@@ -152,29 +153,79 @@ class TestDocSnippets(unittest.TestCase):
 
         return blocks
 
+    def extract_snippets_from_repl(self, replblock):
+        in_query = False
+        snips = []
+        for line in replblock.split('\n'):
+            if not in_query:
+                m = re.match(r'(?P<p>[\w>]+>\s)(?P<l>.*)', line)
+                if m:
+                    # >>> prompt
+                    in_query = True
+                    snips.append(
+                        (len(m.group('p')), [])
+                    )
+                    snips[len(snips) - 1][1].append(m.group('l'))
+                else:
+                    # output
+                    if not snips:
+                        raise AssertionError(
+                            f'invalid REPL block (starts with output); '
+                            f'offending line {line!r}')
+            else:
+                # ... prompt?
+                m = re.match(r'(?P<p>\.+\s)(?P<l>.*)', line)
+                if m:
+                    # yes, it's "... " line
+                    if not snips:
+                        raise AssertionError(
+                            f'invalid REPL block (... before >>>); '
+                            f'offending line {line!r}')
+                    if len(m.group('p')) != snips[len(snips) - 1][0]:
+                        raise AssertionError(
+                            f'invalid REPL block: number of "." does not '
+                            f'match number of ">"; '
+                            f'offending line {line!r}')
+                    snips[len(snips) - 1][1].append(m.group('l'))
+                else:
+                    # no, this is output
+                    in_query = False
+
+        return ['\n'.join(s[1]) for s in snips]
+
     def run_block_test(self, block):
         try:
-            if block.lang == 'edgeql':
-                edgeql_parser.parse_block(block.code)
-            elif block.lang == 'eschema':
-                schema_parser.parse(block.code)
-            elif block.lang == 'pseudo-eql':
-                # Skip "pseudo-eql" language as we don't have a parser for it.
-                pass
-            elif block.lang == 'graphql':
-                graphql_parser.parse(block.code)
-            elif block.lang == 'graphql-schema':
-                # The graphql-schema can be highlighted using graphql
-                # lexer, but it does not have a dedicated parser.
-                pass
-            elif block.lang == 'json':
-                json.loads(block.code)
-            elif block.lang == 'edgeql-repl':
-                pass
-            elif block.lang == 'bash':
-                pass
-            else:
-                raise LookupError(f'unknown code-block lang {block.lang}')
+            lang = block.lang
+            code = [block.code]
+
+            if lang.endswith('-repl'):
+                lang = lang.rpartition('-')[0]
+                code = self.extract_snippets_from_repl(block.code)
+
+            for snippet in code:
+                if lang == 'edgeql':
+                    edgeql_parser.parse_block(snippet)
+                elif lang == 'eschema':
+                    schema_parser.parse(snippet)
+                elif lang == 'edgeql-result':
+                    # REPL results
+                    pass
+                elif lang == 'pseudo-eql':
+                    # Skip "pseudo-eql" language as we don't have a
+                    # parser for it.
+                    pass
+                elif lang == 'graphql':
+                    graphql_parser.parse(snippet)
+                elif lang == 'graphql-schema':
+                    # The graphql-schema can be highlighted using graphql
+                    # lexer, but it does not have a dedicated parser.
+                    pass
+                elif lang == 'json':
+                    json.loads(snippet)
+                elif lang == 'bash':
+                    pass
+                else:
+                    raise LookupError(f'unknown code-lang {lang}')
         except Exception as ex:
             raise AssertionError(
                 f'unable to parse {block.lang} code block in '

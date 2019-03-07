@@ -72,16 +72,16 @@ Examples:
 
 .. code-block:: edgeql-repl
 
-    # cast a string literal into an integer
-    db> SELECT <int64>"42";
+    db> # cast a string literal into an integer
+    ... SELECT <int64>"42";
     {42}
 
-    # cast an array of integers into an array of str
-    db> SELECT <array<str>>[1, 2, 3];
+    db> # cast an array of integers into an array of str
+    ... SELECT <array<str>>[1, 2, 3];
     {['1', '2', '3']}
 
-    # cast an issue number into a string
-    db> SELECT <str>example::Issue.number;
+    db> # cast an issue number into a string
+    ... SELECT <str>example::Issue.number;
     {'142'}
 
 Casts also work for converting tuples or declaring different tuple

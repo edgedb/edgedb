@@ -26,11 +26,7 @@ If you are using a Docker image, run:
         edgedb/edgedb-preview
 
 Once the EdgeDB server is up, an interactive shell session will open,
-connected to the default database:
-
-.. code-block:: edgeql-repl
-
-    edgedb>
+connected to the default database.
 
 
 Defining the Schema
@@ -226,28 +222,23 @@ Now that we inserted some data, let’s run some queries!
 Get all "Open" pull requests, their authors, and who they are
 assigned to, in reverse chronological order:
 
-.. code-block:: edgeql
-
-    SELECT
-      PullRequest {
-        title,
-        created_on,
-        author: {
-          login
-        },
-        assignees: {
-          login
-        }
-      }
-    FILTER
-      .status = "Open"
-    ORDER BY
-      .created_on DESC;
-
-Result:
-
 .. code-block:: edgeql-repl
 
+    db> SELECT
+    ...   PullRequest {
+    ...     title,
+    ...     created_on,
+    ...     author: {
+    ...       login
+    ...     },
+    ...     assignees: {
+    ...       login
+    ...     }
+    ...   }
+    ... FILTER
+    ...   .status = "Open"
+    ... ORDER BY
+    ...   .created_on DESC;
     {
       {
         title: 'Pyhton -> Python',
@@ -266,26 +257,21 @@ Result:
 Now, let's see which PRs a particular user has authored or commented on,
 and let's also return the count of comments for each returned PR:
 
-.. code-block:: edgeql
-
-    WITH
-      name := 'bob'
-    SELECT
-      PullRequest {
-        title,
-        created_on,
-        num_comments := count(PullRequest.comments)
-      }
-    FILTER
-      .author.login = name OR
-      .comments.author.login = name
-    ORDER BY
-      .created_on DESC;
-
-Result:
-
 .. code-block:: edgeql-repl
 
+    db> WITH
+    ...   name := 'bob'
+    ... SELECT
+    ...   PullRequest {
+    ...     title,
+    ...     created_on,
+    ...     num_comments := count(PullRequest.comments)
+    ...   }
+    ... FILTER
+    ...   .author.login = name OR
+    ...   .comments.author.login = name
+    ... ORDER BY
+    ...   .created_on DESC;
     {
       {
         title: 'Pyhton -> Python',
@@ -320,7 +306,7 @@ In the above query we used the fact that all authored objects can
 be selected by referring to the ``AuthoredText`` type.  Since we have
 two objects authored by Carol--a pull request, and a comment--the result is:
 
-.. code-block:: edgeql-repl
+.. code-block:: edgeql-result
 
     {
         {
@@ -334,13 +320,9 @@ two objects authored by Carol--a pull request, and a comment--the result is:
 
 Let's delete them now:
 
-.. code-block:: edgeql
-
-    DELETE AuthoredText
-    FILTER .author.login = 'carol';
-
-Result:
-
 .. code-block:: edgeql-repl
 
+    db> SELECT count((
+    ...   DELETE AuthoredText
+    ...   FILTER .author.login = 'carol'));
     {2}
