@@ -391,10 +391,6 @@ class GQLCoreSchema:
             interfaces = []
             t_name = t.get_name(self.edb_schema)
 
-            # views are currently skipped
-            if t.is_view(self.edb_schema):
-                continue
-
             if t_name in self._gql_interfaces:
                 interfaces.append(self._gql_interfaces[t_name])
 
@@ -529,6 +525,15 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         )
 
     @property
+    def gql_typename(self):
+        name = self.name
+        module, shortname = name.split('::', 1)
+        if module in {'default', 'std'}:
+            return f'{shortname}Type'
+        else:
+            return f'{module}__{shortname}Type'
+
+    @property
     def schema(self):
         return self._schema
 
@@ -614,9 +619,13 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return eql, shape, filterable
 
         if name == '__typename' and not self.is_field_shadowed(name):
-            eql = parse_fragment(
-                f'''stdgraphql::short_name(
-                    {codegen.generate_source(parent)}.__type__.name)''')
+            is_view = self.edb_base.is_view(self.edb_schema)
+            if is_view:
+                eql = parse_fragment(f'{self.gql_typename!r}')
+            else:
+                eql = parse_fragment(
+                    f'''stdgraphql::short_name(
+                        {codegen.generate_source(parent)}.__type__.name)''')
 
         elif has_shape:
             eql = filterable = parse_fragment(

@@ -1663,6 +1663,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
         if is_virtual or is_derived:
             schema, objtype = s_objtypes.CreateObjectType.apply(
                 self, schema, context)
+            schema, _ = ObjectTypeMetaCommand.apply(self, schema, context)
             self.create_object(schema, objtype)
             return schema, objtype
 
