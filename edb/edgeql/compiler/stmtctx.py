@@ -312,9 +312,13 @@ def declare_view(
         subctx.toplevel_result_view_name = view_name
 
         view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
-        # The view path id _itself_ should not be in the nested namespace.
-        view_set.path_id = view_set.path_id.replace_namespace(
-            ctx.path_id_namespace)
+
+        if not fully_detached:
+            # The view path id _itself_ should not be in the nested namespace.
+            # The fully_detached case should be handled by the caller.
+            view_set.path_id = view_set.path_id.replace_namespace(
+                ctx.path_id_namespace)
+
         ctx.aliased_views[alias] = setgen.get_set_type(view_set, ctx=ctx)
         ctx.path_scope_map[view_set] = subctx.path_scope
         ctx.expr_view_cache[expr, alias] = view_set
@@ -333,8 +337,11 @@ def declare_view_from_schema(
         subctx.expr_exposed = False
         view_expr = qlparser.parse(viewcls.get_expr(ctx.env.schema).text)
         viewcls_name = viewcls.get_name(ctx.env.schema)
-        declare_view(view_expr, alias=viewcls_name,
-                     fully_detached=True, ctx=subctx)
+        view_set = declare_view(view_expr, alias=viewcls_name,
+                                fully_detached=True, ctx=subctx)
+        # The view path id _itself_ should not be in the nested namespace.
+        view_set.path_id = view_set.path_id.replace_namespace(
+            ctx.path_id_namespace)
 
         vc = subctx.aliased_views[viewcls_name]
         ctx.env.schema_view_cache[viewcls] = vc

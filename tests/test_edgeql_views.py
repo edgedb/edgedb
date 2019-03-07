@@ -612,19 +612,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        Fails to correctly isolate the view sub-query, resulting in
-        incorrect cardinality of 'winner' among other things.
-
-        A shorter query that still illustrates the problem is:
-
-        WITH MODULE test
-        SELECT stdgraphql::Query {
-            foo := AwardView {
-                winner
-            }
-        };
-    ''')
     async def test_edgeql_views_nested_02(self):
         await self.assert_query_result(
             r"""
