@@ -65,6 +65,17 @@ class TestServerProto(tb.QueryTestCase):
             SELECT cfg::Config.__internal_testmode LIMIT 1
         ''')
 
+    async def test_server_proto_parse_redirect_data_01(self):
+        # This is a regression fuzz test for ReadBuffer.redirect_messages().
+        # The bug was related to 'D' messages that were filling the entire
+        # receive buffer (8192 bytes) precisely.
+        for power in range(10, 20):
+            base = 2 ** power
+            for i in range(base - 100, base + 100):
+                v = await self.con.fetch_value(
+                    'select str_repeat(".", <int64>$i)', i=i)
+                self.assertEqual(len(v), i)
+
     async def test_server_proto_parse_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
