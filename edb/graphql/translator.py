@@ -23,9 +23,11 @@ import typing
 import graphql
 from graphql.language import ast as gql_ast
 
+from edb.common import debug
 from edb.common import typeutils
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as ql_codegen
 from edb.edgeql import qltypes
 from edb.edgeql import quote as eql_quote
 
@@ -909,6 +911,11 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *, variables=None):
     if variables is None:
         variables = {}
 
+    if debug.flags.graphql_compile:
+        debug.header('GraphQL compiler')
+        print(query)
+        print(f'variables: {variables}')
+
     gql_vars = {}
     for n, v in variables.items():
         gql_vars[n] = value_node_from_pyvalue(v)
@@ -928,6 +935,11 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *, variables=None):
 
     results = {}
     edge_forest_map = GraphQLTranslator(context=context).visit(document_ast)
+
+    if debug.flags.graphql_compile:
+        for opname, op in sorted(edge_forest_map.items()):
+            print(f'== operationName: {opname!r} =============')
+            print(ql_codegen.generate_source(op.stmt))
 
     for opname, op in sorted(edge_forest_map.items()):
         # convert critvars and vars to JSON-like format
