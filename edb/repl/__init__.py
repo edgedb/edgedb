@@ -19,6 +19,7 @@
 
 import argparse
 import atexit
+import functools
 import getpass
 import os
 import pathlib
@@ -56,15 +57,9 @@ STATUSES_WITH_OUTPUT = frozenset({
 })
 
 
-@pt_filters.Condition
-def is_multiline():
-    doc = pt_app.get_app().layout.get_buffer_by_name(
-        pt_enums.DEFAULT_BUFFER).document
-
-    if (doc.cursor_position and doc.text[doc.cursor_position:].strip()):
-        return True
-
-    text = doc.text.strip()
+@functools.lru_cache(100)
+def is_multiline_text(text):
+    text = text.strip()
 
     if text in Cli.exit_commands:
         return False
@@ -80,6 +75,17 @@ def is_multiline():
         return incomplete is not None
 
     return True
+
+
+@pt_filters.Condition
+def is_multiline():
+    doc = pt_app.get_app().layout.get_buffer_by_name(
+        pt_enums.DEFAULT_BUFFER).document
+
+    if (doc.cursor_position and doc.text[doc.cursor_position:].strip()):
+        return True
+
+    return is_multiline_text(doc.text)
 
 
 class Cli:

@@ -17,9 +17,12 @@
 #
 
 
+import functools
+
 from edb.edgeql.parser.grammar import lexer
 
 
+@functools.lru_cache(100)
 def split_edgeql(script: str, *, script_mode=True):
     '''\
     Split the input string into a list of possible EdgeQL statements.
