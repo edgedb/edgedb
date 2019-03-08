@@ -145,6 +145,7 @@ cdef class Protocol(http.HttpProtocol):
     async def execute(self, bytes query, variables):
         dbver = self.server.get_dbver()
         cache_key = (query, dbver)
+        use_prep_stmt = False
 
         query_unit: compiler.QueryUnit = self.query_cache.get(
             cache_key, None)
@@ -152,6 +153,9 @@ cdef class Protocol(http.HttpProtocol):
         if query_unit is None:
             query_unit = await self.compile(dbver, query)
             self.query_cache[cache_key] = query_unit
+        else:
+            # This is at least the second time this query is used.
+            use_prep_stmt = True
 
         args = []
         if query_unit.in_type_args:
@@ -164,7 +168,9 @@ cdef class Protocol(http.HttpProtocol):
 
         pgcon = await self.server.pgcons.get()
         try:
-            data = await pgcon.parse_execute_json(query_unit.sql[0], args)
+            data = await pgcon.parse_execute_json(
+                query_unit.sql[0], query_unit.sql_hash, query_unit.dbver,
+                use_prep_stmt, args)
         finally:
             self.server.pgcons.put_nowait(pgcon)
 

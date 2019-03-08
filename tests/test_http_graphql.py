@@ -131,22 +131,23 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 self.http_con_request(con, {}, path='non-existant')
 
     def test_graphql_functional_query_01(self):
-        self.assert_graphql_query_result(r"""
-            query {
-                Setting {
-                    name
-                    value
+        for _ in range(10):  # repeat to test prepared pgcon statements
+            self.assert_graphql_query_result(r"""
+                query {
+                    Setting {
+                        name
+                        value
+                    }
                 }
-            }
-        """, {
-            'Setting': [{
-                'name': 'perks',
-                'value': 'full',
-            }, {
-                'name': 'template',
-                'value': 'blue',
-            }],
-        }, sort=lambda x: x['name'])
+            """, {
+                'Setting': [{
+                    'name': 'perks',
+                    'value': 'full',
+                }, {
+                    'name': 'template',
+                    'value': 'blue',
+                }],
+            }, sort=lambda x: x['name'])
 
     def test_graphql_functional_query_02(self):
         self.assert_graphql_query_result(r"""

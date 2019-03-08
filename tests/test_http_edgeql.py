@@ -75,21 +75,22 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 self.http_con_request(con, {}, path='non-existant')
 
     def test_http_edgeql_query_01(self):
-        for use_http_post in [True, False]:
-            self.assert_edgeql_query_result(
-                r"""
-                    SELECT Setting {
-                        name,
-                        value
-                    }
-                    ORDER BY .name ASC;
-                """,
-                [
-                    {'name': 'perks', 'value': 'full'},
-                    {'name': 'template', 'value': 'blue'}
-                ],
-                use_http_post=use_http_post
-            )
+        for _ in range(10):  # repeat to test prepared pgcon statements
+            for use_http_post in [True, False]:
+                self.assert_edgeql_query_result(
+                    r"""
+                        SELECT Setting {
+                            name,
+                            value
+                        }
+                        ORDER BY .name ASC;
+                    """,
+                    [
+                        {'name': 'perks', 'value': 'full'},
+                        {'name': 'template', 'value': 'blue'}
+                    ],
+                    use_http_post=use_http_post
+                )
 
     def test_http_edgeql_query_02(self):
         for use_http_post in [True, False]:

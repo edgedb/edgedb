@@ -40,7 +40,9 @@ class CompilerDatabaseState(compiler.CompilerDatabaseState):
 class CompiledOperation:
 
     sql: bytes
+    sql_hash: bytes
     sql_args: typing.List[str]
+    dbver: int
     cacheable: bool
     cache_deps_vars: typing.Dict
     variables: typing.Dict
@@ -107,9 +109,14 @@ class Compiler(compiler.BaseCompiler):
             for argname, argpos in argmap.items():
                 args[argpos - 1] = argname
 
+            sql_bytes = sql_text.encode()
+            sql_hash = self._hash_sql(sql_bytes)
+
             ops[op_name] = CompiledOperation(
-                sql=sql_text.encode(),
+                sql=sql_bytes,
+                sql_hash=sql_hash,
                 sql_args=args,
+                dbver=dbver,
                 cacheable=op_desc['cacheable'],
                 cache_deps_vars=op_desc['cache_deps_vars'],
                 variables=op_desc['variables_desc'],

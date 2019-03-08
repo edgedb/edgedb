@@ -136,6 +136,13 @@ class BaseCompiler:
             self._data_dir = None
             self._std_schema = None
 
+    def _hash_sql(self, sql: bytes, **kwargs: bytes):
+        h = hashlib.sha1(sql)
+        for param, val in kwargs.items():
+            h.update(param.encode('latin1'))
+            h.update(val)
+        return h.hexdigest().encode('latin1')
+
     def _wrap_schema(self, dbver, con_args, schema) -> CompilerDatabaseState:
         return CompilerDatabaseState(
             dbver=dbver,
@@ -189,13 +196,6 @@ class Compiler(BaseCompiler):
         else:
             self._data_dir = None
             self._std_schema = None
-
-    def _hash_sql(self, sql: bytes, **kwargs: bytes):
-        h = hashlib.sha1(sql)
-        for param, val in kwargs.items():
-            h.update(param.encode('latin1'))
-            h.update(val)
-        return h.hexdigest().encode('latin1')
 
     def _in_testmode(self, ctx: CompileContext):
         current_tx = ctx.state.current_tx()

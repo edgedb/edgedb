@@ -161,6 +161,7 @@ cdef class Protocol(http.HttpProtocol):
     async def execute(self, query, operation_name, variables):
         dbver = self.server.get_dbver()
         cache_key = (query, dbver)
+        use_prep_stmt = False
 
         compiled: compiler.CompiledQuery = self.query_cache.get(
             cache_key, None)
@@ -176,6 +177,10 @@ cdef class Protocol(http.HttpProtocol):
                 compiled = await self.compile(
                     dbver, query, operation_name, variables)
                 op = compiled.get_op(operation_name)
+            else:
+                # This is at least the second time this query is used
+                # and it's safe to cache.
+                use_prep_stmt = True
 
         args = []
         if op.sql_args:
@@ -191,7 +196,9 @@ cdef class Protocol(http.HttpProtocol):
 
         pgcon = await self.server.pgcons.get()
         try:
-            data = await pgcon.parse_execute_json(op.sql, args)
+            data = await pgcon.parse_execute_json(
+                op.sql, op.sql_hash, op.dbver,
+                use_prep_stmt, args)
         finally:
             self.server.pgcons.put_nowait(pgcon)
 

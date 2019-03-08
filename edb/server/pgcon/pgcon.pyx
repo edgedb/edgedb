@@ -180,43 +180,79 @@ cdef class PGProto:
                               f'{chr(mtype)!r} message')
                     self.buffer.discard_message()
 
-    async def parse_execute_json(self, sql, args):
+    cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf):
+        parse = 1
+
+        while self.prep_stmts.needs_cleanup():
+            stmt_name_to_clean = self.prep_stmts.cleanup_one()
+            outbuf.write_buffer(
+                self.make_clean_stmt_message(stmt_name_to_clean))
+
+        if stmt_name in self.prep_stmts:
+            if self.prep_stmts[stmt_name] == dbver:
+                parse = 0
+            else:
+                outbuf.write_buffer(
+                    self.make_clean_stmt_message(stmt_name))
+                del self.prep_stmts[stmt_name]
+                store_stmt = 1
+        else:
+            store_stmt = 1
+
+        return parse, store_stmt
+
+    async def parse_execute_json(self, sql, sql_hash, dbver,
+                                 use_prep_stmt, args):
         cdef:
-            WriteBuffer parse
-            WriteBuffer bind
-            WriteBuffer execute
+            WriteBuffer parse_buf
+            WriteBuffer bind_buf
+            WriteBuffer execute_buf
             WriteBuffer buf
             char *str
             ssize_t size
+            bint parse = 1
+            bint store_stmt = 0
 
-        parse = WriteBuffer.new_message(b'P')
-        parse.write_bytestring(b'')  # statement name
-        parse.write_bytestring(sql)
-        parse.write_int16(0)  # we don't want to specify parameter types
-        parse.end_message()
+        self.before_command()
 
-        bind = WriteBuffer.new_message(b'B')
-        bind.write_bytestring(b'')  # portal name
-        bind.write_bytestring(b'')  # statement name
-        bind.write_int32(0x00010001)  # binary for all parameters
-        bind.write_int16(len(args))  # number of parameters
+        buf = WriteBuffer.new()
+
+        if use_prep_stmt:
+            stmt_name = sql_hash
+            parse, store_stmt = self.before_prepare(
+                stmt_name, dbver, buf)
+        else:
+            stmt_name = b''
+
+        if parse:
+            parse_buf = WriteBuffer.new_message(b'P')
+            parse_buf.write_bytestring(stmt_name)  # statement name
+            parse_buf.write_bytestring(sql)
+            # we don't want to specify parameter types
+            parse_buf.write_int16(0)
+            parse_buf.end_message()
+            buf.write_buffer(parse_buf)
+
+        bind_buf = WriteBuffer.new_message(b'B')
+        bind_buf.write_bytestring(b'')  # portal name
+        bind_buf.write_bytestring(stmt_name)  # statement name
+        bind_buf.write_int32(0x00010001)  # binary for all parameters
+        bind_buf.write_int16(len(args))  # number of parameters
 
         for arg in args:
             jarg = json.dumps(arg)
-            pgproto.jsonb_encode(DEFAULT_CODEC_CONTEXT, bind, jarg)
+            pgproto.jsonb_encode(DEFAULT_CODEC_CONTEXT, bind_buf, jarg)
 
-        bind.write_int32(0x00010001)  # binary for the output
-        bind.end_message()
+        bind_buf.write_int32(0x00010001)  # binary for the output
+        bind_buf.end_message()
+        buf.write_buffer(bind_buf)
 
-        execute = WriteBuffer.new_message(b'E')
-        execute.write_bytestring(b'')  # portal name
-        execute.write_int32(0)  # return all rows
-        execute.end_message()
+        execute_buf = WriteBuffer.new_message(b'E')
+        execute_buf.write_bytestring(b'')  # portal name
+        execute_buf.write_int32(0)  # return all rows
+        execute_buf.end_message()
+        buf.write_buffer(execute_buf)
 
-        buf = WriteBuffer.new()
-        buf.write_buffer(parse)
-        buf.write_buffer(bind)
-        buf.write_buffer(execute)
         buf.write_bytes(SYNC_MESSAGE)
 
         self.write(buf)
@@ -273,10 +309,15 @@ cdef class PGProto:
                     fields = self.parse_error_message()
                     error = pgerror.BackendError(fields=fields)
 
-                elif mtype in {b'C', b'n', b'1', b'2', b'I'}:
+                elif mtype == b'1':
+                    # ParseComplete
+                    self.buffer.discard_message()
+                    if store_stmt:
+                        self.prep_stmts[stmt_name] = dbver
+
+                elif mtype in {b'C', b'n', b'2', b'I'}:
                     # CommandComplete
                     # NoData
-                    # ParseComplete
                     # BindComplete
                     # EmptyQueryResponse
                     self.buffer.discard_message()
@@ -330,24 +371,9 @@ cdef class PGProto:
 
         if use_prep_stmt:
             assert parse and execute
-
-            while self.prep_stmts.needs_cleanup():
-                stmt_name_to_clean = self.prep_stmts.cleanup_one()
-                packet.write_buffer(
-                    self.make_clean_stmt_message(stmt_name_to_clean))
-
             stmt_name = query.sql_hash
-            if stmt_name in self.prep_stmts:
-                if self.prep_stmts[stmt_name] == query.dbver:
-                    parse = 0
-                else:
-                    packet.write_buffer(
-                        self.make_clean_stmt_message(stmt_name))
-                    del self.prep_stmts[stmt_name]
-                    store_stmt = 1
-            else:
-                store_stmt = 1
-
+            parse, store_stmt = self.before_prepare(
+                stmt_name, query.dbver, packet)
         else:
             stmt_name = b''
 

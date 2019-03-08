@@ -77,4 +77,6 @@ cdef class PGProto:
     cdef parse_notification(self)
     cdef fallthrough(self)
 
+    cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf)
+
     cdef make_clean_stmt_message(self, bytes stmt_name)
