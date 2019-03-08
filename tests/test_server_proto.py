@@ -672,6 +672,14 @@ class TestServerProto(tb.QueryTestCase):
                 foo=['aaa'], bar=['bbb']),
             '["aaabbb"]')
 
+    async def test_server_proto_args_06(self):
+        for _ in range(10):
+            self.assertEqual(
+                await self.con.fetch_value(
+                    'select <int64>$你好 + 10',
+                    你好=32),
+                42)
+
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.
