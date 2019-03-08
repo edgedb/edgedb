@@ -146,10 +146,10 @@ def _init_parsers():
 
 
 def _run_server(cluster, args, runstate_dir):
-    loop = asyncio.get_event_loop()
-
     _init_cluster(cluster, args)
 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
         # Import here to make sure that most of imports happen
         # under coverage (if we're testing with it).  Otherwise
