@@ -20,10 +20,10 @@ System
     .. code-block:: edgeql-repl
 
         db> SELECT sys::sleep(1);
-        {True}
+        {true}
 
         db> SELECT sys::sleep(<timedelta>'5 seconds');
-        {True}
+        {true}
 
 
 .. eql:function:: sys::advisory_lock(key: int64) -> bool

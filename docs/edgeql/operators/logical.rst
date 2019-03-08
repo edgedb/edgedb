@@ -17,8 +17,8 @@ EdgeDB supports the following boolean logical operators:
 
     .. code-block:: edgeql-repl
 
-        db> select False or True;
-        {True}
+        db> select false or true;
+        {true}
 
 
 .. eql:operator:: AND: A AND B
@@ -31,8 +31,8 @@ EdgeDB supports the following boolean logical operators:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT False AND True;
-        {False}
+        db> SELECT false AND true;
+        {false}
 
 
 .. eql:operator:: NOT: NOT A
@@ -44,8 +44,8 @@ EdgeDB supports the following boolean logical operators:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT NOT False;
-        {True}
+        db> SELECT NOT false;
+        {true}
 
 
 The ``AND`` and ``OR`` operators are commutative.

@@ -42,13 +42,13 @@ elements and string slices can be produced by using ``[]``:
     .. code-block:: edgeql-repl
 
         db> SELECT 'abc' LIKE 'abc';
-        {True}
+        {true}
         db> SELECT 'abc' LIKE 'a%';
-        {True}
+        {true}
         db> SELECT 'abc' LIKE '_b_';
-        {True}
+        {true}
         db> SELECT 'abc' LIKE 'c';
-        {False}
+        {false}
 
 
 .. eql:operator:: ILIKE: A ILIKE B
@@ -62,4 +62,4 @@ elements and string slices can be produced by using ``[]``:
     .. code-block:: edgeql-repl
 
         db> SELECT 'Abc' ILIKE 'a%';
-        {True}
+        {true}

@@ -41,13 +41,13 @@ This section describes EdgeQL operators that work on whole sets.
     .. code-block:: edgeql-repl
 
         db> SELECT 1 IN {1, 3, 5};
-        {True}
+        {true}
 
         db> SELECT 'Alice' IN User.name;
-        {True}
+        {true}
 
         db> SELECT {1, 2} IN {1, 3, 5};
-        {True, False}
+        {true, false}
 
 
 .. eql:operator:: UNION: A UNION B

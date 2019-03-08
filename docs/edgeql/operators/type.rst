@@ -29,14 +29,14 @@ IS
     .. code-block:: edgeql-repl
 
         db> SELECT 1 IS int64;
-        {True}
+        {true}
 
         db> SELECT User IS NOT SystemUser
         ... FILTER User.name = 'Alice';
-        {True}
+        {true}
 
         db> SELECT User IS (Text, Named);
-        {True, ..., True}  # one for every user instance
+        {true, ..., true}  # one for every user instance
 
 
 .. _ref_eql_expr_typecast:

@@ -30,7 +30,7 @@ SELECT
     The condition is evaluated for every element in the set produced by
     the ``SELECT`` clause.  The result of the evaluation of the
     ``FILTER`` clause is a set of boolean values.  If at least one value
-    in this set is ``True``, the input element is included, otherwise
+    in this set is ``true``, the input element is included, otherwise
     it is eliminated from the output.
 
 :eql:synopsis:`ORDER BY <order-expr> [direction] [THEN ...]`

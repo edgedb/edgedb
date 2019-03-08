@@ -69,7 +69,7 @@ Schema items can *extend* other item(s) of the same kind.  When extending,
 to the schema item kind.  For example, when an object type extends another
 object type, it inherits all parent properties, links, constraints and other
 aspects.  Additionally, for instances of the child type
-``object IS ParentType`` is ``True`` (see :eql:op:`IS operator <IS>`).  Also,
+``object IS ParentType`` is ``true`` (see :eql:op:`IS operator <IS>`).  Also,
 instances of the child type are included in the set of all instances of
 the parent type.
 

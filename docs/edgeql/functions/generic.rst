@@ -51,13 +51,13 @@ This section describes generic functions provided by EdgeDB.
     .. code-block:: edgeql-repl
 
         db> SELECT contains('qwerty', 'we');
-        {True}
+        {true}
 
         db> SELECT contains(b'qwerty', b'42');
-        {False}
+        {false}
 
         db> SELECT contains([2, 5, 7, 2, 100], 2);
-        {True}
+        {true}
 
 
 .. eql:function:: std::find(haystack: str, needle: str) -> int32

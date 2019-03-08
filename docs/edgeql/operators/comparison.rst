@@ -17,7 +17,7 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT 3 = 3.0;
-        {True}
+        {true}
 
 
 .. eql:operator:: NEQ: A != B
@@ -31,7 +31,7 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT 3 != 3.14;
-        {True}
+        {true}
 
 
 .. eql:operator:: COALEQ: A ?= B
@@ -48,17 +48,17 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT {1} ?= {1.0};
-        {True}
+        {true}
 
     .. code-block:: edgeql-repl
 
         db> SELECT {1} ?= {};
-        {False}
+        {false}
 
     .. code-block:: edgeql-repl
 
         db> SELECT <int64>{} ?= {};
-        {True}
+        {true}
 
 
 .. eql:operator:: COALNEQ: A ?!= B
@@ -75,17 +75,17 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT {2} ?!= {2};
-        {False}
+        {false}
 
     .. code-block:: edgeql-repl
 
         db> SELECT {1} ?!= {};
-        {True}
+        {true}
 
     .. code-block:: edgeql-repl
 
         db> SELECT <int64>{} ?!= {};
-        {False}
+        {false}
 
 
 .. eql:operator:: LT: A < B
@@ -99,7 +99,7 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT 1 < 2;
-        {True}
+        {true}
 
 
 .. eql:operator:: GT: A > B
@@ -113,7 +113,7 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT 1 > 2;
-        {False}
+        {false}
 
 
 .. eql:operator:: LTEQ: A <= B
@@ -127,7 +127,7 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT 1 <= 2;
-        {True}
+        {true}
 
 
 .. eql:operator:: GTEQ: A >= B
@@ -141,7 +141,7 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT 1 >= 2;
-        {False}
+        {false}
 
 
 .. eql:operator:: EXISTS: EXISTS A
@@ -158,4 +158,4 @@ EdgeDB supports the following comparison operators:
     .. code-block:: edgeql-repl
 
         db> SELECT EXISTS {1, 2};
-        {True}
+        {true}

@@ -197,13 +197,13 @@ String
 
     Given an input *string* and a regular expression *pattern* test
     whether there is a match for the regular expression within the
-    *string*. Return ``True`` if there is a match, ``False``
+    *string*. Return ``true`` if there is a match, ``false``
     otherwise.
 
     .. code-block:: edgeql-repl
 
         db> SELECT re_test(r'a', 'abc');
-        {True}
+        {true}
 
 Regular Expressions
 -------------------

@@ -83,7 +83,7 @@ JSON
         ...     "w": [2, "foo"],
         ...     "e": true
         ... }'));
-        {['e', True], ['q', 1], ['w', [2, 'foo']]}
+        {['e', true], ['q', 1], ['w', [2, 'foo']]}
 
 .. eql:function:: std::json_typeof(json: json) -> str
 

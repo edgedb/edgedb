@@ -55,10 +55,10 @@ Aggregates
     .. code-block:: edgeql-repl
 
         db> SELECT all(<bool>{});
-        {True}
+        {true}
 
         db> SELECT all({1, 2, 3, 4} < 4);
-        {False}
+        {false}
 
 .. eql:function:: std::any(values: SET OF bool) -> bool
 
@@ -72,10 +72,10 @@ Aggregates
     .. code-block:: edgeql-repl
 
         db> SELECT any(<bool>{});
-        {False}
+        {false}
 
         db> SELECT any({1, 2, 3, 4} < 4);
-        {True}
+        {true}
 
 .. eql:function:: std::enumerate(values: SET OF anytype) -> \
                   SET OF tuple<int64, anytype>
