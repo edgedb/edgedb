@@ -929,7 +929,7 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *, variables=None):
     results = {}
     edge_forest_map = GraphQLTranslator(context=context).visit(document_ast)
 
-    for name, op in sorted(edge_forest_map.items()):
+    for opname, op in sorted(edge_forest_map.items()):
         # convert critvars and vars to JSON-like format
         critvars = {}
         for name, val in op.critvars.items():
@@ -942,8 +942,8 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *, variables=None):
                 defvars[name] = json.loads(gqlcodegen.generate_source(val))
 
         # generate the specific result
-        results[name] = {
-            'operation_name': name,
+        results[opname] = {
+            'operation_name': opname,
             'edgeql': op.stmt,
             'cacheable': True,
             'cache_deps_vars': dict(critvars) if critvars else None,

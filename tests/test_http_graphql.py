@@ -389,6 +389,36 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_functional_query_12(self):
+        # Regression test: variables names were shadowing query names.
+        self.assert_graphql_query_result(
+            r"""
+                query users($name: String, $age: Int) {
+                    User(filter: {or: [{name: {eq: $name}},
+                                       {age: {gt: $age}}]},
+                         order: {name: {dir: ASC}})
+                    {
+                        name
+                        age
+                    }
+                }
+
+                query settings {
+                    Setting {
+                        name
+                    }
+                }
+            """,
+            {
+                'User': [{
+                    'name': 'Alice',
+                    'age': 27
+                }],
+            },
+            variables={'age': 25, 'name': 'Alice'},
+            operation_name='users'
+        )
+
     def test_graphql_functional_view_01(self):
         self.assert_graphql_query_result(
             r"""
