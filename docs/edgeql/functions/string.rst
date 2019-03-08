@@ -134,6 +134,19 @@ String
         db> SELECT str_trim(':.:.data.:.', '.:');
         {'data'}
 
+.. eql:function:: std::str_repeat(string: str, n: int64) -> str
+
+    Repeat the input *string* *n* times.
+
+    If *n* is zero or negative an empty string is returned.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_repeat('.', 3);
+        {'...'}
+        db> SELECT str_repeat('foo', -1);
+        {''}
+
 .. eql:function:: std::re_match(pattern: str, \
                                 string: str) -> array<str>
 

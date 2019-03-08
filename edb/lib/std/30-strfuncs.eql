@@ -89,6 +89,15 @@ std::`>=` (l: std::str, r: std::str) -> std::bool
 
 
 CREATE FUNCTION
+std::str_repeat(s: std::str, n: std::int64) -> std::str
+{
+    FROM SQL $$
+    SELECT repeat("s", "n"::int4)
+    $$;
+};
+
+
+CREATE FUNCTION
 std::str_lower(s: std::str) -> std::str
 {
     FROM SQL FUNCTION 'lower';

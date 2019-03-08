@@ -3240,6 +3240,42 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'Hello'},
         )
 
+    async def test_edgeql_functions_str_repeat_01(self):
+        await self.assert_query_result(
+            r'''SELECT str_repeat('', 1);''',
+            {''},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_repeat('', 0);''',
+            {''},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_repeat('', -1);''',
+            {''},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_repeat('a', 1);''',
+            {'a'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_repeat('aa', 3);''',
+            {'aaaaaa'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_repeat('a', 0);''',
+            {''},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT str_repeat('', -1);''',
+            {''},
+        )
+
     async def test_edgeql_functions_math_abs_01(self):
         await self.assert_query_result(
             r'''SELECT math::abs(2);''',
