@@ -1,11 +1,17 @@
-.PHONY: docs cython
+.PHONY: docs cython postgres
 
 SPHINXOPTS:="-W -n"
+
+
+cython:
+	find edb -name '*.pyx' | xargs touch
+	python setup.py build_ext --inplace
+
 
 docs:
 	find docs -name '*.rst' | xargs touch
 	$(MAKE) -C docs html SPHINXOPTS=$(SPHINXOPTS) BUILDDIR="../build"
 
-cython:
-	find edb -name '*.pyx' | xargs touch
-	python setup.py build_ext --inplace
+
+postgres:
+	python setup.py build_postgres
