@@ -32,7 +32,9 @@ flexibility to redirect debug output if needed.
 
 
 import builtins
+import contextlib
 import os
+import time
 import warnings
 
 from . import markup as _markup
@@ -103,6 +105,15 @@ class flags(metaclass=FlagsMeta):
 
     disable_qcache = Flag(
         doc="Disable server query cache. Parse/Execute will always recompile.")
+
+
+@contextlib.contextmanager
+def timeit(title='block'):
+    st = time.monotonic()
+    try:
+        yield
+    finally:
+        print(f'{title} took {time.monotonic() - st:.4f}s')
 
 
 def header(*args):
