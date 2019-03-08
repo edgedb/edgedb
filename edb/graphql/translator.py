@@ -23,6 +23,8 @@ import typing
 import graphql
 from graphql.language import ast as gql_ast
 
+from edb import errors
+
 from edb.common import debug
 from edb.common import typeutils
 
@@ -38,7 +40,7 @@ from . import codegen as gqlcodegen
 
 class GraphQLTranslatorContext:
     def __init__(self, *, gqlcore: gt.GQLCoreSchema,
-                 variables, query, document_ast):
+                 variables, query, document_ast, operation_name):
         self.variables = variables
         self.fragments = {}
         self.validated_fragments = {}
@@ -50,6 +52,7 @@ class GraphQLTranslatorContext:
         self.gqlcore = gqlcore
         self.query = query
         self.document_ast = document_ast
+        self.operation_name = operation_name
 
 
 class Step(typing.NamedTuple):
@@ -73,6 +76,14 @@ class Operation(typing.NamedTuple):
     stmt: object
     critvars: object
     vars: object
+
+
+class TranspiledOperation(typing.NamedTuple):
+
+    edgeql_ast: qlast.Base
+    cacheable: bool
+    cache_deps_vars: dict
+    variables_desc: dict
 
 
 class GraphQLTranslator:
@@ -141,6 +152,22 @@ class GraphQLTranslator:
         else:
             self._context.fragments = {}
 
+        operation_name = self._context.operation_name
+        if operation_name is None:
+            opnames = []
+            for opnode in node.definitions:
+                if not isinstance(opnode, gql_ast.OperationDefinition):
+                    continue
+                opname = None
+                if opnode.name:
+                    opname = opnode.name.value
+                opnames.append(opname)
+            if len(opnames) > 1:
+                raise errors.QueryError(
+                    'must provide operation name if query contains '
+                    'multiple operations')
+            operation_name = self._context.operation_name = opnames[0]
+
         if node.definitions:
             translated = {d.name: d
                           for d in self.visit(node.definitions)
@@ -148,35 +175,38 @@ class GraphQLTranslator:
         else:
             translated = {}
 
-        for opname in translated:
-            stmt = translated[opname].stmt
+        if operation_name not in translated:
+            if operation_name:
+                raise errors.QueryError(
+                    f'unknown operation named "{operation_name}"')
 
-            for el in stmt.result.expr.elements:
-                # swap in the json bits
-                if (isinstance(el.compexpr, qlast.FunctionCall) and
-                        el.compexpr.func == 'to_json'):
+        stmt = translated[operation_name].stmt
+        for el in stmt.result.expr.elements:
+            # swap in the json bits
+            if (isinstance(el.compexpr, qlast.FunctionCall) and
+                    el.compexpr.func == 'to_json'):
 
-                    # An introspection query; let graphql evaluate it for us.
-                    result = graphql.execute(
-                        self._context.gqlcore.graphql_schema,
-                        self._context.document_ast,
-                        operation_name=opname,
-                        variables=self._context.variables)
+                # An introspection query; let graphql evaluate it for us.
+                result = graphql.execute(
+                    self._context.gqlcore.graphql_schema,
+                    self._context.document_ast,
+                    operation_name=operation_name,
+                    variables=self._context.variables)
 
-                    if result.errors:
-                        err = result.errors[0]
-                        if isinstance(err, graphql.GraphQLError):
-                            err_loc = (err.locations[0].line,
-                                       err.locations[0].column)
-                            raise g_errors.GraphQLCoreError(
-                                err.message,
-                                loc=err_loc)
-                        else:
-                            raise err
+                if result.errors:
+                    err = result.errors[0]
+                    if isinstance(err, graphql.GraphQLError):
+                        err_loc = (err.locations[0].line,
+                                   err.locations[0].column)
+                        raise g_errors.GraphQLCoreError(
+                            err.message,
+                            loc=err_loc)
+                    else:
+                        raise err
 
-                    name = el.expr.steps[0].ptr.name
-                    el.compexpr.args[0].arg = qlast.StringConstant.from_python(
-                        json.dumps(result.data[name]))
+                name = el.expr.steps[0].ptr.name
+                el.compexpr.args[0].arg = qlast.StringConstant.from_python(
+                    json.dumps(result.data[name]))
 
         return translated
 
@@ -193,6 +223,9 @@ class GraphQLTranslator:
         opname = None
         if node.name:
             opname = node.name.value
+
+        if opname != self._context.operation_name:
+            return None
 
         if node.operation is None or node.operation == 'query':
             stmt = self._visit_query(node)
@@ -900,7 +933,8 @@ def value_node_from_pyvalue(val: object):
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 
 
-def translate(gqlcore: gt.GQLCoreSchema, query, *, variables=None):
+def translate(gqlcore: gt.GQLCoreSchema, query, *,
+              operation_name=None, variables=None):
     try:
         document_ast = graphql.parse(query)
     except graphql.GraphQLError as err:
@@ -931,9 +965,9 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *, variables=None):
 
     context = GraphQLTranslatorContext(
         gqlcore=gqlcore, query=query,
-        variables=gql_vars, document_ast=document_ast)
+        variables=gql_vars, document_ast=document_ast,
+        operation_name=operation_name)
 
-    results = {}
     edge_forest_map = GraphQLTranslator(context=context).visit(document_ast)
 
     if debug.flags.graphql_compile:
@@ -941,25 +975,23 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *, variables=None):
             print(f'== operationName: {opname!r} =============')
             print(ql_codegen.generate_source(op.stmt))
 
-    for opname, op in sorted(edge_forest_map.items()):
-        # convert critvars and vars to JSON-like format
-        critvars = {}
-        for name, val in op.critvars.items():
-            if val is not None:
-                critvars[name] = json.loads(gqlcodegen.generate_source(val))
+    op = next(iter(edge_forest_map.values()))
 
-        defvars = {}
-        for name, val in op.vars.items():
-            if val is not None:
-                defvars[name] = json.loads(gqlcodegen.generate_source(val))
+    # convert critvars and vars to JSON-like format
+    critvars = {}
+    for name, val in op.critvars.items():
+        if val is not None:
+            critvars[name] = json.loads(gqlcodegen.generate_source(val))
 
-        # generate the specific result
-        results[opname] = {
-            'operation_name': opname,
-            'edgeql': op.stmt,
-            'cacheable': True,
-            'cache_deps_vars': dict(critvars) if critvars else None,
-            'variables_desc': defvars,
-        }
+    defvars = {}
+    for name, val in op.vars.items():
+        if val is not None:
+            defvars[name] = json.loads(gqlcodegen.generate_source(val))
 
-    return results
+    # generate the specific result
+    return TranspiledOperation(
+        edgeql_ast=op.stmt,
+        cacheable=True,
+        cache_deps_vars=dict(critvars) if critvars else None,
+        variables_desc=defvars,
+    )

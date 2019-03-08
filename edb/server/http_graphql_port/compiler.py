@@ -20,8 +20,6 @@
 import dataclasses
 import typing
 
-from edb import errors
-
 from edb import graphql
 
 from edb.common import debug
@@ -48,27 +46,6 @@ class CompiledOperation:
     variables: typing.Dict
 
 
-@dataclasses.dataclass(frozen=True)
-class CompiledQuery:
-
-    ops: typing.Mapping[str, CompiledOperation]
-
-    def get_op(self, operation_name):
-        if operation_name is None:
-            if len(self.ops) == 1:
-                operation_name = next(iter(self.ops))
-            else:
-                raise errors.QueryError(
-                    'must provide operation name if query contains '
-                    'multiple operations')
-
-        try:
-            return self.ops[operation_name]
-        except KeyError:
-            raise errors.QueryError(
-                f'unknown operation named "{operation_name}"')
-
-
 class Compiler(compiler.BaseCompiler):
 
     def _wrap_schema(self, dbver, con_args, schema) -> CompilerDatabaseState:
@@ -88,38 +65,35 @@ class Compiler(compiler.BaseCompiler):
 
         db = await self._get_database(dbver)
 
-        trans = graphql.translate(
+        op = graphql.translate(
             db.gqlcore,
             gql,
-            variables=variables)
+            variables=variables,
+            operation_name=operation_name)
 
-        ops = {}
-        for op_name, op_desc in trans.items():
-            ir = ql_compiler.compile_ast_to_ir(
-                op_desc['edgeql'],
-                schema=db.schema,
-                json_parameters=True)
+        ir = ql_compiler.compile_ast_to_ir(
+            op.edgeql_ast,
+            schema=db.schema,
+            json_parameters=True)
 
-            sql_text, argmap = pg_compiler.compile_ir_to_sql(
-                ir,
-                pretty=debug.flags.edgeql_compile,
-                output_format=pg_compiler.OutputFormat.NATIVE)
+        sql_text, argmap = pg_compiler.compile_ir_to_sql(
+            ir,
+            pretty=debug.flags.edgeql_compile,
+            output_format=pg_compiler.OutputFormat.NATIVE)
 
-            args = [None] * len(argmap)
-            for argname, argpos in argmap.items():
-                args[argpos - 1] = argname
+        args = [None] * len(argmap)
+        for argname, argpos in argmap.items():
+            args[argpos - 1] = argname
 
-            sql_bytes = sql_text.encode()
-            sql_hash = self._hash_sql(sql_bytes)
+        sql_bytes = sql_text.encode()
+        sql_hash = self._hash_sql(sql_bytes)
 
-            ops[op_name] = CompiledOperation(
-                sql=sql_bytes,
-                sql_hash=sql_hash,
-                sql_args=args,
-                dbver=dbver,
-                cacheable=op_desc['cacheable'],
-                cache_deps_vars=op_desc['cache_deps_vars'],
-                variables=op_desc['variables_desc'],
-            )
-
-        return CompiledQuery(ops=ops)
+        return CompiledOperation(
+            sql=sql_bytes,
+            sql_hash=sql_hash,
+            sql_args=args,
+            dbver=dbver,
+            cacheable=op.cacheable,
+            cache_deps_vars=op.cache_deps_vars,
+            variables=op.variables_desc,
+        )

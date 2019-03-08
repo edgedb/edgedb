@@ -160,23 +160,20 @@ cdef class Protocol(http.HttpProtocol):
 
     async def execute(self, query, operation_name, variables):
         dbver = self.server.get_dbver()
-        cache_key = (query, dbver)
+        cache_key = (query, operation_name, dbver)
         use_prep_stmt = False
 
-        compiled: compiler.CompiledQuery = self.query_cache.get(
+        op: compiler.CompiledOperation = self.query_cache.get(
             cache_key, None)
 
-        if compiled is None:
-            compiled = await self.compile(
+        if op is None:
+            op = await self.compile(
                 dbver, query, operation_name, variables)
-            self.query_cache[cache_key] = compiled
-            op: compiler.CompiledOperation = compiled.get_op(operation_name)
+            self.query_cache[cache_key] = op
         else:
-            op: compiler.CompiledOperation = compiled.get_op(operation_name)
             if op.cache_deps_vars:
-                compiled = await self.compile(
+                op = await self.compile(
                     dbver, query, operation_name, variables)
-                op = compiled.get_op(operation_name)
             else:
                 # This is at least the second time this query is used
                 # and it's safe to cache.
