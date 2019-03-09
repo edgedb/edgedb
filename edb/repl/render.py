@@ -46,7 +46,8 @@ class BinaryRenderer:
         # than crash.
         buf.write(str(o))
 
-    def _object_guts(o, repl_ctx: context.ReplContext, buf):
+    def _object_guts(o, repl_ctx: context.ReplContext, buf, *,
+                     include_id_when_empty: bool):
         pointers = introspect.introspect_object(o).pointers
         if not repl_ctx.show_implicit_fields:
             pointers = tuple(ptr for ptr in pointers if not ptr.implicit)
@@ -69,6 +70,11 @@ class BinaryRenderer:
                 buf.write(',')
                 buf.mark_line_break()
 
+        if i == 0 and include_id_when_empty:
+            buf.write('id', style.key)
+            buf.write(': ')
+            BinaryRenderer.walk(o.id, repl_ctx, buf)
+
         return i > 0
 
     def _object_name(o, repl_ctx):
@@ -84,13 +90,14 @@ class BinaryRenderer:
             buf.write(' {', style.tree_node)
             buf.folded_space()
             with buf.indent():
-                non_empty = BinaryRenderer._object_guts(
-                    o.target, repl_ctx, buf)
-
                 pointers = o.__dir__()
                 pointers = tuple(ptr for ptr in pointers
                                  if ptr not in {'source', 'target'})
                 pointers_len = len(pointers)
+
+                non_empty = BinaryRenderer._object_guts(
+                    o.target, repl_ctx, buf,
+                    include_id_when_empty=pointers_len == 0)
 
                 if pointers_len > 0:
                     if non_empty:
@@ -123,7 +130,8 @@ class BinaryRenderer:
             buf.write(' {', style.tree_node)
             buf.folded_space()
             with buf.indent():
-                non_empty = BinaryRenderer._object_guts(o, repl_ctx, buf)
+                non_empty = BinaryRenderer._object_guts(
+                    o, repl_ctx, buf, include_id_when_empty=True)
             if non_empty:
                 buf.folded_space()
             buf.write('}', style.tree_node)
