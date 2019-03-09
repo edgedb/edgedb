@@ -451,15 +451,17 @@ def _normalize_view_ptr_expr(
             else:
                 path_id_name = None
 
+            if ptr_target.is_object_type():
+                base = ctx.env.schema.get('std::link')
+            else:
+                base = ctx.env.schema.get('std::property')
+
             if ptrcls is not None:
                 derive_from = ptrcls
             elif base_ptrcls is not None:
                 derive_from = base_ptrcls
             else:
-                if ptr_target.is_object_type():
-                    derive_from = ctx.env.schema.get('std::link')
-                else:
-                    derive_from = ctx.env.schema.get('std::property')
+                derive_from = base
 
             derived_name = schemactx.derive_view_name(
                 ptrcls,
@@ -471,12 +473,15 @@ def _normalize_view_ptr_expr(
             if existing is not None:
                 ptrcls = existing
             else:
+                attrs = dict(path_id_name=path_id_name, bases=[base])
+
                 ptrcls = schemactx.derive_view(
                     derive_from, src_scls, ptr_target,
                     is_insert=is_insert,
                     is_update=is_update,
                     derived_name=derived_name,
-                    attrs=dict(path_id_name=path_id_name),
+                    merge_bases=[derive_from],
+                    attrs=attrs,
                     ctx=ctx)
 
         if qlexpr is not None:

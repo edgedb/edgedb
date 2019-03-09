@@ -155,13 +155,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        This test used to work before the introduction of
-        test::UserView. It broke as a side effect of a new view.
-
-        edgedb.errors.SchemaError: Link 'test::owners' is already present
-        in the schema <Schema gen:5583 at 0x7f3120c476d8>
-    ''')
     async def test_edgeql_views_create_01(self):
         await self.con.fetch(r'''
             CREATE VIEW test::DCard := (

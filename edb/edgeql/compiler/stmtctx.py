@@ -144,6 +144,18 @@ def fini_expression(
                     vptr.get_target(ctx.env.schema).material_type(
                         ctx.env.schema))
 
+                derived_from = vptr.get_derived_from(ctx.env.schema)
+                if (derived_from is not None
+                        and derived_from.get_derived_from(ctx.env.schema)
+                        is not None):
+                    ctx.env.schema = vptr.set_field_value(
+                        ctx.env.schema,
+                        'derived_from',
+                        derived_from.get_nearest_non_derived_parent(
+                            ctx.env.schema,
+                        )
+                    )
+
                 if not hasattr(vptr, 'get_own_pointers'):
                     continue
 

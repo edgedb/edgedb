@@ -124,6 +124,7 @@ def derive_view(
         derived_name: typing.Optional[sn.SchemaName]=None,
         derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
         derived_name_base: typing.Optional[str]=None,
+        merge_bases=None,
         is_insert: bool=False,
         is_update: bool=False,
         attrs: typing.Optional[dict]=None,
@@ -161,6 +162,7 @@ def derive_view(
 
         ctx.env.schema, derived = stype.derive(
             ctx.env.schema, source, target, *qualifiers,
+            merge_bases=merge_bases,
             name=derived_name, mark_derived=True, attrs=attrs)
 
         if not stype.generic(ctx.env.schema):
