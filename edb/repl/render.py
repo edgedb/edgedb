@@ -53,7 +53,7 @@ class BinaryRenderer:
             pointers = tuple(ptr for ptr in pointers if not ptr.implicit)
         pointers_len = len(pointers)
 
-        i = 0
+        pointers_rendered = 0
         for ptr in pointers:
             buf.write(ptr.name, style.key)
             buf.write(': ')
@@ -65,17 +65,18 @@ class BinaryRenderer:
                 val = getattr(o, ptr.name)
                 BinaryRenderer.walk(val, repl_ctx, buf)
 
-            i += 1
-            if i < pointers_len:
+            pointers_rendered += 1
+            if pointers_rendered < pointers_len:
                 buf.write(',')
                 buf.mark_line_break()
 
-        if i == 0 and include_id_when_empty:
+        if pointers_rendered == 0 and include_id_when_empty:
             buf.write('id', style.key)
             buf.write(': ')
             BinaryRenderer.walk(o.id, repl_ctx, buf)
+            pointers_rendered = 1
 
-        return i > 0
+        return pointers_rendered > 0
 
     def _object_name(o, repl_ctx):
         if not repl_ctx.introspect_types:
