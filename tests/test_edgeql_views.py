@@ -331,12 +331,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             }]
         )
 
-    @test.xfail('''
-        The error is especially odd since it is not reproducible in REPL.
-
-        AssertionError: data shape differs: key 'name' is missing
-    ''')
-    async def test_edgeql_computable_propagation_01(self):
+    async def test_edgeql_view_shape_propagation_01(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -358,6 +353,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_view_shape_propagation_02(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -379,6 +375,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_view_shape_propagation_03(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -401,6 +398,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_view_shape_propagation_04(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test

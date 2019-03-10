@@ -462,7 +462,7 @@ def fini_stmt(
         view = ctx.env.schema.get(view_name, None)
         if view is None:
             view = schemactx.derive_view(
-                t, derived_name=view_name, ctx=parent_ctx)
+                t, derived_name=view_name, preserve_shape=True, ctx=parent_ctx)
         path_id = pathctx.get_path_id(view, ctx=parent_ctx)
     else:
         view = None

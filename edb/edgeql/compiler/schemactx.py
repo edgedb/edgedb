@@ -125,6 +125,7 @@ def derive_view(
         derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
         derived_name_base: typing.Optional[str]=None,
         merge_bases=None,
+        preserve_shape: bool=False,
         is_insert: bool=False,
         is_update: bool=False,
         attrs: typing.Optional[dict]=None,
@@ -180,6 +181,9 @@ def derive_view(
 
     if isinstance(derived, s_abc.Type):
         ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived
+
+    if preserve_shape and stype in ctx.env.view_shapes:
+        ctx.env.view_shapes[derived] = ctx.env.view_shapes[stype]
 
     return derived
 
