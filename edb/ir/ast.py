@@ -313,7 +313,7 @@ class TypeIntrospection(ImmutableBase):
 
 class Set(Base):
 
-    __ast_frozen_fields__ = ('typeref', 'expr')
+    __ast_frozen_fields__ = ('typeref',)
 
     path_id: PathId
     path_scope_id: int

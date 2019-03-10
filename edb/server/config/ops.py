@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 
+import dataclasses
 import json
 import typing
 
@@ -104,6 +105,22 @@ class Operation(typing.NamedTuple):
         elif self.opcode is OpCode.CONFIG_ADD:
             assert setting.set_of
             exist_value = storage.get(self.setting_name, setting.default)
+            if value in exist_value:
+                props = []
+                for f in dataclasses.fields(setting.type):
+                    if f.compare:
+                        props.append(f.name)
+
+                if len(props) > 1:
+                    props = f' ({", ".join(props)}) violate'
+                else:
+                    props = f'.{props[0]} violates'
+
+                raise errors.ConstraintViolationError(
+                    f'{setting.type.__name__}{props} '
+                    f'exclusivity constriant'
+                )
+
             new_value = exist_value | {value}
             storage = storage.set(self.setting_name, new_value)
 

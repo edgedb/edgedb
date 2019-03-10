@@ -494,7 +494,7 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_configure_03(self):
         await self.assert_query_result(
             '''
-            SELECT cfg::Config.sysobj { name };
+            SELECT cfg::Config.sysobj { name } FILTER .name LIKE 'test_03%';
             ''',
             [],
         )
@@ -518,7 +518,9 @@ class TestServerProto(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-            SELECT cfg::Config.sysobj { name } ORDER BY .name;
+            SELECT cfg::Config.sysobj { name }
+            FILTER .name LIKE 'test_03%'
+            ORDER BY .name;
             ''',
             [
                 {
@@ -536,7 +538,8 @@ class TestServerProto(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-            SELECT cfg::Config.sysobj { name };
+            SELECT cfg::Config.sysobj { name }
+            FILTER .name LIKE 'test_03%';
             ''',
             [
                 {
@@ -551,9 +554,76 @@ class TestServerProto(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-            SELECT cfg::Config.sysobj { name };
+            SELECT cfg::Config.sysobj { name }
+            FILTER .name LIKE 'test_03%';
             ''',
             []
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT SystemConfig {
+                name := 'test_03',
+                obj := (INSERT Subclass1 { name := 'foo', sub1 := 'sub1' })
+            }
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj {
+                name,
+                obj: cfg::Subclass1 {
+                    name,
+                    sub1,
+                },
+            }
+            FILTER .name LIKE 'test_03%';
+            ''',
+            [
+                {
+                    'name': 'test_03',
+                    'obj': {
+                        'name': 'foo',
+                        'sub1': 'sub1',
+                    },
+                },
+            ],
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT SystemConfig {
+                name := 'test_03_01',
+                obj := (INSERT Subclass2 { name := 'bar', sub2 := 'sub2' })
+            }
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj {
+                name,
+                obj: {
+                    __type__: {name},
+                    name,
+                },
+            }
+            FILTER .name LIKE 'test_03%'
+            ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'test_03',
+                    'obj': {
+                        '__type__': {'name': 'cfg::Subclass1'},
+                        'name': 'foo',
+                    },
+                },
+                {
+                    'name': 'test_03_01',
+                    'obj': {
+                        '__type__': {'name': 'cfg::Subclass2'},
+                        'name': 'bar',
+                    },
+                },
+            ],
         )
 
     async def test_server_proto_configure_04(self):
@@ -599,6 +669,30 @@ class TestServerProto(tb.QueryTestCase):
                 CONFIGURE SYSTEM INSERT SystemConfig {
                     name := <str>random()
                 };
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                "'Subclass1' cannot be configured directly"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM INSERT Subclass1 {
+                    name := 'foo'
+                };
+            ''')
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT SystemConfig {
+                name := 'test_04',
+            }
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "SystemConfig.name violates exclusivity constriant"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM INSERT SystemConfig {
+                    name := 'test_04',
+                }
             ''')
 
     async def test_server_proto_basic_datatypes_01(self):

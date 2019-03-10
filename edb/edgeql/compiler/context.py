@@ -254,6 +254,9 @@ class ContextLevel(compiler.ContextLevel):
     implicit_id_in_shapes: bool
     """Whether to include the type id property in object shapes implicitly."""
 
+    special_computables_in_mutation_shape: typing.FrozenSet[str]
+    """A set of "special" compiutable pointers allowed in mutation shape."""
+
     empty_result_type_hint: s_types.Type
     """Type to use if the statement result expression is an empty set ctor."""
 
@@ -301,6 +304,7 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_result_view_name = None
             self.implicit_id_in_shapes = False
             self.implicit_tid_in_shapes = False
+            self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
 
         else:
@@ -335,6 +339,8 @@ class ContextLevel(compiler.ContextLevel):
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.implicit_id_in_shapes = prevlevel.implicit_id_in_shapes
             self.implicit_tid_in_shapes = prevlevel.implicit_tid_in_shapes
+            self.special_computables_in_mutation_shape = \
+                prevlevel.special_computables_in_mutation_shape
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
 
             if mode == ContextSwitchMode.SUBQUERY:

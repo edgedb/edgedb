@@ -27,10 +27,27 @@ CREATE TYPE cfg::SessionConfig {
 };
 
 
+CREATE ABSTRACT TYPE cfg::Base {
+    CREATE REQUIRED PROPERTY name -> std::str
+};
+
+
+CREATE TYPE cfg::Subclass1 EXTENDING cfg::Base {
+    CREATE REQUIRED PROPERTY sub1 -> std::str;
+};
+
+
+CREATE TYPE cfg::Subclass2 EXTENDING cfg::Base {
+    CREATE REQUIRED PROPERTY sub2 -> std::str;
+};
+
+
 CREATE TYPE cfg::SystemConfig {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
-    }
+    };
+
+    CREATE LINK obj -> cfg::Base;
 };
 
 

@@ -218,18 +218,47 @@ def scalar_type_to_python_type(
 def object_type_to_python_type(
         objtype: s_types.Type,
         schema: s_schema.Schema, *,
-        base_class: typing.Optional[type] = None) -> type:
+        base_class: typing.Optional[type] = None,
+        _memo: typing.Optional[typing.Mapping[s_types.Type, type]]=None
+) -> type:
+
+    if _memo is None:
+        _memo = {}
 
     fields = []
+    subclasses = []
 
     for pn, p in objtype.get_pointers(schema).items(schema):
         if pn in ('id', '__type__'):
             continue
 
         ptype = p.get_target(schema)
-        pytype = schema_type_to_python_type(ptype, schema)
+
+        if ptype.is_object_type():
+            pytype = _memo.get(ptype)
+            if pytype is None:
+                pytype = object_type_to_python_type(
+                    ptype, schema, base_class=base_class, _memo=_memo)
+                _memo[ptype] = pytype
+
+                for subtype in ptype.children(schema):
+                    subclasses.append(
+                        object_type_to_python_type(
+                            subtype, schema,
+                            base_class=pytype, _memo=_memo))
+        else:
+            pytype = scalar_type_to_python_type(ptype, schema)
+
         if p.get_cardinality(schema) is qltypes.Cardinality.MANY:
             pytype = typing.FrozenSet[pytype]
+
+        default = p.get_default(schema)
+        if default is None:
+            if p.get_required(schema):
+                default = dataclasses.MISSING
+        else:
+            default = ql_compiler.evaluate_to_python_val(
+                default.text, schema=schema)
 
         constraints = p.get_constraints(schema).objects(schema)
         exclusive = schema.get('std::exclusive')
@@ -238,6 +267,7 @@ def object_type_to_python_type(
             compare=unique,
             hash=unique,
             repr=True,
+            default=default,
         )
         fields.append((pn, pytype, field))
 
@@ -246,6 +276,7 @@ def object_type_to_python_type(
         fields=fields,
         bases=(base_class,) if base_class is not None else (),
         frozen=True,
+        namespace={'_subclasses': subclasses},
     )
 
 

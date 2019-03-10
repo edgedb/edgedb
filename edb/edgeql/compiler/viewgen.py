@@ -327,7 +327,8 @@ def _normalize_view_ptr_expr(
             qlexpr.offset = shape_el.offset
             qlexpr.limit = shape_el.limit
     else:
-        if is_mutation:
+        if (is_mutation
+                and ptrname not in ctx.special_computables_in_mutation_shape):
             # If this is a mutation, the pointer must exist.
             base_ptrcls = ptrcls = setgen.resolve_ptr(
                 ptrsource, ptrname, ctx=ctx)
@@ -366,7 +367,7 @@ def _normalize_view_ptr_expr(
 
             shape_expr_ctx.path_scope.unnest_fence = True
 
-            if is_mutation:
+            if is_mutation and ptrcls is not None:
                 shape_expr_ctx.expr_exposed = True
                 shape_expr_ctx.empty_result_type_hint = \
                     ptrcls.get_target(ctx.env.schema)
@@ -389,8 +390,10 @@ def _normalize_view_ptr_expr(
         ptr_cardinality = None
         ptr_target = inference.infer_type(irexpr, ctx.env)
 
-        if is_mutation and not ptr_target.assignment_castable_to(
-                base_ptrcls.get_target(ctx.env.schema), schema=ctx.env.schema):
+        if (is_mutation and base_ptrcls is not None
+                and not ptr_target.assignment_castable_to(
+                    base_ptrcls.get_target(ctx.env.schema),
+                    schema=ctx.env.schema)):
             # Validate that the insert/update expression is
             # of the correct class.
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)

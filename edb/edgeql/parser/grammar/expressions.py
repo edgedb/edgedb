@@ -260,8 +260,16 @@ class Shape(Nonterm):
         self.val = kids[1].val
 
 
+class OptShape(Nonterm):
+    def reduce_Shape(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = []
+
+
 class TypedShape(Nonterm):
-    def reduce_NodeName_Shape(self, *kids):
+    def reduce_NodeName_OptShape(self, *kids):
         self.val = qlast.Shape(
             expr=qlast.Path(
                 steps=[qlast.ObjectRef(

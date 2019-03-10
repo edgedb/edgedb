@@ -2192,188 +2192,8 @@ async def generate_support_views(conn, schema):
     commands = dbops.CommandGroup()
 
     conf = schema.get('cfg::Config')
-    exc = schema.get('std::exclusive')
-    json_t = schema.get('std::json')
 
-    cols = [
-        f"'{CONFIG_ID}'::uuid AS id",
-        f"(SELECT id FROM edgedb.Object "
-        f"WHERE name = 'cfg::Config') AS __type__",
-    ]
-
-    views = []
-    json_casts = {
-        c.get_to_type(schema): c
-        for c in schema.get_casts_from_type(json_t)
-    }
-
-    for pn, p in conf.get_pointers(schema).items(schema):
-        if pn in ('id', '__type__'):
-            continue
-
-        ptype = p.get_target(schema)
-        multi = p.get_cardinality(schema) is qltypes.Cardinality.MANY
-
-        if not ptype.is_object_type() and not multi:
-            cast = _make_json_caster(
-                schema, json_casts, ptype, f'cfg::Config.{pn}')
-
-            cols.append(
-                f'(SELECT {cast("value")} FROM _sysconfig '
-                f'WHERE name = {ql(pn)}) AS {qi(pn)}'
-            )
-        else:
-            if ptype.is_object_type():
-                target_tab = tabname(schema, ptype)
-                exclusive_props = []
-                multi_props = []
-                target_cols = []
-                target_extract_cols = []
-                exclusive_extract_cols = []
-
-                for pp_name, pp in ptype.get_pointers(schema).items(schema):
-                    if pp_name in ('id', '__type__'):
-                        continue
-
-                    pp_type = pp.get_target(schema)
-                    pp_cast = _make_json_caster(
-                        schema, json_casts, pp_type,
-                        f'cfg::Config.{pn}.{pp_name}')
-
-                    pp_multi = (
-                        pp.get_cardinality(schema) is qltypes.Cardinality.MANY
-                    )
-
-                    extract_col = (
-                        f'{pp_cast(f"q->{ql(pp_name)}")}'
-                        f' AS {qi(pp_name)}')
-
-                    if pp_multi:
-                        multi_props.append((pp, pp_cast))
-                    else:
-                        constraints = pp.get_constraints(schema).objects(
-                            schema)
-                        if any(c.issubclass(schema, exc) for c in constraints):
-                            exclusive_props.append(pp_name)
-                            exclusive_extract_cols.append(extract_col)
-
-                        target_cols.append(qi(pp_name))
-                        target_extract_cols.append(extract_col)
-
-                target_cols = ',\n'.join(target_cols)
-                target_extract_cols = ',\n'.join(target_extract_cols)
-                exclusive_extract_cols = ',\n'.join(exclusive_extract_cols)
-
-                exclusive_props.sort()
-                id_string = ';'.join(exclusive_props)
-
-                target_query = textwrap.dedent(f'''\
-                    SELECT
-                        edgedb.uuid_generate_v5(
-                            '{DATABASE_ID_NAMESPACE}'::uuid,
-                            {ql(id_string)}) AS id,
-                        (SELECT id FROM edgedb.Object
-                         WHERE name = {ql(ptype.get_name(schema))})
-                                         AS __type__,
-                        {textwrap.indent(target_cols, ' ' * 24).strip()}
-                    FROM
-                        (SELECT
-                            {textwrap.indent(
-                                target_extract_cols, ' ' * 28).strip()}
-                         FROM
-                            jsonb_array_elements(
-                                (SELECT value::jsonb
-                                 FROM edgedb._read_sys_config() cfg
-                                 WHERE cfg.name = {ql(pn)})
-                            ) AS q
-                        ) AS q
-                ''')
-
-                views.append((target_tab, target_query))
-
-                ptrstor = types.get_pointer_storage_info(
-                    p, link_bias=True, schema=schema)
-                if ptrstor is not None:
-                    link_query = textwrap.dedent(f'''\
-                        SELECT
-                            '{CONFIG_ID}'::uuid AS source,
-                            edgedb.uuid_generate_v5(
-                                '{DATABASE_ID_NAMESPACE}'::uuid,
-                                {ql(id_string)}) AS target
-                        FROM
-                            (SELECT
-                                {textwrap.indent(
-                                    target_extract_cols, ' ' * 28).strip()}
-                            FROM
-                                jsonb_array_elements(
-                                    (SELECT value::jsonb
-                                    FROM edgedb._read_sys_config() cfg
-                                    WHERE cfg.name = {ql(pn)})
-                                ) AS q
-                            ) AS q
-                    ''')
-
-                    views.append((tabname(schema, p), link_query))
-
-                for prop, pp_cast in multi_props:
-                    pp_name = prop.get_shortname(schema).name
-
-                    link_query = textwrap.dedent(f'''\
-                        SELECT
-                            edgedb.uuid_generate_v5(
-                                '{DATABASE_ID_NAMESPACE}'::uuid,
-                                {ql(id_string)}) AS source,
-                            {pp_cast('v')}       AS target
-                        FROM
-                            (SELECT
-                                {textwrap.indent(
-                                    exclusive_extract_cols, ' ' * 32).strip()},
-                                q->{ql(pp_name)} AS {qi(pp_name)}
-                            FROM
-                                jsonb_array_elements(
-                                    (SELECT value::jsonb
-                                    FROM edgedb._read_sys_config() cfg
-                                    WHERE cfg.name = {ql(pn)})
-                                ) AS q
-                            ) AS q,
-                            LATERAL
-                                jsonb_array_elements(q.{qi(pp_name)})
-                                AS v
-                    ''')
-
-                    views.append((tabname(schema, prop), link_query))
-
-            else:
-                # MULTI PROPERTY
-                cast = _make_json_caster(
-                    schema, json_casts, ptype, f'cfg::Config.{pn}')
-
-                link_query = textwrap.dedent(f'''\
-                    SELECT
-                        '{CONFIG_ID}'::uuid AS source,
-                        {cast('q')}         AS target
-                    FROM
-                        jsonb_array_elements(
-                            (SELECT value::jsonb
-                                FROM edgedb._read_sys_config() cfg
-                                WHERE cfg.name = {ql(pn)})
-                        ) AS q
-                ''')
-
-                views.append((tabname(schema, p), link_query))
-
-    view_query = textwrap.dedent('''\
-        WITH _sysconfig AS (SELECT * FROM edgedb._read_sys_config())
-        SELECT
-            {cols}
-    ''').format(
-        cols='\n,    '.join(cols)
-    )
-
-    views.append((
-        tabname(schema, conf),
-        view_query,
-    ))
+    views, _ = _generate_config_type_view(schema, conf, path=[], rptr=None)
 
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q))
@@ -2383,6 +2203,356 @@ async def generate_support_views(conn, schema):
     block = dbops.PLTopBlock(disable_ddl_triggers=True)
     commands.generate(block)
     await _execute_block(conn, block)
+
+
+def _build_key_source(schema, exc_props, rptr, source_idx):
+    if exc_props:
+        restargets = []
+        for prop in exc_props:
+            pname = prop.get_shortname(schema).name
+            restarget = f'(q{source_idx}.val)->>{ql(pname)}'
+            restargets.append(restarget)
+
+        targetlist = ','.join(restargets)
+
+        keysource = textwrap.dedent(f'''\
+            (SELECT
+                ARRAY[{targetlist}] AS key
+            ) AS k{source_idx}''')
+    else:
+        rptr_name = rptr.get_shortname(schema).name
+        keysource = textwrap.dedent(f'''\
+            (SELECT
+                ARRAY[{ql(rptr_name)}] AS key
+            ) AS k{source_idx}''')
+
+    return keysource
+
+
+def _build_key_expr(key_components):
+    key_expr = ' || '.join(key_components)
+    final_keysource = textwrap.dedent(f'''\
+        (SELECT array_to_string({key_expr}, ';') AS key)''')
+
+    return final_keysource
+
+
+def _build_data_source(schema, rptr, source_idx, *, alias=None):
+
+    rptr_name = rptr.get_shortname(schema).name
+    rptr_multi = rptr.get_cardinality(schema) is qltypes.Cardinality.MANY
+
+    if alias is None:
+        alias = f'q{source_idx + 1}'
+    else:
+        alias = f'q{alias}'
+
+    if rptr_multi:
+        sourceN = textwrap.dedent(f'''\
+            (SELECT jel.val
+                FROM
+                jsonb_array_elements(
+                    (q{source_idx}.val)->{ql(rptr_name)}) AS jel(val)
+            ) AS {alias}''')
+    else:
+        sourceN = textwrap.dedent(f'''\
+            (SELECT
+                (q{source_idx}.val)->{ql(rptr_name)} AS val
+            ) AS {alias}''')
+
+    return sourceN
+
+
+def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
+    exc = schema.get('std::exclusive')
+    json_t = schema.get('std::json')
+
+    if _memo is None:
+        _memo = set()
+
+    _memo.add(stype)
+
+    views = []
+    json_casts = {
+        c.get_to_type(schema): c
+        for c in schema.get_casts_from_type(json_t)
+    }
+
+    sources = []
+
+    if not path:
+        # This is the root config object.
+        if rptr is None:
+            source0 = textwrap.dedent(f'''\
+                (SELECT jsonb_object_agg(name, value) AS val
+                FROM edgedb._read_sys_config() cfg) AS q0''')
+        else:
+            rptr_multi = (
+                rptr.get_cardinality(schema) is qltypes.Cardinality.MANY)
+
+            rptr_name = rptr.get_shortname(schema).name
+
+            if rptr_multi:
+                source0 = textwrap.dedent(f'''\
+                    (SELECT el.val
+                     FROM
+                        (SELECT (value::jsonb) AS val
+                        FROM edgedb._read_sys_config()
+                        WHERE name = {ql(rptr_name)}) AS cfg,
+                        LATERAL jsonb_array_elements(cfg.val) AS el(val)
+                    ) AS q0''')
+            else:
+                source0 = textwrap.dedent(f'''\
+                    (SELECT (value::jsonb) AS val
+                    FROM edgedb._read_sys_config() cfg
+                    WHERE name = {ql(rptr_name)}) AS q0''')
+
+        sources.append(source0)
+        key_start = 0
+    else:
+        key_start = 0
+
+        for i, (l, exc_props) in enumerate(path):
+            l_multi = l.get_cardinality(schema) is qltypes.Cardinality.MANY
+            l_name = l.get_shortname(schema).name
+
+            if i == 0:
+                if l_multi:
+                    sourceN = textwrap.dedent(f'''\
+                        (SELECT el.val
+                        FROM
+                            (SELECT (value::jsonb) AS val
+                            FROM edgedb._read_sys_config()
+                            WHERE name = {ql(l_name)}) AS cfg,
+                            LATERAL jsonb_array_elements(cfg.val) AS el(val)
+                        ) AS q{i}''')
+                else:
+                    sourceN = textwrap.dedent(f'''\
+                        (SELECT (value::jsonb) AS val
+                        FROM edgedb._read_sys_config() cfg
+                        WHERE name = {ql(l_name)}) AS q{i}''')
+            else:
+                sourceN = _build_data_source(schema, l, i - 1)
+
+            sources.append(sourceN)
+            sources.append(_build_key_source(schema, exc_props, l, i))
+
+            if exc_props:
+                key_start = i
+
+    target_tab = tabname(schema, stype)
+    exclusive_props = []
+    single_links = []
+    multi_links = []
+    multi_props = []
+    target_cols = []
+
+    path_steps = [p.get_shortname(schema).name for p, _ in path]
+
+    if rptr is not None:
+        self_idx = len(path)
+
+        # Generate a source rvar for _this_ target
+        rptr_name = rptr.get_shortname(schema).name
+        path_steps.append(rptr_name)
+
+        if self_idx > 0:
+            sourceN = _build_data_source(schema, rptr, self_idx - 1)
+            sources.append(sourceN)
+    else:
+        self_idx = 0
+
+    sval = f'(q{self_idx}.val)'
+
+    for pp_name, pp in stype.get_pointers(schema).items(schema):
+        if pp_name in ('id', '__type__'):
+            continue
+
+        pp_type = pp.get_target(schema)
+        pp_multi = (
+            pp.get_cardinality(schema) is qltypes.Cardinality.MANY
+        )
+
+        if pp_type.is_object_type():
+            if pp_multi:
+                multi_links.append(pp)
+            else:
+                single_links.append(pp)
+        else:
+            pp_cast = _make_json_caster(
+                schema, json_casts, pp_type,
+                f'cfg::Config.{".".join(path_steps)}')
+
+            if pp_multi:
+                multi_props.append((pp, pp_cast))
+            else:
+                extract_col = (
+                    f'{pp_cast(f"{sval}->{ql(pp_name)}")}'
+                    f' AS {qi(pp_name)}')
+
+                target_cols.append(extract_col)
+
+                constraints = pp.get_constraints(schema).objects(schema)
+                if any(c.issubclass(schema, exc) for c in constraints):
+                    exclusive_props.append(pp)
+
+    exclusive_props.sort(key=lambda p: p.get_shortname(schema).name)
+
+    if exclusive_props or rptr:
+        sources.append(
+            _build_key_source(schema, exclusive_props, rptr, self_idx))
+
+        key_components = [f'k{i}.key' for i in range(key_start, self_idx + 1)]
+        final_keysource = f'{_build_key_expr(key_components)} AS k'
+        sources.append(final_keysource)
+
+        key_expr = (
+            f"edgedb.uuid_generate_v5('{DATABASE_ID_NAMESPACE}'::uuid, k.key)"
+        )
+
+        target_cols.append(f'{key_expr} AS id')
+
+        target_cols.append(textwrap.dedent(f'''\
+            (SELECT id
+            FROM edgedb.Object
+            WHERE name = 'cfg::' || ({sval}->>'__tname__')) AS __type__'''))
+
+    else:
+        key_expr = f"'{CONFIG_ID}'::uuid"
+
+        target_cols.extend([
+            f"{key_expr} AS id",
+            f"(SELECT id FROM edgedb.Object "
+            f"WHERE name = 'cfg::Config') AS __type__",
+        ])
+
+        key_components = []
+
+    for link in single_links:
+        link_name = link.get_shortname(schema).name
+        link_type = link.get_target(schema)
+
+        if rptr is not None:
+            target_path = path + [(rptr, exclusive_props)]
+        else:
+            target_path = path
+
+        target_views, target_exc_props = _generate_config_type_view(
+            schema, link_type, path=target_path, rptr=link, _memo=_memo)
+
+        for descendant in link_type.descendants(schema):
+            if descendant not in _memo:
+                desc_views, _ = _generate_config_type_view(
+                    schema, descendant, path=target_path,
+                    rptr=link, _memo=_memo,
+                )
+                views.extend(desc_views)
+
+        target_source = _build_data_source(
+            schema, link, self_idx, alias=link_name)
+        sources.append(target_source)
+
+        target_key_source = _build_key_source(
+            schema, target_exc_props, link, source_idx=link_name)
+        sources.append(target_key_source)
+
+        if target_exc_props:
+            target_key_components = [f'k{link_name}.key']
+        else:
+            target_key_components = key_components + [f'k{link_name}.key']
+
+        target_key = _build_key_expr(target_key_components)
+
+        target_cols.append(textwrap.dedent(f'''\
+            edgedb.uuid_generate_v5(
+                '{DATABASE_ID_NAMESPACE}'::uuid,
+                {target_key}) AS {qi(link_name)}'''))
+
+        views.extend(target_views)
+
+    target_cols = ',\n'.join(target_cols)
+
+    fromlist = ',\n'.join(f'LATERAL {s}' for s in sources)
+
+    target_query = textwrap.dedent(f'''\
+        SELECT
+            {textwrap.indent(target_cols, ' ' * 4).strip()}
+        FROM
+            {fromlist}
+    ''')
+
+    views.append((target_tab, target_query))
+
+    for link in multi_links:
+        target_sources = list(sources)
+
+        link_name = link.get_shortname(schema).name
+        link_type = link.get_target(schema)
+
+        if rptr is not None:
+            target_path = path + [(rptr, exclusive_props)]
+        else:
+            target_path = path
+
+        target_views, target_exc_props = _generate_config_type_view(
+            schema, link_type, path=target_path, rptr=link, _memo=_memo)
+        views.extend(target_views)
+
+        for descendant in link_type.descendants(schema):
+            if descendant not in _memo:
+                desc_views, _ = _generate_config_type_view(
+                    schema, descendant, path=target_path,
+                    rptr=link, _memo=_memo,
+                )
+                views.extend(desc_views)
+
+        target_source = _build_data_source(
+            schema, link, self_idx, alias=link_name)
+        target_sources.append(target_source)
+
+        target_key_source = _build_key_source(
+            schema, target_exc_props, link, source_idx=link_name)
+        target_sources.append(target_key_source)
+
+        target_key_components = key_components + [f'k{link_name}.key']
+        target_key = _build_key_expr(target_key_components)
+
+        target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
+
+        link_query = textwrap.dedent(f'''\
+            SELECT
+                {key_expr} AS source,
+                edgedb.uuid_generate_v5(
+                    '{DATABASE_ID_NAMESPACE}'::uuid,
+                    {target_key}) AS target
+            FROM
+                {target_fromlist}
+            ''')
+
+        views.append((tabname(schema, link), link_query))
+
+    for prop, pp_cast in multi_props:
+        target_sources = list(sources)
+
+        pp_name = prop.get_shortname(schema).name
+
+        target_source = _build_data_source(
+            schema, prop, self_idx, alias=pp_name)
+        target_sources.append(target_source)
+
+        target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
+
+        link_query = textwrap.dedent(f'''\
+            SELECT
+                {key_expr} AS source,
+                {pp_cast(f'q{pp_name}.val')} AS target
+            FROM
+                {target_fromlist}
+        ''')
+
+        views.append((tabname(schema, prop), link_query))
+
+    return views, exclusive_props
 
 
 async def generate_views(conn, schema):

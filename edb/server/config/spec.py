@@ -78,6 +78,25 @@ class Spec(collections.abc.Mapping):
     def __init__(self, *settings: Setting):
         self._settings = tuple(settings)
         self._by_name = {s.name: s for s in self._settings}
+        self._types_by_name = {}
+
+        for s in self._settings:
+            if issubclass(s.type, types.CompositeConfigType):
+                self._register_type(s.type)
+
+    def _register_type(self, t: type):
+        self._types_by_name[t.__name__] = t
+        for subclass in t.__subclasses__():
+            self._types_by_name[subclass.__name__] = subclass
+
+        for field in dataclasses.fields(t):
+            f_type = field.type
+            if (isinstance(f_type, type)
+                    and issubclass(field.type, types.CompositeConfigType)):
+                self._register_type(f_type)
+
+    def get_type_by_name(self, name: str) -> type:
+        return self._types_by_name[name]
 
     def __iter__(self):
         return iter(self._by_name)

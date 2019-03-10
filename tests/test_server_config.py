@@ -27,6 +27,7 @@ import immutables
 from edb import errors
 from edb.schema import objects as s_obj
 
+from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec
 from edb.server.config import types
@@ -94,6 +95,13 @@ testspec1 = spec.Spec(
 
 
 class TestServerConfigUtils(unittest.TestCase):
+
+    def setUp(self):
+        self._cfgspec = config.get_settings()
+        config.set_settings(testspec1)
+
+    def tearDown(self):
+        config.set_settings(self._cfgspec)
 
     def test_server_config_01(self):
         j = ops.to_json(
