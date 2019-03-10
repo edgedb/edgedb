@@ -59,14 +59,16 @@ class ObjectType(BaseObjectType, constraints.ConsistencySubject,
         ptrs = {
             l for l in schema.get_referrers(self, scls_type=links.Link,
                                             field_name='target')
-            if l.get_shortname(schema).name == name
+            if (l.get_shortname(schema).name == name
+                and not l.get_source(schema).is_view(schema))
         }
 
         for obj in self.get_mro(schema).objects(schema):
             ptrs.update(
                 l for l in schema.get_referrers(obj, scls_type=links.Link,
                                                 field_name='target')
-                if l.get_shortname(schema).name == name
+                if (l.get_shortname(schema).name == name
+                    and not l.get_source(schema).is_view(schema))
             )
 
         return ptrs

@@ -656,19 +656,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        There's something wrong with a view that just includes nested
-        structures without any modification. In this case 'winner'
-        computable has a shape that doesn't include any more
-        computables.
-
-        The problem seems to be triggered by the computable link
-        'owners' that was included in the original type.
-
-        edb.errors.SchemaError: cannot derive
-        <Link 046e8374-41dc-11e9-8d7f-517f449a2a2f at 0x0x7f6384035390>(
-        test::test|deck@@test|User@__derived__|test|Card@@view~2) from itself
-    ''')
     async def test_edgeql_views_deep_01(self):
         # fetch the result we will compare to
         res = await self.con.fetch_json(r"""
