@@ -689,16 +689,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             res
         )
 
-    @test.xfail('''
-        The view is actually using an query identical to the first
-        query in the test.
-
-        The problem seems to be that the ORDER BY expression is not
-        verified to be of cardinality 1 in the view.
-
-        edb.errors.QueryError: possibly more than one element returned
-        by an expression where only singletons are allowed
-    ''')
     async def test_edgeql_views_clauses_01(self):
         # fetch the result we will compare to
         res = await self.con.fetch_json(r"""

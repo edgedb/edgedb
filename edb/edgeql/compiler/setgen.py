@@ -881,7 +881,8 @@ def _get_computable_ctx(
                 inner_path_id = inner_path_id.merge_namespace(subns)
 
             remapped_source = new_set_from_set(
-                rptr.source, rptr=rptr.source.rptr, ctx=ctx)
+                rptr.source, rptr=rptr.source.rptr,
+                preserve_scope_ns=True, ctx=ctx)
             subctx.view_map[inner_path_id] = remapped_source
             yield subctx
 
