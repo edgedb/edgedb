@@ -69,7 +69,7 @@ Math
                   math::mean(vals: SET OF float64) -> float64
                   math::mean(vals: SET OF decimal) -> decimal
 
-    :index: average
+    :index: average avg
 
     Return the arithmetic mean of the input set.
 
