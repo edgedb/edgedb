@@ -392,20 +392,27 @@ class Cli:
                     continue
 
                 max_width = self.prompt.output.get_size().columns
-                for result, status in results:
-                    if status in STATUSES_WITH_OUTPUT:
-                        if qm is context.QueryMode.JSON:
-                            render.render_json(
-                                self.context,
-                                result,
-                                max_width=min(max_width, 120))
+                try:
+                    for result, status in results:
+                        if status in STATUSES_WITH_OUTPUT:
+                            if qm is context.QueryMode.JSON:
+                                render.render_json(
+                                    self.context,
+                                    result,
+                                    max_width=min(max_width, 120))
+                            else:
+                                render.render_binary(
+                                    self.context,
+                                    result,
+                                    max_width=min(max_width, 120))
                         else:
-                            render.render_binary(
-                                self.context,
-                                result,
-                                max_width=min(max_width, 120))
-                    else:
-                        render.render_status(self.context, status)
+                            render.render_status(self.context, status)
+                except KeyboardInterrupt:
+                    print('\r', end='')
+                    render.render_error(
+                        self.context,
+                        '== aborting rendering of the result ==')
+                    continue
 
         except EOFError:
             return
