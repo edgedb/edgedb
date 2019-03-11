@@ -257,7 +257,7 @@ class Cli:
     def command_list_dbs(self, args):
         result, _ = self.fetch(
             '''
-                SELECT name := schema::Database.name
+                SELECT name := sys::Database.name
                 ORDER BY name ASC
             ''',
             json=False

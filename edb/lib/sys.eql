@@ -20,6 +20,13 @@
 CREATE MODULE sys;
 
 
+CREATE TYPE sys::Database {
+    CREATE REQUIRED PROPERTY sys::name -> std::str {
+        SET readonly := True;
+    };
+};
+
+
 CREATE TYPE sys::Role {
     CREATE REQUIRED PROPERTY sys::name -> std::str {
         CREATE CONSTRAINT std::exclusive;
