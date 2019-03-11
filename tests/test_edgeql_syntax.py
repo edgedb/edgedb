@@ -3435,10 +3435,16 @@ aa';
         """
         CONFIGURE SYSTEM SET foo := (SELECT User);
         CONFIGURE SESSION SET foo := (SELECT User);
+        CONFIGURE SYSTEM SET cfg::foo := (SELECT User);
+        CONFIGURE SESSION SET cfg::foo := (SELECT User);
         CONFIGURE SYSTEM RESET foo;
         CONFIGURE SESSION RESET foo;
+        CONFIGURE SYSTEM RESET cfg::foo;
+        CONFIGURE SESSION RESET cfg::foo;
         CONFIGURE SYSTEM INSERT Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT Foo {bar := (SELECT 1)};
+        CONFIGURE SYSTEM INSERT cfg::Foo {bar := (SELECT 1)};
+        CONFIGURE SESSION INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE SYSTEM RESET Foo FILTER (.bar = 2);
         CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
         """

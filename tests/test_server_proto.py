@@ -440,6 +440,13 @@ class TestServerProto(tb.QueryTestCase):
                 CONFIGURE SESSION INSERT SessionConfig { name := 'foo' };
             ''')
 
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'module must be either \'cfg\' or empty'):
+            await self.con.fetch('''
+                CONFIGURE SYSTEM INSERT cf::SystemConfig { name := 'foo' };
+            ''')
+
     async def test_server_proto_configure_02(self):
         conf = await self.con.fetch_value('''
             SELECT cfg::Config.__internal_testvalue LIMIT 1
@@ -487,13 +494,20 @@ class TestServerProto(tb.QueryTestCase):
             CONFIGURE SYSTEM INSERT SystemConfig { name := 'test_03' };
         ''')
 
+        await self.con.fetch('''
+            CONFIGURE SYSTEM INSERT cfg::SystemConfig { name := 'test_03_01' };
+        ''')
+
         await self.assert_query_result(
             '''
-            SELECT cfg::Config.sysobj { name };
+            SELECT cfg::Config.sysobj { name } ORDER BY .name;
             ''',
             [
                 {
-                    'name': 'test_03'
+                    'name': 'test_03',
+                },
+                {
+                    'name': 'test_03_01',
                 }
             ]
         )
@@ -506,7 +520,22 @@ class TestServerProto(tb.QueryTestCase):
             '''
             SELECT cfg::Config.sysobj { name };
             ''',
-            [],
+            [
+                {
+                    'name': 'test_03_01',
+                },
+            ],
+        )
+
+        await self.con.fetch('''
+            CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03_01';
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name };
+            ''',
+            []
         )
 
     async def test_server_proto_configure_04(self):

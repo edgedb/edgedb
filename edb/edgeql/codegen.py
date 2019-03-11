@@ -1094,7 +1094,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('CONFIGURE')
         self.write(' SYSTEM' if node.system else ' SESSION')
         self.write(' SET ')
-        self.write(ident_to_str(node.name))
+        self.visit(node.name)
         self.write(' := ')
         self.visit(node.expr)
 
@@ -1102,7 +1102,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('CONFIGURE')
         self.write(' SYSTEM' if node.system else ' SESSION')
         self.write(' INSERT ')
-        self.write(ident_to_str(node.name))
+        self.visit(node.name)
         self.indentation += 1
         self._visit_shape(node.shape)
         self.indentation -= 1
@@ -1111,7 +1111,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('CONFIGURE')
         self.write(' SYSTEM' if node.system else ' SESSION')
         self.write(' RESET ')
-        self.write(ident_to_str(node.name))
+        self.visit(node.name)
         self._visit_filter(node)
 
     def visit_SessionSetAliasDecl(self, node):

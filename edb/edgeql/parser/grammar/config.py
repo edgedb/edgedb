@@ -34,19 +34,19 @@ class ConfigTarget(Nonterm):
 
 class ConfigOp(Nonterm):
 
-    def reduce_SET_Identifier_ASSIGN_Expr(self, *kids):
+    def reduce_SET_NodeName_ASSIGN_Expr(self, *kids):
         self.val = qlast.ConfigSet(
             name=kids[1].val,
             expr=kids[3].val,
         )
 
-    def reduce_INSERT_Identifier_Shape(self, *kids):
+    def reduce_INSERT_NodeName_Shape(self, *kids):
         self.val = qlast.ConfigInsert(
             name=kids[1].val,
             shape=kids[2].val,
         )
 
-    def reduce_RESET_Identifier_OptFilterClause(self, *kids):
+    def reduce_RESET_NodeName_OptFilterClause(self, *kids):
         self.val = qlast.ConfigReset(
             name=kids[1].val,
             where=kids[2].val,

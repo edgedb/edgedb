@@ -43,10 +43,10 @@ from .inference import cardinality as card_inference
 def compile_ConfigSet(
         expr: qlast.ConfigSet, *, ctx: context.ContextLevel) -> irast.Set:
 
-    _validate_op(expr, ctx=ctx)
+    param_name, _ = _validate_op(expr, ctx=ctx)
 
     return irast.ConfigSet(
-        name=expr.name,
+        name=param_name,
         system=expr.system,
         context=expr.context,
         expr=dispatch.compile(expr.expr, ctx=ctx),
@@ -84,9 +84,11 @@ def compile_ConfigReset(
             where=filter_expr,
         )
 
+        env = ctx.env
+
+        ctx.modaliases[None] = 'cfg'
         select_ir = dispatch.compile(select, ctx=ctx)
 
-        env = ctx.env
         filters = card_inference.extract_filters(
             select_ir, select_ir.expr.where,
             scope_tree=ctx.path_scope, env=env)
@@ -136,10 +138,10 @@ def compile_ConfigInsert(
 
     level = 'SYSTEM' if expr.system else 'SESSION'
     schema = ctx.env.schema
-    subject = schema.get(f'cfg::{expr.name}', None)
+    subject = schema.get(f'cfg::{expr.name.name}', None)
     if subject is None:
         raise errors.ConfigurationError(
-            f'{expr.name!r} is not a valid configuration item',
+            f'{expr.name.name!r} is not a valid configuration item',
             context=expr.context,
         )
 
@@ -147,7 +149,7 @@ def compile_ConfigInsert(
         subject=qlast.Path(
             steps=[
                 qlast.ObjectRef(
-                    name=expr.name,
+                    name=expr.name.name,
                     module='cfg',
                 )
             ]
@@ -157,6 +159,8 @@ def compile_ConfigInsert(
 
     with ctx.newscope() as subctx:
         subctx.expr_exposed = True
+        subctx.modaliases = ctx.modaliases.copy()
+        subctx.modaliases[None] = 'cfg'
         insert_ir = dispatch.compile(insert_stmt, ctx=subctx)
         insert_subject = insert_ir.expr.subject
 
@@ -191,7 +195,13 @@ def _validate_op(
         expr: qlast.ConfigOp, *,
         ctx: context.ContextLevel) -> typing.Tuple[str, s_types.Type]:
 
-    name = expr.name
+    if expr.name.module and expr.name.module != 'cfg':
+        raise errors.QueryError(
+            'invalid configuration parameter name: module must be either '
+            '\'cfg\' or empty', context=expr.name.context,
+        )
+
+    name = expr.name.name
     cfg_host_type = ctx.env.schema.get('cfg::Config')
     cfg_type = None
 

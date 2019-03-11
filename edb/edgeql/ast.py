@@ -891,7 +891,7 @@ class _Optional(Expr):
 
 class ConfigOp(Expr):
 
-    name: str
+    name: ObjectRef
     system: bool
 
 
