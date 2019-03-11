@@ -35,13 +35,10 @@ abstract type Dictionary extending Named:
         delegated constraint exclusive
 
 
-abstract link todo:
-    property rank -> int64:
-        default := 42
-
-
 type User extending Dictionary:
-    multi link todo -> Issue
+    multi link todo -> Issue:
+        property rank -> int64:
+            default := 42
 
 
 abstract type Owned:

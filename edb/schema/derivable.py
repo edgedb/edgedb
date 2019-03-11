@@ -134,6 +134,23 @@ class DerivableObjectBase(s_abc.Object):
 
         return schema, derived
 
+    @classmethod
+    def derive_from_root(cls, schema, source, unqualified_name, *qualifiers,
+                         merge_bases=None, attrs=None, dctx=None):
+        root = schema.get(cls.get_default_base_name())
+        source_name = source.get_name(schema)
+        shortname = sn.Name(
+            module=source_name.module,
+            name=unqualified_name
+        )
+        name = sn.Name(
+            module=source_name.module,
+            name=sn.get_specialized_name(shortname, source_name, *qualifiers),
+        )
+
+        return root.derive(schema, source, *qualifiers, name=name,
+                           merge_bases=merge_bases, attrs=attrs, dctx=dctx)
+
 
 class DerivableObject(so.Object, DerivableObjectBase):
 
@@ -143,6 +160,13 @@ class DerivableObject(so.Object, DerivableObjectBase):
         bool,
         default=False, compcoef=None,
         introspectable=False, inheritable=False)
+
+    # Whether the object is a result of refdict inheritance
+    # merge.
+    inherited = so.SchemaField(
+        bool,
+        default=False, compcoef=None,
+        inheritable=False)
 
     @classmethod
     def inherit_pure(cls, schema, item, source, *, dctx=None):

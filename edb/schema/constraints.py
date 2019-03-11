@@ -326,10 +326,13 @@ class ConsistencySubject(inheriting.InheritingObject):
             # Have abstract constraints, cannot go pure inheritance,
             # must create a derived Object with materialized
             # constraints.
-            generic = next(iter(item.get_bases(schema).objects(schema)))
-            schema, item = generic.derive(
-                schema, source=source,
-                merge_bases=[item], dctx=dctx)
+            schema, item = type(item).derive_from_root(
+                schema,
+                source=source,
+                merge_bases=[item],
+                unqualified_name=item.get_shortname(schema).name,
+                dctx=dctx,
+            )
 
         return schema, item
 
@@ -367,7 +370,8 @@ class ConsistencySubject(inheriting.InheritingObject):
                         break
                 else:
                     schema, constraint = constraint.derive_copy(
-                        schema, self, attrs={'is_abstract': False})
+                        schema, self,
+                        attrs={'is_abstract': False, 'inherited': True})
 
                     schema = self.add_constraint(schema, constraint)
 
@@ -556,6 +560,17 @@ class CreateConstraint(ConstraintCommand,
             pass
         else:
             super()._apply_field_ast(schema, context, node, op)
+
+    @classmethod
+    def _classbases_from_ast(cls, schema, astnode, context):
+        if isinstance(astnode, qlast.CreateConcreteConstraint):
+            classname = cls._classname_from_ast(schema, astnode, context)
+            base_name = sn.shortname_from_fullname(classname)
+            base = schema.get(base_name)
+            return so.ObjectList.create(
+                schema, [utils.reduce_to_typeref(schema, base)])
+        else:
+            return super()._classbases_from_ast(schema, astnode, context)
 
 
 class RenameConstraint(ConstraintCommand, sd.RenameObject):

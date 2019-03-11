@@ -33,12 +33,10 @@ class TestDeltas(tb.DDLTestCase):
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
-                abstract link related:
-                    property lang -> str
-
                 type NamedObject:
                     required property name -> str
-                    multi link related -> NamedObject
+                    multi link related -> NamedObject:
+                        property lang -> str
             $$;
 
             COMMIT MIGRATION test::d1;
@@ -122,7 +120,7 @@ class TestDeltas(tb.DDLTestCase):
         # dropped.
         await self.con.execute("""
             CREATE TYPE test::C1 {
-                CREATE PROPERTY test::l1 -> std::str {
+                CREATE PROPERTY l1 -> std::str {
                     SET ATTRIBUTE description := 'test_delta_drop_02_link';
                 };
             };
@@ -138,7 +136,7 @@ class TestDeltas(tb.DDLTestCase):
             """,
             [
                 {
-                    'name': 'test::l1',
+                    'name': 'l1',
                 }
             ],
         )
@@ -282,7 +280,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
 
                 type NamedObject:
                     required property name -> str
-                    required link related -> NamedObject:
+                    required link related extending (related) -> NamedObject:
                         inherited property lang -> str:
                             attribute title := 'Language'
             $$;
@@ -294,22 +292,23 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         self._assert_result(
             result,
             '''\
-CREATE ABSTRACT PROPERTY test::lang;
-CREATE ABSTRACT PROPERTY test::name;
 CREATE ABSTRACT LINK test::related EXTENDING std::link;
 ALTER ABSTRACT LINK test::related \
-CREATE SINGLE PROPERTY test::lang -> std::str;
+CREATE SINGLE PROPERTY lang EXTENDING std::property -> std::str;
 CREATE TYPE test::NamedObject EXTENDING std::Object;
 ALTER TYPE test::NamedObject {
-    CREATE REQUIRED SINGLE PROPERTY test::name -> std::str;
-    CREATE REQUIRED SINGLE LINK test::related -> test::NamedObject {
+    CREATE REQUIRED SINGLE PROPERTY name EXTENDING std::property -> std::str;
+    CREATE REQUIRED SINGLE LINK related EXTENDING test::related \
+-> test::NamedObject {
         SET on_target_delete := 'RESTRICT';
     };
-    ALTER LINK test::related {
-        CREATE SINGLE PROPERTY std::source -> test::NamedObject;
-        CREATE SINGLE PROPERTY std::target -> test::NamedObject;
-        CREATE SINGLE PROPERTY test::lang -> std::str;
-        ALTER PROPERTY test::lang {
+    ALTER LINK related {
+        CREATE SINGLE PROPERTY source EXTENDING std::source \
+-> test::NamedObject;
+        CREATE SINGLE PROPERTY target EXTENDING std::target \
+-> test::NamedObject;
+        CREATE SINGLE PROPERTY lang EXTENDING std::property -> std::str;
+        ALTER PROPERTY lang {
             SET ATTRIBUTE std::title := 'Language';
         };
     };
@@ -333,10 +332,9 @@ ALTER TYPE test::NamedObject {
         self._assert_result(
             result,
             '''\
-CREATE ABSTRACT PROPERTY test::a;
 CREATE TYPE test::NamedObject EXTENDING std::Object;
 ALTER TYPE test::NamedObject CREATE REQUIRED SINGLE PROPERTY \
-test::a -> array<std::int64>;
+a EXTENDING std::property -> array<std::int64>;
             '''
         )
 
@@ -356,12 +354,11 @@ test::a -> array<std::int64>;
         self._assert_result(
             result,
             '''\
-            CREATE ABSTRACT PROPERTY test::__typename;
-            CREATE ABSTRACT PROPERTY test::bar;
             CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object;
             ALTER TYPE test::Foo {
-                CREATE SINGLE PROPERTY test::bar -> std::str;
-                CREATE SINGLE PROPERTY test::__typename -> std::str {
+                CREATE SINGLE PROPERTY bar EXTENDING std::property -> std::str;
+                CREATE SINGLE PROPERTY __typename EXTENDING std::property \
+-> std::str {
                     SET computable := true;
                     SET default := SELECT
                         'foo'
@@ -387,12 +384,11 @@ test::a -> array<std::int64>;
         self._assert_result(
             result,
             '''\
-            CREATE ABSTRACT PROPERTY test::__typename;
-            CREATE ABSTRACT PROPERTY test::bar;
             CREATE ABSTRACT TYPE test::Foo EXTENDING std::Object;
             ALTER TYPE test::Foo {
-                CREATE SINGLE PROPERTY test::bar -> std::str;
-                CREATE SINGLE PROPERTY test::__typename -> std::str {
+                CREATE SINGLE PROPERTY bar EXTENDING std::property -> std::str;
+                CREATE SINGLE PROPERTY __typename EXTENDING std::property \
+-> std::str {
                     SET computable := true;
                     SET default := SELECT
                         __source__.__type__.name
@@ -421,10 +417,9 @@ test::a -> array<std::int64>;
         self._assert_result(
             result,
             '''\
-CREATE ABSTRACT PROPERTY test::a2;
 CREATE TYPE test::NamedObject2 EXTENDING std::Object;
 ALTER TYPE test::NamedObject2 CREATE SINGLE PROPERTY \
-test::a2 -> array<std::int64> {
+a2 EXTENDING std::property -> array<std::int64> {
     SET readonly := true;
 };
             '''

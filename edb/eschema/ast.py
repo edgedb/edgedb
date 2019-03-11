@@ -62,7 +62,9 @@ class Constraint(Spec):
 
 
 class Pointer(Spec):
-    name: qlast.ObjectRef
+    name: str
+
+    extends: typing.List[qlast.TypeName]
 
     # Computable links don't have a target
     target: typing.Optional[typing.List[qlast.TypeName]]

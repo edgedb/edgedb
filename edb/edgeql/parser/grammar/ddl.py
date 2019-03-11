@@ -218,12 +218,21 @@ class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt,
     pass
 
 
-class LinkName(Nonterm):
+class PointerName(Nonterm):
     def reduce_NodeName(self, *kids):
         self.val = kids[0].val
 
     def reduce_DUNDERTYPE(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
+
+
+class UnqualifiedPointerName(Nonterm):
+    def reduce_PointerName(self, *kids):
+        if kids[0].val.module:
+            raise EdgeQLSyntaxError(
+                'unexpected fully-qualified name',
+                context=kids[0].val.context)
+        self.val = kids[0].val
 
 
 def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
@@ -975,18 +984,22 @@ commands_block(
 class CreateConcretePropertyStmt(Nonterm):
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
-            CREATE OptPtrQuals PROPERTY NodeName
+            CREATE OptPtrQuals PROPERTY UnqualifiedPointerName OptExtending
             ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
+            bases=kids[4].val,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
-            target=kids[5].val,
-            commands=kids[6].val,
+            target=kids[6].val,
+            commands=kids[7].val,
         )
 
-    def reduce_CREATE_OptPtrQuals_PROPERTY_NodeName_ASSIGN_Expr(self, *kids):
+    def reduce_CreateComputableProperty(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals PROPERTY UnqualifiedPointerName ASSIGN Expr
+        """
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
             is_required=kids[1].val.required,
@@ -1048,7 +1061,7 @@ commands_block(
 class AlterConcretePropertyStmt(Nonterm):
     def reduce_AlterProperty(self, *kids):
         r"""%reduce \
-            ALTER PROPERTY NodeName \
+            ALTER PROPERTY UnqualifiedPointerName \
             AlterConcretePropertyCommandsBlock \
         """
         self.val = qlast.AlterConcreteProperty(
@@ -1064,7 +1077,7 @@ class AlterConcretePropertyStmt(Nonterm):
 class DropConcretePropertyStmt(Nonterm):
     def reduce_DropProperty(self, *kids):
         r"""%reduce \
-            DROP PROPERTY NodeName \
+            DROP PROPERTY UnqualifiedPointerName \
         """
         self.val = qlast.DropConcreteProperty(
             name=kids[2].val
@@ -1196,18 +1209,22 @@ commands_block(
 class CreateConcreteLinkStmt(Nonterm):
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
-            CREATE OptPtrQuals LINK LinkName
+            CREATE OptPtrQuals LINK UnqualifiedPointerName OptExtending
             ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[3].val,
+            bases=kids[4].val,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
-            target=kids[5].val,
-            commands=kids[6].val
+            target=kids[6].val,
+            commands=kids[7].val
         )
 
-    def reduce_CREATE_OptPtrQuals_LINK_NodeName_ASSIGN_Expr(self, *kids):
+    def reduce_CreateComputableLink(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals LINK UnqualifiedPointerName ASSIGN Expr
+        """
         self.val = qlast.CreateConcreteLink(
             name=kids[3].val,
             is_required=kids[1].val.required,
@@ -1240,7 +1257,7 @@ commands_block(
 class AlterConcreteLinkStmt(Nonterm):
     def reduce_AlterLink(self, *kids):
         r"""%reduce \
-            ALTER LINK LinkName AlterConcreteLinkCommandsBlock \
+            ALTER LINK UnqualifiedPointerName AlterConcreteLinkCommandsBlock \
         """
         self.val = qlast.AlterConcreteLink(
             name=kids[2].val,
@@ -1258,7 +1275,7 @@ commands_block(
 class DropConcreteLinkStmt(Nonterm):
     def reduce_DropLink(self, *kids):
         r"""%reduce \
-            DROP LINK LinkName OptDropConcreteLinkCommandsBlock \
+            DROP LINK UnqualifiedPointerName OptDropConcreteLinkCommandsBlock \
         """
         self.val = qlast.DropConcreteLink(
             name=kids[2].val,

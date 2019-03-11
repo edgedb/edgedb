@@ -234,8 +234,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                             ObjectType.properties.name
                             FILTER
                                 ObjectType.properties.name IN {
-                                    'std::id',
-                                    'schema::name'
+                                    'id',
+                                    'name'
                                 }
                             ORDER BY ObjectType.properties.name ASC
                         )
@@ -244,7 +244,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     ObjectType.name = 'schema::Object';
             """,
             [{
-                'l': ['schema::name', 'std::id']
+                'l': ['id', 'name']
             }]
         )
 

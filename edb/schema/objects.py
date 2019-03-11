@@ -893,11 +893,16 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
         local_coll = self.get_explicit_field_value(schema, local_attr, None)
         all_coll = self.get_explicit_field_value(schema, attr, None)
 
+        refname = colltype.get_key_for(schema, obj)
+
         if local_coll is not None:
-            if not replace:
-                schema, local_coll = local_coll.add(schema, obj)
+            if obj.get_inherited(schema) and local_coll.has(schema, refname):
+                pass
             else:
-                schema, local_coll = local_coll.update(schema, [obj])
+                if not replace:
+                    schema, local_coll = local_coll.add(schema, obj)
+                else:
+                    schema, local_coll = local_coll.update(schema, [obj])
         else:
             local_coll = colltype.create(schema, [obj])
 

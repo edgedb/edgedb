@@ -22,22 +22,17 @@ abstract type Named:
         delegated constraint exclusive
 
 
-abstract link deck:
-    property count -> int64
-
-
-abstract link friends:
-    property nickname -> str
-    # how the friend responded to requests for a favor
-    #property favor -> array<bool>
-
-
 type User extending Named:
-    multi link deck -> Card
+    multi link deck -> Card:
+        property count -> int64
 
     property deck_cost := sum(__source__.deck.cost)
 
-    multi link friends -> User
+    multi link friends -> User:
+        property nickname -> str
+        # how the friend responded to requests for a favor
+        #property favor -> array<bool>
+
     multi link awards -> Award:
         constraint exclusive
 

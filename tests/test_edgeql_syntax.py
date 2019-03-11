@@ -3312,22 +3312,28 @@ aa';
     def test_edgeql_syntax_ddl_type_02(self):
         """
         CREATE TYPE schema::TypeElement {
-            CREATE REQUIRED LINK schema::type -> schema::Type;
-            CREATE REQUIRED LINK schema::num -> std::int64;
-            CREATE LINK schema::name -> std::str;
+            CREATE REQUIRED LINK type -> schema::Type;
+            CREATE REQUIRED LINK num -> std::int64;
+            CREATE PROPERTY name EXTENDING (foo, bar) -> std::str;
+            CREATE LINK lnk EXTENDING l1 -> schema::Type;
+            CREATE LINK lnk1 EXTENDING (l1, l2) -> schema::Type;
+            CREATE LINK lnk2 EXTENDING (l1, l2) -> schema::Type {
+                CREATE PROPERTY lnk2_prop -> std::str;
+                CREATE PROPERTY lnk2_prop2 EXTENDING foo -> std::str;
+            };
         };
         """
 
     def test_edgeql_syntax_ddl_type_03(self):
         """
         ALTER TYPE schema::Object {
-            CREATE MULTI LINK schema::attributes -> schema::Attribute;
+            CREATE MULTI LINK attributes -> schema::Attribute;
         };
 
 % OK %
 
         ALTER TYPE schema::Object
-            CREATE MULTI LINK schema::attributes -> schema::Attribute;
+            CREATE MULTI LINK attributes -> schema::Attribute;
         """
 
     def test_edgeql_syntax_ddl_type_04(self):

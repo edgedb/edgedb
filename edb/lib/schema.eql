@@ -37,7 +37,7 @@ CREATE SCALAR TYPE schema::operator_kind_t EXTENDING std::str {
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object {
-    CREATE REQUIRED PROPERTY schema::name -> std::str;
+    CREATE REQUIRED PROPERTY name -> std::str;
 };
 
 
@@ -46,13 +46,8 @@ CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
 CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
 
-CREATE ABSTRACT LINK std::__type__ {
-    SET readonly := True;
-};
-
-
 ALTER TYPE std::Object {
-    CREATE LINK std::__type__ -> schema::Type {
+    CREATE LINK __type__ -> schema::Type {
         SET readonly := True;
     };
 };
@@ -65,71 +60,63 @@ CREATE ABSTRACT TYPE schema::ContainerType EXTENDING schema::Type;
 
 
 CREATE TYPE schema::Array EXTENDING schema::ContainerType {
-    CREATE REQUIRED LINK schema::element_type -> schema::Type;
-    CREATE PROPERTY schema::dimensions -> array<std::int64>;
+    CREATE REQUIRED LINK element_type -> schema::Type;
+    CREATE PROPERTY dimensions -> array<std::int64>;
 };
 
 
 CREATE TYPE schema::TypeElement {
-    CREATE REQUIRED LINK schema::type -> schema::Type;
-    CREATE REQUIRED PROPERTY schema::num -> std::int64;
-    CREATE PROPERTY schema::name -> std::str;
+    CREATE REQUIRED LINK type -> schema::Type;
+    CREATE REQUIRED PROPERTY num -> std::int64;
+    CREATE PROPERTY name -> std::str;
 };
 
 
 CREATE TYPE schema::Tuple EXTENDING schema::ContainerType {
-    CREATE REQUIRED MULTI LINK schema::element_types -> schema::TypeElement {
+    CREATE REQUIRED MULTI LINK element_types -> schema::TypeElement {
         CREATE CONSTRAINT std::exclusive;
     };
 };
 
 
 CREATE TYPE schema::Delta EXTENDING schema::Object {
-    CREATE MULTI LINK schema::parents -> schema::Delta;
+    CREATE MULTI LINK parents -> schema::Delta;
 };
 
 
 CREATE TYPE schema::Attribute EXTENDING schema::Object {
-    CREATE PROPERTY schema::inheritable -> std::bool;
-};
-
-
-CREATE ABSTRACT LINK schema::attributes {
-    CREATE PROPERTY schema::value -> std::str;
+    CREATE PROPERTY inheritable -> std::bool;
 };
 
 
 CREATE ABSTRACT TYPE schema::AttributeSubject EXTENDING schema::Object {
-    CREATE MULTI LINK schema::attributes -> schema::Attribute;
+    CREATE MULTI LINK attributes -> schema::Attribute {
+        CREATE PROPERTY value -> std::str;
+    };
 };
 
 
 CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
-    CREATE MULTI LINK schema::bases -> schema::InheritingObject;
-    CREATE MULTI LINK schema::mro -> schema::InheritingObject;
+    CREATE MULTI LINK bases -> schema::InheritingObject;
+    CREATE MULTI LINK mro -> schema::InheritingObject;
 
-    CREATE PROPERTY schema::is_abstract -> std::bool {
+    CREATE PROPERTY is_abstract -> std::bool {
         SET default := false;
     };
 
-    CREATE PROPERTY schema::is_final -> std::bool {
+    CREATE PROPERTY is_final -> std::bool {
         SET default := false;
     };
 };
 
 
 CREATE TYPE schema::Parameter {
-    CREATE REQUIRED LINK schema::type -> schema::Type;
-    CREATE REQUIRED PROPERTY schema::typemod -> std::str;
-    CREATE REQUIRED PROPERTY schema::kind -> std::str;
-    CREATE REQUIRED PROPERTY schema::num -> std::int64;
-    CREATE PROPERTY schema::name -> std::str;
-    CREATE PROPERTY schema::default -> std::str;
-};
-
-
-CREATE ABSTRACT LINK schema::args {
-    CREATE PROPERTY schema::value -> std::str;
+    CREATE REQUIRED LINK type -> schema::Type;
+    CREATE REQUIRED PROPERTY typemod -> std::str;
+    CREATE REQUIRED PROPERTY kind -> std::str;
+    CREATE REQUIRED PROPERTY num -> std::int64;
+    CREATE PROPERTY name -> std::str;
+    CREATE PROPERTY default -> std::str;
 };
 
 
@@ -137,48 +124,49 @@ CREATE ABSTRACT TYPE schema::CallableObject
     EXTENDING schema::AttributeSubject
 {
 
-    CREATE MULTI LINK schema::params -> schema::Parameter {
+    CREATE MULTI LINK params -> schema::Parameter {
         CREATE CONSTRAINT std::exclusive;
     };
 
-    CREATE LINK schema::return_type -> schema::Type;
-    CREATE PROPERTY schema::return_typemod -> std::str;
+    CREATE LINK return_type -> schema::Type;
+    CREATE PROPERTY return_typemod -> std::str;
 };
 
 
 CREATE TYPE schema::Constraint EXTENDING
         (schema::CallableObject, schema::InheritingObject)
 {
-    CREATE MULTI LINK schema::args -> schema::Parameter {
+    CREATE MULTI LINK args -> schema::Parameter {
         CREATE CONSTRAINT std::exclusive;
+        CREATE PROPERTY value -> std::str;
     };
-    CREATE PROPERTY schema::expr -> std::str;
-    CREATE PROPERTY schema::subjectexpr -> std::str;
-    CREATE PROPERTY schema::finalexpr -> std::str;
-    CREATE PROPERTY schema::errmessage -> std::str;
+    CREATE PROPERTY expr -> std::str;
+    CREATE PROPERTY subjectexpr -> std::str;
+    CREATE PROPERTY finalexpr -> std::str;
+    CREATE PROPERTY errmessage -> std::str;
 };
 
 
 CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
-    CREATE MULTI LINK schema::constraints -> schema::Constraint {
+    CREATE MULTI LINK constraints -> schema::Constraint {
         CREATE CONSTRAINT std::exclusive;
     };
 };
 
 
 ALTER TYPE schema::Constraint {
-    CREATE LINK schema::subject :=
+    CREATE LINK subject :=
         __source__.<constraints[IS schema::ConsistencySubject];
 };
 
 
 CREATE TYPE schema::SourceIndex EXTENDING schema::Object {
-    CREATE PROPERTY schema::expr -> std::str;
+    CREATE PROPERTY expr -> std::str;
 };
 
 
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
-    CREATE MULTI LINK schema::indexes -> schema::SourceIndex {
+    CREATE MULTI LINK indexes -> schema::SourceIndex {
         CREATE CONSTRAINT std::exclusive;
     };
 };
@@ -188,13 +176,13 @@ CREATE ABSTRACT TYPE schema::Pointer EXTENDING
         (schema::InheritingObject, schema::ConsistencySubject,
          schema::AttributeSubject)
 {
-    CREATE REQUIRED PROPERTY schema::cardinality -> schema::cardinality_t;
-    CREATE REQUIRED PROPERTY schema::required -> std::bool;
+    CREATE REQUIRED PROPERTY cardinality -> schema::cardinality_t;
+    CREATE REQUIRED PROPERTY required -> std::bool;
 };
 
 
 ALTER TYPE schema::Source {
-    CREATE MULTI LINK schema::pointers -> schema::Pointer {
+    CREATE MULTI LINK pointers -> schema::Pointer {
         CREATE CONSTRAINT std::exclusive;
     };
 };
@@ -204,7 +192,7 @@ CREATE TYPE schema::ScalarType EXTENDING
         (schema::InheritingObject, schema::ConsistencySubject,
          schema::AttributeSubject, schema::Type)
 {
-    CREATE PROPERTY schema::default -> std::str;
+    CREATE PROPERTY default -> std::str;
 };
 
 
@@ -233,23 +221,20 @@ CREATE TYPE schema::Property EXTENDING schema::Pointer;
 
 
 ALTER TYPE schema::Pointer {
-    CREATE LINK schema::source -> schema::Source;
-    CREATE LINK schema::target -> schema::Type;
+    CREATE LINK source -> schema::Source;
+    CREATE LINK target -> schema::Type;
 };
 
 
 ALTER TYPE schema::Link {
-    CREATE LINK schema::properties := __source__.pointers;
-    CREATE PROPERTY schema::on_target_delete ->
-        schema::target_delete_action_t;
+    CREATE LINK properties := __source__.pointers;
+    CREATE PROPERTY on_target_delete -> schema::target_delete_action_t;
 };
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE LINK schema::links :=
-        __source__.pointers[IS schema::Link];
-    CREATE LINK schema::properties :=
-        __source__.pointers[IS schema::Property];
+    CREATE LINK links := __source__.pointers[IS schema::Link];
+    CREATE LINK properties := __source__.pointers[IS schema::Property];
 };
 
 
@@ -257,14 +242,14 @@ CREATE TYPE schema::Function EXTENDING schema::CallableObject;
 
 
 CREATE TYPE schema::Operator EXTENDING schema::CallableObject {
-    CREATE PROPERTY schema::operator_kind -> schema::operator_kind_t;
-    CREATE LINK schema::commutator -> schema::Operator;
+    CREATE PROPERTY operator_kind -> schema::operator_kind_t;
+    CREATE LINK commutator -> schema::Operator;
 };
 
 
 CREATE TYPE schema::Cast EXTENDING schema::Object {
-    CREATE LINK schema::from_type -> schema::Type;
-    CREATE LINK schema::to_type -> schema::Type;
-    CREATE PROPERTY schema::allow_implicit -> std::bool;
-    CREATE PROPERTY schema::allow_assignment -> std::bool;
+    CREATE LINK from_type -> schema::Type;
+    CREATE LINK to_type -> schema::Type;
+    CREATE PROPERTY allow_implicit -> std::bool;
+    CREATE PROPERTY allow_assignment -> std::bool;
 };

@@ -414,7 +414,26 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
-        name = super()._classname_from_ast(schema, astnode, context)
+        referrer_ctx = cls.get_referrer_context(context)
+        if referrer_ctx is not None:
+
+            referrer_name = referrer_ctx.op.classname
+
+            shortname = sn.Name(
+                module=referrer_name.module,
+                name=astnode.name.name,
+            )
+
+            name = sn.Name(
+                module=referrer_name.module,
+                name=sn.get_specialized_name(
+                    shortname,
+                    referrer_name,
+                ),
+            )
+        else:
+            name = super()._classname_from_ast(schema, astnode, context)
+
         shortname = sn.shortname_from_fullname(name)
         if len(shortname.name) > MAX_NAME_LENGTH:
             raise errors.SchemaDefinitionError(
@@ -446,41 +465,6 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
                 op.new_value = s_expr.Expression(expr)
             super()._apply_field_ast(schema, context, node, op)
-
-    def _create_begin(self, schema, context):
-        referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is not None:
-            # This is a specialized pointer, check that appropriate
-            # generic parent exists, and if not, create it.
-            bases = self.get_attribute_value('bases')
-            if not isinstance(bases, so.ObjectList):
-                bases = so.ObjectList.create(schema, bases)
-
-            try:
-                base = next(iter(bases.objects(schema)))
-            except errors.InvalidReferenceError:
-                base = None
-                base_name = sn.shortname_from_fullname(self.classname)
-
-            if base is None:
-                cls = self.get_schema_metaclass()
-                std_ptr = schema.get(cls.get_default_base_name())
-                schema, base = cls.create_in_schema_with_inheritance(
-                    schema, name=base_name, bases=[std_ptr])
-                delta = base.delta(None, base,
-                                   old_schema=None,
-                                   new_schema=schema)
-                top_ctx = referrer_ctx
-                refref_cls = getattr(
-                    top_ctx.op, 'referrer_context_class', None)
-                if refref_cls is not None:
-                    refref_ctx = context.get(refref_cls)
-                    if refref_ctx is not None:
-                        top_ctx = refref_ctx
-
-                top_ctx.op.after(delta)
-
-        return super()._create_begin(schema, context)
 
     def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
         from edb.edgeql import utils as ql_utils

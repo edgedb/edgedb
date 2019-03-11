@@ -700,11 +700,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(')')
 
     def _visit_CreateObject(self, node, *object_keywords, after_name=None,
-                            render_commands=True):
+                            render_commands=True, unqualified=False):
         self._visit_aliases(node)
         self.write('CREATE', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name)
+        if unqualified:
+            self.write(ident_to_str(node.name.name))
+        else:
+            self.visit(node.name)
         if after_name:
             after_name()
         if node.commands and render_commands:
@@ -714,11 +717,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
             self.write('}')
 
-    def _visit_AlterObject(self, node, *object_keywords, allow_short=True):
+    def _visit_AlterObject(self, node, *object_keywords, allow_short=True,
+                           unqualified=False):
         self._visit_aliases(node)
         self.write('ALTER', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name)
+        if unqualified:
+            self.write(ident_to_str(node.name.name))
+        else:
+            self.visit(node.name)
         if node.commands:
             if len(node.commands) == 1 and allow_short:
                 self.write(' ')
@@ -730,11 +737,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self._block_ws(-1)
                 self.write('}')
 
-    def _visit_DropObject(self, node, *object_keywords):
+    def _visit_DropObject(self, node, *object_keywords, unqualified=False):
         self._visit_aliases(node)
         self.write('DROP', *object_keywords, delimiter=' ')
         self.write(' ')
-        self.visit(node.name)
+        if unqualified:
+            self.write(ident_to_str(node.name.name))
+        else:
+            self.visit(node.name)
         if node.commands:
             self.write(' {')
             self._block_ws(1)
@@ -959,15 +969,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         keywords.append('PROPERTY')
 
         def after_name():
+            self._ddl_visit_bases(node)
             self.write(' -> ')
             self.visit(node.target)
-        self._visit_CreateObject(node, *keywords, after_name=after_name)
+        self._visit_CreateObject(
+            node, *keywords, after_name=after_name, unqualified=True)
 
     def visit_AlterConcreteProperty(self, node):
-        self._visit_AlterObject(node, 'PROPERTY', allow_short=False)
+        self._visit_AlterObject(node, 'PROPERTY', allow_short=False,
+                                unqualified=True)
 
     def visit_DropConcreteProperty(self, node):
-        self._visit_DropObject(node, 'PROPERTY')
+        self._visit_DropObject(node, 'PROPERTY', unqualified=True)
 
     def visit_CreateLink(self, node):
         after_name = lambda: self._ddl_visit_bases(node)
@@ -991,15 +1004,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         keywords.append('LINK')
 
         def after_name():
+            self._ddl_visit_bases(node)
             self.write(' -> ')
             self.visit(node.target)
-        self._visit_CreateObject(node, *keywords, after_name=after_name)
+        self._visit_CreateObject(
+            node, *keywords, after_name=after_name, unqualified=True)
 
     def visit_AlterConcreteLink(self, node):
-        self._visit_AlterObject(node, 'LINK', allow_short=False)
+        self._visit_AlterObject(node, 'LINK', allow_short=False,
+                                unqualified=True)
 
     def visit_DropConcreteLink(self, node):
-        self._visit_DropObject(node, 'LINK')
+        self._visit_DropObject(node, 'LINK', unqualified=True)
 
     def visit_AlterTarget(self, node):
         self.write('ALTER TYPE ')

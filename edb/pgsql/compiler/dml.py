@@ -603,7 +603,7 @@ def process_link_update(
         mptrref = ptrref
 
     target_rvar = dbobj.range_for_ptrref(
-        mptrref, include_overlays=False, env=ctx.env)
+        mptrref, include_overlays=False, only_self=True, env=ctx.env)
     target_alias = target_rvar.alias.aliasname
 
     target_tab_name = (target_rvar.relation.schemaname,

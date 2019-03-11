@@ -25,28 +25,28 @@ CREATE ABSTRACT ATTRIBUTE cfg::system;
 
 
 CREATE TYPE cfg::Port {
-    CREATE REQUIRED PROPERTY cfg::port -> std::int64 {
+    CREATE REQUIRED PROPERTY port -> std::int64 {
         CREATE CONSTRAINT std::exclusive;
         SET readonly := true;
     };
 
-    CREATE REQUIRED PROPERTY cfg::protocol -> std::str {
+    CREATE REQUIRED PROPERTY protocol -> std::str {
         SET readonly := true;
     };
 
-    CREATE REQUIRED PROPERTY cfg::database -> std::str {
+    CREATE REQUIRED PROPERTY database -> std::str {
         SET readonly := true;
     };
 
-    CREATE REQUIRED PROPERTY cfg::concurrency -> std::int64 {
+    CREATE REQUIRED PROPERTY concurrency -> std::int64 {
         SET readonly := true;
     };
 
-    CREATE REQUIRED PROPERTY cfg::user -> std::str {
+    CREATE REQUIRED PROPERTY user -> std::str {
         SET readonly := true;
     };
 
-    CREATE REQUIRED MULTI PROPERTY cfg::address -> std::str {
+    CREATE REQUIRED MULTI PROPERTY address -> std::str {
         SET readonly := true;
         SET default := {'localhost'};
     };
@@ -54,7 +54,7 @@ CREATE TYPE cfg::Port {
 
 
 CREATE TYPE cfg::Config {
-    CREATE MULTI LINK cfg::ports -> cfg::Port {
+    CREATE MULTI LINK ports -> cfg::Port {
         SET ATTRIBUTE cfg::system := 'true';
     };
 };

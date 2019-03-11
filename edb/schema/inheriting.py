@@ -206,12 +206,18 @@ class RebaseInheritingObject(sd.ObjectCommand):
                             obj.get_classref_origin(
                                 schema, ref_name, attr, local_attr, backref)
                         except KeyError:
-                            del coll[ref_name]
+                            schema, coll = coll.delete(schema, [ref_name])
 
         for op in self.get_subcommands(type=sd.ObjectCommand):
             schema, _ = op.apply(schema, context)
 
         bases = list(scls.get_bases(schema).objects(schema))
+        default_base_name = scls.get_default_base_name()
+        if default_base_name:
+            default_base = schema.get(default_base_name)
+            if bases == [default_base]:
+                bases = []
+
         removed_bases = {b.get_name(schema) for b in self.removed_bases}
         existing_bases = set()
 
@@ -249,6 +255,9 @@ class RebaseInheritingObject(sd.ObjectCommand):
         schema = scls.set_field_value(schema, 'bases', bases)
         new_mro = compute_mro(schema, scls)[1:]
         schema = scls.set_field_value(schema, 'mro', new_mro)
+
+        if not self.has_attribute_value('bases'):
+            self.set_attribute_value('bases', bases)
 
         if not self.has_attribute_value('mro'):
             self.set_attribute_value('mro', new_mro)
@@ -561,9 +570,15 @@ class InheritingObject(derivable.DerivableObject):
                 merged = local
 
             elif len(inherited) > 1:
-                base = inherited[0].get_bases(schema).first(schema)
-                schema, merged = base.derive(
-                    schema, self, merge_bases=inherited, dctx=dctx)
+                attrs = {'inherited': True}
+                schema, merged = type(inherited[0]).derive_from_root(
+                    schema,
+                    source=self,
+                    unqualified_name=classref_key,
+                    merge_bases=inherited,
+                    attrs=attrs,
+                    dctx=dctx,
+                )
 
             elif len(inherited) == 1:
                 # Pure inheritance

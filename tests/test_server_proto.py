@@ -36,7 +36,7 @@ class TestServerProto(tb.QueryTestCase):
         };
 
         CREATE TYPE test::TransactionTest EXTENDING std::Object {
-            CREATE PROPERTY test::name -> std::str;
+            CREATE PROPERTY name -> std::str;
         };
 
         # Used by is_testmode_on() to ensure that config modifications
@@ -1984,10 +1984,6 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         finally:
             await con2.close()
 
-    @test.xfail('''
-        The error is:
-        reference to a non-existent schema item: test::prop1
-    ''')
     async def test_server_proto_query_cache_invalidate_05(self):
         typename = 'CacheInv_05'
 
@@ -1996,11 +1992,11 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         try:
             await con2.execute(f'''
                 CREATE TYPE test::{typename} {{
-                    CREATE REQUIRED PROPERTY test::prop1 -> std::str;
+                    CREATE REQUIRED PROPERTY prop1 -> std::str;
                 }};
 
                 CREATE TYPE test::Other{typename} {{
-                    CREATE REQUIRED PROPERTY test::prop2 -> std::str;
+                    CREATE REQUIRED PROPERTY prop2 -> std::str;
                 }};
 
                 INSERT test::{typename} {{
@@ -2023,11 +2019,11 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 DELETE (SELECT test::{typename});
 
                 ALTER TYPE test::{typename} {{
-                    DROP PROPERTY test::prop1;
+                    DROP PROPERTY prop1;
                 }};
 
                 ALTER TYPE test::{typename} {{
-                    CREATE REQUIRED LINK test::prop1 -> test::Other{typename};
+                    CREATE REQUIRED LINK prop1 -> test::Other{typename};
                 }};
 
                 INSERT test::{typename} {{
@@ -2122,7 +2118,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 }};
 
                 CREATE TYPE test::{typename} {{
-                    CREATE REQUIRED LINK test::link1 -> test::Foo{typename};
+                    CREATE REQUIRED LINK link1 -> test::Foo{typename};
                 }};
 
                 INSERT test::Foo{typename};

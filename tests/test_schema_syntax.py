@@ -197,7 +197,8 @@ type Issue extending `foo.bar`::NamedObject, OwnedObject, Text:
 
     link priority -> Priority
 
-    multi link watchers -> User
+    multi link watchers extending (orderable) -> User:
+        property foo extending (bar) -> str
 
     multi link time_spent_log -> LogEntry
 

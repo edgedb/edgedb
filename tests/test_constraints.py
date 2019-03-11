@@ -591,12 +591,12 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
     async def test_constraints_ddl_01(self):
         qry = """
             CREATE ABSTRACT LINK test::translated_label {
-                CREATE PROPERTY test::lang -> std::str;
-                CREATE PROPERTY test::prop1 -> std::str;
+                CREATE PROPERTY lang -> std::str;
+                CREATE PROPERTY prop1 -> std::str;
             };
 
             CREATE ABSTRACT LINK test::link_with_exclusive_property {
-                CREATE PROPERTY test::exclusive_property -> std::str {
+                CREATE PROPERTY exclusive_property -> std::str {
                     CREATE CONSTRAINT std::exclusive;
                 };
             };
@@ -605,11 +605,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 EXTENDING test::link_with_exclusive_property;
 
             CREATE TYPE test::UniqueName {
-                CREATE PROPERTY test::name -> std::str {
+                CREATE PROPERTY name -> std::str {
                     CREATE CONSTRAINT std::exclusive;
                 };
 
-                CREATE LINK test::link_with_exclusive_property -> std::Object;
+                CREATE LINK link_with_exclusive_property -> std::Object;
             };
         """
 
@@ -633,7 +633,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         qry = """
             CREATE TYPE test::AbstractConstraintParent {
-                CREATE PROPERTY test::name -> std::str {
+                CREATE PROPERTY name -> std::str {
                     CREATE DELEGATED CONSTRAINT std::exclusive;
                 };
             };
@@ -686,11 +686,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
 
             CREATE TYPE test::ConstraintOnTest1 {
-                CREATE PROPERTY test::foo -> std::str {
+                CREATE PROPERTY foo -> std::str {
                     CREATE CONSTRAINT test::mymax1(3);
                 };
 
-                CREATE PROPERTY test::bar -> std::str {
+                CREATE PROPERTY bar -> std::str {
                     CREATE CONSTRAINT test::mymax_ext1(3);
                 };
             };
@@ -823,11 +823,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
 
             CREATE TYPE test::ConstraintOnTest2 {
-                CREATE PROPERTY test::foo -> std::str {
+                CREATE PROPERTY foo -> std::str {
                     CREATE CONSTRAINT test::mymax2(3) ON (len(__subject__));
                 };
 
-                CREATE PROPERTY test::bar -> std::str {
+                CREATE PROPERTY bar -> std::str {
                     CREATE CONSTRAINT std::max(3) ON (len(__subject__)) {
                         SET errmessage :=
                     # XXX: once simple string concat is possible here
@@ -906,7 +906,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
 
             CREATE TYPE test::ConstraintOnTest3 {
-                CREATE PROPERTY test::foo -> std::str {
+                CREATE PROPERTY foo -> std::str {
                     CREATE CONSTRAINT test::mymax3(3) ON (len(__subject__));
                 };
             };
@@ -944,7 +944,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     };
 
                     CREATE TYPE test::InvalidConstraintTest2 {
-                        CREATE PROPERTY test::foo -> std::str {
+                        CREATE PROPERTY foo -> std::str {
                             CREATE CONSTRAINT test::max_int(3)
                                 ON (len(__subject__));
                         };
@@ -1011,7 +1011,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
 
             CREATE TYPE test::ConstraintOnTest_err_06 {
-                CREATE PROPERTY test::foo -> std::str {
+                CREATE PROPERTY foo -> std::str {
                     CREATE CONSTRAINT test::mymax_er_06(3);
                 };
             };

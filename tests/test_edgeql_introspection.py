@@ -77,13 +77,13 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::User',
                 'is_abstract': False,
                 'pointers': [{
-                    'name': 'std::__type__',
+                    'name': '__type__',
                 }, {
-                    'name': 'std::id',
+                    'name': 'id',
                 }, {
-                    'name': 'test::name',
+                    'name': 'name',
                 }, {
-                    'name': 'test::todo',
+                    'name': 'todo',
                 }]
             }]
         )
@@ -105,11 +105,11 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::Owned',
                 'is_abstract': True,
                 'pointers': [{
-                    'name': 'std::__type__',
+                    'name': '__type__',
                 }, {
-                    'name': 'std::id',
+                    'name': 'id',
                 }, {
-                    'name': 'test::owner',
+                    'name': 'owner',
                 }]
             }]
         )
@@ -131,13 +131,13 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::User',
                 'is_abstract': False,
                 'pointers': [{
-                    'name': 'std::__type__',
+                    'name': '__type__',
                 }, {
-                    'name': 'std::id',
+                    'name': 'id',
                 }, {
-                    'name': 'test::name',
+                    'name': 'name',
                 }, {
-                    'name': 'test::todo',
+                    'name': 'todo',
                 }]
             }]
         )
@@ -152,7 +152,7 @@ class TestIntrospection(tb.QueryTestCase):
                     pointers: {
                         name,
                         cardinality,
-                    } FILTER .name LIKE 'test::%'
+                    } FILTER .source.name LIKE 'test::%'
                       ORDER BY .name
                 }
                 FILTER ObjectType.name = 'test::User';
@@ -161,10 +161,10 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::User',
                 'is_abstract': False,
                 'pointers': [{
-                    'name': 'test::name',
+                    'name': 'name',
                     'cardinality': 'ONE',
                 }, {
-                    'name': 'test::todo',
+                    'name': 'todo',
                     'cardinality': 'MANY',
                 }]
             }]
@@ -190,19 +190,19 @@ class TestIntrospection(tb.QueryTestCase):
             [{
                 'name': 'test::Comment',
                 'links': [{
-                    'name': 'std::__type__',
+                    'name': '__type__',
                     'target': {'name': 'schema::Type'},
                     'cardinality': 'ONE',
                 }, {
-                    'name': 'test::issue',
+                    'name': 'issue',
                     'target': {'name': 'test::Issue'},
                     'cardinality': 'ONE',
                 }, {
-                    'name': 'test::owner',
+                    'name': 'owner',
                     'target': {'name': 'test::User'},
                     'cardinality': 'ONE',
                 }, {
-                    'name': 'test::parent',
+                    'name': 'parent',
                     'target': {'name': 'test::Comment'},
                     'cardinality': 'ONE',
                 }]
@@ -272,7 +272,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 name
                             }
                         }
-                    } FILTER .name = 'test::tags'
+                    } FILTER .name = 'tags'
                 }
                 FILTER
                     .name = 'test::Issue';
@@ -302,17 +302,17 @@ class TestIntrospection(tb.QueryTestCase):
                     } ORDER BY Link.properties.name
                 }
                 FILTER
-                    Link.name = 'test::todo'
+                    Link.name = 'todo'
                     AND EXISTS Link.source;
             """,
             [{
-                'name': 'test::todo',
+                'name': 'todo',
                 'properties': [{
-                    'name': 'std::source',
+                    'name': 'rank',
                 }, {
-                    'name': 'std::target',
+                    'name': 'source',
                 }, {
-                    'name': 'test::rank',
+                    'name': 'target',
                 }]
             }]
         )
@@ -674,7 +674,6 @@ class TestIntrospection(tb.QueryTestCase):
                 {'name': 'test::Owned'},
                 {'name': 'test::Text'},
                 {'name': 'test::my_enum'},
-                {'name': 'test::todo'},
             ]
         )
 
@@ -719,7 +718,7 @@ class TestIntrospection(tb.QueryTestCase):
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, 'std::Object')
-        self.assertEqual(result[0].links[0].name, 'std::__type__')
+        self.assertEqual(result[0].links[0].name, '__type__')
         self.assertIsNotNone(result[0].links[0].target.id)
         self.assertIsNotNone(result[0].properties[0].target.id)
 

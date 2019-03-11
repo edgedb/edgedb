@@ -585,9 +585,7 @@ class IntrospectionMech:
         for name, r in links_list.items():
             bases = tuple()
 
-            if r['source']:
-                bases = (sn.shortname_from_fullname(name), )
-            elif r['bases']:
+            if r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::link':
                 bases = (sn.Name('std::link'), )
@@ -698,9 +696,7 @@ class IntrospectionMech:
 
             bases = ()
 
-            if r['source']:
-                bases = (sn.shortname_from_fullname(name), )
-            elif r['bases']:
+            if r['bases']:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::property':
                 bases = (sn.Name('std::property'), )

@@ -140,7 +140,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
 
         decl = node.__class__.__name__.lower()
         self.write(decl, ' ')
-        self.visit(node.name)
+        self.write(ident_to_str(node.name))
+        if node.extends:
+            self._visit_extends(node.extends)
 
         if node.expr:
             self._visit_assignment(node.expr)

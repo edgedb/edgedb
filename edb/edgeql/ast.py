@@ -673,6 +673,7 @@ class DropProperty(DropObject):
 
 class CreateConcretePointer(CreateObject):
 
+    bases: typing.List[TypeName]
     is_required: bool = False
     target: typing.Union[Expr, TypeExpr]
     cardinality: qltypes.Cardinality

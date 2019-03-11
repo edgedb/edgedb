@@ -17,9 +17,6 @@
 #
 
 
-abstract link subordinates:
-    property comment -> str
-
 type Subordinate:
     required property name -> str
 
@@ -29,7 +26,8 @@ type InsertTest:
     required property l2 -> int64
     property l3 -> str:
         default := "test"
-    multi link subordinates -> Subordinate
+    multi link subordinates -> Subordinate:
+        property comment -> str
 
 type Annotation:
     required property name -> str

@@ -21,25 +21,25 @@ CREATE MODULE sys;
 
 
 CREATE TYPE sys::Database {
-    CREATE REQUIRED PROPERTY sys::name -> std::str {
+    CREATE REQUIRED PROPERTY name -> std::str {
         SET readonly := True;
     };
 };
 
 
 CREATE TYPE sys::Role {
-    CREATE REQUIRED PROPERTY sys::name -> std::str {
+    CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     };
 
-    CREATE REQUIRED PROPERTY sys::allow_login -> std::bool;
-    CREATE REQUIRED PROPERTY sys::is_superuser -> std::bool;
-    CREATE PROPERTY sys::password -> std::str;
+    CREATE REQUIRED PROPERTY allow_login -> std::bool;
+    CREATE REQUIRED PROPERTY is_superuser -> std::bool;
+    CREATE PROPERTY password -> std::str;
 };
 
 
 ALTER TYPE sys::Role {
-    CREATE MULTI LINK sys::member_of -> sys::Role;
+    CREATE MULTI LINK member_of -> sys::Role;
 };
 
 

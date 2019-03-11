@@ -35,12 +35,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_02(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::test_object_link {
-                CREATE PROPERTY test::test_link_prop -> std::int64;
+                CREATE PROPERTY test_link_prop -> std::int64;
             };
 
             CREATE TYPE test::TestObjectType {
-                CREATE LINK test::test_object_link -> std::Object {
-                    CREATE PROPERTY test::test_link_prop -> std::int64 {
+                CREATE LINK test_object_link -> std::Object {
+                    CREATE PROPERTY test_link_prop -> std::int64 {
                         SET ATTRIBUTE title := 'Test Property';
                     };
                 };
@@ -50,7 +50,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_03(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::test_object_link_prop {
-                CREATE PROPERTY test::link_prop1 -> std::str;
+                CREATE PROPERTY link_prop1 -> std::str;
             };
         """)
 
@@ -60,11 +60,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::B EXTENDING test::A;
 
             CREATE TYPE test::Object1 {
-                CREATE REQUIRED LINK test::a -> test::A;
+                CREATE REQUIRED LINK a -> test::A;
             };
 
             CREATE TYPE test::Object2 {
-                CREATE LINK test::a -> test::B;
+                CREATE LINK a -> test::B;
             };
 
             CREATE TYPE test::Object_12
@@ -75,8 +75,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             CREATE TYPE test::A5;
             CREATE TYPE test::Object5 {
-                CREATE REQUIRED LINK test::a -> test::A5;
-                CREATE REQUIRED PROPERTY test::b -> str;
+                CREATE REQUIRED LINK a -> test::A5;
+                CREATE REQUIRED PROPERTY b -> str;
             };
         """)
 
@@ -87,26 +87,26 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         name,
                         required,
                     }
-                    FILTER .name = 'test::a'
+                    FILTER .name = 'a'
                     ORDER BY .name,
 
                     properties: {
                         name,
                         required,
                     }
-                    FILTER .name = 'test::b'
+                    FILTER .name = 'b'
                     ORDER BY .name
                 }
                 FILTER .name = 'test::Object5';
             """,
             [{
                 'links': [{
-                    'name': 'test::a',
+                    'name': 'a',
                     'required': True,
                 }],
 
                 'properties': [{
-                    'name': 'test::b',
+                    'name': 'b',
                     'required': True,
                 }],
             }],
@@ -114,11 +114,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute("""
             ALTER TYPE test::Object5 {
-                ALTER LINK test::a DROP REQUIRED;
+                ALTER LINK a DROP REQUIRED;
             };
 
             ALTER TYPE test::Object5 {
-                ALTER PROPERTY test::b DROP REQUIRED;
+                ALTER PROPERTY b DROP REQUIRED;
             };
         """)
 
@@ -129,26 +129,26 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         name,
                         required,
                     }
-                    FILTER .name = 'test::a'
+                    FILTER .name = 'a'
                     ORDER BY .name,
 
                     properties: {
                         name,
                         required,
                     }
-                    FILTER .name = 'test::b'
+                    FILTER .name = 'b'
                     ORDER BY .name
                 }
                 FILTER .name = 'test::Object5';
             """,
             [{
                 'links': [{
-                    'name': 'test::a',
+                    'name': 'a',
                     'required': False,
                 }],
 
                 'properties': [{
-                    'name': 'test::b',
+                    'name': 'b',
                     'required': False,
                 }],
             }],
@@ -158,8 +158,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             CREATE TYPE test::A6;
             CREATE TYPE test::Object6 {
-                CREATE SINGLE LINK test::a -> test::A6;
-                CREATE SINGLE PROPERTY test::b -> str;
+                CREATE SINGLE LINK a -> test::A6;
+                CREATE SINGLE PROPERTY b -> str;
             };
         """)
 
@@ -170,26 +170,26 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         name,
                         cardinality,
                     }
-                    FILTER .name = 'test::a'
+                    FILTER .name = 'a'
                     ORDER BY .name,
 
                     properties: {
                         name,
                         cardinality,
                     }
-                    FILTER .name = 'test::b'
+                    FILTER .name = 'b'
                     ORDER BY .name
                 }
                 FILTER .name = 'test::Object6';
             """,
             [{
                 'links': [{
-                    'name': 'test::a',
+                    'name': 'a',
                     'cardinality': 'ONE',
                 }],
 
                 'properties': [{
-                    'name': 'test::b',
+                    'name': 'b',
                     'cardinality': 'ONE',
                 }],
             }],
@@ -197,11 +197,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute("""
             ALTER TYPE test::Object6 {
-                ALTER LINK test::a SET MULTI;
+                ALTER LINK a SET MULTI;
             };
 
             ALTER TYPE test::Object6 {
-                ALTER PROPERTY test::b SET MULTI;
+                ALTER PROPERTY b SET MULTI;
             };
         """)
 
@@ -212,26 +212,26 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         name,
                         cardinality,
                     }
-                    FILTER .name = 'test::a'
+                    FILTER .name = 'a'
                     ORDER BY .name,
 
                     properties: {
                         name,
                         cardinality,
                     }
-                    FILTER .name = 'test::b'
+                    FILTER .name = 'b'
                     ORDER BY .name
                 }
                 FILTER .name = 'test::Object6';
             """,
             [{
                 'links': [{
-                    'name': 'test::a',
+                    'name': 'a',
                     'cardinality': 'MANY',
                 }],
 
                 'properties': [{
-                    'name': 'test::b',
+                    'name': 'b',
                     'cardinality': 'MANY',
                 }],
             }],
@@ -490,10 +490,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_11(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestContainerLinkObjectType {
-                CREATE PROPERTY test::test_array_link -> array<std::str>;
+                CREATE PROPERTY test_array_link -> array<std::str>;
                 # FIXME: for now dimention specs on the array are
                 # disabled pending a syntax change
-                # CREATE PROPERTY test::test_array_link_2 ->
+                # CREATE PROPERTY test_array_link_2 ->
                 #     array<std::str[10]>;
             };
         """)
@@ -504,7 +504,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r"Unexpected '`__subject__`'"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
-                    CREATE PROPERTY test::foo -> std::str {
+                    CREATE PROPERTY foo -> std::str {
                         CREATE CONSTRAINT expression
                             ON (`__subject__` = 'foo');
                     };
@@ -517,7 +517,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'reference to a non-existent schema item: self'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
-                    CREATE PROPERTY test::foo -> std::str {
+                    CREATE PROPERTY foo -> std::str {
                         CREATE CONSTRAINT expression ON (`self` = 'foo');
                     };
                 };
@@ -527,8 +527,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_14(self):
         await self.con.execute("""
             CREATE TYPE test::TestSelfLink1 {
-                CREATE PROPERTY test::foo1 -> std::str;
-                CREATE PROPERTY test::bar1 -> std::str {
+                CREATE PROPERTY foo1 -> std::str;
+                CREATE PROPERTY bar1 -> std::str {
                     SET default := __source__.foo1;
                 };
             };
@@ -554,8 +554,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestSelfLink2 {
-                CREATE PROPERTY test::foo2 -> std::str;
-                CREATE MULTI PROPERTY test::bar2 -> std::str {
+                CREATE PROPERTY foo2 -> std::str;
+                CREATE MULTI PROPERTY bar2 -> std::str {
                     # NOTE: this is a set of all TestSelfLink2.foo2
                     SET default := test::TestSelfLink2.foo2;
                 };
@@ -594,8 +594,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(edgedb.QueryError):
             await self.con.execute(r"""
                 CREATE TYPE test::TestSelfLink3 {
-                    CREATE PROPERTY test::foo3 -> std::str;
-                    CREATE PROPERTY test::bar3 -> std::str {
+                    CREATE PROPERTY foo3 -> std::str;
+                    CREATE PROPERTY bar3 -> std::str {
                         # NOTE: this is a set of all TestSelfLink3.foo3
                         SET default := test::TestSelfLink3.foo3;
                     };
@@ -606,7 +606,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_17(self):
         await self.con.execute("""
             CREATE TYPE test::TestSelfLink4 {
-                CREATE PROPERTY test::__typename4 -> std::str {
+                CREATE PROPERTY __typename4 -> std::str {
                     SET default := __source__.__type__.name;
                 };
             };
@@ -731,13 +731,119 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ]
         )
 
+    async def test_edgeql_ddl_20(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE A20 {
+                CREATE REQUIRED PROPERTY foo -> str;
+            };
+
+            CREATE TYPE B20 {
+                CREATE LINK l -> A20;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    links: {
+                        name,
+                        bases: {
+                            name
+                        }
+                    } FILTER .name = 'l'
+                }
+                FILTER .name = 'test::B20'
+            """,
+            [
+                {
+                    'links': [{
+                        'name': 'l',
+                        'bases': [{
+                            'name': 'std::link',
+                        }],
+                    }],
+                },
+            ]
+        )
+
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE ABSTRACT LINK l20;
+
+            ALTER TYPE B20 {
+                ALTER LINK l EXTENDING l20;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    links: {
+                        name,
+                        bases: {
+                            name
+                        }
+                    } FILTER .name = 'l'
+                }
+                FILTER .name = 'test::B20'
+            """,
+            [
+                {
+                    'links': [{
+                        'name': 'l',
+                        'bases': [{
+                            'name': 'test::l20',
+                        }],
+                    }],
+                },
+            ]
+        )
+
+        await self.con.execute("""
+            SET MODULE test;
+
+            ALTER TYPE B20 {
+                ALTER LINK l DROP EXTENDING l20;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    links: {
+                        name,
+                        bases: {
+                            name
+                        }
+                    } FILTER .name = 'l'
+                }
+                FILTER .name = 'test::B20'
+            """,
+            [
+                {
+                    'links': [{
+                        'name': 'l',
+                        'bases': [{
+                            'name': 'std::link',
+                        }],
+                    }],
+                },
+            ]
+        )
+
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 r'unqualified name and no default module set'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY test::bar -> array;
+                    CREATE PROPERTY bar -> array;
                 };
             """)
 
@@ -747,7 +853,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'unqualified name and no default module set'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY test::bar -> tuple;
+                    CREATE PROPERTY bar -> tuple;
                 };
             """)
 
@@ -757,7 +863,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'unexpected number of subtypes, expecting 1'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY test::bar -> array<int64, int64, int64>;
+                    CREATE PROPERTY bar -> array<int64, int64, int64>;
                 };
             """)
 
@@ -767,7 +873,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'nested arrays are not supported'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY test::bar -> array<array<int64>>;
+                    CREATE PROPERTY bar -> array<array<int64>>;
                 };
             """)
 
@@ -778,7 +884,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'supported'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY test::bar -> tuple<int64, foo:int64>;
+                    CREATE PROPERTY bar -> tuple<int64, foo:int64>;
                 };
             """)
 
@@ -788,7 +894,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'unexpected number of subtypes, expecting 1'):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
-                    CREATE PROPERTY test::bar -> array<>;
+                    CREATE PROPERTY bar -> array<>;
                 };
             """)
 
@@ -808,8 +914,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE TYPE test::Foo {
-                        CREATE LINK test::f123456789_123456789_123456789_\
+                        CREATE LINK f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789 -> test::Foo;
+                    };
+                """)
+
+    async def test_edgeql_ddl_link_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.EdgeQLSyntaxError,
+                f'unexpected fully-qualified name'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE TYPE test::Foo {
+                        CREATE LINK foo::bar -> test::Foo;
                     };
                 """)
 
@@ -829,8 +946,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE TYPE test::Foo {
-                        CREATE PROPERTY test::f123456789_123456789_123456789_\
+                        CREATE PROPERTY f123456789_123456789_123456789_\
 123456789_123456789_123456789_123456789_123456789 -> std::str;
+                    };
+                """)
+
+    async def test_edgeql_ddl_property_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.EdgeQLSyntaxError,
+                f'unexpected fully-qualified name'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE TYPE test::Foo {
+                        CREATE PROPERTY foo::bar -> test::Foo;
                     };
                 """)
 
@@ -1406,7 +1534,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''\
             CREATE TYPE test::CompProp;
             ALTER TYPE test::CompProp {
-                CREATE PROPERTY test::prop := 'I am a computable';
+                CREATE PROPERTY prop := 'I am a computable';
             };
             INSERT test::CompProp;
         ''')
@@ -1431,14 +1559,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         target: {
                             name
                         }
-                    } FILTER .name = 'test::prop'
+                    } FILTER .name = 'prop'
                 }
                 FILTER
                     .name = 'test::CompProp';
             ''',
             [{
                 'properties': [{
-                    'name': 'test::prop',
+                    'name': 'prop',
                     'target': {
                         'name': 'std::str'
                     }
@@ -1453,7 +1581,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''\
                 CREATE TYPE test::CompPropBad;
                 ALTER TYPE test::CompPropBad {
-                    CREATE PROPERTY test::prop := (SELECT std::Object LIMIT 1);
+                    CREATE PROPERTY prop := (SELECT std::Object LIMIT 1);
                 };
             ''')
 
@@ -1597,7 +1725,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE ABSTRACT LINK test::test_object_link_prop {
-                    CREATE PROPERTY test::link_prop1 -> anytype;
+                    CREATE PROPERTY link_prop1 -> anytype;
                 };
             """)
 
@@ -1608,7 +1736,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject2 {
-                    CREATE LINK test::a -> anytype;
+                    CREATE LINK a -> anytype;
                 };
             """)
 
@@ -1619,7 +1747,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject3 {
-                    CREATE PROPERTY test::a -> anytype;
+                    CREATE PROPERTY a -> anytype;
                 };
             """)
 
@@ -1630,7 +1758,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject4 {
-                    CREATE PROPERTY test::a -> anyscalar;
+                    CREATE PROPERTY a -> anyscalar;
                 };
             """)
 
@@ -1641,7 +1769,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject5 {
-                    CREATE PROPERTY test::a -> anyint;
+                    CREATE PROPERTY a -> anyint;
                 };
             """)
 
@@ -1652,8 +1780,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject6 EXTENDING anytype {
-                    CREATE REQUIRED LINK test::a -> test::AnyObject6;
-                    CREATE REQUIRED PROPERTY test::b -> str;
+                    CREATE REQUIRED LINK a -> test::AnyObject6;
+                    CREATE REQUIRED PROPERTY b -> str;
                 };
             """)
 
@@ -1948,13 +2076,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_rename_03(self):
         await self.con.execute(r"""
             CREATE TYPE test::RenameObj03 {
-                CREATE PROPERTY test::name -> str;
+                CREATE PROPERTY name -> str;
             };
 
             INSERT test::RenameObj03 {name := 'rename 03'};
 
             ALTER TYPE test::RenameObj03 {
-                ALTER PROPERTY test::name {
+                ALTER PROPERTY name {
                     RENAME TO test::new_name_03;
                 };
             };
@@ -1974,12 +2102,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_rename_04(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::rename_link_04 {
-                CREATE PROPERTY test::rename_prop_04 -> std::int64;
+                CREATE PROPERTY rename_prop_04 -> std::int64;
             };
 
             CREATE TYPE test::LinkedObj04;
             CREATE TYPE test::RenameObj04 {
-                CREATE MULTI LINK test::rename_link_04 -> test::LinkedObj04;
+                CREATE MULTI LINK rename_link_04 -> test::LinkedObj04;
             };
 
             INSERT test::LinkedObj04;
@@ -1988,8 +2116,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             ALTER ABSTRACT LINK test::rename_link_04 {
-                ALTER PROPERTY test::rename_prop_04 {
-                    RENAME TO test::new_prop_04;
+                ALTER PROPERTY rename_prop_04 {
+                    RENAME TO new_prop_04;
                 };
             };
         """)

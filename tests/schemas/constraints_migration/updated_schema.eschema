@@ -89,7 +89,7 @@ type Object:
     property c_strvalue -> constraint_strvalue
     property c_enum -> constraint_enum
 
-    link translated_label -> Label:
+    link translated_label extending (translated_label) -> Label:
         constraint exclusive on (__subject__@source, __subject__@lang)
         constraint exclusive on (__subject__@prop1)
 
@@ -101,11 +101,13 @@ type UniqueName:
     property name2 -> str:
         constraint exclusive
 
-    link link_with_unique_property -> Object
+    link link_with_unique_property \
+        extending (link_with_unique_property) -> Object
 
-    link link_with_unique_property_inherited -> Object
+    link link_with_unique_property_inherited \
+        extending (link_with_unique_property_inherited) -> Object
 
-    link translated_label -> Label:
+    link translated_label extending (translated_label) -> Label:
         constraint exclusive on (__subject__@source, __subject__@lang)
         constraint exclusive on (__subject__@prop1)
 
@@ -120,9 +122,11 @@ type UniqueNameGrandchild extending UniqueNameInherited
 type UniqueDescription:
     property description -> str
 
-    link another_link_with_unique_property -> Object
+    link another_link_with_unique_property \
+        extending (another_link_with_unique_property) -> Object
 
-    link another_link_with_unique_property_inherited -> Object
+    link another_link_with_unique_property_inherited \
+        extending (another_link_with_unique_property_inherited) -> Object
 
 
 type UniqueDescriptionInherited extending UniqueDescription

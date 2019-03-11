@@ -172,6 +172,7 @@ def table_from_ptrref(
 def range_for_ptrref(
         ptrref: irast.BasePointerRef, *,
         include_overlays: bool=True,
+        only_self: bool=False,
         env: context.Environment) -> pgast.BaseRangeVar:
     """"Return a Range subclass corresponding to a given ptr step.
 
@@ -189,7 +190,12 @@ def range_for_ptrref(
 
     set_ops = []
 
-    for src_ptrref in {ptrref} | ptrref.descendants:
+    if only_self:
+        ptrrefs = {ptrref}
+    else:
+        ptrrefs = {ptrref} | ptrref.descendants
+
+    for src_ptrref in ptrrefs:
         table = table_from_ptrref(src_ptrref, env=env)
 
         qry = pgast.SelectStmt()

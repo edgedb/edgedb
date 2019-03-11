@@ -1410,7 +1410,7 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
 
             ptrs = source.get_pointers(schema)
             for added_ptr in added_inh_ptrs - created_ptrs:
-                ptr = ptrs.get(schema, added_ptr)
+                ptr = ptrs.get(schema, added_ptr.name)
                 ptr_stor_info = types.get_pointer_storage_info(
                     ptr, schema=schema)
 
@@ -1454,7 +1454,7 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
                         schema, context, force_new=True)
 
                     for dropped_ptr in dropped_ptrs:
-                        ptr = orig_ptrs.get(schema, dropped_ptr)
+                        ptr = orig_ptrs.get(schema, dropped_ptr.name)
                         ptr_stor_info = types.get_pointer_storage_info(
                             ptr, schema=schema)
 
@@ -2301,7 +2301,7 @@ class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
     def apply(self, schema, context):
         schema, result = s_links.RebaseLink.apply(self, schema, context)
         schema, _ = LinkMetaCommand.apply(self, schema, context)
-
+        self.update(schema, context)
         schema = result.acquire_ancestor_inheritance(schema)
 
         link_ctx = context.get(s_links.LinkCommandContext)
@@ -2597,6 +2597,25 @@ class RenameProperty(
 
         self.rename_pointer(
             result, schema, context, self.classname, self.new_name)
+
+        return schema, result
+
+
+class RebaseProperty(
+        PropertyMetaCommand, adapts=s_props.RebaseProperty):
+    def apply(self, schema, context):
+        schema, result = s_props.RebaseProperty.apply(self, schema, context)
+        schema, _ = PropertyMetaCommand.apply(self, schema, context)
+
+        schema = result.acquire_ancestor_inheritance(schema)
+
+        prop_ctx = context.get(s_props.PropertyCommandContext)
+        source = prop_ctx.scls
+
+        if self.has_table(source, schema):
+            orig_schema = prop_ctx.original_schema
+            schema = self.apply_base_delta(
+                source, orig_schema, schema, context)
 
         return schema, result
 

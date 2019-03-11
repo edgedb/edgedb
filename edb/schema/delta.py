@@ -849,8 +849,8 @@ class RenameObject(ObjectCommand):
         return schema
 
     def apply(self, schema, context):
-        scls = self.get_object(schema)
-        self.scls = scls
+        parent_ctx = context.get(CommandContextToken)
+        scls = self.scls = parent_ctx.op.scls
 
         schema = self._rename_begin(schema, context, scls)
         schema = self._rename_innards(schema, context, scls)

@@ -38,6 +38,7 @@ from edb.schema import expr as s_expr
 from edb.schema import inheriting as s_inheriting
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
+from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 
 from . import common
@@ -1793,8 +1794,22 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 tgt='target',
             )
 
+        ftype = field.type
+        if issubclass(ftype, s_obj.ObjectIndexByShortname):
+            distinct_field = 'edgedb.shortname_from_fullname(r.name)'
+        elif issubclass(ftype, s_obj.ObjectIndexByUnqualifiedName):
+            distinct_field = ('split_part(edgedb.shortname_from_fullname('
+                              'r.name), \'::\', 2)')
+        else:
+            distinct_field = 'r.name'
+
+        if refdict.ref_cls.get_field('inheritable') is not None:
+            filters = '(cls.depth = 0 OR r.inheritable)'
+        else:
+            filters = 'True'
+
         inh_link_query = '''
-            SELECT DISTINCT ON ((cls.id, r.bases[1]))
+            SELECT DISTINCT ON ((cls.id, {distinct_field}))
                 cls.id  AS {src},
                 r.id    AS {tgt}
             FROM
@@ -1819,12 +1834,16 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
 
                 INNER JOIN {reftab} r
                     ON (((r.{refattr}).types[1]).maintype = cls.ancestor)
+            WHERE
+                {filters}
             ORDER BY
-                (cls.id, r.bases[1]), cls.depth
+                (cls.id, {distinct_field}), cls.depth
         '''.format(
             schematab=schematab,
             reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
             refattr=qi(refdict.backref_attr),
+            distinct_field=distinct_field,
+            filters=filters,
             src='source',
             tgt='target',
         )
@@ -2442,9 +2461,20 @@ async def generate_views(conn, schema):
             ptrstor = types.get_pointer_storage_info(ptr, schema=schema)
 
             if ptrstor.table_type == 'ObjectType':
-                if pn == 'name' and issubclass(mcls, s_obj.Object):
-                    col_expr = 'edgedb.shortname_from_fullname(t.{})'.format(
-                        qi(ptrstor.column_name))
+                if pn == 'name':
+                    if issubclass(mcls, s_pointers.Pointer):
+                        shortname_expr = (
+                            f'edgedb.shortname_from_fullname'
+                            f'(t.{qi(ptrstor.column_name)})'
+                        )
+                        col_expr = (
+                            f'(CASE WHEN t.source IS NOT NULL '
+                            f'THEN split_part({shortname_expr}, \'::\', 2) '
+                            f'ELSE {shortname_expr} END)'
+                        )
+                    elif issubclass(mcls, s_obj.Object):
+                        col_expr = (f'edgedb.shortname_from_fullname'
+                                    f'(t.{qi(ptrstor.column_name)})')
                 elif field.type is s_expr.Expression:
                     col_expr = f'(t.{qi(ptrstor.column_name)}).text'
                 elif field.type is s_expr.ExpressionList:
@@ -2458,8 +2488,8 @@ async def generate_views(conn, schema):
 
                 cols.append((col_expr, pn))
             else:
-                view = _get_link_view(mcls, schema_cls, field, ptr, refdict,
-                                      schema)
+                view = _get_link_view(mcls, schema_cls, mcls.get_field(pn),
+                                      ptr, refdict, schema)
                 if view.name not in views:
                     views[view.name] = view
 

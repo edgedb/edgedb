@@ -49,6 +49,7 @@ class NameWithParents(typing.NamedTuple):
 
 class PointerSpec(typing.NamedTuple):
     name: str
+    extends: typing.List[qlast.TypeName]
     target: typing.List[qlast.TypeName]
     spec: typing.List[esast.Base]
     expr: typing.Optional[qlast.Base]
@@ -808,32 +809,38 @@ class AssignmentBlob(parsing.Nonterm):
 
 
 class Spec(Nonterm):
-    def reduce_UnqualifiedObjectName_NL(self, *kids):
+    def reduce_NameAndExtends_NL(self, *kids):
         self.val = PointerSpec(
-            name=kids[0].val, target=None, spec=[], expr=None)
+            name=kids[0].val, extends=kids[0].val.extends,
+            target=None, spec=[], expr=None)
 
-    def reduce_UnqualifiedObjectName_DeclarationSpecsBlob(self, *kids):
+    def reduce_NameAndExtends_DeclarationSpecsBlob(self, *kids):
         self.val = PointerSpec(
-            name=kids[0].val, target=None, spec=kids[1].val, expr=None)
+            name=kids[0].val.name, extends=kids[0].val.extends,
+            target=None, spec=kids[1].val, expr=None)
 
-    def reduce_UnqualifiedObjectName_ARROW_TypeList_NL(self, *kids):
+    def reduce_NameAndExtends_ARROW_TypeList_NL(self, *kids):
         self.val = PointerSpec(
-            name=kids[0].val, target=kids[2].val, spec=[], expr=None)
+            name=kids[0].val.name, extends=kids[0].val.extends,
+            target=kids[2].val, spec=[], expr=None)
 
-    def reduce_UnqualifiedObjectName_ARROW_TypeList_DeclarationSpecsBlob(
+    def reduce_NameAndExtends_ARROW_TypeList_DeclarationSpecsBlob(
             self, *kids):
         self.val = PointerSpec(
-            name=kids[0].val, target=kids[2].val, spec=kids[3].val, expr=None)
+            name=kids[0].val.name, extends=kids[0].val.extends,
+            target=kids[2].val, spec=kids[3].val, expr=None)
 
-    def reduce_UnqualifiedObjectName_AssignmentBlob(self, *kids):
+    def reduce_NameAndExtends_AssignmentBlob(self, *kids):
         self.val = PointerSpec(
-            name=kids[0].val, target=None, spec=[], expr=kids[1].val)
+            name=kids[0].val.name, extends=kids[0].val.extends,
+            target=None, spec=[], expr=kids[1].val)
 
 
 class Link(Nonterm):
     def _process_pointerspec(self, p: PointerSpec):
         return esast.Link(
             name=p.name,
+            extends=p.extends,
             target=p.target,
             expr=p.expr,
             **_process_decl_body(
@@ -919,6 +926,7 @@ class Property(Nonterm):
     def _process_pointerspec(self, p: PointerSpec):
         return esast.Property(
             name=p.name,
+            extends=p.extends,
             target=p.target,
             expr=p.expr,
             **_process_decl_body(

@@ -23,13 +23,13 @@ CREATE MODULE stdgraphql;
 # these are just some placeholders for packaging GraphQL queries
 CREATE TYPE stdgraphql::Query;
 ALTER TYPE stdgraphql::Query {
-    CREATE PROPERTY stdgraphql::__typename := 'Query';
+    CREATE PROPERTY __typename := 'Query';
 };
 
 
 CREATE TYPE stdgraphql::Mutation;
 ALTER TYPE stdgraphql::Mutation {
-    CREATE PROPERTY stdgraphql::__typename := 'Mutation';
+    CREATE PROPERTY __typename := 'Mutation';
 };
 
 

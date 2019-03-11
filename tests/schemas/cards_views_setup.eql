@@ -73,19 +73,12 @@ CREATE VIEW test::DaveCard := (
 );
 
 
-# FIXME: the computable in the view doesn't work without an explicit
-# abstract link
-CREATE ABSTRACT LINK test::my_friends;
-CREATE ABSTRACT PROPERTY test::my_name;
 CREATE VIEW test::AliasedFriends := (
     WITH MODULE test
     SELECT User { my_friends := User.friends, my_name := User.name }
 );
 
 
-# FIXME: the computable in the view doesn't work without an explicit
-# abstract link
-CREATE ABSTRACT LINK test::winner;
 CREATE VIEW test::AwardView := (
     test::Award {
         # this should be a single link, because awards are exclusive

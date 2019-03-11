@@ -43,6 +43,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import expr as s_expr
 from edb.schema import functions as s_func
 from edb.schema import indexes as s_indexes
+from edb.schema import inheriting as s_inh
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
 from edb.schema import modules as s_mod
@@ -368,50 +369,34 @@ class DeclarationLoader:
         for link, decl in links.items():
             self._parse_source_props(link, decl)
 
+    def _get_derived_ptr_name(self, ptr_name, source):
+        source_name = source.get_name(self._schema)
+        shortname = s_name.Name(
+            module=source_name.module,
+            name=ptr_name,
+        )
+        return s_name.Name(
+            module=source.get_name(self._schema).module,
+            name=s_name.get_specialized_name(shortname, source_name),
+        )
+
     def _parse_source_props(self, source, sourcedecl):
         for propdecl in sourcedecl.properties:
-            prop_name = self._get_ref_name(propdecl.name)
+            prop_name = propdecl.name
             if len(prop_name) > s_pointers.MAX_NAME_LENGTH:
                 raise errors.SchemaDefinitionError(
                     f'link or property name length exceeds the maximum of '
                     f'{s_pointers.MAX_NAME_LENGTH} characters',
                     context=propdecl.context)
 
-            prop_base = self._schema.get(prop_name,
-                                         type=s_props.Property,
-                                         default=None,
-                                         module_aliases=self._mod_aliases)
-            prop_target = None
-
-            if prop_base is None:
-                if not source.generic(self._schema):
-                    # Only generic links can implicitly define properties
-                    raise errors.SchemaDefinitionError(
-                        f'reference to an undefined property {prop_name!r}')
-
-                # The link property has not been defined globally.
-                if not s_name.Name.is_qualified(prop_name):
-                    # If the name is not fully qualified, assume inline link
-                    # property definition. The only attribute that is used for
-                    # global definition is the name.
-                    prop_qname = s_name.Name(
-                        name=prop_name,
-                        module=source.get_name(self._schema).module)
-
-                    std_lprop = self._schema.get(
-                        s_props.Property.get_default_base_name(),
-                        module_aliases=self._mod_aliases)
-
-                    self._schema, prop_base = \
-                        s_props.Property.create_in_schema(
-                            self._schema,
-                            name=prop_qname,
-                            bases=[std_lprop])
-
-                else:
-                    prop_qname = s_name.Name(prop_name)
+            if propdecl.extends:
+                prop_bases = [self._get_ref_type(b) for b in propdecl.extends]
             else:
-                prop_qname = prop_base.get_name(self._schema)
+                prop_bases = [
+                    self._schema.get(s_props.Property.get_default_base_name())
+                ]
+
+            prop_target = None
 
             if propdecl.target is not None:
                 prop_target = self._get_ref_type(propdecl.target[0])
@@ -423,25 +408,15 @@ class DeclarationLoader:
                         context=propdecl.target[0].context
                     )
 
-            elif not source.generic(self._schema):
-                link_base = source.get_bases(self._schema).first(self._schema)
-                propdef = link_base.getptr(self._schema, prop_qname.name)
-                if not propdef:
-                    raise errors.SchemaError(
-                        'link {!r} does not define property '
-                        '{!r}'.format(
-                            source.get_name(self._schema),
-                            prop_qname.name))
-
-                prop_qname = propdef.get_shortname(self._schema)
-
             new_props = {
                 'sourcectx': propdecl.context,
             }
 
-            self._schema, prop = prop_base.derive(
+            name = self._get_derived_ptr_name(prop_name, source)
+            self._schema, prop = prop_bases[0].derive(
                 self._schema, source, prop_target,
-                attrs=new_props)
+                merge_bases=prop_bases, attrs=new_props,
+                name=name)
 
             if propdecl.cardinality is None:
                 if propdecl.expr is None:
@@ -586,40 +561,21 @@ class DeclarationLoader:
                 self._parse_field_setters(objtype, objtypedecl.fields)
 
             for linkdecl in objtypedecl.links:
-                link_name = self._get_ref_name(linkdecl.name)
+                link_name = linkdecl.name
                 if len(link_name) > s_pointers.MAX_NAME_LENGTH:
                     raise errors.SchemaDefinitionError(
                         f'link or property name length exceeds the maximum of '
                         f'{s_pointers.MAX_NAME_LENGTH} characters',
                         context=linkdecl.context)
 
-                link_base = self._schema.get(link_name, type=s_links.Link,
-                                             default=None,
-                                             module_aliases=self._mod_aliases)
-                if link_base is None:
-                    # The link has not been defined globally.
-                    if not s_name.Name.is_qualified(link_name):
-                        # If the name is not fully qualified, assume inline
-                        # link definition. The only attribute that is used for
-                        # global definition is the name.
-                        link_qname = s_name.Name(
-                            name=link_name,
-                            module=objtype.get_name(self._schema).module)
-
-                        std_link = self._schema.get(
-                            s_links.Link.get_default_base_name(),
-                            module_aliases=self._mod_aliases)
-
-                        self._schema, link_base = \
-                            s_links.Link.create_in_schema(
-                                self._schema,
-                                name=link_qname,
-                                bases=[std_link])
-
-                    else:
-                        link_qname = s_name.Name(link_name)
+                if linkdecl.extends:
+                    link_bases = [
+                        self._get_ref_type(b) for b in linkdecl.extends
+                    ]
                 else:
-                    link_qname = link_base.get_name(self._schema)
+                    link_bases = [
+                        self._schema.get(s_links.Link.get_default_base_name())
+                    ]
 
                 if linkdecl.expr is not None:
                     # This is a computable, but we cannot interpret
@@ -639,8 +595,13 @@ class DeclarationLoader:
                     # parent and use it as target.
                     spectargets = s_obj.ObjectSet.create(
                         self._schema, _targets)
-                    self._schema, target = link_base.create_common_target(
-                        self._schema, _targets)
+
+                    self._schema, target = s_inh.create_virtual_parent(
+                        self._schema, _targets,
+                        module_name=self._module.get_name(self._schema))
+
+                    self._schema = target.set_field_value(
+                        self._schema, 'is_derived', True)
 
                 if (not target.is_any() and
                         not isinstance(target, s_objtypes.ObjectType)):
@@ -654,10 +615,12 @@ class DeclarationLoader:
                     'sourcectx': linkdecl.context,
                 }
 
-                self._schema, link = link_base.derive(
+                name = self._get_derived_ptr_name(link_name, objtype)
+                self._schema, link = link_bases[0].derive(
                     self._schema, objtype, target,
-                    attrs=new_props,
-                    apply_defaults=not linkdecl.inherited)
+                    attrs=new_props, merge_bases=link_bases,
+                    apply_defaults=not linkdecl.inherited,
+                    name=name)
 
                 if linkdecl.cardinality is None:
                     if linkdecl.expr is None:
@@ -703,7 +666,7 @@ class DeclarationLoader:
         for propdecl in linkdecl.properties:
             if propdecl.expr is not None:
                 # Computable
-                prop_name = self._get_ref_name(propdecl.name)
+                prop_name = propdecl.name
                 generic_prop = self._schema.get(
                     prop_name, module_aliases=self._mod_aliases)
                 spec_prop = link.getptr(
@@ -718,21 +681,14 @@ class DeclarationLoader:
     def _normalize_objtype_constraints(self, objtype, objtypedecl):
         for linkdecl in objtypedecl.links:
             if linkdecl.constraints:
-                link_name = self._get_ref_name(linkdecl.name)
-                generic_link = self._schema.get(
-                    link_name, module_aliases=self._mod_aliases)
-                spec_link = objtype.getptr(
-                    self._schema, generic_link.get_name(self._schema).name)
+                spec_link = objtype.getptr(self._schema, linkdecl.name)
                 self._parse_subject_constraints(spec_link, linkdecl)
 
     def _normalize_objtype_expressions(self, objtype, typedecl):
         """Interpret and validate EdgeQL expressions in type declaration."""
         for ptrdecl in itertools.chain(typedecl.links, typedecl.properties):
-            link_name = self._get_ref_name(ptrdecl.name)
-            generic_link = self._schema.get(
-                link_name, module_aliases=self._mod_aliases)
-            spec_link = objtype.getptr(
-                self._schema, generic_link.get_name(self._schema).name)
+            link_name = ptrdecl.name
+            spec_link = objtype.getptr(self._schema, link_name)
 
             if ptrdecl.expr is not None:
                 # Computable

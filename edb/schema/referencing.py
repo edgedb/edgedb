@@ -149,12 +149,24 @@ class ReferencedInheritingObjectCommand(
         attrs = self.get_struct_properties(schema)
 
         if referrer_ctx is not None and not attrs.get('is_derived'):
-            mcls = self.get_schema_metaclass()
-            referrer = referrer_ctx.scls
-            basename = sn.shortname_from_fullname(self.classname)
-            base = schema.get(basename, type=mcls)
-            schema, self.scls = base.derive(schema, referrer, attrs=attrs,
-                                            init_props=False)
+            if attrs.get('inherited'):
+                self.scls = schema.get(self.classname, None)
+            else:
+                self.scls = None
+
+            if self.scls is None:
+                referrer = referrer_ctx.scls
+                bases = self.get_attribute_value('bases')
+                if not isinstance(bases, so.ObjectList):
+                    bases = so.ObjectList.create(schema, bases)
+
+                bases = list(bases.objects(schema))
+                first_base = bases[0]
+                merge_bases = bases[1:]
+
+                schema, self.scls = first_base.derive(
+                    schema, referrer, attrs=attrs, merge_bases=merge_bases,
+                    init_props=False, name=attrs['name'])
             return schema
         else:
             return super()._create_begin(schema, context)
@@ -167,28 +179,6 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
 
         if isinstance(astnode, cls.referenced_astnode):
             objcls = cls.get_schema_metaclass()
-
-            try:
-                base = utils.ast_to_typeref(
-                    qlast.TypeName(maintype=astnode.name),
-                    modaliases=context.modaliases, schema=schema)
-            except errors.InvalidReferenceError:
-                # Certain concrete items, like pointers create
-                # abstract parents implicitly.
-                nname = sn.shortname_from_fullname(cmd.classname)
-                base = so.ObjectRef(
-                    name=sn.Name(
-                        module=nname.module,
-                        name=nname.name
-                    )
-                )
-
-            cmd.add(
-                sd.AlterObjectProperty(
-                    property='bases',
-                    new_value=so.ObjectList.create(schema, [base])
-                )
-            )
 
             referrer_ctx = cls.get_referrer_context(context)
             referrer_class = referrer_ctx.op.get_schema_metaclass()
@@ -213,14 +203,3 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
                 )
 
         return cmd
-
-    @classmethod
-    def _classbases_from_ast(cls, schema, astnode, context):
-        if isinstance(astnode, cls.referenced_astnode):
-            # The bases will be populated by a call to derive()
-            # from within _create_begin()
-            bases = None
-        else:
-            bases = super()._classbases_from_ast(schema, astnode, context)
-
-        return bases
