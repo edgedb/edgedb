@@ -451,10 +451,14 @@ class TestIntrospection(tb.QueryTestCase):
     async def test_edgeql_introspection_meta_01(self):
         await self.assert_query_result(
             r'''
-                SELECT count(schema::Database) > 0;
+                SELECT count(sys::Database) > 0;
             ''',
             [True],
         )
+
+        # regression test: sys::Database view must have a __tid__ column
+        dbs = await self.con.fetch('SELECT sys::Database')
+        self.assertTrue(len(dbs))
 
     async def test_edgeql_introspection_meta_02(self):
         await self.assert_query_result(
@@ -797,7 +801,7 @@ class TestIntrospection(tb.QueryTestCase):
 
     async def test_edgeql_introspection_database_01(self):
         res = await self.con.fetch_value(r"""
-            WITH MODULE schema
+            WITH MODULE sys
             SELECT count(Database.name);
         """)
 

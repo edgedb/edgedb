@@ -2645,7 +2645,6 @@ class TestExpressions(tb.QueryTestCase):
                 'schema::Array',
                 'schema::Attribute',
                 'schema::AttributeSubject',
-                'schema::Database',
                 'schema::Delta',
                 'schema::DerivedLink',
                 'schema::DerivedObjectType',

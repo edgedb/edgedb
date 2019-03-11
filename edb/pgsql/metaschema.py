@@ -1942,7 +1942,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
 
 
 def _generate_database_view(schema):
-    Database = schema.get('schema::Database')
+    Database = schema.get('sys::Database')
 
     view_query = f'''
         SELECT
@@ -1950,7 +1950,9 @@ def _generate_database_view(schema):
                 '{DATABASE_ID_NAMESPACE}'::uuid,
                 pg_database.oid::text)
                             AS id,
-            datname         AS name
+            datname         AS name,
+            (SELECT id FROM edgedb.Object
+                 WHERE name = 'sys::Database') AS __type__
         FROM
             pg_database
         WHERE

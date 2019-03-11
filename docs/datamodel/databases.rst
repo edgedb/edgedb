@@ -13,4 +13,4 @@ cluster:
 
 .. code-block:: edgeql
 
-    SELECT schema::Database.name;
+    SELECT sys::Database.name;
