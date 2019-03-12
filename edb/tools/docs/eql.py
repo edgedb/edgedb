@@ -201,6 +201,8 @@ To reference a keyword use a ":eql:kw:" role.  For instance:
 import lxml.etree
 import re
 
+import pygments.lexers.special
+
 from edb.edgeql.pygments import EdgeQLLexer
 
 from edb.edgeql.parser import parser as edgeql_parser
@@ -999,6 +1001,7 @@ def setup_domain(app):
     app.add_lexer("edgeql", EdgeQLLexer())
     app.add_lexer("edgeql-repl", EdgeQLLexer())
     app.add_lexer("edgeql-synopsis", EdgeQLLexer())
+    app.add_lexer("edgeql-result", pygments.lexers.special.TextLexer())
 
     app.add_role(
         'eql:synopsis',
