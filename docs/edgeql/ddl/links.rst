@@ -8,29 +8,76 @@ This section describes the DDL commands pertaining to
 :ref:`links <ref_datamodel_links>`.
 
 
-CREATE ABSTRACT LINK
-====================
+CREATE LINK
+===========
 
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`abstract link <ref_datamodel_links>`.
+Define a new :ref:`link <ref_datamodel_links>`.
 
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    CREATE ABSTRACT LINK <name> [ EXTENDING <base> [, ...] ]
-    [ "{" <action>; [...] "}" ] ;
+    {CREATE|ALTER} TYPE <TypeName> "{"
+      [ ... ]
+      CREATE [ REQUIRED ] [{SINGLE | MULTI}] LINK <name>
+        [ EXTENDING <base> [, ...] ] -> <type>
+        [ "{" <subcommand>; [...] "}" ] ;
+      [ ... ]
+    "}"
+
+    # Computable link form:
+
+    [ WITH <with-item> [, ...] ]
+    {CREATE|ALTER} TYPE <TypeName> "{"
+        [ ... ]
+        CREATE [REQUIRED] [{SINGLE | MULTI}] LINK <name> := <expression>;
+        [ ... ]
+    "}"
+
+    # Abstract link form:
+
+    [ WITH <with-item> [, ...] ]
+    CREATE ABSTRACT LINK [<module>::]<name> [EXTENDING <base> [, ...]]
+    [ "{" <subcommand>; [...] "}" ]
+
 
 Description
 -----------
 
-``CREATE ABSTRACT LINK`` defines a new abstract link item.
+``CREATE TYPE ... CREATE LINK`` and ``ALTER TYPE ... CREATE LINK`` define
+a new concrete link for a given object type.
 
-If *name* is qualified with a module name, then the link item is created
-in that module, otherwise it is created in the current module.
-The link name must be distinct from that of any existing schema item
-in the module.
+There are three forms of ``CREATE LINK``, as shown in the syntax synopsis
+above.  The first form is the canonical definition form, the second
+form is a syntax shorthand for defining a
+:ref:`computable link <ref_datamodel_computables>`, and the third is a
+form to define an abstract link item.  The abstract form allows creating
+the link in the specified :eql:synopsis:`<module>`.  Concrete link forms
+are always created in the same module as the containing object type.
+
+
+Parameters
+----------
+
+:eql:synopsis:`REQUIRED`
+    If specified, the link is considered *required* for the parent
+    object type.  It is an error for an object to have a required
+    link resolve to an empty value.  Child links **always** inherit
+    the *required* attribute, i.e it is not possible to make a
+    required link non-required by extending it.
+
+:eql:synopsis:`MULTI`
+    Specifies that there may be more than one instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size greater than one.
+
+:eql:synopsis:`SINGLE`
+    Specifies that there may be at most *one* instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size not greater than one.  ``SINGLE`` is assumed if nether
+    ``MULTI`` nor ``SINGLE`` qualifier is specified.
 
 :eql:synopsis:`EXTENDING <base> [, ...]`
     Optional clause specifying the *parents* of the new link item.
@@ -45,9 +92,20 @@ in the module.
     If there is no conflict, the link properties are merged to form a
     single property in the new link item.
 
-:eql:synopsis:`<action>`
+:eql:synopsis:`<subcommand>`
+    Optional sequence of subcommands related to the new link item.
+
     The following actions are allowed in the
-    ``CREATE ABSTRACT LINK`` block:
+    ``CREATE LINK`` block:
+
+    :eql:synopsis:`SET default := <expression>`
+        Specifies the default value for the link as an EdgeQL expression.
+        The default value is used in an ``INSERT`` statement if an explicit
+        value for this link is not specified.
+
+    :eql:synopsis:`SET readonly := {true|false}`
+        If ``true``, the link is considered *read-only*.  Modifications
+        of this link are prohibited once an object is created.
 
     :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
@@ -61,35 +119,89 @@ in the module.
         Define a concrete constraint on the link.
         See :eql:stmt:`CREATE CONSTRAINT` for details.
 
+    :eql:synopsis:`ON TARGET DELETE <action>`
+        The details of what ``ON TARGET DELETE`` options mean are
+        described in :ref:`this section <ref_datamodel_links>`.
 
-ALTER ABSTRACT LINK
-===================
+Examples
+--------
+
+Define a new link ``interests`` on the ``User`` object type:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        CREATE MULTI LINK friends -> User
+    };
+
+Define a new link ``friends_in_same_town`` as a computable on the
+``User`` object type:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        CREATE LINK friends_in_same_town := (
+            SELECT __source__.friends FILTER .town = __source__.town)
+    };
+
+Define a new abstract link ``orderable``, and then a concrete link
+``interests`` that extends is, inheriting the ``weight`` property:
+
+.. code-block:: edgeql
+
+    CREATE ABSTRACT LINK orderable {
+        CREATE PROPERTY weight -> std::int64
+    };
+
+    ALTER TYPE User {
+        CREATE MULTI LINK interests EXTENDING orderable -> Interest
+    };
+
+
+
+ALTER LINK
+==========
 
 :eql-statement:
 :eql-haswith:
 
 
-Change the definition of an :ref:`abstract link <ref_datamodel_links>`.
+Change the definition of a :ref:`link <ref_datamodel_links>`.
 
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    ALTER ABSTRACT LINK <name>
-    "{" <action>; [...] "}" ;
+    {CREATE|ALTER} TYPE <TypeName> "{"
+      [ ... ]
+      ALTER LINK <name>
+      [ "{" ] <subcommand>; [...] [ "}" ];
+      [ ... ]
+    "}"
+
+
+    [ WITH <with-item> [, ...] ]
+    ALTER ABSTRACT LINK [<module>::]<name>
+    [ "{" ] <subcommand>; [...] [ "}" ];
 
 
 Description
 -----------
 
+``CREATE TYPE ... ALTER LINK`` and ``ALTER TYPE ... ALTER LINK`` change
+the definition of a concrete link for a given object type.
+
 ``ALTER ABSTRACT LINK`` changes the definition of an abstract link item.
 *name* must be a name of an existing abstract link, optionally qualified
 with a module name.
 
-:eql:synopsis:`<action>`
-    The following actions are allowed in the
-    ``ALTER ABSTRACT LINK`` block:
+Parameters
+----------
 
-    :eql:synopsis:`RENAME TO <newname>;`
+:eql:synopsis:`<subcommands>`
+    The following subcommands are allowed in the
+    ``ALTER LINK`` block:
+
+    :eql:synopsis:`RENAME TO <newname>`
         Change the name of the link item to *newname*.  All concrete links
         inheriting from this links are also renamed.
 
@@ -116,6 +228,18 @@ with a module name.
         * ``AFTER <parent>`` -- insert parent(s) after an existing
           *parent*.
 
+    :eql:synopsis:`SET SINGLE`
+        Change the maximum cardinality of the link set to *one*.  Only
+        valid for concrete links.
+
+    :eql:synopsis:`SET MULTI`
+        Change the maximum cardinality of the link set to *greater then one*.
+        Only valid for concrete links;
+
+    :eql:synopsis:`ALTER TARGET <typename> [, ...]`
+        Change the target type of the link to the specified type or
+        a union of types.  Only valid for concrete links.
+
     :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
         See :eql:stmt:`SET ATTRIBUTE` for details.
@@ -124,10 +248,6 @@ with a module name.
         Remove link item's *attribute*.
         See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
-    :eql:synopsis:`ALTER TARGET <typename> [, ...]`
-        Change the target type of the link to the specified type or
-        a union of types.
-
     :eql:synopsis:`CREATE PROPERTY <property-name> ...`
         Define a new property item for this link.  See
         :eql:stmt:`CREATE PROPERTY` for details.
@@ -152,207 +272,17 @@ with a module name.
         Remove a constraint from this link.  See
         :eql:stmt:`DROP CONSTRAINT` for details.
 
-
-DROP ABSTRACT LINK
-==================
-
-:eql-statement:
-:eql-haswith:
-
-
-Remove an :ref:`abstract link <ref_datamodel_links>` from the schema.
-
-.. eql:synopsis::
-
-    [ WITH <with-item> [, ...] ]
-    DROP ABSTRACT LINK <name> ;
-
-
-Description
------------
-
-``DROP ABSTRACT LINK`` removes an existing link item from the database
-schema.  All subordinate schema items defined on this link, such
-as link properties and constraints, are removed as well.
+    :eql:synopsis:`ON TARGET DELETE <action>`
+        Change link target deletion policy.  The details of what
+        ``ON TARGET DELETE`` options mean are described in
+        :ref:`this section <ref_datamodel_links>`.
 
 
 Examples
 --------
 
-Drop the link ``friends``:
-
-.. code-block:: edgeql
-
-    DROP ABSTRACT LINK friends;
-
-
-CREATE LINK
-===========
-
-:eql-statement:
-:eql-haswith:
-
-
-Define a new :ref:`concrete link <ref_datamodel_links>` for the
-specified *object type*.
-
-.. eql:synopsis::
-
-    [ WITH <with-item> [, ...] ]
-    CREATE [ REQUIRED ] [{SINGLE | MULTI}] LINK <name> TO <type>
-    [ "{" <action>; [...] "}" ] ;
-
-    [ WITH <with-item> [, ...] ]
-    CREATE [ REQUIRED ] [{SINGLE | MULTI}] LINK <name> := <expression> ;
-
-
-Description
------------
-
-``CREATE LINK`` defines a new concrete link for a given object type.
-
-There are two forms of ``CREATE LINK``, as shown in the syntax synopsis
-above.  The first form is the canonical definition form, and the second
-form is a syntax shorthand for defining a
-:ref:`computable link <ref_datamodel_computables>`.
-
-
-Canonical Form
---------------
-
-The canonical form of ``CREATE LINK`` defines a concrete link *name*
-referring to the *typename* type.  If the optional ``REQUIRED``
-keyword is specified, the link is considered required.
-
-The optional ``SINGLE`` and ``MULTI`` qualifiers specify how many
-instances of the link are allowed per object.  ``SINGLE`` specifies that
-there may be at most *one* instance, and ``MULTI`` specifies that there may
-be more than one.  ``SINGLE`` is the default.
-
-:eql:synopsis:`<action>`
-    The following actions are allowed in the ``CREATE LINK`` block:
-
-    * :eql:stmt:`SET ATTRIBUTE`
-    * ``ON TARGET DELETE RESTRICT``
-    * ``ON TARGET DELETE ALLOW``
-    * ``ON TARGET DELETE DELETE SOURCE``
-    * ``ON TARGET DELETE DEFERRED RESTRICT``
-
-    The details of what ``ON TARGET DELETE`` options mean are
-    described in :ref:`this section <ref_datamodel_links>`.
-
-
-Computable Link Form
---------------------
-
-The computable form of ``CREATE LINK`` defines a concrete *computable*
-link *name*.  The type of the link is inferred from the *expression*.
-
-
-Examples
---------
-
-Define a new string link ``interests`` on the ``User`` object type:
-
-.. code-block:: edgeql
-
-    ALTER TYPE User {
-        CREATE MULTI LINK interests -> str;
-    };
-
-Define a new computable link ``followers_count`` on the
-``User`` object type:
-
-.. code-block:: edgeql
-
-    ALTER TYPE User {
-        CREATE LINK friends_count := count(__source__.friends);
-    };
-
-
-ALTER LINK
-==========
-
-:eql-statement:
-:eql-haswith:
-
-
-Change the definition of a :ref:`concrete link <ref_datamodel_links>`
-on a given object type.
-
-.. eql:synopsis::
-
-    [ WITH <with-item> [, ...] ]
-    ALTER LINK <name>
-    "{" <action>; [...] "}" ;
-
-    [ WITH <with-item> [, ...] ]
-    ALTER LINK <name> <action> ;
-
-
-Description
------------
-
-There are two forms of ``ALTER LINK``, as shown in the synopsis above.
-The first is the canonical form, which allows specifying multiple
-alter actions, while the second form is a shorthand for a single
-alter action.
-
-:eql:synopsis:`<action>`
-    The following actions are allowed in the
-    ``ALTER LINK`` block:
-
-    :eql:synopsis:`RENAME TO <newname>;`
-        Change the name of the concrete link to *newname*.  Renaming
-        *inherited* links is not allowed, only non-inherited concrete
-        links can be renamed.  When a concrete or abstract link is
-        renamed, all concrete links that inherit from it are also
-        renamed.
-
-    :eql:synopsis:`SET SINGLE`
-        Change the maximum cardinality of the link set to *one*.
-
-    :eql:synopsis:`SET MULTI`
-        Change the maximum cardinality of the link set to *greater then one*.
-
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
-
-    :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-        Remove link item's *attribute* to *value*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
-
-    :eql:synopsis:`CREATE PROPERTY <property-name> ...`
-        Define a new property item for this link.  See
-        :eql:stmt:`CREATE PROPERTY` for details.
-
-    :eql:synopsis:`ALTER PROPERTY <property-name> ...`
-        Alter the definition of a property item for this link.  See
-        :eql:stmt:`ALTER PROPERTY` for details.
-
-    :eql:synopsis:`DROP PROPERTY <property-name>;`
-        Remove a property item from this link.  See
-        :eql:stmt:`DROP PROPERTY` for details.
-
-    :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
-        Define a new constraint for this link.  See
-        :eql:stmt:`CREATE CONSTRAINT` for details.
-
-    :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
-        Alter the definition of a constraint for this link.  See
-        :eql:stmt:`ALTER CONSTRAINT` for details.
-
-    :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
-        Remove a constraint from this link.  See
-        :eql:stmt:`DROP CONSTRAINT` for details.
-
-
-Examples
---------
-
-Set the ``title`` attribute of link ``interests`` of object type ``User``
-``"Interests"``:
+Set the ``title`` attribute of link ``friends`` of object type ``User`` to
+``"Friends"``:
 
 .. code-block:: edgeql
 
@@ -371,6 +301,13 @@ Add a minimum-length constraint to link ``name`` of object type ``User``:
     };
 
 
+Rename the abstract link ``orderable`` to ``sorted``:
+
+.. code-block:: edgeql
+
+    ALTER ABSTRACT LINK orderable RENAME TO sorted;
+
+
 DROP LINK
 =========
 
@@ -378,25 +315,46 @@ DROP LINK
 :eql-haswith:
 
 
-Remove a concrete link from the specified object type.
+Remove the specified link from the schema.
 
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    DROP LINK <name> ;
+    {CREATE|ALTER} TYPE <TypeName> "{"
+      [ ... ]
+      DROP LINK <name>
+      [ ... ]
+    "}"
+
+
+    [ WITH <with-item> [, ...] ]
+    DROP ABSTRACT LINK [<module>]::<name>
+
 
 Description
 -----------
+
+``DROP ABSTRACT LINK`` removes an existing link item from the database
+schema.  All subordinate schema items defined on this link, such
+as link properties and constraints, are removed as well.
 
 ``DROP LINK`` removes the specified link from its
 containing object type.  All links that inherit from this link
 are also removed.
 
+
 Examples
 --------
 
-Remove link ``interests`` from object type ``User``:
+Remove link ``friends`` from object type ``User``:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User DROP LINK interests;
+    ALTER TYPE User DROP LINK friends;
+
+
+Drop abstract link ``orderable``:
+
+.. code-block:: edgeql
+
+    DROP ABSTRACT LINK orderable;

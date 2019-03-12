@@ -16,8 +16,7 @@ Every property is declared to have a specific
 There are two kinds of property item declarations: *abstract properties*,
 and *concrete properties*.  Abstract properties are defined on module level
 and are not tied to any particular object type or link.  Concrete properties
-are defined on specific object types.  Concrete properties automatically
-extend abstract properties with the same name in the same module.
+are defined on specific object types.
 
 
 Definition
@@ -53,7 +52,7 @@ Parameters:
 
 
 Abstract links can also be defined using the
-:eql:stmt:`CREATE ABSTRACT PROPERTY` EdgeQL command.
+:eql:stmt:`CREATE PROPERTY` EdgeQL command.
 
 
 .. _ref_datamodel_props_concrete:
@@ -67,7 +66,8 @@ declaration in the context of a ``type`` or ``abstract link`` declaration:
 .. eschema:synopsis::
 
     type <TypeName>:
-        [required] [inherited] [{multi|single}] property <prop-name> -> <type>:
+        [required] [inherited] [{multi|single}] property \
+            <prop-name> [ extending ( <parent-prop> [, ...] ) ] -> <type>:
             [ expr := <computable-expr> ]
             [ default := <default-expr> ]
             [ readonly := {true | false} ]
@@ -82,7 +82,8 @@ declaration in the context of a ``type`` or ``abstract link`` declaration:
     # link property declaration:
 
     abstract link <link-name>:
-        [inherited] property <prop-name>:
+        [inherited] property <prop-name> \
+            [ extending ( <parent-prop> [, ...] )] -> <type>:
             [ expr := <computable-expr> ]
             [ default := <default-expr> ]
             [ readonly := {true | false} ]
@@ -125,6 +126,13 @@ Parameters:
     .. note::
 
         Link properties are always ``single``.
+
+:eschema:synopsis:`extending <parent-prop> [, ...]`
+    If specified, declares the *parents* of the property item.
+
+    Use of ``extending`` creates a persistent schema relationship
+    between this property and its parents.  Schema modifications
+    to the parent(s) propagate to the child.
 
 :eschema:synopsis:`readonly`
     If specified, the property is considered *read-only*.  Modifications

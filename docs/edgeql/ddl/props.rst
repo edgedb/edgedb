@@ -8,92 +8,187 @@ This section describes the DDL commands pertaining to
 :ref:`properties <ref_datamodel_props>`.
 
 
-CREATE ABSTRACT PROPERTY
-========================
+CREATE PROPERTY
+===============
 
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`abstract property <ref_datamodel_props>`.
+Define a new :ref:`property <ref_datamodel_props>`.
 
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    CREATE ABSTRACT PROPERTY <name> [ EXTENDING <base> [, ...] ]
-    [ "{" <action>; [...] "}" ] ;
+    {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
+      [ ... ]
+      CREATE [ REQUIRED ] [{SINGLE | MULTI}] PROPERTY <name>
+        [ EXTENDING <base> [, ...] ] -> <type>
+        [ "{" <subcommand>; [...] "}" ] ;
+      [ ... ]
+    "}"
+
+    # Computable property form:
+
+    [ WITH <with-item> [, ...] ]
+    {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
+        [ ... ]
+        CREATE [REQUIRED] [{SINGLE | MULTI}] PROPERTY <name> := <expression>;
+        [ ... ]
+    "}"
+
+    # Abstract property form:
+
+    [ WITH <with-item> [, ...] ]
+    CREATE ABSTRACT PROPERTY [<module>::]<name> [EXTENDING <base> [, ...]]
+    [ "{" <subcommand>; [...] "}" ]
+
 
 Description
 -----------
 
-``CREATE ABSTRACT PROPERTY`` defines a new abstract property
-item.
+:eql:synopsis:`{CREATE|ALTER} {TYPE|LINK} ... CREATE PROPERTY` defines a new
+concrete property for a given object type or link.
 
-If *name* is qualified with a module name, then the property item
-is created in that module, otherwise it is created in the current module.
-The property name must be distinct from that of any existing schema
-item in the module.
+There are three forms of ``CREATE PROPERTY``, as shown in the syntax synopsis
+above.  The first form is the canonical definition form, the second
+form is a syntax shorthand for defining a
+:ref:`computable property <ref_datamodel_computables>`, and the third is a
+form to define an abstract property item.  The abstract form allows creating
+the property in the specified :eql:synopsis:`<module>`.  Concrete link forms
+are always created in the same module as the containing object or link.
+
+
+Parameters
+----------
+
+:eql:synopsis:`REQUIRED`
+    If specified, the link is considered *required* for the parent
+    object type.  It is an error for an object to have a required
+    link resolve to an empty value.  Child links **always** inherit
+    the *required* attribute, i.e it is not possible to make a
+    required link non-required by extending it.
+
+:eql:synopsis:`MULTI`
+    Specifies that there may be more than one instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size greater than one.
+
+:eql:synopsis:`SINGLE`
+    Specifies that there may be at most *one* instance of this link
+    in an object, in other words, ``Object.link`` may resolve to a set
+    of a size not greater than one.  ``SINGLE`` is assumed if nether
+    ``MULTI`` nor ``SINGLE`` qualifier is specified.
 
 :eql:synopsis:`EXTENDING <base> [, ...]`
-    Optional clause specifying the *parents* of the new property item.
+    Optional clause specifying the *parents* of the new link item.
 
     Use of ``EXTENDING`` creates a persistent schema relationship
-    between the new property and its parents.  Schema modifications
+    between the new link and its parents.  Schema modifications
     to the parent(s) propagate to the child.
 
-:eql:synopsis:`<action>`
-    The following actions are allowed in the
-    ``CREATE ABSTRACT PROPERTY`` block:
+    If the same *property* name exists in more than one parent, or
+    is explicitly defined in the new link and at least one parent,
+    then the data types of the property targets must be *compatible*.
+    If there is no conflict, the link properties are merged to form a
+    single property in the new link item.
 
-    ``SET ATTRIBUTE <attribute> := <value>;``
+:eql:synopsis:`<subcommand>`
+    Optional sequence of subcommands related to the new link item.
+
+    The following actions are allowed in the
+    ``CREATE LINK`` block:
+
+    :eql:synopsis:`SET default := <expression>`
+        Specifies the default value for the link as an EdgeQL expression.
+        The default value is used in an ``INSERT`` statement if an explicit
+        value for this link is not specified.
+
+    :eql:synopsis:`SET readonly := {true|false}`
+        If ``true``, the link is considered *read-only*.  Modifications
+        of this link are prohibited once an object is created.
+
+    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
         Set link item's *attribute* to *value*.
         See :eql:stmt:`SET ATTRIBUTE` for details.
 
+    :eql:synopsis:`CREATE PROPERTY`
+        Define a concrete property on the link.
+        See :eql:stmt:`CREATE PROPERTY` for details.
 
-ALTER ABSTRACT PROPERTY
-=======================
+    :eql:synopsis:`CREATE CONSTRAINT`
+        Define a concrete constraint on the link.
+        See :eql:stmt:`CREATE CONSTRAINT` for details.
+
+
+ALTER PROPERTY
+==============
 
 :eql-statement:
 :eql-haswith:
 
 
-Change the definition of an
-:ref:`abstract property <ref_datamodel_props>`.
+Change the definition of a :ref:`property <ref_datamodel_props>`.
 
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    ALTER ABSTRACT PROPERTY <name>
-    "{" <action>; [...] "}" ;
+    {CREATE | ALTER} {TYPE | LINK} <source> "{"
+      [ ... ]
+      ALTER PROPERTY <name>
+      [ "{" ] <subcommand>; [...] [ "}" ];
+      [ ... ]
+    "}"
+
+
+    [ WITH <with-item> [, ...] ]
+    ALTER ABSTRACT PROPERTY [<module>::]<name>
+    [ "{" ] <subcommand>; [...] [ "}" ];
+
 
 Description
 -----------
 
-``ALTER ABSTRACT PROPERTY`` changes the definition of an abstract
-property item.  *name* must be a name of an existing abstract
-property, optionally qualified with a module name.
+:eql:synopsis:`{CREATE|ALTER} {TYPE|LINK} ... CREATE PROPERTY` defines a new
+concrete property for a given object type or link.
 
-:eql:synopsis:`<action>`
-    The following actions are allowed in the
-    ``ALTER ABSTRACT PROPERTY`` block:
+:eql:synopsis:`ALTER ABSTRACT PROPERTY` changes the definition of an abstract
+property item.
 
-    :eql:synopsis:`RENAME TO <newname>;`
-        Change the name of the property item to *newname*.  All
-        concrete link properties inheriting from this property are
+
+Parameters
+----------
+
+:eql:synopsis:`<source>`
+    The name of an object type or link on which the property is defined.
+    May be optionally qualified with module.
+
+:eql:synopsis:`<name>`
+    The unqualified name of the property to modify.
+
+:eql:synopsis:`<module>`
+    Optional name of the module to create or alter the abstract property in.
+    If not specified, the current module is used.
+
+:eql:synopsis:`<subcommands>`
+    The following subcommands are allowed in the
+    ``ALTER LINK`` block:
+
+    :eql:synopsis:`RENAME TO <newname>`
+        Change the name of the property to :eql:synopsis:`<newname>`.
+        All concrete properties inheriting from this property are
         also renamed.
 
     :eql:synopsis:`EXTENDING ...`
-        Alter the property parent list.
-        The full syntax of this action is:
+        Alter the property parent list.  The full syntax of this action is:
 
         .. eql:synopsis::
 
              EXTENDING <name> [, ...]
                 [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
 
-        This action makes the property item a child of the specified
-        list of parent property items.  The requirements for the
-        parent-child relationship are the same as when creating
-        a property.
+        This action makes the property item a child of the specified list
+        of parent property items.  The requirements for the parent-child
+        relationship are the same as when creating a property.
 
         It is possible to specify the position in the parent list
         using the following optional keywords:
@@ -106,194 +201,37 @@ property, optionally qualified with a module name.
         * ``AFTER <parent>`` -- insert parent(s) after an existing
           *parent*.
 
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
-
-    :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-        Remove link item's *attribute* to *value*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
-
-    :eql:synopsis:`ALTER TARGET <typename>`
-        Change the target type of the property to the specified type.
-
-    :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
-        Define a new constraint for this property.
-        See :eql:stmt:`CREATE CONSTRAINT` for details.
-
-    :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
-        Alter the definition of a constraint for this property.
-        See :eql:stmt:`ALTER CONSTRAINT` for details.
-
-    :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
-        Remove a constraint from this property.
-        See :eql:stmt:`DROP CONSTRAINT` for details.
-
-
-DROP ABSTRACT PROPERTY
-======================
-
-:eql-statement:
-:eql-haswith:
-
-Remove an :ref:`abstract property <ref_datamodel_props>` from the
-schema.
-
-.. eql:synopsis::
-
-    [ WITH <with-item> [, ...] ]
-    DROP ABSTRACT PROPERTY <name> ;
-
-
-Description
------------
-
-``DROP ABSTRACT PROPERTY`` removes an existing property item
-from the database schema.
-
-
-Examples
---------
-
-Drop the abstract property ``rank``:
-
-.. code-block:: edgeql
-
-    DROP ABSTRACT PROPERTY rank;
-
-
-CREATE PROPERTY
-===============
-
-:eql-statement:
-:eql-haswith:
-
-Define a concrete property on the specified link.
-
-.. eql:synopsis::
-
-    [ WITH <with-item> [, ...] ]
-    CREATE [{SINGLE | MULTI}] PROPERTY <name> -> <type>
-    [ "{" <action>; [...] "}" ] ;
-
-    [ WITH <with-item> [, ...] ]
-    CREATE [{SINGLE | MULTI}] PROPERTY <name> := <expression> ;
-
-Description
------------
-
-``CREATE PROPERTY`` defines a new concrete property for a
-given link.
-
-There are two forms of ``CREATE PROPERTY``, as shown in the syntax
-synopsis above.  The first form is the canonical definition form, and
-the second form is a syntax shorthand for defining a
-:ref:`computable property <ref_datamodel_computables>`.
-
-
-Canonical Form
---------------
-
-The canonical form of ``CREATE PROPERTY`` defines a concrete
-property with the given *name* and referring to the *typename* type.
-
-The optional ``SINGLE`` and ``MULTI`` qualifiers specify how many
-instances of the property are allowed per object.  ``SINGLE`` specifies that
-there may be at most *one* instance, and ``MULTI`` specifies that there may
-be more than one.  ``SINGLE`` is the default.
-
-:eql:synopsis:`<action>`
-    The following actions are allowed in the
-    ``CREATE PROPERTY`` block:
-
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
-
-
-Computable Property Form
-------------------------
-
-The computable form of ``CREATE PROPERTY`` defines a concrete
-*computable* property with the given *name*.  The type of the
-property is inferred from the *expression*.
-
-
-ALTER PROPERTY
-==============
-
-:eql-statement:
-:eql-haswith:
-
-Alter the definition of a concrete property on the specified link.
-
-.. eql:synopsis::
-
-    [ WITH <with-item> [, ...] ]
-    ALTER PROPERTY <name>
-    "{" <action>; [...] "}" ;
-
-    [ WITH <with-item> [, ...] ]
-    ALTER PROPERTY <name> <action> ;
-
-
-Description
------------
-
-There are two forms of ``ALTER LINK``, as shown in the synopsis above.
-The first is the canonical form, which allows specifying multiple
-alter actions, while the second form is a shorthand for a single
-alter action.
-
-:eql:synopsis:`<action>`
-    The following actions are allowed in the
-    ``ALTER PROPERTY`` block:
-
-    :eql:synopsis:`RENAME TO <newname>;`
-        Change the name of the concrete link to *newname*.  Renaming
-        *inherited* links is not allowed, only non-inherited concrete
-        links can be renamed.  When a concrete or abstract link is
-        renamed, all concrete links that inherit from it are also
-        renamed.
-
     :eql:synopsis:`SET SINGLE`
-        Change the maximum cardinality of the property set to *one*.
+        Change the maximum cardinality of the property set to *one*.  Only
+        valid for concrete properties.
 
     :eql:synopsis:`SET MULTI`
         Change the maximum cardinality of the property set to
-        *greater then one*.
+        *greater then one*.  Only valid for concrete properties;
+
+    :eql:synopsis:`ALTER TARGET <typename> [, ...]`
+        Change the target type of the property to the specified type or
+        a union of types.  Only valid for concrete properties.
 
     :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
+        Set property :eql:synopsis:`<attribute>` to :eql:synopsis:`<value>`.
         See :eql:stmt:`SET ATTRIBUTE` for details.
 
     :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-        Remove link item's *attribute* to *value*.
+        Remove property :eql:synopsis:`<attribute>`.
         See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
-    :eql:synopsis:`CREATE PROPERTY <property-name> ...`
-        Define a new property item for this link.  See
-        :eql:stmt:`CREATE PROPERTY` for details.
+    :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
+        Define a new constraint for this property.  See
+        :eql:stmt:`CREATE CONSTRAINT` for details.
 
-    :eql:synopsis:`ALTER PROPERTY <property-name> ...`
-        Alter the definition of a property item for this link.  See
-        :eql:stmt:`ALTER PROPERTY` for details.
+    :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
+        Alter the definition of a constraint for this property.  See
+        :eql:stmt:`ALTER CONSTRAINT` for details.
 
-    :eql:synopsis:`DROP PROPERTY <property-name>;`
-        Remove a property item from this link.  See
-        :eql:stmt:`DROP PROPERTY` for details.
-
-Examples
---------
-
-Set the ``title`` attribute of property ``rank`` of abstract
-link ``favorites`` to ``"Rank"``:
-
-.. code-block:: edgeql
-
-    ALTER ABSTRACT LINK favorites {
-        ALTER PROPERTY rank SET ATTRIBUTE title := "Rank";
-    };
+    :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
+        Remove a constraint from this property.  See
+        :eql:stmt:`DROP CONSTRAINT` for details.
 
 
 DROP PROPERTY
@@ -302,20 +240,31 @@ DROP PROPERTY
 :eql-statement:
 :eql-haswith:
 
-
-Remove a concrete property from the specified link.
+Remove a :ref:`property <ref_datamodel_props>` from the
+schema.
 
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    DROP PROPERTY <name> ;
+    {CREATE|ALTER} TYPE <TypeName> "{"
+      [ ... ]
+      DROP LINK <name>
+      [ ... ]
+    "}"
+
+
+    [ WITH <with-item> [, ...] ]
+    DROP ABSTRACT PROPERTY <name> ;
 
 Description
 -----------
 
-``DROP PROPERTY`` removes the specified property from its
-containing link.  All link properties that inherit from this link
+:eql:synopsis:`ALTER {TYPE|LINK} DROP PROPERTY` removes the specified property
+from its containing object type or link.  All properties that inherit from this
 property are also removed.
+
+:eql:synopsis:`DROP ABSTRACT PROPERTY` removes the specified abstract
+property item the schema.
 
 Examples
 --------
