@@ -49,6 +49,7 @@ from edb.schema import modules as s_mod
 from edb.schema import pointers as s_pointers
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
+from edb.schema import schema as s_schema
 
 from . import errors as g_errors
 
@@ -95,6 +96,9 @@ GQL_TO_OPS_MAP = {
 }
 
 
+HIDDEN_MODULES = s_schema.STD_MODULES - {'std'}
+
+
 class GQLCoreSchema:
     def __init__(self, edb_schema):
         '''Create a graphql schema based on edgedb schema.'''
@@ -104,7 +108,7 @@ class GQLCoreSchema:
         self.modules = {
             m.get_name(self.edb_schema)
             for m in self.edb_schema.get_objects(type=s_mod.Module)
-        } - {'schema', 'stdgraphql', 'sys', 'cfg'}
+        } - HIDDEN_MODULES
         self.modules = list(self.modules)
         self.modules.sort()
 

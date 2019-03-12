@@ -194,7 +194,7 @@ async def _make_stdlib(testmode: bool):
     current_block = None
 
     std_texts = []
-    for modname in s_schema.STD_LIB + ['stdgraphql']:
+    for modname in s_schema.STD_LIB + ('stdgraphql',):
         std_texts.append(s_std.get_std_module_text(modname))
 
     if testmode:
