@@ -98,6 +98,8 @@ class Cli:
         'bottom-toolbar.on': 'bg:#222222 #ffffff',
 
         # See prompt_tookit/styles/defaults.py for the reference.
+        'pygments.name.builtin': '#A6E22E',
+        'pygments.punctuation.navigation': '#e8364f',
         'pygments.comment': '#555',
         'pygments.keyword': '#e8364f',
         'pygments.keyword.constant': 'green',
