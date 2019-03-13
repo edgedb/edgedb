@@ -18,5 +18,7 @@ postgres:
 
 
 pygments:
-	edb gen-meta-grammars edgeql > edb/edgeql/pygments/meta.py
-	edb gen-meta-grammars edgeql eschema > edb/eschema/pygments/meta.py
+	out=$$(edb gen-meta-grammars edgeql) && \
+		echo "$$out" > edb/edgeql/pygments/meta.py
+	out=$$(edb gen-meta-grammars edgeql eschema) && \
+		echo "$$out" > edb/eschema/pygments/meta.py
