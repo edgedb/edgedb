@@ -165,12 +165,14 @@ link as well. Consider the following schema:
 
 .. code-block:: eschema
 
-    abstract link friends:
-        property since -> datetime
+    abstract link friends {
+        property since -> datetime;
+    };
 
-    type User:
-        required property name -> str
-        multi link friends -> User
+    type User {
+        required property name -> str;
+        multi link friends -> User;
+    };
 
 
 Suppose that for a certain query the link ``friends`` needs to be

@@ -27,14 +27,15 @@ class TestIndexes(tb.DDLTestCase):
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
-                type Person:
-                    property first_name -> str
-                    property last_name -> str
+                type Person {
+                    property first_name -> str;
+                    property last_name -> str;
 
-                    index name_index on (__subject__.first_name,
-                                         __subject__.last_name)
+                    index name_index on ((__subject__.first_name,
+                                          __subject__.last_name));
+                };
 
-                type Person2 extending Person
+                type Person2 extending Person;
             $$;
 
             COMMIT MIGRATION test::d1;
@@ -52,8 +53,7 @@ class TestIndexes(tb.DDLTestCase):
             """,
             [{
                 'indexes': [{
-                    'expr': 'SELECT (test::Person.first_name, '
-                            'test::Person.last_name)'
+                    'expr': '(test::Person.first_name, test::Person.last_name)'
                 }]
             }],
         )

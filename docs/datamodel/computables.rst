@@ -20,12 +20,13 @@ For example:
 
 .. code-block:: eschema
 
-    type User:
-        required property firstname -> str
-        required property lastname -> str
+    type User {
+        required property firstname -> str;
+        required property lastname -> str;
         property fullname :=
             (__source__.firstname + ' ' +
-             __source__.lastname)
+             __source__.lastname);
+     };
 
 Here we define the ``User`` type to contain the ``fullname`` computable
 property that is derived from user's first and last name.

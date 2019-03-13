@@ -25,14 +25,16 @@ from edb.testbase import server as tb
 class TestEdgeQLDT(tb.QueryTestCase):
     SETUP = '''
         CREATE MIGRATION default::m TO eschema $$
-            scalar type seq_t extending sequence
-            scalar type seq2_t extending sequence
+            scalar type seq_t extending sequence;
+            scalar type seq2_t extending sequence;
 
-            type Obj:
-                property seq_prop -> seq_t
+            type Obj {
+                property seq_prop -> seq_t;
+            };
 
-            type Obj2:
-                property seq_prop -> seq2_t
+            type Obj2 {
+                property seq_prop -> seq2_t;
+            };
         $$;
 
         COMMIT MIGRATION default::m;

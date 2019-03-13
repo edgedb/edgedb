@@ -17,6 +17,7 @@
 #
 
 
-type Foo:
-    property `select` -> str
-    property after -> str
+type Foo {
+    property `select` -> str;
+    property after -> str;
+};

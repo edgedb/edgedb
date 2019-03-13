@@ -17,29 +17,37 @@
 #
 
 
-type Status:
-    required property name -> str:
-        constraint exclusive
+type Status {
+    required property name -> str {
+        constraint exclusive;
+    };
+};
 
-type Tag:
-    required property name -> str:
-        constraint exclusive
+type Tag {
+    required property name -> str {
+        constraint exclusive;
+    };
+};
 
-type UpdateTest:
-    required property name -> str
-    property comment -> str
+type UpdateTest {
+    required property name -> str;
+    property comment -> str;
 
     # for testing singleton links
-    link status -> Status
-    link annotated_status -> Status:
-        property note -> str
+    link status -> Status;
+    link annotated_status -> Status {
+        property note -> str;
+    };
 
     # for testing links to sets
-    multi link tags -> Tag
-    multi link weighted_tags -> Tag:
-        property weight -> int64
+    multi link tags -> Tag;
+    multi link weighted_tags -> Tag {
+        property weight -> int64;
+    };
 
     # for testing links to sets of the same type as originator
-    multi link related -> UpdateTest
-    multi link annotated_tests -> UpdateTest:
-        property note -> str
+    multi link related -> UpdateTest;
+    multi link annotated_tests -> UpdateTest {
+        property note -> str;
+    };
+};

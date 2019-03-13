@@ -28,8 +28,9 @@ command must be used followed by :eql:stmt:`COMMIT MIGRATION`:
     START TRANSACTION;
 
     CREATE MIGRATION init TO eschema $$
-        type User:
-            property name -> str
+        type User {
+            property name -> str;
+        };
     $$;
 
     COMMIT MIGRATION init;

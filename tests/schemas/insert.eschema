@@ -17,57 +17,74 @@
 #
 
 
-type Subordinate:
-    required property name -> str
+type Subordinate {
+    required property name -> str;
+};
 
-type InsertTest:
-    property name -> str
-    property l1 -> int64
-    required property l2 -> int64
-    property l3 -> str:
-        default := "test"
-    multi link subordinates -> Subordinate:
-        property comment -> str
+type InsertTest {
+    property name -> str;
+    property l1 -> int64;
+    required property l2 -> int64;
+    property l3 -> str {
+        default := "test";
+    };
+    multi link subordinates -> Subordinate {
+        property comment -> str;
+    };
+};
 
-type Annotation:
-    required property name -> str
-    property note -> str
-    link subject -> Object
+type Annotation {
+    required property name -> str;
+    property note -> str;
+    link subject -> Object;
+};
 
-type DefaultTest1:
-    property num -> int64:
-        default := 42
-    property foo -> str
+type DefaultTest1 {
+    property num -> int64 {
+        default := 42;
+    };
+    property foo -> str;
+};
 
-type DefaultTest2:
-    property foo -> str
-    required property num -> int64:
+type DefaultTest2 {
+    property foo -> str;
+    required property num -> int64 {
         # XXX: circumventing sequence deficiency
-        default :=
+        default := (
             SELECT DefaultTest1.num + 1
             ORDER BY DefaultTest1.num DESC
             LIMIT 1
+        );
+    };
+};
 
-type DefaultTest3:
-    required property foo -> float64:
+type DefaultTest3 {
+    required property foo -> float64 {
         # non-deterministic dynamic value
-        default := random()
+        default := random();
+    };
+};
 
-type DefaultTest4:
-    required property bar -> int64:
+type DefaultTest4 {
+    required property bar -> int64 {
         # deterministic dynamic value
-        default := (SELECT count(DefaultTest4))
+        default := (SELECT count(DefaultTest4));
+    };
+};
 
 # types to test some inheritance issues
-type InputValue:
-    property val -> str
+type InputValue {
+    property val -> str;
+};
 
-abstract type Callable:
-    multi link args -> InputValue
+abstract type Callable {
+    multi link args -> InputValue;
+};
 
-type Field extending Callable:
+type Field extending Callable {
     # This link 'args' appears to be overriding the inherited 'args'
     # from Callable.
-    inherited multi link args -> InputValue
+    inherited multi link args -> InputValue;
+};
 
-type Directive extending Callable
+type Directive extending Callable;

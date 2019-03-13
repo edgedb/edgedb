@@ -17,31 +17,30 @@
 #
 
 
-type Target0:
-    property name -> str
+type Target0 {
+    property name -> str;
+};
 
+type Target1 extending Target0 {
+    inherited property name -> str;
+};
 
-type Target1 extending Target0:
-    inherited property name -> str
+type ObjectType0 {
+    link target -> Target0;
+};
 
+type ObjectType1 {
+    link target -> Target0;
+};
 
-type ObjectType0:
-    link target -> Target0
+type ObjectType01 extending ObjectType0;
 
+type ObjectType2 {
+    required link target -> Target0;
+};
 
-type ObjectType1:
-    link target -> Target0
+type ObjectType3 {
+    required link target2 -> Target0;
+};
 
-
-type ObjectType01 extending ObjectType0
-
-
-type ObjectType2:
-    required link target -> Target0
-
-
-type ObjectType3:
-    required link target2 -> Target0
-
-
-type ObjectType23 extending ObjectType2, ObjectType3
+type ObjectType23 extending ObjectType2, ObjectType3;

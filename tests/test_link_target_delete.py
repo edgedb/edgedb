@@ -32,11 +32,13 @@ from edb.testbase import server as stb
 class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
     def test_schema_on_target_delete_01(self):
         schema = self.load_schema("""
-            type Object:
-                link foo -> Object:
+            type Object {
+                link foo -> Object {
                     on target delete allow
+                };
 
-                link bar -> Object
+                link bar -> Object;
+            };
         """)
 
         obj = schema.get('test::Object')
@@ -51,17 +53,23 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
 
     def test_schema_on_target_delete_02(self):
         schema = self.load_schema("""
-            type Object:
-                link foo -> Object:
+            type Object {
+                link foo -> Object {
                     on target delete allow
+                }
+            };
 
-            type Object2 extending Object:
-                inherited link foo -> Object:
+            type Object2 extending Object {
+                inherited link foo -> Object {
                     attribute title := "Foo"
+                }
+            };
 
-            type Object3 extending Object:
-                inherited link foo -> Object:
+            type Object3 extending Object {
+                inherited link foo -> Object {
                     on target delete restrict
+                }
+            };
         """)
 
         obj2 = schema.get('test::Object2')
@@ -79,15 +87,19 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
                   "for 'test::C.foo'")
     def test_schema_on_target_delete_03(self):
         """
-            type A:
-                link foo -> Object:
+            type A {
+                link foo -> Object {
                     on target delete restrict
+                }
+            };
 
-            type B:
-                link foo -> Object:
+            type B {
+                link foo -> Object {
                     on target delete allow
+                }
+            };
 
-            type C extending A, B
+            type C extending A, B;
         """
 
 

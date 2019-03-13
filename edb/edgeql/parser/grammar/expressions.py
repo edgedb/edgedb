@@ -386,13 +386,12 @@ class ShapePointer(Nonterm):
 
 
 class PtrQualsSpec(typing.NamedTuple):
-
+    inherited: typing.Optional[bool] = None
     required: typing.Optional[bool] = None
     cardinality: typing.Optional[qltypes.Cardinality] = None
 
 
 class PtrQuals(Nonterm):
-
     def reduce_REQUIRED(self, *kids):
         self.val = PtrQualsSpec(required=True)
 
@@ -409,6 +408,29 @@ class PtrQuals(Nonterm):
     def reduce_REQUIRED_MULTI(self, *kids):
         self.val = PtrQualsSpec(
             required=True, cardinality=qltypes.Cardinality.MANY)
+
+    def reduce_INHERITED(self, *kids):
+        self.val = PtrQualsSpec(inherited=True)
+
+    def reduce_INHERITED_REQUIRED(self, *kids):
+        self.val = PtrQualsSpec(inherited=True, required=True)
+
+    def reduce_INHERITED_SINGLE(self, *kids):
+        self.val = PtrQualsSpec(
+            inherited=True, cardinality=qltypes.Cardinality.ONE)
+
+    def reduce_INHERITED_MULTI(self, *kids):
+        self.val = PtrQualsSpec(
+            inherited=True, cardinality=qltypes.Cardinality.MANY)
+
+    def reduce_INHERITED_REQUIRED_SINGLE(self, *kids):
+        self.val = PtrQualsSpec(
+            inherited=True, required=True, cardinality=qltypes.Cardinality.ONE)
+
+    def reduce_INHERITED_REQUIRED_MULTI(self, *kids):
+        self.val = PtrQualsSpec(
+            inherited=True, required=True,
+            cardinality=qltypes.Cardinality.MANY)
 
 
 class OptPtrQuals(Nonterm):

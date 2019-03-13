@@ -82,7 +82,7 @@ std::len_constraint ON (len(<std::str>__subject__)) EXTENDING std::constraint
 
 
 CREATE ABSTRACT CONSTRAINT
-std::min_len(min: std::int64) EXTENDING (std::min, std::len_constraint)
+std::min_len(min: std::int64) EXTENDING std::min, std::len_constraint
 {
     SET errmessage :=
         '{__subject__} must be no shorter than {min} characters.';
@@ -98,7 +98,7 @@ std::regexp(pattern: anytype) EXTENDING std::constraint
 
 
 CREATE ABSTRACT CONSTRAINT
-std::max_len(max: std::int64) EXTENDING (std::max, std::len_constraint)
+std::max_len(max: std::int64) EXTENDING std::max, std::len_constraint
 {
     SET errmessage := '{__subject__} must be no longer than {max} characters.';
 };

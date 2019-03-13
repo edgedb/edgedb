@@ -133,8 +133,8 @@ CREATE ABSTRACT TYPE schema::CallableObject
 };
 
 
-CREATE TYPE schema::Constraint EXTENDING
-        (schema::CallableObject, schema::InheritingObject)
+CREATE TYPE schema::Constraint
+    EXTENDING schema::CallableObject, schema::InheritingObject
 {
     CREATE MULTI LINK args -> schema::Parameter {
         CREATE CONSTRAINT std::exclusive;
@@ -172,9 +172,10 @@ CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
 };
 
 
-CREATE ABSTRACT TYPE schema::Pointer EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject,
-         schema::AttributeSubject)
+CREATE ABSTRACT TYPE schema::Pointer
+    EXTENDING
+        schema::InheritingObject, schema::ConsistencySubject,
+        schema::AttributeSubject
 {
     CREATE REQUIRED PROPERTY cardinality -> schema::cardinality_t;
     CREATE REQUIRED PROPERTY required -> std::bool;
@@ -188,33 +189,37 @@ ALTER TYPE schema::Source {
 };
 
 
-CREATE TYPE schema::ScalarType EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject,
-         schema::AttributeSubject, schema::Type)
+CREATE TYPE schema::ScalarType
+    EXTENDING
+        schema::InheritingObject, schema::ConsistencySubject,
+        schema::AttributeSubject, schema::Type
 {
     CREATE PROPERTY default -> std::str;
 };
 
 
-CREATE TYPE schema::ObjectType EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject,
-         schema::AttributeSubject, schema::Type, schema::Source);
+CREATE TYPE schema::ObjectType
+    EXTENDING
+        schema::InheritingObject, schema::ConsistencySubject,
+        schema::AttributeSubject, schema::Type, schema::Source;
 
 
-CREATE TYPE schema::UnionObjectType EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject, schema::Type,
-         schema::Source);
+CREATE TYPE schema::UnionObjectType
+    EXTENDING
+        schema::InheritingObject, schema::ConsistencySubject, schema::Type,
+        schema::Source;
 
 
-CREATE TYPE schema::DerivedObjectType EXTENDING
-        (schema::InheritingObject, schema::ConsistencySubject, schema::Type,
-         schema::Source);
+CREATE TYPE schema::DerivedObjectType
+    EXTENDING
+        schema::InheritingObject, schema::ConsistencySubject, schema::Type,
+        schema::Source;
 
 
-CREATE TYPE schema::Link EXTENDING (schema::Pointer, schema::Source);
+CREATE TYPE schema::Link EXTENDING schema::Pointer, schema::Source;
 
 
-CREATE TYPE schema::DerivedLink EXTENDING (schema::Pointer, schema::Source);
+CREATE TYPE schema::DerivedLink EXTENDING schema::Pointer, schema::Source;
 
 
 CREATE TYPE schema::Property EXTENDING schema::Pointer;

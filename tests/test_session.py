@@ -28,8 +28,9 @@ class TestSession(tb.QueryTestCase):
         CREATE MODULE fuz;
 
         CREATE MIGRATION default::m TO eschema $$
-            type User:
-                required property name -> str
+            type User {
+                required property name -> str;
+            };
         $$;
 
         COMMIT MIGRATION default::m;
@@ -37,15 +38,17 @@ class TestSession(tb.QueryTestCase):
         WITH MODULE default INSERT User {name := 'user'};
 
         CREATE MIGRATION foo::m TO eschema $$
-            type Entity:
-                required property name -> str
+            type Entity {
+                required property name -> str;
+            };
         $$;
 
         COMMIT MIGRATION foo::m;
 
         CREATE MIGRATION fuz::m TO eschema $$
-            type Entity:
-                required property name -> str
+            type Entity {
+                required property name -> str;
+            };
         $$;
 
         COMMIT MIGRATION fuz::m;

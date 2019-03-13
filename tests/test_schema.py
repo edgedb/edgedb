@@ -30,112 +30,128 @@ from edb.schema import objtypes as s_objtypes
 class TestSchema(tb.BaseSchemaLoadTest):
     def test_schema_inherited_01(self):
         """
-            type UniqueName:
-                property name -> str:
+            type UniqueName {
+                property name -> str {
                     constraint exclusive
-
-            type UniqueName_2 extending UniqueName:
-                inherited property name -> str:
+                }
+            };
+            type UniqueName_2 extending UniqueName {
+                inherited property name -> str {
                     constraint exclusive
+                }
+            };
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   'test::name must be declared using the `inherited` keyword',
-                  position=178)
+                  position=214)
     def test_schema_inherited_02(self):
         """
-            type UniqueName:
-                property name -> str:
+            type UniqueName {
+                property name -> str {
                     constraint exclusive
+                }
+            };
 
-            type UniqueName_2 extending UniqueName:
-                property name -> str:
+            type UniqueName_2 extending UniqueName {
+                property name -> str {
                     constraint exclusive
+                }
+            };
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   'test::name cannot be declared `inherited`',
-                  position=46)
+                  position=47)
     def test_schema_inherited_03(self):
         """
-            type UniqueName:
+            type UniqueName {
                 inherited property name -> str
+            };
         """
 
     @tb.must_fail(errors.InvalidLinkTargetError,
                   'invalid link target, expected object type, got ScalarType',
-                  position=54)
+                  position=55)
     def test_schema_bad_link_01(self):
         """
-            type Object:
+            type Object {
                 link foo -> str
+            };
         """
 
     @tb.must_fail(errors.InvalidLinkTargetError,
                   'invalid link target, expected object type, got ScalarType',
-                  position=51)
+                  position=55)
     def test_schema_bad_link_02(self):
         """
-            type Object:
+            type Object {
                 link foo := 1 + 1
+            };
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   'link or property name length exceeds the maximum.*',
-                  position=42)
+                  position=43)
     def test_schema_bad_link_03(self):
         """
-            type Object:
+            type Object {
                 link f123456789_123456789_123456789_123456789_123456789\
 _123456789_123456789_123456789 -> Object
+            };
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   'invalid property target, expected primitive type, '
                   'got ObjectType',
-                  position=58)
+                  position=59)
     def test_schema_bad_prop_01(self):
         """
-            type Object:
+            type Object {
                 property foo -> Object
+            };
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   'invalid property target, expected primitive type, '
                   'got ObjectType',
-                  position=55)
+                  position=59)
     def test_schema_bad_prop_02(self):
         """
-            type Object:
+            type Object {
                 property foo := (SELECT Object)
+            };
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   'link or property name length exceeds the maximum.*',
-                  position=42)
+                  position=43)
     def test_schema_bad_prop_03(self):
         """
-            type Object:
+            type Object {
                 property f123456789_123456789_123456789_123456789_123456789\
 _123456789_123456789_123456789 -> str
+            };
         """
 
     @tb.must_fail(errors.InvalidReferenceError,
                   'reference to a non-existent schema item: int',
-                  position=58,
+                  position=59,
                   hint='did you mean one of these: int16, int32, int64?')
     def test_schema_bad_type_01(self):
         """
-            type Object:
+            type Object {
                 property foo -> int
+            };
         """
 
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
-            type Object:
-                property foo -> str
-                property bar -> str
-                property foo_plus_bar := __source__.foo ++ __source__.bar
+            type Object {
+                property foo -> str;
+                property bar -> str;
+                property foo_plus_bar := __source__.foo ++ __source__.bar;
+            };
         """)
 
         obj = schema.get('test::Object')
@@ -145,10 +161,11 @@ _123456789_123456789_123456789 -> str
 
     def test_schema_computable_cardinality_inference_02(self):
         schema = self.load_schema("""
-            type Object:
-                multi property foo -> str
-                property bar -> str
-                property foo_plus_bar := __source__.foo ++ __source__.bar
+            type Object {
+                multi property foo -> str;
+                property bar -> str;
+                property foo_plus_bar := __source__.foo ++ __source__.bar;
+            };
         """)
 
         obj = schema.get('test::Object')
@@ -158,14 +175,16 @@ _123456789_123456789_123456789 -> str
 
     def test_schema_refs_01(self):
         schema = self.load_schema("""
-            type Object1
-            type Object2:
+            type Object1;
+            type Object2 {
                 link foo -> Object1
-            type Object3 extending Object1
-            type Object4 extending Object1
-            type Object5:
+            };
+            type Object3 extending Object1;
+            type Object4 extending Object1;
+            type Object5 {
                 link bar -> Object2
-            type Object6 extending Object4
+            };
+            type Object6 extending Object4;
         """)
 
         Obj1 = schema.get('test::Object1')
@@ -241,14 +260,15 @@ _123456789_123456789_123456789 -> str
 
     def test_schema_attribute_inheritance(self):
         schema = self.load_schema("""
-            abstract attribute noninh
-            abstract inheritable attribute inh
+            abstract attribute noninh;
+            abstract inheritable attribute inh;
 
-            type Object1:
-                attribute noninh := 'bar'
-                attribute inh := 'inherit me'
+            type Object1 {
+                attribute noninh := 'bar';
+                attribute inh := 'inherit me';
+            };
 
-            type Object2 extending Object1
+            type Object2 extending Object1;
         """)
 
         Object1 = schema.get('test::Object1')

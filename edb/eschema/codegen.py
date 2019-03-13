@@ -17,18 +17,16 @@
 #
 
 
-import textwrap
-
 from edb.common.exceptions import EdgeDBError
 from edb.common.ast import codegen
 from edb.edgeql import ast as qlast
-from edb.edgeql import qltypes
 from edb.edgeql import generate_source as edgeql_source
-from . import quote as eschema_quote
+from edb.edgeql import qltypes
+from edb.edgeql import codegen as edgeql_codegen
+from edb.edgeql import quote as edgeql_quote
 
 
-def ident_to_str(ident):
-    return eschema_quote.disambiguate_identifier(ident)
+ident_to_str = edgeql_codegen.ident_to_str
 
 
 def module_to_str(module):
@@ -47,12 +45,16 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             raise EdgeSchemaSourceGeneratorError(
                 'No method to generate code for %s' % node.__class__.__name__)
 
+    def _block_ws(self, change, newlines=True):
+        if newlines:
+            self.indentation += change
+            self.new_lines = 1
+        else:
+            self.write(' ')
+
     def _visit_extends(self, names):
         self.write(' extending ')
-        for qname in names[:-1]:
-            self.visit(qname)
-            self.write(', ')
-        self.visit(names[-1])
+        self.visit_list(names, newlines=False)
 
     def _visit_specs(self, node):
         if (getattr(node, 'attributes', None) or
@@ -61,28 +63,27 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
                 getattr(node, 'links', None) or
                 getattr(node, 'on_target_delete', None) or
                 getattr(node, 'properties', None)):
-            self.write(':')
-            self.new_lines = 1
-            self.indentation += 1
+
+            self.write(' {')
+            self._block_ws(1)
             if getattr(node, 'links', None):
-                self._visit_list(node.links)
+                self.visit_list(node.links, terminator=';')
             if getattr(node, 'properties', None):
-                self._visit_list(node.properties)
+                self.visit_list(node.properties, terminator=';')
             if getattr(node, 'attributes', None):
-                self._visit_list(node.attributes)
+                self.visit_list(node.attributes, terminator=';')
             if getattr(node, 'constraints', None):
-                self._visit_list(node.constraints)
-            if getattr(node, 'policies', None):
-                self._visit_list(node.policies)
+                self.visit_list(node.constraints, terminator=';')
             if getattr(node, 'indexes', None):
-                self._visit_list(node.indexes)
+                self.visit_list(node.indexes, terminator=';')
             if getattr(node, 'fields', None):
-                self._visit_list(node.fields)
+                self.visit_list(node.fields, terminator=';')
             if getattr(node, 'on_target_delete', None):
                 self.visit(node.on_target_delete)
+                self.write(';')
 
-            self.indentation -= 1
-        self.new_lines = 2
+            self._block_ws(-1)
+            self.write('}')
 
     def _visit_list(self, items, separator=None):
         for item in items:
@@ -97,13 +98,11 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.write('final ')
 
     def visit_Schema(self, node):
-        for decl in node.declarations:
-            self.visit(decl)
+        self.visit_list(node.declarations, terminator=';')
 
     def visit_Import(self, node):
         self.write('import ')
-        self._visit_list(node.modules, separator=', ')
-        self.new_lines = 1
+        self.visit_list(node.modules, separator=', ')
 
     def visit_ImportModule(self, node):
         self.write(module_to_str(node.module))
@@ -148,28 +147,13 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self._visit_assignment(node.expr)
         elif node.target:
             self.write(' -> ')
-            if isinstance(node.target, list):
-                for qname in node.target[:-1]:
-                    self.visit(qname)
-                    self.write(', ')
-                self.visit(node.target[-1])
-            else:
-                self.visit(node.target)
-
+            self.visit_list(node.target, separator=' | ', newlines=False)
             self._visit_specs(node)
         else:
             self._visit_specs(node)
 
     def _visit_edgeql(self, node, *, ident=True):
-        code = edgeql_source(node)
-        if ident:
-            pad = self.indent_with * self.indentation
-            ind = self.indentation
-            self.indentation = 0
-            self.write(textwrap.indent(code, pad))
-            self.indentation = ind
-        else:
-            self.write(code)
+        self.write(edgeql_source(node))
 
     def _visit_assignment(self, node):
         self.write(' := ')
@@ -208,8 +192,9 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.params, newlines=False)
                 self.write(')')
             if node.subject:
-                self.write(' on ')
+                self.write(' on (')
                 self.visit(node.subject)
+                self.write(')')
 
         if node.abstract:
             self.write('abstract ')
@@ -227,7 +212,14 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self._visit_Declaration(node)
 
     def visit_ViewDeclaration(self, node):
-        self._visit_Declaration(node)
+        if node.attributes:
+            self._visit_Declaration(node)
+        else:
+            # there's only one field expected - expr
+            self.write('view ')
+            self.write(node.name)
+            self.write(' := ')
+            self.visit(node.fields[0].value)
 
     def visit_FunctionDeclaration(self, node):
         self.write('function ')
@@ -238,14 +230,21 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.write(') -> ')
         self.write(node.returning_typemod.to_edgeql(), ' ')
         self.visit(node.returning)
-        self.write(':')
-        self.new_lines = 1
-        self.indentation += 1
-        self._visit_list(node.attributes)
-        self._visit_list(node.fields)
-        self.visit(node.function_code)
-        self.indentation -= 1
-        self.new_lines = 2
+        self.write(' {')
+        self._block_ws(1)
+        self.visit_list(node.attributes, terminator=';')
+        self.visit_list(node.fields, terminator=';')
+
+        if node.function_code.from_function:
+            self.write(f'from {node.function_code.language} function ')
+            self.write(f'{node.function_code.from_function!r}')
+        else:
+            self.write(f'from {node.function_code.language} ')
+            self.visit(node.function_code.code)
+
+        self.write(';')
+        self._block_ws(-1)
+        self.write('}')
 
     def visit_FunctionCode(self, node):
         self.write(f'from {node.language.lower()}')
@@ -290,7 +289,7 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
         self.visit(node.name)
         if node.args:
             self.write('(')
-            self.visit_list(node.args)
+            self.visit_list(node.args, newlines=False)
             self.write(')')
 
         if node.subject:
@@ -298,41 +297,30 @@ class EdgeSchemaSourceGenerator(codegen.SourceGenerator):
             self.visit(node.subject)
 
         if node.attributes or node.fields:
-            self.write(':')
-            self.new_lines = 1
-            self.indentation += 1
-            self._visit_list(node.attributes)
-            self._visit_list(node.fields)
-            self.indentation -= 1
-
-        self.new_lines = 2
+            self.write(' {')
+            self._block_ws(1)
+            self.visit_list(node.attributes, terminator=';')
+            self.visit_list(node.fields, terminator=';')
+            self._block_ws(-1)
+            self.write('}')
 
     def visit_Field(self, node):
         self.visit(node.name)
-        if isinstance(node.value, qlast.Base):
-            self._visit_assignment(node.value)
-        else:
-            self.write(' := ')
-            self.visit(node.value)
-            self.new_lines = 1
+        self.write(' := ')
+        self.visit(node.value)
 
     def visit_Attribute(self, node):
         self.write('attribute ')
         self.visit(node.name)
-        if isinstance(node.value, qlast.Base):
-            self._visit_assignment(node.value)
-        else:
-            self.write(' := ')
-            self.visit(node.value)
-            self.new_lines = 1
+        self.write(' := ')
+        self.visit(node.value)
 
     def visit_OnTargetDelete(self, node):
         self.write('on target delete ', node.cascade.lower())
-        self.new_lines = 1
 
     def _literal_to_str(self, value):
         if isinstance(value, str):
-            return eschema_quote.quote_literal(value)
+            return edgeql_quote.quote_literal(value)
         elif isinstance(value, int):
             return str(value)
         elif isinstance(value, float):

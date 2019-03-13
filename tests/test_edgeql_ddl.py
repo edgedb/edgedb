@@ -68,7 +68,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             CREATE TYPE test::Object_12
-                EXTENDING (test::Object1, test::Object2);
+                EXTENDING test::Object1, test::Object2;
         """)
 
     async def test_edgeql_ddl_type_05(self):
@@ -1611,10 +1611,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute("""
             CREATE MIGRATION test::mig1 TO eschema $$
-            abstract attribute attr2
+            abstract attribute attr2;
 
-            scalar type TestAttrType1 extending std::str:
-                attribute attr2 := 'aaaa'
+            scalar type TestAttrType1 extending std::str {
+                attribute attr2 := 'aaaa';
+            };
             $$;
 
             COMMIT MIGRATION test::mig1;
@@ -1646,10 +1647,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.con.execute("""
             CREATE MIGRATION test::mig1 TO eschema $$
-            abstract attribute attr2
+            abstract attribute attr2;
 
-            type TestAttrType2:
-                attribute attr2 := 'aaaa'
+            type TestAttrType2 {
+                attribute attr2 := 'aaaa';
+            };
             $$;
 
             COMMIT MIGRATION test::mig1;
@@ -1794,10 +1796,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE TYPE test::ExtA1;
                 CREATE TYPE test::ExtB1;
                 # create two types with incompatible linearized bases
-                CREATE TYPE test::ExtC1 EXTENDING (test::ExtA1, test::ExtB1);
-                CREATE TYPE test::ExtD1 EXTENDING (test::ExtB1, test::ExtA1);
+                CREATE TYPE test::ExtC1 EXTENDING test::ExtA1, test::ExtB1;
+                CREATE TYPE test::ExtD1 EXTENDING test::ExtB1, test::ExtA1;
                 # extending from both of these incompatible types
-                CREATE TYPE test::Merged1 EXTENDING (test::ExtC1, test::ExtD1);
+                CREATE TYPE test::Merged1 EXTENDING test::ExtC1, test::ExtD1;
             """)
 
     async def test_edgeql_ddl_extending_02(self):
@@ -1807,10 +1809,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             # in the bases. This doesn't impact the linearized
             # bases because Object is already implicitly included
             # as the first element of the base types.
-            CREATE TYPE test::ExtC2 EXTENDING (test::ExtA2, Object);
-            CREATE TYPE test::ExtD2 EXTENDING (Object, test::ExtA2);
+            CREATE TYPE test::ExtC2 EXTENDING test::ExtA2, Object;
+            CREATE TYPE test::ExtD2 EXTENDING Object, test::ExtA2;
             # extending from both of these types
-            CREATE TYPE test::Merged2 EXTENDING (test::ExtC2, test::ExtD2);
+            CREATE TYPE test::Merged2 EXTENDING test::ExtC2, test::ExtD2;
         """)
 
     async def test_edgeql_ddl_extending_03(self):

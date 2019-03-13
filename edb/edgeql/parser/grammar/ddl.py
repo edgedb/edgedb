@@ -375,11 +375,8 @@ commands_block(
 
 
 class Extending(Nonterm):
-    def reduce_EXTENDING_SimpleTypeName(self, *kids):
-        self.val = [kids[1].val]
-
-    def reduce_EXTENDING_LPAREN_SimpleTypeNameList_RPAREN(self, *kids):
-        self.val = kids[2].val
+    def reduce_EXTENDING_SimpleTypeNameList(self, *kids):
+        self.val = kids[1].val
 
 
 class OptExtending(Nonterm):
@@ -584,11 +581,8 @@ class DropDatabaseStmt(Nonterm):
 # CREATE ROLE
 #
 class ShortExtending(Nonterm):
-    def reduce_EXTENDING_ShortNodeName(self, *kids):
-        self.val = [qlast.TypeName(maintype=kids[1].val)]
-
-    def reduce_EXTENDING_LPAREN_ShortNodeNameList_RPAREN(self, *kids):
-        self.val = [qlast.TypeName(maintype=v) for v in kids[2].val]
+    def reduce_EXTENDING_ShortNodeNameList(self, *kids):
+        self.val = [qlast.TypeName(maintype=v) for v in kids[1].val]
 
 
 class OptShortExtending(Nonterm):

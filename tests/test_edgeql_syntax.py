@@ -37,7 +37,7 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
         return edgeql_parser.EdgeQLBlockParser()
 
 
-class TestEdgeSchemaParser(EdgeQLSyntaxTest):
+class TestEdgeQLParser(EdgeQLSyntaxTest):
     def test_edgeql_syntax_empty_01(self):
         """"""
 
@@ -2629,7 +2629,7 @@ aa';
         CREATE ROLE abstract;
         CREATE ROLE `mytest"role"`;
         CREATE ROLE `mytest"role"`
-            EXTENDING (delegated, `mytest"baserole"`);
+            EXTENDING delegated, `mytest"baserole"`;
 
 % OK %
 
@@ -2637,7 +2637,7 @@ aa';
         CREATE ROLE abstract;
         CREATE ROLE `mytest"role"`;
         CREATE ROLE `mytest"role"`
-            EXTENDING (delegated, `mytest"baserole"`);
+            EXTENDING delegated, `mytest"baserole"`;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'order'",
@@ -2690,7 +2690,7 @@ aa';
 
     def test_edgeql_syntax_ddl_delta_02(self):
         """
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
         ALTER MIGRATION test::d_links01_0
             RENAME TO test::pretty_name;
         COMMIT MIGRATION test::d_links01_0;
@@ -2699,15 +2699,15 @@ aa';
 
     def test_edgeql_syntax_ddl_delta_03(self):
         """
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
-        CREATE MIGRATION test::d_links01_0 TO ESCHEMA $$type Foo$$;
-        CREATE MIGRATION test::d_links01_0 TO ESchema $$type Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
+        CREATE MIGRATION test::d_links01_0 TO ESCHEMA $$type Foo;$$;
+        CREATE MIGRATION test::d_links01_0 TO ESchema $$type Foo;$$;
 
 % OK %
 
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
+        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3304,10 +3304,10 @@ aa';
         CREATE TYPE schema::TypeElement {
             CREATE REQUIRED LINK type -> schema::Type;
             CREATE REQUIRED LINK num -> std::int64;
-            CREATE PROPERTY name EXTENDING (foo, bar) -> std::str;
+            CREATE PROPERTY name EXTENDING foo, bar -> std::str;
             CREATE LINK lnk EXTENDING l1 -> schema::Type;
-            CREATE LINK lnk1 EXTENDING (l1, l2) -> schema::Type;
-            CREATE LINK lnk2 EXTENDING (l1, l2) -> schema::Type {
+            CREATE LINK lnk1 EXTENDING l1, l2 -> schema::Type;
+            CREATE LINK lnk2 EXTENDING l1, l2 -> schema::Type {
                 CREATE PROPERTY lnk2_prop -> std::str;
                 CREATE PROPERTY lnk2_prop2 EXTENDING foo -> std::str;
             };

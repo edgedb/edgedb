@@ -31,57 +31,69 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
             START TRANSACTION;
 
             CREATE MIGRATION m1 TO eschema $$
-                type User:
-                    required property login -> str:
-                        constraint exclusive
-                    required property firstname -> str
-                    required property lastname -> str
+                type User {
+                    required property login -> str {
+                        constraint exclusive;
+                    };
+                    required property firstname -> str;
+                    required property lastname -> str;
+                };
 
+                type PullRequest {
+                    required property number -> int64 {
+                        constraint exclusive;
+                    };
+                    required property title -> str;
+                    required property body -> str;
+                    required property status -> str;
+                    required property created_on -> datetime;
+                    required link author -> User;
+                    multi link assignees -> User {
+                        on target delete allow;
+                    };
+                    multi link comments -> Comment {
+                        on target delete allow;
+                    };
+                };
 
-                type PullRequest:
-                    required property number -> int64:
-                        constraint exclusive
-                    required property title -> str
-                    required property body -> str
-                    required property status -> str
-                    required property created_on -> datetime
-                    required link author -> User
-                    multi link assignees -> User:
-                        on target delete allow
-                    multi link comments -> Comment:
-                        on target delete allow
-
-
-                type Comment:
-                    required property body -> str
-                    required link author -> User
-                    required property created_on -> datetime
+                type Comment {
+                    required property body -> str;
+                    required link author -> User;
+                    required property created_on -> datetime;
+                };
             $$;
             COMMIT MIGRATION m1;
 
             CREATE MIGRATION m2 TO eschema $$
-                type User:
-                    required property login -> str:
-                        constraint exclusive
-                    required property firstname -> str
-                    required property lastname -> str
+                type User {
+                    required property login -> str {
+                        constraint exclusive;
+                    };
+                    required property firstname -> str;
+                    required property lastname -> str;
+                };
 
-                abstract type AuthoredText:
-                    required property body -> str
-                    required link author -> User
-                    required property created_on -> datetime
+                abstract type AuthoredText {
+                    required property body -> str;
+                    required link author -> User;
+                    required property created_on -> datetime;
+                };
 
-                type PullRequest extending AuthoredText:
-                    required property number -> int64:
-                        constraint exclusive
-                    required property title -> str
-                    required property status -> str
-                    multi link assignees -> User:
-                        on target delete allow
-                    multi link comments -> Comment:
-                        on target delete allow
+                type PullRequest extending AuthoredText {
+                    required property number -> int64 {
+                        constraint exclusive;
+                    };
+                    required property title -> str;
+                    required property status -> str;
+                    multi link assignees -> User {
+                        on target delete allow;
+                    };
+                    multi link comments -> Comment {
+                        on target delete allow;
+                    };
+                };
 
-                type Comment extending AuthoredText
+                type Comment extending AuthoredText;
             $$;
             COMMIT MIGRATION m2;
 

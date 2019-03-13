@@ -17,7 +17,7 @@
 #
 
 
-from edb.eschema.pygments import EdgeSchemaLexer
+from edb.edgeql.pygments import EdgeQLLexer
 
 from sphinx import domains as s_domains
 from sphinx.directives import code as s_code
@@ -48,8 +48,8 @@ class EschemaDomain(s_domains.Domain):
 
 
 def setup_domain(app):
-    app.add_lexer("eschema", EdgeSchemaLexer())
-    app.add_lexer("eschema-synopsis", EdgeSchemaLexer())
+    app.add_lexer("eschema", EdgeQLLexer())
+    app.add_lexer("eschema-synopsis", EdgeQLLexer())
 
     app.add_role(
         'eschema:synopsis',

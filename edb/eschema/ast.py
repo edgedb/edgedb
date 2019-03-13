@@ -54,10 +54,10 @@ class Attribute(Spec):
 
 
 class Constraint(Spec):
-    args: typing.List[qlast.FuncArg]
     attributes: typing.List[Attribute]
     delegated: bool = False
     name: qlast.ObjectRef
+    args: typing.List[qlast.FuncArg]
     subject: typing.Optional[qlast.Expr]
 
 
@@ -111,6 +111,7 @@ class ScalarTypeDeclaration(Declaration):
 
 
 class AttributeDeclaration(Declaration):
+    abstract: bool = False
     inheritable: bool = False
 
 
@@ -139,9 +140,10 @@ class Language(s_enum.StrEnum):
 
 
 class FunctionCode(Base):
-    language: Language
+    language: qlast.Language
     code: qlast.Base
     from_function: str
+    from_expr: bool
 
 
 class FunctionDeclaration(Declaration):

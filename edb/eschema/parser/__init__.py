@@ -17,11 +17,11 @@
 #
 
 
-from .parser import EdgeSchemaParser
+from edb.edgeql.parser import parser as eql_parser
 
 
 def parse_fragment(expr):
-    parser = EdgeSchemaParser()
+    parser = eql_parser.EdgeSDLParser()
     return parser.parse(expr)
 
 
@@ -32,4 +32,4 @@ def parse(expr, module_aliases=None):
 
 
 def preload():
-    EdgeSchemaParser().get_parser_spec()
+    eql_parser.EdgeSDLParser().get_parser_spec()

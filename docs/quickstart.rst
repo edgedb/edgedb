@@ -41,27 +41,32 @@ and ``Comment``.  Let's define the initial schema with a migration:
 
 .. eql:migration:: m1
 
-    type User:
-      required property login -> str:
-        constraint exclusive
-      required property firstname -> str
-      required property lastname -> str
+    type User {
+      required property login -> str {
+        constraint exclusive;
+      };
+      required property firstname -> str;
+      required property lastname -> str;
+    };
 
-    type PullRequest:
-      required property number -> int64:
-        constraint exclusive
-      required property title -> str
-      required property body -> str
-      required property status -> str
-      required property created_on -> datetime
-      required link author -> User
-      multi link assignees -> User
-      multi link comments -> Comment
+    type PullRequest {
+      required property number -> int64 {
+        constraint exclusive;
+      };
+      required property title -> str;
+      required property body -> str;
+      required property status -> str;
+      required property created_on -> datetime;
+      required link author -> User;
+      multi link assignees -> User;
+      multi link comments -> Comment;
+    };
 
-    type Comment:
-      required property body -> str
-      required link author -> User
-      required property created_on -> datetime
+    type Comment {
+      required property body -> str;
+      required link author -> User;
+      required property created_on -> datetime;
+    };
 
 With the above snippet we defined and applied a migration to a schema
 described using the :ref:`declarative schema language <ref_eschema>`.
@@ -76,31 +81,36 @@ link.  Let's remove this duplication by declaring an abstract parent type
 
 .. eql:migration:: m2
 
-    type User:
-      required property login -> str:
-        constraint exclusive
-      required property firstname -> str
-      required property lastname -> str
+    type User {
+      required property login -> str {
+        constraint exclusive;
+      };
+      required property firstname -> str;
+      required property lastname -> str;
+    };
 
     # <new>
-    abstract type AuthoredText:
-      required property body -> str
-      required link author -> User
-      required property created_on -> datetime
+    abstract type AuthoredText {
+      required property body -> str;
+      required link author -> User;
+      required property created_on -> datetime;
+    };
     # </new>
 
     # <changed>
-    type PullRequest extending AuthoredText:
+    type PullRequest extending AuthoredText {
     # </changed>
-      required property number -> int64:
-        constraint exclusive
-      required property title -> str
-      required property status -> str
-      multi link assignees -> User
-      multi link comments -> Comment
+      required property number -> int64 {
+        constraint exclusive;
+      };
+      required property title -> str;
+      required property status -> str;
+      multi link assignees -> User;
+      multi link comments -> Comment;
+    };
 
     # <changed>
-    type Comment extending AuthoredText
+    type Comment extending AuthoredText;
     # </changed>
 
 

@@ -20,10 +20,11 @@ Here is an example of a simple EdgeDB type using the Edge Schema notation:
 
 .. code-block:: eschema
 
-    type User:
-        property name -> str
-        property address -> str
-        link friends -> User
+    type User {
+        property name -> str;
+        property address -> str;
+        link friends -> User;
+    };
 
 ``str`` in the above example is a
 :ref:`scalar type <ref_datamodel_scalar_types>`.  EdgeDB also supports

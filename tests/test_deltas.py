@@ -33,10 +33,12 @@ class TestDeltas(tb.DDLTestCase):
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
-                type NamedObject:
-                    required property name -> str
-                    multi link related -> NamedObject:
-                        property lang -> str
+                type NamedObject {
+                    required property name -> str;
+                    multi link related -> NamedObject {
+                        property lang -> str;
+                    };
+                };
             $$;
 
             COMMIT MIGRATION test::d1;
@@ -160,8 +162,9 @@ class TestDeltas(tb.DDLTestCase):
         await self.con.execute(r"""
             # setup delta
             CREATE MIGRATION test::u1 TO eschema $$
-                type Пример:
-                    required property номер -> int16
+                type Пример {
+                    required property номер -> int16;
+                };
             $$;
             COMMIT MIGRATION test::u1;
             SET MODULE test;
@@ -275,14 +278,18 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
             # setup delta
             #
             CREATE MIGRATION test::d1 TO eschema $$
-                abstract link related:
-                    property lang -> str
+                abstract link related {
+                    property lang -> str;
+                };
 
-                type NamedObject:
-                    required property name -> str
-                    required link related extending (related) -> NamedObject:
-                        inherited property lang -> str:
-                            attribute title := 'Language'
+                type NamedObject {
+                    required property name -> str;
+                    required link related extending related -> NamedObject {
+                        inherited property lang -> str {
+                            attribute title := 'Language';
+                        };
+                    };
+                };
             $$;
         """)
         result = await self.con.fetch_value("""
@@ -321,8 +328,9 @@ ALTER TYPE test::NamedObject {
             # setup delta
             #
             CREATE MIGRATION test::d2 TO eschema $$
-                type NamedObject:
-                    required property a -> array<int64>
+                type NamedObject {
+                    required property a -> array<int64>;
+                };
             $$;
         """)
         result = await self.con.fetch_value("""
@@ -342,9 +350,10 @@ a EXTENDING std::property -> array<std::int64>;
         await self.con.execute("""
             # setup delta
             CREATE MIGRATION test::d3 TO eschema $$
-                abstract type Foo:
-                    property bar -> str
-                    property __typename := 'foo'
+                abstract type Foo {
+                    property bar -> str;
+                    property __typename := 'foo';
+                };
             $$;
         """)
         result = await self.con.fetch_value("""
@@ -372,9 +381,10 @@ a EXTENDING std::property -> array<std::int64>;
         await self.con.execute("""
             # setup delta
             CREATE MIGRATION test::d4 TO eschema $$
-                abstract type Foo:
-                    property bar -> str
-                    property __typename := __source__.__type__.name
+                abstract type Foo {
+                    property bar -> str;
+                    property __typename := __source__.__type__.name;
+                };
             $$;
         """)
         result = await self.con.fetch_value("""
@@ -403,9 +413,11 @@ a EXTENDING std::property -> array<std::int64>;
             # setup delta
             #
             CREATE MIGRATION test::d5 TO eschema $$
-                type NamedObject2:
-                    property a2 -> array<int64>:
-                        readonly := true
+                type NamedObject2 {
+                    property a2 -> array<int64> {
+                        readonly := true;
+                    };
+                };
             $$;
 
             GET MIGRATION test::d5;
@@ -431,8 +443,10 @@ a2 EXTENDING std::property -> array<std::int64> {
 
             await self.con.execute("""
                 CREATE MIGRATION test::d5 TO eschema $$
-                    type NamedObject2:
-                        property a2 -> array<int64>:
-                            aaa := true
+                    type NamedObject2 {
+                        property a2 -> array<int64> {
+                            aaa := true;
+                        };
+                    };
                 $$;
             """)

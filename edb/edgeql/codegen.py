@@ -61,8 +61,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _needs_parentheses(self, node):
         return (
-            isinstance(node.parent, edgeql_ast.Base) and
-            not isinstance(node.parent, edgeql_ast.DDL)
+            node.parent is not None and (
+                not isinstance(node.parent, edgeql_ast.Base)
+                or not isinstance(node.parent, edgeql_ast.DDL)
+            )
         )
 
     def generic_visit(self, node, *args, **kwargs):
@@ -689,15 +691,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def _ddl_visit_bases(self, node):
         if getattr(node, 'bases', None):
             self.write(' EXTENDING ')
-            if len(node.bases) > 1:
-                self.write('(')
-            for i, b in enumerate(node.bases):
-                if i > 0:
-                    self.write(', ')
-                self.visit(b)
-
-            if len(node.bases) > 1:
-                self.write(')')
+            self.visit_list(node.bases, newlines=False)
 
     def _visit_CreateObject(self, node, *object_keywords, after_name=None,
                             render_commands=True, unqualified=False):

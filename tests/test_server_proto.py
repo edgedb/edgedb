@@ -1765,9 +1765,11 @@ class TestServerProto(tb.QueryTestCase):
         commands = [
             '''
             CREATE MIGRATION test::ttt TO eschema $$
-                type User:
-                    required property login -> str:
-                        constraint exclusive
+                type User {
+                    required property login -> str {
+                        constraint exclusive;
+                    };
+                };
             $$;
             ''',
             '''GET MIGRATION test::ttt;''',

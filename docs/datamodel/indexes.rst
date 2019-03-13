@@ -16,9 +16,10 @@ or more properties directly:
 
 .. code-block:: eschema
 
-    type User:
-        property name -> str
-        index name_idx on (__subject__.name)
+    type User {
+        property name -> str;
+        index name_idx on (__subject__.name);
+    };
 
 With the above, ``User`` lookups by the ``name`` property will be faster,
 as the database will not have to scan an entire set of objects sequentially
@@ -33,11 +34,12 @@ of the host object type or link:
 
 .. code-block:: eschema
 
-    type User:
-        property firstname -> str
-        property lastname -> str
+    type User {
+        property firstname -> str;
+        property lastname -> str;
         index name_idx on (str_lower(__subject__.firstname + ' ' +
-                                     __subject__.lastname))
+                                     __subject__.lastname));
+    };
 
 The index expression must not reference any variables other than
 the properties of the host object type or link.  All functions used

@@ -60,3 +60,9 @@ class EdgeQLBlockParser(EdgeQLParserBase):
     def get_parser_spec_module(self):
         from .grammar import block
         return block
+
+
+class EdgeSDLParser(EdgeQLParserBase):
+    def get_parser_spec_module(self):
+        from .grammar import sdl
+        return sdl

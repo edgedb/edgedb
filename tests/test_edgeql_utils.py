@@ -27,27 +27,33 @@ from edb.testbase import lang as tb
 
 class TestEdgeQLUtils(tb.BaseEdgeQLCompilerTest):
     SCHEMA = r"""
-        abstract type NamedObject:
-            required property name -> str
+        abstract type NamedObject {
+            required property name -> str;
+        };
 
-        type UserGroup extending NamedObject:
-            multi link settings -> Setting
+        type UserGroup extending NamedObject {
+            multi link settings -> Setting;
+        };
 
-        type Setting extending NamedObject:
-            required property value -> str
+        type Setting extending NamedObject {
+            required property value -> str;
+        };
 
-        type Profile extending NamedObject:
-            required property value -> str
+        type Profile extending NamedObject {
+            required property value -> str;
+        };
 
-        type SpecialProfile extending Profile:
-            link parent -> SpecialProfile
+        type SpecialProfile extending Profile {
+            link parent -> SpecialProfile;
+        };
 
-        type User extending NamedObject:
-            required property active -> bool
-            multi link groups -> UserGroup
-            required property age -> int64
-            required property score -> float64
-            link profile -> Profile
+        type User extending NamedObject {
+            required property active -> bool;
+            multi link groups -> UserGroup;
+            required property age -> int64;
+            required property score -> float64;
+            link profile -> Profile;
+        };
     """
 
     def _assert_normalize_expr(self, text, expected,

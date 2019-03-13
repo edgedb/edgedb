@@ -955,10 +955,11 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         # Test that constraint expression returns a boolean.
         qry = """
             CREATE MIGRATION test::ddl_error_05 TO eschema $$
-                type User:
-                    required property login -> str:
+                type User {
+                    required property login -> str {
                         constraint expression on (len(__subject__))
-
+                    }
+                };
             $$;
         """
 

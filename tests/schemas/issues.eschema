@@ -17,95 +17,96 @@
 #
 
 
-abstract type Text:
+abstract type Text {
     # This is an abstract object containing text.
-    required property body -> str:
+    required property body -> str {
         # Maximum length of text is 10000 characters.
-        constraint max_len(10000)
+        constraint max_len(10000);
+    };
+};
 
-
-abstract type Named:
-    required property name -> str
-
+abstract type Named {
+    required property name -> str;
+};
 
 # Dictionary is a NamedObject variant, that enforces
 # name uniqueness across all instances if its subclass.
-abstract type Dictionary extending Named:
-    inherited required property name -> str:
-        delegated constraint exclusive
+abstract type Dictionary extending Named {
+    inherited required property name -> str {
+        delegated constraint exclusive;
+    };
+};
 
+type User extending Dictionary {
+    multi link todo -> Issue {
+        property rank -> int64 {
+            default := 42;
+        };
+    };
+};
 
-type User extending Dictionary:
-    multi link todo -> Issue:
-        property rank -> int64:
-            default := 42
-
-
-abstract type Owned:
+abstract type Owned {
     # By default links are optional.
-    required link owner -> User
+    required link owner -> User;
+};
 
+type Status extending Dictionary;
 
-type Status extending Dictionary
+type Priority extending Dictionary;
 
-
-type Priority extending Dictionary
-
-
-type LogEntry extending Owned, Text:
+type LogEntry extending Owned, Text {
     # LogEntry is an Owned and a Text, so it
     # will have all of their links and attributes,
     # in particular, owner and text links.
-    required property spent_time -> int64
+    required property spent_time -> int64;
+};
 
+scalar type issue_num_t extending std::str;
 
-scalar type issue_num_t extending std::str
+type Comment extending Text, Owned {
+    required link issue -> Issue;
+    link parent -> Comment;
+};
 
+type Issue extending Named, Owned, Text {
+    required property number -> issue_num_t {
+        readonly := true;
+        constraint exclusive;
+    };
+    required link status -> Status;
 
-type Comment extending Text, Owned:
-    required link issue -> Issue
-    link parent -> Comment
+    link priority -> Priority;
 
+    multi link watchers -> User;
 
-type Issue extending Named, Owned, Text:
-    required property number -> issue_num_t:
-        readonly := true
-        constraint exclusive
+    property time_estimate -> int64;
 
-    required link status -> Status
+    multi link time_spent_log -> LogEntry;
 
-    link priority -> Priority
-
-    multi link watchers -> User
-
-    property time_estimate -> int64
-
-    multi link time_spent_log -> LogEntry
-
-    property start_date -> datetime:
-        default := SELECT datetime_current()
+    property start_date -> datetime {
+        default := (SELECT datetime_current());
         # The default value of start_date will be a
         # result of the EdgeQL expression above.
+    };
+    property due_date -> datetime;
 
-    property due_date -> datetime
+    multi link related_to -> Issue;
 
-    multi link related_to -> Issue
+    multi link references -> File | URL | Publication;
 
-    multi link references -> File, URL, Publication
+    property tags -> array<str>;
+};
 
-    property tags -> array<str>
+type File extending Named;
 
+type URL extending Named {
+    required property address -> str;
+};
 
-type File extending Named
+type Publication {
+    required property title -> str;
+};
 
-
-type URL extending Named:
-    required property address -> str
-
-
-type Publication:
-    required property title -> str
-
-
-abstract constraint my_enum(enum: array<anytype>):
-    expr := contains($enum, __subject__)
+abstract constraint my_enum(enum: array<anytype>) {
+    expr := contains($enum, __subject__);
+};

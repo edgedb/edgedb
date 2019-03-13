@@ -17,19 +17,21 @@
 #
 
 
-type JSONTest:
-    required property number -> int64:
-        constraint exclusive
+type JSONTest {
+    required property number -> int64 {
+        constraint exclusive;
+    };
 
     # these properties are intended to have specific JSON types in them
-    property j_string -> json
-    property j_number -> json
-    property j_boolean -> json
-    property j_array -> json
-    property j_object -> json
+    property j_string -> json;
+    property j_number -> json;
+    property j_boolean -> json;
+    property j_array -> json;
+    property j_object -> json;
 
     # this property is for more generic JSON handling
-    property data -> json
+    property data -> json;
 
     # these properties are used for testing casting
-    property edb_string -> str
+    property edb_string -> str;
+};

@@ -9,17 +9,20 @@ containing the following schema:
 
 .. code-block:: eschema
 
-    type Author:
-        property name -> str
+    type Author {
+        property name -> str;
+    };
 
-    type Book:
+    type Book {
         # to make the examples simpler only the title is
         # a required property
-        required property title -> str
-        property synopsis -> str
-        link author -> Author
-        property isbn -> str:
-            constraint max_len(10)
+        required property title -> str;
+        property synopsis -> str;
+        link author -> Author;
+        property isbn -> str {
+            constraint max_len(10);
+        };
+    };
 
 From the schema above EdgeDB will expose to GraphQL:
 

@@ -808,8 +808,9 @@ class TestEQLMigration(unittest.TestCase, BaseDomainTest):
         src = '''
         .. eql:migration:: foobar
 
-            type User:
-                property name -> str
+            type User {
+                property name -> str;
+            };
         '''
 
         out = self.build(src, format='xml')
@@ -822,6 +823,6 @@ class TestEQLMigration(unittest.TestCase, BaseDomainTest):
             [
                 'START TRANSACTION;\n'
                 'CREATE MIGRATION foobar TO eschema $$\n\n',
-                'type User:\n    property name -> str',
+                'type User {\n    property name -> str;\n};',
                 '\n$$;\nCOMMIT MIGRATION foobar;\nCOMMIT;'
             ])

@@ -17,12 +17,14 @@
 #
 
 
-abstract type Named:
-    required property name -> str:
-        delegated constraint exclusive
+abstract type Named {
+    required property name -> str {
+        delegated constraint exclusive;
+    };
+};
 
-type Item extending Named:
-    multi property tag_set1 -> str
-    multi property tag_set2 -> str
-
-    property tag_array -> array<str>
+type Item extending Named {
+    multi property tag_set1 -> str;
+    multi property tag_set2 -> str;
+    property tag_array -> array<str>;
+};
