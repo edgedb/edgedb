@@ -67,11 +67,11 @@ INSERT User {
     age := 27,
     active := True,
     score := 5.0,
-    profile: {
+    profile := (INSERT Profile {
         name := 'Alice profile',
         value := 'special',
         tags := ['1st', '2nd'],
-    }
+    })
 };
 
 INSERT Person {

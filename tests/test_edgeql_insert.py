@@ -237,9 +237,9 @@ class TestInsert(tb.QueryTestCase):
             INSERT InsertTest {
                 name := 'insert nested 3',
                 l2 := 0,
-                subordinates: Subordinate {
+                subordinates := (INSERT Subordinate {
                     name := 'nested sub 3.1'
-                }
+                })
             };
         ''')
 
@@ -267,10 +267,10 @@ class TestInsert(tb.QueryTestCase):
             INSERT InsertTest {
                 name := 'insert nested 4',
                 l2 := 0,
-                subordinates: Subordinate {
+                subordinates := (INSERT Subordinate {
                     name := 'nested sub 4.1',
                     @comment := 'comment 4.1',
-                }
+                })
             };
         ''')
 
@@ -380,6 +380,20 @@ class TestInsert(tb.QueryTestCase):
                 }]
             }]
         )
+
+    async def test_edgeql_insert_nested_07(self):
+        with self.assertRaisesRegex(
+                edgedb.EdgeQLSyntaxError,
+                "unexpected ':'"):
+            await self.con.execute('''
+                WITH MODULE test
+                INSERT InsertTest {
+                    subordinates: Subordinate {
+                        name := 'nested sub 4.1',
+                        @comment := 'comment 4.1',
+                    }
+                };
+            ''')
 
     async def test_edgeql_insert_returning_01(self):
         await self.con.execute('''

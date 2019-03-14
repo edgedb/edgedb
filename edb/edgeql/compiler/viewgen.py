@@ -239,28 +239,11 @@ def _normalize_view_ptr_expr(
 
     compexpr = shape_el.compexpr
     if compexpr is None and is_insert and shape_el.elements:
-        # Nested insert short form:
+        # Short shape form in INSERT, e.g
         #     INSERT Foo { bar: Spam { name := 'name' }}
-        # Expand to:
-        #     INSERT Foo { bar := (INSERT Spam { name := 'name' }) }
-        base_ptrcls = ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
-
-        if target_typexpr is not None:
-            ptr_target = schemactx.get_schema_type(
-                target_typexpr.maintype, ctx=ctx)
-        else:
-            ptr_target = ptrcls.get_target(ctx.env.schema)
-
-        compexpr = qlast.InsertQuery(
-            subject=qlast.Path(
-                steps=[
-                    qlast.ObjectRef(
-                        name=ptr_target.get_name(ctx.env.schema).name,
-                        module=ptr_target.get_name(ctx.env.schema).module)
-                ]
-            ),
-            shape=shape_el.elements
-        )
+        # is prohibited.
+        raise errors.EdgeQLSyntaxError(
+            "unexpected ':'", context=steps[-1].context)
 
     if compexpr is None:
         base_ptrcls = ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)

@@ -110,9 +110,9 @@ INSERT User {
     deck := (
         SELECT Card {@count := 3} FILTER .element IN {'Earth', 'Water'}
     ),
-    awards: {
+    awards := (INSERT Award {
         name := '3rd'
-    }
+    })
 };
 
 WITH MODULE test

@@ -2230,16 +2230,6 @@ aa';
         INSERT Foo LIMIT 5;
         """
 
-    def test_edgeql_syntax_insert_12(self):
-        """
-        INSERT Foo{
-            bar := 42,
-            baz: Baz{
-                spam := 'ham'
-            }
-        };
-        """
-
     def test_edgeql_syntax_insert_13(self):
         """
         INSERT Foo{
