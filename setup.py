@@ -339,6 +339,7 @@ class build_ext(distutils_build_ext.build_ext):
             self.cython_always = False
             self.cython_annotate = None
             self.cython_directives = None
+            self.debug = False
 
     def finalize_options(self):
         # finalize_options() may be called multiple times on the
