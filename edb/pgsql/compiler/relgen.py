@@ -360,9 +360,7 @@ def set_to_array(
     pg_type = output.get_pg_type(ir_set.typeref, ctx=ctx)
     orig_val = val
 
-    if ir_set.path_id.is_objtype_path():
-        val = output.prepare_tuple_for_aggregation(val, env=ctx.env)
-    elif (ir_set.path_id.is_array_path()
+    if (ir_set.path_id.is_array_path()
             and ctx.env.output_format != context.OutputFormat.JSON):
         # We cannot aggregate arrays straight away, as
         # they be of different length, so we have to

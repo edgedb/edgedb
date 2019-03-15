@@ -17,14 +17,6 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION edbsys" to load this file. \quit
 
---
--- "Bless" the passed record.
---
-CREATE FUNCTION bless_record(record)
-RETURNS record
-AS '$libdir/edbsys'
-LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
-
 
 --
 -- Return the given attribute value from a row value.

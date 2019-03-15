@@ -33,28 +33,6 @@
 static const char *_get_type_name(Oid typeoid);
 
 
-PG_FUNCTION_INFO_V1(bless_record);
-
-Datum
-bless_record(PG_FUNCTION_ARGS)
-{
-	HeapTupleHeader rec;
-	Oid				tup_type;
-	int32			tup_typmod;
-	TupleDesc		tup_desc;
-
-	rec = PG_GETARG_HEAPTUPLEHEADER(0);
-	tup_type = HeapTupleHeaderGetTypeId(rec);
-	tup_typmod = HeapTupleHeaderGetTypMod(rec);
-	tup_desc = lookup_rowtype_tupdesc(tup_type, tup_typmod);
-
-	BlessTupleDesc(tup_desc);
-	ReleaseTupleDesc(tup_desc);
-
-	PG_RETURN_HEAPTUPLEHEADER(rec);
-}
-
-
 /*
  * SQL function row_getattr_by_num(record, attnum, any) -> any
  *
