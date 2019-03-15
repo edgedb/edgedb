@@ -720,6 +720,12 @@ class TestServerProto(tb.QueryTestCase):
                     你好=32),
                 42)
 
+    async def test_server_proto_args_07(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'missing a type cast.*parameter'):
+            await self.con.fetch_value(
+                'select schema::Object {name} filter .id=$id', id='asd')
+
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.

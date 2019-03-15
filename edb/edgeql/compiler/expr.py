@@ -98,10 +98,9 @@ def compile_Parameter(
             f'"$parameters" cannot be used in functions',
             context=expr.context)
 
-    pt = ctx.env.query_parameters.get(expr.name)
-    typeref = irtyputils.type_to_typeref(ctx.env.schema, pt)
-    return setgen.ensure_set(
-        irast.Parameter(typeref=typeref, name=expr.name), ctx=ctx)
+    raise errors.QueryError(
+        f'missing a type cast before the parameter',
+        context=expr.context)
 
 
 @dispatch.compile.register(qlast.DetachedExpr)
