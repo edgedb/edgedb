@@ -47,7 +47,7 @@ RUNTIME_DEPS = [
     'promise~=2.2.0',
 ]
 
-CYTHON_DEPENDENCY = 'Cython==0.29.3'
+CYTHON_DEPENDENCY = 'Cython==0.29.6'
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
