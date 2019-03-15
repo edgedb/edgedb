@@ -69,15 +69,11 @@ def main(names, con):
     types = sorted(types)
 
     constraints = sorted(set(con.fetch(r'''
-        # NOTE: currently there's a constraint called
-        # 'std::constraint' that makes it into the list and cannot be
-        # filtered out based on any specific parameter.
         WITH
             MODULE schema,
             name := DISTINCT `Constraint`.name
         SELECT cname :=
-            re_match(r'(?:std|sys|math)::([a-zA-Z]\w+$)', name)[0]
-        FILTER cname != 'constraint';
+            re_match(r'(?:std|sys|math)::([a-zA-Z]\w+$)', name)[0];
     ''')))
 
     fn_builtins = sorted(set(con.fetch(r'''

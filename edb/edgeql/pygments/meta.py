@@ -191,6 +191,7 @@ class EdgeQL:
         "sys",
     )
     constraint_builtins = (
+        "constraint",
         "enum",
         "exclusive",
         "expression",
