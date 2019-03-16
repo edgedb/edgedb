@@ -30,7 +30,7 @@ command must be used followed by :eql:stmt:`COMMIT MIGRATION`:
     CREATE MIGRATION init TO eschema $$
         type User {
             property name -> str;
-        };
+        }
     $$;
 
     COMMIT MIGRATION init;

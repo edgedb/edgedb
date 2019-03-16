@@ -39,7 +39,7 @@ types in EdgeDB extend ``std::Object`` directly or indirectly.
 
             # Object type in the information schema.
             required readonly link __type__ -> schema::ObjectType;
-        };
+        }
 
 
 Definition

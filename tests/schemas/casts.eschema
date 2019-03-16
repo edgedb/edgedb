@@ -19,7 +19,7 @@
 
 scalar type custom_str_t extending str {
     constraint regexp('[A-Z]+');
-};
+}
 
 type Test {
     property p_bool -> bool;
@@ -35,7 +35,7 @@ type Test {
     property p_float32 -> float32;
     property p_float64 -> float64;
     property p_decimal -> decimal;
-};
+}
 
 type JSONTest {
     property j_bool -> json;
@@ -51,7 +51,7 @@ type JSONTest {
     property j_float32 -> json;
     property j_float64 -> json;
     property j_decimal -> json;
-};
+}
 
 type ScalarTest {
     property p_bool -> bool;
@@ -69,4 +69,4 @@ type ScalarTest {
     property p_float64 -> float64;
     property p_decimal -> decimal;
     property p_json -> json;
-};
+}

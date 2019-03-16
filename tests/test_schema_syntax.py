@@ -324,6 +324,84 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
+    def test_eschema_syntax_type_25(self):
+        """
+        type Foo {
+            single property foo -> str
+        }
+
+        type Bar {
+            multi property bar -> str
+        }
+
+        type Baz {
+            required single property baz -> str
+        }
+
+        type Spam {
+            required multi property spam -> str
+        }
+
+        type Ham {
+            inherited required single property ham -> str
+        }
+
+        type Eggs {
+            inherited required multi property eggs -> str
+        }
+
+% OK %
+
+        type Foo {
+            single property foo -> str;
+        };
+
+        type Bar {
+            multi property bar -> str;
+        };
+
+        type Baz {
+            required single property baz -> str;
+        };
+
+        type Spam {
+            required multi property spam -> str;
+        };
+
+        type Ham {
+            inherited required single property ham -> str;
+        };
+
+        type Eggs {
+            inherited required multi property eggs -> str;
+        };
+        """
+
+    def test_eschema_syntax_type_26(self):
+        """
+        type Foo {
+            single property foo -> str {
+                constraint max_len (10000)
+            }
+
+            multi property bar -> str {
+                constraint max_len (10000)
+            }
+        }
+
+% OK %
+
+        type Foo {
+            single property foo -> str {
+                constraint max_len (10000);
+            };
+
+            multi property bar -> str {
+                constraint max_len (10000);
+            };
+        };
+        """
+
     def test_eschema_syntax_link_target_type_01(self):
         """
         type User {
@@ -1005,6 +1083,99 @@ abstract property foo {
                     array<tuple<int, Foo>>>
                 > {
             from sql function 'some_other_func';
+        };
+        """
+
+    def test_eschema_syntax_function_18(self):
+        """
+        function len1() -> std::int64
+            from sql function 'length1';
+
+        function len2() -> std::int64
+            from sql function 'length2';
+
+        function len3() -> std::int64
+            from sql function 'length3';
+
+        function len4() -> std::int64
+            from sql function 'length4';
+
+% OK %
+
+        function len1() ->  std::int64 {
+            from SQL function 'length1';
+        };
+        function len2() ->  std::int64 {
+            from SQL function 'length2';
+        };
+        function len3() ->  std::int64 {
+            from SQL function 'length3';
+        };
+        function len4() ->  std::int64 {
+            from SQL function 'length4';
+        };
+        """
+
+    def test_eschema_syntax_function_19(self):
+        """
+        function len1() ->  std::int64 {
+            from SQL function 'length1'
+        }
+        function len2() ->  std::int64 {
+            from SQL function 'length2'
+        }
+        function len3() ->  std::int64 {
+            from SQL function 'length3'
+        }
+        function len4() ->  std::int64 {
+            from SQL function 'length4'
+        }
+
+
+% OK %
+
+        function len1() ->  std::int64 {
+            from SQL function 'length1';
+        };
+        function len2() ->  std::int64 {
+            from SQL function 'length2';
+        };
+        function len3() ->  std::int64 {
+            from SQL function 'length3';
+        };
+        function len4() ->  std::int64 {
+            from SQL function 'length4';
+        };
+        """
+
+    def test_eschema_syntax_function_20(self):
+        """
+        function len1() ->  std::int64 {
+            from SQL function 'length1'
+        }
+        function len2() ->  std::int64
+            from SQL function 'length2';
+
+        function len3() ->  std::int64 {
+            from SQL function 'length3'
+        }
+        function len4() ->  std::int64
+            from SQL function 'length4';
+
+
+% OK %
+
+        function len1() ->  std::int64 {
+            from SQL function 'length1';
+        };
+        function len2() ->  std::int64 {
+            from SQL function 'length2';
+        };
+        function len3() ->  std::int64 {
+            from SQL function 'length3';
+        };
+        function len4() ->  std::int64 {
+            from SQL function 'length4';
         };
         """
 

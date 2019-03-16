@@ -123,22 +123,59 @@ def _process_commands(block):
 class SDLDocument(Nonterm):
     "%start"
 
-    def reduce_SDLStatements_OptSemicolons_EOF(self, *kids):
-        self.val = esast.Schema(declarations=kids[0].val)
-
     def reduce_OptSemicolons_EOF(self, *kids):
         self.val = esast.Schema(declarations=[])
 
+    def reduce_statement_without_semicolons(self, *kids):
+        r"""%reduce \
+            OptSemicolons SDLShortStatement \
+            EOF
+        """
+        self.val = esast.Schema(declarations=[kids[1].val])
 
-# top-level SDL statements
-#
+    def reduce_statements_without_optional_trailing_semicolons(self, *kids):
+        r"""%reduce \
+            OptSemicolons SDLStatements \
+            OptSemicolons SDLShortStatement \
+            EOF
+        """
+        self.val = esast.Schema(declarations=kids[1].val + [kids[3].val])
+
+    def reduce_OptSemicolons_SDLStatements_EOF(self, *kids):
+        self.val = esast.Schema(declarations=kids[1].val)
+
+    def reduce_OptSemicolons_SDLStatements_Semicolons_EOF(self, *kids):
+        self.val = esast.Schema(declarations=kids[1].val)
+
+
+class Semicolons(Nonterm):
+    # one or more semicolons
+    def reduce_SEMICOLON(self, tok):
+        self.val = tok
+
+    def reduce_Semicolons_SEMICOLON(self, *kids):
+        self.val = kids[0].val
+
+
+class OptSemicolons(Nonterm):
+    def reduce_Semicolons(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self):
+        self.val = None
+
+
+# # top-level SDL statements
 class SDLStatement(Nonterm):
-    def reduce_IMPORT_ImportModuleList(self, *kids):
-        self.val = esast.Import(modules=kids[1].val)
+    def reduce_SDLBlockStatement(self, *kids):
+        self.val = kids[0].val
 
-    def reduce_IMPORT_LPAREN_ImportModuleList_RPAREN(self, *kids):
-        self.val = esast.Import(modules=kids[2].val)
+    def reduce_SDLShortStatement_SEMICOLON(self, *kids):
+        self.val = kids[0].val
 
+
+# These statements have a block
+class SDLBlockStatement(Nonterm):
     def reduce_ScalarTypeDeclaration(self, *kids):
         self.val = kids[0].val
 
@@ -163,8 +200,46 @@ class SDLStatement(Nonterm):
     def reduce_FunctionDeclaration(self, *kids):
         self.val = kids[0].val
 
+
+# these statements have no {} block
+class SDLShortStatement(Nonterm):
+    def reduce_IMPORT_ImportModuleList(self, *kids):
+        self.val = esast.Import(modules=kids[1].val)
+
+    def reduce_IMPORT_LPAREN_ImportModuleList_RPAREN(self, *kids):
+        self.val = esast.Import(modules=kids[2].val)
+
+    def reduce_ScalarTypeDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AttributeDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ObjectTypeDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ViewDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_ConstraintDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_LinkDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_PropertyDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_FunctionDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
     def reduce_Index(self, *kids):
         self.val = kids[0].val
+
+
+class SDLStatements(ListNonterm, element=SDLStatement,
+                    separator=OptSemicolons):
+    pass
 
 
 class DotName(Nonterm):
@@ -186,28 +261,6 @@ class ImportModuleList(ListNonterm, element=ImportModule,
     pass
 
 
-class Semicolons(Nonterm):
-    # one or more semicolons
-    def reduce_SEMICOLON(self, tok):
-        self.val = tok
-
-    def reduce_Semicolons_SEMICOLON(self, *kids):
-        self.val = kids[0].val
-
-
-class OptSemicolons(Nonterm):
-    def reduce_Semicolons(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self):
-        self.val = None
-
-
-class SDLStatements(ListNonterm, element=SDLStatement,
-                    separator=Semicolons):
-    pass
-
-
 def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
     mod = sys.modules[__name__]
 
@@ -223,8 +276,8 @@ def _new_nonterm(clsname, clsdict={}, clskwds={}, clsbases=(Nonterm,)):
 
 
 class ProductionHelper:
-    def _passthrough(self, cmd):
-        self.val = cmd.val
+    def _passthrough(self, *cmds):
+        self.val = cmds[0].val
 
     def _singleton_list(self, cmd):
         self.val = [cmd.val]
@@ -232,55 +285,82 @@ class ProductionHelper:
     def _empty(self):
         self.val = []
 
-    def _block(self, lbrace, cmdlist, sc2, rbrace):
-        self.val = cmdlist.val
+    def _block(self, lbrace, sc1, cmdl, rbrace):
+        self.val = [cmdl.val]
 
     def _block2(self, lbrace, sc1, cmdlist, sc2, rbrace):
         self.val = cmdlist.val
+
+    def _block3(self, lbrace, sc1, cmdlist, sc2, cmd, rbrace):
+        self.val = cmdlist.val + [cmd.val]
 
 
 def commands_block(parent, *commands, opt=True):
     if parent is None:
         parent = ''
 
-    clsdict = {}
-
     # Command := Command1 | Command2 ...
     #
+    # All the "short" commands, ones that need a ";" are gathered as
+    # CommandShort.
+    #
+    # All the "block" commands, ones that have a "{...}" and don't
+    # need a ";" are gathered as CommandBlock.
+    clsdict_b = {}
+    clsdict_s = {}
+
     for command in commands:
-        clsdict['reduce_{}'.format(command.__name__)] = \
-            ProductionHelper._passthrough
+        if command.__name__.endswith('Block'):
+            clsdict_b[f'reduce_{command.__name__}'] = \
+                ProductionHelper._passthrough
+        else:
+            clsdict_s[f'reduce_{command.__name__}'] = \
+                ProductionHelper._passthrough
 
-    cmd = _new_nonterm(parent + 'Command', clsdict=clsdict)
+    cmd_s = _new_nonterm(f'{parent}CommandShort', clsdict=clsdict_s)
+    cmd_b = _new_nonterm(f'{parent}CommandBlock', clsdict=clsdict_b)
 
-    # CommandsList := Command [; Command ...]
-    cmdlist = _new_nonterm(parent + 'CommandsList', clsbases=(ListNonterm,),
-                           clskwds=dict(element=cmd, separator=Semicolons))
+    # Merged command which has minimal ";"
+    #
+    # CommandFull := CommandShort ; | CommandBlock
+    clsdict = {}
+    clsdict[f'reduce_{cmd_s.__name__}_SEMICOLON'] = \
+        ProductionHelper._passthrough
+    clsdict[f'reduce_{cmd_b.__name__}'] = \
+        ProductionHelper._passthrough
+    cmd = _new_nonterm(f'{parent}CommandFull', clsdict=clsdict)
 
+    # CommandsList := CommandFull [; CommandFull ...]
+    cmdlist = _new_nonterm(f'{parent}CommandsList', clsbases=(ListNonterm,),
+                           clskwds=dict(element=cmd, separator=OptSemicolons))
+
+    # Command block is tricky, but the inner commands must terminate
+    # without a ";", is possible.
+    #
     # CommandsBlock :=
     #
-    #   { [ ; ] CommandsList ; }
+    #   { [ ; ] CommandFull }
+    #   { [ ; ] CommandsList [ ; ]} |
+    #   { [ ; ] CommandsList [ ; ] CommandFull }
     clsdict = {}
-    clsdict['reduce_LBRACE_' + cmdlist.__name__ + '_OptSemicolons_RBRACE'] = \
+    clsdict[f'reduce_LBRACE_OptSemicolons_{cmd_s.__name__}_RBRACE'] = \
         ProductionHelper._block
-    clsdict['reduce_LBRACE_Semicolons_' + cmdlist.__name__ +
-            '_OptSemicolons_RBRACE'] = \
+    clsdict[f'reduce_LBRACE_OptSemicolons_{cmdlist.__name__}_' +
+            f'OptSemicolons_RBRACE'] = \
         ProductionHelper._block2
-    if not opt:
-        #
+    clsdict[f'reduce_LBRACE_OptSemicolons_{cmdlist.__name__}_OptSemicolons_' +
+            f'{cmd_s.__name__}_RBRACE'] = \
+        ProductionHelper._block3
+    _new_nonterm(f'{parent}CommandsBlock', clsdict=clsdict)
+
+    if opt is False:
         #   | Command
-        clsdict['reduce_{}'.format(cmd.__name__)] = \
+        clsdict = {}
+        clsdict[f'reduce_{cmd_s.__name__}'] = \
             ProductionHelper._singleton_list
-    cmdblock = _new_nonterm(parent + 'CommandsBlock', clsdict=clsdict)
-
-    # OptCommandsBlock := CommandsBlock | <e>
-    clsdict = {}
-    clsdict['reduce_{}'.format(cmdblock.__name__)] = \
-        ProductionHelper._passthrough
-    clsdict['reduce_empty'] = ProductionHelper._empty
-
-    if opt:
-        _new_nonterm('Opt' + parent + 'CommandsBlock', clsdict=clsdict)
+        clsdict[f'reduce_{cmd_b.__name__}'] = \
+            ProductionHelper._singleton_list
+        _new_nonterm(parent + 'SingleCommandBlock', clsdict=clsdict)
 
 
 class SetField(Nonterm):
@@ -314,7 +394,7 @@ class OptExtending(Nonterm):
 class ConstraintDeclaration(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce ABSTRACT CONSTRAINT ShortNodeName OptOnExpr \
-                    OptExtending OptCreateCommandsBlock"""
+                    OptExtending CreateCommandsBlock"""
         self.val = esast.ConstraintDeclaration(
             abstract=True,
             name=kids[2].val.name,
@@ -325,7 +405,7 @@ class ConstraintDeclaration(Nonterm):
 
     def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
         r"""%reduce ABSTRACT CONSTRAINT ShortNodeName CreateFunctionArgs \
-                    OptOnExpr OptExtending OptCreateCommandsBlock"""
+                    OptOnExpr OptExtending CreateCommandsBlock"""
         self.val = esast.ConstraintDeclaration(
             abstract=True,
             name=kids[2].val.name,
@@ -333,6 +413,29 @@ class ConstraintDeclaration(Nonterm):
             subject=kids[4].val,
             extends=kids[5].val,
             **_process_commands(kids[6].val)
+        )
+
+
+class ConstraintDeclarationShort(Nonterm):
+    def reduce_CreateConstraint(self, *kids):
+        r"""%reduce ABSTRACT CONSTRAINT ShortNodeName OptOnExpr \
+                    OptExtending"""
+        self.val = esast.ConstraintDeclaration(
+            abstract=True,
+            name=kids[2].val.name,
+            subject=kids[3].val,
+            extends=kids[4].val,
+        )
+
+    def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
+        r"""%reduce ABSTRACT CONSTRAINT ShortNodeName CreateFunctionArgs \
+                    OptOnExpr OptExtending"""
+        self.val = esast.ConstraintDeclaration(
+            abstract=True,
+            name=kids[2].val.name,
+            params=kids[3].val,
+            subject=kids[4].val,
+            extends=kids[5].val,
         )
 
 
@@ -357,11 +460,11 @@ class OptConcreteConstraintArgList(Nonterm):
         self.val = []
 
 
-class ConcreteConstraint(Nonterm):
+class ConcreteConstraintBlock(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce CONSTRAINT \
                     NodeName OptConcreteConstraintArgList OptOnExpr \
-                    OptCreateCommandsBlock"""
+                    CreateCommandsBlock"""
         self.val = esast.Constraint(
             delegated=False,
             name=kids[1].val,
@@ -373,13 +476,35 @@ class ConcreteConstraint(Nonterm):
     def reduce_CreateDelegatedConstraint(self, *kids):
         r"""%reduce DELEGATED CONSTRAINT \
                     NodeName OptConcreteConstraintArgList OptOnExpr \
-                    OptCreateCommandsBlock"""
+                    CreateCommandsBlock"""
         self.val = esast.Constraint(
             delegated=True,
             name=kids[2].val,
             args=kids[3].val,
             subject=kids[4].val,
             **_process_commands(kids[5].val)
+        )
+
+
+class ConcreteConstraintShort(Nonterm):
+    def reduce_CreateConstraint(self, *kids):
+        r"""%reduce CONSTRAINT \
+                    NodeName OptConcreteConstraintArgList OptOnExpr"""
+        self.val = esast.Constraint(
+            delegated=False,
+            name=kids[1].val,
+            args=kids[2].val,
+            subject=kids[3].val,
+        )
+
+    def reduce_CreateDelegatedConstraint(self, *kids):
+        r"""%reduce DELEGATED CONSTRAINT \
+                    NodeName OptConcreteConstraintArgList OptOnExpr"""
+        self.val = esast.Constraint(
+            delegated=True,
+            name=kids[2].val,
+            args=kids[3].val,
+            subject=kids[4].val,
         )
 
 
@@ -391,14 +516,16 @@ commands_block(
     'CreateScalarType',
     SetField,
     SetAttribute,
-    ConcreteConstraint)
+    ConcreteConstraintBlock,
+    ConcreteConstraintShort,
+)
 
 
 class ScalarTypeDeclaration(Nonterm):
     def reduce_CreateAbstractScalarTypeStmt(self, *kids):
         r"""%reduce \
             ABSTRACT SCALAR TYPE ShortNodeName \
-            OptExtending OptCreateScalarTypeCommandsBlock \
+            OptExtending CreateScalarTypeCommandsBlock \
         """
         self.val = esast.ScalarTypeDeclaration(
             abstract=True,
@@ -410,7 +537,7 @@ class ScalarTypeDeclaration(Nonterm):
     def reduce_CreateFinalScalarTypeStmt(self, *kids):
         r"""%reduce \
             FINAL SCALAR TYPE ShortNodeName \
-            OptExtending OptCreateScalarTypeCommandsBlock \
+            OptExtending CreateScalarTypeCommandsBlock \
         """
         self.val = esast.ScalarTypeDeclaration(
             final=True,
@@ -422,12 +549,46 @@ class ScalarTypeDeclaration(Nonterm):
     def reduce_ScalarTypeDeclaration(self, *kids):
         r"""%reduce \
             SCALAR TYPE ShortNodeName \
-            OptExtending OptCreateScalarTypeCommandsBlock \
+            OptExtending CreateScalarTypeCommandsBlock \
         """
         self.val = esast.ScalarTypeDeclaration(
             name=kids[2].val.name,
             extends=kids[3].val,
             **_process_commands(kids[4].val)
+        )
+
+
+class ScalarTypeDeclarationShort(Nonterm):
+    def reduce_CreateAbstractScalarTypeStmt(self, *kids):
+        r"""%reduce \
+            ABSTRACT SCALAR TYPE ShortNodeName \
+            OptExtending \
+        """
+        self.val = esast.ScalarTypeDeclaration(
+            abstract=True,
+            name=kids[3].val.name,
+            extends=kids[4].val,
+        )
+
+    def reduce_CreateFinalScalarTypeStmt(self, *kids):
+        r"""%reduce \
+            FINAL SCALAR TYPE ShortNodeName \
+            OptExtending \
+        """
+        self.val = esast.ScalarTypeDeclaration(
+            final=True,
+            name=kids[3].val.name,
+            extends=kids[4].val,
+        )
+
+    def reduce_ScalarTypeDeclaration(self, *kids):
+        r"""%reduce \
+            SCALAR TYPE ShortNodeName \
+            OptExtending \
+        """
+        self.val = esast.ScalarTypeDeclaration(
+            name=kids[2].val.name,
+            extends=kids[3].val,
         )
 
 
@@ -437,7 +598,7 @@ class ScalarTypeDeclaration(Nonterm):
 class AttributeDeclaration(Nonterm):
     def reduce_CreateAttribute(self, *kids):
         r"""%reduce ABSTRACT ATTRIBUTE ShortNodeName OptExtending \
-                    OptCreateCommandsBlock"""
+                    CreateCommandsBlock"""
         self.val = esast.AttributeDeclaration(
             abstract=True,
             name=kids[2].val.name,
@@ -448,13 +609,34 @@ class AttributeDeclaration(Nonterm):
 
     def reduce_CreateInheritableAttribute(self, *kids):
         r"""%reduce ABSTRACT INHERITABLE ATTRIBUTE
-                    ShortNodeName OptExtending OptCreateCommandsBlock"""
+                    ShortNodeName OptExtending CreateCommandsBlock"""
         self.val = esast.AttributeDeclaration(
             abstract=True,
             name=kids[3].val.name,
             extends=kids[4].val,
             inheritable=True,
             **_process_commands(kids[4].val)
+        )
+
+
+class AttributeDeclarationShort(Nonterm):
+    def reduce_CreateAttribute(self, *kids):
+        r"""%reduce ABSTRACT ATTRIBUTE ShortNodeName OptExtending"""
+        self.val = esast.AttributeDeclaration(
+            abstract=True,
+            name=kids[2].val.name,
+            extends=kids[3].val,
+            inheritable=False,
+        )
+
+    def reduce_CreateInheritableAttribute(self, *kids):
+        r"""%reduce ABSTRACT INHERITABLE ATTRIBUTE
+                    ShortNodeName OptExtending"""
+        self.val = esast.AttributeDeclaration(
+            abstract=True,
+            name=kids[3].val.name,
+            extends=kids[4].val,
+            inheritable=True,
         )
 
 
@@ -475,13 +657,23 @@ class Index(Nonterm):
 class PropertyDeclaration(Nonterm):
     def reduce_CreateProperty(self, *kids):
         r"""%reduce ABSTRACT PROPERTY ShortNodeName OptExtending \
-                    OptCreateCommandsBlock \
+                    CreateCommandsBlock \
         """
         self.val = esast.PropertyDeclaration(
             abstract=True,
             name=kids[2].val.name,
             extends=kids[3].val,
             **_process_commands(kids[4].val)
+        )
+
+
+class PropertyDeclarationShort(Nonterm):
+    def reduce_CreateProperty(self, *kids):
+        r"""%reduce ABSTRACT PROPERTY ShortNodeName OptExtending"""
+        self.val = esast.PropertyDeclaration(
+            abstract=True,
+            name=kids[2].val.name,
+            extends=kids[3].val,
         )
 
 
@@ -493,15 +685,16 @@ commands_block(
     'CreateConcreteProperty',
     SetField,
     SetAttribute,
-    ConcreteConstraint
+    ConcreteConstraintBlock,
+    ConcreteConstraintShort,
 )
 
 
-class ConcreteProperty(Nonterm):
+class ConcretePropertyBlock(Nonterm):
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
             PROPERTY ShortNodeName OptExtending
-            ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock
+            ARROW FullTypeExpr CreateConcretePropertyCommandsBlock
         """
         self.val = esast.Property(
             name=kids[1].val.name,
@@ -513,7 +706,7 @@ class ConcreteProperty(Nonterm):
     def reduce_CreateQualifiedRegularProperty(self, *kids):
         """%reduce
             PtrQuals PROPERTY ShortNodeName OptExtending
-            ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock
+            ARROW FullTypeExpr CreateConcretePropertyCommandsBlock
         """
         self.val = esast.Property(
             name=kids[2].val.name,
@@ -523,6 +716,33 @@ class ConcreteProperty(Nonterm):
             cardinality=kids[0].val.cardinality,
             target=qlast.get_targets(kids[5].val),
             **_process_commands(kids[6].val)
+        )
+
+
+class ConcretePropertyShort(Nonterm):
+    def reduce_CreateRegularProperty(self, *kids):
+        """%reduce
+            PROPERTY ShortNodeName OptExtending
+            ARROW FullTypeExpr
+        """
+        self.val = esast.Property(
+            name=kids[1].val.name,
+            extends=kids[2].val,
+            target=qlast.get_targets(kids[4].val),
+        )
+
+    def reduce_CreateQualifiedRegularProperty(self, *kids):
+        """%reduce
+            PtrQuals PROPERTY ShortNodeName OptExtending
+            ARROW FullTypeExpr
+        """
+        self.val = esast.Property(
+            name=kids[2].val.name,
+            extends=kids[3].val,
+            inherited=kids[0].val.inherited,
+            required=kids[0].val.required,
+            cardinality=kids[0].val.cardinality,
+            target=qlast.get_targets(kids[5].val),
         )
 
     def reduce_CreateComputableProperty(self, *kids):
@@ -555,8 +775,10 @@ commands_block(
     'CreateLink',
     SetField,
     SetAttribute,
-    ConcreteConstraint,
-    ConcreteProperty,
+    ConcreteConstraintBlock,
+    ConcreteConstraintShort,
+    ConcretePropertyBlock,
+    ConcretePropertyShort,
     Index,
 )
 
@@ -565,13 +787,24 @@ class LinkDeclaration(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
             ABSTRACT LINK ShortNodeName OptExtending \
-            OptCreateLinkCommandsBlock \
+            CreateLinkCommandsBlock \
         """
         self.val = esast.LinkDeclaration(
             abstract=True,
             name=kids[2].val.name,
             extends=kids[3].val,
             **_process_commands(kids[4].val)
+        )
+
+
+class LinkDeclarationShort(Nonterm):
+    def reduce_CreateLink(self, *kids):
+        r"""%reduce \
+            ABSTRACT LINK ShortNodeName OptExtending"""
+        self.val = esast.LinkDeclaration(
+            abstract=True,
+            name=kids[2].val.name,
+            extends=kids[3].val,
         )
 
 
@@ -604,17 +837,19 @@ commands_block(
     'CreateConcreteLink',
     SetField,
     SetAttribute,
-    ConcreteConstraint,
-    ConcreteProperty,
+    ConcreteConstraintBlock,
+    ConcreteConstraintShort,
+    ConcretePropertyBlock,
+    ConcretePropertyShort,
     OnTargetDelete,
 )
 
 
-class ConcreteLink(Nonterm):
+class ConcreteLinkBlock(Nonterm):
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
             LINK ShortNodeName OptExtending
-            ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock
+            ARROW FullTypeExpr CreateConcreteLinkCommandsBlock
         """
         self.val = esast.Link(
             name=kids[1].val.name,
@@ -626,7 +861,7 @@ class ConcreteLink(Nonterm):
     def reduce_CreateQualifiedRegularLink(self, *kids):
         """%reduce
             PtrQuals LINK ShortNodeName OptExtending
-            ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock
+            ARROW FullTypeExpr CreateConcreteLinkCommandsBlock
         """
         self.val = esast.Link(
             inherited=kids[0].val.inherited,
@@ -636,6 +871,33 @@ class ConcreteLink(Nonterm):
             extends=kids[3].val,
             target=qlast.get_targets(kids[5].val),
             **_process_commands(kids[6].val)
+        )
+
+
+class ConcreteLinkShort(Nonterm):
+    def reduce_CreateRegularLink(self, *kids):
+        """%reduce
+            LINK ShortNodeName OptExtending
+            ARROW FullTypeExpr
+        """
+        self.val = esast.Link(
+            name=kids[1].val.name,
+            extends=kids[2].val,
+            target=qlast.get_targets(kids[4].val),
+        )
+
+    def reduce_CreateQualifiedRegularLink(self, *kids):
+        """%reduce
+            PtrQuals LINK ShortNodeName OptExtending
+            ARROW FullTypeExpr
+        """
+        self.val = esast.Link(
+            inherited=kids[0].val.inherited,
+            required=kids[0].val.required,
+            cardinality=kids[0].val.cardinality,
+            name=kids[2].val.name,
+            extends=kids[3].val,
+            target=qlast.get_targets(kids[5].val),
         )
 
     def reduce_CreateComputableLink(self, *kids):
@@ -668,9 +930,11 @@ commands_block(
     'CreateObjectType',
     SetField,
     SetAttribute,
-    ConcreteProperty,
-    ConcreteLink,
-    Index
+    ConcretePropertyBlock,
+    ConcretePropertyShort,
+    ConcreteLinkBlock,
+    ConcreteLinkShort,
+    Index,
 )
 
 
@@ -678,7 +942,7 @@ class ObjectTypeDeclaration(Nonterm):
     def reduce_CreateAbstractObjectTypeStmt(self, *kids):
         r"""%reduce \
             ABSTRACT TYPE ShortNodeName OptExtending \
-            OptCreateObjectTypeCommandsBlock \
+            CreateObjectTypeCommandsBlock \
         """
         self.val = esast.ObjectTypeDeclaration(
             abstract=True,
@@ -690,12 +954,31 @@ class ObjectTypeDeclaration(Nonterm):
     def reduce_CreateRegularObjectTypeStmt(self, *kids):
         r"""%reduce \
             TYPE ShortNodeName OptExtending \
-            OptCreateObjectTypeCommandsBlock \
+            CreateObjectTypeCommandsBlock \
         """
         self.val = esast.ObjectTypeDeclaration(
             name=kids[1].val.name,
             extends=kids[2].val,
             **_process_commands(kids[3].val)
+        )
+
+
+class ObjectTypeDeclarationShort(Nonterm):
+    def reduce_CreateAbstractObjectTypeStmt(self, *kids):
+        r"""%reduce \
+            ABSTRACT TYPE ShortNodeName OptExtending"""
+        self.val = esast.ObjectTypeDeclaration(
+            abstract=True,
+            name=kids[2].val.name,
+            extends=kids[3].val,
+        )
+
+    def reduce_CreateRegularObjectTypeStmt(self, *kids):
+        r"""%reduce \
+            TYPE ShortNodeName OptExtending"""
+        self.val = esast.ObjectTypeDeclaration(
+            name=kids[1].val.name,
+            extends=kids[2].val,
         )
 
 
@@ -712,6 +995,17 @@ commands_block(
 
 
 class ViewDeclaration(Nonterm):
+    def reduce_CreateViewRegularStmt(self, *kids):
+        r"""%reduce \
+            VIEW ShortNodeName CreateViewCommandsBlock \
+        """
+        self.val = esast.ViewDeclaration(
+            name=kids[1].val.name,
+            **_process_commands(kids[2].val),
+        )
+
+
+class ViewDeclarationShort(Nonterm):
     def reduce_CreateViewShortStmt(self, *kids):
         r"""%reduce \
             VIEW ShortNodeName ASSIGN Expr \
@@ -728,7 +1022,7 @@ class ViewDeclaration(Nonterm):
 
     def reduce_CreateViewRegularStmt(self, *kids):
         r"""%reduce \
-            VIEW ShortNodeName CreateViewCommandsBlock \
+            VIEW ShortNodeName CreateViewSingleCommandBlock \
         """
         self.val = esast.ViewDeclaration(
             name=kids[1].val.name,
@@ -959,6 +1253,21 @@ class FunctionDeclaration(Nonterm, _ProcessFunctionBlockMixin):
         r"""%reduce FUNCTION ShortNodeName CreateFunctionArgs \
                 ARROW OptTypeQualifier FunctionType \
                 CreateFunctionCommandsBlock
+        """
+        self.val = esast.FunctionDeclaration(
+            name=kids[1].val.name,
+            params=kids[2].val,
+            returning=kids[5].val,
+            returning_typemod=kids[4].val,
+            **self._process_function_body(kids[6]),
+        )
+
+
+class FunctionDeclarationShort(Nonterm, _ProcessFunctionBlockMixin):
+    def reduce_CreateFunction(self, *kids):
+        r"""%reduce FUNCTION ShortNodeName CreateFunctionArgs \
+                ARROW OptTypeQualifier FunctionType \
+                CreateFunctionSingleCommandBlock
         """
         self.val = esast.FunctionDeclaration(
             name=kids[1].val.name,

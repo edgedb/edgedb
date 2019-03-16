@@ -146,7 +146,7 @@ The standard library defines the following constraints:
 
         scalar type status_t extending str {
             constraint enum ('Open', 'Closed', 'Merged');
-        };
+        }
 
 .. eql:constraint:: std::expression on (expr)
 
@@ -158,7 +158,7 @@ The standard library defines the following constraints:
 
         scalar type starts_with_a extending str {
             constraint expression on (__subject__[0] = 'A');
-        };
+        }
 
 .. eql:constraint:: std::max(max: anytype)
 
@@ -170,7 +170,7 @@ The standard library defines the following constraints:
 
         scalar type max_100 extending int64 {
             constraint max(100);
-        };
+        }
 
 .. eql:constraint:: std::max_ex(max: anytype)
 
@@ -182,7 +182,7 @@ The standard library defines the following constraints:
 
         scalar type maxex_100 extending int64 {
             constraint max_ex(100);
-        };
+        }
 
 .. eql:constraint:: std::max_len(max: int64)
 
@@ -194,7 +194,7 @@ The standard library defines the following constraints:
 
         scalar type username_t extending str {
             constraint max_len(30);
-        };
+        }
 
 .. eql:constraint:: std::min(min: anytype)
 
@@ -206,7 +206,7 @@ The standard library defines the following constraints:
 
         scalar type non_negative extending int64 {
             constraint min(0);
-        };
+        }
 
 .. eql:constraint:: std::min_ex(min: anytype)
 
@@ -218,7 +218,7 @@ The standard library defines the following constraints:
 
         scalar type positive_float extending float64 {
             constraint min_ex(0);
-        };
+        }
 
 .. eql:constraint:: std::min_len(min: int64)
 
@@ -230,7 +230,7 @@ The standard library defines the following constraints:
 
         scalar type four_decimal_places extending int64 {
             constraint min_len(4);
-        };
+        }
 
 .. eql:constraint:: std::regexp(pattern: str)
 
@@ -245,7 +245,7 @@ The standard library defines the following constraints:
 
         scalar type letters_only_t extending str {
             constraint regexp(r'[A-Za-z]*');
-        };
+        }
 
 .. eql:constraint:: std::exclusive
 
@@ -268,11 +268,11 @@ The standard library defines the following constraints:
             # Make sure user names are unique.
             required property name -> str {
                 constraint exclusive;
-            };
+            }
 
             # Make sure none of the "owned" items belong
             # to any other user.
             multi link owns -> Item {
                 constraint exclusive;
-            };
-        };
+            }
+        }
