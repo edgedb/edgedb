@@ -26,7 +26,7 @@ For example:
         property fullname :=
             (__source__.firstname + ' ' +
              __source__.lastname);
-     };
+     }
 
 Here we define the ``User`` type to contain the ``fullname`` computable
 property that is derived from user's first and last name.

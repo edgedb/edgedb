@@ -20,13 +20,13 @@
 abstract type Named {
     required property name -> str {
         delegated constraint exclusive;
-    };
-};
+    }
+}
 
 type User extending Named {
     multi link deck -> Card {
         property count -> int64;
-    };
+    }
 
     property deck_cost := sum(__source__.deck.cost);
 
@@ -34,12 +34,12 @@ type User extending Named {
         property nickname -> str;
         # how the friend responded to requests for a favor
         #property favor -> array<bool>
-    };
+    }
 
     multi link awards -> Award {
         constraint exclusive;
-    };
-};
+    }
+}
 
 type Card extending Named {
     required property element -> str;
@@ -48,7 +48,7 @@ type Card extending Named {
     # computable property
     property elemental_cost :=
         <str>__source__.cost ++ ' ' ++ __source__.element;
-};
+}
 
 type SpecialCard extending Card;
 

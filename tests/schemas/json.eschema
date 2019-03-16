@@ -20,7 +20,7 @@
 type JSONTest {
     required property number -> int64 {
         constraint exclusive;
-    };
+    }
 
     # these properties are intended to have specific JSON types in them
     property j_string -> json;
@@ -34,4 +34,4 @@ type JSONTest {
 
     # these properties are used for testing casting
     property edb_string -> str;
-};
+}

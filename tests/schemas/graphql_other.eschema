@@ -20,4 +20,4 @@
 type Foo {
     property `select` -> str;
     property after -> str;
-};
+}

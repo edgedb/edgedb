@@ -11,7 +11,7 @@ containing the following schema:
 
     type Author {
         property name -> str;
-    };
+    }
 
     type Book {
         # to make the examples simpler only the title is
@@ -21,8 +21,8 @@ containing the following schema:
         link author -> Author;
         property isbn -> str {
             constraint max_len(10);
-        };
-    };
+        }
+    }
 
 From the schema above EdgeDB will expose to GraphQL:
 

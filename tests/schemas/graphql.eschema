@@ -19,23 +19,23 @@
 
 abstract type NamedObject {
     required property name -> str;
-};
+}
 
 type UserGroup extending NamedObject {
     multi link settings -> Setting {
         constraint exclusive;
-    };
-};
+    }
+}
 
 type Setting extending NamedObject {
     required property value -> str;
-};
+}
 
 type Profile extending NamedObject {
     required property value -> str;
     property tags -> array<str>;
     multi property odd -> array<int64>;
-};
+}
 
 type User extending NamedObject {
     required property active -> bool;
@@ -43,6 +43,6 @@ type User extending NamedObject {
     required property age -> int64;
     required property score -> float64;
     link profile -> Profile;
-};
+}
 
 type Person extending User;
