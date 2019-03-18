@@ -887,7 +887,7 @@ class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
                 schema = f.read()
 
             await self.con.execute(f'''
-                CREATE MIGRATION test::d_m01 TO eschema $${schema}$$;
+                CREATE MIGRATION test::d_m01 TO {{ {schema} }};
                 COMMIT MIGRATION test::d_m01;
                 ''')
 
@@ -917,7 +917,7 @@ class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
                 schema = f.read()
 
             await self.con.execute(f'''
-                CREATE MIGRATION test::d_m01 TO eschema $${schema}$$;
+                CREATE MIGRATION test::d_m01 TO {{ {schema} }};
                 COMMIT MIGRATION test::d_m01;
                 ''')
 

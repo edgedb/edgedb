@@ -1700,13 +1700,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute("""
-            CREATE MIGRATION test::mig1 TO eschema $$
-            abstract attribute attr2;
+            CREATE MIGRATION test::mig1 TO {
+                abstract attribute attr2;
 
-            scalar type TestAttrType1 extending std::str {
-                attribute attr2 := 'aaaa';
+                scalar type TestAttrType1 extending std::str {
+                    attribute attr2 := 'aaaa';
+                };
             };
-            $$;
 
             COMMIT MIGRATION test::mig1;
         """)
@@ -1736,13 +1736,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         await self.con.execute("""
-            CREATE MIGRATION test::mig1 TO eschema $$
-            abstract attribute attr2;
+            CREATE MIGRATION test::mig1 TO {
+                abstract attribute attr2;
 
-            type TestAttrType2 {
-                attribute attr2 := 'aaaa';
+                type TestAttrType2 {
+                    attribute attr2 := 'aaaa';
+                };
             };
-            $$;
 
             COMMIT MIGRATION test::mig1;
         """)

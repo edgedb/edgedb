@@ -26,7 +26,7 @@ class TestIndexes(tb.DDLTestCase):
         await self.con.execute(r"""
             # setup delta
             #
-            CREATE MIGRATION test::d1 TO eschema $$
+            CREATE MIGRATION test::d1 TO {
                 type Person {
                     property first_name -> str;
                     property last_name -> str;
@@ -36,7 +36,7 @@ class TestIndexes(tb.DDLTestCase):
                 };
 
                 type Person2 extending Person;
-            $$;
+            };
 
             COMMIT MIGRATION test::d1;
         """)

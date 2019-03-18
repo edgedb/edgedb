@@ -27,11 +27,11 @@ command must be used followed by :eql:stmt:`COMMIT MIGRATION`:
 
     START TRANSACTION;
 
-    CREATE MIGRATION init TO eschema $$
+    CREATE MIGRATION init TO {
         type User {
-            property name -> str;
+            property name -> str
         }
-    $$;
+    };
 
     COMMIT MIGRATION init;
 

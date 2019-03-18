@@ -290,7 +290,7 @@ class BaseSchemaTest(BaseDocTest):
                     script += f'\nCREATE MODULE {module_name};'
 
                 script += f'\nCREATE MIGRATION {module_name}::d1'
-                script += f' TO eschema $${schema}$$;'
+                script += f' TO {{ {schema} }};'
                 script += f'\nCOMMIT MIGRATION {module_name}::d1;'
 
         if script:

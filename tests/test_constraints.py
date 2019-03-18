@@ -398,7 +398,7 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 
         async with self.con.transaction():
             await self.con.execute(f'''
-                CREATE MIGRATION test::d1 TO eschema $${new_schema}$$;
+                CREATE MIGRATION test::d1 TO {{ {new_schema} }};
                 COMMIT MIGRATION test::d1;
             ''')
 
@@ -954,13 +954,13 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
     async def test_constraints_ddl_error_05(self):
         # Test that constraint expression returns a boolean.
         qry = """
-            CREATE MIGRATION test::ddl_error_05 TO eschema $$
+            CREATE MIGRATION test::ddl_error_05 TO {
                 type User {
                     required property login -> str {
                         constraint expression on (len(__subject__))
                     }
                 };
-            $$;
+            };
         """
 
         with self.assertRaisesRegex(

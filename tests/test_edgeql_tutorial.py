@@ -30,7 +30,7 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
         await self.con.execute('''
             START TRANSACTION;
 
-            CREATE MIGRATION m1 TO eschema $$
+            CREATE MIGRATION m1 TO {
                 type User {
                     required property login -> str {
                         constraint exclusive;
@@ -61,10 +61,10 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                     required link author -> User;
                     required property created_on -> datetime;
                 };
-            $$;
+            };
             COMMIT MIGRATION m1;
 
-            CREATE MIGRATION m2 TO eschema $$
+            CREATE MIGRATION m2 TO {
                 type User {
                     required property login -> str {
                         constraint exclusive;
@@ -94,7 +94,7 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
                 };
 
                 type Comment extending AuthoredText;
-            $$;
+            };
             COMMIT MIGRATION m2;
 
             INSERT User {

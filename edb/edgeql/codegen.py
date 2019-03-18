@@ -22,7 +22,7 @@ import re
 from edb.common.exceptions import EdgeDBError
 from edb.common.ast import codegen, base
 
-from . import ast as edgeql_ast
+from . import ast as qlast
 from . import quote as edgeql_quote
 from . import qltypes
 
@@ -46,7 +46,15 @@ def param_to_str(ident):
         ident, allow_reserved=True)
 
 
+def module_to_str(module):
+    return '.'.join([ident_to_str(part) for part in module.split('.')])
+
+
 class EdgeQLSourceGeneratorError(EdgeDBError):
+    pass
+
+
+class EdgeSchemaSourceGeneratorError(EdgeDBError):
     pass
 
 
@@ -62,14 +70,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def _needs_parentheses(self, node):
         return (
             node.parent is not None and (
-                not isinstance(node.parent, edgeql_ast.Base)
-                or not isinstance(node.parent, edgeql_ast.DDL)
+                not isinstance(node.parent, qlast.Base)
+                or not isinstance(node.parent, qlast.DDL)
             )
         )
 
     def generic_visit(self, node, *args, **kwargs):
-        raise EdgeQLSourceGeneratorError(
-            'No method to generate code for %s' % node.__class__.__name__)
+        if isinstance(node. qlast.SDL):
+            raise EdgeQLSourceGeneratorError(
+                f'No method to generate code for {node.__class__.__name__}')
+        else:
+            raise EdgeQLSourceGeneratorError(
+                f'No method to generate code for {node.__class__.__name__}')
 
     def _block_ws(self, change, newlines=True):
         if newlines:
@@ -406,20 +418,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         for i, e in enumerate(node.steps):
             if i > 0 or node.partial:
                 if (getattr(e, 'type', None) != 'property'
-                        and not isinstance(e, edgeql_ast.TypeIndirection)):
+                        and not isinstance(e, qlast.TypeIndirection)):
                     self.write('.')
 
             if i == 0:
-                if isinstance(e, edgeql_ast.ObjectRef):
+                if isinstance(e, qlast.ObjectRef):
                     self.visit(e)
-                elif isinstance(e, (edgeql_ast.Source,
-                                    edgeql_ast.Subject)):
+                elif isinstance(e, (qlast.Source,
+                                    qlast.Subject)):
                     self.visit(e)
-                elif not isinstance(e, (edgeql_ast.Ptr,
-                                        edgeql_ast.Set,
-                                        edgeql_ast.Tuple,
-                                        edgeql_ast.NamedTuple,
-                                        edgeql_ast.TypeIndirection)):
+                elif not isinstance(e, (qlast.Ptr,
+                                        qlast.Set,
+                                        qlast.Tuple,
+                                        qlast.NamedTuple,
+                                        qlast.TypeIndirection)):
                     self.write('(')
                     self.visit(e)
                     self.write(')')
@@ -478,15 +490,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.expr)
         else:
             self.visit(node.expr.steps[0])
-            if not isinstance(node.expr.steps[1], edgeql_ast.TypeIndirection):
+            if not isinstance(node.expr.steps[1], qlast.TypeIndirection):
                 self.write('.')
                 self.visit(node.expr.steps[1])
 
         if not node.compexpr and (node.elements
                                   or isinstance(node.expr.steps[-1],
-                                                edgeql_ast.TypeIndirection)):
+                                                qlast.TypeIndirection)):
             self.write(': ')
-            if isinstance(node.expr.steps[-1], edgeql_ast.TypeIndirection):
+            if isinstance(node.expr.steps[-1], qlast.TypeIndirection):
                 self.visit(node.expr.steps[-1].type)
             if node.elements:
                 self._visit_shape(node.elements)
@@ -647,15 +659,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeName(self, node):
         parenthesize = (
-            isinstance(node.parent, (edgeql_ast.IsOp, edgeql_ast.TypeOp,
-                                     edgeql_ast.Introspect)) and
+            isinstance(node.parent, (qlast.IsOp, qlast.TypeOp,
+                                     qlast.Introspect)) and
             node.subtypes is not None
         )
         if parenthesize:
             self.write('(')
         if node.name is not None:
             self.write(ident_to_str(node.name), ': ')
-        if isinstance(node.maintype, edgeql_ast.Path):
+        if isinstance(node.maintype, qlast.Path):
             self.visit(node.maintype)
         else:
             self.visit(node.maintype)
@@ -808,10 +820,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(node.parents)
 
             if node.target:
-                self.write(' TO ', node.language, ' ')
-                from edb.eschema import generate_source as schema_sg
-                self.write(edgeql_quote.dollar_quote_literal(
-                    schema_sg(node.target)))
+                if node.language:
+                    self.write(' TO ', node.language, ' ')
+                    # generate source from the target node
+                    self.write(
+                        edgeql_quote.dollar_quote_literal(
+                            generate_source(node.target)))
+                else:
+                    self.write(' TO {')
+                    self._block_ws(1)
+                    self.visit(node.target)
+                    self.indentation -= 1
+                    self.write('}')
+
         self._visit_CreateObject(node, 'MIGRATION', after_name=after_name)
 
     def visit_CommitDelta(self, node):
@@ -1176,6 +1197,265 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_ReleaseSavepoint(self, node):
         self.write(f'RELEASE SAVEPOINT {node.name}')
+
+    # SDL nodes
+
+    def _visit_extends(self, names):
+        self.write(' extending ')
+        self.visit_list(names, newlines=False)
+
+    def _visit_specs(self, node):
+        if (getattr(node, 'attributes', None) or
+                getattr(node, 'fields', None) or
+                getattr(node, 'constraints', None) or
+                getattr(node, 'links', None) or
+                getattr(node, 'on_target_delete', None) or
+                getattr(node, 'properties', None)):
+
+            self.write(' {')
+            self._block_ws(1)
+            if getattr(node, 'links', None):
+                self.visit_list(node.links, terminator=';')
+            if getattr(node, 'properties', None):
+                self.visit_list(node.properties, terminator=';')
+            if getattr(node, 'attributes', None):
+                self.visit_list(node.attributes, terminator=';')
+            if getattr(node, 'constraints', None):
+                self.visit_list(node.constraints, terminator=';')
+            if getattr(node, 'indexes', None):
+                self.visit_list(node.indexes, terminator=';')
+            if getattr(node, 'fields', None):
+                self.visit_list(node.fields, terminator=';')
+            if getattr(node, 'on_target_delete', None):
+                self.visit(node.on_target_delete)
+                self.write(';')
+
+            self._block_ws(-1)
+            self.write('}')
+
+    def _visit_qualifier(self, node):
+        if node.abstract:
+            self.write('abstract ')
+        elif node.final:
+            self.write('final ')
+
+    def visit_Schema(self, node):
+        self.visit_list(node.declarations, terminator=';')
+
+    def visit_Import(self, node):
+        self.write('import ')
+        self.visit_list(node.modules, separator=', ')
+
+    def visit_ImportModule(self, node):
+        self.write(module_to_str(node.module))
+        if node.alias:
+            self.write(' as ')
+            self.write(ident_to_str(node.alias))
+
+    def _visit_Declaration(self, node, after_name=None):
+        decl = node.__class__.__name__.lower() \
+            .replace('declaration', ' ') \
+            .replace('objecttype', 'type') \
+            .replace('scalartype', 'scalar type')
+        self.write(decl)
+        self.write(ident_to_str(node.name))
+        if after_name:
+            after_name(node)
+        if node.extends:
+            self._visit_extends(node.extends)
+        self._visit_specs(node)
+
+    def _visit_Pointer(self, node):
+        quals = []
+        if node.inherited:
+            quals.append('inherited')
+        if node.required:
+            quals.append('required')
+        if node.cardinality is qltypes.Cardinality.ONE:
+            quals.append('single')
+        elif node.cardinality is qltypes.Cardinality.MANY:
+            quals.append('multi')
+        if quals:
+            self.write(*quals, delimiter=' ')
+            self.write(' ')
+
+        decl = node.__class__.__name__.lower()
+        self.write(decl, ' ')
+        self.write(ident_to_str(node.name))
+        if node.extends:
+            self._visit_extends(node.extends)
+
+        if node.expr:
+            self._visit_assignment(node.expr)
+        elif node.target:
+            self.write(' -> ')
+            self.visit_list(node.target, separator=' | ', newlines=False)
+            self._visit_specs(node)
+        else:
+            self._visit_specs(node)
+
+    def _visit_assignment(self, node):
+        self.write(' := ')
+
+        if (isinstance(node, qlast.BaseConstant) and
+                (not isinstance(node.value, str) or
+                 '\n' not in node.value)):
+            self.visit(node, ident=False)
+            self.new_lines = 1
+        else:
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node)
+            self.indentation -= 1
+            self.new_lines = 2
+
+    def visit_ScalarTypeDeclaration(self, node):
+        self._visit_qualifier(node)
+        self._visit_Declaration(node)
+
+    def visit_AttributeDeclaration(self, node):
+        if node.abstract:
+            self.write('abstract ')
+        if node.inheritable:
+            self.write('inheritable ')
+        self._visit_Declaration(node)
+
+    def visit_ObjectTypeDeclaration(self, node):
+        self._visit_qualifier(node)
+        self._visit_Declaration(node)
+
+    def visit_ConstraintDeclaration(self, node):
+        def after_name(node):
+            if node.params:
+                self.write('(')
+                self.visit_list(node.params, newlines=False)
+                self.write(')')
+            if node.subject:
+                self.write(' on (')
+                self.visit(node.subject)
+                self.write(')')
+
+        if node.abstract:
+            self.write('abstract ')
+
+        self._visit_Declaration(node, after_name=after_name)
+
+    def visit_LinkDeclaration(self, node):
+        if node.abstract:
+            self.write('abstract ')
+        self._visit_Declaration(node)
+
+    def visit_PropertyDeclaration(self, node):
+        if node.abstract:
+            self.write('abstract ')
+        self._visit_Declaration(node)
+
+    def visit_ViewDeclaration(self, node):
+        if node.attributes:
+            self._visit_Declaration(node)
+        else:
+            # there's only one field expected - expr
+            self.write('view ')
+            self.write(node.name)
+            self.write(' := ')
+            self.visit(node.fields[0].value)
+
+    def visit_FunctionDeclaration(self, node):
+        self.write('function ')
+
+        self.write(node.name)
+        self.write('(')
+        self.visit_list(node.params, newlines=False)
+        self.write(') -> ')
+        self.write(node.returning_typemod.to_edgeql(), ' ')
+        self.visit(node.returning)
+        self.write(' {')
+        self._block_ws(1)
+        self.visit_list(node.attributes, terminator=';')
+        self.visit_list(node.fields, terminator=';')
+
+        if node.function_code.from_function:
+            self.write(f'from {node.function_code.language} function ')
+            self.write(f'{node.function_code.from_function!r}')
+        else:
+            self.write(f'from {node.function_code.language} ')
+            self.visit(node.function_code.code)
+
+        self.write(';')
+        self._block_ws(-1)
+        self.write('}')
+
+    def visit_FunctionCode(self, node):
+        self.write(f'from {node.language.lower()}')
+        if node.code:
+            self.write(' :=')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.code)
+            self.indentation -= 1
+            self.new_lines = 1
+        else:
+            self.write(f' function: {node.from_function}')
+
+    def visit_ObjectName(self, node):
+        if node.module:
+            self.write(module_to_str(node.module))
+            self.write('::')
+        self.write(ident_to_str(node.name))
+        if node.subtypes:
+            self.write('<')
+            self.visit_list(node.subtypes, separator=', ', newlines=False)
+            self.write('>')
+
+    def visit_Link(self, node):
+        self._visit_Pointer(node)
+
+    def visit_Property(self, node):
+        self._visit_Pointer(node)
+
+    def visit_IndexDeclaration(self, node):
+        self.write('index ')
+        self.visit(node.name)
+        if node.expression:
+            self.write(' on (')
+            self.visit(node.expression)
+            self.write(')')
+
+    def visit_Constraint(self, node):
+        if node.delegated:
+            self.write('delegated ')
+        self.write('constraint ')
+        self.visit(node.name)
+        if node.args:
+            self.write('(')
+            self.visit_list(node.args, newlines=False)
+            self.write(')')
+
+        if node.subject:
+            self.write(' on ')
+            self.visit(node.subject)
+
+        if node.attributes or node.fields:
+            self.write(' {')
+            self._block_ws(1)
+            self.visit_list(node.attributes, terminator=';')
+            self.visit_list(node.fields, terminator=';')
+            self._block_ws(-1)
+            self.write('}')
+
+    def visit_Field(self, node):
+        self.visit(node.name)
+        self.write(' := ')
+        self.visit(node.value)
+
+    def visit_Attribute(self, node):
+        self.write('attribute ')
+        self.visit(node.name)
+        self.write(' := ')
+        self.visit(node.value)
+
+    def visit_SDLOnTargetDelete(self, node):
+        self.write('on target delete ', node.cascade.lower())
 
     @classmethod
     def to_source(

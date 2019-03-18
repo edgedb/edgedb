@@ -32,7 +32,6 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.edgeql import utils as qlutils
 
-from edb.eschema import ast as s_ast
 from edb.eschema import parser as s_parser
 
 from edb.schema import abc as s_abc
@@ -58,11 +57,11 @@ from edb.schema import utils as s_utils
 
 
 _DECL_MAP = {
-    s_ast.ScalarTypeDeclaration: s_scalars.ScalarType,
-    s_ast.ObjectTypeDeclaration: s_objtypes.ObjectType,
-    s_ast.ConstraintDeclaration: s_constr.Constraint,
-    s_ast.LinkDeclaration: s_links.Link,
-    s_ast.AttributeDeclaration: s_attrs.Attribute,
+    qlast.ScalarTypeDeclaration: s_scalars.ScalarType,
+    qlast.ObjectTypeDeclaration: s_objtypes.ObjectType,
+    qlast.ConstraintDeclaration: s_constr.Constraint,
+    qlast.LinkDeclaration: s_links.Link,
+    qlast.AttributeDeclaration: s_attrs.Attribute,
 }
 
 
@@ -93,7 +92,7 @@ class DeclarationLoader:
             try:
                 objcls = _DECL_MAP[type(decl)]
             except KeyError:
-                if isinstance(decl, s_ast.Import):
+                if isinstance(decl, qlast.Import):
                     continue
                 msg = 'unexpected declaration type: {!r}'.format(decl)
                 raise TypeError(msg) from None
@@ -204,7 +203,7 @@ class DeclarationLoader:
 
     def _process_imports(self, tree):
         for decl in tree.declarations:
-            if isinstance(decl, s_ast.Import):
+            if isinstance(decl, qlast.Import):
                 for mod in decl.modules:
                     if not self._schema.has_module(mod.module):
                         raise errors.SchemaError(
@@ -448,7 +447,7 @@ class DeclarationLoader:
                 self._parse_subject_constraints(prop, propdecl)
 
     def _parse_attr_setters(
-            self, scls, attrdecls: typing.List[s_ast.Attribute]):
+            self, scls, attrdecls: typing.List[qlast.Attribute]):
         for attrdecl in attrdecls:
             attr = self._get_ref_obj(attrdecl.name, s_attrs.Attribute)
             value = qlcompiler.evaluate_ast_to_python_val(
@@ -462,7 +461,7 @@ class DeclarationLoader:
             self._schema = scls.set_attribute(self._schema, attr, value)
 
     def _parse_field_setters(
-            self, scls, field_decls: typing.List[s_ast.Field]):
+            self, scls, field_decls: typing.List[qlast.Field]):
         fields = type(scls).get_fields()
         updates = {}
 

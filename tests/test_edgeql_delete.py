@@ -24,7 +24,7 @@ from edb.testbase import server as tb
 
 class TestDelete(tb.QueryTestCase):
     SETUP = """
-        CREATE MIGRATION test::d_delete01 TO eschema $$
+        CREATE MIGRATION test::d_delete01 TO {
             type DeleteTest {
                 property name -> str;
             };
@@ -32,7 +32,7 @@ class TestDelete(tb.QueryTestCase):
             type DeleteTest2 {
                 property name -> str;
             };
-        $$;
+        };
 
         COMMIT MIGRATION test::d_delete01;
     """

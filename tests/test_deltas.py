@@ -32,14 +32,14 @@ class TestDeltas(tb.DDLTestCase):
         await self.con.execute("""
             # setup delta
             #
-            CREATE MIGRATION test::d1 TO eschema $$
+            CREATE MIGRATION test::d1 TO {
                 type NamedObject {
                     required property name -> str;
                     multi link related -> NamedObject {
                         property lang -> str;
                     };
                 };
-            $$;
+            };
 
             COMMIT MIGRATION test::d1;
 
@@ -161,11 +161,11 @@ class TestDeltas(tb.DDLTestCase):
     async def test_delta_unicode_01(self):
         await self.con.execute(r"""
             # setup delta
-            CREATE MIGRATION test::u1 TO eschema $$
+            CREATE MIGRATION test::u1 TO {
                 type Пример {
                     required property номер -> int16;
                 };
-            $$;
+            };
             COMMIT MIGRATION test::u1;
             SET MODULE test;
 
@@ -199,7 +199,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             schema = f.read()
 
         await self.con.execute(f'''
-            CREATE MIGRATION test::d_links01_0 TO eschema $${schema}$$;
+            CREATE MIGRATION test::d_links01_0 TO {{ {schema} }};
             COMMIT MIGRATION test::d_links01_0;
             ''')
 
@@ -254,7 +254,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
 
         await self.con.execute(f'''
             ROLLBACK TO SAVEPOINT t0;
-            CREATE MIGRATION test::d_links01_1 TO eschema $${schema}$$;
+            CREATE MIGRATION test::d_links01_1 TO {{ {schema} }};
             COMMIT MIGRATION test::d_links01_1;
             ''')
 
@@ -277,7 +277,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
         await self.con.execute("""
             # setup delta
             #
-            CREATE MIGRATION test::d1 TO eschema $$
+            CREATE MIGRATION test::d1 TO {
                 abstract link related {
                     property lang -> str;
                 };
@@ -290,7 +290,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                         };
                     };
                 };
-            $$;
+            };
         """)
         result = await self.con.fetch_value("""
             GET MIGRATION test::d1;
@@ -327,11 +327,11 @@ ALTER TYPE test::NamedObject {
         await self.con.execute("""
             # setup delta
             #
-            CREATE MIGRATION test::d2 TO eschema $$
+            CREATE MIGRATION test::d2 TO {
                 type NamedObject {
                     required property a -> array<int64>;
                 };
-            $$;
+            };
         """)
         result = await self.con.fetch_value("""
             GET MIGRATION test::d2;
@@ -349,12 +349,12 @@ a EXTENDING std::property -> array<std::int64>;
     async def test_delta_ddlgen_03(self):
         await self.con.execute("""
             # setup delta
-            CREATE MIGRATION test::d3 TO eschema $$
+            CREATE MIGRATION test::d3 TO {
                 abstract type Foo {
                     property bar -> str;
                     property __typename := 'foo';
                 };
-            $$;
+            };
         """)
         result = await self.con.fetch_value("""
             GET MIGRATION test::d3;
@@ -380,12 +380,12 @@ a EXTENDING std::property -> array<std::int64>;
     async def test_delta_ddlgen_04(self):
         await self.con.execute("""
             # setup delta
-            CREATE MIGRATION test::d4 TO eschema $$
+            CREATE MIGRATION test::d4 TO {
                 abstract type Foo {
                     property bar -> str;
                     property __typename := __source__.__type__.name;
                 };
-            $$;
+            };
         """)
         result = await self.con.fetch_value("""
             GET MIGRATION test::d4;
@@ -412,13 +412,13 @@ a EXTENDING std::property -> array<std::int64>;
         await self.con.execute("""
             # setup delta
             #
-            CREATE MIGRATION test::d5 TO eschema $$
+            CREATE MIGRATION test::d5 TO {
                 type NamedObject2 {
                     property a2 -> array<int64> {
                         readonly := true;
                     };
                 };
-            $$;
+            };
 
             GET MIGRATION test::d5;
         """)
@@ -442,11 +442,11 @@ a2 EXTENDING std::property -> array<std::int64> {
                 edgedb.SchemaError, r"unexpected field aaa"):
 
             await self.con.execute("""
-                CREATE MIGRATION test::d5 TO eschema $$
+                CREATE MIGRATION test::d5 TO {
                     type NamedObject2 {
                         property a2 -> array<int64> {
                             aaa := true;
                         };
                     };
-                $$;
+                };
             """)

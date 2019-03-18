@@ -22,8 +22,6 @@
 
 from edb.edgeql import ast as qlast
 
-from edb.eschema import ast as s_ast
-
 from . import abc as s_abc
 from . import delta as sd
 from . import objects as so
@@ -36,7 +34,7 @@ class Delta(so.Object, s_abc.Delta):
         default=so.ObjectList, coerce=True, inheritable=False)
 
     target = so.SchemaField(
-        s_ast.Schema,
+        qlast.Schema,
         inheritable=False, default=None, introspectable=False)
 
     commands = so.SchemaField(
