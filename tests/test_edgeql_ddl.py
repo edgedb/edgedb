@@ -1332,7 +1332,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_operator_01(self):
         await self.con.execute('''
-            CREATE INFIX OPERATOR test::`+`
+            CREATE INFIX OPERATOR test::`+++`
                 (left: int64, right: int64) -> int64
                 FROM SQL OPERATOR r'+';
         ''')
@@ -1353,10 +1353,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     return_typemod
                 }
                 FILTER
-                    .name = 'test::+';
+                    .name = 'test::+++';
             ''',
             [{
-                'name': 'test::+',
+                'name': 'test::+++',
                 'params': [
                     {
                         'name': 'left',
@@ -1378,7 +1378,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute('''
-            ALTER INFIX OPERATOR test::`+`
+            ALTER INFIX OPERATOR test::`+++`
                 (left: int64, right: int64)
                 SET ATTRIBUTE description := 'my plus';
         ''')
@@ -1390,17 +1390,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     name,
                 }
                 FILTER
-                    .name = 'test::+'
+                    .name = 'test::+++'
                     AND .attributes.name = 'std::description'
                     AND .attributes@value = 'my plus';
             ''',
             [{
-                'name': 'test::+',
+                'name': 'test::+++',
             }]
         )
 
         await self.con.execute("""
-            DROP INFIX OPERATOR test::`+` (left: int64, right: int64);
+            DROP INFIX OPERATOR test::`+++` (left: int64, right: int64);
         """)
 
         await self.assert_query_result(
@@ -1419,7 +1419,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     return_typemod
                 }
                 FILTER
-                    .name = 'test::+';
+                    .name = 'test::+++';
             ''',
             []
         )

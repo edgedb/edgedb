@@ -31,6 +31,8 @@
 
 
 static const char *_get_type_name(Oid typeoid);
+static Datum _internal_json_row_to_array(
+	HeapTupleHeader rec, char *json_func);
 
 
 /*
@@ -112,7 +114,7 @@ row_getattr_by_num(PG_FUNCTION_ARGS)
 
 
 /*
- * SQL function row_to_jsonb_array(record) -> jsonb
+ * SQL function jsonb_row_to_array(record) -> jsonb
  *
  * Built-in jsonb functions serialize anonymous records to
  * JSON objects of the form {"f1": <attr1>, ... "fN": <attrN>},
@@ -122,12 +124,35 @@ row_getattr_by_num(PG_FUNCTION_ARGS)
  * Datum by forwarding the record's attributes to
  * jsonb_build_array().
  */
-PG_FUNCTION_INFO_V1(row_to_jsonb_array);
+PG_FUNCTION_INFO_V1(jsonb_row_to_array);
 
 Datum
-row_to_jsonb_array(PG_FUNCTION_ARGS)
+jsonb_row_to_array(PG_FUNCTION_ARGS)
 {
-	HeapTupleHeader rec;
+	HeapTupleHeader rec = PG_GETARG_HEAPTUPLEHEADER(0);
+	return _internal_json_row_to_array(rec, "jsonb_build_array");
+}
+
+
+/*
+ * SQL function json_row_to_array(record) -> json
+ *
+ * A json variant of jsonb_row_to_array().
+ */
+
+PG_FUNCTION_INFO_V1(json_row_to_array);
+
+Datum
+json_row_to_array(PG_FUNCTION_ARGS)
+{
+	HeapTupleHeader rec = PG_GETARG_HEAPTUPLEHEADER(0);
+	return _internal_json_row_to_array(rec, "json_build_array");
+}
+
+
+static Datum
+_internal_json_row_to_array(HeapTupleHeader rec, char *json_func)
+{
 	HeapTupleData	tmptup;
 	List			*jbba_name = NIL;
 	List			*jbba_args = NIL;
@@ -140,7 +165,6 @@ row_to_jsonb_array(PG_FUNCTION_ARGS)
 	TupleDesc		tup_desc;
 	int				i, argno = 0;
 
-	rec = PG_GETARG_HEAPTUPLEHEADER(0);
 	tup_type = HeapTupleHeaderGetTypeId(rec);
 	tup_typmod = HeapTupleHeaderGetTypMod(rec);
 	tup_desc = lookup_rowtype_tupdesc(tup_type, tup_typmod);
@@ -150,7 +174,7 @@ row_to_jsonb_array(PG_FUNCTION_ARGS)
 	tmptup.t_data = rec;
 
 	jbba_argtypes[0] = ANYOID;
-	jbba_name = list_make1(makeString("jsonb_build_array"));
+	jbba_name = list_make1(makeString(json_func));
 	jbba_oid = LookupFuncName(jbba_name, 1, jbba_argtypes, false);
 
 	fmgr_info(jbba_oid, &jbba_finfo);

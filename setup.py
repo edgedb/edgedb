@@ -178,24 +178,24 @@ def _compile_postgres(build_base, *,
             ], check=True, cwd=str(build_dir))
 
         subprocess.run(
-            ['make', '-j', str(max(os.cpu_count() - 1, 1))],
+            ['make', 'MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))],
             cwd=str(build_dir), check=True)
 
         if build_contrib or fresh_build or is_outdated:
             subprocess.run(
                 [
-                    'make', '-C', 'contrib', '-j',
+                    'make', '-C', 'contrib', 'MAKELEVEL=0', '-j',
                     str(max(os.cpu_count() - 1, 1))
                 ],
                 cwd=str(build_dir), check=True)
 
         subprocess.run(
-            ['make', 'install'],
+            ['make', 'MAKELEVEL=0', 'install'],
             cwd=str(build_dir), check=True)
 
         if build_contrib or fresh_build or is_outdated:
             subprocess.run(
-                ['make', '-C', 'contrib', 'install'],
+                ['make', '-C', 'contrib', 'MAKELEVEL=0', 'install'],
                 cwd=str(build_dir), check=True)
 
         with open(postgres_build_stamp, 'w') as f:
@@ -309,6 +309,9 @@ class build_postgres(setuptools.Command):
             fresh_build=self.fresh_build,
             run_configure=self.configure,
             build_contrib=self.build_contrib)
+
+        _compile_postgres_extensions(
+            pathlib.Path('build').resolve())
 
 
 class build_ext(distutils_build_ext.build_ext):

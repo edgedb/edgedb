@@ -30,6 +30,19 @@ from edb.pgsql import types as pgtypes
 from . import context
 
 
+def _get_json_func(name: str, *,
+                   env: context.Environment) -> typing.Tuple[str, ...]:
+    if env.output_format is context.OutputFormat.JSON:
+        prefix_suffix = 'json'
+    else:
+        prefix_suffix = 'jsonb'
+
+    if name == 'to':
+        return (f'{name}_{prefix_suffix}',)
+    else:
+        return (f'{prefix_suffix}_{name}',)
+
+
 def coll_as_json_object(expr, *, styperef, env):
     if irtyputils.is_tuple(styperef):
         return tuple_as_json_object(expr, styperef=styperef, env=env)
@@ -70,9 +83,9 @@ def array_as_json_object(expr, *, styperef, env):
             )
 
         if is_named:
-            json_func = 'jsonb_build_object'
+            json_func = _get_json_func('build_object', env=env)
         else:
-            json_func = 'jsonb_build_array'
+            json_func = _get_json_func('build_array', env=env)
 
         return pgast.SelectStmt(
             target_list=[
@@ -80,10 +93,10 @@ def array_as_json_object(expr, *, styperef, env):
                     val=pgast.CoalesceExpr(
                         args=[
                             pgast.FuncCall(
-                                name=('jsonb_agg',),
+                                name=_get_json_func('agg', env=env),
                                 args=[
                                     pgast.FuncCall(
-                                        name=(json_func,),
+                                        name=json_func,
                                         args=json_args,
                                     )
                                 ]
@@ -112,7 +125,8 @@ def array_as_json_object(expr, *, styperef, env):
         )
     else:
         return pgast.FuncCall(
-            name=('to_jsonb',), args=[expr], null_safe=True, ser_safe=True)
+            name=_get_json_func('to', env=env), args=[expr],
+            null_safe=True, ser_safe=True)
 
 
 def tuple_as_json_object(expr, *, styperef, env):
@@ -146,8 +160,8 @@ def unnamed_tuple_as_json_object(expr, *, styperef, env):
         vals.append(val)
 
     return pgast.FuncCall(
-        name=('edgedb', 'row_to_jsonb_array',), args=[expr],
-        null_safe=True, ser_safe=True, nullable=expr.nullable)
+        name=('edgedb',) + _get_json_func('row_to_array', env=env),
+        args=[expr], null_safe=True, ser_safe=True, nullable=expr.nullable)
 
 
 def named_tuple_as_json_object(expr, *, styperef, env):
@@ -176,14 +190,14 @@ def named_tuple_as_json_object(expr, *, styperef, env):
         keyvals.append(val)
 
     return pgast.FuncCall(
-        name=('jsonb_build_object',),
+        name=_get_json_func('build_object', env=env),
         args=keyvals, null_safe=True, ser_safe=True, nullable=expr.nullable)
 
 
 def tuple_var_as_json_object(tvar, *, path_id, env):
     if not tvar.named:
         return pgast.FuncCall(
-            name=('jsonb_build_array',),
+            name=_get_json_func('build_array', env=env),
             args=[
                 serialize_expr(t.val, path_id=t.path_id, nested=True, env=env)
                 for t in tvar.elements
@@ -203,7 +217,7 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
             keyvals.append(val)
 
         return pgast.FuncCall(
-            name=('jsonb_build_object',),
+            name=_get_json_func('build_object', env=env),
             args=keyvals, null_safe=True, ser_safe=True,
             nullable=tvar.nullable)
 
@@ -254,15 +268,16 @@ def serialize_expr_to_json(
 
     elif isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
         val = pgast.FuncCall(
-            name=('jsonb_build_array',), args=expr.args,
-            null_safe=True, ser_safe=True,)
+            name=_get_json_func('build_array', env=env),
+            args=expr.args, null_safe=True, ser_safe=True,)
 
     elif path_id.is_collection_path() and not expr.ser_safe:
         val = coll_as_json_object(expr, styperef=path_id.target, env=env)
 
     elif not nested:
         val = pgast.FuncCall(
-            name=('to_jsonb',), args=[expr], null_safe=True, ser_safe=True)
+            name=_get_json_func('to', env=env),
+            args=[expr], null_safe=True, ser_safe=True)
 
     else:
         val = expr
@@ -276,7 +291,8 @@ def serialize_expr(
         nested: bool=False,
         env: context.Environment) -> pgast.Base:
 
-    if env.output_format == context.OutputFormat.JSON:
+    if env.output_format in (context.OutputFormat.JSON,
+                             context.OutputFormat.JSONB):
         val = serialize_expr_to_json(
             expr, path_id=path_id, nested=nested, env=env)
 
@@ -294,8 +310,10 @@ def get_pg_type(
         ctx: context.CompilerContextLevel) -> typing.Tuple[str]:
 
     if in_serialization_ctx(ctx):
-        if ctx.env.output_format == context.OutputFormat.JSON:
+        if ctx.env.output_format is context.OutputFormat.JSONB:
             return ('jsonb',)
+        elif ctx.env.output_format is context.OutputFormat.JSON:
+            return ('json',)
         elif irtyputils.is_object(typeref):
             return ('record',)
         else:
@@ -310,7 +328,7 @@ def top_output_as_value(
         env: context.Environment) -> pgast.Query:
     """Finalize output serialization on the top level."""
 
-    if env.output_format == context.OutputFormat.JSON:
+    if env.output_format is context.OutputFormat.JSON:
         # For JSON we just want to aggregate the whole thing
         # into a JSON array.
         subrvar = pgast.RangeSubselect(
@@ -329,7 +347,7 @@ def top_output_as_value(
             )
 
         new_val = pgast.FuncCall(
-            name=('jsonb_agg',),
+            name=_get_json_func('agg', env=env),
             args=[pgast.ColumnRef(name=[stmt_res.name])]
         )
 

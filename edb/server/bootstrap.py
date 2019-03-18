@@ -49,7 +49,7 @@ from edb.pgsql import metaschema
 
 
 CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
-    (pathlib.Path(__file__).parent, '.py'),
+    (pathlib.Path(metaschema.__file__).parent, '.py'),
 )
 
 

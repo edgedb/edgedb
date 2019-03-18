@@ -45,6 +45,7 @@ class ShapeFormat(enum.Enum):
 class OutputFormat(enum.Enum):
     NATIVE = enum.auto()
     JSON = enum.auto()
+    JSONB = enum.auto()
 
 
 NO_VOLATILITY = object()

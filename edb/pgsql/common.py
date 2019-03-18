@@ -205,13 +205,13 @@ def get_operator_backend_name(name, module_id, catenate=False, *, aspect=None):
             # Since this is a rare occasion, we hard-code the translation
             # table.
             if oper_name == 'OR':
-                oper_name = '||'
+                oper_name = '|||'
             else:
                 raise ValueError(
                     f'cannot represent operator {oper_name} in Postgres')
 
         oper_name = f'`{oper_name}`'
-        schema = get_module_backend_name(module_id)
+        schema = 'edgedb'
     else:
         schema = ''
 

@@ -298,7 +298,7 @@ class TypeSerializer:
 
     @classmethod
     def _describe_json(cls):
-        json_id = s_obj.get_known_type_id('std::json')
+        json_id = s_obj.get_known_type_id('std::str')
 
         buf = []
         buf.append(b'\x02')

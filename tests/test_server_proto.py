@@ -653,15 +653,15 @@ class TestServerProto(tb.QueryTestCase):
             self.assertEqual(
                 await self.con.fetch_json(
                     'select ["a", "b"]'),
-                '[["a", "b"]]')
+                '[["a","b"]]')
 
             self.assertEqual(
                 await self.con.fetch_json('''
                     SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
                             (a:=1, world := ("yo", 10))};
                 '''),
-                '[{"a": 42, "world": ["hello", 32]}, '
-                '{"a": 1, "world": ["yo", 10]}]')
+                '[{"a" : 42, "world" : ["hello", 32]}, '
+                '{"a" : 1, "world" : ["yo", 10]}]')
 
             self.assertEqual(
                 await self.con.fetch_json('SELECT {1, 2}'),

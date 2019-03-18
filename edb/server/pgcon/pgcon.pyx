@@ -202,7 +202,7 @@ cdef class PGProto:
         return parse, store_stmt
 
     async def parse_execute_json(self, sql, sql_hash, dbver,
-                                 use_prep_stmt, args):
+                                 use_prep_stmt, args, textmode):
         cdef:
             WriteBuffer parse_buf
             WriteBuffer bind_buf
@@ -295,14 +295,18 @@ cdef class PGProto:
                         self.buffer.discard_message()
                         continue
 
-                    b = self.buffer.read_byte()
-                    if b != 1:
-                        error = RuntimeError(
-                            f'invalid JSONB format for a JSON query {sql!r}')
-                        self.buffer.discard_message()
-                        continue
+                    if not textmode:
+                        b = self.buffer.read_byte()
+                        if b != 1:
+                            error = RuntimeError(
+                                f'invalid JSONB format for '
+                                f'a JSON query {sql!r}')
+                            self.buffer.discard_message()
+                            continue
 
-                    data = self.buffer.read_bytes(coll - 1)
+                        data = self.buffer.read_bytes(coll - 1)
+                    else:
+                        data = self.buffer.read_bytes(coll)
 
                 elif mtype == b'E':
                     # ErrorResponse
@@ -616,8 +620,7 @@ cdef class PGProto:
         buf.write_bytestring(b'false')
 
         buf.write_bytestring(b'search_path')
-        buf.write_utf8('edgedb, {}'.format(
-            pg_common.get_module_backend_name(s_obj.get_known_type_id('std'))))
+        buf.write_utf8('edgedb')
 
         buf.write_utf8('user')
         buf.write_utf8(defines.EDGEDB_SUPERUSER)

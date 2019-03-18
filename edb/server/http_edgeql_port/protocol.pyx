@@ -170,7 +170,7 @@ cdef class Protocol(http.HttpProtocol):
         try:
             data = await pgcon.parse_execute_json(
                 query_unit.sql[0], query_unit.sql_hash, query_unit.dbver,
-                use_prep_stmt, args)
+                use_prep_stmt, args, True)
         finally:
             self.server.pgcons.put_nowait(pgcon)
 

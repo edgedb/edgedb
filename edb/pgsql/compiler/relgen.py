@@ -361,7 +361,7 @@ def set_to_array(
     orig_val = val
 
     if (ir_set.path_id.is_array_path()
-            and ctx.env.output_format != context.OutputFormat.JSON):
+            and ctx.env.output_format is context.OutputFormat.NATIVE):
         # We cannot aggregate arrays straight away, as
         # they be of different length, so we have to
         # encase each element into a record.
@@ -1375,7 +1375,7 @@ def process_set_as_type_cast(
             #      to use context levels instead of using env
             #      directly.
             orig_output_format = subctx.env.output_format
-            subctx.env.output_format = context.OutputFormat.JSON
+            subctx.env.output_format = context.OutputFormat.JSONB
             implicit_cast = True
         else:
             implicit_cast = False

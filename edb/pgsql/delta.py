@@ -3268,11 +3268,6 @@ class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
         cmd.add_command(dbops.CreateSchema(name=schema_name))
         self.pgops.add(cmd)
 
-        if module.get_name(schema) == 'std':
-            search_path = dbops.Set(
-                'search_path', common.get_backend_name(schema, module))
-            self.pgops.add(search_path)
-
         self.create_object(schema, module)
 
         return schema, module
