@@ -59,10 +59,6 @@ def terminate_server(server, loop):
 
 
 def _ensure_runstate_dir(data_dir, runstate_dir):
-    if not devmode.is_in_dev_mode():
-        if not os.path.exists(runstate_dir):
-            raise
-
     if runstate_dir is None:
         try:
             runstate_dir = edgedb_cluster.get_runstate_path(data_dir)
