@@ -17,6 +17,8 @@
 #
 
 
+import logging
+import os.path
 import weakref
 
 from edb.common import taskgroup
@@ -24,6 +26,9 @@ from edb.server import baseport
 from edb.server import compiler
 
 from . import edgecon
+
+
+logger = logging.getLogger('edb.server')
 
 
 class Backend:
@@ -89,11 +94,25 @@ class ManagementPort(baseport.Port):
     async def start(self):
         await super().start()
 
-        srv = await self._loop.create_server(
+        tcp_srv = await self._loop.create_server(
             lambda: edgecon.EdgeConnection(self),
             host=self._nethost, port=self._netport)
 
-        self._servers.append(srv)
+        try:
+            unix_sock_path = os.path.join(
+                self._runstate_dir, f'.s.EDGEDB.{self._netport}')
+            unix_srv = await self._loop.create_unix_server(
+                lambda: edgecon.EdgeConnection(self),
+                unix_sock_path)
+        except Exception:
+            tcp_srv.close()
+            await tcp_srv.wait_closed()
+            raise
+
+        self._servers.append(tcp_srv)
+        logger.info('Serving on %s:%s', self._nethost, self._netport)
+        self._servers.append(unix_srv)
+        logger.info('Serving on %s', unix_sock_path)
 
     async def stop(self):
         try:
@@ -101,10 +120,12 @@ class ManagementPort(baseport.Port):
                 for srv in self._servers:
                     srv.close()
                     g.create_task(srv.wait_closed())
+                self._servers.clear()
         finally:
             try:
                 async with taskgroup.TaskGroup() as g:
                     for backend in self._backends:
                         g.create_task(backend.close())
+                    self._backends.clear()
             finally:
                 await super().stop()

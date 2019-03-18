@@ -41,6 +41,7 @@ logger = logging.getLogger('edb.server')
 class Server:
 
     def __init__(self, *, loop, cluster, runstate_dir,
+                 internal_runstate_dir,
                  max_backend_connections):
 
         self._loop = loop
@@ -54,6 +55,7 @@ class Server:
         self._dbindex = dbview.DatabaseIndex(self)
 
         self._runstate_dir = runstate_dir
+        self._internal_runstate_dir = internal_runstate_dir
         self._max_backend_connections = max_backend_connections
 
         self._ports = []
@@ -105,6 +107,7 @@ class Server:
             pg_addr=self._pg_addr,
             pg_data_dir=self._pg_data_dir,
             runstate_dir=self._runstate_dir,
+            internal_runstate_dir=self._internal_runstate_dir,
             dbindex=self._dbindex,
             netport=portconf.port,
             nethost=portconf.address,
@@ -116,6 +119,7 @@ class Server:
         try:
             await port.start()
         except Exception as ex:
+            await port.stop()
             if suppress_errors:
                 logging.error(
                     'failed to start port for config: %r', portconf,
@@ -176,6 +180,7 @@ class Server:
                 pg_addr=self._pg_addr,
                 pg_data_dir=self._pg_data_dir,
                 runstate_dir=self._runstate_dir,
+                internal_runstate_dir=self._internal_runstate_dir,
                 dbindex=self._dbindex,
                 **kwargs))
 
@@ -196,8 +201,12 @@ class Server:
         self._serving = True
 
     async def stop(self):
+        self._serving = False
+
         async with taskgroup.TaskGroup() as g:
             for port in self._ports:
                 g.create_task(port.stop())
+            self._ports.clear()
             for port in self._sys_conf_ports.values():
                 g.create_task(port.stop())
+            self._sys_conf_ports.clear()

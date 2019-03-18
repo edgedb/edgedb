@@ -58,8 +58,11 @@ def terminate_server(server, loop):
     loop.stop()
 
 
-@contextlib.contextmanager
-def _runstate_dir(data_dir, runstate_dir):
+def _ensure_runstate_dir(data_dir, runstate_dir):
+    if not devmode.is_in_dev_mode():
+        if not os.path.exists(runstate_dir):
+            raise
+
     if runstate_dir is None:
         try:
             runstate_dir = edgedb_cluster.get_runstate_path(data_dir)
@@ -89,6 +92,11 @@ def _runstate_dir(data_dir, runstate_dir):
         abort(f'{str(runstate_dir)!r} is not a directory; please use '
               f'--runstate-dir to specify the correct location')
 
+    return runstate_dir
+
+
+@contextlib.contextmanager
+def _internal_state_dir(runstate_dir):
     try:
         with tempfile.TemporaryDirectory(prefix='internal-',
                                          dir=runstate_dir) as td:
@@ -145,7 +153,7 @@ def _init_parsers():
     e_parser.preload()
 
 
-def _run_server(cluster, args, runstate_dir):
+def _run_server(cluster, args, runstate_dir, internal_runstate_dir):
     _init_cluster(cluster, args)
 
     loop = asyncio.new_event_loop()
@@ -161,6 +169,7 @@ def _run_server(cluster, args, runstate_dir):
             loop=loop,
             cluster=cluster,
             runstate_dir=runstate_dir,
+            internal_runstate_dir=internal_runstate_dir,
             max_backend_connections=args['max_backend_connections'])
 
         ss.add_port(
@@ -168,10 +177,13 @@ def _run_server(cluster, args, runstate_dir):
             nethost=args['bind_address'],
             netport=args['port'])
 
-        loop.run_until_complete(ss.start())
+        try:
+            loop.run_until_complete(ss.start())
+        except Exception:
+            loop.run_until_complete(ss.stop())
+            raise
 
         loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
-        logger.info('Serving on %s:%s', args['bind_address'], args['port'])
 
         # Notify systemd that we've started up.
         _sd_notify('READY=1')
@@ -251,9 +263,10 @@ def run_server(args):
         if args['bootstrap']:
             _init_cluster(cluster, args)
         else:
-            with _runstate_dir(
-                    cluster.get_data_dir(), args['runstate_dir']) as rsdir:
-                _run_server(cluster, args, rsdir)
+            runstate_dir = _ensure_runstate_dir(
+                cluster.get_data_dir(), args['runstate_dir'])
+            with _internal_state_dir(runstate_dir) as internal_runstate_dir:
+                _run_server(cluster, args, runstate_dir, internal_runstate_dir)
 
     except BaseException:
         if pg_cluster_init_by_us and not _server_initialized:

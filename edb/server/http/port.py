@@ -118,13 +118,16 @@ class BaseHttpPort(baseport.Port):
                 for srv in self._servers:
                     srv.close()
                     g.create_task(srv.wait_closed())
+                self._servers.clear()
         finally:
             try:
                 async with taskgroup.TaskGroup() as g:
                     for cmp in self._compilers_list:
                         g.create_task(cmp.close())
+                    self._compilers_list.clear()
 
                 for pgcon in self._pgcons_list:
                     pgcon.terminate()
+                self._pgcons_list.clear()
             finally:
                 await super().stop()

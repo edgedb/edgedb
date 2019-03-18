@@ -24,7 +24,9 @@ from edb.server import procpool
 class Port:
 
     def __init__(self, *, server, loop,
-                 pg_addr, pg_data_dir, runstate_dir, dbindex):
+                 pg_addr, pg_data_dir,
+                 runstate_dir, internal_runstate_dir,
+                 dbindex):
 
         self._server = server
         self._loop = loop
@@ -32,6 +34,7 @@ class Port:
         self._pg_data_dir = pg_data_dir
         self._dbindex = dbindex
         self._runstate_dir = runstate_dir
+        self._internal_runstate_dir = internal_runstate_dir
 
         self._devmode = devmode.is_in_dev_mode()
 
@@ -68,13 +71,15 @@ class Port:
         self._serving = True
 
         self._compiler_manager = await procpool.create_manager(
-            runstate_dir=self._runstate_dir,
+            runstate_dir=self._internal_runstate_dir,
             worker_args=(dict(host=self._pg_addr), self._pg_data_dir),
             worker_cls=self.get_compiler_worker_cls(),
             name=self.get_compiler_worker_name(),
         )
 
     async def stop(self):
-        await self._compiler_manager.stop()
+        if self._compiler_manager is not None:
+            await self._compiler_manager.stop()
+            self._compiler_manager = None
         self._compiler_manager = None
         self._serving = False
