@@ -471,6 +471,14 @@ class CommandContext:
             if isinstance(item, cls):
                 return item
 
+    def get_ancestor(self, cls):
+        if issubclass(cls, Command):
+            cls = cls.get_context_class()
+
+        for item in list(reversed(self.stack))[1:]:
+            if isinstance(item, cls):
+                return item
+
     def top(self):
         if self.stack:
             return self.stack[0]
@@ -896,6 +904,8 @@ class RenameObject(ObjectCommand):
             name_b32 = new_name.name[6:].replace('_', '=')
             new_nname = base64.b32decode(name_b32).decode()
             new_name = sn.Name(module=new_name.module, name=new_nname)
+        else:
+            new_name = cls._classname_from_ast(schema, astnode, context)
 
         return rename_class(
             metaclass=parent_class,

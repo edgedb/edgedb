@@ -40,7 +40,7 @@ type ObjectType2 {
 }
 
 type ObjectType3 {
-    required link target2 -> Target0;
+    required link target -> Target0;
 }
 
 type ObjectType23 extending ObjectType2, ObjectType3;

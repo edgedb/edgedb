@@ -257,24 +257,16 @@ class _PointerStorageInfo:
     @classmethod
     def _storable_in_source(cls, schema, pointer):
         return (
-            pointer.singular(schema) and
-            pointer.scalar() or
+            pointer.singular(schema) or
             pointer.get_shortname(schema) in {
-                'std::__type__',
-                'schema::element_type',
                 'schema::element_types',
-                'schema::key_type',
-            } or
-            (pointer.get_shortname(schema) == 'schema::type' and
-                pointer.get_source(schema).get_shortname(schema) !=
-                'schema::Parameter')
+            }
         )
 
     @classmethod
     def _storable_in_pointer(cls, schema, pointer):
         return (
             not pointer.singular(schema) or
-            not pointer.scalar() or
             pointer.has_user_defined_properties(schema))
 
     def __new__(cls, schema, pointer, source=None, resolve_type=True,
@@ -349,6 +341,9 @@ def get_pointer_storage_info(
         link_bias=False):
     assert not pointer.generic(schema), \
         "only specialized pointers can be stored"
+    material_ptrcls = pointer.material_type(schema)
+    if material_ptrcls is not None:
+        pointer = material_ptrcls
     return _PointerStorageInfo(
         schema, pointer, source=source, resolve_type=resolve_type,
         link_bias=link_bias)
@@ -366,6 +361,9 @@ class PointerStorageInfo(typing.NamedTuple):
 def get_ptrref_storage_info(
         ptrref: irast.PointerRef, *,
         source=None, resolve_type=True, link_bias=False):
+
+    if ptrref.material_ptr:
+        ptrref = ptrref.material_ptr
 
     if ptrref.out_cardinality is None:
         # Guard against the IR generator failure to populate the PointerRef
@@ -440,30 +438,17 @@ def get_ptrref_storage_info(
 
 
 def _storable_in_source(ptrref: irast.PointerRef) -> bool:
-    source = ptrref.out_source
-    if source.material_type is not None:
-        source = source.material_type
-
     return (
-        (
-            ptrref.out_cardinality is qltypes.Cardinality.ONE
-            and not irtyputils.is_object(ptrref.out_target)
-        ) or
-        ptrref.shortname in {
-            'std::__type__',
-            'schema::element_type',
+        ptrref.out_cardinality is qltypes.Cardinality.ONE
+        or ptrref.shortname in {
             'schema::element_types',
-            'schema::key_type',
-        } or
-        (ptrref.shortname == 'schema::type' and
-            source.name_hint != 'schema::Parameter')
+        }
     )
 
 
 def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
     return (
         ptrref.out_cardinality is qltypes.Cardinality.MANY
-        or irtyputils.is_object(ptrref.out_target)
         or ptrref.has_properties
     )
 

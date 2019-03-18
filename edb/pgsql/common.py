@@ -154,12 +154,8 @@ def get_scalar_backend_name(id, module_id, catenate=True, *, aspect=None):
 def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
     if aspect is None:
         aspect = 'table'
-    if aspect not in (
-            'table',
-            'target-del-def-t', 'target-del-imm-t',
-            'source-del-def-t', 'source-del-imm-t',
-            'target-del-def-f', 'target-del-imm-f',
-            'source-del-def-f', 'source-del-imm-f'):
+    if aspect != 'table' and not re.match(
+            r'(source|target)-del-(def|imm)-(inl|otl)-(f|t)', aspect):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
 

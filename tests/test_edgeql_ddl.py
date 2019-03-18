@@ -156,11 +156,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_type_06(self):
         await self.con.execute("""
-            CREATE TYPE test::A6;
+            CREATE TYPE test::A6 {
+                CREATE PROPERTY name -> str;
+            };
+
             CREATE TYPE test::Object6 {
                 CREATE SINGLE LINK a -> test::A6;
                 CREATE SINGLE PROPERTY b -> str;
             };
+
+            INSERT test::A6 { name := 'a6' };
+            INSERT test::Object6 { a := (SELECT test::A6), b := 'foo' };
         """)
 
         await self.assert_query_result(
@@ -193,6 +199,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     'cardinality': 'ONE',
                 }],
             }],
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT test::Object6 {
+                a: {name},
+                b,
+            }
+            """,
+            [{
+                'a': {'name': 'a6'},
+                'b': 'foo',
+            }]
         )
 
         await self.con.execute("""
@@ -235,6 +254,77 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     'cardinality': 'MANY',
                 }],
             }],
+        )
+
+        # Check that the data has been migrated correctly.
+        await self.assert_query_result(
+            r"""
+            SELECT test::Object6 {
+                a: {name},
+                b,
+            }
+            """,
+            [{
+                'a': [{'name': 'a6'}],
+                'b': ['foo'],
+            }]
+        )
+
+        # Change it back.
+        await self.con.execute("""
+            ALTER TYPE test::Object6 {
+                ALTER LINK a SET SINGLE;
+            };
+
+            ALTER TYPE test::Object6 {
+                ALTER PROPERTY b SET SINGLE;
+            };
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT schema::ObjectType {
+                    links: {
+                        name,
+                        cardinality,
+                    }
+                    FILTER .name = 'a'
+                    ORDER BY .name,
+
+                    properties: {
+                        name,
+                        cardinality,
+                    }
+                    FILTER .name = 'b'
+                    ORDER BY .name
+                }
+                FILTER .name = 'test::Object6';
+            """,
+            [{
+                'links': [{
+                    'name': 'a',
+                    'cardinality': 'ONE',
+                }],
+
+                'properties': [{
+                    'name': 'b',
+                    'cardinality': 'ONE',
+                }],
+            }],
+        )
+
+        # Check that the data has been migrated correctly.
+        await self.assert_query_result(
+            r"""
+            SELECT test::Object6 {
+                a: {name},
+                b,
+            }
+            """,
+            [{
+                'a': {'name': 'a6'},
+                'b': 'foo',
+            }]
         )
 
     async def test_edgeql_ddl_05(self):
@@ -2040,13 +2130,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['rename 01']
         )
 
-    @test.xfail('''
-        The error is:
-        improperly formed name: module is not specified: new_name_02
-
-        Unlike in other cases "default" is not assumed to be the
-        module for unqualified property name.
-    ''')
     async def test_edgeql_ddl_rename_02(self):
         await self.con.execute(r"""
             CREATE TYPE test::RenameObj02 {
@@ -2069,12 +2152,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['rename 02']
         )
 
-    @test.xfail('''
-        The error is:
-        column "test::new_name_03" of relation
-        "edgedb_1e143af8-1929-...-8564-fbabda210021"
-        does not exist
-    ''')
     async def test_edgeql_ddl_rename_03(self):
         await self.con.execute(r"""
             CREATE TYPE test::RenameObj03 {

@@ -2291,26 +2291,29 @@ async def generate_support_views(conn, schema):
 
                 views.append((target_tab, target_query))
 
-                link_query = textwrap.dedent(f'''\
-                    SELECT
-                        '{CONFIG_ID}'::uuid AS source,
-                        edgedb.uuid_generate_v5(
-                            '{DATABASE_ID_NAMESPACE}'::uuid,
-                            {ql(id_string)}) AS target
-                    FROM
-                        (SELECT
-                            {textwrap.indent(
-                                target_extract_cols, ' ' * 28).strip()}
-                         FROM
-                            jsonb_array_elements(
-                                (SELECT value::jsonb
-                                 FROM edgedb._read_sys_config() cfg
-                                 WHERE cfg.name = {ql(pn)})
+                ptrstor = types.get_pointer_storage_info(
+                    p, link_bias=True, schema=schema)
+                if ptrstor is not None:
+                    link_query = textwrap.dedent(f'''\
+                        SELECT
+                            '{CONFIG_ID}'::uuid AS source,
+                            edgedb.uuid_generate_v5(
+                                '{DATABASE_ID_NAMESPACE}'::uuid,
+                                {ql(id_string)}) AS target
+                        FROM
+                            (SELECT
+                                {textwrap.indent(
+                                    target_extract_cols, ' ' * 28).strip()}
+                            FROM
+                                jsonb_array_elements(
+                                    (SELECT value::jsonb
+                                    FROM edgedb._read_sys_config() cfg
+                                    WHERE cfg.name = {ql(pn)})
+                                ) AS q
                             ) AS q
-                        ) AS q
-                ''')
+                    ''')
 
-                views.append((tabname(schema, p), link_query))
+                    views.append((tabname(schema, p), link_query))
 
                 for prop, pp_cast in multi_props:
                     pp_name = prop.get_shortname(schema).name
@@ -2459,6 +2462,8 @@ async def generate_views(conn, schema):
                     )
 
             ptrstor = types.get_pointer_storage_info(ptr, schema=schema)
+            ptrstor_link = types.get_pointer_storage_info(
+                ptr, link_bias=True, schema=schema)
 
             if ptrstor.table_type == 'ObjectType':
                 if pn == 'name':
@@ -2483,11 +2488,20 @@ async def generate_views(conn, schema):
                          FROM unnest(t.{qi(ptrstor.column_name)})
                                 AS qi(text, _, _, _))
                     '''
+                elif issubclass(field.type, s_obj.Object):
+                    col_expr = textwrap.dedent(f'''\
+                        (CASE WHEN
+                            ((t.{qi(ptrstor.column_name)}).types[1]).collection
+                                IS NULL
+                        THEN ((t.{qi(ptrstor.column_name)}).types[1]).maintype
+                        ELSE ((t.{qi(ptrstor.column_name)}).types[1]).id END)
+                    ''')
                 else:
                     col_expr = f't.{qi(ptrstor.column_name)}'
 
                 cols.append((col_expr, pn))
-            else:
+
+            if ptrstor_link is not None:
                 view = _get_link_view(mcls, schema_cls, mcls.get_field(pn),
                                       ptr, refdict, schema)
                 if view.name not in views:

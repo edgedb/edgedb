@@ -571,6 +571,10 @@ class CreateExtendingObject(CreateObject):
 class Rename(DDL):
     new_name: ObjectRef
 
+    @property
+    def name(self) -> ObjectRef:
+        return self.new_name
+
 
 class Delta:
     pass

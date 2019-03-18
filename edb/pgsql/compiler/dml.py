@@ -495,7 +495,7 @@ def process_update_body(
             ptr_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=True, link_bias=False)
 
-            if ptr_info.table_type == 'ObjectType':
+            if ptr_info.table_type == 'ObjectType' and updvalue is not None:
                 with subctx.newscope() as scopectx:
                     # First, process all internal link updates
                     updvalue = pgast.TypeCast(

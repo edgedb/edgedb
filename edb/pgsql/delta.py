@@ -60,7 +60,9 @@ from edb.pgsql import common
 from edb.pgsql import dbops, metaschema
 
 from . import ast as pg_ast
+from .common import qname as q
 from .common import quote_literal as ql
+from .common import quote_ident as qi
 from . import compiler
 from . import codegen
 from . import schemamech
@@ -1263,103 +1265,6 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
 
         return source, pointer
 
-    def adjust_pointer_storage(self, pointer, schema, orig_schema, context):
-        old_ptr_stor_info = types.get_pointer_storage_info(
-            pointer, schema=orig_schema)
-        new_ptr_stor_info = types.get_pointer_storage_info(
-            pointer, schema=schema)
-
-        old_target = pointer.get_target(orig_schema)
-        new_target = pointer.get_target(schema)
-
-        source_ctx = context.get(s_objtypes.ObjectTypeCommandContext)
-        source_op = source_ctx.op
-
-        type_change_ok = False
-
-        if (old_target.get_name(schema) != new_target.get_name(schema) or
-                old_ptr_stor_info.table_type != new_ptr_stor_info.table_type):
-
-            for op in self.get_subcommands(type=s_scalars.ScalarTypeCommand):
-                for rename in op(s_scalars.RenameScalarType):
-                    if (old_target.get_name(schema) == rename.classname and
-                            new_target.get_name(schema) == rename.new_name):
-                        # Our target alter is a mere rename
-                        type_change_ok = True
-
-                if isinstance(op, s_scalars.CreateScalarType):
-                    if op.classname == new_target.get_name(schema):
-                        # CreateScalarType will take care of everything for us
-                        type_change_ok = True
-
-            if old_ptr_stor_info.table_type != new_ptr_stor_info.table_type:
-                # The attribute is being moved from one table to another
-                opg = dbops.CommandGroup(priority=1)
-                at = source_op.get_alter_table(schema, context, manual=True)
-
-                if old_ptr_stor_info.table_type == 'ObjectType':
-                    pat = self.get_alter_table(schema, context, manual=True)
-
-                    # Moved from object table to link table
-                    col = dbops.Column(
-                        name=old_ptr_stor_info.column_name,
-                        type=common.qname(*old_ptr_stor_info.column_type))
-                    at.add_command(dbops.AlterTableDropColumn(col))
-
-                    newcol = dbops.Column(
-                        name=new_ptr_stor_info.column_name,
-                        type=common.qname(*new_ptr_stor_info.column_type))
-
-                    cond = dbops.ColumnExists(
-                        new_ptr_stor_info.table_name, column_name=newcol.name)
-
-                    pat.add_command(
-                        (dbops.AlterTableAddColumn(newcol), None, (cond, )))
-                else:
-                    otabname = common.get_backend_name(
-                        orig_schema, pointer, catenate=False)
-                    pat = self.get_alter_table(
-                        schema, context, manual=True, table_name=otabname)
-
-                    oldcol = dbops.Column(
-                        name=old_ptr_stor_info.column_name,
-                        type=common.qname(*old_ptr_stor_info.column_type))
-
-                    if oldcol.name != 'target':
-                        pat.add_command(dbops.AlterTableDropColumn(oldcol))
-
-                    # Moved from link to object
-                    cols = self.get_columns(pointer, schema)
-
-                    for col in cols:
-                        cond = dbops.ColumnExists(
-                            new_ptr_stor_info.table_name, column_name=col.name)
-                        op = (dbops.AlterTableAddColumn(col), None, (cond, ))
-                        at.add_operation(op)
-
-                opg.add_command(at)
-                opg.add_command(pat)
-
-                self.pgops.add(opg)
-
-            else:
-                if old_target != new_target and not type_change_ok:
-                    if isinstance(old_target, s_scalars.ScalarType):
-                        AlterScalarType.alter_scalar(
-                            self, schema, context, old_target, new_target,
-                            in_place=False)
-
-                        alter_table = source_op.get_alter_table(
-                            schema, context, priority=1)
-
-                        new_type = \
-                            types.pg_type_from_object(schema, new_target)
-
-                        alter_type = dbops.AlterTableAlterColumnType(
-                            old_ptr_stor_info.column_name,
-                            common.qname(*new_type))
-                        alter_table.add_operation(alter_type)
-
     def apply_base_delta(
             self, source, orig_schema, schema, context):
         delta_ctx = context.get(sd.DeltaRootContext)
@@ -2018,8 +1923,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                         not host.scls.generic(schema)):
                     pass
                 else:
-                    old_col_name = common.edgedb_name_to_pg_name(old_name)
-                    new_col_name = common.edgedb_name_to_pg_name(new_name)
+                    old_col_name = common.edgedb_name_to_pg_name(old_name.name)
+                    new_col_name = common.edgedb_name_to_pg_name(new_name.name)
 
                     ptr_stor_info = types.get_pointer_storage_info(
                         pointer, schema=schema)
@@ -2062,10 +1967,10 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             return True
         elif src.is_pure_computable(schema) or src.get_is_derived(schema):
             return False
+        elif src.has_user_defined_properties(schema):
+            return True
         elif src.generic(schema):
             if src.get_name(schema) == 'std::link':
-                return True
-            elif src.has_user_defined_properties(schema):
                 return True
             else:
                 for l in src.children(schema):
@@ -2076,9 +1981,12 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                             return True
 
                 return False
+        elif src.is_link_property(schema):
+            return not src.singular(schema)
         else:
-            return (not src.scalar() or not src.singular(schema) or
-                    src.has_user_defined_properties(schema))
+            ptr_stor_info = types.get_pointer_storage_info(
+                src, resolve_type=False, schema=schema)
+            return ptr_stor_info.table_type == 'link'
 
     def create_table(self, ptr, schema, context, conditional=False):
         c = self._create_table(ptr, schema, context, conditional=conditional)
@@ -2093,6 +2001,114 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
         if self.has_table(ptr, schema):
             self.create_table(ptr, schema, context, conditional=True)
+
+    def adjust_pointer_storage(self, pointer, schema, orig_schema, context):
+        old_ptr_stor_info = types.get_pointer_storage_info(
+            pointer, schema=orig_schema)
+        new_ptr_stor_info = types.get_pointer_storage_info(
+            pointer, schema=schema)
+
+        old_target = pointer.get_target(orig_schema)
+        new_target = pointer.get_target(schema)
+
+        source_ctx = context.get_ancestor(s_sources.SourceCommandContext)
+        source_op = source_ctx.op
+
+        type_change_ok = False
+
+        if (old_target.get_name(schema) != new_target.get_name(schema) or
+                old_ptr_stor_info.table_type != new_ptr_stor_info.table_type):
+
+            for op in self.get_subcommands(type=s_scalars.ScalarTypeCommand):
+                for rename in op(s_scalars.RenameScalarType):
+                    if (old_target.get_name(schema) == rename.classname and
+                            new_target.get_name(schema) == rename.new_name):
+                        # Our target alter is a mere rename
+                        type_change_ok = True
+
+                if isinstance(op, s_scalars.CreateScalarType):
+                    if op.classname == new_target.get_name(schema):
+                        # CreateScalarType will take care of everything for us
+                        type_change_ok = True
+
+            if old_ptr_stor_info.table_type != new_ptr_stor_info.table_type:
+                # The attribute is being moved from one table to another
+                opg = dbops.CommandGroup(priority=1)
+                at = source_op.get_alter_table(schema, context, manual=True)
+
+                if old_ptr_stor_info.table_type == 'ObjectType':
+                    move_data = dbops.Query(textwrap.dedent(f'''\
+                        INSERT INTO {q(*new_ptr_stor_info.table_name)}
+                        (source, target, ptr_item_id)
+                        (SELECT
+                            s.id AS source,
+                            s.{qi(old_ptr_stor_info.column_name)} AS target,
+                            {ql(str(pointer.id))}::uuid AS ptr_item_id
+                         FROM
+                            {q(*old_ptr_stor_info.table_name)} AS s
+                        );
+                    '''))
+
+                    opg.add_command(move_data)
+
+                    # Moved from source table to pointer table.
+                    # The pointer table has already been created by now.
+                    col = dbops.Column(
+                        name=old_ptr_stor_info.column_name,
+                        type=common.qname(*old_ptr_stor_info.column_type))
+                    at.add_command(dbops.AlterTableDropColumn(col))
+
+                    opg.add_command(at)
+                else:
+                    otabname = common.get_backend_name(
+                        orig_schema, pointer, catenate=False)
+
+                    # Moved from link to object
+                    cols = self.get_columns(pointer, schema)
+
+                    for col in cols:
+                        cond = dbops.ColumnExists(
+                            new_ptr_stor_info.table_name, column_name=col.name)
+                        op = (dbops.AlterTableAddColumn(col), None, (cond, ))
+                        at.add_operation(op)
+
+                    opg.add_command(at)
+
+                    move_data = dbops.Query(textwrap.dedent(f'''\
+                        UPDATE {q(*new_ptr_stor_info.table_name)}
+                        SET {qi(new_ptr_stor_info.column_name)} = l.target
+                        FROM {q(*old_ptr_stor_info.table_name)} AS l
+                        WHERE id = l.source
+                    '''))
+
+                    opg.add_command(move_data)
+
+                    if not self.has_table(pointer, schema):
+                        condition = dbops.TableExists(name=otabname)
+                        dt = dbops.DropTable(
+                            name=otabname, conditions=[condition])
+
+                        opg.add_command(dt)
+
+                self.pgops.add(opg)
+
+            else:
+                if old_target != new_target and not type_change_ok:
+                    if isinstance(old_target, s_scalars.ScalarType):
+                        AlterScalarType.alter_scalar(
+                            self, schema, context, old_target, new_target,
+                            in_place=False)
+
+                        alter_table = source_op.get_alter_table(
+                            schema, context, priority=1)
+
+                        new_type = \
+                            types.pg_type_from_object(schema, new_target)
+
+                        alter_type = dbops.AlterTableAlterColumnType(
+                            old_ptr_stor_info.column_name,
+                            common.qname(*new_type))
+                        alter_table.add_operation(alter_type)
 
 
 class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
@@ -2230,8 +2246,15 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
         rec, updates = self.record_metadata(link, schema, orig_schema, context)
         self.updates = updates
+        extra_ops = []
 
-        if not link.generic(schema):
+        source = link.get_source(schema)
+        if source is not None:
+            source_is_view = source.is_view(schema)
+        else:
+            source_is_view = None
+
+        if source is not None and not source_is_view:
             ptr_stor_info = types.get_pointer_storage_info(
                 link, resolve_type=False, schema=schema)
 
@@ -2255,6 +2278,17 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                 if default_value is not None:
                     self.alter_pointer_default(link, schema, context)
 
+                index_name = common.convert_name(
+                    link.get_name(schema), 'idx', catenate=True)
+
+                pg_index = dbops.Index(
+                    name=index_name, table_name=table_name,
+                    unique=False, columns=[c.name for c in cols],
+                    inherit=True)
+
+                ci = dbops.CreateIndex(pg_index, priority=3)
+                extra_ops.append(ci)
+
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
         table = self.get_table(schema)
         self.pgops.add(
@@ -2262,7 +2296,9 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
 
         self.attach_alter_table(context)
 
-        if not link.generic(schema):
+        self.pgops.update(extra_ops)
+
+        if source is not None and not source_is_view:
             self.schedule_endpoint_delete_action_update(
                 link, orig_schema, schema, context)
 
@@ -2392,11 +2428,12 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
             schema, link, catenate=False)
 
         schema, _ = LinkMetaCommand.apply(self, schema, context)
+        schema, _ = s_links.DeleteLink.apply(self, schema, context)
 
-        if not link.generic(schema):
-            link_name = link.get_shortname(schema).name
+        if not link.generic(orig_schema):
+            link_name = link.get_shortname(orig_schema).name
             ptr_stor_info = types.get_pointer_storage_info(
-                link, schema=schema)
+                link, schema=orig_schema)
 
             objtype = context.get(s_objtypes.ObjectTypeCommandContext)
 
@@ -2431,11 +2468,10 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
                 table=table,
                 condition=[('id', link.id)]))
 
-        schema, _ = s_links.DeleteLink.apply(self, schema, context)
         return schema, link
 
 
-class PropertyMetaCommand(ObjectMetaCommand, PointerMetaCommand):
+class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
     _table = metaschema.get_metaclass_table(s_props.Property)
 
     def get_table(self, schema):
@@ -2682,6 +2718,9 @@ class AlterProperty(
 
             self.alter_pointer_default(prop, schema, context)
 
+            if not prop.generic(schema):
+                self.adjust_pointer_storage(prop, schema, orig_schema, context)
+
         return schema, prop
 
 
@@ -2738,37 +2777,81 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
+    def _get_inline_link_table_union(self, schema, links) -> str:
+        selects = []
+        for link in links:
+            selects.append(textwrap.dedent('''\
+                (SELECT
+                    {id}::uuid AS ptr_item_id,
+                    {src} as source,
+                    {tgt} as target
+                FROM {table})
+            ''').format(
+                id=ql(str(link.id)),
+                src=common.quote_ident('id'),
+                tgt=common.quote_ident(link.get_shortname(schema).name),
+                table=common.get_backend_name(
+                    schema, link.get_source(schema)),
+            ))
+
+        return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
+
     def get_trigger_name(self, schema, target,
-                         disposition, deferred=False):
+                         disposition, deferred=False, inline=False):
         if disposition == 'target':
             aspect = 'target-del'
         else:
             aspect = 'source-del'
 
         if deferred:
-            aspect += '-def-t'
+            aspect += '-def'
         else:
-            aspect += '-imm-t'
+            aspect += '-imm'
+
+        if inline:
+            aspect += '-inl'
+        else:
+            aspect += '-otl'
+
+        aspect += '-t'
 
         return common.get_backend_name(
             schema, target, catenate=False, aspect=aspect)[1]
 
     def get_trigger_proc_name(self, schema, target,
-                              disposition, deferred=False):
+                              disposition, deferred=False, inline=False):
         if disposition == 'target':
             aspect = 'target-del'
         else:
             aspect = 'source-del'
 
         if deferred:
-            aspect += '-def-f'
+            aspect += '-def'
         else:
-            aspect += '-imm-f'
+            aspect += '-imm'
+
+        if inline:
+            aspect += '-inl'
+        else:
+            aspect += '-otl'
+
+        aspect += '-f'
 
         return common.get_backend_name(
             schema, target, catenate=False, aspect=aspect)
 
-    def get_trigger_proc_text(self, target, links, disposition, schema):
+    def get_trigger_proc_text(self, target, links, *,
+                              disposition, inline, schema):
+        if inline:
+            return self._get_inline_link_trigger_proc_text(
+                target, links, disposition=disposition, schema=schema)
+        else:
+            return self._get_outline_link_trigger_proc_text(
+                target, links, disposition=disposition, schema=schema)
+
+    def _get_outline_link_trigger_proc_text(
+            self, target, links, *, disposition, schema):
+
         chunks = []
 
         DA = s_links.LinkTargetDeleteAction
@@ -2882,6 +2965,128 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         return text
 
+    def _get_inline_link_trigger_proc_text(
+            self, target, links, *, disposition, schema):
+
+        if disposition == 'source':
+            raise RuntimeError(
+                'source disposition link target delete action trigger does '
+                'not make sense for inline links')
+
+        chunks = []
+
+        DA = s_links.LinkTargetDeleteAction
+
+        groups = itertools.groupby(
+            links, lambda l: l.get_on_target_delete(schema))
+
+        near_endpoint, far_endpoint = 'target', 'source'
+
+        for action, links in groups:
+            if action is DA.RESTRICT or action is DA.DEFERRED_RESTRICT:
+                tables = self._get_inline_link_table_union(schema, links)
+
+                text = textwrap.dedent('''\
+                    SELECT
+                        q.ptr_item_id, q.source, q.target
+                        INTO link_type_id, srcid, tgtid
+                    FROM
+                        {tables}
+                    WHERE
+                        q.{near_endpoint} = OLD.{id}
+                    LIMIT 1;
+
+                    IF FOUND THEN
+                        SELECT
+                            edgedb.shortname_from_fullname(link.name),
+                            edgedb._resolve_type_name(link.{far_endpoint})
+                            INTO linkname, endname
+                        FROM
+                            edgedb.Link AS link
+                        WHERE
+                            link.id = link_type_id;
+                        RAISE foreign_key_violation
+                            USING
+                                TABLE = TG_TABLE_NAME,
+                                SCHEMA = TG_TABLE_SCHEMA,
+                                MESSAGE = 'deletion of {tgtname} (' || tgtid
+                                    || ') is prohibited by link target policy',
+                                DETAIL = 'Object is still referenced in link '
+                                    || linkname || ' of ' || endname || ' ('
+                                    || srcid || ').';
+                    END IF;
+                ''').format(
+                    tables=tables,
+                    id='id',
+                    tgtname=target.get_displayname(schema),
+                    near_endpoint=near_endpoint,
+                    far_endpoint=far_endpoint,
+                )
+
+                chunks.append(text)
+
+            elif action == s_links.LinkTargetDeleteAction.ALLOW:
+                for link in links:
+                    source_table = common.get_backend_name(
+                        schema, link.get_source(schema))
+
+                    text = textwrap.dedent('''\
+                        UPDATE
+                            {source_table}
+                        SET
+                            {endpoint} = NULL
+                        WHERE
+                            {endpoint} = OLD.{id};
+                    ''').format(
+                        source_table=source_table,
+                        endpoint=qi(link.get_shortname(schema).name),
+                        id='id'
+                    )
+
+                    chunks.append(text)
+
+            elif action == s_links.LinkTargetDeleteAction.DELETE_SOURCE:
+                sources = collections.defaultdict(list)
+                for link in links:
+                    sources[link.get_source(schema)].append(link)
+
+                for source, source_links in sources.items():
+                    tables = self._get_inline_link_table_union(
+                        schema, source_links)
+
+                    text = textwrap.dedent('''\
+                        DELETE FROM
+                            {source_table}
+                        WHERE
+                            {source_table}.{id} IN (
+                                SELECT source
+                                FROM {tables}
+                                WHERE target = OLD.{id}
+                            );
+                    ''').format(
+                        source_table=common.get_backend_name(schema, source),
+                        id='id',
+                        tables=tables,
+                    )
+
+                    chunks.append(text)
+
+        text = textwrap.dedent('''\
+            DECLARE
+                link_type_id uuid;
+                srcid uuid;
+                tgtid uuid;
+                linkname text;
+                endname text;
+                links text[];
+            BEGIN
+                {chunks}
+                RETURN OLD;
+            END;
+        ''').format(chunks='\n\n'.join(chunks))
+
+        return text
+
     def apply(self, schema, context):
         if not self.link_ops:
             return schema, None
@@ -2946,33 +3151,54 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         for target in affected_targets:
             deferred_links = []
+            deferred_inline_links = []
             links = []
+            inline_links = []
 
             for l in schema.get_referrers(target, scls_type=s_links.Link,
                                           field_name='target'):
                 ptr_stor_info = types.get_pointer_storage_info(
                     l, schema=schema)
                 if ptr_stor_info.table_type != 'link':
-                    continue
-
-                if l.get_on_target_delete(schema) is DA.DEFERRED_RESTRICT:
-                    deferred_links.append(l)
+                    if l.get_on_target_delete(schema) is DA.DEFERRED_RESTRICT:
+                        deferred_inline_links.append(l)
+                    else:
+                        inline_links.append(l)
                 else:
-                    links.append(l)
+                    if l.get_on_target_delete(schema) is DA.DEFERRED_RESTRICT:
+                        deferred_links.append(l)
+                    else:
+                        links.append(l)
 
             links.sort(
+                key=lambda l: (l.get_on_target_delete(schema),
+                               l.get_name(schema)))
+
+            inline_links.sort(
                 key=lambda l: (l.get_on_target_delete(schema),
                                l.get_name(schema)))
 
             deferred_links.sort(
                 key=lambda l: l.get_name(schema))
 
+            deferred_inline_links.sort(
+                key=lambda l: l.get_name(schema))
+
             self._update_action_triggers(
                 schema, target, links, disposition='target')
 
             self._update_action_triggers(
+                schema, target, inline_links,
+                disposition='target', inline=True)
+
+            self._update_action_triggers(
                 schema, target, deferred_links,
                 disposition='target', deferred=True)
+
+            self._update_action_triggers(
+                schema, target, deferred_inline_links,
+                disposition='target', deferred=True,
+                inline=True)
 
         return schema, None
 
@@ -2982,7 +3208,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
             objtype: s_objtypes.ObjectType,
             links: typing.List[s_links.Link], *,
             disposition: str,
-            deferred: bool=False) -> None:
+            deferred: bool=False,
+            inline: bool=False) -> None:
 
         if objtype.get_is_virtual(schema):
             objtypes = tuple(objtype.children(schema))
@@ -2994,11 +3221,14 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 schema, objtype, catenate=False)
 
             trigger_name = self.get_trigger_name(
-                schema, objtype, disposition=disposition, deferred=deferred)
+                schema, objtype, disposition=disposition,
+                deferred=deferred, inline=inline)
             proc_name = self.get_trigger_proc_name(
-                schema, objtype, disposition=disposition, deferred=deferred)
+                schema, objtype, disposition=disposition,
+                deferred=deferred, inline=inline)
             proc_text = self.get_trigger_proc_text(
-                objtype, links, disposition=disposition, schema=schema)
+                objtype, links, disposition=disposition,
+                inline=inline, schema=schema)
 
             trig_func = dbops.Function(
                 name=proc_name, text=proc_text, volatility='volatile',

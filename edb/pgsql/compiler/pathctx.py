@@ -123,17 +123,20 @@ def get_path_var(
             src_path_id = path_id
         else:
             src_path_id = path_id.src_path()
-            if irtyputils.is_id_ptrref(ptrref):
+            src_rptr = src_path_id.rptr()
+            if (irtyputils.is_id_ptrref(ptrref)
+                    and (src_rptr is None
+                         or not irtyputils.is_inbound_ptrref(src_rptr))):
                 # When there is a reference to the id property of
                 # an object which is linked to by a link stored
                 # inline, we want to route the reference to the
                 # inline attribute.  For example,
                 # Foo.__type__.id gets resolved to the Foo.__type__
-                # column.
-                src_rptr = src_path_id.rptr()
+                # column.  This can only be done if Foo is visible
+                # in scope, and Foo.__type__ is not a computable.
                 pid = src_path_id
                 while pid.is_type_indirection_path():
-                    # Skip type indirection step.
+                    # Skip type indirection step(s).
                     src_pid = pid.src_path()
                     if src_pid is not None:
                         src_rptr = src_pid.rptr()
@@ -141,7 +144,11 @@ def get_path_var(
                     else:
                         break
 
-                if src_rptr is not None:
+                src_src_is_visible = env.ptrref_source_visibility.get(src_rptr)
+
+                if (src_rptr is not None
+                        and not irtyputils.is_computable_ptrref(src_rptr)
+                        and src_src_is_visible):
                     src_ptr_info = pg_types.get_ptrref_storage_info(
                         src_rptr, resolve_type=False, link_bias=False)
                     if src_ptr_info.table_type == 'ObjectType':

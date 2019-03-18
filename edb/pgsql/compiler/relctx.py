@@ -402,7 +402,8 @@ def _new_mapped_pointer_rvar(
 
     source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
 
-    if irtyputils.is_object(ptrref.out_target):
+    if (irtyputils.is_object(ptrref.out_target)
+            and not irtyputils.is_computable_ptrref(ptrref)):
         tgt_ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=False)
         tgt_col = tgt_ptr_info.column_name
@@ -462,17 +463,28 @@ def semi_join(
     typeref = ctx.join_target_type_filter.get(ir_set, ir_set.typeref)
     set_rvar = new_root_rvar(ir_set, typeref=typeref, ctx=ctx)
 
-    # Link range.
-    map_rvar = new_pointer_rvar(rptr, src_rvar=src_rvar, ctx=ctx)
+    ptrref = rptr.ptrref
+    ptr_info = pg_types.get_ptrref_storage_info(
+        ptrref, resolve_type=False)
+
+    if ptr_info.table_type == 'ObjectType':
+        if irtyputils.is_inbound_ptrref(ptrref):
+            far_pid = ir_set.path_id.src_path()
+        else:
+            far_pid = ir_set.path_id
+    else:
+        far_pid = ir_set.path_id
+        # Link range.
+        map_rvar = new_pointer_rvar(rptr, src_rvar=src_rvar, ctx=ctx)
+        include_rvar(
+            ctx.rel, map_rvar,
+            path_id=ir_set.path_id.ptr_path(), ctx=ctx)
 
     tgt_ref = pathctx.get_rvar_path_identity_var(
-        set_rvar, ir_set.path_id, env=ctx.env)
+        set_rvar, far_pid, env=ctx.env)
 
-    include_rvar(
-        ctx.rel, map_rvar,
-        path_id=ir_set.path_id.ptr_path(), ctx=ctx)
-
-    pathctx.get_path_identity_output(ctx.rel, ir_set.path_id, env=ctx.env)
+    pathctx.get_path_identity_output(
+        ctx.rel, far_pid, env=ctx.env)
 
     cond = astutils.new_binop(tgt_ref, ctx.rel, 'IN')
     stmt.where_clause = astutils.extend_binop(

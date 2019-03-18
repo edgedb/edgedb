@@ -633,13 +633,14 @@ def process_set_as_link_property_ref(
             ir_source.path_id, ctx=newctx)
 
         link_rvar = pathctx.maybe_get_path_rvar(
-            source_scope_stmt, link_path_id, aspect='value', env=ctx.env)
+            source_scope_stmt, link_path_id, aspect='source', env=ctx.env)
 
         if link_rvar is None:
             link_rvar = relctx.new_pointer_rvar(
                 ir_source.rptr, src_rvar=src_rvar, link_bias=True, ctx=newctx)
 
-        rvars.append(SetRVar(link_rvar, link_path_id))
+        rvars.append(SetRVar(
+            link_rvar, link_path_id, aspects=['value', 'source']))
 
         target_rvar = pathctx.maybe_get_path_rvar(
             source_scope_stmt, link_path_id.tgt_path(),
@@ -663,6 +664,7 @@ def process_set_as_path(
     is_type_indirection = ir_set.path_id.is_type_indirection_path()
 
     rvars = []
+
     if is_type_indirection:
         if ptrref.ancestral:
             # This is an ancestral type indirection, i.e. the
@@ -674,10 +676,12 @@ def process_set_as_path(
             relctx.include_rvar(stmt, source_rvar, ir_set.path_id, ctx=ctx)
 
         elif (not source_is_visible and ir_source.rptr is not None
-                and not ir_source.path_id.is_type_indirection_path()):
-            # Otherwise, if the source link path is not visible, we
-            # have an opportunity to opmimize the target join by
-            # directly replacing the target type.
+                and not ir_source.path_id.is_type_indirection_path()
+                and pg_types.get_ptrref_storage_info(
+                    ir_source.rptr.ptrref).table_type != 'ObjectType'):
+            # Otherwise, if the source link path is not visible
+            # and is not inline, we have an opportunity to opmimize
+            # the target join by directly replacing the target type.
             with ctx.new() as subctx:
                 subctx.join_target_type_filter = (
                     subctx.join_target_type_filter.copy())
@@ -704,6 +708,7 @@ def process_set_as_path(
     is_inline_ref = ptr_info.table_type == 'ObjectType'
     is_scalar_ref = not irtyputils.is_object(ptrref.out_target)
     is_inline_scalar_ref = is_inline_ref and is_scalar_ref
+    is_id_ref_to_inline_source = False
 
     semi_join = (
         not source_is_visible and
@@ -713,22 +718,33 @@ def process_set_as_path(
 
     source_rptr = ir_source.rptr
     if (irtyputils.is_id_ptrref(ptrref) and source_rptr is not None
-            and not irutils.is_type_indirection_reference(ir_set)
-            and ctx.scope_tree.is_visible(source_rptr.source.path_id)):
-        # When there is a reference to the id property of
-        # an object which is linked to by a link stored
-        # inline, we want to route the reference to the
-        # inline attribute.  For example,
-        # Foo.__type__.id gets resolved to the Foo.__type__
-        # column.  However, this optimization must not be
-        # applied if the source is a type indirection, e.g
-        # __type__[IS Array].id, or if Foo is not visible in
-        # this scope.
-        source_ptr_info = pg_types.get_ptrref_storage_info(
-            source_rptr.ptrref, resolve_type=False, link_bias=False)
-        is_id_ref_to_inline_source = source_ptr_info.table_type == 'ObjectType'
-    else:
-        is_id_ref_to_inline_source = False
+            and not irtyputils.is_inbound_ptrref(source_rptr.ptrref)
+            and not irtyputils.is_computable_ptrref(source_rptr.ptrref)
+            and not irutils.is_type_indirection_reference(ir_set)):
+
+        src_src_is_visible = ctx.scope_tree.is_visible(
+            source_rptr.source.path_id)
+
+        # Record the ptrref visibility in a way that get_path_var
+        # can access, to properly apply the second part of this
+        # optimization.
+        ctx.env.ptrref_source_visibility[source_rptr.ptrref] = (
+            src_src_is_visible)
+
+        if src_src_is_visible:
+            # When there is a reference to the id property of
+            # an object which is linked to by a link stored
+            # inline, we want to route the reference to the
+            # inline attribute.  For example,
+            # Foo.__type__.id gets resolved to the Foo.__type__
+            # column.  However, this optimization must not be
+            # applied if the source is a type indirection, e.g
+            # __type__[IS Array].id, or if Foo is not visible in
+            # this scope.
+            source_ptr_info = pg_types.get_ptrref_storage_info(
+                source_rptr.ptrref, resolve_type=False, link_bias=False)
+            is_id_ref_to_inline_source = (
+                source_ptr_info.table_type == 'ObjectType')
 
     if semi_join:
         with ctx.subrel() as srcctx:
@@ -793,10 +809,15 @@ def process_set_as_path(
 
     elif not semi_join:
         # Link range.
+        if is_inline_ref:
+            aspects = ['value']
+        else:
+            aspects = ['value', 'source']
+
         map_rvar = SetRVar(
             relctx.new_pointer_rvar(ir_set.rptr, src_rvar=src_rvar, ctx=ctx),
             path_id=ir_set.path_id.ptr_path(),
-            aspects=['value', 'source']
+            aspects=aspects
         )
 
         rvars.append(map_rvar)

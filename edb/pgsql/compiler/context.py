@@ -150,3 +150,4 @@ class Environment:
         self.output_format = output_format
         self.tuple_formats = {}
         self.use_named_params = use_named_params
+        self.ptrref_source_visibility = {}

@@ -325,3 +325,13 @@ def ptrcls_from_ptrref(
 def is_id_ptrref(
         ptrref: irast.BasePointerRef):
     return ptrref.shortname == 'std::id'
+
+
+def is_inbound_ptrref(
+        ptrref: irast.BasePointerRef):
+    return ptrref.direction is s_pointers.PointerDirection.Inbound
+
+
+def is_computable_ptrref(
+        ptrref: irast.BasePointerRef):
+    return ptrref.derived_from_ptr is not None

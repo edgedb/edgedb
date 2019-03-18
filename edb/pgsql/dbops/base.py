@@ -376,6 +376,9 @@ class Query(Command):
         else:
             return self.text
 
+    def code(self, block: PLBlock) -> str:
+        return self.text
+
     def __repr__(self):
         return f'<Query {self.text!r}>'
 

@@ -82,11 +82,15 @@ class Index(tables.InheritableTableObject):
         return base.pack_name(self.table_name[1] + '__' + self.name)
 
     def add_columns(self, columns):
-        self._columns.update(columns)
+        for col in columns:
+            if isinstance(col, str):
+                self._columns.add(col)
+            else:
+                self._columns.add(col.name)
 
     def declare_pl_desc_var(self, block: base.PLBlock) -> str:
         desc_var = block.declare_var(('edgedb', 'intro_index_desc_t'))
-        cols = ', '.join(ql(c.name) for c in self.columns)
+        cols = ', '.join(ql(c) for c in self.columns)
 
         code = textwrap.dedent(f'''\
             {desc_var}.table_name := ARRAY[
@@ -162,7 +166,7 @@ class Index(tables.InheritableTableObject):
 
     @property
     def columns(self):
-        return iter(self._columns)
+        return list(self._columns)
 
     def get_type(self):
         return 'INDEX'
