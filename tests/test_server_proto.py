@@ -1770,13 +1770,13 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_tx_15(self):
         commands = [
             '''
-            CREATE MIGRATION test::ttt TO eschema $$
+            CREATE MIGRATION test::ttt TO {
                 type User {
                     required property login -> str {
                         constraint exclusive;
                     };
                 };
-            $$;
+            };
             ''',
             '''GET MIGRATION test::ttt;''',
             '''COMMIT MIGRATION test::ttt;''',

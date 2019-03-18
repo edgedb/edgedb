@@ -822,7 +822,7 @@ class TestEQLMigration(unittest.TestCase, BaseDomainTest):
             '''),
             [
                 'START TRANSACTION;\n'
-                'CREATE MIGRATION foobar TO eschema $$\n\n',
+                'CREATE MIGRATION foobar TO {\n\n',
                 'type User {\n    property name -> str;\n};',
-                '\n$$;\nCOMMIT MIGRATION foobar;\nCOMMIT;'
+                '\n};\nCOMMIT MIGRATION foobar;\nCOMMIT;'
             ])

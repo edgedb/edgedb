@@ -2690,7 +2690,7 @@ aa';
 
     def test_edgeql_syntax_ddl_delta_02(self):
         """
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
+        CREATE MIGRATION test::d_links01_0 TO {type Foo;};
         ALTER MIGRATION test::d_links01_0
             RENAME TO test::pretty_name;
         COMMIT MIGRATION test::d_links01_0;
@@ -2699,22 +2699,31 @@ aa';
 
     def test_edgeql_syntax_ddl_delta_03(self):
         """
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
-        CREATE MIGRATION test::d_links01_0 TO ESCHEMA $$type Foo;$$;
-        CREATE MIGRATION test::d_links01_0 TO ESchema $$type Foo;$$;
-
-% OK %
-
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
-        CREATE MIGRATION test::d_links01_0 TO eschema $$type Foo;$$;
+        CREATE MIGRATION test::d_links01_0 TO {type Foo;};
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'unknown migration language: BadLang', line=2, col=47)
+                  "Unexpected 'BadLang'", line=2, col=47)
     def test_edgeql_syntax_ddl_delta_04(self):
         """
         CREATE MIGRATION test::d_links01_0 TO BadLang $$type Foo$$;
+        """
+
+    def test_edgeql_syntax_ddl_delta_05(self):
+        """
+        CREATE MIGRATION test::d_links01_0 TO {
+            type Foo {
+                property bar -> str
+            }
+        };
+
+% OK %
+
+        CREATE MIGRATION test::d_links01_0 TO {
+            type Foo {
+                property bar -> str;
+            };
+        };
         """
 
     # TODO: remove this test once the entire grammar is converted

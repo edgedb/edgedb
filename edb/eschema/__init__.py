@@ -17,6 +17,5 @@
 #
 
 
-from . import ast  # NOQA
-from .codegen import generate_source  # NOQA
+from edb.edgeql.codegen import generate_source  # NOQA
 from .parser import parse, parse_fragment  # NOQA

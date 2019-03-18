@@ -916,6 +916,153 @@ class ConfigReset(ConfigOp):
 
 
 #
+# SDL
+#
+
+class SDL(Base):
+    '''Abstract parent for all SDL statements.'''
+    pass
+
+
+class Field(SDL):
+    name: ObjectRef
+    value: Base
+
+
+class Spec(SDL):
+    inherited: bool = False
+    fields: typing.List[Field]
+
+
+class Attribute(Spec):
+    name: ObjectRef
+    value: Base
+
+
+class Constraint(Spec):
+    attributes: typing.List[Attribute]
+    delegated: bool = False
+    name: ObjectRef
+    args: typing.List[FuncArg]
+    subject: typing.Optional[Expr]
+
+
+class Pointer(Spec):
+    name: str
+
+    extends: typing.List[TypeName]
+
+    # Computable links don't have a target
+    target: typing.Optional[typing.List[TypeName]]
+
+    attributes: typing.List[Attribute]
+    constraints: typing.List[Constraint]
+
+    required: bool = False
+    cardinality: qltypes.Cardinality
+
+    # Expression of a computable link
+    expr: Base = None
+
+
+class IndexDeclaration(Spec):
+    name: ObjectRef
+    expression: Base
+
+
+class SDLOnTargetDelete(Spec):
+    cascade: LinkTargetDeleteAction
+
+
+class Property(Pointer):
+    pass
+
+
+class Link(Pointer):
+    properties: typing.List[Property]
+    on_target_delete: SDLOnTargetDelete
+
+
+class Declaration(SDL):
+    name: str
+    extends: typing.List[TypeName]
+    attributes: typing.List[Attribute]
+    fields: typing.List[Field]
+
+
+class ScalarTypeDeclaration(Declaration):
+    abstract: bool = False
+    final: bool = False
+    constraints: typing.List[Constraint]
+
+
+class AttributeDeclaration(Declaration):
+    abstract: bool = False
+    inheritable: bool = False
+
+
+class ObjectTypeDeclaration(Declaration):
+    abstract: bool = False
+    final: bool = False
+    links: typing.List[Link]
+    properties: typing.List[Property]
+    indexes: typing.List[IndexDeclaration]
+    constraints: typing.List[Constraint]
+
+
+class ConstraintDeclaration(Declaration):
+    abstract: bool = False
+    params: typing.List[FuncParam]
+    subject: typing.Optional[Expr]
+
+
+class ViewDeclaration(Declaration):
+    pass
+
+
+class SDLFunctionCode(SDL):
+    language: Language
+    code: Base
+    from_function: str
+    from_expr: bool
+
+
+class FunctionDeclaration(Declaration):
+    params: list
+    returning: TypeName
+    function_code: SDLFunctionCode
+    returning_typemod: qltypes.TypeModifier
+
+
+class BasePointerDeclaration(Declaration):
+    abstract: bool = False
+    indexes: typing.List[IndexDeclaration]
+    constraints: typing.List[Constraint]
+
+
+class PropertyDeclaration(BasePointerDeclaration):
+    pass
+
+
+class LinkDeclaration(BasePointerDeclaration):
+    properties: typing.List[Property]
+
+
+class Import(SDL):
+    modules: list
+
+
+class ImportModule(SDL):
+    module: str
+    alias: str = None
+
+
+class Schema(SDL):
+    # TODO: Remove union type
+    declarations: typing.List[typing.Union[Declaration, Import]]
+
+
+#
 # These utility functions work on EdgeQL AST nodes
 #
 

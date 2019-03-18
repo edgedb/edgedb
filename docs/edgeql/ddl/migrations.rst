@@ -83,11 +83,11 @@ syntax:
 
 .. code-block:: edgeql
 
-    CREATE MIGRATION init TO eschema $$
+    CREATE MIGRATION init TO {
         type User {
-            property username -> str;
-        };
-    $$;
+            property username -> str
+        }
+    };
 
 Create a new migration for the "payments" module using explicit DDL:
 

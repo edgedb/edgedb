@@ -27,29 +27,29 @@ class TestSession(tb.QueryTestCase):
         CREATE MODULE foo;
         CREATE MODULE fuz;
 
-        CREATE MIGRATION default::m TO eschema $$
+        CREATE MIGRATION default::m TO {
             type User {
                 required property name -> str;
             };
-        $$;
+        };
 
         COMMIT MIGRATION default::m;
 
         WITH MODULE default INSERT User {name := 'user'};
 
-        CREATE MIGRATION foo::m TO eschema $$
+        CREATE MIGRATION foo::m TO {
             type Entity {
                 required property name -> str;
             };
-        $$;
+        };
 
         COMMIT MIGRATION foo::m;
 
-        CREATE MIGRATION fuz::m TO eschema $$
+        CREATE MIGRATION fuz::m TO {
             type Entity {
                 required property name -> str;
             };
-        $$;
+        };
 
         COMMIT MIGRATION fuz::m;
 

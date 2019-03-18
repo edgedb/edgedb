@@ -83,7 +83,7 @@ def _compile_parsers(build_lib, inplace=False):
 
     import edb.edgeql.parser.grammar.single as edgeql_spec
     import edb.edgeql.parser.grammar.block as edgeql_spec2
-    import edb.edgeql.parser.grammar.sdl as schema_spec
+    import edb.edgeql.parser.grammar.sdldocument as schema_spec
 
     base_path = pathlib.Path(__file__).parent.resolve()
 
