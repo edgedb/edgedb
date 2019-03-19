@@ -25,8 +25,13 @@ from . import meta
 
 __all__ = ['EdgeQLLexer']
 
+# some unreserved keywords have special handling because they clash
+# with builtins
+EXCEPTION_KW = {'named'}
 
-unreserved_keywords = meta.EdgeQL.unreserved_keywords
+
+unreserved_keywords = sorted(
+    set(meta.EdgeQL.unreserved_keywords) - EXCEPTION_KW)
 reserved_keywords = meta.EdgeQL.reserved_keywords
 builtins = sorted(set(
     meta.EdgeQL.type_builtins + meta.EdgeQL.constraint_builtins +
@@ -82,6 +87,11 @@ class EdgeQLLexer(RegexLexer):
                     {' | '.join(unreserved_keywords)}
                     |
                     {' | '.join(reserved_keywords)}
+                )\b''', token.Keyword.Reserved),
+
+            (fr'''(?ix)
+                \b(?<![:\.<>@])(
+                    named \s+ only
                 )\b''', token.Keyword.Reserved),
 
             (fr'''(?x)

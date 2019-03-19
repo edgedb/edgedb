@@ -1968,6 +1968,59 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 DROP MODULE test_other;
             """)
 
+    @test.xfail('''
+        UniquelyNamed is an abstract type defined in std. Extending
+        from it causes the following error:
+
+        SchemaError: Property 'test::test|name@@test|Status' is
+        already present in the schema
+
+        This doesn't seem to happen when extending simply Named.
+    ''')
+    async def test_edgeql_ddl_modules_02(self):
+        async with self.con.transaction():
+            await self.con.execute(r"""
+                CREATE MIGRATION test::d1 TO {
+                    type Status extending UniquelyNamed;
+                };
+                COMMIT MIGRATION test::d1;
+            """)
+
+        await self.con.execute("""
+            DROP TYPE test::Status;
+        """)
+
+    async def test_edgeql_ddl_modules_03(self):
+        async with self.con.transaction():
+            await self.con.execute(r"""
+                CREATE MIGRATION test::d1 TO {
+                    type Status extending Named;
+                };
+                COMMIT MIGRATION test::d1;
+            """)
+
+            await self.con.execute("""
+                WITH MODULE test
+                INSERT Status {name := 'status1'};
+
+                WITH MODULE test
+                INSERT Status {name := 'status2'};
+            """)
+
+            await self.assert_query_result(
+                r"""
+                    WITH MODULE test
+                    SELECT Status.name;
+                """,
+                {
+                    'status1', 'status2',
+                }
+            )
+
+        await self.con.execute("""
+            DROP TYPE test::Status;
+        """)
+
     async def test_edgeql_ddl_role_01(self):
         await self.con.execute(r"""
             CREATE ROLE foo;

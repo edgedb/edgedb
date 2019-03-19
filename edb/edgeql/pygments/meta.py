@@ -157,7 +157,9 @@ class EdgeQL:
         "true",
     )
     type_builtins = (
+        "Named",
         "Object",
+        "UniquelyNamed",
         "anyfloat",
         "anyint",
         "anyreal",

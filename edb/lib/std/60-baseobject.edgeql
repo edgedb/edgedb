@@ -36,6 +36,16 @@ CREATE ABSTRACT TYPE std::Object {
     };
 };
 
+CREATE ABSTRACT TYPE std::Named {
+    CREATE REQUIRED PROPERTY name -> std::str;
+};
+
+CREATE ABSTRACT TYPE std::UniquelyNamed EXTENDING std::Named {
+    CREATE REQUIRED PROPERTY name -> std::str {
+        CREATE DELEGATED CONSTRAINT std::exclusive;
+    }
+};
+
 
 # 'FROM SQL EXPRESSION' creates an EdgeDB Operator for purposes of
 # introspection and validation by the EdgeQL compiler. However, no
