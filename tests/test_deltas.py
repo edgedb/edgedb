@@ -292,7 +292,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                 };
             };
         """)
-        result = await self.con.fetch_value("""
+        result = await self.con.fetchone("""
             GET MIGRATION test::d1;
         """)
 
@@ -333,7 +333,7 @@ ALTER TYPE test::NamedObject {
                 };
             };
         """)
-        result = await self.con.fetch_value("""
+        result = await self.con.fetchone("""
             GET MIGRATION test::d2;
         """)
 
@@ -356,7 +356,7 @@ a EXTENDING std::property -> array<std::int64>;
                 };
             };
         """)
-        result = await self.con.fetch_value("""
+        result = await self.con.fetchone("""
             GET MIGRATION test::d3;
         """)
 
@@ -387,7 +387,7 @@ a EXTENDING std::property -> array<std::int64>;
                 };
             };
         """)
-        result = await self.con.fetch_value("""
+        result = await self.con.fetchone("""
             GET MIGRATION test::d4;
         """)
 
@@ -422,7 +422,7 @@ a EXTENDING std::property -> array<std::int64>;
 
             GET MIGRATION test::d5;
         """)
-        result = await self.con.fetch_value("""
+        result = await self.con.fetchone("""
             GET MIGRATION test::d5;
         """)
 

@@ -337,21 +337,21 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'std::int16 out of range'):
             async with self.con.transaction():
-                await self.con.fetch_value(
+                await self.con.fetchone(
                     r'''SELECT <int16>36893488147419''',
                 )
 
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'std::int32 out of range'):
             async with self.con.transaction():
-                await self.con.fetch_value(
+                await self.con.fetchone(
                     r'''SELECT <int32>36893488147419''',
                 )
 
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'std::int64 out of range'):
             async with self.con.transaction():
-                await self.con.fetch_value(
+                await self.con.fetchone(
                     r'''SELECT <int64>3689348814741900000000000''',
                 )
 
@@ -536,7 +536,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator '-' cannot .* 'std::str'"):
 
-            await self.con.fetch("""
+            await self.con.fetchall("""
                 SELECT -'aaa';
             """)
 
@@ -545,7 +545,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator 'NOT' cannot .* 'std::str'"):
 
-            await self.con.fetch_json("""
+            await self.con.fetchall_json("""
                 SELECT NOT 'aaa';
             """)
 
@@ -762,7 +762,7 @@ class TestExpressions(tb.QueryTestCase):
 
         # overflow is expected for float64, but would not happen for decimal
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError, 'overflow'):
-            await self.con.fetch_value(r"""
+            await self.con.fetchone(r"""
                 SELECT (10 + math::floor(random()))^309;
             """)
 
@@ -803,7 +803,7 @@ class TestExpressions(tb.QueryTestCase):
                 with self.assertRaisesRegex(edgedb.QueryError, result,
                                             msg=query):
                     async with self.con.transaction():
-                        await self.con.fetch(query)
+                        await self.con.fetchall(query)
 
     async def test_edgeql_expr_valid_eq_01(self):
         # compare all numerics to all other scalars via equality
@@ -1154,7 +1154,7 @@ class TestExpressions(tb.QueryTestCase):
                                         expected_error_msg,
                                         msg=query):
                 async with self.con.transaction():
-                    await self.con.fetch_value(query)
+                    await self.con.fetchone(query)
 
     # NOTE: Generalized Binop `+` and `-` rules:
     #
@@ -2222,7 +2222,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator '\*' cannot .* 'std::str' and 'std::int64'"):
 
-            await self.con.fetch_value("""
+            await self.con.fetchone("""
                 SELECT <std::str>123 * 2;
             """)
 
@@ -2315,7 +2315,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_cast_08(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'cannot cast.*tuple.*to.*array.*'):
-            await self.con.fetch_json(r"""
+            await self.con.fetchall_json(r"""
                 SELECT <array<int64>>(123, 11);
             """)
 
@@ -2455,7 +2455,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator.*IF.*cannot.*'std::int64'.*'std::str'"):
 
-            await self.con.fetch("""
+            await self.con.fetchall("""
                 SELECT 3 / (2 IF FALSE ELSE '1');
             """)
 
@@ -2740,7 +2740,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'could not determine array type'):
 
-            await self.con.fetch("""
+            await self.con.fetchall("""
                 SELECT [1, '1'];
             """)
 
@@ -2748,7 +2748,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index array by.*str'):
 
-            await self.con.fetch_value("""
+            await self.con.fetchone("""
                 SELECT [1, 2]['1'];
             """)
 
@@ -2757,7 +2757,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'could not determine type of empty array'):
 
-            await self.con.fetch_json("""
+            await self.con.fetchall_json("""
                 SELECT [];
             """)
 
@@ -3075,7 +3075,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index string by.*str'):
 
-            await self.con.fetch_value("""
+            await self.con.fetchone("""
                 SELECT '123'['1'];
             """)
 
@@ -3084,7 +3084,7 @@ class TestExpressions(tb.QueryTestCase):
                 # FIXME: possibly a different error should be used here
                 edgedb.InternalServerError,
                 r'string index 10 is out of bounds'):
-            await self.con.fetch_json("""
+            await self.con.fetchall_json("""
                 SELECT '123'[10];
             """)
 
@@ -3093,7 +3093,7 @@ class TestExpressions(tb.QueryTestCase):
                 # FIXME: possibly a different error should be used here
                 edgedb.InternalServerError,
                 r'string index -10 is out of bounds'):
-            await self.con.fetch("""
+            await self.con.fetchall("""
                 SELECT '123'[-10];
             """)
 
@@ -3101,7 +3101,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index string by.*float'):
 
-            await self.con.fetch("""
+            await self.con.fetchall("""
                 SELECT '123'[-1.0];
             """)
 
@@ -3109,7 +3109,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot slice string by.*float'):
 
-            await self.con.fetch_json("""
+            await self.con.fetchall_json("""
                 SELECT '123'[1.0:];
             """)
 
@@ -3205,7 +3205,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator '=' cannot"):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 SELECT (1, 'foo') = ('1', 'foo');
             """)
 
@@ -3265,7 +3265,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator '!=' cannot"):
-            await self.con.fetch_value(r"""
+            await self.con.fetchone(r"""
                 SELECT (a := 1, b := 'foo') != (b := 'foo', a := 1);
             """)
 
@@ -3623,7 +3623,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to __type__'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 SELECT test::Text {
                     __type__ := 42
                 };
@@ -3943,10 +3943,10 @@ class TestExpressions(tb.QueryTestCase):
         )
 
     async def test_edgeql_expr_setop_08(self):
-        obj = await self.con.fetch(r"""
+        obj = await self.con.fetchall(r"""
             SELECT schema::ObjectType;
         """)
-        attr = await self.con.fetch(r"""
+        attr = await self.con.fetchall(r"""
             SELECT schema::Attribute;
         """)
 
@@ -3987,7 +3987,7 @@ class TestExpressions(tb.QueryTestCase):
         )
 
     async def test_edgeql_expr_setop_11(self):
-        everything = await self.con.fetch('''
+        everything = await self.con.fetchall('''
             WITH
                 MODULE schema,
                 C := (SELECT ObjectType
@@ -3996,7 +3996,7 @@ class TestExpressions(tb.QueryTestCase):
             ORDER BY _;
         ''')
 
-        distinct = await self.con.fetch('''
+        distinct = await self.con.fetchall('''
             WITH
                 MODULE schema,
                 C := (SELECT ObjectType

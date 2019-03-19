@@ -2014,7 +2014,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
-        role = await self.con.fetch_value('''
+        role = await self.con.fetchone('''
             SELECT sys::Role { password }
             FILTER .name = 'foo2'
         ''')
@@ -2027,7 +2027,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-        role = await self.con.fetch_value('''
+        role = await self.con.fetchone('''
             SELECT sys::Role { password }
             FILTER .name = 'foo2'
         ''')

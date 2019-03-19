@@ -20,14 +20,14 @@
 from .compiler import Compiler, BaseCompiler, CompilerDatabaseState
 from .compiler import compile_bootstrap_script
 from .dbstate import QueryUnit
-from .enums import Capability, CompileStatementMode
+from .enums import Capability, CompileStatementMode, ResultCardinality
 from .stdschema import load_std_schema
 
 
 __all__ = (
     'Compiler', 'BaseCompiler', 'CompilerDatabaseState',
     'QueryUnit',
-    'Capability', 'CompileStatementMode',
+    'Capability', 'CompileStatementMode', 'ResultCardinality',
     'compile_bootstrap_script',
     'load_std_schema'
 )

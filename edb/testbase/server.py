@@ -452,7 +452,7 @@ class BaseQueryTestCase(DatabaseTestCase):
             tx = self.con.transaction()
             await tx.start()
             try:
-                res = await self.con.fetch_json(query)
+                res = await self.con.fetchall_json(query)
             finally:
                 await tx.rollback()
 
@@ -469,7 +469,7 @@ class BaseQueryTestCase(DatabaseTestCase):
             exp_result_binary = exp_result_json
 
         try:
-            res = await self.con.fetch(query)
+            res = await self.con.fetchall(query)
             res = serutils.serialize(res)
             if sort is not None:
                 self._sort_results(res, sort)

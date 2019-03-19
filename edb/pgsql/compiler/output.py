@@ -328,7 +328,8 @@ def top_output_as_value(
         env: context.Environment) -> pgast.Query:
     """Finalize output serialization on the top level."""
 
-    if env.output_format is context.OutputFormat.JSON:
+    if (env.output_format is context.OutputFormat.JSON and
+            not env.expected_cardinality_one):
         # For JSON we just want to aggregate the whole thing
         # into a JSON array.
         subrvar = pgast.RangeSubselect(

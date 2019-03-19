@@ -595,7 +595,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         )
 
         self.assertEqual(
-            await self.con.fetch(r'''SELECT test::call14(b'aaaa');'''),
+            await self.con.fetchall(r'''SELECT test::call14(b'aaaa');'''),
             [[b'aaaa']]
         )
 
@@ -883,11 +883,11 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         )
 
         self.assertEqual(
-            await self.con.fetch_value(
+            await self.con.fetchone(
                 r'''SELECT test::call23(to_json('[{"a":"b"}]'), 0);'''),
             '{"a": "b"}')
         self.assertEqual(
-            await self.con.fetch_json(
+            await self.con.fetchall_json(
                 r'''SELECT test::call23(to_json('[{"a":"b"}]'), 0);'''),
             '[{"a": "b"}]')
 

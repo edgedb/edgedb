@@ -60,6 +60,10 @@ cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
 
 cdef object CAP_ALL = compiler.Capability.ALL
 
+cdef object CARD_NA = compiler.ResultCardinality.NOT_APPLICABLE
+cdef object CARD_ONE = compiler.ResultCardinality.ONE
+cdef object CARD_MANY = compiler.ResultCardinality.MANY
+
 
 cdef bytes INIT_CON_SCRIPT = (b'''
     CREATE TEMPORARY TABLE _edgecon_state (
@@ -267,7 +271,8 @@ cdef class EdgeConnection:
 
     #############
 
-    async def _compile(self, bytes eql, bint json_mode, str stmt_mode):
+    async def _compile(self, bytes eql, bint json_mode, bint expect_one,
+                       str stmt_mode):
 
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
@@ -278,6 +283,7 @@ cdef class EdgeConnection:
                 self.dbview.txid,
                 eql,
                 json_mode,
+                expect_one,
                 stmt_mode)
         else:
             return await self.backend.compiler.call(
@@ -287,6 +293,7 @@ cdef class EdgeConnection:
                 self.dbview.modaliases,
                 self.dbview.get_session_config(),
                 json_mode,
+                expect_one,
                 stmt_mode,
                 CAP_ALL)
 
@@ -345,7 +352,7 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        units = await self._compile(eql, False, stmt_mode)
+        units = await self._compile(eql, False, False, stmt_mode)
 
         for query_unit in units:
             self.dbview.start(query_unit)
@@ -378,11 +385,12 @@ cdef class EdgeConnection:
         self.write(packet)
         self.flush()
 
-    async def _parse(self, bytes eql, bint json_mode):
+    async def _parse(self, bytes eql, bint json_mode, bint expect_one):
         if self.debug:
             self.debug_print('PARSE', eql)
 
-        query_unit = self.dbview.lookup_compiled_query(eql, json_mode)
+        query_unit = self.dbview.lookup_compiled_query(
+            eql, json_mode, expect_one)
         cached = True
         if query_unit is None:
             # Cache miss; need to compile this query.
@@ -398,7 +406,8 @@ cdef class EdgeConnection:
                     # ROLLBACK in that 'eql' string.
                     self.dbview.raise_in_tx_error()
             else:
-                query_unit = await self._compile(eql, json_mode, 'single')
+                query_unit = await self._compile(
+                    eql, json_mode, expect_one, 'single')
                 query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
             # We have a cached QueryUnit for this 'eql', but the current
@@ -409,33 +418,46 @@ cdef class EdgeConnection:
                 self.dbview.raise_in_tx_error()
 
         await self.backend.pgcon.parse_execute(
-            1,          # =parse
-            0,          # =execute
-            query_unit,   # =query
-            self,       # =edgecon
-            None,       # =bind_data
-            0,          # =send_sync
-            0,          # =use_prep_stmt
+            1,           # =parse
+            0,           # =execute
+            query_unit,  # =query
+            self,        # =edgecon
+            None,        # =bind_data
+            0,           # =send_sync
+            0,           # =use_prep_stmt
         )
 
         if not cached and query_unit.cacheable:
-            self.dbview.cache_compiled_query(eql, json_mode, query_unit)
+            self.dbview.cache_compiled_query(
+                eql, json_mode, expect_one, query_unit)
 
         self._last_anon_compiled = query_unit
         return query_unit
 
-    cdef int32_t compute_parse_flags(self, query_unit) except -1:
-        cdef:
-            int32_t flags = 0
+    cdef parse_cardinality(self, bytes card):
+        if card == b'm':
+            return CARD_MANY
+        elif card == b'o':
+            return CARD_ONE
+        elif card == b'n':
+            raise errors.BinaryProtocolError(
+                'cardinality N/A cannot be requested')
+        else:
+            raise errors.BinaryProtocolError(
+                f'unknown expected cardinality "{repr(card)[2:-1]}"')
 
-        if query_unit.has_result:
-            flags |= EdgeParseFlags.PARSE_HAS_RESULT
-        if query_unit.singleton_result:
-            flags |= EdgeParseFlags.PARSE_SINGLETON_RESULT
+    cdef render_cardinality(self, query_unit):
+        if query_unit.cardinality is CARD_NA:
+            return b'n'
+        elif query_unit.cardinality is CARD_ONE:
+            return b'o'
+        elif query_unit.cardinality is CARD_MANY:
+            return b'm'
+        else:
+            raise errors.InternalServerError(
+                f'unknown cardinality {query_unit.cardinality!r}')
 
-        return flags
-
-    cdef is_json_mode(self, bytes mode):
+    cdef parse_json_mode(self, bytes mode):
         if mode == b'j':
             # json
             return True
@@ -453,7 +475,10 @@ cdef class EdgeConnection:
 
         self._last_anon_compiled = None
 
-        json_mode = self.is_json_mode(self.buffer.read_byte())
+        json_mode = self.parse_json_mode(self.buffer.read_byte())
+        expect_one = (
+            self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
+        )
 
         stmt_name = self.buffer.read_utf8()
         if stmt_name:
@@ -464,10 +489,10 @@ cdef class EdgeConnection:
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
-        query_unit = await self._parse(eql, json_mode)
+        query_unit = await self._parse(eql, json_mode, expect_one)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
-        buf.write_int32(self.compute_parse_flags(query_unit))
+        buf.write_bytes(self.render_cardinality(query_unit))
         buf.write_bytes(query_unit.in_type_id)
         buf.write_bytes(query_unit.out_type_id)
         buf.end_message()
@@ -482,7 +507,7 @@ cdef class EdgeConnection:
 
         msg = WriteBuffer.new_message(b'T')
 
-        msg.write_int32(self.compute_parse_flags(query_unit))
+        msg.write_bytes(self.render_cardinality(query_unit))
 
         in_data = query_unit.in_type_data
         msg.write_bytes(query_unit.in_type_id)
@@ -640,14 +665,15 @@ cdef class EdgeConnection:
         cdef:
             WriteBuffer bound_args_buf
             bint process_sync
-            int32_t parse_flags
             bytes in_tid
             bytes out_tid
             bytes bound_args
 
-        json_mode = self.is_json_mode(self.buffer.read_byte())
+        json_mode = self.parse_json_mode(self.buffer.read_byte())
+        expect_one = (
+            self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
+        )
         query = self.buffer.read_null_str()
-        parse_flags = self.buffer.read_int32()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         bind_args = self.buffer.consume_message()
@@ -655,19 +681,16 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
-        query_unit = self.dbview.lookup_compiled_query(query, json_mode)
+        query_unit = self.dbview.lookup_compiled_query(
+            query, json_mode, expect_one)
         if query_unit is None:
             if self.debug:
                 self.debug_print('OPPORTUNISTIC EXECUTE /REPARSE', query)
 
-            query_unit = await self._parse(query, json_mode)
-
-        expected_singleton_result = bool(
-            parse_flags & EdgeParseFlags.PARSE_SINGLETON_RESULT)
+            query_unit = await self._parse(query, json_mode, expect_one)
 
         if (query_unit.in_type_id != in_tid or
-                query_unit.out_type_id != out_tid or
-                bool(query_unit.singleton_result) != expected_singleton_result):
+                query_unit.out_type_id != out_tid):
             # The client has outdated information about type specs.
             if self.debug:
                 self.debug_print('OPPORTUNISTIC EXECUTE /MISMATCH', query)

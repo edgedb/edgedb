@@ -45,6 +45,7 @@ from edb.server.pgproto.pgproto cimport (
     frb_read,
 )
 
+from edb.server import compiler
 from edb.server.cache cimport stmt_cache
 from edb.server.mng_port cimport edgecon
 
@@ -55,6 +56,9 @@ from . import errors as pgerror
 
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
+
+
+cdef object CARD_NA = compiler.ResultCardinality.NOT_APPLICABLE
 
 
 async def connect(addr, dbname):
@@ -359,7 +363,7 @@ cdef class PGProto:
             bytes stmt_name
             bint store_stmt = 0
 
-            bint has_result = query.has_result
+            bint has_result = query.cardinality is not CARD_NA
 
             uint64_t msgs_num = len(query.sql)
             uint64_t msgs_parsed = 0

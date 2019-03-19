@@ -70,7 +70,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 edgedb.QueryError,
                 "operator '-' cannot be applied.*timedelta.*datetime"):
 
-            await self.con.fetch("""
+            await self.con.fetchall("""
                 SELECT <timedelta>'1 day' - <datetime>'2017-10-10';
             """)
 

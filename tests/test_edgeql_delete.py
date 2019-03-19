@@ -78,13 +78,13 @@ class TestDelete(tb.QueryTestCase):
         )
 
     async def test_edgeql_delete_simple_02(self):
-        id1 = str((await self.con.fetch_value(r"""
+        id1 = str((await self.con.fetchone(r"""
             SELECT(INSERT test::DeleteTest {
                 name := 'delete-test1'
             }) LIMIT 1;
         """)).id)
 
-        id2 = str((await self.con.fetch_value(r"""
+        id2 = str((await self.con.fetchone(r"""
             SELECT(INSERT test::DeleteTest {
                 name := 'delete-test2'
             }) LIMIT 1;
@@ -142,7 +142,7 @@ class TestDelete(tb.QueryTestCase):
         )
 
     async def test_edgeql_delete_returning_01(self):
-        id1 = str((await self.con.fetch_value(r"""
+        id1 = str((await self.con.fetchone(r"""
             SELECT (INSERT test::DeleteTest {
                 name := 'delete-test1'
             }) LIMIT 1;
