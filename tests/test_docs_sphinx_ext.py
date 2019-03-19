@@ -799,30 +799,3 @@ class TestBlockquote(unittest.TestCase, BaseDomainTest):
 
         with self.assert_fails('title reference'):
             self.build(src, format='html')
-
-
-@unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
-class TestEQLMigration(unittest.TestCase, BaseDomainTest):
-
-    def test_sphinx_eql_migration_01(self):
-        src = '''
-        .. eql:migration:: foobar
-
-            type User {
-                property name -> str;
-            };
-        '''
-
-        out = self.build(src, format='xml')
-        x = requests_xml.XML(xml=out)
-
-        self.assertEqual(
-            x.xpath('''
-                //container[@eql-migration="true"] / literal_block / text()
-            '''),
-            [
-                'START TRANSACTION;\n'
-                'CREATE MIGRATION foobar TO {\n\n',
-                'type User {\n    property name -> str;\n};',
-                '\n};\nCOMMIT MIGRATION foobar;\nCOMMIT;'
-            ])

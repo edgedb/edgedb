@@ -21,7 +21,7 @@ from docutils import nodes as d_nodes
 from sphinx import transforms as s_transforms
 
 from . import eql
-from . import eschema
+from . import sdl
 from . import graphql
 from . import shared
 
@@ -46,7 +46,7 @@ class ProhibitedNodeTransform(s_transforms.SphinxTransform):
 
 def setup(app):
     eql.setup_domain(app)
-    eschema.setup_domain(app)
+    sdl.setup_domain(app)
     graphql.setup_domain(app)
 
     app.add_transform(ProhibitedNodeTransform)

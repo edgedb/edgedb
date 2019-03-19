@@ -10,7 +10,7 @@ Definition
 
 A function may be defined in EdgeDB Schema using the ``function`` declaration:
 
-.. eschema:synopsis::
+.. sdl:synopsis::
 
     function <funcname> ([<argspec>] [, ...]) -> <returnspec>:
         from <language> := <functionbody>
@@ -37,7 +37,7 @@ A function may be defined in EdgeDB Schema using the ``function`` declaration:
 Parameters
 ----------
 
-:eschema:synopsis:`<funcname>`
+:sdl:synopsis:`<funcname>`
     The function name.
 
 :eql:synopsis:`<argkind>`
@@ -70,16 +70,16 @@ Parameters
     if the argument is an empty set.  The default behavior is to return
     an empty set if the argument is not marked as ``optional``.
 
-:eschema:synopsis:`<argtype>`
+:sdl:synopsis:`<argtype>`
     The data type of the function's arguments
     (optionally module-qualified).
 
-:eschema:synopsis:`<default>`
+:sdl:synopsis:`<default>`
     An expression to be used as default value if the parameter is not
     specified.  The expression has to be of a type compatible with the
     type of the argument.
 
-:eschema:synopsis:`<rettype>`
+:sdl:synopsis:`<rettype>`
     The return data type (optionally module-qualified).
     The ``set of`` modifier indicates that the function will return
     a non-singleton set.
@@ -87,11 +87,11 @@ Parameters
     The ``optional`` qualifier indicates that the function may return
     an empty set.
 
-:eschema:synopsis:`<language>`
+:sdl:synopsis:`<language>`
     The name of the language that the function is implemented in.
     The only currently supported value is ``edgeql``.
 
-:eschema:synopsis:`<functionbody>`
+:sdl:synopsis:`<functionbody>`
     A string constant defining the function.
 
 

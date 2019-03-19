@@ -14,7 +14,7 @@ that expression.
 The simplest form of index is an index, which references one
 or more properties directly:
 
-.. code-block:: eschema
+.. code-block:: sdl
 
     type User {
         property name -> str;
@@ -32,7 +32,7 @@ to find the matching objects:
 Indexes may be defined using an arbitrary expression that references properties
 of the host object type or link:
 
-.. code-block:: eschema
+.. code-block:: sdl
 
     type User {
         property firstname -> str;
@@ -58,7 +58,7 @@ Definition
 Indexes may be defined in EdgeDB Schema in the context of a ``type`` or
 ``abstract link`` declaration using the following two forms:
 
-.. eschema:synopsis::
+.. sdl:synopsis::
 
     { type <TypeName> | abstract link <link-name> }:
         index <index-name> := <index-expr>
@@ -72,15 +72,15 @@ Indexes may be defined in EdgeDB Schema in the context of a ``type`` or
 Parameters
 ----------
 
-:eschema:synopsis:`<index-name>`
+:sdl:synopsis:`<index-name>`
     The name of the index.  No module name can be specified, indexes are
     always created in the same module as the host type or link.  Index
     names must be unique within their host.
 
-:eschema:synopsis:`<index-expr>`
+:sdl:synopsis:`<index-expr>`
     An expression based on one or more properties of the host schema item.
 
-:eschema:synopsis:`[ <attr-name> := <attr-value> ]`
+:sdl:synopsis:`[ <attr-name> := <attr-value> ]`
     An optional list of schema attribute values for the index. See
     :ref:`schema attributes <ref_datamodel_attributes>` for more information.
 

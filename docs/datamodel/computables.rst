@@ -18,7 +18,7 @@ some value that is derived from the values of existing properties and links.
 
 For example:
 
-.. code-block:: eschema
+.. code-block:: sdl
 
     type User {
         required property firstname -> str;

@@ -28,26 +28,26 @@ Abstract Properties
 An *abstract property* may be defined in EdgeDB Schema using the
 ``abstract property`` declaration:
 
-.. eschema:synopsis::
+.. sdl:synopsis::
 
     abstract property <prop-name> [ extending [(] <parent-prop> [, ...] [)]]:
         [ <attribute-declarations> ]
 
 Parameters:
 
-:eschema:synopsis:`<prop-name>`
+:sdl:synopsis:`<prop-name>`
     Specifies the name of the property item.  Customarily, property names
     are lowercase, with words separated by underscores as necessary for
     readability.
 
-:eschema:synopsis:`extending <parent-prop> [, ...]`
+:sdl:synopsis:`extending <parent-prop> [, ...]`
     If specified, declares the *parents* of the property item.
 
     Use of ``extending`` creates a persistent schema relationship
     between this property and its parents.  Schema modifications
     to the parent(s) propagate to the child.
 
-:eschema:synopsis:`<attribute-declarations>`
+:sdl:synopsis:`<attribute-declarations>`
     :ref:`Schema attribute <ref_datamodel_attributes>` declarations.
 
 
@@ -63,7 +63,7 @@ Concrete Properties
 A *concrete property* may be defined in EdgeDB Schema using the ``property``
 declaration in the context of a ``type`` or ``abstract link`` declaration:
 
-.. eschema:synopsis::
+.. sdl:synopsis::
 
     type <TypeName>:
         [required] [inherited] [{multi|single}] property \
@@ -97,7 +97,7 @@ declaration in the context of a ``type`` or ``abstract link`` declaration:
 
 Parameters:
 
-:eschema:synopsis:`required`
+:sdl:synopsis:`required`
     If specified, the property is considered *required* for the
     parent object type.  It is an error for an object to have a required
     property resolve to an empty value.  Child properties **always**
@@ -108,16 +108,16 @@ Parameters:
 
         Link properties cannot be ``required``.
 
-:eschema:synopsis:`inherited`
+:sdl:synopsis:`inherited`
     This qualifier must be specified if the property is *inherited* from
     one or more parent object types or links.
 
-:eschema:synopsis:`multi`
+:sdl:synopsis:`multi`
     Specifies that there may be more than one instance of this property
     in an object, in other words, ``Object.property`` may resolve to a set
     of a size greater than one.
 
-:eschema:synopsis:`single`
+:sdl:synopsis:`single`
     Specifies that there may be at most *one* instance of this property
     in an object, in other words, ``Object.property`` may resolve to a set
     of a size not greater than one.  ``single`` is assumed if nether
@@ -127,33 +127,33 @@ Parameters:
 
         Link properties are always ``single``.
 
-:eschema:synopsis:`extending <parent-prop> [, ...]`
+:sdl:synopsis:`extending <parent-prop> [, ...]`
     If specified, declares the *parents* of the property item.
 
     Use of ``extending`` creates a persistent schema relationship
     between this property and its parents.  Schema modifications
     to the parent(s) propagate to the child.
 
-:eschema:synopsis:`readonly`
+:sdl:synopsis:`readonly`
     If specified, the property is considered *read-only*.  Modifications
     of this property are prohibited once an object or link is created.
 
-:eschema:synopsis:`default`
+:sdl:synopsis:`default`
     Specifies the default value for the property as an EdgeQL expression.
     The default value is used in an ``INSERT`` statement if an explicit
     value for this property is not specified.
 
-:eschema:synopsis:`<computable-expr>`
+:sdl:synopsis:`<computable-expr>`
     If specified, designates this property as a *computable property*
     (see :ref:`Computables <ref_datamodel_computables>`).  A computable
     property cannot be *required* or *readonly* (the latter is implied and
     always true).  There is a shorthand form using the ``:=`` syntax,
     as shown in the synopsis above.
 
-:eschema:synopsis:`<attribute-declarations>`
+:sdl:synopsis:`<attribute-declarations>`
     :ref:`Schema attribute <ref_datamodel_attributes>` declarations.
 
-:eschema:synopsis:`<constraint-declarations>`
+:sdl:synopsis:`<constraint-declarations>`
     :ref:`Constraint <ref_datamodel_constraints>` declarations.
 
 

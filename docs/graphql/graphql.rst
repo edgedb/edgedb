@@ -7,7 +7,7 @@ Basics
 For the purposes of this section we will consider ``default`` module
 containing the following schema:
 
-.. code-block:: eschema
+.. code-block:: sdl
 
     type Author {
         property name -> str;

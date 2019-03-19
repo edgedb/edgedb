@@ -39,34 +39,39 @@ To manipulate and query data in EdgeDB we must first define a schema.
 We will be working with three object types: ``User``, ``PullRequest``,
 and ``Comment``.  Let's define the initial schema with a migration:
 
-.. eql:migration:: m1
+.. code-block:: edgeql
 
-    type User {
-      required property login -> str {
-        constraint exclusive;
-      }
-      required property firstname -> str;
-      required property lastname -> str;
-    }
+    START TRANSACTION;
+    CREATE MIGRATION m1 TO {
+        type User {
+          required property login -> str {
+            constraint exclusive;
+          }
+          required property firstname -> str;
+          required property lastname -> str;
+        }
 
-    type PullRequest {
-      required property number -> int64 {
-        constraint exclusive;
-      }
-      required property title -> str;
-      required property body -> str;
-      required property status -> str;
-      required property created_on -> datetime;
-      required link author -> User;
-      multi link assignees -> User;
-      multi link comments -> Comment;
-    }
+        type PullRequest {
+          required property number -> int64 {
+            constraint exclusive;
+          }
+          required property title -> str;
+          required property body -> str;
+          required property status -> str;
+          required property created_on -> datetime;
+          required link author -> User;
+          multi link assignees -> User;
+          multi link comments -> Comment;
+        }
 
-    type Comment {
-      required property body -> str;
-      required link author -> User;
-      required property created_on -> datetime;
-    }
+        type Comment {
+          required property body -> str;
+          required link author -> User;
+          required property created_on -> datetime;
+        }
+    };
+    COMMIT MIGRATION m1;
+    COMMIT;
 
 With the above snippet we defined and applied a migration to a schema
 described using the :ref:`declarative schema language <ref_eschema>`.
@@ -79,39 +84,44 @@ link.  Let's remove this duplication by declaring an abstract parent type
 ``AuthoredText`` and :ref:`extending <ref_datamodel_inheritance>`
 ``Comment`` and ``PullRequest`` from it:
 
-.. eql:migration:: m2
+.. code-block:: edgeql
 
-    type User {
-      required property login -> str {
-        constraint exclusive;
-      }
-      required property firstname -> str;
-      required property lastname -> str;
-    }
+    START TRANSACTION;
+    CREATE MIGRATION m2 TO {
+        type User {
+          required property login -> str {
+            constraint exclusive;
+          }
+          required property firstname -> str;
+          required property lastname -> str;
+        }
 
-    # <new>
-    abstract type AuthoredText {
-      required property body -> str;
-      required link author -> User;
-      required property created_on -> datetime;
-    }
-    # </new>
+        # <new>
+        abstract type AuthoredText {
+          required property body -> str;
+          required link author -> User;
+          required property created_on -> datetime;
+        }
+        # </new>
 
-    # <changed>
-    type PullRequest extending AuthoredText {
-    # </changed>
-      required property number -> int64 {
-        constraint exclusive;
-      }
-      required property title -> str;
-      required property status -> str;
-      multi link assignees -> User;
-      multi link comments -> Comment;
-    }
+        # <changed>
+        type PullRequest extending AuthoredText {
+        # </changed>
+          required property number -> int64 {
+            constraint exclusive;
+          }
+          required property title -> str;
+          required property status -> str;
+          multi link assignees -> User;
+          multi link comments -> Comment;
+        }
 
-    # <changed>
-    type Comment extending AuthoredText;
-    # </changed>
+        # <changed>
+        type Comment extending AuthoredText;
+        # </changed>
+    };
+    COMMIT MIGRATION m2;
+    COMMIT;
 
 
 Inserting Data

@@ -16,7 +16,7 @@ Definition
 
 A view may be defined in EdgeDB Schema using the ``view`` declaration:
 
-.. eschema:synopsis::
+.. sdl:synopsis::
 
     view <view-name>:
         expr := <view-expr>
@@ -26,13 +26,13 @@ A view may be defined in EdgeDB Schema using the ``view`` declaration:
 Parameters
 ----------
 
-:eschema:synopsis:`<view-name>`
+:sdl:synopsis:`<view-name>`
     Specifies the name of the view.
 
-:eschema:synopsis:`<view-expr>`
+:sdl:synopsis:`<view-expr>`
     An expression defining the *shape* and the contents of the view.
 
-:eschema:synopsis:`<attribute-declarations>`
+:sdl:synopsis:`<attribute-declarations>`
     :ref:`Schema attribute <ref_datamodel_attributes>` declarations.
 
 

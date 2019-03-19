@@ -25,7 +25,7 @@ from sphinx.directives import code as s_code
 from . import shared
 
 
-class EschemaSynopsisDirective(s_code.CodeBlock):
+class SDLSynopsisDirective(s_code.CodeBlock):
 
     has_content = True
     optional_arguments = 0
@@ -33,26 +33,26 @@ class EschemaSynopsisDirective(s_code.CodeBlock):
     option_spec = {}
 
     def run(self):
-        self.arguments = ['eschema-synopsis']
+        self.arguments = ['sdl-synopsis']
         return super().run()
 
 
-class EschemaDomain(s_domains.Domain):
+class SDLDomain(s_domains.Domain):
 
-    name = "eschema"
-    label = "EdgeDB Schema"
+    name = "sdl"
+    label = "EdgeDB Schema Definition Language"
 
     directives = {
-        'synopsis': EschemaSynopsisDirective,
+        'synopsis': SDLSynopsisDirective,
     }
 
 
 def setup_domain(app):
-    app.add_lexer("eschema", EdgeQLLexer())
-    app.add_lexer("eschema-synopsis", EdgeQLLexer())
+    app.add_lexer("sdl", EdgeQLLexer())
+    app.add_lexer("sdl-synopsis", EdgeQLLexer())
 
     app.add_role(
-        'eschema:synopsis',
-        shared.InlineCodeRole('eschema-synopsis'))
+        'sdl:synopsis',
+        shared.InlineCodeRole('sdl-synopsis'))
 
-    app.add_domain(EschemaDomain)
+    app.add_domain(SDLDomain)

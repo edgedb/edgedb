@@ -21,7 +21,7 @@ Abstract Constraints
 An *abstract constraint* may be defined in EdgeDB Schema using the
 ``abstract constraint`` declaration:
 
-.. eschema:synopsis::
+.. sdl:synopsis::
 
     abstract constraint <constr-name> [( [<argspec>] [, ...] )]
             [on (<subject-expr>)]
@@ -38,31 +38,31 @@ An *abstract constraint* may be defined in EdgeDB Schema using the
 Parameters
 ~~~~~~~~~~
 
-:eschema:synopsis:`<constr-name>`
+:sdl:synopsis:`<constr-name>`
     The name of the constraint.
 
-:eschema:synopsis:`<argspec>`
+:sdl:synopsis:`<argspec>`
     An optional list of constraint arguments.
-    :eschema:synopsis:`<argname>` optionally specifies
-    the argument name, and :eschema:synopsis:`<argtype>`
+    :sdl:synopsis:`<argname>` optionally specifies
+    the argument name, and :sdl:synopsis:`<argtype>`
     specifies the argument type.
 
-:eschema:synopsis:`<subject-expr>`
+:sdl:synopsis:`<subject-expr>`
     An optional expression defining the *subject* of the constraint.
     If not specified, the subject is the value of the schema item on
     which the constraint is defined.
 
-:eschema:synopsis:`extending <parent_constr> [, ...]`
+:sdl:synopsis:`extending <parent_constr> [, ...]`
     If specified, declares the *parent* constraints for this constraint.
 
-:eschema:synopsis:`expr := <constr_expression>`
+:sdl:synopsis:`expr := <constr_expression>`
     An boolean expression that returns ``true`` for valid data and
     ``false`` for invalid data.  The expression may refer to special
     variables: ``__self__`` for the value of the scalar type, link or
     property value; and ``__subject__`` which is the constraint's subject
-    expression as defined by :eschema:synopsis:`<subject-expr>`.
+    expression as defined by :sdl:synopsis:`<subject-expr>`.
 
-:eschema:synopsis:`errmessage := <error_message>`
+:sdl:synopsis:`errmessage := <error_message>`
     An optional string literal defining the error message template that
     is raised when the constraint is violated.  The template is a formatted
     string that may refer to constraint context variables in curly braces.
@@ -72,7 +72,7 @@ Parameters
     - ``__self__`` -- the value of the ``title`` attribute of the scalar type,
       property or link on which the constraint is defined.
 
-:eschema:synopsis:`<attribute_declarations>`
+:sdl:synopsis:`<attribute_declarations>`
     :ref:`Schema attribute <ref_datamodel_attributes>` declarations.
 
 
@@ -83,7 +83,7 @@ A *concrete constraint* may be defined in EdgeDB Schema using the
 ``constraint`` declaration in the context of a ``scalar type``, ``property``,
 or ``link`` declaration:
 
-.. eschema:synopsis::
+.. sdl:synopsis::
 
     { scalar type | type | abstract link } <subject-item>:
         <constraint-declaration>
@@ -106,28 +106,28 @@ or ``link`` declaration:
 Parameters
 ~~~~~~~~~~
 
-:eschema:synopsis:`delegated`
+:sdl:synopsis:`delegated`
     If specified, the constraint is defined as *delegated*, which means
     that it will not be enforced on the type it's declared on, and
     the enforcement will be delegated to the subtypes of this type.
     This is particularly useful for :eql:constraint:`exclusive`
     constraints in abstract types.
 
-:eschema:synopsis:`<constr_name>`
+:sdl:synopsis:`<constr_name>`
     The name of the previously defined abstract constraint.
 
-:eschema:synopsis:`<argname>`
+:sdl:synopsis:`<argname>`
     The name of an argument.
 
-:eschema:synopsis:`<argvalue>`
+:sdl:synopsis:`<argvalue>`
     The value of an argument as a literal constant of the correct type.
 
-:eschema:synopsis:`<subject-expr>`
+:sdl:synopsis:`<subject-expr>`
     An optional expression defining the *subject* of the constraint.
     If not specified, the subject is the value of the schema item on
     which the constraint is defined.
 
-:eschema:synopsis:`<attribute-declarations>`
+:sdl:synopsis:`<attribute-declarations>`
     :ref:`Schema attribute <ref_datamodel_attributes>` declarations.
 
 
@@ -142,7 +142,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type status_t extending str {
             constraint enum ('Open', 'Closed', 'Merged');
@@ -154,7 +154,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type starts_with_a extending str {
             constraint expression on (__subject__[0] = 'A');
@@ -166,7 +166,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type max_100 extending int64 {
             constraint max(100);
@@ -178,7 +178,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type maxex_100 extending int64 {
             constraint max_ex(100);
@@ -190,7 +190,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type username_t extending str {
             constraint max_len(30);
@@ -202,7 +202,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type non_negative extending int64 {
             constraint min(0);
@@ -214,7 +214,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type positive_float extending float64 {
             constraint min_ex(0);
@@ -226,7 +226,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type four_decimal_places extending int64 {
             constraint min_len(4);
@@ -241,7 +241,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         scalar type letters_only_t extending str {
             constraint regexp(r'[A-Za-z]*');
@@ -262,7 +262,7 @@ The standard library defines the following constraints:
 
     Example:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         type User {
             # Make sure user names are unique.

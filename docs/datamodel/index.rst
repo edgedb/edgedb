@@ -18,7 +18,7 @@ of named *properties* and *links* to other types.
 
 Here is an example of a simple EdgeDB type using the Edge Schema notation:
 
-.. code-block:: eschema
+.. code-block:: sdl
 
     type User {
         property name -> str;

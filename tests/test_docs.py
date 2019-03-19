@@ -205,7 +205,7 @@ class TestDocSnippets(unittest.TestCase):
             for snippet in code:
                 if lang == 'edgeql':
                     edgeql_parser.parse_block(snippet)
-                elif lang == 'eschema':
+                elif lang == 'sdl':
                     schema_parser.parse(snippet)
                 elif lang == 'edgeql-result':
                     # REPL results

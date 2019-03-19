@@ -163,7 +163,7 @@ A query could use a shape to create an alias to a real link. In this
 case, the link properties on that link are preserved on the aliased
 link as well. Consider the following schema:
 
-.. code-block:: eschema
+.. code-block:: sdl
 
     abstract link friends {
         property since -> datetime;

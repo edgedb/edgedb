@@ -31,7 +31,7 @@ types in EdgeDB extend ``std::Object`` directly or indirectly.
 
     Definition:
 
-    .. code-block:: eschema
+    .. code-block:: sdl
 
         abstract type Object {
             # Universally unique object identifier
@@ -47,7 +47,7 @@ Definition
 
 Object types may be defined in EdgeDB Schema using the ``type`` keyword:
 
-.. eschema:synopsis::
+.. sdl:synopsis::
 
     [abstract] type <TypeName> [extending [(] <supertype> [, ...] [)]]:
         [ <property-declarations> ]
@@ -58,14 +58,14 @@ Object types may be defined in EdgeDB Schema using the ``type`` keyword:
 
 Parameters:
 
-:eschema:synopsis:`abstract`
+:sdl:synopsis:`abstract`
     If specified, the declared type will be *abstract*.
 
-:eschema:synopsis:`<TypeName>`
+:sdl:synopsis:`<TypeName>`
     Specifies the name of the object type.  Customarily, object type names
     use the CapWords convention.
 
-:eschema:synopsis:`extending <supertype> [, ...]`
+:sdl:synopsis:`extending <supertype> [, ...]`
     If specified, declares the *supertypes* of the new type.
 
     Use of ``extending`` creates a persistent type relationship
@@ -81,16 +81,16 @@ Parameters:
     be *compatible*.  If there is no conflict, the links are merged to
     form a single link in the new type.
 
-:eschema:synopsis:`<property-declarations>`
+:sdl:synopsis:`<property-declarations>`
     :ref:`Property <ref_datamodel_props>` declarations.
 
-:eschema:synopsis:`<link-declarations>`
+:sdl:synopsis:`<link-declarations>`
     :ref:`Link <ref_datamodel_links>` declarations.
 
-:eschema:synopsis:`<index-declarations>`
+:sdl:synopsis:`<index-declarations>`
     :ref:`Index <ref_datamodel_indexes>` declarations.
 
-:eschema:synopsis:`<attribute-declarations>`
+:sdl:synopsis:`<attribute-declarations>`
     :ref:`Schema attribute <ref_datamodel_attributes>` declarations.
 
 
