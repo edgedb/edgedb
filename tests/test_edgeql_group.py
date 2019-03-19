@@ -28,13 +28,13 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     '''These tests are focused on using GROUP statement.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
+                          'issues.esdl')
 
     SCHEMA_CARDS = os.path.join(os.path.dirname(__file__), 'schemas',
-                                'cards.eschema')
+                                'cards.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'groups_setup.eql')
+                         'groups_setup.edgeql')
 
     async def test_edgeql_group_simple_01(self):
         await self.assert_query_result(

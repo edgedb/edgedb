@@ -26,10 +26,10 @@ class TestEdgeQLFor(tb.QueryTestCase):
     '''These tests are focused on using FOR statement.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards.eschema')
+                          'cards.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'cards_setup.eql')
+                         'cards_setup.edgeql')
 
     async def test_edgeql_for_cross_01(self):
         cards = ['Bog monster', 'Djinn', 'Dragon', 'Dwarf', 'Giant eagle',

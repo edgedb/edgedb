@@ -193,7 +193,7 @@ class TestDeltas(tb.DDLTestCase):
 class TestDeltaLinkInheritance(tb.DDLTestCase):
     async def test_delta_link_inheritance(self):
         schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
-                                'links_1.eschema')
+                                'links_1.esdl')
 
         with open(schema_f) as f:
             schema = f.read()
@@ -247,7 +247,7 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
             ''')
 
         schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
-                                'links_1_migrated.eschema')
+                                'links_1_migrated.esdl')
 
         with open(schema_f) as f:
             schema = f.read()

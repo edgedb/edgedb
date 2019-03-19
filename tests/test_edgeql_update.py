@@ -28,10 +28,10 @@ from edb.testbase import server as tb
 
 class TestUpdate(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'updates.eschema')
+                          'updates.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'updates.eql')
+                         'updates.edgeql')
 
     def setUp(self):
         super().setUp()

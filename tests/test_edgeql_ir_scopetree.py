@@ -32,7 +32,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
     """Unit tests for scope tree logic."""
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards.eschema')
+                          'cards.esdl')
 
     def run_test(self, *, source, spec, expected):
         ir = compiler.compile_to_ir(source, self.schema)

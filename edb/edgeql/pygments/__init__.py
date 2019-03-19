@@ -51,8 +51,8 @@ navigation = ['\\' + '\\'.join(nav) for nav in navigation
 
 class EdgeQLLexer(RegexLexer):
     name = 'EdgeQL'
-    aliases = ['eql', 'edgeql']
-    filenames = ['*.eql', '*.edgeql']
+    aliases = ['edgeql', 'esdl']
+    filenames = ['*.edgeql', '*.esdl']
 
     tokens = {
         'root': [

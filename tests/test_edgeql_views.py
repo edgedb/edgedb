@@ -28,12 +28,12 @@ class TestEdgeQLViews(tb.QueryTestCase):
     '''The scope is to test views.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards.eschema')
+                          'cards.esdl')
 
     SETUP = [os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards_setup.eql'),
+                          'cards_setup.edgeql'),
              os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards_views_setup.eql')]
+                          'cards_views_setup.edgeql')]
 
     async def test_edgeql_views_basic_01(self):
         await self.assert_query_result(

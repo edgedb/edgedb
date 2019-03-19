@@ -28,7 +28,7 @@ from edb.testbase import server as tb
 class TestConstraintsSchema(tb.QueryTestCase):
     ISOLATED_METHODS = False
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'constraints.eschema')
+                          'constraints.esdl')
 
     async def _run_link_tests(self, cases, objtype, link):
         qry = """
@@ -386,12 +386,12 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
     ISOLATED_METHODS = False
     SCHEMA = os.path.join(os.path.dirname(__file__),
                           'schemas', 'constraints_migration',
-                          'schema.eschema')
+                          'schema.esdl')
 
     async def test_constraints_exclusive_migration(self):
         new_schema_f = os.path.join(os.path.dirname(__file__),
                                     'schemas', 'constraints_migration',
-                                    'updated_schema.eschema')
+                                    'updated_schema.esdl')
 
         with open(new_schema_f) as f:
             new_schema = f.read()

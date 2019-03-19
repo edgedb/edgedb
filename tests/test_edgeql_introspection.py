@@ -25,7 +25,7 @@ from edb.tools import test
 
 class TestIntrospection(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
+                          'issues.esdl')
 
     SETUP = """
     """

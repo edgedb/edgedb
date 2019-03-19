@@ -52,10 +52,10 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     # FIXME: a special schema should be used here since we need to
     # cover all known scalars and even some arrays and tuples.
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'casts.eschema')
+                          'casts.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'casts_setup.eql')
+                         'casts_setup.edgeql')
 
     ISOLATED_METHODS = False
 

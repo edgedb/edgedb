@@ -31,7 +31,7 @@ class TestInsert(tb.QueryTestCase):
     '''The scope of the tests is testing various modes of Object creation.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'insert.eschema')
+                          'insert.esdl')
 
     async def test_edgeql_insert_fail_1(self):
         err = 'missing value for required property ' + \

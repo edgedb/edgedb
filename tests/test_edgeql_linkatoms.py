@@ -26,10 +26,10 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
     '''The scope is to test unusual scalar links.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'inventory.eschema')
+                          'inventory.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'inventory_setup.eql')
+                         'inventory_setup.edgeql')
 
     async def test_edgeql_links_basic_02(self):
         await self.assert_query_result(

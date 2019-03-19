@@ -28,10 +28,10 @@ from edb.testbase import server as tb
 
 class TestEdgeQLJSON(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'json.eschema')
+                          'json.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'json_setup.eql')
+                         'json_setup.edgeql')
 
     ISOLATED_METHODS = False
 

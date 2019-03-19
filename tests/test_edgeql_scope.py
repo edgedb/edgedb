@@ -30,10 +30,10 @@ class TestEdgeQLScope(tb.QueryTestCase):
     '''This tests the scoping rules.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards.eschema')
+                          'cards.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'cards_setup.eql')
+                         'cards_setup.edgeql')
 
     async def test_edgeql_scope_sort_01(self):
         await self.assert_query_result(

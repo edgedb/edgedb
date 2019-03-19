@@ -27,10 +27,10 @@ from edb.tools import test
 
 class TestEdgeQLSelect(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
+                          'issues.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'issues_setup.eql')
+                         'issues_setup.edgeql')
 
     async def test_edgeql_select_unique_01(self):
         await self.assert_query_result(

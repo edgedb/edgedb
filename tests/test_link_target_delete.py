@@ -104,7 +104,7 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
 
 
 class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
-    SCHEMA = pathlib.Path(__file__).parent / 'schemas' / 'link_tgt_del.eschema'
+    SCHEMA = pathlib.Path(__file__).parent / 'schemas' / 'link_tgt_del.esdl'
     ISOLATED_METHODS = False
 
     async def test_link_on_target_delete_restrict_01(self):
@@ -875,13 +875,13 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
 
 class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
-    SCHEMA = pathlib.Path(__file__).parent / 'schemas' / 'link_tgt_del.eschema'
+    SCHEMA = pathlib.Path(__file__).parent / 'schemas' / 'link_tgt_del.esdl'
 
     async def test_link_on_target_delete_migration_01(self):
         async with self._run_and_rollback():
 
             schema_f = (pathlib.Path(__file__).parent / 'schemas' /
-                        'link_tgt_del_migrated.eschema')
+                        'link_tgt_del_migrated.esdl')
 
             with open(schema_f) as f:
                 schema = f.read()
@@ -911,7 +911,7 @@ class TestLinkTargetDeleteMigrations(stb.NonIsolatedDDLTestCase):
         async with self._run_and_rollback():
 
             schema_f = (pathlib.Path(__file__).parent / 'schemas' /
-                        'link_tgt_del_migrated.eschema')
+                        'link_tgt_del_migrated.esdl')
 
             with open(schema_f) as f:
                 schema = f.read()

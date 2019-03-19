@@ -40,7 +40,7 @@ QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])
 CACHE_SRC_DIRS = (
     (SCHEMA_ROOT, '.py'),
     (QL_COMPILER_ROOT, '.py'),
-    (LIB_ROOT, '.eql'),
+    (LIB_ROOT, '.edgeql'),
 )
 
 
@@ -53,10 +53,10 @@ def get_std_module_text(modname: str) -> str:
 
     if module_path.is_dir():
         for entry in module_path.iterdir():
-            if entry.is_file() and entry.suffix == '.eql':
+            if entry.is_file() and entry.suffix == '.edgeql':
                 module_files.append(entry)
     else:
-        module_path = module_path.with_suffix('.eql')
+        module_path = module_path.with_suffix('.edgeql')
         if not module_path.exists():
             raise errors.SchemaError(f'std module not found: {modname}')
         module_files.append(module_path)

@@ -27,10 +27,10 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
     """
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
+                          'issues.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'issues_coalesce_setup.eql')
+                         'issues_coalesce_setup.edgeql')
 
     async def test_edgeql_coalesce_scalar_01(self):
         await self.assert_query_result(

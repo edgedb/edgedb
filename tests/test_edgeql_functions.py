@@ -28,10 +28,10 @@ from edb.tools import test
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
+                          'issues.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'issues_setup.eql')
+                         'issues_setup.edgeql')
 
     async def test_edgeql_functions_count_01(self):
         await self.assert_query_result(

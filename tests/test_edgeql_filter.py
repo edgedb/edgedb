@@ -27,10 +27,10 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     """
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
+                          'issues.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'issues_filter_setup.eql')
+                         'issues_filter_setup.edgeql')
 
     async def test_edgeql_filter_two_scalar_conditions01(self):
         await self.assert_query_result(

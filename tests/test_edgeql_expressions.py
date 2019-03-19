@@ -183,7 +183,7 @@ class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
 
 class TestExpressions(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.eschema')
+                          'issues.esdl')
 
     SETUP = """
     """

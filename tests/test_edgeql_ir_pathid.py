@@ -28,7 +28,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
     """Unit tests for path id logic."""
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards.eschema')
+                          'cards.esdl')
 
     def test_edgeql_ir_pathid_basic(self):
         User = self.schema.get('test::User')

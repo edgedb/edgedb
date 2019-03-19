@@ -30,13 +30,13 @@ from edb.tools import test
 
 class TestGraphQLFunctional(tb.GraphQLTestCase):
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
-                                  'graphql.eschema')
+                                  'graphql.esdl')
 
     SCHEMA_OTHER = os.path.join(os.path.dirname(__file__), 'schemas',
-                                'graphql_other.eschema')
+                                'graphql_other.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'graphql_setup.eql')
+                         'graphql_setup.edgeql')
 
     # GraphQL queries cannot run in a transaction
     ISOLATED_METHODS = False
