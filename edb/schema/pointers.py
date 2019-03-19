@@ -484,7 +484,8 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             )
 
         ir, _, target_expr = ql_utils.normalize_tree(
-            expr, schema, anchors={qlast.Source: source}, singletons=[source])
+            expr, schema, anchors={qlast.Source: source}, singletons=[source],
+            modaliases=context.modaliases)
 
         target = utils.reduce_to_typeref(schema, ir.stype)
 

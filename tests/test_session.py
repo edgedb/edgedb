@@ -141,3 +141,29 @@ class TestSession(tb.QueryTestCase):
             """,
             [['entity', 'fuzentity']],
         )
+
+    async def test_session_ddl_default_module_01(self):
+        await self.con.execute('RESET ALIAS *')
+
+        tx = self.con.transaction()
+        await tx.start()
+
+        try:
+            await self.con.execute('''
+                ALTER TYPE User {
+                    CREATE PROPERTY aaa := len(
+                        'yes' IF __source__ IS User ELSE 'no')
+                }
+            ''')
+
+            await self.assert_query_result(
+                """
+                    SELECT User {name, aaa};
+                """,
+                [{
+                    'name': 'user',
+                    'aaa': 3,
+                }]
+            )
+        finally:
+            await tx.rollback()

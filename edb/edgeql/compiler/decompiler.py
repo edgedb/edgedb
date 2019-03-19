@@ -307,7 +307,7 @@ class IRDecompiler(ast.visitor.NodeVisitor):
     def visit_TypeRef(self, node):
         # Bare TypeRef only appears as rhs of IS [NOT] and is always
         # an object type reference.
-        mtn = node.name
+        mtn = node.name_hint
 
         result = qlast.Path(
             steps=[qlast.ObjectRef(module=mtn.module, name=mtn.name)]
