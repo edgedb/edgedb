@@ -138,6 +138,16 @@ class ReferencedObjectCommand(sd.ObjectCommand,
             refname = reftype.get_key_for(schema, self.scls)
             schema = referrer.del_classref(schema, refdict.attr, refname)
 
+            for child in referrer.descendants(schema):
+                child_local_coll = child.get_field_value(
+                    schema, refdict.local_attr)
+                child_coll = child.get_field_value(schema, refdict.attr)
+                if not child_local_coll.has(schema, refname):
+                    schema, child_coll = child_coll.delete(
+                        schema, [refname])
+                    schema = child.set_field_value(
+                        schema, refdict.attr, child_coll)
+
         return schema
 
 

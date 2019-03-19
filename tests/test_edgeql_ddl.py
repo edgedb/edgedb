@@ -930,7 +930,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r'unqualified name and no default module set'):
+                r"reference to a non-existant schema name 'array'"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> array;
@@ -940,7 +940,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r'unqualified name and no default module set'):
+                r"reference to a non-existant schema name 'tuple'"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> tuple;
@@ -2235,3 +2235,39 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             ['rename view 05']
         )
+
+    async def test_edgeql_ddl_inheritance_alter_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::InhTest01 {
+                CREATE PROPERTY testp -> int64;
+            };
+
+            CREATE TYPE test::InhTest01_child EXTENDING test::InhTest01;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::InhTest01 {
+                DROP PROPERTY testp;
+            }
+        """)
+
+    @test.xfail('''
+        The error is: reference to a non-existent schema item
+
+        A proper error should be something along the following lines:
+        "Cannot drop property inherited property 'testp' from InhTest01_child"
+    ''')
+    async def test_edgeql_ddl_inheritance_alter_02(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::InhTest01 {
+                CREATE PROPERTY testp -> int64;
+            };
+
+            CREATE TYPE test::InhTest01_child EXTENDING test::InhTest01;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::InhTest01_child {
+                DROP PROPERTY testp;
+            }
+        """)

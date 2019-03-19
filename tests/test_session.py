@@ -30,10 +30,14 @@ class TestSession(tb.QueryTestCase):
         CREATE MIGRATION default::m TO eschema $$
             type User {
                 required property name -> str;
+                property name_len := len(User.name);
             };
         $$;
 
         COMMIT MIGRATION default::m;
+
+        # Needed for validating that "ALTER TYPE User" DDL commands work.
+        CREATE VIEW UserOneToOneView := (SELECT User);
 
         WITH MODULE default INSERT User {name := 'user'};
 
@@ -149,6 +153,13 @@ class TestSession(tb.QueryTestCase):
         await tx.start()
 
         try:
+            await self.con.execute('''
+                ALTER TYPE User {
+                    # Test that UserOneToOneView doesn't block the alter.
+                    DROP PROPERTY name_len;
+                }
+            ''')
+
             await self.con.execute('''
                 ALTER TYPE User {
                     CREATE PROPERTY aaa := len(

@@ -31,11 +31,13 @@ class ContextLevel:
                 self.modaliases = prevlevel.modaliases
             self.deoptimize = prevlevel.deoptimize
             self.strip_builtins = prevlevel.strip_builtins
+            self.schema = prevlevel.schema
         else:
             self.aliascnt = {}
             self.modaliases = {}
             self.deoptimize = False
             self.strip_builtins = True
+            self.schema = None
 
     def genalias(self, hint=None):
         if hint is None:
@@ -101,10 +103,16 @@ class ContextWrapper:
 
 
 class EdgeQLOptimizer:
-    def transform(self, edgeql_tree, deoptimize=False, strip_builtins=True):
+    def transform(self, edgeql_tree, modaliases=None,
+                  deoptimize=False, strip_builtins=True,
+                  *, schema):
         context = Context()
         context.current.deoptimize = deoptimize
+        context.current.schema = schema
+        if modaliases:
+            context.current.modaliases = dict(modaliases)
         context.current.strip_builtins = strip_builtins
+
         self._process_expr(context, edgeql_tree)
 
         nses = []
@@ -226,14 +234,14 @@ class EdgeQLOptimizer:
         elif (isinstance(expr, qlast.TypeName)
                 and not isinstance(expr.maintype, qlast.PseudoObjectRef)):
             expr.maintype.module = self._process_module_ref(
-                context, expr.maintype.module)
+                context, expr.maintype)
 
             if expr.subtypes:
                 for subtype in expr.subtypes:
                     self._process_expr(context, subtype)
 
         elif isinstance(expr, qlast.ObjectRef):
-            expr.module = self._process_module_ref(context, expr.module)
+            expr.module = self._process_module_ref(context, expr)
 
         elif isinstance(expr, qlast.Shape):
             self._process_expr(context, expr.expr)
@@ -257,7 +265,7 @@ class EdgeQLOptimizer:
             self._process_aliases(context, expr)
 
             expr.name.module = self._process_module_ref(
-                context, expr.name.module)
+                context, expr.name)
 
             if expr.commands:
                 for cmd in expr.commands:
@@ -269,7 +277,7 @@ class EdgeQLOptimizer:
                 for base in bases:
                     if not isinstance(base.maintype, qlast.AnyType):
                         base.maintype.module = self._process_module_ref(
-                            context, base.maintype.module)
+                            context, base.maintype)
 
             if isinstance(expr, qlast.CreateConcreteLink):
                 self._process_expr(context, expr.target)
@@ -286,16 +294,20 @@ class EdgeQLOptimizer:
 
         elif isinstance(expr, qlast.AlterTarget):
             expr.target.maintype.module = self._process_module_ref(
-                context, expr.target.maintype.module)
+                context, expr.target.maintype)
 
         elif isinstance(expr, qlast.Rename):
             expr.new_name.module = self._process_module_ref(
-                context, expr.new_name.module)
+                context, expr.new_name)
 
         elif isinstance(expr, (qlast.AlterAddInherit,
                                qlast.AlterDropInherit)):
             for base in expr.bases:
                 self._process_expr(context, base)
+
+        elif isinstance(expr, qlast.TypeIndirection):
+            expr.type.maintype.module = self._process_module_ref(
+                context, expr.type.maintype)
 
     def _process_shape(self, context, shape):
         for spec in shape.elements:
@@ -315,15 +327,25 @@ class EdgeQLOptimizer:
                 if spec.elements:
                     self._process_shape(context, spec)
 
-    def _process_module_ref(self, context, module):
-        # We cannot unabiguosly qualify naked names, as these
-        # may refer either to `std::` or to the default module.
-        if not module:
-            return module
+    def _process_module_ref(self, context, fullname):
+        module = fullname.module
 
         if context.current.deoptimize:
-            return context.current.modaliases.get(module, module)
+            if module:
+                return context.current.modaliases.get(module, module)
+
+            schema = context.current.schema
+            obj = schema.get(
+                fullname.name,
+                module_aliases=context.current.modaliases,
+                default=None)
+            if obj is not None:
+                return obj.get_name(schema).module
+            return module
         else:
+            if not module:
+                return module
+
             if module == 'std' and context.current.strip_builtins:
                 return None
 
@@ -344,16 +366,20 @@ class EdgeQLOptimizer:
                 return module
 
 
-def optimize(edgeql_tree, *, strip_builtins=True):
+def optimize(edgeql_tree, *, schema, strip_builtins=True):
     """Perform optimizations on EdgeQL AST tree"""
 
     optimizer = EdgeQLOptimizer()
-    return optimizer.transform(edgeql_tree, strip_builtins=strip_builtins)
+    return optimizer.transform(
+        edgeql_tree, strip_builtins=strip_builtins, schema=schema)
 
 
-def deoptimize(edgeql_tree, *, strip_builtins=True):
+def deoptimize(edgeql_tree, *,
+               schema,
+               modaliases=None, strip_builtins=True):
     """Reverse optimizations on EdgeQL AST tree"""
 
     optimizer = EdgeQLOptimizer()
     return optimizer.transform(
-        edgeql_tree, deoptimize=True, strip_builtins=strip_builtins)
+        edgeql_tree, deoptimize=True, strip_builtins=strip_builtins,
+        modaliases=modaliases, schema=schema)
