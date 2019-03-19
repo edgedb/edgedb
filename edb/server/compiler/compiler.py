@@ -269,6 +269,10 @@ class Compiler(BaseCompiler):
             result_cardinality = enums.ResultCardinality.ONE
         else:
             result_cardinality = enums.ResultCardinality.MANY
+            if ctx.expected_cardinality_one:
+                raise errors.ResultCardinalityMismatchError(
+                    f'the query has cardinality {result_cardinality} '
+                    f'which does not match the expected cardinality ONE')
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,
@@ -859,11 +863,6 @@ class Compiler(BaseCompiler):
             if len(units) != 1:  # pragma: no cover
                 raise errors.InternalServerError(
                     f'expected 1 compiled unit; got {len(units)}')
-            if (ctx.expected_cardinality_one and
-                    units[0].cardinality is enums.ResultCardinality.MANY):
-                raise errors.ResultCardinalityMismatchError(
-                    f'the query has cardinality {units[0].cardinality} '
-                    f'which does not match the expected cardinality ONE')
 
         for unit in units:  # pragma: no cover
             # Sanity checks

@@ -181,7 +181,7 @@ class GraphQLTranslator:
                     f'unknown operation named "{operation_name}"')
 
         stmt = translated[operation_name].stmt
-        for el in stmt.result.expr.elements:
+        for el in stmt.result.elements:
             # swap in the json bits
             if (isinstance(el.compexpr, qlast.FunctionCall) and
                     el.compexpr.func == 'to_json'):
@@ -273,11 +273,6 @@ class GraphQLTranslator:
         query.result.elements = self.visit(node.selection_set)
         self._context.fields.pop()
         self._context.path.pop()
-
-        query.result = qlast.TypeCast(
-            expr=query.result,
-            type=qlast.TypeName(
-                maintype=qlast.ObjectRef(module='std', name='json')))
 
         return query
 
@@ -496,10 +491,7 @@ class GraphQLTranslator:
             )
 
         if node.selection_set is not None:
-            if json_mode:
-                pass
-
-            else:
+            if not json_mode:
                 # a single recursion target, so we can process
                 # selection set now
                 self._context.fields.append({})
