@@ -2154,17 +2154,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_rename_03(self):
         await self.con.execute(r"""
+            SET MODULE test;
+
             CREATE TYPE test::RenameObj03 {
                 CREATE PROPERTY name -> str;
             };
 
-            INSERT test::RenameObj03 {name := 'rename 03'};
+            INSERT RenameObj03 {name := 'rename 03'};
 
-            ALTER TYPE test::RenameObj03 {
+            ALTER TYPE RenameObj03 {
                 ALTER PROPERTY name {
-                    RENAME TO test::new_name_03;
+                    RENAME TO new_name_03;
                 };
             };
+
+            RESET MODULE;
         """)
 
         await self.assert_query_result(
