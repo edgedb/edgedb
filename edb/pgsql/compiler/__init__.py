@@ -44,7 +44,8 @@ def compile_ir_to_sql_tree(
         output_format: typing.Optional[OutputFormat]=None,
         ignore_shapes: bool=False,
         singleton_mode: bool=False,
-        use_named_params: bool=False) -> pgast.Base:
+        use_named_params: bool=False,
+        expected_cardinality_one: bool=False) -> pgast.Base:
     try:
         # Transform to sql tree
         ctx_stack = context.CompilerContext()
@@ -56,6 +57,7 @@ def compile_ir_to_sql_tree(
         ctx.singleton_mode = singleton_mode
         ctx.env = context.Environment(
             output_format=output_format,
+            expected_cardinality_one=expected_cardinality_one,
             use_named_params=use_named_params)
         if ignore_shapes:
             ctx.expr_exposed = False
@@ -77,6 +79,7 @@ def compile_ir_to_sql(
         ignore_shapes: bool=False,
         timer=None,
         use_named_params: bool=False,
+        expected_cardinality_one: bool=False,
         pretty: bool=True) -> typing.Tuple[str, typing.Dict[str, int]]:
 
     if timer is None:
@@ -84,14 +87,16 @@ def compile_ir_to_sql(
             ir_expr,
             output_format=output_format,
             ignore_shapes=ignore_shapes,
-            use_named_params=use_named_params)
+            use_named_params=use_named_params,
+            expected_cardinality_one=expected_cardinality_one)
     else:
         with timer.timeit('compile_ir_to_sql'):
             qtree = compile_ir_to_sql_tree(
                 ir_expr,
                 output_format=output_format,
                 ignore_shapes=ignore_shapes,
-                use_named_params=use_named_params)
+                use_named_params=use_named_params,
+                expected_cardinality_one=expected_cardinality_one)
 
     if debug.flags.edgeql_compile:  # pragma: no cover
         debug.header('SQL Tree')

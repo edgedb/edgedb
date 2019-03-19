@@ -98,7 +98,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_tuple_03(self):
         # get the User names and ids
-        res = await self.con.fetch(r'''
+        res = await self.con.fetchall(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1291,7 +1291,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_detached_02(self):
         # calculate some useful base expression
-        names = await self.con.fetch(r"""
+        names = await self.con.fetchall(r"""
             WITH MODULE test
             SELECT User.name ++ <str>count(User.deck);
         """)
@@ -1367,7 +1367,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
             async with self.con.transaction():
-                await self.con.fetch(r"""
+                await self.con.fetchall(r"""
                     WITH MODULE test
                     SELECT User.friends
                     FILTER User.friends@nickname = 'Firefighter';
@@ -1378,7 +1378,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"'User' changes the interpretation of 'User'"):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 WITH MODULE test
                 SELECT User.friends
                 FILTER (
@@ -1521,7 +1521,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_detached_07(self):
         # compare detached to regular expression
-        res = await self.con.fetch_json(r'''
+        res = await self.con.fetchall_json(r'''
             WITH MODULE test
             SELECT User {
                 name,
@@ -1553,7 +1553,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         )
 
     async def test_edgeql_scope_detached_08(self):
-        res = await self.con.fetch_json(r'''
+        res = await self.con.fetchall_json(r'''
             WITH MODULE test
             SELECT User {
                 name,

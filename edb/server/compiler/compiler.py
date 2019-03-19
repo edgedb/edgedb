@@ -76,6 +76,7 @@ class CompileContext:
 
     state: dbstate.CompilerConnectionState
     output_format: pg_compiler.OutputFormat
+    expected_cardinality_one: bool
     stmt_mode: enums.CompileStatementMode
     json_parameters: bool = False
 
@@ -102,6 +103,7 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
     ctx = CompileContext(
         state=state,
         output_format=pg_compiler.OutputFormat.JSON,
+        expected_cardinality_one=False,
         stmt_mode=enums.CompileStatementMode.ALL)
 
     compiler = Compiler(None, None)
@@ -263,9 +265,15 @@ class Compiler(BaseCompiler):
             disable_constant_folding=disable_constant_folding,
             json_parameters=ctx.json_parameters)
 
+        if ir.cardinality is qltypes.Cardinality.ONE:
+            result_cardinality = enums.ResultCardinality.ONE
+        else:
+            result_cardinality = enums.ResultCardinality.MANY
+
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,
             pretty=debug.flags.edgeql_compile,
+            expected_cardinality_one=ctx.expected_cardinality_one,
             output_format=ctx.output_format)
 
         sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
@@ -315,7 +323,7 @@ class Compiler(BaseCompiler):
             return dbstate.Query(
                 sql=(sql_bytes,),
                 sql_hash=sql_hash,
-                singleton_result=ir.cardinality is qltypes.Cardinality.ONE,
+                cardinality=result_cardinality,
                 in_type_id=in_type_id.bytes,
                 in_type_data=in_type_data,
                 in_type_args=in_type_args,
@@ -724,10 +732,11 @@ class Compiler(BaseCompiler):
                  ctx: CompileContext,
                  eql: bytes) -> typing.List[dbstate.QueryUnit]:
 
-        # When True it means that we're compiling for "connection.fetch()".
+        # When True it means that we're compiling for "connection.fetchall()".
         # That means that the returned QueryUnit has to have the in/out codec
         # information, correctly inferred "singleton_result" field etc.
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
+        default_cardinality = enums.ResultCardinality.NOT_APPLICABLE
 
         eql = eql.decode()
 
@@ -765,7 +774,8 @@ class Compiler(BaseCompiler):
                 unit = dbstate.QueryUnit(
                     dbver=ctx.state.dbver,
                     sql=(),
-                    status=status.get_status(stmt))
+                    status=status.get_status(stmt),
+                    cardinality=default_cardinality)
             else:
                 unit.status = status.get_status(stmt)
 
@@ -781,10 +791,8 @@ class Compiler(BaseCompiler):
                     unit.in_type_id = comp.in_type_id
 
                     unit.cacheable = True
-                    unit.has_result = True
 
-                    if single_stmt_mode:
-                        unit.singleton_result = comp.singleton_result
+                    unit.cardinality = comp.cardinality
                 else:
                     unit.sql += comp.sql
 
@@ -795,15 +803,10 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.DDLQuery):
                 unit.sql += comp.sql
                 unit.has_ddl = True
-                if single_stmt_mode:
-                    unit.singleton_result = True
 
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
-
-                if single_stmt_mode:
-                    unit.singleton_result = True
 
                 if comp.modaliases is not None:
                     unit.modaliases = comp.modaliases
@@ -836,9 +839,6 @@ class Compiler(BaseCompiler):
 
                     unit.system_config = True
 
-                if single_stmt_mode:
-                    unit.singleton_result = True
-
                 if ctx.state.current_tx().is_implicit():
                     unit.modaliases = ctx.state.current_tx().get_modaliases()
 
@@ -855,27 +855,46 @@ class Compiler(BaseCompiler):
         if unit is not None:
             units.append(unit)
 
-        if single_stmt_mode and len(units) != 1:  # pragma: no cover
-            raise errors.InternalServerError(
-                f'expected 1 compiled unit; got {len(units)}')
+        if single_stmt_mode:
+            if len(units) != 1:  # pragma: no cover
+                raise errors.InternalServerError(
+                    f'expected 1 compiled unit; got {len(units)}')
+            if (ctx.expected_cardinality_one and
+                    units[0].cardinality is enums.ResultCardinality.MANY):
+                raise errors.ResultCardinalityMismatchError(
+                    f'the query has cardinality {units[0].cardinality} '
+                    f'which does not match the expected cardinality ONE')
 
         for unit in units:  # pragma: no cover
             # Sanity checks
+            na_cardinality = (
+                unit.cardinality is enums.ResultCardinality.NOT_APPLICABLE
+            )
             if unit.cacheable and (unit.config_ops or unit.modaliases):
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} is cacheable but has config/aliases')
             if not unit.sql:
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} has no SQL commands in it')
-            elif len(unit.sql) > 1 and unit.has_result:
+            if not na_cardinality and (
+                    len(unit.sql) > 1 or
+                    unit.tx_commit or
+                    unit.tx_rollback or
+                    unit.tx_savepoint_rollback or
+                    unit.out_type_id is sertypes.NULL_TYPE_ID or
+                    unit.system_config or
+                    unit.config_ops or
+                    unit.modaliases or
+                    unit.has_set or
+                    unit.has_ddl or
+                    not unit.sql_hash):
                 raise errors.InternalServerError(
-                    f'QueryUnit {unit!r} has multiple SQL commands but '
-                    f'the "has_result" flag is set')
+                    f'unit has invalid "cardinality": {unit!r}')
 
         return units
 
     async def _ctx_new_con_state(
-            self, *, dbver: int, json_mode: bool,
+            self, *, dbver: int, json_mode: bool, expect_one: bool,
             modaliases,
             session_config: typing.Optional[immutables.Map],
             stmt_mode: typing.Optional[enums.CompileStatementMode],
@@ -908,12 +927,14 @@ class Compiler(BaseCompiler):
         ctx = CompileContext(
             state=state,
             output_format=of,
+            expected_cardinality_one=expect_one,
             stmt_mode=stmt_mode,
             json_parameters=json_parameters)
 
         return ctx
 
     async def _ctx_from_con_state(self, *, txid: int, json_mode: bool,
+                                  expect_one: bool,
                                   stmt_mode: enums.CompileStatementMode):
         state = self._load_state(txid)
 
@@ -925,6 +946,7 @@ class Compiler(BaseCompiler):
         ctx = CompileContext(
             state=state,
             output_format=of,
+            expected_cardinality_one=expect_one,
             stmt_mode=stmt_mode)
 
         return ctx
@@ -984,6 +1006,7 @@ class Compiler(BaseCompiler):
             sess_modaliases: typing.Optional[immutables.Map],
             sess_config: typing.Optional[immutables.Map],
             json_mode: bool,
+            expect_one: bool,
             stmt_mode: enums.CompileStatementMode,
             capability: enums.Capability,
             json_parameters: bool=False) -> typing.List[dbstate.QueryUnit]:
@@ -991,6 +1014,7 @@ class Compiler(BaseCompiler):
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
             json_mode=json_mode,
+            expect_one=expect_one,
             modaliases=sess_modaliases,
             session_config=sess_config,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
@@ -1004,12 +1028,14 @@ class Compiler(BaseCompiler):
             txid: int,
             eql: bytes,
             json_mode: bool,
+            expect_one: bool,
             stmt_mode: enums.CompileStatementMode
     ) -> typing.List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_from_con_state(
             txid=txid,
             json_mode=json_mode,
+            expect_one=expect_one,
             stmt_mode=enums.CompileStatementMode(stmt_mode))
 
         return self._compile(ctx=ctx, eql=eql)

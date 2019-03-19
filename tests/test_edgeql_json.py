@@ -253,7 +253,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r'json index 10 is out of bounds'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 SELECT (to_json('[1, "a", 3]'))[10];
             """)
 
@@ -262,7 +262,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r'json index -10 is out of bounds'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 SELECT (to_json('[1, "a", 3]'))[-10];
             """)
 
@@ -272,7 +272,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json array by text'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 SELECT (to_json('[1, "a", 3]'))['1'];
             """)
 
@@ -281,7 +281,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r"json index 'c' is out of bounds"):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))["c"];
             """)
 
@@ -301,7 +301,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json null'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 SELECT (to_json('null'))[0];
             """)
 
@@ -360,7 +360,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r'json index 10 is out of bounds'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -372,7 +372,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # FIXME: maybe a different error type should be used here
                 edgedb.InternalServerError,
                 r'json index -10 is out of bounds'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -385,7 +385,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json array by text'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -410,7 +410,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json object by bigint'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -449,7 +449,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot index json number'):
-            await self.con.fetch(r"""
+            await self.con.fetchall(r"""
                 WITH
                     MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -613,7 +613,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator 'IN' cannot.*'std::json' and 'std::int64'"):
-            await self.con.fetch(r'''
+            await self.con.fetchall(r'''
                 SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {2, 3, 4};
             ''')
@@ -622,7 +622,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator 'IN' cannot.*'std::json' and 'std::str'"):
-            await self.con.fetch_json(r'''
+            await self.con.fetchall_json(r'''
                 SELECT json_array_unpack(to_json('[2,3,4]')) IN
                     {'2', '3', '4'};
             ''')
@@ -648,7 +648,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator '=' cannot.*'std::json' and 'std::int64'"):
-            await self.con.fetch_json(r'''
+            await self.con.fetchall_json(r'''
                 WITH
                     MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
@@ -792,7 +792,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 # one leaks postgres types
                 edgedb.InternalServerError,
                 r'cannot call jsonb_each on a non-object'):
-            await self.con.fetch_json(r'''
+            await self.con.fetchall_json(r'''
                 WITH
                     MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
@@ -1086,7 +1086,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_cast_object_to_json_01(self):
-        res = await self.con.fetch("""
+        res = await self.con.fetchall("""
             WITH MODULE schema
             SELECT
                 to_str(<json>(
@@ -1260,7 +1260,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_cast_tuple_to_json_01(self):
-        res = await self.con.fetch("""
+        res = await self.con.fetchall("""
             WITH MODULE schema
             SELECT
                 to_str(<json>(
@@ -1282,7 +1282,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_cast_tuple_to_json_02(self):
-        res = await self.con.fetch("""
+        res = await self.con.fetchall("""
             SELECT
                 to_str(<json>(
                     foo := 1,
@@ -1615,7 +1615,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r"format 'foo' is invalid"):
             async with self.con.transaction():
-                await self.con.fetch(r'''
+                await self.con.fetchall(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'foo');
                 ''')
 
@@ -1623,7 +1623,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r'"fmt" argument must be a non-empty string'):
             async with self.con.transaction():
-                await self.con.fetch_json(r'''
+                await self.con.fetchall_json(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], '');
                 ''')
 
@@ -1631,7 +1631,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r"format 'PRETTY' is invalid"):
             async with self.con.transaction():
-                await self.con.fetch(r'''
+                await self.con.fetchall(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'PRETTY');
                 ''')
 
@@ -1639,7 +1639,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r"format 'Pretty' is invalid"):
             async with self.con.transaction():
-                await self.con.fetch_json(r'''
+                await self.con.fetchall_json(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'Pretty');
                 ''')
 
@@ -1647,6 +1647,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 edgedb.InternalServerError,
                 r"format 'p' is invalid"):
             async with self.con.transaction():
-                await self.con.fetch(r'''
+                await self.con.fetchall(r'''
                     SELECT to_str(<json>[1, 2, 3, 4], 'p');
                 ''')

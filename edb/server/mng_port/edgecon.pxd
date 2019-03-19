@@ -40,11 +40,6 @@ cdef enum EdgeConnectionStatus:
     EDGECON_BAD = 3
 
 
-cdef enum EdgeParseFlags:
-    PARSE_HAS_RESULT = 1 << 0
-    PARSE_SINGLETON_RESULT = 1 << 1
-
-
 @cython.final
 cdef class EdgeConnection:
 
@@ -75,8 +70,9 @@ cdef class EdgeConnection:
         bint debug
         bint query_cache_enabled
 
-    cdef int32_t compute_parse_flags(self, query_unit) except -1
-    cdef is_json_mode(self, bytes mode)
+    cdef parse_json_mode(self, bytes mode)
+    cdef parse_cardinality(self, bytes card)
+    cdef render_cardinality(self, query_unit)
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)

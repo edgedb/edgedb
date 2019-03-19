@@ -1738,7 +1738,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_json_04(self):
         self.assertEqual(
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 select <json>(
                     select schema::Type{name} filter .name = 'std::bool'
                 )
@@ -1748,38 +1748,38 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_json_05(self):
         self.assertEqual(
-            await self.con.fetch(
+            await self.con.fetchall(
                 'select <json>{(1, 2), (3, 4)}'),
             ['[1, 2]', '[3, 4]'])
 
         self.assertEqual(
-            await self.con.fetch(
+            await self.con.fetchall(
                 'select <json>{(a := 1, b := 2), (a := 3, b := 4)}'),
             ['{"a": 1, "b": 2}', '{"a": 3, "b": 4}'])
 
         self.assertEqual(
-            await self.con.fetch(
+            await self.con.fetchall(
                 'select <json>{[1, 2], [3, 4]}'),
             ['[1, 2]', '[3, 4]'])
 
         self.assertEqual(
-            await self.con.fetch(
+            await self.con.fetchall(
                 'select <json>{[(1, 2)], [(3, 4)]}'),
             ['[[1, 2]]', '[[3, 4]]'])
 
     async def test_edgeql_casts_json_06(self):
         self.assertEqual(
-            await self.con.fetch_json(
+            await self.con.fetchall_json(
                 'select <json>{(1, 2), (3, 4)}'),
             '[[1, 2], [3, 4]]')
 
         self.assertEqual(
-            await self.con.fetch_json(
+            await self.con.fetchall_json(
                 'select <json>{[1, 2], [3, 4]}'),
             '[[1, 2], [3, 4]]')
 
         self.assertEqual(
-            await self.con.fetch_json(
+            await self.con.fetchall_json(
                 'select <json>{[(1, 2)], [(3, 4)]}'),
             '[[[1, 2]], [[3, 4]]]')
 
@@ -1888,5 +1888,5 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 'invalid custom_str_t'):
-            await self.con.fetch(
+            await self.con.fetchall(
                 "SELECT <test::custom_str_t>'123'")

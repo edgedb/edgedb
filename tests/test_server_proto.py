@@ -61,7 +61,7 @@ class TestServerProto(tb.QueryTestCase):
         except edgedb.InvalidFunctionDefinitionError:
             return False
 
-        return await self.con.fetch_value('''
+        return await self.con.fetchone('''
             SELECT cfg::Config.__internal_testmode LIMIT 1
         ''')
 
@@ -72,29 +72,29 @@ class TestServerProto(tb.QueryTestCase):
         for power in range(10, 20):
             base = 2 ** power
             for i in range(base - 100, base + 100):
-                v = await self.con.fetch_value(
+                v = await self.con.fetchone(
                     'select str_repeat(".", <int64>$i)', i=i)
                 self.assertEqual(len(v), i)
 
     async def test_server_proto_parse_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
-                await self.con.fetch('select syntax error')
+                await self.con.fetchall('select syntax error')
 
             with self.assertRaises(edgedb.EdgeQLSyntaxError):
-                await self.con.fetch('select syntax error')
+                await self.con.fetchall('select syntax error')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                         'Unexpected end of line'):
-                await self.con.fetch('select (')
+                await self.con.fetchall('select (')
 
             with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                         'Unexpected end of line'):
-                await self.con.fetch_json('select (')
+                await self.con.fetchall_json('select (')
 
             for _ in range(10):
                 self.assertEqual(
-                    await self.con.fetch('select 1;'),
+                    await self.con.fetchall('select 1;'),
                     edgedb.Set((1,)))
 
             self.assertTrue(await self.is_testmode_on())
@@ -113,15 +113,15 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_exec_error_recover_01(self):
         for _ in range(2):
             with self.assertRaises(edgedb.DivisionByZeroError):
-                await self.con.fetch('select 1 / 0;')
+                await self.con.fetchall('select 1 / 0;')
 
             with self.assertRaises(edgedb.DivisionByZeroError):
-                await self.con.fetch('select 1 / 0;')
+                await self.con.fetchall('select 1 / 0;')
             self.assertEqual(self.con._get_last_status(), None)
 
             for _ in range(10):
                 self.assertEqual(
-                    await self.con.fetch('select 1;'),
+                    await self.con.fetchall('select 1;'),
                     edgedb.Set((1,)))
                 self.assertEqual(self.con._get_last_status(), 'SELECT')
 
@@ -141,11 +141,11 @@ class TestServerProto(tb.QueryTestCase):
         for i in [1, 2, 0, 3, 1, 0, 1]:
             if i:
                 self.assertEqual(
-                    await self.con.fetch(query, i),
+                    await self.con.fetchall(query, i),
                     edgedb.Set([10 // i]))
             else:
                 with self.assertRaises(edgedb.DivisionByZeroError):
-                    await self.con.fetch(query, i)
+                    await self.con.fetchall(query, i)
 
     async def test_server_proto_exec_error_recover_04(self):
         for i in [1, 2, 0, 3, 1, 0, 1]:
@@ -153,18 +153,18 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.execute(f'select 10 // {i};')
             else:
                 with self.assertRaises(edgedb.DivisionByZeroError):
-                    await self.con.fetch(f'select 10 // {i};')
+                    await self.con.fetchall(f'select 10 // {i};')
 
     async def test_server_proto_exec_error_recover_05(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'cannot accept parameters'):
             await self.con.execute(f'select <int64>$0')
         self.assertEqual(
-            await self.con.fetch('SELECT "HELLO"'),
+            await self.con.fetchall('SELECT "HELLO"'),
             ["HELLO"])
 
     async def test_server_proto_fetch_single_command_01(self):
-        r = await self.con.fetch('''
+        r = await self.con.fetchall('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -173,26 +173,26 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(r, [])
         self.assertEqual(self.con._get_last_status(), 'CREATE')
 
-        r = await self.con.fetch('''
+        r = await self.con.fetchall('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, [])
         self.assertEqual(self.con._get_last_status(), 'DROP')
 
-        r = await self.con.fetch_value('''
+        r = await self.con.fetchall('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
             };
         ''')
-        self.assertIsNone(r)
+        self.assertEqual(len(r), 0)
 
-        r = await self.con.fetch_value('''
+        r = await self.con.fetchall('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
-        self.assertIsNone(r)
+        self.assertEqual(len(r), 0)
 
-        r = await self.con.fetch_json('''
+        r = await self.con.fetchall_json('''
             CREATE TYPE test::server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
@@ -200,39 +200,39 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         self.assertEqual(r, '[]')
 
-        r = await self.con.fetch_json('''
+        r = await self.con.fetchall_json('''
             DROP TYPE test::server_fetch_single_command_01;
         ''')
         self.assertEqual(r, '[]')
 
     async def test_server_proto_fetch_single_command_02(self):
-        r = await self.con.fetch('''
+        r = await self.con.fetchall('''
             SET MODULE default;
         ''')
         self.assertEqual(r, [])
         self.assertEqual(self.con._get_last_status(), 'SET ALIAS')
 
-        r = await self.con.fetch('''
+        r = await self.con.fetchall('''
             SET ALIAS foo AS MODULE default;
         ''')
         self.assertEqual(r, [])
 
-        r = await self.con.fetch_value('''
+        r = await self.con.fetchall('''
             SET MODULE default;
         ''')
-        self.assertIsNone(r)
+        self.assertEqual(len(r), 0)
 
-        r = await self.con.fetch_value('''
+        r = await self.con.fetchall_json('''
             SET ALIAS foo AS MODULE default;
         ''')
-        self.assertIsNone(r)
+        self.assertEqual(r, '[]')
 
-        r = await self.con.fetch_json('''
+        r = await self.con.fetchall_json('''
             SET MODULE default;
         ''')
         self.assertEqual(r, '[]')
 
-        r = await self.con.fetch_json('''
+        r = await self.con.fetchall_json('''
             SET ALIAS foo AS MODULE default;
         ''')
         self.assertEqual(r, '[]')
@@ -250,35 +250,44 @@ class TestServerProto(tb.QueryTestCase):
 
         for _ in range(3):
             for q in qs:
-                r = await self.con.fetch(q)
+                r = await self.con.fetchall(q)
                 self.assertEqual(r, [])
 
             for q in qs:
-                r = await self.con.fetch_json(q)
+                r = await self.con.fetchall_json(q)
                 self.assertEqual(r, '[]')
 
         for q in qs:
-            r = await self.con.fetch_value(q)
-            self.assertIsNone(r)
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'cannot be executed with fetchone\(\).*'
+                    r'not return'):
+                await self.con.fetchone(q)
+
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'cannot be executed with fetchone_json\(\).*'
+                    r'not return'):
+                await self.con.fetchone_json(q)
 
     async def test_server_proto_fetch_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.fetch_value('''
+            await self.con.fetchone('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.fetch_json('''
+            await self.con.fetchall_json('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
@@ -291,11 +300,11 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         self.assertEqual(
-            await self.con.fetch('SELECT foo::min({1}) + bar::min({0})'),
+            await self.con.fetchall('SELECT foo::min({1}) + bar::min({0})'),
             [1])
 
         self.assertEqual(
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
             '''),
@@ -306,31 +315,31 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         self.assertEqual(
-            await self.con.fetch('SELECT foo::min({1})'),
+            await self.con.fetchall('SELECT foo::min({1})'),
             [1])
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 'non-existent function: bar::min'):
-            await self.con.fetch('SELECT bar::min({1})')
+            await self.con.fetchall('SELECT bar::min({1})')
 
-        await self.con.fetch('''
+        await self.con.fetchall('''
             RESET ALIAS *;
         ''')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 'non-existent function: foo::min'):
-            await self.con.fetch('SELECT foo::min({3})')
+            await self.con.fetchall('SELECT foo::min({3})')
 
         self.assertEqual(
-            await self.con.fetch('SELECT min({4})'),
+            await self.con.fetchall('SELECT min({4})'),
             [4])
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 'non-existent schema item: Tmp'):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
             ''')
@@ -343,7 +352,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         self.assertEqual(
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
             '''),
@@ -356,7 +365,7 @@ class TestServerProto(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 'non-existent schema item: Tmp'):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
             ''')
@@ -380,7 +389,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         self.assertEqual(
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
             '''),
@@ -399,7 +408,7 @@ class TestServerProto(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 'non-existent function: foo::min'):
-            await self.con.fetch('SELECT foo::min({3})')
+            await self.con.fetchall('SELECT foo::min({3})')
 
     async def test_server_proto_configure_01(self):
         with self.assertRaisesRegex(
@@ -429,31 +438,31 @@ class TestServerProto(tb.QueryTestCase):
                 edgedb.QueryError,
                 'cannot be executed in a transaction block'):
             async with self.con.transaction():
-                await self.con.fetch('''
+                await self.con.fetchall('''
                     CONFIGURE SYSTEM SET __internal_testvalue := 1;
                 ''')
 
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 'CONFIGURE SESSION INSERT is not supported'):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 CONFIGURE SESSION INSERT SessionConfig { name := 'foo' };
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'module must be either \'cfg\' or empty'):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 CONFIGURE SYSTEM INSERT cf::SystemConfig { name := 'foo' };
             ''')
 
     async def test_server_proto_configure_02(self):
-        conf = await self.con.fetch_value('''
+        conf = await self.con.fetchone('''
             SELECT cfg::Config.__internal_testvalue LIMIT 1
         ''')
         self.assertEqual(conf, 0)
 
-        jsonconf = await self.con.fetch_value('''
+        jsonconf = await self.con.fetchone('''
             SELECT cfg::get_config_json()
         ''')
 
@@ -463,16 +472,16 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(conf['value'], 0)
         self.assertEqual(conf['source'], 'default')
 
-        await self.con.fetch('''
+        await self.con.fetchall('''
             CONFIGURE SYSTEM SET __internal_testvalue := 1;
         ''')
 
-        conf = await self.con.fetch_value('''
+        conf = await self.con.fetchone('''
             SELECT cfg::Config.__internal_testvalue LIMIT 1
         ''')
         self.assertEqual(conf, 1)
 
-        jsonconf = await self.con.fetch_value('''
+        jsonconf = await self.con.fetchone('''
             SELECT cfg::get_config_json()
         ''')
 
@@ -490,13 +499,22 @@ class TestServerProto(tb.QueryTestCase):
             [],
         )
 
-        await self.con.fetch('''
+        await self.con.fetchall('''
             CONFIGURE SYSTEM INSERT SystemConfig { name := 'test_03' };
         ''')
 
-        await self.con.fetch('''
-            CONFIGURE SYSTEM INSERT cfg::SystemConfig { name := 'test_03_01' };
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT cfg::SystemConfig {
+                name := 'test_03_01'
+            };
         ''')
+
+        with self.assertRaisesRegex(edgedb.InterfaceError, r'\bfetchone\('):
+            await self.con.fetchone('''
+                CONFIGURE SYSTEM INSERT cfg::SystemConfig {
+                    name := 'test_03_0122222222'
+                };
+            ''')
 
         await self.assert_query_result(
             '''
@@ -512,7 +530,7 @@ class TestServerProto(tb.QueryTestCase):
             ]
         )
 
-        await self.con.fetch('''
+        await self.con.fetchall('''
             CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03';
         ''')
 
@@ -527,7 +545,7 @@ class TestServerProto(tb.QueryTestCase):
             ],
         )
 
-        await self.con.fetch('''
+        await self.con.fetchall('''
             CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03_01';
         ''')
 
@@ -542,42 +560,42 @@ class TestServerProto(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 'CONFIGURE SESSION INSERT is not supported'):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 CONFIGURE SESSION INSERT SessionConfig {name := 'test_04'}
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
                 "unrecognized configuration object 'Unrecognized'"):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 CONFIGURE SYSTEM INSERT Unrecognized {name := 'test_04'}
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "must have a FILTER clause"):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 CONFIGURE SYSTEM RESET SystemConfig;
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "at least one exclusive property"):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 CONFIGURE SYSTEM RESET SystemConfig FILTER 1 = 0;
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "must not have a FILTER clause"):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 CONFIGURE SYSTEM RESET __internal_testvalue FILTER 1 = 1;
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 "non-constant expression"):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 CONFIGURE SYSTEM INSERT SystemConfig {
                     name := <str>random()
                 };
@@ -586,27 +604,28 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
-                await self.con.fetch_value(
+                await self.con.fetchone(
                     'select ()'),
                 ())
 
             self.assertEqual(
-                await self.con.fetch(
+                await self.con.fetchall(
                     'select (1,)'),
                 edgedb.Set([(1,)]))
 
-            self.assertEqual(
-                await self.con.fetch_value(
-                    'select <array<int64>>[]'),
-                [])
+            async with self.con.transaction(isolation='repeatable_read'):
+                self.assertEqual(
+                    await self.con.fetchone(
+                        'select <array<int64>>[]'),
+                    [])
 
             self.assertEqual(
-                await self.con.fetch(
+                await self.con.fetchall(
                     'select ["a", "b"]'),
                 edgedb.Set([["a", "b"]]))
 
             self.assertEqual(
-                await self.con.fetch('''
+                await self.con.fetchall('''
                     SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
                             (a:=1, world := ("yo", 10))};
                 '''),
@@ -615,99 +634,114 @@ class TestServerProto(tb.QueryTestCase):
                     edgedb.NamedTuple(a=1, world=("yo", 10)),
                 ]))
 
-            with self.assertRaisesRegex(edgedb.InterfaceError,
-                                        'the result set can be a multiset'):
-                await self.con.fetch_value('SELECT {1, 2}')
+            with self.assertRaisesRegex(
+                    edgedb.InterfaceError,
+                    r'fetchone\(\) as it returns a multiset'):
+                await self.con.fetchone('SELECT {1, 2}')
 
-            self.assertIsNone(
-                await self.con.fetch_value('SELECT <int64>{}'))
+            with self.assertRaisesRegex(edgedb.NoDataError, r'\bfetchone\('):
+                await self.con.fetchone('SELECT <int64>{}')
 
     async def test_server_proto_basic_datatypes_02(self):
         self.assertEqual(
-            await self.con.fetch(
+            await self.con.fetchall(
                 r'''select [b"\x00a", b"b", b'', b'\na']'''),
             edgedb.Set([[b"\x00a", b"b", b'', b'\na']]))
 
         self.assertEqual(
-            await self.con.fetch(
+            await self.con.fetchall(
                 r'select <bytes>$0', b'he\x00llo'),
             edgedb.Set([b'he\x00llo']))
 
     async def test_server_proto_basic_datatypes_03(self):
         for _ in range(10):
             self.assertEqual(
-                await self.con.fetch_json(
+                await self.con.fetchall_json(
                     'select ()'),
                 '[[]]')
 
             self.assertEqual(
-                await self.con.fetch_json(
+                await self.con.fetchall_json(
                     'select (1,)'),
                 '[[1]]')
 
             self.assertEqual(
-                await self.con.fetch_json(
+                await self.con.fetchall_json(
                     'select <array<int64>>[]'),
                 '[[]]')
 
             self.assertEqual(
-                await self.con.fetch_json(
-                    'select ["a", "b"]'),
-                '[["a","b"]]')
+                json.loads(
+                    await self.con.fetchall_json(
+                        'select ["a", "b"]')),
+                [["a", "b"]])
 
             self.assertEqual(
-                await self.con.fetch_json('''
-                    SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
-                            (a:=1, world := ("yo", 10))};
-                '''),
-                '[{"a" : 42, "world" : ["hello", 32]}, '
-                '{"a" : 1, "world" : ["yo", 10]}]')
+                json.loads(
+                    await self.con.fetchone_json(
+                        'select ["a", "b"]')),
+                ["a", "b"])
 
             self.assertEqual(
-                await self.con.fetch_json('SELECT {1, 2}'),
-                '[1, 2]')
+                json.loads(
+                    await self.con.fetchall_json('''
+                        SELECT {(a := 1 + 1 + 40, world := ("hello", 32)),
+                                (a:=1, world := ("yo", 10))};
+                    ''')),
+                [
+                    {"a": 42, "world": ["hello", 32]},
+                    {"a": 1, "world": ["yo", 10]}
+                ])
 
             self.assertEqual(
-                await self.con.fetch_json('SELECT <int64>{}'),
-                '[]')
+                json.loads(
+                    await self.con.fetchall_json('SELECT {1, 2}')),
+                [1, 2])
+
+            self.assertEqual(
+                json.loads(await self.con.fetchall_json('SELECT <int64>{}')),
+                [])
+
+            with self.assertRaises(edgedb.NoDataError):
+                await self.con.fetchone_json('SELECT <int64>{}')
 
         self.assertEqual(self.con._get_last_status(), 'SELECT')
 
     async def test_server_proto_args_01(self):
         self.assertEqual(
-            await self.con.fetch(
+            await self.con.fetchall(
                 'select (<array<str>>$foo)[0] ++ (<array<str>>$bar)[0];',
                 foo=['aaa'], bar=['bbb']),
             edgedb.Set(('aaabbb',)))
 
     async def test_server_proto_args_02(self):
         self.assertEqual(
-            await self.con.fetch(
+            await self.con.fetchall(
                 'select (<array<str>>$0)[0] ++ (<array<str>>$1)[0];',
                 ['aaa'], ['bbb']),
             edgedb.Set(('aaabbb',)))
 
     async def test_server_proto_args_03(self):
         with self.assertRaisesRegex(edgedb.QueryError, r'missing \$0'):
-            await self.con.fetch('select <int64>$1;')
+            await self.con.fetchall('select <int64>$1;')
 
         with self.assertRaisesRegex(edgedb.QueryError, r'missing \$1'):
-            await self.con.fetch('select <int64>$0 + <int64>$2;')
+            await self.con.fetchall('select <int64>$0 + <int64>$2;')
 
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'combine positional and named parameters'):
-            await self.con.fetch('select <int64>$0 + <int64>$bar;')
+            await self.con.fetchall('select <int64>$0 + <int64>$bar;')
 
     async def test_server_proto_args_04(self):
         self.assertEqual(
-            await self.con.fetch_json(
+            await self.con.fetchall_json(
                 'select (<array<str>>$0)[0] ++ (<array<str>>$1)[0];',
                 ['aaa'], ['bbb']),
             '["aaabbb"]')
 
     async def test_server_proto_args_05(self):
         self.assertEqual(
-            await self.con.fetch_json(
+            await self.con.fetchall_json(
                 'select (<array<str>>$foo)[0] ++ (<array<str>>$bar)[0];',
                 foo=['aaa'], bar=['bbb']),
             '["aaabbb"]')
@@ -715,7 +749,7 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_args_06(self):
         for _ in range(10):
             self.assertEqual(
-                await self.con.fetch_value(
+                await self.con.fetchone(
                     'select <int64>$你好 + 10',
                     你好=32),
                 42)
@@ -723,7 +757,7 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_args_07(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'missing a type cast.*parameter'):
-            await self.con.fetch_value(
+            await self.con.fetchone(
                 'select schema::Object {name} filter .id=$id', id='asd')
 
     async def test_server_proto_wait_cancel_01(self):
@@ -734,14 +768,15 @@ class TestServerProto(tb.QueryTestCase):
         con2 = await self.cluster.connect(user='edgedb',
                                           database=self.con.dbname)
 
-        await self.con.fetch('select sys::advisory_lock(<int64>$0)', lock_key)
+        await self.con.fetchall(
+            'select sys::advisory_lock(<int64>$0)', lock_key)
 
         try:
             async with tg.TaskGroup() as g:
 
                 async def exec_to_fail():
                     with self.assertRaises(ConnectionAbortedError):
-                        await con2.fetch(
+                        await con2.fetchall(
                             'select sys::advisory_lock(<int64>$0)', lock_key)
 
                 g.create_task(exec_to_fail())
@@ -751,7 +786,7 @@ class TestServerProto(tb.QueryTestCase):
 
         finally:
             self.assertEqual(
-                await self.con.fetch(
+                await self.con.fetchall(
                     'select sys::advisory_unlock(<int64>$0)', lock_key),
                 [True])
 
@@ -820,25 +855,25 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
             self.assertEqual(
-                await con.fetch(query),
+                await con.fetchall(query),
                 edgedb.Set(('aaa', 'bbb', 'ccc', 'ddd')))
 
             for _ in range(10):
                 await con.execute('ROLLBACK TO SAVEPOINT t1')
 
                 self.assertEqual(
-                    await con.fetch(query),
+                    await con.fetchall(query),
                     edgedb.Set(('aaa', 'bbb', 'ccc')))
 
             await con.execute('RELEASE SAVEPOINT t1')
             self.assertEqual(
-                await con.fetch(query),
+                await con.fetchall(query),
                 edgedb.Set(('aaa', 'bbb', 'ccc')))
 
             for _ in range(5):
                 await con.execute('ROLLBACK TO SAVEPOINT t1')
                 self.assertEqual(
-                    await con.fetch(query),
+                    await con.fetchall(query),
                     edgedb.Set(('aaa',)))
 
             await con.execute('RELEASE SAVEPOINT t1')
@@ -847,7 +882,7 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InvalidReferenceError, 'non-existent.*Savepoint'):
-                await con.fetch(query)
+                await con.fetchall(query)
 
         finally:
             await con.execute('ROLLBACK')
@@ -865,7 +900,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.TransactionError, 'savepoints can only be used in tra'):
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 DECLARE SAVEPOINT t1;
             ''')
 
@@ -880,46 +915,46 @@ class TestServerProto(tb.QueryTestCase):
 
         try:
             self.assertEqual(
-                await self.con.fetch('SELECT 1;'),
+                await self.con.fetchall('SELECT 1;'),
                 [1])
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "there is no 't1' savepoint"):
-                await self.con.fetch('''
+                await self.con.fetchall('''
                     RELEASE SAVEPOINT t1;
                 ''')
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
-                await self.con.fetch('SELECT 1;')
+                await self.con.fetchall('SELECT 1;')
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
-                await self.con.fetch_value('''
+                await self.con.fetchone('''
                     RELEASE SAVEPOINT t1;
                 ''')
 
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 ROLLBACK TO SAVEPOINT t0;
             ''')
 
             self.assertEqual(
-                await self.con.fetch('SELECT 1;'),
+                await self.con.fetchall('SELECT 1;'),
                 [1])
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "there is no 't1' savepoint"):
-                await self.con.fetch('''
+                await self.con.fetchall('''
                     RELEASE SAVEPOINT t1;
                 ''')
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
-                await self.con.fetch('SELECT 1;')
+                await self.con.fetchall('SELECT 1;')
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
-                await self.con.fetch('''
+                await self.con.fetchall('''
                     RELEASE SAVEPOINT t1;
                 ''')
 
@@ -929,7 +964,7 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
             self.assertEqual(
-                await self.con.fetch('SELECT 1;'),
+                await self.con.fetchall('SELECT 1;'),
                 [1])
 
     async def test_server_proto_tx_savepoint_04(self):
@@ -943,34 +978,34 @@ class TestServerProto(tb.QueryTestCase):
 
         try:
             self.assertEqual(
-                await self.con.fetch('SELECT 1;'),
+                await self.con.fetchall('SELECT 1;'),
                 [1])
 
             with self.assertRaises(edgedb.DivisionByZeroError):
-                await self.con.fetch('''
+                await self.con.fetchall('''
                     SELECT 1 / 0;
                 ''')
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
-                await self.con.fetch('SELECT 1;')
+                await self.con.fetchall('SELECT 1;')
 
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 ROLLBACK TO SAVEPOINT t0;
             ''')
 
             self.assertEqual(
-                await self.con.fetch('SELECT 1;'),
+                await self.con.fetchall('SELECT 1;'),
                 [1])
 
             with self.assertRaises(edgedb.DivisionByZeroError):
-                await self.con.fetch_value('''
+                await self.con.fetchone('''
                     SELECT 1 / 0;
                 ''')
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
-                await self.con.fetch('SELECT 1;')
+                await self.con.fetchall('SELECT 1;')
 
         finally:
             await self.con.execute('''
@@ -978,7 +1013,7 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
             self.assertEqual(
-                await self.con.fetch('SELECT 1;'),
+                await self.con.fetchall('SELECT 1;'),
                 [1])
 
     async def test_server_proto_tx_savepoint_05(self):
@@ -1103,7 +1138,7 @@ class TestServerProto(tb.QueryTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con.fetch('SELECT t1::min({1}) + t2::min({2})'),
+                    await con.fetchall('SELECT t1::min({1}) + t2::min({2})'),
                     [3])
 
             await self.con.execute('''
@@ -1112,26 +1147,27 @@ class TestServerProto(tb.QueryTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con.fetch('SELECT t1::min({1}) + std::min({100})'),
+                    await con.fetchall(
+                        'SELECT t1::min({1}) + std::min({100})'),
                     [101])
 
             with self.assertRaisesRegex(
                     edgedb.InvalidReferenceError,
                     'non-existent function: t2::min'):
-                await con.fetch('SELECT t1::min({1}) + t2::min({2})')
+                await con.fetchall('SELECT t1::min({1}) + t2::min({2})')
 
             await self.con.execute('''
                 ROLLBACK TO SAVEPOINT t1;
             ''')
 
             self.assertEqual(
-                await con.fetch('SELECT std::min({100})'),
+                await con.fetchall('SELECT std::min({100})'),
                 [100])
 
             with self.assertRaisesRegex(
                     edgedb.InvalidReferenceError,
                     'non-existent function: t1::min'):
-                await con.fetch('SELECT t1::min({1})')
+                await con.fetchall('SELECT t1::min({1})')
 
         finally:
             await con.execute('ROLLBACK')
@@ -1139,7 +1175,7 @@ class TestServerProto(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 'non-existent function: t1::min'):
-            await con.fetch('SELECT t1::min({1})')
+            await con.fetchall('SELECT t1::min({1})')
 
     async def test_server_proto_tx_savepoint_08(self):
         con = self.con
@@ -1161,7 +1197,7 @@ class TestServerProto(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 'non-existent function: t1::min'):
-            await con.fetch_value('SELECT t1::min({1})')
+            await con.fetchone('SELECT t1::min({1})')
 
     async def test_server_proto_tx_savepoint_09(self):
         # Test basic SET ALIAS tracking in transactions/savepoints;
@@ -1189,13 +1225,13 @@ class TestServerProto(tb.QueryTestCase):
             self.assertEqual(self.con._get_last_status(), 'SET ALIAS')
 
             self.assertEqual(
-                await con.fetch('SELECT t2::min({2})'),
+                await con.fetchall('SELECT t2::min({2})'),
                 [2])
 
             with self.assertRaisesRegex(
                     edgedb.InvalidReferenceError,
                     'non-existent function: t1::min'):
-                await con.fetch('SELECT t1::min({1})')
+                await con.fetchall('SELECT t1::min({1})')
 
         finally:
             await con.execute('ROLLBACK')
@@ -1242,12 +1278,12 @@ class TestServerProto(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.TransactionError,
                     "current transaction is aborted"):
-                await con2.fetch('SELECT 1;')
+                await con2.fetchall('SELECT 1;')
 
-            await con2.fetch('ROLLBACK')
+            await con2.fetchall('ROLLBACK')
 
             self.assertEqual(
-                await con2.fetch('SELECT 1;'),
+                await con2.fetchall('SELECT 1;'),
                 [1])
 
             with self.assertRaisesRegex(
@@ -1268,8 +1304,8 @@ class TestServerProto(tb.QueryTestCase):
 
         try:
             for _ in range(5):
-                await con2.fetch_value('START TRANSACTION')
-                await con2.fetch_value('ROLLBACK')
+                await con2.fetchall('START TRANSACTION')
+                await con2.fetchall('ROLLBACK')
 
             with self.assertRaises(edgedb.DivisionByZeroError):
                 await con2.execute('''
@@ -1281,12 +1317,12 @@ class TestServerProto(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.TransactionError,
                     "current transaction is aborted"):
-                await con2.fetch('SELECT 1;')
+                await con2.fetchall('SELECT 1;')
 
-            await con2.fetch('ROLLBACK')
+            await con2.fetchall('ROLLBACK')
 
             self.assertEqual(
-                await con2.fetch('SELECT 1;'),
+                await con2.fetchall('SELECT 1;'),
                 [1])
 
             with self.assertRaisesRegex(
@@ -1323,7 +1359,7 @@ class TestServerProto(tb.QueryTestCase):
 
         for _ in range(5):
             self.assertEqual(
-                await self.con.fetch(query),
+                await self.con.fetchall(query),
                 ['test_server_proto_tx_04'])
 
         await self.con.execute('''
@@ -1332,11 +1368,11 @@ class TestServerProto(tb.QueryTestCase):
 
         for i in range(5):
             self.assertEqual(
-                await self.con.fetch(query),
+                await self.con.fetchall(query),
                 ['test_server_proto_tx_04'])
 
             self.assertEqual(
-                await self.con.fetch('SELECT <int64>$0', i),
+                await self.con.fetchall('SELECT <int64>$0', i),
                 [i])
 
         await self.con.execute('''
@@ -1354,7 +1390,7 @@ class TestServerProto(tb.QueryTestCase):
         try:
             for _ in range(5):
                 self.assertEqual(
-                    await self.con.fetch(query),
+                    await self.con.fetchall(query),
                     [1])
         finally:
             await con2.close()
@@ -1366,7 +1402,7 @@ class TestServerProto(tb.QueryTestCase):
         try:
             for i in range(5):
                 self.assertEqual(
-                    await self.con.fetch(query),
+                    await self.con.fetchall(query),
                     [1])
         finally:
             await self.con.execute('''
@@ -1397,7 +1433,7 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
         self.assertEqual(
-            await self.con.fetch('SELECT 42'),
+            await self.con.fetchall('SELECT 42'),
             [42])
 
     async def test_server_proto_tx_08(self):
@@ -1422,7 +1458,7 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
         self.assertEqual(
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SELECT test::Tmp { tmp }
                 FILTER .tmp = 'test_server_proto_tx_07'
             '''),
@@ -1461,7 +1497,7 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
         self.assertEqual(
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SELECT count(
                     test::Tmp { tmp }
                     FILTER .tmp = 'test_server_proto_tx_08'
@@ -1501,20 +1537,20 @@ class TestServerProto(tb.QueryTestCase):
                 COMMIT;
             ''')
 
-        await self.con.fetch('ROLLBACK')
+        await self.con.fetchall('ROLLBACK')
 
         self.assertFalse(await self.is_testmode_on())
 
         self.assertEqual(
-            await self.con.fetch('SELECT f1::min({1})'),
+            await self.con.fetchall('SELECT f1::min({1})'),
             [1])
 
         for n in ['f2', 'f3', 'f4']:
             with self.assertRaises(edgedb.errors.InvalidReferenceError):
                 async with self.con.transaction():
-                    await self.con.fetch(f'SELECT {n}::min({{1}})')
+                    await self.con.fetchall(f'SELECT {n}::min({{1}})')
 
-        await self.con.fetch(
+        await self.con.fetchall(
             'CONFIGURE SESSION SET __internal_testmode := true')
         self.assertTrue(await self.is_testmode_on())
 
@@ -1526,19 +1562,19 @@ class TestServerProto(tb.QueryTestCase):
         async def test_funcs(*, count, working, not_working):
             for ns in working:
                 self.assertEqual(
-                    await self.con.fetch(f'SELECT {ns}::min({{1}})'),
+                    await self.con.fetchall(f'SELECT {ns}::min({{1}})'),
                     [1])
 
             await self.con.execute('DECLARE SAVEPOINT _;')
             for ns in not_working:
                 with self.assertRaises(edgedb.errors.InvalidReferenceError):
                     try:
-                        await self.con.fetch(f'SELECT {ns}::min({{1}})')
+                        await self.con.fetchall(f'SELECT {ns}::min({{1}})')
                     finally:
                         await self.con.execute('ROLLBACK TO SAVEPOINT _;')
             await self.con.execute('RELEASE SAVEPOINT _;')
 
-            actual_count = await self.con.fetch_value(
+            actual_count = await self.con.fetchone(
                 '''SELECT count(
                     test::Tmp11
                     FILTER test::Tmp11.tmp = "test_server_proto_tx_11")
@@ -1587,12 +1623,12 @@ class TestServerProto(tb.QueryTestCase):
                 COMMIT;
             ''')
 
-        await self.con.fetch('ROLLBACK TO SAVEPOINT a1')
+        await self.con.fetchall('ROLLBACK TO SAVEPOINT a1')
         await test_funcs(
             count=3,
             working=['f1', 'f2', 'f3'], not_working=['f4', 'f5'])
 
-        await self.con.fetch('ROLLBACK TO SAVEPOINT a0')
+        await self.con.fetchall('ROLLBACK TO SAVEPOINT a0')
         await test_funcs(
             count=2,
             working=['f1', 'f2'], not_working=['f3', 'f4', 'f5'])
@@ -1628,31 +1664,31 @@ class TestServerProto(tb.QueryTestCase):
                     SET ALIAS z2 AS MODULE std;
                     SELECT 1 / 0;
                 ''')
-            await self.con.fetch('ROLLBACK TO SAVEPOINT c1')
+            await self.con.fetchall('ROLLBACK TO SAVEPOINT c1')
 
-            await self.con.fetch('''
+            await self.con.fetchall('''
                 SET ALIAS z3 AS MODULE std;
             ''')
-            await self.con.fetch('ROLLBACK TO SAVEPOINT c1')
+            await self.con.fetchall('ROLLBACK TO SAVEPOINT c1')
 
         self.assertEqual(
-            await self.con.fetch('SELECT z1::min({1})'),
+            await self.con.fetchall('SELECT z1::min({1})'),
             [1])
 
-        await self.con.fetch('DECLARE SAVEPOINT _;')
+        await self.con.fetchall('DECLARE SAVEPOINT _;')
         for ns in ['z2', 'z3']:
             with self.assertRaises(edgedb.errors.InvalidReferenceError):
                 try:
-                    await self.con.fetch(f'SELECT {ns}::min({{1}})')
+                    await self.con.fetchall(f'SELECT {ns}::min({{1}})')
                 finally:
-                    await self.con.fetch('ROLLBACK TO SAVEPOINT _;')
-        await self.con.fetch('RELEASE SAVEPOINT _;')
+                    await self.con.fetchall('ROLLBACK TO SAVEPOINT _;')
+        await self.con.fetchall('RELEASE SAVEPOINT _;')
 
         self.assertEqual(
-            await self.con.fetch('SELECT z1::min({1})'),
+            await self.con.fetchall('SELECT z1::min({1})'),
             [1])
 
-        await self.con.fetch('ROLLBACK')
+        await self.con.fetchall('ROLLBACK')
 
     async def test_server_proto_tx_13(self):
         # Test COMMIT abort
@@ -1660,14 +1696,14 @@ class TestServerProto(tb.QueryTestCase):
         async def test_funcs(*, working, not_working):
             for ns in working:
                 self.assertEqual(
-                    await self.con.fetch(f'SELECT {ns}::min({{1}})'),
+                    await self.con.fetchall(f'SELECT {ns}::min({{1}})'),
                     [1])
 
             for ns in not_working:
                 with self.assertRaises(edgedb.errors.InvalidReferenceError):
-                    await self.con.fetch(f'SELECT {ns}::min({{1}})')
+                    await self.con.fetchall(f'SELECT {ns}::min({{1}})')
 
-        for exec_meth in (self.con.execute, self.con.fetch):
+        for exec_meth in (self.con.execute, self.con.fetchall):
             self.assertTrue(await self.is_testmode_on())
 
             try:
@@ -1712,7 +1748,7 @@ class TestServerProto(tb.QueryTestCase):
                 ''')
 
                 self.assertFalse(
-                    await self.con.fetch_value('''
+                    await self.con.fetchone('''
                         SELECT cfg::Config.__internal_testmode LIMIT 1
                     ''')
                 )
@@ -1738,7 +1774,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         self.assertEqual(
-            await self.con.fetch_value('SELECT 1;'),
+            await self.con.fetchone('SELECT 1;'),
             1)
 
         await self.con.execute('''
@@ -1749,7 +1785,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         self.assertEqual(
-            await self.con.fetch_value('SELECT 1;'),
+            await self.con.fetchone('SELECT 1;'),
             1)
 
         await self.con.execute('''
@@ -1764,7 +1800,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         self.assertEqual(
-            await self.con.fetch_value('SELECT 1;'),
+            await self.con.fetchone('SELECT 1;'),
             1)
 
     async def test_server_proto_tx_15(self):
@@ -1790,7 +1826,7 @@ class TestServerProto(tb.QueryTestCase):
                     await self.con.execute(command)
 
         self.assertEqual(
-            await self.con.fetch_value('SELECT 1111;'),
+            await self.con.fetchone('SELECT 1111;'),
             1111)
 
 
@@ -1816,7 +1852,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set(['aaa']))
 
             await con2.execute(f'''
@@ -1837,7 +1873,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set([123]))
 
         finally:
@@ -1849,13 +1885,13 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         con1 = self.con
         con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
         try:
-            await con2.fetch(f'''
+            await con2.fetchall(f'''
                 CREATE TYPE test::{typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::str;
                 }};
             ''')
 
-            await con2.fetch(f'''
+            await con2.fetchall(f'''
                 INSERT test::{typename} {{
                     prop1 := 'aaa'
                 }};
@@ -1865,26 +1901,26 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set(['aaa']))
 
-            await con2.fetch(f'''
+            await con2.fetchall(f'''
                 DELETE (SELECT test::{typename});
             ''')
 
-            await con2.fetch(f'''
+            await con2.fetchall(f'''
                 ALTER TYPE test::{typename} {{
                     DROP PROPERTY prop1;
                 }};
             ''')
 
-            await con2.fetch(f'''
+            await con2.fetchall(f'''
                 ALTER TYPE test::{typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::int64;
                 }};
             ''')
 
-            await con2.fetch(f'''
+            await con2.fetchall(f'''
                 INSERT test::{typename} {{
                     prop1 := 123
                 }};
@@ -1892,7 +1928,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set([123]))
 
         finally:
@@ -1918,7 +1954,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set([['a', 'aa']]))
 
             await con2.execute(f'''
@@ -1939,7 +1975,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set([[1, 23]]))
 
         finally:
@@ -1965,7 +2001,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set(['aaa']))
 
             await con2.execute(f'''
@@ -1986,7 +2022,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set(['bbb', 'ccc']))
 
         finally:
@@ -2020,7 +2056,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set(['aaa']))
 
             await con2.execute(f'''
@@ -2039,11 +2075,11 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 }};
             ''')
 
-            other = await con1.fetch(f'SELECT test::Other{typename}')
+            other = await con1.fetchall(f'SELECT test::Other{typename}')
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     other)
 
         finally:
@@ -2072,14 +2108,14 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 }};
             ''')
 
-            foo = await con1.fetch(f'SELECT test::Foo{typename}')
-            bar = await con1.fetch(f'SELECT test::Bar{typename}')
+            foo = await con1.fetchall(f'SELECT test::Foo{typename}')
+            bar = await con1.fetchall(f'SELECT test::Bar{typename}')
 
             query = f'SELECT test::{typename}.link1'
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     foo)
 
             await con2.execute(f'''
@@ -2100,7 +2136,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     bar)
 
         finally:
@@ -2142,7 +2178,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set(['aaa']))
 
             await con2.execute(f'''
@@ -2165,7 +2201,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.fetch(query),
+                    await con1.fetchall(query),
                     edgedb.Set([123]))
 
         finally:
@@ -2200,7 +2236,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     '''))
 
             for i, con in enumerate(cons):
-                ret = await con.fetch(
+                ret = await con.fetchall(
                     f'SELECT test::{typename_prefix}{i}.prop1')
                 self.assertEqual(ret, i)
 

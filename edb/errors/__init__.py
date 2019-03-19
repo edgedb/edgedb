@@ -17,6 +17,7 @@ __all__ = base.__all__ + (
     'TypeSpecNotFoundError',
     'UnexpectedMessageError',
     'InputDataError',
+    'ResultCardinalityMismatchError',
     'QueryError',
     'InvalidSyntaxError',
     'EdgeQLSyntaxError',
@@ -101,6 +102,10 @@ class UnexpectedMessageError(BinaryProtocolError):
 
 class InputDataError(ProtocolError):
     _code = 0x_03_02_00_00
+
+
+class ResultCardinalityMismatchError(ProtocolError):
+    _code = 0x_03_03_00_00
 
 
 class QueryError(EdgeDBError):

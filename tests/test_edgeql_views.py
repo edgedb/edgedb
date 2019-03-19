@@ -156,7 +156,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         )
 
     async def test_edgeql_views_create_01(self):
-        await self.con.fetch(r'''
+        await self.con.fetchall(r'''
             CREATE VIEW test::DCard := (
                 WITH MODULE test
                 SELECT Card {
@@ -658,7 +658,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
 
     async def test_edgeql_views_deep_01(self):
         # fetch the result we will compare to
-        res = await self.con.fetch_json(r"""
+        res = await self.con.fetchall_json(r"""
             WITH MODULE test
             SELECT AwardView {
                 winner: {
@@ -691,7 +691,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
 
     async def test_edgeql_views_clauses_01(self):
         # fetch the result we will compare to
-        res = await self.con.fetch_json(r"""
+        res = await self.con.fetchall_json(r"""
             WITH MODULE test
             SELECT User {
                 deck: {

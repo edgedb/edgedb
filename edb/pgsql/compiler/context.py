@@ -144,7 +144,8 @@ class CompilerContext(compiler.CompilerContext):
 class Environment:
     """Static compilation environment."""
 
-    def __init__(self, *, output_format, use_named_params):
+    def __init__(self, *, output_format, use_named_params,
+                 expected_cardinality_one):
         self.aliases = aliases.AliasGenerator()
         self.root_rels = set()
         self.rel_overlays = collections.defaultdict(list)
@@ -152,3 +153,4 @@ class Environment:
         self.tuple_formats = {}
         self.use_named_params = use_named_params
         self.ptrref_source_visibility = {}
+        self.expected_cardinality_one = expected_cardinality_one

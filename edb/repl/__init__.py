@@ -167,7 +167,7 @@ class Cli:
         return toolbar
 
     def introspect_db(self, con):
-        names = con.fetch('SELECT schema::ObjectType { name }')
+        names = con.fetchall('SELECT schema::ObjectType { name }')
         self.context.typenames = {n.id: n.name for n in names}
 
     def build_propmpt(self):
@@ -257,7 +257,7 @@ class Cli:
 
     @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args):
-        result, _ = self.fetch(
+        result, _ = self.fetchall(
             '''
                 SELECT name := sys::Database.name
                 ORDER BY name ASC
@@ -311,9 +311,9 @@ class Cli:
         self.ensure_connection()
 
         if json:
-            meth = self.connection.fetch_json
+            meth = self.connection.fetchall_json
         else:
-            meth = self.connection.fetch
+            meth = self.connection.fetchall
 
         try:
             result = meth(query)
@@ -425,7 +425,7 @@ def execute_script(conn_args, data):
     queries = lexutils.split_edgeql(data)[0]
     ctx = context.ReplContext()
     for query in queries:
-        ret = con.fetch(query)
+        ret = con.fetchall(query)
         render.render_binary(
             ctx,
             ret,
