@@ -206,7 +206,7 @@ cdef class PGProto:
         return parse, store_stmt
 
     async def parse_execute_json(self, sql, sql_hash, dbver,
-                                 use_prep_stmt, args, textmode):
+                                 use_prep_stmt, args):
         cdef:
             WriteBuffer parse_buf
             WriteBuffer bind_buf
@@ -299,18 +299,7 @@ cdef class PGProto:
                         self.buffer.discard_message()
                         continue
 
-                    if not textmode:
-                        b = self.buffer.read_byte()
-                        if b != 1:
-                            error = RuntimeError(
-                                f'invalid JSONB format for '
-                                f'a JSON query {sql!r}')
-                            self.buffer.discard_message()
-                            continue
-
-                        data = self.buffer.read_bytes(coll - 1)
-                    else:
-                        data = self.buffer.read_bytes(coll)
+                    data = self.buffer.read_bytes(coll)
 
                 elif mtype == b'E':
                     # ErrorResponse
