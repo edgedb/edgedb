@@ -277,7 +277,8 @@ class Cluster:
                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
                         user=edgedb_defines.EDGEDB_SUPERUSER,
                         timeout=timeout)
-                except (OSError, asyncio.TimeoutError):
+                except (OSError, asyncio.TimeoutError,
+                        edgedb.ClientConnectionError):
                     timeout -= (time.monotonic() - started)
                     if timeout > 0.05:
                         await asyncio.sleep(0.05)

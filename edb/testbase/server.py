@@ -222,13 +222,23 @@ class ConnectedTestCaseMixin:
                       database=edgedb_defines.EDGEDB_SUPERUSER_DB,
                       user=edgedb_defines.EDGEDB_SUPERUSER,
                       password='test'):
+        conargs = cls.get_connect_args(
+            cluster=cluster, database=database, user=user, password=password)
+        return await edgedb.async_connect(**conargs)
+
+    @classmethod
+    def get_connect_args(cls, *,
+                         cluster=None,
+                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+                         user=edgedb_defines.EDGEDB_SUPERUSER,
+                         password='test'):
         if cluster is None:
             cluster = cls.cluster
         conargs = cluster.get_connect_args().copy()
         conargs.update(dict(user=user,
                             password=password,
                             database=database))
-        return await edgedb.async_connect(**conargs)
+        return conargs
 
     def _run_and_rollback(self):
         return RollbackChanges(self)

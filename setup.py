@@ -34,7 +34,7 @@ from setuptools.command import develop as setuptools_develop
 
 RUNTIME_DEPS = [
     'asyncpg~=0.18.2',
-    'click~=6.7',
+    'click~=7.0',
     'httptools>=0.0.13',
     'immutables>=0.9',
     'parsing~=1.6.1',
@@ -416,7 +416,7 @@ setuptools.setup(
     },
     entry_points={
         'console_scripts': [
-            'edgedb = edb.repl:main',
+            'edgedb = edb.cli:cli',
             'edgedb-server = edb.server.main:main',
         ]
     },

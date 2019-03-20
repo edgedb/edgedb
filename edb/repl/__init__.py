@@ -17,12 +17,8 @@
 #
 
 
-import argparse
-import atexit
 import functools
-import getpass
 import os
-import pathlib
 import select
 import subprocess
 import sys
@@ -40,7 +36,6 @@ from prompt_toolkit import shortcuts as pt_shortcuts
 from prompt_toolkit import styles as pt_styles
 from prompt_toolkit import lexers as pt_lexers
 
-from edb.common import devmode
 from edb.common import term
 from edb.edgeql import pygments as eql_pygments
 
@@ -124,6 +119,9 @@ class Cli:
         self.connection = None
 
         self.prompt = None
+        conn_args = dict(conn_args)
+        self._password_prompt = conn_args.pop('password_prompt')
+        self._password_prompted = False
         self.conn_args = immutables.Map(conn_args)
         self.context = context.ReplContext()
         self.commands = type(self)._command.__kwdefaults__['_all_commands']
@@ -229,6 +227,22 @@ class Cli:
                 self.connection = edgedb.connect(**self.conn_args)
             elif self.connection.is_closed():
                 self.connection = edgedb.connect(**self.conn_args)
+        except edgedb.AuthenticationError:
+            if (self.conn_args['password'] is None
+                    and self._password_prompt is not None
+                    and not self._password_prompted):
+
+                try:
+                    password = self._password_prompt()
+                    self._password_prompted = True
+                    self.connection = edgedb.connect(
+                        **{**self.conn_args, 'password': password})
+                except Exception as e:
+                    self.connection = None
+                    reason = str(e)
+                else:
+                    self.conn_args = self.conn_args.set('password', password)
+
         except Exception as e:
             self.connection = None
             reason = str(e)
@@ -480,50 +494,16 @@ def execute_script(conn_args, data):
             max_width=80)
 
 
-def parse_connect_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-H', '--host', default=None)
-    parser.add_argument('-P', '--port', type=int, default=None)
-    parser.add_argument('-u', '--user', default=None)
-    parser.add_argument('-d', '--database', default=None)
-    parser.add_argument('-p', '--password', default=False, action='store_true')
-    parser.add_argument('-t', '--timeout', default=60)
-    parser.add_argument('--start-server', action='store_true', default=False,
-                        help='Start EdgeDB server')
-    parser.add_argument('--server-dir', type=str, metavar='DIR',
-                        default=pathlib.Path.home() / '.edgedb',
-                        help='Start EdgeDB server in the data directory DIR')
-
-    args = parser.parse_args()
-    if args.password:
-        args.password = getpass.getpass()
-    else:
-        args.password = None
-
-    if args.start_server:
-        args.host = '127.0.0.1'
-        args.retry_conn = True
-
-    return args
-
-
-def main():
-    args = parse_connect_args()
-
-    if args.start_server:
-        cluster = edgedb_cluster.Cluster(args.server_dir)
-        if cluster.get_status() == 'not-initialized':
-            cluster.init()
-        cluster.start(port=args.port, timezone='UTC')
-        atexit.register(cluster.stop)
-
+def main(*, host, port, user, database, password, password_prompt, admin):
     connect_kwargs = {
-        'user': args.user,
-        'password': args.password,
-        'database': args.database,
-        'host': args.host,
-        'port': args.port,
-        'timeout': args.timeout,
+        'user': user,
+        'password': password,
+        'password_prompt': password_prompt,
+        'database': database,
+        'host': host,
+        'port': port,
+        'admin': admin,
+        'timeout': 60,
     }
 
     if select.select([sys.stdin], [], [], 0.0)[0]:
@@ -532,8 +512,3 @@ def main():
         return
 
     Cli(connect_kwargs).run()
-
-
-def main_dev():
-    devmode.enable_dev_mode()
-    main()

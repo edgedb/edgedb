@@ -21,7 +21,7 @@ import edgedb
 from edb.testbase import server as tb
 
 
-class TestServerAuth(tb.QueryTestCase):
+class TestServerAuth(tb.ConnectedTestCase):
 
     ISOLATED_METHODS = False
 

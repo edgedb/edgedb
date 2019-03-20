@@ -65,3 +65,33 @@ def disambiguate_identifier(text, *, allow_reserved=False):
         return '`{}`'.format(text)
     else:
         return text
+
+
+def needs_quoting(string, allow_reserved):
+    isalnum = (
+        string and not string[0].isdecimal()
+        and string.replace('_', 'a').isalnum()
+    )
+
+    string = string.lower()
+
+    is_reserved = (
+        string != '__type__'
+        and string in keywords.by_type[keywords.RESERVED_KEYWORD]
+    )
+
+    return (
+        not isalnum
+        or (not allow_reserved and is_reserved)
+    )
+
+
+def _quote_ident(string):
+    return '`' + string.replace('`', '``') + '`'
+
+
+def quote_ident(string, *, force=False, allow_reserved=False):
+    if force or needs_quoting(string, allow_reserved):
+        return _quote_ident(string)
+    else:
+        return string
