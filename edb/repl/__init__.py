@@ -257,7 +257,7 @@ class Cli:
 
     @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args):
-        result, _ = self.fetchall(
+        result, _ = self.fetch(
             '''
                 SELECT name := sys::Database.name
                 ORDER BY name ASC
