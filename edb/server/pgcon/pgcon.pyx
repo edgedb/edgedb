@@ -357,9 +357,7 @@ cdef class PGProto:
 
         if error is not None:
             raise error
-        if data is None:
-            raise RuntimeError(
-                f'no data received for a JSON query {sql!r}')
+
         return data
 
     async def parse_execute(self,

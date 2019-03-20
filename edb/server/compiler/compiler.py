@@ -92,6 +92,7 @@ pg_ql = lambda o: pg_common.quote_literal(str(o))
 def compile_bootstrap_script(std_schema: s_schema.Schema,
                              schema: s_schema.Schema,
                              eql: str, *,
+                             single_statement: bool = False,
                              expected_cardinality_one: bool = False):
 
     state = dbstate.CompilerConnectionState(
@@ -105,7 +106,11 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
         state=state,
         output_format=pg_compiler.OutputFormat.JSON,
         expected_cardinality_one=expected_cardinality_one,
-        stmt_mode=enums.CompileStatementMode.ALL)
+        json_parameters=True,
+        stmt_mode=(
+            enums.CompileStatementMode.SINGLE
+            if single_statement else enums.CompileStatementMode.ALL)
+    )
 
     compiler = Compiler(None, None)
     compiler._std_schema = std_schema

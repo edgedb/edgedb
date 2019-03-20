@@ -53,8 +53,49 @@ CREATE TYPE cfg::Port {
 };
 
 
+CREATE ABSTRACT TYPE cfg::AuthMethod;
+CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
+CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
+
+
+CREATE TYPE cfg::Auth {
+    CREATE REQUIRED PROPERTY name -> std::str {
+        CREATE CONSTRAINT std::exclusive;
+        SET readonly := true;
+    };
+
+    CREATE REQUIRED PROPERTY priority -> std::int64 {
+        CREATE CONSTRAINT std::exclusive;
+        SET readonly := true;
+    };
+
+    CREATE REQUIRED MULTI PROPERTY host -> std::str {
+        SET readonly := true;
+        SET default := {'*'};
+    };
+
+    CREATE MULTI PROPERTY user -> std::str {
+        SET readonly := true;
+        SET default := {'*'};
+    };
+
+    CREATE MULTI PROPERTY database -> std::str {
+        SET readonly := true;
+        SET default := {'*'};
+    };
+
+    CREATE SINGLE LINK method -> cfg::AuthMethod {
+        CREATE CONSTRAINT std::exclusive;
+    };
+};
+
+
 CREATE TYPE cfg::Config {
     CREATE MULTI LINK ports -> cfg::Port {
+        SET ATTRIBUTE cfg::system := 'true';
+    };
+
+    CREATE MULTI LINK auth -> cfg::Auth {
         SET ATTRIBUTE cfg::system := 'true';
     };
 };

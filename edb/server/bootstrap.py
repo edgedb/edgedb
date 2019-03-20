@@ -24,6 +24,8 @@ import pathlib
 import pickle
 import re
 
+import immutables
+
 from edb import errors
 
 from edb import edgeql
@@ -47,6 +49,8 @@ from edb.server import compiler
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
+
+from edgedb import scram
 
 
 CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
@@ -366,21 +370,78 @@ async def _populate_data(std_schema, schema, conn):
     return schema
 
 
+async def _trust_all_conns(schema, conn, cluster):
+    script = '''
+        CONFIGURE SYSTEM INSERT Auth {
+            name := 'default',
+            priority := 0,
+            method := (INSERT Trust),
+        }
+    '''
+
+    _, sql = compiler.compile_bootstrap_script(
+        schema, schema, script, single_statement=True)
+
+    config_op_data = await conn.fetchval(sql)
+    config_op = config.Operation.from_json(config_op_data)
+
+    config_spec = config.get_settings()
+    settings = config_op.apply(config_spec, immutables.Map())
+
+    data_dir = cluster.get_data_dir()
+    overrides_fn = os.path.join(data_dir, 'config_sys.json')
+
+    with open(overrides_fn, 'wt') as f:
+        f.write(config.to_json(config_spec, settings))
+
+
 async def _compile_sys_queries(schema, cluster):
     queries = {}
 
     cfg_query = config.generate_config_query(schema)
 
     schema, sql = compiler.compile_bootstrap_script(
-        schema, schema, cfg_query, expected_cardinality_one=True)
+        schema, schema, cfg_query,
+        expected_cardinality_one=True,
+        single_statement=True)
 
     queries['config'] = sql
+
+    role_query = '''
+        SELECT sys::Role {
+            name,
+            allow_login,
+            is_superuser,
+            password,
+        } FILTER .name = <str>$name;
+    '''
+    schema, sql = compiler.compile_bootstrap_script(
+        schema, schema, role_query,
+        expected_cardinality_one=True,
+        single_statement=True)
+
+    queries['role'] = sql
 
     data_dir = cluster.get_data_dir()
     queries_fn = os.path.join(data_dir, 'queries.json')
 
     with open(queries_fn, 'wt') as f:
         json.dump(queries, f)
+
+
+async def _populate_misc_instance_data(schema, cluster):
+
+    mock_auth_nonce = scram.B64(scram.generate_nonce())
+
+    instance_data = {
+        'mock_auth_nonce': mock_auth_nonce
+    }
+
+    data_dir = cluster.get_data_dir()
+    queries_fn = os.path.join(data_dir, 'instance_data.json')
+
+    with open(queries_fn, 'wt') as f:
+        json.dump(instance_data, f)
 
 
 async def _ensure_edgedb_database(conn, database, owner, *, cluster):
@@ -458,8 +519,12 @@ async def bootstrap(cluster, args):
                     cluster, conn, testmode=args['testmode'])
                 await _bootstrap_config_spec(std_schema, cluster)
                 await _compile_sys_queries(std_schema, cluster)
+                await _populate_misc_instance_data(std_schema, cluster)
                 schema = await _init_defaults(std_schema, std_schema, conn)
                 schema = await _populate_data(std_schema, schema, conn)
+
+                if args['insecure']:
+                    await _trust_all_conns(std_schema, conn, cluster)
             finally:
                 await conn.close()
         else:

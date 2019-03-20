@@ -277,7 +277,8 @@ class develop(setuptools_develop.develop):
         _compile_postgres_extensions(pathlib.Path('build').resolve())
 
         scripts = self.distribution.entry_points['console_scripts']
-        patched_scripts = [s + '_dev' for s in scripts]
+        patched_scripts = [s + '_dev' for s in scripts
+                           if not s.startswith('edgedb-server')]
         patched_scripts.append('edb = edb.tools.edb:edbcommands')
         self.distribution.entry_points['console_scripts'] = patched_scripts
 

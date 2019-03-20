@@ -34,6 +34,7 @@ import edgedb
 
 import edb
 from edb.common import devmode
+from edb.edgeql import quote
 
 from edb.server import defines as edgedb_defines
 
@@ -183,11 +184,17 @@ class Cluster:
     def get_data_dir(self):
         return self._data_dir
 
-    async def connect(self, **kwargs):
+    async def async_connect(self, **kwargs):
         connect_args = self.get_connect_args().copy()
         connect_args.update(kwargs)
 
         return await edgedb.async_connect(**connect_args)
+
+    def connect(self, **kwargs):
+        connect_args = self.get_connect_args().copy()
+        connect_args.update(kwargs)
+
+        return edgedb.connect(**connect_args)
 
     def init(self, *, server_settings={}):
         cluster_status = self.get_status()
@@ -264,7 +271,9 @@ class Cluster:
                 started = time.monotonic()
                 try:
                     conn = await edgedb.async_connect(
+                        host=get_runstate_path(self._data_dir),
                         port=self._effective_port,
+                        admin=True,
                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
                         user=edgedb_defines.EDGEDB_SUPERUSER,
                         timeout=timeout)
@@ -282,6 +291,21 @@ class Cluster:
                     return
 
         asyncio.run(test(timeout))
+
+    def set_superuser_password(self, password):
+        conn_args = self.get_connect_args().copy()
+        sock_path = get_runstate_path(self._data_dir)
+        conn_args['host'] = str(sock_path)
+        conn_args['admin'] = True
+        conn = self.connect(**conn_args)
+
+        try:
+            conn.fetchall(f'''
+                ALTER ROLE {edgedb_defines.EDGEDB_SUPERUSER}
+                SET password := {quote.quote_literal(password)}
+            ''')
+        finally:
+            conn.close()
 
 
 class TempCluster(Cluster):

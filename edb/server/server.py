@@ -61,9 +61,16 @@ class Server:
 
         self._ports = []
         self._sys_conf_ports = {}
+        self._sys_auth = tuple()
 
     async def init(self):
         self._dbindex = await dbview.DatabaseIndex.init(self)
+        self._populate_sys_auth()
+
+    def _populate_sys_auth(self):
+        self._sys_auth = tuple(sorted(
+            self._dbindex.get_sys_config().get('auth', ()),
+            key=lambda a: a.priority))
 
     def _get_pgaddr(self):
         pg_con_spec = self._cluster.get_connection_spec()
@@ -169,6 +176,24 @@ class Server:
         # CONFIGURE SYSTEM RESET setting_name;
         pass
 
+    async def _after_system_config_add(self, setting_name, value):
+        # CONFIGURE SYSTEM INSERT ConfigObject;
+        if setting_name == 'auth':
+            self._populate_sys_auth()
+
+    async def _after_system_config_rem(self, setting_name, value):
+        # CONFIGURE SYSTEM RESET ConfigObject;
+        if setting_name == 'auth':
+            self._populate_sys_auth()
+
+    async def _after_system_config_set(self, setting_name, value):
+        # CONFIGURE SYSTEM SET setting_name := value;
+        pass
+
+    async def _after_system_config_reset(self, setting_name):
+        # CONFIGURE SYSTEM RESET setting_name;
+        pass
+
     def get_datadir(self):
         return self._pg_data_dir
 
@@ -214,3 +239,25 @@ class Server:
             for port in self._sys_conf_ports.values():
                 g.create_task(port.stop())
             self._sys_conf_ports.clear()
+
+    async def get_auth_method(self, user, database, conn):
+        authlist = self._sys_auth
+
+        if not authlist:
+            default_method = 'SCRAM'
+            return config.get_settings().get_type_by_name(default_method)()
+        else:
+            for auth in authlist:
+                match = (
+                    (user in auth.user or '*' in auth.user)
+                    and (database in auth.database or '*' in auth.database)
+                )
+
+                if match:
+                    return auth.method
+
+    def get_sys_query(self, key):
+        return self._dbindex.get_sys_query(key)
+
+    def get_instance_data(self, key):
+        return self._dbindex.get_instance_data(key)

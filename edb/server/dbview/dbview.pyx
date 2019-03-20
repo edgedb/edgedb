@@ -280,10 +280,18 @@ cdef class DatabaseIndex:
         with open(sys_queries_fn) as f:
             self._sys_queries = json.load(f)
 
+        instance_data_fn = os.path.join(datadir, 'instance_data.json')
+        with open(instance_data_fn) as f:
+            self._instance_data = json.load(f)
+
+        self._sys_config = None
         self._sys_config_ver = time.monotonic_ns()
 
     def get_sys_query(self, key: str) -> str:
         return self._sys_queries[key]
+
+    def get_instance_data(self, key: str) -> object:
+        return self._instance_data[key]
 
     async def reload_config(self):
         conn = await self._server.new_pgcon(defines.EDGEDB_SUPERUSER_DB)
@@ -342,6 +350,19 @@ cdef class DatabaseIndex:
         self._save_system_overrides()
 
         self._sys_config_ver = time.monotonic_ns()
+
+        if op.opcode is config.OpCode.CONFIG_ADD:
+            await self._server._after_system_config_add(
+                op.setting_name, op_value)
+        elif op.opcode is config.OpCode.CONFIG_REM:
+            await self._server._after_system_config_rem(
+                op.setting_name, op_value)
+        elif op.opcode is config.OpCode.CONFIG_SET:
+            await self._server._after_system_config_set(
+                op.setting_name, op_value)
+        elif op.opcode is config.OpCode.CONFIG_RESET:
+            await self._server._after_system_config_reset(
+                op.setting_name)
 
     def new_view(self, dbname: str, *, user: str, query_cache: bool):
         db = self._get_db(dbname)

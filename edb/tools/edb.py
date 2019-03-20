@@ -20,6 +20,7 @@
 import click
 
 from edb.common import devmode as dm
+from edb.server import main as srv_main
 
 
 @click.group(
@@ -30,3 +31,9 @@ from edb.common import devmode as dm
 def edbcommands(devmode: bool):
     if devmode:
         dm.enable_dev_mode()
+
+
+@edbcommands.command()
+@srv_main.server_options
+def server(**kwargs):
+    srv_main.server_main(insecure=True, **kwargs)

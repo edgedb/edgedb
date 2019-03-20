@@ -115,9 +115,9 @@ class ManagementPort(baseport.Port):
             admin_unix_sock_path = os.path.join(
                 self._runstate_dir, f'.s.EDGEDB.admin.{self._netport}')
             admin_unix_srv = await self._loop.create_unix_server(
-                lambda: edgecon.EdgeConnection(self),
+                lambda: edgecon.EdgeConnection(self, external_auth=True),
                 admin_unix_sock_path)
-            os.chmod(admin_unix_sock_path, stat.S_IRWXU)
+            os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
         except Exception:
             tcp_srv.close()
             await tcp_srv.wait_closed()
@@ -130,6 +130,7 @@ class ManagementPort(baseport.Port):
         self._servers.append(unix_srv)
         logger.info('Serving on %s', unix_sock_path)
         self._servers.append(admin_unix_srv)
+        logger.info('Serving admin on %s', admin_unix_sock_path)
 
     async def stop(self):
         try:

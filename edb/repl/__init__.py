@@ -229,14 +229,15 @@ class Cli:
                 self.connection = edgedb.connect(**self.conn_args)
             elif self.connection.is_closed():
                 self.connection = edgedb.connect(**self.conn_args)
-        except Exception:
+        except Exception as e:
             self.connection = None
+            reason = str(e)
 
         if self.connection is None:
             dbname = self.conn_args.get("database")
             if not dbname:
                 dbname = 'EdgeDB'
-            print(f'Could not establish connection to {dbname}')
+            print(f'Could not establish connection to {dbname}: {reason}')
             exit(1)
 
     @_command('c', R'\c DBNAME', 'connect to database DBNAME')

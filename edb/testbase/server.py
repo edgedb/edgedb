@@ -162,6 +162,7 @@ def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings={}):
         cluster.init(server_settings=init_settings)
 
     cluster.start(port='dynamic', timezone='UTC')
+    cluster.set_superuser_password('test')
 
     if cleanup_atexit:
         atexit.register(_shutdown_cluster, cluster, destroy=destroy)
@@ -216,11 +217,18 @@ class RollbackChanges:
 class ConnectedTestCaseMixin:
 
     @classmethod
-    def connect(cls, loop, cluster, database=None):
+    async def connect(cls, *,
+                      cluster=None,
+                      database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+                      user=edgedb_defines.EDGEDB_SUPERUSER,
+                      password='test'):
+        if cluster is None:
+            cluster = cls.cluster
         conargs = cluster.get_connect_args().copy()
-        conargs.update(dict(user=edgedb_defines.EDGEDB_SUPERUSER,
+        conargs.update(dict(user=user,
+                            password=password,
                             database=database))
-        return loop.run_until_complete(edgedb.async_connect(**conargs))
+        return await edgedb.async_connect(**conargs)
 
     def _run_and_rollback(self):
         return RollbackChanges(self)
@@ -233,7 +241,7 @@ class ConnectedTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.con = cls.connect(cls.loop, cls.cluster)
+        cls.con = cls.loop.run_until_complete(cls.connect())
 
     @classmethod
     def tearDownClass(cls):
@@ -319,10 +327,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # Only open an extra admin connection if necessary.
         if not class_set_up:
             script = f'CREATE DATABASE {dbname};'
-            cls.admin_conn = cls.connect(cls.loop, cls.cluster)
+            cls.admin_conn = cls.loop.run_until_complete(cls.connect())
             cls.loop.run_until_complete(cls.admin_conn.execute(script))
 
-        cls.con = cls.connect(cls.loop, cls.cluster, database=dbname)
+        cls.con = cls.loop.run_until_complete(cls.connect(database=dbname))
 
         if not class_set_up:
             script = cls.get_setup_script()
@@ -705,15 +713,23 @@ def setup_test_cases(cases, conn, num_jobs):
 
 
 async def _setup_database(dbname, setup_script, conn_args):
+    default_args = {
+        'user': edgedb_defines.EDGEDB_SUPERUSER,
+        'password': 'test',
+    }
+
+    default_args.update(conn_args)
+
     admin_conn = await edgedb.async_connect(
-        database=edgedb_defines.EDGEDB_SUPERUSER_DB, **conn_args)
+        database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+        **default_args)
 
     try:
         await admin_conn.execute(f'CREATE DATABASE {dbname};')
     finally:
         await admin_conn.close()
 
-    dbconn = await edgedb.async_connect(database=dbname, **conn_args)
+    dbconn = await edgedb.async_connect(database=dbname, **default_args)
     try:
         async with dbconn.transaction():
             await dbconn.execute(setup_script)

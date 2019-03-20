@@ -48,6 +48,7 @@ cdef class EdgeConnection:
         bint _awaiting
         bint _parsing
         bint _reading_messages
+        bint _external_auth
         str _id
         object _transport
 
@@ -77,6 +78,7 @@ cdef class EdgeConnection:
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
     cdef abort(self)
+    cdef close(self)
 
     cdef fallthrough(self, bint ignore_unhandled)
 

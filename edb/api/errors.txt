@@ -115,6 +115,13 @@
 0x_06_00_00_00   ConfigurationError
 
 
+####
+
+0x_07_00_00_00   AccessError
+
+0x_07_01_00_00   AuthenticationError
+
+
 #### Suggested errors for EdgeDB clients
 
 0x_FF_00_00_00   ClientError

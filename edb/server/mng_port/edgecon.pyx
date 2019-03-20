@@ -17,6 +17,9 @@
 #
 
 import asyncio
+import hashlib
+import json
+import logging
 import traceback
 
 cimport cython
@@ -53,6 +56,8 @@ from edb.schema import objects as s_obj
 from edb import errors
 from edb.common import debug
 
+from edgedb import scram
+
 
 DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes ZERO_UUID = b'\x00' * 16
@@ -64,14 +69,17 @@ cdef object CARD_NA = compiler.ResultCardinality.NOT_APPLICABLE
 cdef object CARD_ONE = compiler.ResultCardinality.ONE
 cdef object CARD_MANY = compiler.ResultCardinality.MANY
 
+cdef object logger = logging.getLogger('edb.server')
+
 
 @cython.final
 cdef class EdgeConnection:
 
-    def __init__(self, server):
+    def __init__(self, server, external_auth: bool = False):
         self._con_status = EDGECON_NEW
         self._id = server.new_edgecon_id()
         self.port = server
+        self._external_auth = external_auth
 
         self.loop = server.get_loop()
         self.dbview = None
@@ -122,6 +130,16 @@ cdef class EdgeConnection:
             self.loop.create_task(self.backend.close())
             self.backend = None
 
+    cdef close(self):
+        self.flush()
+        self._con_status = EDGECON_BAD
+        if self._transport is not None:
+            self._transport.close()
+            self._transport = None
+        if self.backend is not None:
+            self.loop.create_task(self.backend.close())
+            self.backend = None
+
     cdef flush(self):
         if self._transport is None:
             # could be if the connection is lost and a coroutine
@@ -160,10 +178,12 @@ cdef class EdgeConnection:
         mtype = self.buffer.get_message_type()
         if mtype == b'0':
             user = self.buffer.read_utf8()
-            password = self.buffer.read_utf8()
             database = self.buffer.read_utf8()
+            self.buffer.finish_message()
 
-            # XXX implement auth
+            logger.debug('received connection request by %s to database %s',
+                         user, database)
+
             dbv = self.port.new_view(
                 dbname=database, user=user,
                 query_cache=self.query_cache_enabled)
@@ -172,6 +192,26 @@ cdef class EdgeConnection:
 
             self.backend = await self.port.new_backend(
                 dbname=database, dbver=self.dbview.dbver)
+
+            # The user has already been authenticated by other means
+            # (such as the ability to write to a protected socket).
+            if self._external_auth:
+                authmethod_name = 'Trust'
+            else:
+                authmethod = await self.port.get_server().get_auth_method(
+                    user, database, self._transport)
+                authmethod_name = type(authmethod).__name__
+
+            if authmethod_name == 'SCRAM':
+                await self._auth_scram(user)
+            elif authmethod_name == 'Trust':
+                await self._auth_trust(user)
+            else:
+                raise errors.InternalServerError(
+                    f'unimplemented auth method: {authmethod_name}')
+
+            logger.debug('successfully authenticated %s in database %s',
+                         user, database)
 
             buf = WriteBuffer()
 
@@ -200,10 +240,200 @@ cdef class EdgeConnection:
             self.write(buf)
             self.flush()
 
-            self.buffer.finish_message()
-
         else:
             self.fallthrough(False)
+
+    async def _get_role_record(self, user):
+        role_query = self.port.get_server().get_sys_query('role')
+
+        json_data = await self.backend.pgcon.parse_execute_json(
+            role_query.encode('utf-8'), b'__sys_role',
+            dbver=0, use_prep_stmt=True, args=(user,),
+        )
+
+        if json_data is not None:
+            return json.loads(json_data.decode('utf-8'))
+        else:
+            return None
+
+    async def _auth_trust(self, user):
+        rolerec = await self._get_role_record(user)
+        if rolerec is None or not rolerec['allow_login']:
+            raise errors.AuthenticationError('authentication failed')
+
+    async def _auth_scram(self, user):
+        # Tell the client that we require SASL SCRAM auth.
+        msg_buf = WriteBuffer.new_message(b'R')
+        msg_buf.write_int32(10)
+        # Number of auth methods followed by a series
+        # of zero-terminated strings identifying each method,
+        # sorted in the order of server preference.
+        msg_buf.write_int32(1)
+        msg_buf.write_utf8('SCRAM-SHA-256')
+        msg_buf.end_message()
+        self.write(msg_buf)
+        self.flush()
+
+        selected_mech = None
+        verifier = None
+        mock_auth = False
+        client_nonce = None
+        cb_flag = None
+        done = False
+
+        while not done:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+            if mtype != b'p':
+                raise errors.BinaryProtocolError(
+                    f'expected SASL response, got message type {mtype}')
+
+            if selected_mech is None:
+                # Initial response.
+                selected_mech = self.buffer.read_utf8()
+
+                if selected_mech != 'SCRAM-SHA-256':
+                    raise errors.BinaryProtocolError(
+                        f'client selected an invalid SASL authentication '
+                        f'mechanism')
+
+                verifier, mock_auth = await self._get_scram_verifier(user)
+
+                client_first_len = self.buffer.read_int32()
+                if client_first_len == -1 or client_first_len == 0:
+                    client_first = None
+                else:
+                    client_first = self.buffer.read_bytes(client_first_len)
+
+                self.buffer.finish_message()
+
+                if client_first is None:
+                    # The client didn't send the Client Initial Response
+                    # in SASLInitialResponse, this is an error.
+                    raise errors.BinaryProtocolError(
+                        f'client did not send the Client Initial Response '
+                        f'data in SASLInitialResponse')
+
+                try:
+                    bare_offset, cb_flag, authzid, username, client_nonce = (
+                        scram.parse_client_first_message(client_first))
+                except ValueError as e:
+                    raise errors.BinaryProtocolError(str(e))
+
+                client_first_bare = client_first[bare_offset:]
+
+                if isinstance(cb_flag, str):
+                    raise errors.BinaryProtocolError(
+                        'malformed SCRAM message',
+                        details='The client selected SCRAM-SHA-256 without '
+                                'channel binding, but the SCRAM message '
+                                'includes channel binding data.')
+
+                if authzid:
+                    raise errors.UnsupportedFeatureError(
+                        'client users SASL authorization identity, '
+                        'which is not supported')
+
+                server_nonce = scram.generate_nonce()
+                server_first = scram.build_server_first_message(
+                    server_nonce, client_nonce,
+                    verifier.salt, verifier.iterations).encode('utf-8')
+
+                # AuthenticationSASLContinue
+                msg_buf = WriteBuffer.new_message(b'R')
+                msg_buf.write_int32(11)
+                msg_buf.write_bytes(server_first)
+                msg_buf.end_message()
+                self.write(msg_buf)
+                self.flush()
+
+            else:
+                # client final message
+                client_final = self.buffer.consume_message()
+
+                try:
+                    cb_data, client_proof, proof_len = (
+                        scram.parse_client_final_message(
+                            client_final, client_nonce, server_nonce))
+                except ValueError as e:
+                    raise errors.BinaryProtocolError(str(e)) from None
+
+                client_final_without_proof = client_final[:-proof_len]
+
+                cb_data_ok = (
+                    (cb_flag is False and cb_data == b'biws')
+                    or (cb_flag is True and cb_data == b'eSws')
+                )
+                if not cb_data_ok:
+                    raise errors.BinaryProtocolError(
+                        'malformed SCRAM message',
+                        details='Unexpected SCRAM channel-binding attribute '
+                                'in client-final-message.')
+
+                if not scram.verify_client_proof(
+                        client_first_bare, server_first,
+                        client_final_without_proof,
+                        verifier.stored_key, client_proof):
+                    raise errors.AuthenticationError(
+                        'authentication failed')
+
+                if mock_auth:
+                    # This user actually does not exist, so fail here.
+                    raise errors.AuthenticationError(
+                        'authentication failed')
+
+                server_final = scram.build_server_final_message(
+                    client_first_bare,
+                    server_first,
+                    client_final_without_proof,
+                    verifier.server_key,
+                )
+
+                # AuthenticationSASLFinal
+                msg_buf = WriteBuffer.new_message(b'R')
+                msg_buf.write_int32(12)
+                msg_buf.write_bytes(server_final.encode('utf-8'))
+                msg_buf.end_message()
+                self.write(msg_buf)
+                self.flush()
+
+                done = True
+
+    async def _get_scram_verifier(self, user):
+        rolerec = await self._get_role_record(user)
+        if rolerec is not None and rolerec['allow_login']:
+            verifier_string = rolerec['password']
+            if verifier_string is None:
+                raise errors.AuthenticationError(
+                    f'invalid SCRAM verifier for user {user!r}')
+
+            try:
+                verifier = scram.parse_verifier(verifier_string)
+            except ValueError:
+                raise errors.AuthenticationError(
+                    f'invalid SCRAM verifier for user {user!r}') from None
+
+            is_mock = False
+        else:
+            # To avoid revealing the validity of the submitted user name,
+            # generate a mock verifier using a salt derived from the
+            # received user name and the cluster mock auth nonce.
+            # The same approach is taken by Postgres.
+            nonce = self.port.get_server().get_instance_data('mock_auth_nonce')
+            salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
+
+            verifier = scram.SCRAMVerifier(
+                mechanism='SCRAM-SHA-256',
+                iterations=scram.DEFAULT_ITERATIONS,
+                salt=salt[:scram.DEFAULT_SALT_LENGTH],
+                stored_key=b'',
+                server_key=b'',
+            )
+
+            is_mock = True
+
+        return verifier, is_mock
 
     async def recover_current_tx_info(self):
         ret = await self.backend.pgcon.simple_query(b'''
@@ -705,18 +935,20 @@ cdef class EdgeConnection:
                 # reporting the exception.
 
                 await self.write_error(ex)
-                self.abort()
+                self.close()
 
-                self.loop.call_exception_handler({
-                    'message': (
-                        'unhandled error in edgedb protocol while '
-                        'accepting new connection'
-                    ),
-                    'exception': ex,
-                    'protocol': self,
-                    'transport': self._transport,
-                    'task': self._main_task,
-                })
+                if not isinstance(ex, (errors.ProtocolError,
+                                       errors.AuthenticationError)):
+                    self.loop.call_exception_handler({
+                        'message': (
+                            'unhandled error in edgedb protocol while '
+                            'accepting new connection'
+                        ),
+                        'exception': ex,
+                        'protocol': self,
+                        'transport': self._transport,
+                        'task': self._main_task,
+                    })
 
             return
 

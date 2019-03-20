@@ -18,7 +18,6 @@
 
 
 from edb.testbase import server as tb
-from edb.server import defines as edgedb_defines
 
 
 class TestDatabase(tb.ConnectedTestCase):
@@ -26,11 +25,7 @@ class TestDatabase(tb.ConnectedTestCase):
         await self.con.execute('CREATE DATABASE mytestdb;')
 
         try:
-            conn = await self.cluster.connect(
-                user=edgedb_defines.EDGEDB_SUPERUSER,
-                database='mytestdb')
-
+            conn = await self.connect(database='mytestdb')
             await conn.close()
-
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')

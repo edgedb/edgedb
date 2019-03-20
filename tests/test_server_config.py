@@ -24,7 +24,11 @@ import unittest
 
 import immutables
 
+import edgedb
+
 from edb import errors
+
+from edb.testbase import server as tb
 from edb.schema import objects as s_obj
 
 from edb.server import config
@@ -306,3 +310,294 @@ class TestServerConfigUtils(unittest.TestCase):
                 'typeid': str(s_obj.get_known_type_id('std::bool')),
             }
         )
+
+
+class TestServerConfig(tb.QueryTestCase):
+
+    ISOLATED_METHODS = False
+    SERIALIZED = True
+
+    async def test_server_proto_configure_01(self):
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                'invalid value type'):
+            await self.con.execute('''
+                CONFIGURE SESSION SET __internal_no_const_folding := 1;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'cannot be executed in a transaction block'):
+            await self.con.execute('''
+                CONFIGURE SESSION SET __internal_no_const_folding := false;
+                CONFIGURE SYSTEM SET __internal_testvalue := 1;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'cannot be executed in a transaction block'):
+            await self.con.execute('''
+                CONFIGURE SYSTEM SET __internal_testvalue := 1;
+                CONFIGURE SESSION SET __internal_no_const_folding := false;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'cannot be executed in a transaction block'):
+            async with self.con.transaction():
+                await self.con.fetchall('''
+                    CONFIGURE SYSTEM SET __internal_testvalue := 1;
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'CONFIGURE SESSION INSERT is not supported'):
+            await self.con.fetchall('''
+                CONFIGURE SESSION INSERT SessionConfig { name := 'foo' };
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'module must be either \'cfg\' or empty'):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM INSERT cf::SystemConfig { name := 'foo' };
+            ''')
+
+    async def test_server_proto_configure_02(self):
+        conf = await self.con.fetchone('''
+            SELECT cfg::Config.__internal_testvalue LIMIT 1
+        ''')
+        self.assertEqual(conf, 0)
+
+        jsonconf = await self.con.fetchone('''
+            SELECT cfg::get_config_json()
+        ''')
+
+        all_conf = json.loads(jsonconf)
+        conf = all_conf['__internal_testvalue']
+
+        self.assertEqual(conf['value'], 0)
+        self.assertEqual(conf['source'], 'default')
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM SET __internal_testvalue := 1;
+        ''')
+
+        conf = await self.con.fetchone('''
+            SELECT cfg::Config.__internal_testvalue LIMIT 1
+        ''')
+        self.assertEqual(conf, 1)
+
+        jsonconf = await self.con.fetchone('''
+            SELECT cfg::get_config_json()
+        ''')
+
+        all_conf = json.loads(jsonconf)
+        conf = all_conf['__internal_testvalue']
+
+        self.assertEqual(conf['value'], 1)
+        self.assertEqual(conf['source'], 'system override')
+
+    async def test_server_proto_configure_03(self):
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name } FILTER .name LIKE 'test_03%';
+            ''',
+            [],
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT SystemConfig { name := 'test_03' };
+        ''')
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT cfg::SystemConfig {
+                name := 'test_03_01'
+            };
+        ''')
+
+        with self.assertRaisesRegex(edgedb.InterfaceError, r'\bfetchone\('):
+            await self.con.fetchone('''
+                CONFIGURE SYSTEM INSERT cfg::SystemConfig {
+                    name := 'test_03_0122222222'
+                };
+            ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name }
+            FILTER .name LIKE 'test_03%'
+            ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'test_03',
+                },
+                {
+                    'name': 'test_03_01',
+                }
+            ]
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03';
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name }
+            FILTER .name LIKE 'test_03%';
+            ''',
+            [
+                {
+                    'name': 'test_03_01',
+                },
+            ],
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03_01';
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name }
+            FILTER .name LIKE 'test_03%';
+            ''',
+            []
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT SystemConfig {
+                name := 'test_03',
+                obj := (INSERT Subclass1 { name := 'foo', sub1 := 'sub1' })
+            }
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj {
+                name,
+                obj: cfg::Subclass1 {
+                    name,
+                    sub1,
+                },
+            }
+            FILTER .name LIKE 'test_03%';
+            ''',
+            [
+                {
+                    'name': 'test_03',
+                    'obj': {
+                        'name': 'foo',
+                        'sub1': 'sub1',
+                    },
+                },
+            ],
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT SystemConfig {
+                name := 'test_03_01',
+                obj := (INSERT Subclass2 { name := 'bar', sub2 := 'sub2' })
+            }
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj {
+                name,
+                obj: {
+                    __type__: {name},
+                    name,
+                },
+            }
+            FILTER .name LIKE 'test_03%'
+            ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'test_03',
+                    'obj': {
+                        '__type__': {'name': 'cfg::Subclass1'},
+                        'name': 'foo',
+                    },
+                },
+                {
+                    'name': 'test_03_01',
+                    'obj': {
+                        '__type__': {'name': 'cfg::Subclass2'},
+                        'name': 'bar',
+                    },
+                },
+            ],
+        )
+
+    async def test_server_proto_configure_04(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'CONFIGURE SESSION INSERT is not supported'):
+            await self.con.fetchall('''
+                CONFIGURE SESSION INSERT SessionConfig {name := 'test_04'}
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                "unrecognized configuration object 'Unrecognized'"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM INSERT Unrecognized {name := 'test_04'}
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "must have a FILTER clause"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM RESET SystemConfig;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "at least one exclusive property"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM RESET SystemConfig FILTER 1 = 0;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "must not have a FILTER clause"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM RESET __internal_testvalue FILTER 1 = 1;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "non-constant expression"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM INSERT SystemConfig {
+                    name := <str>random()
+                };
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                "'Subclass1' cannot be configured directly"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM INSERT Subclass1 {
+                    name := 'foo'
+                };
+            ''')
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT SystemConfig {
+                name := 'test_04',
+            }
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "SystemConfig.name violates exclusivity constriant"):
+            await self.con.fetchall('''
+                CONFIGURE SYSTEM INSERT SystemConfig {
+                    name := 'test_04',
+                }
+            ''')

@@ -199,4 +199,8 @@ cdef class Protocol(http.HttpProtocol):
         finally:
             self.server.pgcons.put_nowait(pgcon)
 
+        if data is None:
+            raise errors.InternalServerError(
+                f'no data received for a JSON query {op.sql!r}')
+
         return data

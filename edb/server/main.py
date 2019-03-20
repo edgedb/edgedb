@@ -110,6 +110,7 @@ def _init_cluster(cluster, args):
                              args['default_database_user']),
         'default_database_user': args['default_database_user'],
         'testmode': args['testmode'],
+        'insecure': args['insecure'],
     }
 
     asyncio.run(bootstrap.bootstrap(cluster, bootstrap_args))
@@ -147,8 +148,6 @@ def _init_parsers():
 
 
 def _run_server(cluster, args, runstate_dir, internal_runstate_dir):
-    _init_cluster(cluster, args)
-
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -264,9 +263,9 @@ def run_server(args):
             cluster.override_connection_spec(
                 user='postgres', database='template1')
 
-            if args['bootstrap']:
-                _init_cluster(cluster, args)
-            else:
+            _init_cluster(cluster, args)
+
+            if not args['bootstrap']:
                 _run_server(cluster, args, runstate_dir, internal_runstate_dir)
 
     except BaseException:
@@ -282,64 +281,72 @@ def run_server(args):
         cluster.stop()
 
 
-@click.command(
-    'EdgeDB Server',
-    context_settings=dict(help_option_names=['-h', '--help']))
-@click.option(
-    '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
-    help='database cluster directory')
-@click.option(
-    '-l', '--log-level',
-    help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '
-          '(e)rror, (s)ilent'),
-    default='i', envvar='EDGEDB_LOG_LEVEL')
-@click.option(
-    '--log-to',
-    help=('send logs to DEST, where DEST can be a file name, "syslog", '
-          'or "stderr"'),
-    type=str, metavar='DEST', default='stderr')
-@click.option(
-    '--bootstrap', is_flag=True,
-    help='bootstrap the database cluster and exit')
-@click.option(
-    '--default-database', type=str, default=getpass.getuser(),
-    help='the name of the default database to create')
-@click.option(
-    '--default-database-user', type=str, default=getpass.getuser(),
-    help='the name of the default database owner')
-@click.option(
-    '--devmode/--no-devmode',
-    help='enable or disable the development mode',
-    default=None)
-@click.option(
-    '--testmode/--no-testmode',
-    help='enable or disable the test mode',
-    default=False)
-@click.option(
-    '-I', '--bind-address', type=str, default='127.0.0.1',
-    help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS')
-@click.option(
-    '-p', '--port', type=int, default=defines.EDGEDB_PORT,
-    help='port to listen on')
-@click.option(
-    '-b', '--background', is_flag=True, help='daemonize')
-@click.option(
-    '--pidfile', type=str, default='/run/edgedb/',
-    help='path to PID file directory')
-@click.option(
-    '--timezone', type=str,
-    help='timezone for displaying and interpreting timestamps')
-@click.option(
-    '--daemon-user', type=int)
-@click.option(
-    '--daemon-group', type=int)
-@click.option(
-    '--runstate-dir', type=str, default=None,
-    help=('directory where UNIX sockets will be created '
-          '("/run" on Linux by default)'))
-@click.option(
-    '--max-backend-connections', type=int, default=100)
-def main(**kwargs):
+_server_options = [
+    click.option(
+        '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
+        help='database cluster directory'),
+    click.option(
+        '-l', '--log-level',
+        help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '
+              '(e)rror, (s)ilent'),
+        default='i', envvar='EDGEDB_LOG_LEVEL'),
+    click.option(
+        '--log-to',
+        help=('send logs to DEST, where DEST can be a file name, "syslog", '
+              'or "stderr"'),
+        type=str, metavar='DEST', default='stderr'),
+    click.option(
+        '--bootstrap', is_flag=True,
+        help='bootstrap the database cluster and exit'),
+    click.option(
+        '--default-database', type=str, default=getpass.getuser(),
+        help='the name of the default database to create'),
+    click.option(
+        '--default-database-user', type=str, default=getpass.getuser(),
+        help='the name of the default database owner'),
+    click.option(
+        '--devmode/--no-devmode',
+        help='enable or disable the development mode',
+        default=None),
+    click.option(
+        '--testmode/--no-testmode',
+        help='enable or disable the test mode',
+        default=False),
+    click.option(
+        '-I', '--bind-address', type=str, default='127.0.0.1',
+        help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS'),
+    click.option(
+        '-p', '--port', type=int, default=defines.EDGEDB_PORT,
+        help='port to listen on'),
+    click.option(
+        '-b', '--background', is_flag=True, help='daemonize'),
+    click.option(
+        '--pidfile', type=str, default='/run/edgedb/',
+        help='path to PID file directory'),
+    click.option(
+        '--timezone', type=str,
+        help='timezone for displaying and interpreting timestamps'),
+    click.option(
+        '--daemon-user', type=int),
+    click.option(
+        '--daemon-group', type=int),
+    click.option(
+        '--runstate-dir', type=str, default=None,
+        help=('directory where UNIX sockets will be created '
+              '("/run" on Linux by default)')),
+    click.option(
+        '--max-backend-connections', type=int, default=100),
+]
+
+
+def server_options(func):
+    for option in reversed(_server_options):
+        func = option(func)
+    return func
+
+
+def server_main(*, insecure=False, **kwargs):
+
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
 
@@ -347,6 +354,15 @@ def main(**kwargs):
 
     if kwargs['devmode'] is not None:
         devmode.enable_dev_mode(kwargs['devmode'])
+
+    if not kwargs['data_dir']:
+        if devmode.is_in_dev_mode():
+            kwargs['data_dir'] = os.path.expanduser('~/.edgedb')
+        else:
+            abort('Please specify the instance data directory '
+                  'using the -D argument')
+
+    kwargs['insecure'] = insecure
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}
@@ -364,6 +380,14 @@ def main(**kwargs):
     else:
         with devmode.CoverageConfig.enable_coverage_if_requested():
             run_server(kwargs)
+
+
+@click.command(
+    'EdgeDB Server',
+    context_settings=dict(help_option_names=['-h', '--help']))
+@server_options
+def main(**kwargs):
+    server_main(**kwargs)
 
 
 def main_dev():
