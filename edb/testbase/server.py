@@ -144,8 +144,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
 _default_cluster = None
 
 
-def _init_cluster(data_dir=None, *, pg_cluster=None,
-                  cleanup_atexit=True, init_settings={}):
+def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings={}):
     if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
             not os.environ.get('EDGEDB_LOG_LEVEL')):
         _env = {'EDGEDB_LOG_LEVEL': 'silent'}
@@ -156,8 +155,7 @@ def _init_cluster(data_dir=None, *, pg_cluster=None,
         cluster = edgedb_cluster.TempCluster(env=_env, testmode=True)
         destroy = True
     else:
-        cluster = edgedb_cluster.Cluster(
-            data_dir=data_dir, postgres_cluster=pg_cluster, env=_env)
+        cluster = edgedb_cluster.Cluster(data_dir=data_dir, env=_env)
         destroy = False
 
     if cluster.get_status() == 'not-initialized':

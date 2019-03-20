@@ -33,7 +33,6 @@ import tempfile
 import uvloop
 
 import click
-from asyncpg import cluster as pg_cluster
 
 from edb.common import devmode
 from edb.common import exceptions
@@ -206,62 +205,56 @@ def run_server(args):
     pg_cluster_started_by_us = False
 
     try:
-        if not args['postgres']:
-            server_settings = {
-                'log_connections': 'yes',
-                'log_statement': 'all',
-                'log_disconnections': 'yes',
-                'log_min_messages': 'INFO',
-                'client_min_messages': 'INFO',
-                'listen_addresses': '',  # we use Unix sockets
-            }
+        server_settings = {
+            'log_connections': 'yes',
+            'log_statement': 'all',
+            'log_disconnections': 'yes',
+            'log_min_messages': 'INFO',
+            'client_min_messages': 'INFO',
+            'listen_addresses': '',  # we use Unix sockets
+        }
 
-            if args['timezone']:
-                server_settings['TimeZone'] = args['timezone']
+        if args['timezone']:
+            server_settings['TimeZone'] = args['timezone']
 
-            cluster = edgedb_cluster.get_pg_cluster(args['data_dir'])
-            cluster_status = cluster.get_status()
+        cluster = edgedb_cluster.get_pg_cluster(args['data_dir'])
+        cluster_status = cluster.get_status()
 
-            if cluster_status == 'not-initialized':
-                logger.info(
-                    'Initializing database cluster in %s', args['data_dir'])
-                initdb_output = cluster.init(
-                    username='postgres', locale='C', encoding='UTF8')
-                for line in initdb_output.splitlines():
-                    logger.debug('initdb: %s', line)
-                cluster.reset_hba()
-                cluster.add_hba_entry(
-                    type='local',
-                    database='all',
-                    user='postgres',
-                    auth_method='trust'
-                )
-                cluster.add_hba_entry(
-                    type='local',
-                    database='all',
-                    user=defines.EDGEDB_SUPERUSER,
-                    auth_method='trust'
-                )
-                pg_cluster_init_by_us = True
+        if cluster_status == 'not-initialized':
+            logger.info(
+                'Initializing database cluster in %s', args['data_dir'])
+            initdb_output = cluster.init(
+                username='postgres', locale='C', encoding='UTF8')
+            for line in initdb_output.splitlines():
+                logger.debug('initdb: %s', line)
+            cluster.reset_hba()
+            cluster.add_hba_entry(
+                type='local',
+                database='all',
+                user='postgres',
+                auth_method='trust'
+            )
+            cluster.add_hba_entry(
+                type='local',
+                database='all',
+                user=defines.EDGEDB_SUPERUSER,
+                auth_method='trust'
+            )
+            pg_cluster_init_by_us = True
 
-            cluster_status = cluster.get_status()
+        cluster_status = cluster.get_status()
 
-            if cluster_status == 'stopped':
-                cluster.start(
-                    port=edgedb_cluster.find_available_port(),
-                    server_settings=server_settings)
-                pg_cluster_started_by_us = True
+        if cluster_status == 'stopped':
+            cluster.start(
+                port=edgedb_cluster.find_available_port(),
+                server_settings=server_settings)
+            pg_cluster_started_by_us = True
 
-            elif cluster_status != 'running':
-                abort('Could not start database cluster in %s',
-                      args['data_dir'])
+        elif cluster_status != 'running':
+            abort('Could not start database cluster in %s', args['data_dir'])
 
-            cluster.override_connection_spec(
-                user='postgres', database='template1')
-
-        else:
-            cluster = pg_cluster.RunningCluster(dsn=args['postgres'])
-            cluster._data_dir = args['data_dir']
+        cluster.override_connection_spec(
+            user='postgres', database='template1')
 
         if args['bootstrap']:
             _init_cluster(cluster, args)
@@ -290,9 +283,6 @@ def run_server(args):
 @click.option(
     '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
     help='database cluster directory')
-@click.option(
-    '-P', '--postgres', type=str,
-    help='address of Postgres backend server in DSN format')
 @click.option(
     '-l', '--log-level',
     help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '

@@ -37,8 +37,6 @@ from edb.common import devmode
 
 from edb.server import defines as edgedb_defines
 
-from . import render_dsn
-
 
 def find_available_port(port_range=(49152, 65535), max_tries=1000):
     low, high = port_range
@@ -120,17 +118,10 @@ class ClusterError(Exception):
 
 class Cluster:
     def __init__(
-            self, data_dir, *, postgres_cluster=None,
+            self, data_dir, *,
             pg_superuser='postgres', port=edgedb_defines.EDGEDB_PORT,
             runstate_dir=None, env=None, testmode=False):
-        if (isinstance(postgres_cluster, str) and
-                (postgres_cluster.startswith('postgres://') or
-                    postgres_cluster.startswith('postgres://'))):
-            self._pg_dsn = postgres_cluster
-            postgres_cluster = pg_cluster.RunningCluster(dsn=self._pg_dsn)
-        else:
-            self._pg_dsn = None
-
+        self._pg_dsn = None
         self._data_dir = data_dir
         self._location = data_dir
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main',
@@ -145,26 +136,7 @@ class Cluster:
         if runstate_dir is not None:
             self._edgedb_cmd.extend(['--runstate-dir', runstate_dir])
 
-        if postgres_cluster is not None:
-            self._pg_cluster = postgres_cluster
-
-            pg_conn_spec = dict(self._pg_cluster.get_connection_spec())
-            pg_conn_spec['user'] = pg_superuser
-
-            if self._pg_dsn is None:
-                self._pg_dsn = render_dsn.render_dsn(
-                    'postgres', pg_conn_spec)
-
-            reduced_spec = {
-                k: v for k, v in pg_conn_spec.items()
-                if k in ('dsn', 'host', 'port')
-            }
-            self._location = render_dsn.render_dsn('postgres', reduced_spec)
-
-            self._edgedb_cmd.extend(['-P', self._pg_dsn])
-        else:
-            self._pg_cluster = get_pg_cluster(self._data_dir)
-
+        self._pg_cluster = get_pg_cluster(self._data_dir)
         self._pg_superuser = pg_superuser
         self._daemon_process = None
         self._port = port
