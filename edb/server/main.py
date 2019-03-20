@@ -212,6 +212,7 @@ def run_server(args):
             'log_min_messages': 'INFO',
             'client_min_messages': 'INFO',
             'listen_addresses': '',  # we use Unix sockets
+            'unix_socket_permissions': '0700',
         }
 
         if args['timezone']:
@@ -244,24 +245,28 @@ def run_server(args):
 
         cluster_status = cluster.get_status()
 
-        if cluster_status == 'stopped':
-            cluster.start(
-                port=edgedb_cluster.find_available_port(),
-                server_settings=server_settings)
-            pg_cluster_started_by_us = True
+        runstate_dir = _ensure_runstate_dir(
+            cluster.get_data_dir(), args['runstate_dir'])
 
-        elif cluster_status != 'running':
-            abort('Could not start database cluster in %s', args['data_dir'])
+        with _internal_state_dir(runstate_dir) as internal_runstate_dir:
+            server_settings['unix_socket_directories'] = args['data_dir']
 
-        cluster.override_connection_spec(
-            user='postgres', database='template1')
+            if cluster_status == 'stopped':
+                cluster.start(
+                    port=edgedb_cluster.find_available_port(),
+                    server_settings=server_settings)
+                pg_cluster_started_by_us = True
 
-        if args['bootstrap']:
-            _init_cluster(cluster, args)
-        else:
-            runstate_dir = _ensure_runstate_dir(
-                cluster.get_data_dir(), args['runstate_dir'])
-            with _internal_state_dir(runstate_dir) as internal_runstate_dir:
+            elif cluster_status != 'running':
+                abort('Could not start database cluster in %s',
+                      args['data_dir'])
+
+            cluster.override_connection_spec(
+                user='postgres', database='template1')
+
+            if args['bootstrap']:
+                _init_cluster(cluster, args)
+            else:
                 _run_server(cluster, args, runstate_dir, internal_runstate_dir)
 
     except BaseException:
