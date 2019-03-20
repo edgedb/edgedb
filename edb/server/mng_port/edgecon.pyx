@@ -17,6 +17,7 @@
 #
 
 import asyncio
+import traceback
 
 cimport cython
 cimport cpython
@@ -893,6 +894,17 @@ cdef class EdgeConnection:
         if not exc_code:
             exc_code = errors.InternalServerError.get_code()
 
+        try:
+            formatted_error = exc.__formatted_error__
+        except AttributeError:
+            try:
+                formatted_error = ''.join(
+                    traceback.format_exception(
+                        type(exc), exc, exc.__traceback__,
+                        limit=50))
+            except Exception:
+                formatted_error = 'could not serialize error traceback'
+
         buf = WriteBuffer.new_message(b'E')
         buf.write_int32(<int32_t><uint32_t>exc_code)
 
@@ -903,6 +915,9 @@ cdef class EdgeConnection:
                 assert len(k) == 1
                 buf.write_byte(ord(k.encode()))
                 buf.write_utf8(str(v))
+
+        buf.write_byte(b'T')
+        buf.write_utf8(formatted_error)
 
         buf.write_byte(b'\x00')
 

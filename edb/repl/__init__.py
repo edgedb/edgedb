@@ -114,9 +114,9 @@ class Cli:
 
     exit_commands = {'exit', 'quit', R'\q', ':q'}
 
-    def _command(prefix, title, desc, *, _all_commands={}):
+    def _command(prefix, title, desc, *, _all_commands={}, dev=False):
         def wrap(func):
-            _all_commands[prefix] = title, desc, func
+            _all_commands[prefix] = title, desc, func, dev
             return func
         return wrap
 
@@ -269,7 +269,9 @@ class Cli:
         for dbn in result:
             print(f'  {dbn}')
 
-    @_command('psql', R'\psql', 'open psql to the current postgres process')
+    @_command('psql', R'\psql',
+              'open psql to the current postgres process',
+              dev=True)
     def command_psql(self, args):
         settings = self.connection.get_settings()
         pgaddr = settings.get('pgaddr')
@@ -307,8 +309,41 @@ class Cli:
         self.prompt.app.current_buffer.reset()
         print('\r                ')
 
+    @_command('errverbose', R'\errverbose',
+              'show most recent error message at maximum verbosity')
+    def command_errverbose(self, args):
+        exc = self.context.last_exception
+
+        if exc is None:
+            render.render_error(
+                self.context,
+                '== there is no previous error ==')
+            return
+
+        if not isinstance(exc, edgedb.EdgeDBError):
+            # shouldn't ever happen
+            render.render_error(
+                self.context,
+                '== previous error is not an EdgeDB error ==')
+            return
+
+        attrs = exc._attrs
+
+        print(f'CODE: {hex(exc.get_code())}')
+
+        hint = attrs.get('H')
+        if hint:
+            print(f'HINT: {hint}')
+
+        srv_tb = attrs.get('T')
+        if srv_tb:
+            print('SERVER TRACEBACK:')
+            print('> ' + '\n> '.join(srv_tb.strip().split('\n')))
+            print()
+
     def fetch(self, query: str, *, json: bool, retry: bool=True):
         self.ensure_connection()
+        self.context.last_exception = None
 
         if json:
             meth = self.connection.fetchall_json
@@ -317,6 +352,9 @@ class Cli:
 
         try:
             result = meth(query)
+        except edgedb.EdgeDBError as ex:
+            self.context.last_exception = ex
+            raise
         except (ConnectionAbortedError, BrokenPipeError):
             # The connection is closed; try again with a new one.
             if retry:
@@ -355,7 +393,9 @@ class Cli:
                     raise EOFError
 
                 if command == R'\?':
-                    for title, desc, _ in self.commands.values():
+                    for title, desc, _, is_devonly in self.commands.values():
+                        if is_devonly:
+                            continue
                         print(f'  {title:<20} {desc}')
                     continue
 
@@ -372,12 +412,15 @@ class Cli:
 
                 qm = self.context.query_mode
                 results = []
+                last_query = None
                 try:
                     if qm is context.QueryMode.Normal:
                         for query in lexutils.split_edgeql(command)[0]:
+                            last_query = query
                             results.append(self.fetch(query, json=False))
                     else:
                         for query in lexutils.split_edgeql(command)[0]:
+                            last_query = query
                             results.append(self.fetch(query, json=True))
 
                 except KeyboardInterrupt:
@@ -389,8 +432,7 @@ class Cli:
                         '== aborting query and closing the connection ==')
                     continue
                 except Exception as ex:
-                    render.render_error(
-                        self.context, f'{type(ex).__name__}: {ex}')
+                    render.render_exception(self.context, ex, query=last_query)
                     continue
 
                 max_width = self.prompt.output.get_size().columns

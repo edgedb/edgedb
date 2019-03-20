@@ -40,6 +40,7 @@ class ReplContext:
     introspect_types: bool = False
     query_mode: QueryMode = QueryMode.Normal
     typenames: typing.Optional[typing.Dict[uuid.UUID, str]] = None
+    last_exception: typing.Optional[Exception] = None
 
     def toggle_query_mode(self):
         self.query_mode = self.query_mode.cycle()

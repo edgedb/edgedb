@@ -198,18 +198,6 @@ def serialize_traceback(obj, *, ctx):
 
 @serializer.register(BaseException)
 def serialize_exception(obj, *, ctx):
-    try:
-        # Serializing an exception to markup maybe a very time-wise
-        # expensive operation.
-        #
-        # However, it should be safe to cache results, as we serialize
-        # exceptions just before they get printed or logged, after the
-        # point of adding new contexts.
-        #
-        return obj.__sx_markup_cached__
-    except AttributeError:
-        pass
-
     cause = context = None
     if obj.__cause__ is not None and obj.__cause__ is not obj:
         cause = serialize(obj.__cause__, ctx=ctx)
@@ -226,7 +214,7 @@ def serialize_exception(obj, *, ctx):
         else:
             contexts.append(serialize(ex_context, ctx=ctx))
 
-    obj_traceback = getattr(obj, '__mm_traceback__', obj.__traceback__)
+    obj_traceback = obj.__traceback__
     if obj_traceback:
         traceback = elements.lang.ExceptionContext(
             title='Traceback', body=[serialize(obj_traceback, ctx=ctx)])
@@ -248,7 +236,6 @@ def serialize_exception(obj, *, ctx):
         classname=obj.__class__.__name__, msg=str(obj), contexts=contexts,
         cause=cause, context=context, id=id(obj))
 
-    obj.__sx_markup_cached__ = markup
     return markup
 
 

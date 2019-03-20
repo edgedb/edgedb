@@ -106,10 +106,13 @@ class Worker:
             return data[0]
         elif status == 1:
             exc, tb = data
-            exc.__text_traceback__ = tb
+            exc.__formatted_error__ = tb
             raise exc
         else:
-            raise RuntimeError(data[0])
+            exc = RuntimeError(
+                'could not serialize result in worker subprocess')
+            exc.__formatted_error__ = data[0]
+            raise exc
 
     async def close(self):
         if self._closed:

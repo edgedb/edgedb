@@ -43,6 +43,7 @@ import warnings
 import click
 
 import edb
+import edgedb
 
 from edb.common import devmode
 from edb.testbase import server as tb
@@ -806,6 +807,15 @@ class ParallelTextTestRunner:
                            fg=fg, bold=True)
                 self._fill('-', fg=fg)
                 if _is_exc_info(err):
+                    if isinstance(err[1], edgedb.EdgeDBError):
+                        srv_tb = err[1]._attrs.get('T')
+                        if srv_tb:
+                            self._echo('Server Traceback:',
+                                       fg='red', bold=True)
+                            self._echo(srv_tb)
+                            self._echo('Test Traceback:',
+                                       fg='red', bold=True)
+
                     err = unittest.result.TestResult._exc_info_to_string(
                         result, err, test)
                 self._echo(err)

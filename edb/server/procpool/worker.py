@@ -58,19 +58,29 @@ async def worker(cls, cls_args, sockname):
 
             try:
                 methname, args = pickle.loads(req)
-            except Exception as ex:
-                data = (1, ex, traceback.format_exc())
-            else:
                 meth = getattr(worker, methname)
-
+            except Exception as ex:
+                prepare_exception(ex)
+                if debug.flags.server:
+                    markup.dump(ex)
+                data = (
+                    1,
+                    ex,
+                    traceback.format_exc()
+                )
+            else:
                 try:
                     res = await meth(*args)
                     data = (0, res)
                 except Exception as ex:
+                    prepare_exception(ex)
                     if debug.flags.server:
                         markup.dump(ex)
-                    ex_str = str(ex)
-                    data = (1, ex, traceback.format_exc())
+                    data = (
+                        1,
+                        ex,
+                        traceback.format_exc()
+                    )
 
             try:
                 pickled = pickle.dumps(data)
@@ -95,14 +105,20 @@ def run_worker(cls, cls_args, sockname):
         asyncio.run(worker(cls, cls_args, sockname))
 
 
+def prepare_exception(ex):
+    clear_exception_frames(ex)
+    if ex.__traceback__ is not None:
+        ex.__traceback__ = ex.__traceback__.tb_next
+
+
 def clear_exception_frames(er):
 
     def _clear_exception_frames(er, visited):
         if er in visited:
-            return
+            return er
         visited.add(er)
 
-        er.__traceback__ = None
+        traceback.clear_frames(er.__traceback__)
 
         if er.__cause__ is not None:
             er.__cause__ = _clear_exception_frames(er.__cause__, visited)
@@ -113,7 +129,6 @@ def clear_exception_frames(er):
 
     visited = set()
     _clear_exception_frames(er, visited)
-    return er
 
 
 def main():
