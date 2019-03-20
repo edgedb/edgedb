@@ -232,7 +232,14 @@ def run_server(args):
                 cluster.reset_hba()
                 cluster.add_hba_entry(
                     type='local',
-                    database='all', user='all',
+                    database='all',
+                    user='postgres',
+                    auth_method='trust'
+                )
+                cluster.add_hba_entry(
+                    type='local',
+                    database='all',
+                    user=defines.EDGEDB_SUPERUSER,
                     auth_method='trust'
                 )
                 pg_cluster_init_by_us = True
