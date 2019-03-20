@@ -18,7 +18,9 @@
 
 
 import logging
+import os
 import os.path
+import stat
 import weakref
 
 from edb.common import taskgroup
@@ -109,10 +111,25 @@ class ManagementPort(baseport.Port):
             await tcp_srv.wait_closed()
             raise
 
+        try:
+            admin_unix_sock_path = os.path.join(
+                self._runstate_dir, f'.s.EDGEDB.admin.{self._netport}')
+            admin_unix_srv = await self._loop.create_unix_server(
+                lambda: edgecon.EdgeConnection(self),
+                admin_unix_sock_path)
+            os.chmod(admin_unix_sock_path, stat.S_IRWXU)
+        except Exception:
+            tcp_srv.close()
+            await tcp_srv.wait_closed()
+            unix_srv.close()
+            await unix_srv.wait_closed()
+            raise
+
         self._servers.append(tcp_srv)
         logger.info('Serving on %s:%s', self._nethost, self._netport)
         self._servers.append(unix_srv)
         logger.info('Serving on %s', unix_sock_path)
+        self._servers.append(admin_unix_srv)
 
     async def stop(self):
         try:
