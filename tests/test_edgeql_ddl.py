@@ -1968,6 +1968,104 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 DROP MODULE test_other;
             """)
 
+    async def test_edgeql_ddl_modules_02(self):
+        await self.con.execute(r"""
+            CREATE MODULE test_other;
+
+            CREATE ABSTRACT TYPE test_other::Named {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE ABSTRACT TYPE test_other::UniquelyNamed
+                EXTENDING test_other::Named
+            {
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE DELEGATED CONSTRAINT exclusive;
+                }
+            };
+
+            CREATE TYPE test::Priority EXTENDING test_other::Named;
+
+            CREATE TYPE test::Status
+                EXTENDING test_other::UniquelyNamed;
+
+            INSERT test::Priority {name := 'one'};
+            INSERT test::Priority {name := 'two'};
+            INSERT test::Status {name := 'open'};
+            INSERT test::Status {name := 'closed'};
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test_other
+                SELECT Named.name;
+            """,
+            {
+                'one', 'two', 'open', 'closed',
+            }
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test_other
+                SELECT UniquelyNamed.name;
+            """,
+            {
+                'open', 'closed',
+            }
+        )
+
+        await self.con.execute("""
+            DROP TYPE test::Status;
+            DROP TYPE test::Priority;
+            DROP TYPE test_other::UniquelyNamed;
+            DROP TYPE test_other::Named;
+            DROP MODULE test_other;
+        """)
+
+    @test.xfail('''
+        Currently declarative.py doesn't have the up-to-date module list
+        at the time it tries interpreting the migration.
+
+        InvalidReferenceError: reference to a non-existent schema
+        item: test_other::UniquelyNamed
+    ''')
+    async def test_edgeql_ddl_modules_03(self):
+        await self.con.execute(r"""
+            CREATE MODULE test_other;
+
+            CREATE ABSTRACT TYPE test_other::Named {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE ABSTRACT TYPE test_other::UniquelyNamed
+                EXTENDING test_other::Named
+            {
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE DELEGATED CONSTRAINT exclusive;
+                }
+            };
+        """)
+
+        try:
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE MIGRATION test::d1 TO {
+                        type Status extending test_other::UniquelyNamed;
+                    };
+                    COMMIT MIGRATION test::d1;
+                """)
+
+            await self.con.execute("""
+                DROP TYPE test::Status;
+            """)
+        finally:
+            await self.con.execute("""
+                DROP TYPE test_other::UniquelyNamed;
+                DROP TYPE test_other::Named;
+                DROP MODULE test_other;
+            """)
+
     async def test_edgeql_ddl_role_01(self):
         await self.con.execute(r"""
             CREATE ROLE foo;
