@@ -18,6 +18,7 @@
 
 
 from edb.testbase import server as tb
+from edb.server import defines as edgedb_defines
 
 
 class TestDatabase(tb.ConnectedTestCase):
@@ -26,7 +27,8 @@ class TestDatabase(tb.ConnectedTestCase):
 
         try:
             conn = await self.cluster.connect(
-                user='edgedb', database='mytestdb')
+                user=edgedb_defines.EDGEDB_SUPERUSER,
+                database='mytestdb')
 
             await conn.close()
 

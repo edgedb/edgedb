@@ -25,6 +25,8 @@ from edb.edgeql.parser.grammar import keywords as eql_keywords
 from edb.schema import schema as s_schema
 from edb.tools.edb import edbcommands
 
+from edb.server import defines as edgedb_defines
+
 import edgedb
 
 
@@ -136,7 +138,8 @@ def gen_meta_grammars(names):
 
     con = None
     try:
-        con = edgedb.connect(user='edgedb', database='edgedb')
+        con = edgedb.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
+                             database=edgedb_defines.EDGEDB_SUPERUSER_DB)
         main(names, con)
     except Exception as ex:
         die(str(ex))

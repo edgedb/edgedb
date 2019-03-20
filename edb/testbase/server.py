@@ -220,7 +220,8 @@ class ConnectedTestCaseMixin:
     @classmethod
     def connect(cls, loop, cluster, database=None):
         conargs = cluster.get_connect_args().copy()
-        conargs.update(dict(user='edgedb', database=database))
+        conargs.update(dict(user=edgedb_defines.EDGEDB_SUPERUSER,
+                            database=database))
         return loop.run_until_complete(edgedb.async_connect(**conargs))
 
     def _run_and_rollback(self):

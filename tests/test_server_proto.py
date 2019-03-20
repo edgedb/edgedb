@@ -22,6 +22,7 @@ import json
 import edgedb
 
 from edb.common import taskgroup as tg
+from edb.server import defines as edgedb_defines
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -859,7 +860,7 @@ class TestServerProto(tb.QueryTestCase):
         # by closing.
         lock_key = tb.gen_lock_key()
 
-        con2 = await self.cluster.connect(user='edgedb',
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
                                           database=self.con.dbname)
 
         await self.con.fetchall(
@@ -1358,7 +1359,7 @@ class TestServerProto(tb.QueryTestCase):
         # Test Parse/Execute with ROLLBACK; use new connection
         # to make sure that Opportunistic Execute isn't used.
 
-        con2 = await self.cluster.connect(user='edgedb',
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
                                           database=self.con.dbname)
 
         try:
@@ -1393,7 +1394,7 @@ class TestServerProto(tb.QueryTestCase):
         # Test Opportunistic Execute with ROLLBACK; use new connection
         # to make sure that "ROLLBACK" is cached.
 
-        con2 = await self.cluster.connect(user='edgedb',
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
                                           database=self.con.dbname)
 
         try:
@@ -1479,7 +1480,7 @@ class TestServerProto(tb.QueryTestCase):
 
         query = 'SELECT 1'
 
-        con2 = await self.cluster.connect(user='edgedb',
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
                                           database=self.con.dbname)
         try:
             for _ in range(5):
@@ -1930,7 +1931,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         typename = 'CacheInv_01'
 
         con1 = self.con
-        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
+                                          database=con1.dbname)
         try:
             await con2.execute(f'''
                 CREATE TYPE test::{typename} {{
@@ -1977,7 +1979,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         typename = 'CacheInv_02'
 
         con1 = self.con
-        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
+                                          database=con1.dbname)
         try:
             await con2.fetchall(f'''
                 CREATE TYPE test::{typename} {{
@@ -2032,7 +2035,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         typename = 'CacheInv_03'
 
         con1 = self.con
-        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
+                                          database=con1.dbname)
         try:
             await con2.execute(f'''
                 CREATE TYPE test::{typename} {{
@@ -2079,7 +2083,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         typename = 'CacheInv_04'
 
         con1 = self.con
-        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
+                                          database=con1.dbname)
         try:
             await con2.execute(f'''
                 CREATE TYPE test::{typename} {{
@@ -2126,7 +2131,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         typename = 'CacheInv_05'
 
         con1 = self.con
-        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
+                                          database=con1.dbname)
         try:
             await con2.execute(f'''
                 CREATE TYPE test::{typename} {{
@@ -2183,7 +2189,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         typename = 'CacheInv_06'
 
         con1 = self.con
-        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
+                                          database=con1.dbname)
         try:
             await con2.execute(f'''
                 CREATE TYPE test::Foo{typename};
@@ -2246,7 +2253,8 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         typename = 'CacheInv_07'
 
         con1 = self.con
-        con2 = await self.cluster.connect(user='edgedb', database=con1.dbname)
+        con2 = await self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
+                                          database=con1.dbname)
         try:
             await con2.execute(f'''
                 CREATE TYPE test::Foo{typename};
@@ -2309,7 +2317,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         async with tg.TaskGroup() as g:
             cons_tasks = [
                 g.create_task(
-                    self.cluster.connect(user='edgedb',
+                    self.cluster.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
                                          database=self.con.dbname))
                 for _ in range(ntasks)
             ]
