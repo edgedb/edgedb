@@ -57,10 +57,6 @@ CREATE TYPE cfg::Config {
     CREATE MULTI LINK ports -> cfg::Port {
         SET ATTRIBUTE cfg::system := 'true';
     };
-
-    CREATE MULTI LINK auth -> cfg::Auth {
-        SET ATTRIBUTE cfg::system := 'true';
-    };
 };
 
 
