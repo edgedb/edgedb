@@ -38,6 +38,12 @@ from . import errors as g_errors
 from . import codegen as gqlcodegen
 
 
+ARG_TYPES = {
+    'Int': gql_ast.IntValue,
+    'String': gql_ast.StringValue,
+}
+
+
 class GraphQLTranslatorContext:
     def __init__(self, *, gqlcore: gt.GQLCoreSchema,
                  variables, query, document_ast, operation_name):
@@ -559,51 +565,9 @@ class GraphQLTranslator:
         self._context.include_base.append(is_specialized)
 
     def _visit_arguments(self, arguments):
-        where = offset = limit = None
+        where = None
         orderby = []
         first = last = before = after = None
-
-        def validate_positive_int(arg):
-            if not isinstance(arg.value, gql_ast.IntValue):
-                raise g_errors.GraphQLValidationError(
-                    f"invalid value for {arg.name.value!r}: "
-                    f"expected an int",
-                    loc=self.get_loc(arg.value)) from None
-            try:
-                val = int(arg.value.value)
-            except (TypeError, ValueError):
-                raise g_errors.GraphQLValidationError(
-                    f"invalid value for {arg.name.value!r}: "
-                    f"expected an int, got {arg.value.value!r}",
-                    loc=self.get_loc(arg.value)) from None
-            if val < 0:
-                raise g_errors.GraphQLValidationError(
-                    f"invalid value for {arg.name.value!r}: "
-                    f"expected a non-negative int",
-                    loc=self.get_loc(arg.value))
-            return val
-
-        def validate_positive_str_int(arg):
-            if not isinstance(arg.value, gql_ast.StringValue):
-                raise g_errors.GraphQLValidationError(
-                    f"invalid value for {arg.name.value!r}: "
-                    f"expected a string castable to an int",
-                    loc=self.get_loc(arg.value)) from None
-            try:
-                val = int(arg.value.value)
-            except (TypeError, ValueError):
-                raise g_errors.GraphQLValidationError(
-                    f"invalid value for {arg.name.value!r}: "
-                    f"expected a string castable to a non-negative int, "
-                    f"got {arg.value.value!r}",
-                    loc=self.get_loc(arg.value)) from None
-            if val < 0:
-                raise g_errors.GraphQLValidationError(
-                    f"invalid value for {arg.name.value!r}: "
-                    f"expected a string castable to a non-negative int, "
-                    f"got {val}",
-                    loc=self.get_loc(arg.value))
-            return val
 
         for arg in arguments:
             if arg.name.value == 'filter':
@@ -611,21 +575,72 @@ class GraphQLTranslator:
             elif arg.name.value == 'order':
                 orderby = self.visit_order(arg.value)
             elif arg.name.value == 'first':
-                first = validate_positive_int(arg)
+                first = self._visit_pagination_arg(
+                    arg, 'Int',
+                    expected='an int')
             elif arg.name.value == 'last':
-                last = validate_positive_int(arg)
+                last = self._visit_pagination_arg(
+                    arg, 'Int',
+                    expected='an int')
             elif arg.name.value == 'before':
-                before = validate_positive_str_int(arg)
+                before = self._visit_pagination_arg(
+                    arg, 'String',
+                    expected='a string castable to an int')
             elif arg.name.value == 'after':
-                after = validate_positive_str_int(arg)
-                # The +1 is to make 'after' into an appropriate index.
-                #
-                # 0--a--1--b--2--c--3-- ... we call element at
-                # index 0 (or "element 0" for short), the element
-                # immediately after the mark 0. So after "element
-                # 0" really means after "index 1".
-                after += 1
+                after = self._visit_pagination_arg(
+                    arg, 'String',
+                    expected='a string castable to an int')
 
+        # convert before, after, first and last into offset and limit
+        offset, limit = self.get_offset_limit(after, before, first, last)
+        # FIXME: it may be a good idea to create special scalar
+        # (positive integer) so that the values used for offset and
+        # limit can be cast into it and appropriate errors will be
+        # produced.
+
+        return where, orderby, offset, limit
+
+    def _visit_pagination_arg(self, node, argtype, expected):
+        if isinstance(node.value, gql_ast.Variable):
+            # variables will be type-checked by this point, so assume
+            # the type is valid
+            return self.visit(node.value)
+
+        elif not isinstance(node.value, ARG_TYPES[argtype]):
+            raise g_errors.GraphQLValidationError(
+                f"invalid value for {node.name.value!r}: "
+                f"expected {expected}",
+                loc=self.get_loc(node.value)) from None
+
+        try:
+            return int(node.value.value)
+        except (TypeError, ValueError):
+            raise g_errors.GraphQLValidationError(
+                f"invalid value for {node.name.value!r}: "
+                f"expected {expected}, "
+                f"got {node.value.value!r}",
+                loc=self.get_loc(node.value)) from None
+
+    def get_offset_limit(self, after, before, first, last):
+        # if all the parameters here are constants we can compute and
+        # compile shorter and simpler OFFSET/LIMIT values
+        if any(isinstance(x, qlast.Base)
+               for x in [after, before, first, last] if x is not None):
+            return self._get_general_offset_limit(after, before, first, last)
+        else:
+            return self._get_static_offset_limit(after, before, first, last)
+
+    def _get_static_offset_limit(self, after, before, first, last):
+        if after is not None:
+            # The +1 is to make 'after' into an appropriate index.
+            #
+            # 0--a--1--b--2--c--3-- ... we call element at
+            # index 0 (or "element 0" for short), the element
+            # immediately after the mark 0. So after "element
+            # 0" really means after "index 1".
+            after += 1
+
+        offset = limit = None
         # convert before, after, first and last into offset and limit
         if after is not None:
             offset = after
@@ -655,7 +670,111 @@ class GraphQLTranslator:
         if limit is not None:
             limit = qlast.BaseConstant.from_python(max(0, limit))
 
-        return where, orderby, offset, limit
+        return offset, limit
+
+    def _get_general_offset_limit(self, after, before, first, last):
+        # convert any static values to corresponding qlast
+        if after is not None:
+            if isinstance(after, qlast.Base):
+                after = qlast.TypeCast(
+                    type=qlast.TypeName(
+                        maintype=qlast.ObjectRef(name='int64')),
+                    expr=after
+                )
+            else:
+                after = qlast.BaseConstant.from_python(after)
+        if before is not None:
+            if isinstance(before, qlast.Base):
+                before = qlast.TypeCast(
+                    type=qlast.TypeName(
+                        maintype=qlast.ObjectRef(name='int64')),
+                    expr=before
+                )
+            else:
+                before = qlast.BaseConstant.from_python(before)
+        if first is not None and not isinstance(first, qlast.Base):
+            first = qlast.BaseConstant.from_python(first)
+        if last is not None and not isinstance(last, qlast.Base):
+            last = qlast.BaseConstant.from_python(last)
+
+        offset = limit = None
+        # convert before, after, first and last into offset and limit
+        if after is not None:
+            # The +1 is to make 'after' into an appropriate index.
+            #
+            # 0--a--1--b--2--c--3-- ... we call element at
+            # index 0 (or "element 0" for short), the element
+            # immediately after the mark 0. So after "element
+            # 0" really means after "index 1".
+            offset = qlast.BinOp(
+                left=after,
+                op='+',
+                right=qlast.IntegerConstant(value='1')
+            )
+
+        if before is not None:
+            # limit = before - (after or 0)
+            if after:
+                limit = qlast.BinOp(
+                    left=before,
+                    op='-',
+                    right=after
+                )
+            else:
+                limit = before
+
+        if first is not None:
+            if limit is None:
+                limit = first
+            else:
+                limit = qlast.IfElse(
+                    if_expr=first,
+                    condition=qlast.BinOp(
+                        left=first,
+                        op='<',
+                        right=limit
+                    ),
+                    else_expr=limit
+                )
+
+        if last is not None:
+            if limit is not None:
+                if offset:
+                    offset = qlast.BinOp(
+                        left=offset,
+                        op='+',
+                        right=qlast.BinOp(
+                            left=limit,
+                            op='-',
+                            right=last
+                        )
+                    )
+                else:
+                    offset = qlast.BinOp(
+                        left=limit,
+                        op='-',
+                        right=last
+                    )
+
+                limit = qlast.IfElse(
+                    if_expr=last,
+                    condition=qlast.BinOp(
+                        left=last,
+                        op='<',
+                        right=limit
+                    ),
+                    else_expr=limit
+                )
+
+            else:
+                # FIXME: there wasn't any limit, so we can define last
+                # in terms of offset alone without negative OFFSET
+                # implementation
+                raise g_errors.GraphQLTranslationError(
+                    f'last translates to a negative OFFSET in '
+                    f'EdgeQL which is currently unsupported')
+
+        return offset, limit
 
     def get_path_prefix(self, end_trim=None):
         # flatten the path

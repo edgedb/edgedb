@@ -981,6 +981,22 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_functional_arguments_23(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    order: {name: {dir: ASC}},
+                    first: 1
+                ) {
+                    name
+                }
+            }
+        """, {
+            'User': [{
+                'name': 'Alice',
+            }]
+        })
+
     def test_graphql_functional_fragment_01(self):
         self.assert_graphql_query_result(r"""
             fragment groupFrag on UserGroup {
@@ -2380,18 +2396,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             "User": []
         })
 
-    @test.not_implemented('query parameters are not yet implemented')
-    def test_graphql_functional_variables_24(self):
-        self.assert_graphql_query_result(r"""
-            query($val: ID = 1) {
-                User(filter: {id: {eq: $val}}) {
-                    name
-                }
-            }
-        """, {
-            "User": []
-        })
-
     def test_graphql_functional_variables_25(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -2544,6 +2548,115 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 """,
                 {'User': [{'age': 27}]},
                 variables={'val': False, 'min_age': 26}
+            )
+
+    def test_graphql_functional_variables_35(self):
+        self.assert_graphql_query_result(
+            r"""
+                query($limit: Int!) {
+                    User(
+                        order: {name: {dir: ASC}},
+                        first: $limit
+                    ) {
+                        name
+                    }
+                }
+            """,
+            {
+                'User': [{
+                    'name': 'Alice',
+                }]
+            },
+            variables={'limit': 1},
+        )
+
+    def test_graphql_functional_variables_36(self):
+        self.assert_graphql_query_result(
+            r"""
+                query($idx: String!) {
+                    User(
+                        order: {name: {dir: ASC}},
+                        # this is actually equivalent to OFFSET 2,
+                        # since 'after' doesn't include the value
+                        # referenced by the index
+                        after: $idx
+                    ) {
+                        name
+                    }
+                }
+            """,
+            {
+                'User': [{
+                    'name': 'Jane',
+                }, {
+                    'name': 'John',
+                }]
+            },
+            variables={'idx': '1'},
+        )
+
+    def test_graphql_functional_variables_37(self):
+        self.assert_graphql_query_result(
+            r"""
+                query($idx: String!, $num: Int!) {
+                    User(
+                        order: {name: {dir: ASC}},
+                        # this is actually equivalent to OFFSET 2,
+                        # since 'after' doesn't include the value
+                        # referenced by the index
+                        after: $idx,
+                        first: $num
+                    ) {
+                        name
+                    }
+                }
+            """,
+            {
+                'User': [{
+                    'name': 'Jane',
+                }]
+            },
+            variables={'idx': '1', 'num': 1},
+        )
+
+    def test_graphql_functional_variables_38(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'Variable "limit" of type "String!" used in '
+                r'position expecting type "Int"'):
+            self.graphql_query(
+                r"""
+                    query($limit: String!) {
+                        User(
+                            order: {name: {dir: ASC}},
+                            first: $limit
+                        ) {
+                            name
+                        }
+                    }
+                """,
+                variables={'limit': '1'},
+            )
+
+    # FIXME: the error here comes all the way from Postgres and as
+    # such refers to Postgres types, ideally we'd like to have an
+    # error message expressed in terms of GraphQL types.
+    def test_graphql_functional_variables_39(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'expected json number.+got json string'):
+            self.graphql_query(
+                r"""
+                    query($limit: Int!) {
+                        User(
+                            order: {name: {dir: ASC}},
+                            first: $limit
+                        ) {
+                            name
+                        }
+                    }
+                """,
+                variables={'limit': '1'},
             )
 
     def test_graphql_functional_enum_01(self):
