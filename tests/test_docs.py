@@ -23,8 +23,7 @@ except ImportError:
 
 from graphql.language import parser as graphql_parser
 
-from edb.edgeql import parser as edgeql_parser
-from edb.eschema import parser as schema_parser
+from edb.edgeql import parser as ql_parser
 
 
 def find_edgedb_root():
@@ -204,9 +203,9 @@ class TestDocSnippets(unittest.TestCase):
 
             for snippet in code:
                 if lang == 'edgeql':
-                    edgeql_parser.parse_block(snippet)
+                    ql_parser.parse_block(snippet)
                 elif lang == 'sdl':
-                    schema_parser.parse(snippet)
+                    ql_parser.parse_sdl(snippet)
                 elif lang == 'edgeql-result':
                     # REPL results
                     pass

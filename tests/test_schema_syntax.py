@@ -22,7 +22,7 @@ import re
 from edb import errors
 
 from edb.testbase import lang as tb
-from edb.eschema import generate_source as eschema_to_source
+from edb.edgeql import generate_source
 from edb.edgeql.parser import parser as eql_parser
 
 
@@ -30,7 +30,7 @@ class SchemaSyntaxTest(tb.BaseSyntaxTest):
     re_filter = re.compile(r'[\s\'"()]+|(#.*?(\n|$))|SELECT')
     parser_debug_flag = 'DEBUG_ESCHEMA'
     markup_dump_lexer = 'edgeschema'
-    ast_to_source = eschema_to_source
+    ast_to_source = generate_source
 
     def get_parser(self, *, spec):
         return eql_parser.EdgeSDLParser()

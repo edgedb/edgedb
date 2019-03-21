@@ -1936,12 +1936,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     @test.xfail('''
         The two types are created in different modules. They shouldn't
         clash. Currently they clash because the LINK/PROPERTY is given
-        by a short name (much like it would be in eschema) and it
+        by a short name (much like it would be in SDL) and it
         expands into "default::clash" for both cases. Which implicitly
         creates an ABSTRACT LINK and an ABSTRACT PROPERTY with the
         clashing name in default module.
 
-        Had this been written in eschema it would have worked since
+        Had this been written in SDL it would have worked since
         the implicit LINK/PROPERTY would have been made in test or
         test_other module.
     ''')

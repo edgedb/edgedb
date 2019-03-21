@@ -142,10 +142,8 @@ def _init_parsers():
     # are building parsers in parallel.
 
     from edb.edgeql import parser as ql_parser
-    from edb.eschema import parser as e_parser
 
     ql_parser.preload()
-    e_parser.preload()
 
 
 def _run_server(cluster, args, runstate_dir, internal_runstate_dir):

@@ -29,10 +29,9 @@ from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
+from edb.edgeql import parser as ql_parser
 from edb.edgeql import qltypes
 from edb.edgeql import utils as qlutils
-
-from edb.eschema import parser as s_parser
 
 from edb.schema import abc as s_abc
 from edb.schema import attributes as s_attrs
@@ -786,7 +785,7 @@ def parse_module_declarations(schema, declarations):
     loader = DeclarationLoader(schema)
 
     for module_name, declaration in declarations:
-        decl_ast = s_parser.parse(declaration)
+        decl_ast = ql_parser.parse_sdl(declaration)
         schema = loader.load_module(module_name, decl_ast)
 
     return schema
