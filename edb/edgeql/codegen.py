@@ -19,7 +19,7 @@
 
 import re
 
-from edb.common.exceptions import EdgeDBError
+from edb import errors
 from edb.common.ast import codegen, base
 
 from . import ast as qlast
@@ -50,11 +50,11 @@ def module_to_str(module):
     return '.'.join([ident_to_str(part) for part in module.split('.')])
 
 
-class EdgeQLSourceGeneratorError(EdgeDBError):
+class EdgeQLSourceGeneratorError(errors.EdgeDBError):
     pass
 
 
-class EdgeSchemaSourceGeneratorError(EdgeDBError):
+class EdgeSchemaSourceGeneratorError(errors.EdgeDBError):
     pass
 
 

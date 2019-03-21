@@ -20,7 +20,6 @@
 import typing
 import uuid
 
-from edb.common.exceptions import EdgeDBError
 from edb.common import ast, compiler, parsing
 
 from edb.schema import modules as s_modules
@@ -39,10 +38,6 @@ from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa
 
 def new_scope_tree():
     return ScopeTreeNode(fenced=True)
-
-
-class ASTError(EdgeDBError):
-    pass
 
 
 class Base(ast.AST):

@@ -437,7 +437,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"possibly more than one element returned by an expression "
                 r"for a computable property 'foo' declared as 'single'",
-                position=199):
+                _position=199):
             await self.con.fetchall("""\
                 WITH MODULE test
                 SELECT Issue{
@@ -4959,7 +4959,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'reference to a non-existent schema item: Usr.*',
-                hint="did you mean one of these: User, URL?"):
+                _hint="did you mean one of these: User, URL?"):
 
             await self.con.fetchall("""
                 WITH MODULE test
@@ -4970,7 +4970,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"test::User has no link or property 'nam'",
-                hint="did you mean 'name'?"):
+                _hint="did you mean 'name'?"):
 
             await self.con.fetchall("""
                 WITH MODULE test

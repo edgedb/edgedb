@@ -17,17 +17,12 @@
 #
 
 
-from edb.common.exceptions import EdgeDBError
 from edb.common.ast import codegen
-
-
-class GraphQLSourceGeneratorError(EdgeDBError):
-    pass
 
 
 class GraphQLSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
-        raise GraphQLSourceGeneratorError(
+        raise RuntimeError(
             'No method to generate code for %s' % node.__class__.__name__)
 
     def _visit_list(self, items, separator=None):

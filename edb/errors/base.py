@@ -91,10 +91,6 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
             self._attrs['p'] = str(context.end.pointer)
 
     @property
-    def attrs(self):
-        return self._attrs
-
-    @property
     def line(self):
         return int(self._attrs.get('L', -1))
 
@@ -113,11 +109,3 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     @property
     def details(self):
         return self._attrs.get('D')
-
-    def as_text(self):
-        buffer = ''
-
-        for context in ex.iter_contexts(self):
-            buffer += context.as_text()
-
-        return buffer

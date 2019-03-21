@@ -1069,7 +1069,7 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"cannot insert: std::Object is abstract",
-                position=23):
+                _position=23):
             await self.con.execute("""\
                 INSERT Object;
             """)
@@ -1082,7 +1082,7 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"cannot insert: test::Foo is a view",
-                position=23):
+                _position=23):
             await self.con.execute("""\
                 INSERT test::Foo;
             """)

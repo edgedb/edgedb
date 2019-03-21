@@ -19,11 +19,13 @@
 
 import binascii
 
+from edb import errors
+
 from edb.pgsql import common
 from edb.pgsql import ast as pgast
 from edb.common.ast import codegen
+from edb.common import exceptions
 from edb.common import markup
-from edb.common import exceptions as edgedb_error
 
 
 class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
@@ -51,12 +53,12 @@ class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
         return me.lang.ExceptionContext(title=self.title, body=body)
 
 
-class SQLSourceGeneratorError(edgedb_error.EdgeDBError):
+class SQLSourceGeneratorError(errors.EdgeDBError):
     def __init__(self, msg, *, node=None, details=None, hint=None):
         super().__init__(msg, details=details, hint=hint)
         if node is not None:
             ctx = SQLSourceGeneratorContext(node)
-            edgedb_error.add_context(self, ctx)
+            exceptions.add_context(self, ctx)
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
@@ -74,7 +76,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 add_line_information=add_line_information, pretty=pretty)
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
-            edgedb_error.add_context(e, ctx)
+            exceptions.add_context(e, ctx)
             raise
 
     def generic_visit(self, node):

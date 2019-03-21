@@ -71,76 +71,6 @@ def iter_contexts(ex, ctx_class=None):
             if isinstance(context, ctx_class))
 
 
-class EdgeDBErrorMeta(type):
-    _error_map = {}
-
-    def __new__(mcls, name, bases, dct):
-        cls = super().__new__(mcls, name, bases, dct)
-
-        code = dct.get('code')
-        if code is not None:
-            mcls._error_map[code] = cls
-
-        return cls
-
-
-class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
-    def __init__(self, msg=None, *,
-                 hint=None, details=None, context=None, **kwargs):
-        super().__init__(msg)
-        self._attrs = {}
-
-        if (hint or details) is not None:
-            self.set_hint_and_details(hint, details)
-
-        if context is not None:
-            self.set_source_context(context)
-
-        for k, v in kwargs.items():
-            if isinstance(v, ExceptionContext):
-                add_context(self, v)
-
-    def set_hint_and_details(self, hint, details=None):
-        replace_context(
-            self, DefaultExceptionContext(hint=hint, details=details))
-
-        if hint is not None:
-            self._attrs['H'] = hint
-        if details is not None:
-            self._attrs['D'] = details
-
-    def set_source_context(self, context):
-        replace_context(self, context)
-
-        if context.start is not None:
-            self._attrs['P'] = context.start.pointer
-            self._attrs['p'] = context.end.pointer
-
-    @property
-    def attrs(self):
-        return self._attrs
-
-    @property
-    def position(self):
-        return self._attrs.get('P')
-
-    @property
-    def hint(self):
-        return self._attrs.get('H')
-
-    @property
-    def details(self):
-        return self._attrs.get('D')
-
-    def as_text(self):
-        buffer = ''
-
-        for context in iter_contexts(self):
-            buffer += context.as_text()
-
-        return buffer
-
-
 class ExceptionContext:
     title = 'Exception Context'
 
@@ -153,10 +83,6 @@ class DefaultExceptionContext(ExceptionContext):
 
         self.details = details
         self.hint = hint
-
-
-class EdgeDBExceptionContext(ExceptionContext):
-    pass
 
 
 _old_excepthook = sys.excepthook

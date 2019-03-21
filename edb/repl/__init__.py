@@ -335,7 +335,7 @@ class Cli:
         if hint:
             print(f'HINT: {hint}')
 
-        srv_tb = attrs.get('T')
+        srv_tb = exc.get_server_context()
         if srv_tb:
             print('SERVER TRACEBACK:')
             print('> ' + '\n> '.join(srv_tb.strip().split('\n')))
@@ -457,6 +457,11 @@ class Cli:
                         self.context,
                         '== aborting rendering of the result ==')
                     continue
+                except Exception as ex:
+                    render.render_error(
+                        self.context,
+                        '== an exception while rendering the result ==')
+                    render.render_exception(self.context, ex)
 
         except EOFError:
             return

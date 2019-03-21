@@ -4016,7 +4016,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=71):
+                _position=71):
 
             await self.con.execute('''\
                 WITH MODULE test
@@ -4028,7 +4028,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=62):
+                _position=62):
 
             await self.con.execute('''\
                 WITH MODULE test
@@ -4040,7 +4040,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=62):
+                _position=62):
 
             await self.con.execute('''\
                 WITH MODULE test
@@ -4052,7 +4052,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=78):
+                _position=78):
 
             await self.con.execute('''\
                 WITH MODULE test
@@ -4064,7 +4064,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=85):
+                _position=85):
 
             await self.con.execute('''\
                 WITH MODULE test
@@ -4076,7 +4076,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=82):
+                _position=82):
 
             await self.con.execute('''\
                 WITH MODULE test
@@ -4088,7 +4088,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                position=80):
+                _position=80):
 
             await self.con.execute('''\
                 WITH MODULE test
@@ -4100,7 +4100,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'invalid type filter operand: std::int64 is not '
                 r'an object type',
-                position=25):
+                _position=25):
 
             await self.con.execute('''\
                 SELECT 10[IS std::Object];
@@ -4110,7 +4110,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'invalid type filter operand: std::str is not an object type',
-                position=33):
+                _position=33):
 
             await self.con.execute('''\
                 SELECT Object[IS str];
@@ -4121,7 +4121,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r'invalid type filter operand: '
                 r'std::uuid is not an object type',
-                position=32):
+                _position=32):
 
             await self.con.execute('''\
                 SELECT Object.id[IS uuid];

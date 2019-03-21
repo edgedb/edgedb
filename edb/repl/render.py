@@ -336,11 +336,15 @@ def render_exception(repl_ctx: context.ReplContext, exc, *, query=None):
     print(f'{type(exc).__name__}: {exc}')
 
     if isinstance(exc, edgedb.EdgeDBError):
-        if exc.hint:
-            print(f'Hint: {exc.hint}')
+        exc_hint = exc._attrs.get('H')
+        if exc_hint:
+            print(f'Hint: {exc_hint}')
 
-        if query and exc.line >= 0 and exc.col >= 0:
-            for lineno, line in enumerate(query.split('\n'), 1):
-                print('###', line)
-                if lineno == exc.line:
-                    print('###', ' ' * (exc.col - 1) + '^')
+        if query:
+            exc_line = int(exc._attrs.get('L', -1))
+            exc_col = int(exc._attrs.get('C', -1))
+            if exc_line >= 0 and exc_col >= 0:
+                for lineno, line in enumerate(query.split('\n'), 1):
+                    print('###', line)
+                    if lineno == exc_line:
+                        print('###', ' ' * (exc_col - 1) + '^')
