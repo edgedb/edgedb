@@ -43,7 +43,6 @@ from edb.server.pgproto.pgproto cimport (
 from edb.server.dbview cimport dbview
 
 from edb.server import config
-from edb.server import defines
 
 from edb.server import compiler
 from edb.server.pgcon cimport pgcon
@@ -64,28 +63,6 @@ cdef object CAP_ALL = compiler.Capability.ALL
 cdef object CARD_NA = compiler.ResultCardinality.NOT_APPLICABLE
 cdef object CARD_ONE = compiler.ResultCardinality.ONE
 cdef object CARD_MANY = compiler.ResultCardinality.MANY
-
-
-cdef bytes INIT_CON_SCRIPT = (b'''
-    CREATE TEMPORARY TABLE _edgecon_state (
-        name text NOT NULL,
-        value text NOT NULL,
-        type text NOT NULL CHECK(type = 'C' OR type = 'A'),
-        UNIQUE(name, type)
-    );
-
-    CREATE TEMPORARY TABLE _edgecon_current_savepoint (
-        sp_id bigint NOT NULL,
-        _sentinel bigint DEFAULT -1,
-        UNIQUE(_sentinel)
-    );
-
-    INSERT INTO _edgecon_state(name, value, type)
-    VALUES ('', \'''' +
-       defines.DEFAULT_MODULE_ALIAS.replace("'", "''").encode() +
-    b'''\', 'A');
-    '''
-)
 
 
 @cython.final
@@ -227,11 +204,6 @@ cdef class EdgeConnection:
 
         else:
             self.fallthrough(False)
-
-    async def initcon(self):
-        await self.backend.pgcon.simple_query(
-            INIT_CON_SCRIPT,
-            ignore_data=True)
 
     async def recover_current_tx_info(self):
         ret = await self.backend.pgcon.simple_query(b'''
@@ -726,7 +698,6 @@ cdef class EdgeConnection:
 
         try:
             await self.auth()
-            await self.initcon()
         except Exception as ex:
             if self._transport is not None:
                 # If there's no transport it means that the connection

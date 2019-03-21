@@ -17,6 +17,7 @@
 #
 
 
+import json
 import os.path
 import time
 import typing
@@ -260,18 +261,43 @@ cdef class DatabaseConnectionView:
 
 cdef class DatabaseIndex:
 
+    @classmethod
+    async def init(cls, server) -> DatabaseIndex:
+        state = cls(server)
+        await state.reload_config()
+        return state
+
     def __init__(self, server):
         self._dbs = {}
 
         self._server = server
 
-        self._sys_overrides_fn = os.path.join(
-            self._server.get_datadir(), 'config_sys.json')
-        self._load_system_overrides()
+        datadir = self._server.get_datadir()
+
+        self._sys_overrides_fn = os.path.join(datadir, 'config_sys.json')
+
+        sys_queries_fn = os.path.join(datadir, 'queries.json')
+        with open(sys_queries_fn) as f:
+            self._sys_queries = json.load(f)
 
         self._sys_config_ver = time.monotonic_ns()
 
-    def get_system_overrides(self):
+    def get_sys_query(self, key: str) -> str:
+        return self._sys_queries[key]
+
+    async def reload_config(self):
+        conn = await self._server.new_pgcon(defines.EDGEDB_SUPERUSER_DB)
+
+        query = self.get_sys_query('config')
+        try:
+            result = await conn.simple_query(query.encode(), ignore_data=False)
+        finally:
+            conn.terminate()
+
+        config_json = result[0][0].decode('utf-8')
+        self._sys_config = config.from_json(config.get_settings(), config_json)
+
+    def get_sys_config(self):
         return self._sys_config
 
     def get_dbver(self, dbname):
@@ -285,11 +311,6 @@ cdef class DatabaseIndex:
             db = Database(self, dbname)
             self._dbs[dbname] = db
         return db
-
-    cdef _load_system_overrides(self):
-        with open(self._sys_overrides_fn, 'rt') as f:
-            data = f.read()
-        self._sys_config = config.from_json(config.get_settings(), data)
 
     cdef _save_system_overrides(self):
         data = config.to_json(config.get_settings(), self._sys_config)

@@ -46,6 +46,7 @@ from edb.server.pgproto.pgproto cimport (
 )
 
 from edb.server import compiler
+from edb.server import defines
 from edb.server.cache cimport stmt_cache
 from edb.server.mng_port cimport edgecon
 
@@ -61,6 +62,28 @@ DEF PREP_STMTS_CACHE = 100
 cdef object CARD_NA = compiler.ResultCardinality.NOT_APPLICABLE
 
 
+cdef bytes INIT_CON_SCRIPT = (b'''
+    CREATE TEMPORARY TABLE _edgecon_state (
+        name text NOT NULL,
+        value text NOT NULL,
+        type text NOT NULL CHECK(type = 'C' OR type = 'A'),
+        UNIQUE(name, type)
+    );
+
+    CREATE TEMPORARY TABLE _edgecon_current_savepoint (
+        sp_id bigint NOT NULL,
+        _sentinel bigint DEFAULT -1,
+        UNIQUE(_sentinel)
+    );
+
+    INSERT INTO _edgecon_state(name, value, type)
+    VALUES ('', \'''' +
+       defines.DEFAULT_MODULE_ALIAS.replace("'", "''").encode() +
+    b'''\', 'A');
+    '''
+)
+
+
 async def connect(addr, dbname):
     loop = asyncio.get_running_loop()
 
@@ -68,6 +91,8 @@ async def connect(addr, dbname):
         lambda: PGProto(dbname, loop, addr), addr)
 
     await protocol.connect()
+    await protocol.simple_query(INIT_CON_SCRIPT, ignore_data=True)
+
     return protocol
 
 

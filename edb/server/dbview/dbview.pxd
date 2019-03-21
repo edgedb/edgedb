@@ -26,8 +26,8 @@ cdef class DatabaseIndex:
 
         object _sys_config
         object _sys_config_ver
+        object _sys_queries
 
-    cdef _load_system_overrides(self)
     cdef _save_system_overrides(self)
 
 

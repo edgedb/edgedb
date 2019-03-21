@@ -17,6 +17,7 @@
 #
 
 
+import json
 import logging
 import os.path
 import pathlib
@@ -365,6 +366,23 @@ async def _populate_data(std_schema, schema, conn):
     return schema
 
 
+async def _compile_sys_queries(schema, cluster):
+    queries = {}
+
+    cfg_query = config.generate_config_query(schema)
+
+    schema, sql = compiler.compile_bootstrap_script(
+        schema, schema, cfg_query, expected_cardinality_one=True)
+
+    queries['config'] = sql
+
+    data_dir = cluster.get_data_dir()
+    queries_fn = os.path.join(data_dir, 'queries.json')
+
+    with open(queries_fn, 'wt') as f:
+        json.dump(queries, f)
+
+
 async def _ensure_edgedb_database(conn, database, owner, *, cluster):
     result = await _get_db_info(conn, database)
     if not result:
@@ -439,6 +457,7 @@ async def bootstrap(cluster, args):
                 std_schema = await _init_stdlib(
                     cluster, conn, testmode=args['testmode'])
                 await _bootstrap_config_spec(std_schema, cluster)
+                await _compile_sys_queries(std_schema, cluster)
                 schema = await _init_defaults(std_schema, std_schema, conn)
                 schema = await _populate_data(std_schema, schema, conn)
             finally:

@@ -57,7 +57,7 @@ class CompositeConfigType(ConfigType):
         spec = config.get_settings()
 
         data = dict(data)
-        tname = data.pop('__tname__', None)
+        tname = data.pop('_tname', None)
         if tname is not None:
             if '::' in tname:
                 tname = s_name.Name(tname).name
@@ -98,14 +98,14 @@ class CompositeConfigType(ConfigType):
             elif (issubclass(f_type, CompositeConfigType)
                     and isinstance(value, dict)):
 
-                tname = value.get('__tname__', None)
+                tname = value.get('_tname', None)
                 if tname is not None:
                     if '::' in tname:
                         tname = s_name.Name(tname).name
                     actual_f_type = spec.get_type_by_name(tname)
                 else:
                     actual_f_type = f_type
-                    value['__tname__'] = f_type.__name__
+                    value['_tname'] = f_type.__name__
 
                 value = actual_f_type.from_pyvalue(value)
 
@@ -139,7 +139,7 @@ class CompositeConfigType(ConfigType):
 
     def to_json_value(self):
         dct = {}
-        dct['__tname__'] = self.__class__.__name__
+        dct['_tname'] = self.__class__.__name__
 
         for f in dataclasses.fields(self):
             f_type = f.type

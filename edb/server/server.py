@@ -17,8 +17,8 @@
 #
 
 
-import os
 import logging
+import os
 import urllib.parse
 
 from edb import errors
@@ -52,7 +52,8 @@ class Server:
         self._pg_addr = self._get_pgaddr()
         self._pg_data_dir = self._cluster.get_data_dir()
 
-        self._dbindex = dbview.DatabaseIndex(self)
+        # DB state will be initialized in init().
+        self._dbindex = None
 
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
@@ -60,6 +61,9 @@ class Server:
 
         self._ports = []
         self._sys_conf_ports = {}
+
+    async def init(self):
+        self._dbindex = await dbview.DatabaseIndex.init(self)
 
     def _get_pgaddr(self):
         pg_con_spec = self._cluster.get_connection_spec()
@@ -193,7 +197,7 @@ class Server:
             for port in self._ports:
                 g.create_task(port.start())
 
-        sys_config = self._dbindex.get_system_overrides()
+        sys_config = self._dbindex.get_sys_config()
         if 'ports' in sys_config:
             for portconf in sys_config['ports']:
                 await self._start_portconf(portconf, suppress_errors=True)

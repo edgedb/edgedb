@@ -166,7 +166,7 @@ def compile_ConfigInsert(
         subctx.expr_exposed = True
         subctx.modaliases = ctx.modaliases.copy()
         subctx.modaliases[None] = 'cfg'
-        subctx.special_computables_in_mutation_shape |= {'__tname__'}
+        subctx.special_computables_in_mutation_shape |= {'_tname'}
         insert_ir = dispatch.compile(insert_stmt, ctx=subctx)
         insert_subject = insert_ir.expr.subject
 
@@ -194,7 +194,7 @@ def _inject_tname(
     insert_stmt.shape.append(
         qlast.ShapeElement(
             expr=qlast.Path(
-                steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='__tname__'))],
+                steps=[qlast.Ptr(ptr=qlast.ObjectRef(name='_tname'))],
             ),
             compexpr=qlast.Path(
                 steps=[

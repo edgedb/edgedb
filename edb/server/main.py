@@ -165,6 +165,8 @@ def _run_server(cluster, args, runstate_dir, internal_runstate_dir):
             internal_runstate_dir=internal_runstate_dir,
             max_backend_connections=args['max_backend_connections'])
 
+        loop.run_until_complete(ss.init())
+
         ss.add_port(
             mng_port.ManagementPort,
             nethost=args['bind_address'],

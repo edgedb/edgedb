@@ -2415,7 +2415,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
         target_cols.append(textwrap.dedent(f'''\
             (SELECT id
             FROM edgedb.Object
-            WHERE name = 'cfg::' || ({sval}->>'__tname__')) AS __type__'''))
+            WHERE name = 'cfg::' || ({sval}->>'_tname')) AS __type__'''))
 
     else:
         key_expr = f"'{CONFIG_ID}'::uuid"
