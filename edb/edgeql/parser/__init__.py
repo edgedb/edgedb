@@ -17,12 +17,12 @@
 #
 
 
-from .parser import EdgeQLExpressionParser, EdgeQLBlockParser
+from . import parser as ql_parser
 from .. import ast as qlast
 
 
 def parse_fragment(expr):
-    parser = EdgeQLExpressionParser()
+    parser = ql_parser.EdgeQLExpressionParser()
     return parser.parse(expr)
 
 
@@ -53,10 +53,16 @@ def parse(expr, module_aliases=None):
 
 
 def parse_block(expr):
-    parser = EdgeQLBlockParser()
+    parser = ql_parser.EdgeQLBlockParser()
+    return parser.parse(expr)
+
+
+def parse_sdl(expr, module_aliases=None):
+    parser = ql_parser.EdgeSDLParser()
     return parser.parse(expr)
 
 
 def preload():
-    EdgeQLBlockParser().get_parser_spec()
-    EdgeQLExpressionParser().get_parser_spec()
+    ql_parser.EdgeQLBlockParser().get_parser_spec()
+    ql_parser.EdgeQLExpressionParser().get_parser_spec()
+    ql_parser.EdgeSDLParser().get_parser_spec()

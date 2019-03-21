@@ -20,7 +20,7 @@
 from edb import edgeql
 from edb.schema import delta as s_delta
 
-from edb.eschema import declarative as s_decl
+from edb.edgeql import declarative as s_decl
 
 from . import schema as s_schema
 

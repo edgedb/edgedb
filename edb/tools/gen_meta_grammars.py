@@ -123,7 +123,7 @@ def main(names, con):
 @click.argument('names', required=True, nargs=-1, metavar='NAME...')
 def gen_meta_grammars(names):
     """Generate keywords, builtins, operators, etc. which can be used
-    for EdgeQL and eschema grammars.
+    for EdgeQL and SDL grammars.
 
     NAME - at the moment there's only one option 'edgeql'
     """

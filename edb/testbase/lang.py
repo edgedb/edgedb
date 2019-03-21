@@ -29,7 +29,7 @@ from edb.edgeql import ast as qlast
 
 from edb.server import defines
 
-from edb.eschema import declarative as s_decl
+from edb.edgeql import declarative as s_decl
 
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd

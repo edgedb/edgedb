@@ -26,8 +26,7 @@ from edb.errors import EdgeQLSyntaxError
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
-from edb.common import parsing, context
-from edb.common.parsing import ListNonterm
+from edb.common import parsing
 
 from . import expressions
 from . import commondl
@@ -38,6 +37,7 @@ from .commondl import *  # NOQA
 from .sdl import *  # NOQA
 
 
+ListNonterm = parsing.ListNonterm
 Nonterm = expressions.Nonterm
 Semicolons = commondl.Semicolons
 
@@ -457,22 +457,6 @@ class SDLCommandBlock(Nonterm):
 
 
 class CreateDeltaStmt(Nonterm):
-    def _parse_schema_decl(self, tok):
-        from edb.common.exceptions import get_context
-        from edb.eschema import parser
-
-        ctx = tok.context
-
-        try:
-            node = parser.parse(tok.val.value)
-        except parsing.ParserError as err:
-            context.rebase_context(
-                ctx, get_context(err, parsing.ParserContext))
-            raise err
-        else:
-            context.rebase_ast_context(ctx, node)
-            return node
-
     def reduce_CreateDelta_SDL(self, *kids):
         r"""%reduce CREATE MIGRATION NodeName \
                     OptDeltaParents TO SDLCommandBlock
