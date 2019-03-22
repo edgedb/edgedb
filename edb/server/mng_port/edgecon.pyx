@@ -247,7 +247,7 @@ cdef class EdgeConnection:
         role_query = self.port.get_server().get_sys_query('role')
 
         json_data = await self.backend.pgcon.parse_execute_json(
-            role_query.encode('utf-8'), b'__sys_role',
+            role_query, b'__sys_role',
             dbver=0, use_prep_stmt=True, args=(user,),
         )
 

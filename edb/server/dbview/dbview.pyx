@@ -19,6 +19,7 @@
 
 import json
 import os.path
+import pickle
 import time
 import typing
 
@@ -276,18 +277,18 @@ cdef class DatabaseIndex:
 
         self._sys_overrides_fn = os.path.join(datadir, 'config_sys.json')
 
-        sys_queries_fn = os.path.join(datadir, 'queries.json')
-        with open(sys_queries_fn) as f:
-            self._sys_queries = json.load(f)
+        sys_queries_fn = os.path.join(datadir, 'queries.pickle')
+        with open(sys_queries_fn, 'rb') as f:
+            self._sys_queries = pickle.load(f)
 
-        instance_data_fn = os.path.join(datadir, 'instance_data.json')
-        with open(instance_data_fn) as f:
-            self._instance_data = json.load(f)
+        instance_data_fn = os.path.join(datadir, 'instance_data.pickle')
+        with open(instance_data_fn, 'rb') as f:
+            self._instance_data = pickle.load(f)
 
         self._sys_config = None
         self._sys_config_ver = time.monotonic_ns()
 
-    def get_sys_query(self, key: str) -> str:
+    def get_sys_query(self, key: str) -> bytes:
         return self._sys_queries[key]
 
     def get_instance_data(self, key: str) -> object:
@@ -298,7 +299,7 @@ cdef class DatabaseIndex:
 
         query = self.get_sys_query('config')
         try:
-            result = await conn.simple_query(query.encode(), ignore_data=False)
+            result = await conn.simple_query(query, ignore_data=False)
         finally:
             conn.terminate()
 

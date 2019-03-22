@@ -17,7 +17,6 @@
 #
 
 
-import json
 import logging
 import os.path
 import pathlib
@@ -405,7 +404,7 @@ async def _compile_sys_queries(schema, cluster):
         expected_cardinality_one=True,
         single_statement=True)
 
-    queries['config'] = sql
+    queries['config'] = sql.encode('utf-8')
 
     role_query = '''
         SELECT sys::Role {
@@ -420,13 +419,13 @@ async def _compile_sys_queries(schema, cluster):
         expected_cardinality_one=True,
         single_statement=True)
 
-    queries['role'] = sql
+    queries['role'] = sql.encode('utf-8')
 
     data_dir = cluster.get_data_dir()
-    queries_fn = os.path.join(data_dir, 'queries.json')
+    queries_fn = os.path.join(data_dir, 'queries.pickle')
 
-    with open(queries_fn, 'wt') as f:
-        json.dump(queries, f)
+    with open(queries_fn, 'wb') as f:
+        pickle.dump(queries, f)
 
 
 async def _populate_misc_instance_data(schema, cluster):
@@ -438,10 +437,10 @@ async def _populate_misc_instance_data(schema, cluster):
     }
 
     data_dir = cluster.get_data_dir()
-    queries_fn = os.path.join(data_dir, 'instance_data.json')
+    queries_fn = os.path.join(data_dir, 'instance_data.pickle')
 
-    with open(queries_fn, 'wt') as f:
-        json.dump(instance_data, f)
+    with open(queries_fn, 'wb') as f:
+        pickle.dump(instance_data, f)
 
 
 async def _ensure_edgedb_database(conn, database, owner, *, cluster):
