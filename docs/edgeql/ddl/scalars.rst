@@ -14,12 +14,12 @@ CREATE SCALAR TYPE
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`scalar type <ref_datamodel_scalar_types>`.
+Define a new :ref:`scalar type <ref_eql_sdl_scalars>`.
 
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    CREATE [ABSTRACT] SCALAR TYPE <name> [ EXTENDING <base> ]
+    CREATE [ABSTRACT] SCALAR TYPE <name> [ EXTENDING <supertype> ]
     [ "{" <action>; [...] "}" ] ;
 
 
@@ -40,12 +40,12 @@ If the ``ABSTRACT`` keyword is specified, the created type will be
 All non-abstract scalar types must have an underlying core
 implementation.  For user-defined scalar types this means that
 ``CREATE SCALAR TYPE`` must specify another non-abstract scalar type
-as its *base*.
+as its *supertype*.
 
 The most common use of ``CREATE SCALAR TYPE`` is to define a scalar
 subtype with constraints.
 
-:eql:synopsis:`EXTENDING <base>`
+:eql:synopsis:`EXTENDING <supertype>`
     Optional clause specifying the *supertype* of the new type.
 
     Use of ``EXTENDING`` creates a persistent type relationship

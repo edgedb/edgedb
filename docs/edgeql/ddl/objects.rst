@@ -15,12 +15,12 @@ CREATE TYPE
 :eql-haswith:
 
 
-Define a new :ref:`object type <ref_datamodel_object_types>`.
+Define a new :ref:`object type <ref_eql_sdl_object_types>`.
 
 .. eql:synopsis::
 
     [ WITH <with-item> [, ...] ]
-    CREATE [ABSTRACT] TYPE <name> [ EXTENDING <base> [, ...] ]
+    CREATE [ABSTRACT] TYPE <name> [ EXTENDING <supertype> [, ...] ]
     [ "{" <subcommand>; [...] "}" ] ;
 
 Description
@@ -49,7 +49,7 @@ Parameters
 :eql:synopsis:`<name>`
     The name (optionally module-qualified) of the new type.
 
-:eql:synopsis:`EXTENDING <base> [, ...]`
+:eql:synopsis:`EXTENDING <supertype> [, ...]`
     Optional clause specifying the *supertypes* of the new type.
 
     Use of ``EXTENDING`` creates a persistent type relationship
@@ -78,6 +78,10 @@ Parameters
     :eql:synopsis:`CREATE LINK`
         Define a concrete link on the object type.
         See :eql:stmt:`CREATE LINK` for details.
+
+    :eql:synopsis:`CREATE PROPERTY`
+        Define a concrete link on the object type.
+        See :eql:stmt:`CREATE PROPERTY` for details.
 
 
 .. TODO: write examples

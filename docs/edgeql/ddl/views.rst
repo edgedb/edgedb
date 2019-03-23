@@ -14,7 +14,7 @@ CREATE VIEW
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`view <ref_datamodel_views>`.
+Define a new :ref:`view <ref_eql_sdl_views>`.
 
 .. eql:synopsis::
 
@@ -24,7 +24,7 @@ Define a new :ref:`view <ref_datamodel_views>`.
     [ WITH <with-item> [, ...] ]
     CREATE VIEW <view-name> "{"
         SET expr := <view-expr>;
-        [ SET <attr-name> := <attr-value>; ... ]
+        [ SET ATTRIBUTE <attr-name> := <attr-value>; ... ]
     "}" ;
 
     # where <with-item> is:
@@ -53,7 +53,7 @@ Parameters
 :eql:synopsis:`<view-expr>`
     An expression that defines the *shape* and the contents of the view.
 
-:eql:synopsis:`SET <attr-name> := <attr-value>;`
+:eql:synopsis:`SET ATTRIBUTE <attr-name> := <attr-value>;`
     An optional list of schema attribute values for the view.
     See :eql:stmt:`SET ATTRIBUTE` for details.
 

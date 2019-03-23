@@ -14,7 +14,7 @@ CREATE ABSTRACT CONSTRAINT
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`abstract constraint <ref_datamodel_constraints>`.
+Define a new abstract :ref:`constraint <ref_eql_sdl_constraints>`.
 
 .. eql:synopsis::
 

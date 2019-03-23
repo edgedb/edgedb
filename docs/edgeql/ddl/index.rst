@@ -5,8 +5,8 @@ Data Definition
 
 EdgeQL includes a set of commands to manipulate all aspects of the
 database schema.  It is called the *data definition language* or *DDL*,
-and is a low-level equivalent to
-:ref:`EdgeDB Schema <ref_eschema>`.
+and is a low-level equivalent to :ref:`EdgeDB schema definition language
+<ref_eql_sdl>`.
 
 .. toctree::
     :maxdepth: 3
