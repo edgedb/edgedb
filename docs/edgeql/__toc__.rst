@@ -9,6 +9,7 @@ EdgeQL
     overview
     expressions/index
     statements/index
+    sdl/index
     ddl/index
     operators/__toc__
     functions/index

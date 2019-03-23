@@ -5,7 +5,7 @@ Functions
 =========
 
 This section describes the DDL commands pertaining to
-:ref:`functions <ref_datamodel_functions>`.
+:ref:`functions <ref_eql_sdl_functions>`.
 
 
 CREATE FUNCTION

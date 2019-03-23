@@ -14,7 +14,7 @@ CREATE PROPERTY
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`property <ref_datamodel_props>`.
+Define a new :ref:`property <ref_eql_sdl_props>`.
 
 .. eql:synopsis::
 

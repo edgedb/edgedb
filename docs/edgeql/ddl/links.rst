@@ -14,7 +14,7 @@ CREATE LINK
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`link <ref_datamodel_links>`.
+Define a new :ref:`link <ref_eql_sdl_links>`.
 
 .. eql:synopsis::
 

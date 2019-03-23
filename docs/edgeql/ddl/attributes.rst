@@ -13,7 +13,7 @@ CREATE ABSTRACT ATTRIBUTE
 
 :eql-statement:
 
-Define a new :ref:`schema attribute <ref_datamodel_attributes>`.
+Define a new :ref:`schema attribute <ref_eql_sdl_schema_attributes>`.
 
 .. eql:synopsis::
 
