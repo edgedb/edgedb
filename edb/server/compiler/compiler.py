@@ -678,7 +678,7 @@ class Compiler(BaseCompiler):
         sql_text, _ = pg_compiler.compile_ir_to_sql(
             ir,
             pretty=debug.flags.edgeql_compile,
-            output_format=pg_compiler.OutputFormat.JSON)
+            output_format=pg_compiler.OutputFormat.JSONB)
 
         if not ql.system:
             config_op = ireval.evaluate_to_config_op(ir, schema=schema)

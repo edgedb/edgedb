@@ -262,7 +262,10 @@ def object_type_to_python_type(
 
         constraints = p.get_constraints(schema).objects(schema)
         exclusive = schema.get('std::exclusive')
-        unique = any(c.issubclass(schema, exclusive) for c in constraints)
+        unique = (
+            not ptype.is_object_type()
+            and any(c.issubclass(schema, exclusive) for c in constraints)
+        )
         field = dataclasses.field(
             compare=unique,
             hash=unique,

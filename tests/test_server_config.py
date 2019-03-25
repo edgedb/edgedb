@@ -533,6 +533,53 @@ class TestServerConfig(tb.QueryTestCase):
             ],
         )
 
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM RESET SystemConfig
+            FILTER .obj.name IN {'foo', 'bar'} AND .name ILIKE 'test_03%';
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name }
+            FILTER .name LIKE 'test_03%';
+            ''',
+            []
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM INSERT SystemConfig {
+                name := 'test_03_' ++ <str>count(DETACHED SystemConfig),
+            }
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj {
+                name,
+            }
+            FILTER .name LIKE 'test_03%'
+            ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'test_03_0',
+                },
+            ],
+        )
+
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM RESET SystemConfig
+            FILTER .name ILIKE 'test_03%';
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.sysobj { name }
+            FILTER .name LIKE 'test_03%';
+            ''',
+            []
+        )
+
     async def test_server_proto_configure_04(self):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
@@ -550,20 +597,6 @@ class TestServerConfig(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                "must have a FILTER clause"):
-            await self.con.fetchall('''
-                CONFIGURE SYSTEM RESET SystemConfig;
-            ''')
-
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                "at least one exclusive property"):
-            await self.con.fetchall('''
-                CONFIGURE SYSTEM RESET SystemConfig FILTER 1 = 0;
-            ''')
-
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
                 "must not have a FILTER clause"):
             await self.con.fetchall('''
                 CONFIGURE SYSTEM RESET __internal_testvalue FILTER 1 = 1;
@@ -573,9 +606,7 @@ class TestServerConfig(tb.QueryTestCase):
                 edgedb.QueryError,
                 "non-constant expression"):
             await self.con.fetchall('''
-                CONFIGURE SYSTEM INSERT SystemConfig {
-                    name := <str>random()
-                };
+                CONFIGURE SESSION SET __internal_testmode := (random() = 0);
             ''')
 
         with self.assertRaisesRegex(

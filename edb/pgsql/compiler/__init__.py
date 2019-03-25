@@ -50,10 +50,11 @@ def compile_ir_to_sql_tree(
         # Transform to sql tree
         ctx_stack = context.CompilerContext()
         ctx = ctx_stack.current
-        expr_is_stmt = isinstance(ir_expr, irast.Statement)
-        if expr_is_stmt:
+        if isinstance(ir_expr, irast.Statement):
             ctx.scope_tree = ir_expr.scope_tree
             ir_expr = ir_expr.expr
+        elif isinstance(ir_expr, irast.ConfigCommand):
+            ctx.scope_tree = ir_expr.scope_tree
         ctx.singleton_mode = singleton_mode
         ctx.env = context.Environment(
             output_format=output_format,

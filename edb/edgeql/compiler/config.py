@@ -37,20 +37,28 @@ from . import context
 from . import dispatch
 from . import setgen
 
-from .inference import cardinality as card_inference
-
 
 @dispatch.compile.register
 def compile_ConfigSet(
         expr: qlast.ConfigSet, *, ctx: context.ContextLevel) -> irast.Set:
 
     param_name, _ = _validate_op(expr, ctx=ctx)
+    param_val = dispatch.compile(expr.expr, ctx=ctx)
+
+    try:
+        ireval.evaluate(param_val, schema=ctx.env.schema)
+    except ireval.UnsupportedExpressionError:
+        level = 'SYSTEM' if expr.system else 'SESSION'
+        raise errors.QueryError(
+            f'non-constant expression in CONFIGURE {level} SET',
+            context=expr.expr.context
+        ) from None
 
     return irast.ConfigSet(
         name=param_name,
         system=expr.system,
         context=expr.context,
-        expr=dispatch.compile(expr.expr, ctx=ctx),
+        expr=param_val,
     )
 
 
@@ -58,7 +66,6 @@ def compile_ConfigSet(
 def compile_ConfigReset(
         expr: qlast.ConfigReset, *, ctx: context.ContextLevel) -> irast.Set:
     param_name, param_type = _validate_op(expr, ctx=ctx)
-    filter_properties = []
     filter_expr = expr.where
 
     if not param_type.is_object_type() and filter_expr is not None:
@@ -69,60 +76,28 @@ def compile_ConfigReset(
         )
 
     elif param_type.is_object_type():
-        if filter_expr is None:
-            raise errors.QueryError(
-                'RESET of a composite configuration parameter '
-                'must have a FILTER clause',
-                context=expr.context,
-            )
-
         param_type_name = param_type.get_name(ctx.env.schema)
+        param_type_ref = qlast.ObjectRef(
+            name=param_type_name.name,
+            module=param_type_name.module,
+        )
         select = qlast.SelectQuery(
-            result=qlast.Path(steps=[
-                qlast.ObjectRef(name=param_type_name.name,
-                                module=param_type_name.module)
-            ]),
+            result=qlast.Shape(
+                expr=qlast.Path(steps=[param_type_ref]),
+                elements=get_config_type_shape(
+                    ctx.env.schema, param_type, path=[param_type_ref]),
+            ),
             where=filter_expr,
         )
-
-        env = ctx.env
 
         ctx.modaliases[None] = 'cfg'
         select_ir = dispatch.compile(select, ctx=ctx)
 
-        filters = card_inference.extract_filters(
-            select_ir, select_ir.expr.where,
-            scope_tree=ctx.path_scope, env=env)
-
-        exclusive_constr = ctx.env.schema.get('std::exclusive')
-        for ptr, value in filters:
-            is_exclusive = any(
-                c.issubclass(env.schema, exclusive_constr)
-                for c in ptr.get_constraints(env.schema).objects(env.schema)
-            )
-
-            if is_exclusive:
-                filter_properties.append(
-                    irast.ConfigFilter(
-                        property_name=ptr.get_shortname(env.schema).name,
-                        value=value,
-                    )
-                )
-                break
-
-        if not filter_properties:
-            raise errors.QueryError(
-                'the FILTER clause of a RESET of a composite configuration '
-                'parameter must include an equality check against '
-                'at least one exclusive property',
-                context=expr.context,
-            )
-
     return irast.ConfigReset(
         name=param_name,
-        filter_properties=filter_properties,
         system=expr.system,
         context=expr.context,
+        selector=select_ir,
     )
 
 
@@ -222,14 +197,6 @@ def _validate_config_object(
         if (irtyputils.is_object(element.typeref)
                 and isinstance(element.expr, irast.InsertStmt)):
             _validate_config_object(element, level=level, ctx=ctx)
-        else:
-            try:
-                ireval.evaluate(element, schema=ctx.env.schema)
-            except ireval.UnsupportedExpressionError:
-                raise errors.QueryError(
-                    f'non-constant expression in CONFIGURE {level} INSERT',
-                    context=element.context
-                ) from None
 
 
 def _validate_op(
@@ -300,3 +267,72 @@ def _validate_op(
             f'use "CONFIGURE SYSTEM"')
 
     return name, cfg_type
+
+
+def get_config_type_shape(
+        schema, stype, path) -> typing.List[qlast.ShapeElement]:
+    shape = []
+    seen = set()
+
+    stypes = [stype] + list(stype.descendants(schema))
+
+    for t in stypes:
+        t_name = t.get_name(schema)
+
+        for pn, p in t.get_pointers(schema).items(schema):
+            if pn in ('id', '__type__') or pn in seen:
+                continue
+
+            elem_path = []
+
+            if t is not stype:
+                elem_path.append(
+                    qlast.TypeIndirection(
+                        type=qlast.TypeName(
+                            maintype=qlast.ObjectRef(
+                                module=t_name.module,
+                                name=t_name.name,
+                            ),
+                        ),
+                    ),
+                )
+
+            elem_path.append(qlast.Ptr(ptr=qlast.ObjectRef(name=pn)))
+
+            ptype = p.get_target(schema)
+
+            if ptype.is_object_type():
+                subshape = get_config_type_shape(
+                    schema, ptype, path + elem_path)
+                subshape.append(
+                    qlast.ShapeElement(
+                        expr=qlast.Path(
+                            steps=[
+                                qlast.Ptr(
+                                    ptr=qlast.ObjectRef(name='_tname'),
+                                ),
+                            ],
+                        ),
+                        compexpr=qlast.Path(
+                            steps=path + elem_path + [
+                                qlast.Ptr(
+                                    ptr=qlast.ObjectRef(name='__type__')),
+                                qlast.Ptr(
+                                    ptr=qlast.ObjectRef(name='name')),
+                            ],
+                        ),
+                    ),
+                )
+            else:
+                subshape = []
+
+            shape.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(steps=elem_path),
+                    elements=subshape,
+                ),
+            )
+
+            seen.add(pn)
+
+    return shape

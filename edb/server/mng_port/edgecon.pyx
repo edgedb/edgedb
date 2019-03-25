@@ -763,11 +763,8 @@ cdef class EdgeConnection:
     async def _execute_system_config(self, query_unit):
         data = await self.backend.pgcon.simple_query(
             b';'.join(query_unit.sql), ignore_data=False)
-        if len(data) != 1:
-            raise errors.InternalServerError(
-                'CONFIGURE SYSTEM did not return an exactly one record')
-        config_op = config.Operation.from_json(data[0][0])
-        await self.dbview.apply_config_ops([config_op])
+        config_ops = [config.Operation.from_json(r[0]) for r in data]
+        await self.dbview.apply_config_ops(config_ops)
 
     async def _execute(self, query_unit, bind_args,
                        bint parse, bint use_prep_stmt):

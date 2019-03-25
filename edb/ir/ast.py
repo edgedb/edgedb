@@ -604,6 +604,7 @@ class ConfigCommand(Command):
 
     name: str
     system: bool
+    scope_tree: ScopeTreeNode
 
 
 class ConfigSet(ConfigCommand):
@@ -619,7 +620,7 @@ class ConfigFilter(Base):
 
 class ConfigReset(ConfigCommand):
 
-    filter_properties: typing.List[ConfigFilter]
+    selector: typing.Optional[Set] = None
 
 
 class ConfigInsert(ConfigCommand):

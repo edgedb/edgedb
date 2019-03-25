@@ -24,6 +24,7 @@ from edb.pgsql import ast as pgast
 
 from . import astutils
 from . import context
+from . import dbobj
 from . import dispatch
 from . import pathctx
 from . import output
@@ -119,7 +120,7 @@ def compile_ConfigReset(
         op: irast.ConfigReset, *,
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
-    if not op.filter_properties:
+    if op.selector is None:
         # Scalar reset
         result_row = pgast.RowExpr(
             args=[
@@ -129,28 +130,25 @@ def compile_ConfigReset(
                 pgast.NullConstant(),
             ]
         )
-    else:
-        # Composite reset
-        args = []
-        with ctx.new() as subctx:
-            subctx.singleton_mode = True
-            for propfilter in op.filter_properties:
-                args.append(pgast.StringConstant(val=propfilter.property_name))
-                args.append(dispatch.compile(propfilter.value, ctx=subctx))
 
-        val = pgast.FuncCall(
-            name=('jsonb_build_object',),
-            args=args,
-            null_safe=True,
-            ser_safe=True,
-        )
+        rvar = None
+    else:
+        selector = dispatch.compile(op.selector, ctx=ctx)
+        target = selector.target_list[0]
+        if not target.name:
+            target = selector.target_list[0] = pgast.ResTarget(
+                name=ctx.env.aliases.get('res'),
+                val=target.val,
+            )
+
+        rvar = dbobj.rvar_for_rel(selector, env=ctx.env)
 
         result_row = pgast.RowExpr(
             args=[
                 pgast.StringConstant(val='REM'),
                 pgast.StringConstant(val='SYSTEM' if op.system else 'SESSION'),
                 pgast.StringConstant(val=op.name),
-                val,
+                dbobj.get_column(rvar, target.name),
             ]
         )
 
@@ -191,6 +189,9 @@ def compile_ConfigReset(
                 ),
             ],
         )
+
+        if rvar is not None:
+            stmt.from_clause = [rvar]
 
     return stmt
 

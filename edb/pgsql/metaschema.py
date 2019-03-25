@@ -258,7 +258,7 @@ class AssertJSONTypeFunction(dbops.Function):
                     coalesce(
                         msg,
                         'expected json ' || array_to_string(typenames, ', ') ||
-                        '; got json ' || jsonb_typeof(val)
+                        '; got json ' || coalesce(jsonb_typeof(val), 'UNKNOWN')
                     ),
                     det,
                     NULL::jsonb
@@ -283,7 +283,8 @@ class ExtractJSONScalarFunction(dbops.Function):
     text = '''
         SELECT
             (to_jsonb(ARRAY[
-                edgedb.jsonb_assert_type(val, ARRAY[json_typename, 'null'])
+                edgedb.jsonb_assert_type(coalesce(val, 'null'::jsonb),
+                                         ARRAY[json_typename, 'null'])
             ])->>0)
     '''
 
@@ -1340,7 +1341,8 @@ class JSONIndexByTextFunction(dbops.Function):
             ELSE
                 edgedb._raise_specific_exception(
                     'wrong_object_type',
-                    'cannot index json ' || jsonb_typeof(val),
+                    'cannot index json ' || coalesce(jsonb_typeof(val),
+                                                     'UNKNOWN'),
                     det,
                     NULL::jsonb
                 )
@@ -1383,7 +1385,8 @@ class JSONIndexByIntFunction(dbops.Function):
             ELSE
                 edgedb._raise_specific_exception(
                     'wrong_object_type',
-                    'cannot index json ' || jsonb_typeof(val),
+                    'cannot index json ' || coalesce(jsonb_typeof(val),
+                                                     'UNKNOWN'),
                     det,
                     NULL::jsonb
                 )
@@ -2223,7 +2226,12 @@ def _build_key_source(schema, exc_props, rptr, source_idx):
         rptr_name = rptr.get_shortname(schema).name
         keysource = textwrap.dedent(f'''\
             (SELECT
-                ARRAY[{ql(rptr_name)}] AS key
+                ARRAY[
+                    (CASE WHEN q{source_idx}.val = 'null'::jsonb
+                     THEN NULL
+                     ELSE {ql(rptr_name)}
+                     END)
+                ] AS key
             ) AS k{source_idx}''')
 
     return keysource
@@ -2232,7 +2240,18 @@ def _build_key_source(schema, exc_props, rptr, source_idx):
 def _build_key_expr(key_components):
     key_expr = ' || '.join(key_components)
     final_keysource = textwrap.dedent(f'''\
-        (SELECT array_to_string({key_expr}, ';') AS key)''')
+        (SELECT
+            (CASE WHEN array_position(q.v, NULL) IS NULL
+             THEN
+                 edgedb.uuid_generate_v5(
+                     '{DATABASE_ID_NAMESPACE}'::uuid,
+                     array_to_string(q.v, ';')
+                 )
+             ELSE NULL
+             END) AS key
+         FROM
+            (SELECT {key_expr} AS v) AS q
+        )''')
 
     return final_keysource
 
@@ -2346,6 +2365,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
     multi_links = []
     multi_props = []
     target_cols = []
+    where = ''
 
     path_steps = [p.get_shortname(schema).name for p, _ in path]
 
@@ -2406,11 +2426,10 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
         final_keysource = f'{_build_key_expr(key_components)} AS k'
         sources.append(final_keysource)
 
-        key_expr = (
-            f"edgedb.uuid_generate_v5('{DATABASE_ID_NAMESPACE}'::uuid, k.key)"
-        )
-
+        key_expr = 'k.key'
         target_cols.append(f'{key_expr} AS id')
+
+        where = f'{key_expr} IS NOT NULL'
 
         target_cols.append(textwrap.dedent(f'''\
             (SELECT id
@@ -2462,11 +2481,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
             target_key_components = key_components + [f'k{link_name}.key']
 
         target_key = _build_key_expr(target_key_components)
-
-        target_cols.append(textwrap.dedent(f'''\
-            edgedb.uuid_generate_v5(
-                '{DATABASE_ID_NAMESPACE}'::uuid,
-                {target_key}) AS {qi(link_name)}'''))
+        target_cols.append(f'({target_key}) AS {qi(link_name)}')
 
         views.extend(target_views)
 
@@ -2480,6 +2495,9 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
         FROM
             {fromlist}
     ''')
+
+    if where:
+        target_query += f'\nWHERE\n    {where}'
 
     views.append((target_tab, target_query))
 
@@ -2521,12 +2539,17 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
 
         link_query = textwrap.dedent(f'''\
             SELECT
-                {key_expr} AS source,
-                edgedb.uuid_generate_v5(
-                    '{DATABASE_ID_NAMESPACE}'::uuid,
-                    {target_key}) AS target
+                q.source,
+                q.target
             FROM
-                {target_fromlist}
+                (SELECT
+                    {key_expr} AS source,
+                    {target_key} AS target
+                FROM
+                    {target_fromlist}
+                ) q
+            WHERE
+                q.target IS NOT NULL
             ''')
 
         views.append((tabname(schema, link), link_query))

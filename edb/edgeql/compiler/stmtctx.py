@@ -117,6 +117,8 @@ def fini_expression(
             ir_set.path_id = ir_set.path_id.strip_weak_namespaces()
 
     if isinstance(ir, irast.Command):
+        if isinstance(ir, irast.ConfigCommand):
+            ir.scope_tree = ctx.path_scope
         # IR is already a Command
         return ir
 

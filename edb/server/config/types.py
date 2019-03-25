@@ -65,14 +65,25 @@ class CompositeConfigType(ConfigType):
 
         fields = {f.name: f for f in dataclasses.fields(cls)}
 
-        if data.keys() - fields.keys():
-            inv_keys = ', '.join(repr(r) for r in data.keys() - fields.keys())
-            raise cls._err(f'unknown fields: {inv_keys}')
-
         items = {}
+        inv_keys = []
         for fieldname, value in data.items():
-            field = fields[fieldname]
+            field = fields.get(fieldname)
+            if field is None:
+                if value is None:
+                    # This may happen when data is produced by
+                    # a polymorphic config query.
+                    pass
+                else:
+                    inv_keys.append(fieldname)
+
+                continue
+
             f_type = field.type
+
+            if value is None:
+                # Config queries return empty pointer values as None.
+                continue
 
             if typing_inspect.is_generic_type(f_type):
                 container = typing_inspect.get_origin(f_type)
@@ -116,6 +127,10 @@ class CompositeConfigType(ConfigType):
                 )
 
             items[fieldname] = value
+
+        if inv_keys:
+            inv_keys = ', '.join(repr(r) for r in inv_keys)
+            raise cls._err(f'unknown fields: {inv_keys}')
 
         for fieldname, field in fields.items():
             if fieldname not in items and field.default is dataclasses.MISSING:

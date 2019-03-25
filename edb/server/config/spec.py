@@ -20,7 +20,6 @@
 import collections.abc
 import dataclasses
 import json
-import typing
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -171,7 +170,7 @@ def generate_config_query(schema) -> str:
             expr=qlast.Path(
                 steps=[ref]
             ),
-            elements=_get_config_type_shape(schema, cfg, path=[ref]),
+            elements=qlcompiler.get_config_type_shape(schema, cfg, path=[ref]),
         ),
         limit=qlast.IntegerConstant(
             value='1',
@@ -179,72 +178,3 @@ def generate_config_query(schema) -> str:
     )
 
     return qlcodegen.generate_source(query)
-
-
-def _get_config_type_shape(
-        schema, stype, path) -> typing.List[qlast.ShapeElement]:
-    shape = []
-    seen = set()
-
-    stypes = [stype] + list(stype.descendants(schema))
-
-    for t in stypes:
-        t_name = t.get_name(schema)
-
-        for pn, p in t.get_pointers(schema).items(schema):
-            if pn in ('id', '__type__') or pn in seen:
-                continue
-
-            elem_path = []
-
-            if t is not stype:
-                elem_path.append(
-                    qlast.TypeIndirection(
-                        type=qlast.TypeName(
-                            maintype=qlast.ObjectRef(
-                                module=t_name.module,
-                                name=t_name.name,
-                            ),
-                        ),
-                    ),
-                )
-
-            elem_path.append(qlast.Ptr(ptr=qlast.ObjectRef(name=pn)))
-
-            ptype = p.get_target(schema)
-
-            if ptype.is_object_type():
-                subshape = _get_config_type_shape(
-                    schema, ptype, path + elem_path)
-                subshape.append(
-                    qlast.ShapeElement(
-                        expr=qlast.Path(
-                            steps=[
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='_tname'),
-                                ),
-                            ],
-                        ),
-                        compexpr=qlast.Path(
-                            steps=path + elem_path + [
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='__type__')),
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='name')),
-                            ],
-                        ),
-                    ),
-                )
-            else:
-                subshape = []
-
-            shape.append(
-                qlast.ShapeElement(
-                    expr=qlast.Path(steps=elem_path),
-                    elements=subshape,
-                ),
-            )
-
-            seen.add(pn)
-
-    return shape
