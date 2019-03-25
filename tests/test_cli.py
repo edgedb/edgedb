@@ -95,4 +95,4 @@ class TestCLI(tb.ConnectedTestCase):
 
         result = self._run_cli('create', 'role', 'foo', '--allow-login',
                                '--password', input='foo-pass\n')
-        self.assertIn(b'input is not a TTY', result.stdout_bytes)
+        self.assertIn('input is not a TTY', result.output)
