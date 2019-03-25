@@ -40,6 +40,10 @@ class EdgeDBErrorMeta(type):
 
         return cls
 
+    @classmethod
+    def get_error_class_from_code(mcls, code):
+        return mcls._error_map[code]
+
 
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 

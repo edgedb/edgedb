@@ -37,6 +37,7 @@ async def fetch(
                 f.from_expr,
                 f.force_return_cast,
                 f.sql_func_has_out_params,
+                f.error_on_null_result,
                 f.initial_value,
                 edgedb._resolve_type(f.return_type) AS return_type,
                 edgedb._resolve_type_name(f.params) AS params

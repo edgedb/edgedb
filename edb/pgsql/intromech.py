@@ -382,6 +382,7 @@ class IntrospectionMech:
                 'from_expr': row['from_expr'],
                 'force_return_cast': row['force_return_cast'],
                 'sql_func_has_out_params': row['sql_func_has_out_params'],
+                'error_on_null_result': row['error_on_null_result'],
                 'code': row['code'],
                 'initial_value': row['initial_value'],
                 'return_type': self.unpack_typeref(row['return_type'], schema)

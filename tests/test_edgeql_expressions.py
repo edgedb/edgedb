@@ -2873,8 +2873,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_15(self):
         with self.assertRaisesRegex(
-                # FIXME: possibly a different error should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'array index 10 is out of bounds'):
             await self.con.execute("""
                 SELECT [1, 2, 3][10];
@@ -2882,8 +2881,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_array_16(self):
         with self.assertRaisesRegex(
-                # FIXME: possibly a different error should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'array index -10 is out of bounds'):
             await self.con.execute("""
                 SELECT [1, 2, 3][-10];
@@ -3081,8 +3079,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_string_03(self):
         with self.assertRaisesRegex(
-                # FIXME: possibly a different error should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'string index 10 is out of bounds'):
             await self.con.fetchall_json("""
                 SELECT '123'[10];
@@ -3090,8 +3087,7 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_string_04(self):
         with self.assertRaisesRegex(
-                # FIXME: possibly a different error should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'string index -10 is out of bounds'):
             await self.con.fetchall("""
                 SELECT '123'[-10];

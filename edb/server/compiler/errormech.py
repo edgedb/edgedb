@@ -42,6 +42,7 @@ class PGError(enum.Enum):
     ExclusionViolationError = '23P01'
 
     NumericValueOutOfRange = '22003'
+    InvalidParameterValue = '22023'
 
     DivisionByZeroError = '22012'
 
@@ -82,6 +83,22 @@ def interpret_backend_error(schema, fields):
     # See https://www.postgresql.org/docs/current/protocol-error-fields.html
     # for the full list of PostgreSQL error message fields.
     message = fields.get('M')
+    detail = fields.get('D')
+
+    if detail is not None and detail.startswith('{'):
+        detail_json = json.loads(detail)
+        errcode = detail_json.get('code')
+        if errcode:
+            try:
+                errcls = type(errors.EdgeDBError).get_error_class_from_code(
+                    errcode)
+            except LookupError:
+                pass
+            else:
+                err = errcls(message)
+                err._attrs['L'] = detail_json.get('line')
+                err._attrs['C'] = detail_json.get('column')
+                return err
 
     try:
         code = PGError(fields['C'])
@@ -91,7 +108,6 @@ def interpret_backend_error(schema, fields):
     schema_name = fields.get('s')
     table_name = fields.get('t')
     column_name = fields.get('c')
-    detail = fields.get('D')
     constraint_name = fields.get('n')
 
     if code == PGError.NotNullViolationError:
@@ -119,10 +135,10 @@ def interpret_backend_error(schema, fields):
     elif code in constraint_errors:
         source = pointer = None
 
-        for type, ere in constraint_res.items():
+        for errtype, ere in constraint_res.items():
             m = ere.match(message)
             if m:
-                error_type = type
+                error_type = errtype
                 break
         else:
             return errors.InternalServerError(message)
@@ -185,6 +201,9 @@ def interpret_backend_error(schema, fields):
         elif error_type == 'id':
             return errors.ConstraintViolationError(
                 'unique link constraint violation')
+
+    elif code == PGError.InvalidParameterValue:
+        return errors.InvalidValueError(message)
 
     elif code == PGError.NumericValueOutOfRange:
         return errors.NumericOutOfRangeError(translate_pgtype(message))

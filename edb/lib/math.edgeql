@@ -127,6 +127,8 @@ CREATE FUNCTION
 math::mean(vals: SET OF std::decimal) -> std::decimal
 {
     FROM SQL FUNCTION 'avg';
+    SET error_on_null_result := 'invalid input to mean(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -136,6 +138,8 @@ math::mean(vals: SET OF std::int64) -> std::float64
     FROM SQL FUNCTION 'avg';
     # SQL 'avg' returns numeric on integer inputs.
     SET force_return_cast := true;
+    SET error_on_null_result := 'invalid input to mean(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -143,6 +147,8 @@ CREATE FUNCTION
 math::mean(vals: SET OF std::float64) -> std::float64
 {
     FROM SQL FUNCTION 'avg';
+    SET error_on_null_result := 'invalid input to mean(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -152,6 +158,8 @@ CREATE FUNCTION
 math::stddev(vals: SET OF std::decimal) -> std::decimal
 {
     FROM SQL FUNCTION 'stddev';
+    SET error_on_null_result := 'invalid input to stddev(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -161,6 +169,8 @@ math::stddev(vals: SET OF std::int64) -> std::float64
     FROM SQL FUNCTION 'stddev';
     # SQL 'stddev' returns numeric on integer inputs.
     SET force_return_cast := true;
+    SET error_on_null_result := 'invalid input to stddev(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -168,6 +178,8 @@ CREATE FUNCTION
 math::stddev(vals: SET OF std::float64) -> std::float64
 {
     FROM SQL FUNCTION 'stddev';
+    SET error_on_null_result := 'invalid input to stddev(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -177,6 +189,8 @@ CREATE FUNCTION
 math::stddev_pop(vals: SET OF std::decimal) -> std::decimal
 {
     FROM SQL FUNCTION 'stddev_pop';
+    SET error_on_null_result := 'invalid input to stddev_pop(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -186,6 +200,8 @@ math::stddev_pop(vals: SET OF std::int64) -> std::float64
     FROM SQL FUNCTION 'stddev_pop';
     # SQL 'stddev_pop' returns numeric on integer inputs.
     SET force_return_cast := true;
+    SET error_on_null_result := 'invalid input to stddev_pop(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -193,6 +209,8 @@ CREATE FUNCTION
 math::stddev_pop(vals: SET OF std::float64) -> std::float64
 {
     FROM SQL FUNCTION 'stddev_pop';
+    SET error_on_null_result := 'invalid input to stddev_pop(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -202,6 +220,8 @@ CREATE FUNCTION
 math::var(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 {
     FROM SQL FUNCTION 'variance';
+    SET error_on_null_result := 'invalid input to var(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -211,6 +231,8 @@ math::var(vals: SET OF std::int64) -> OPTIONAL std::float64
     FROM SQL FUNCTION 'variance';
     # SQL 'var' returns numeric on integer inputs.
     SET force_return_cast := true;
+    SET error_on_null_result := 'invalid input to var(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -218,6 +240,8 @@ CREATE FUNCTION
 math::var(vals: SET OF std::float64) -> OPTIONAL std::float64
 {
     FROM SQL FUNCTION 'variance';
+    SET error_on_null_result := 'invalid input to var(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -227,6 +251,8 @@ CREATE FUNCTION
 math::var_pop(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 {
     FROM SQL FUNCTION 'var_pop';
+    SET error_on_null_result := 'invalid input to var_pop(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -236,6 +262,8 @@ math::var_pop(vals: SET OF std::int64) -> OPTIONAL std::float64
     FROM SQL FUNCTION 'var_pop';
     # SQL 'var_pop' returns numeric on integer inputs.
     SET force_return_cast := true;
+    SET error_on_null_result := 'invalid input to var_pop(): not ' ++
+                                'enough elements in input set';
 };
 
 
@@ -243,4 +271,6 @@ CREATE FUNCTION
 math::var_pop(vals: SET OF std::float64) -> OPTIONAL std::float64
 {
     FROM SQL FUNCTION 'var_pop';
+    SET error_on_null_result := 'invalid input to var_pop(): not ' ++
+                                'enough elements in input set';
 };

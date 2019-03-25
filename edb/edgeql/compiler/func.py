@@ -150,6 +150,7 @@ def compile_FunctionCall(
         func_sql_function=func.get_from_function(env.schema),
         force_return_cast=func.get_force_return_cast(env.schema),
         sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
+        error_on_null_result=func.get_error_on_null_result(env.schema),
         params_typemods=params_typemods,
         context=expr.context,
         typeref=irtyputils.type_to_typeref(env.schema, rtype),

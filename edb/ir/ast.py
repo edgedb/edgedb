@@ -498,9 +498,12 @@ class FunctionCall(Call):
     # The underlying SQL function has OUT parameters.
     sql_func_has_out_params: bool = False
 
+    # Error to raise if the underlying SQL function returns NULL.
+    error_on_null_result: typing.Optional[str] = None
+
     # Set to the type of the variadic parameter of the bound function
     # (or None, if the function has no variadic parameters.)
-    variadic_param_type: typing.Optional[TypeRef]
+    variadic_param_type: typing.Optional[TypeRef] = None
 
 
 class OperatorCall(Call):

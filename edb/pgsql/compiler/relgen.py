@@ -23,6 +23,8 @@
 import contextlib
 import typing
 
+from edb import errors
+
 from edb.edgeql import qltypes
 
 from edb.schema import objects as s_obj
@@ -1812,6 +1814,24 @@ def process_set_as_func_expr(
         else:
             set_expr = pgast.FuncCall(name=name, args=args)
 
+        if expr.error_on_null_result:
+            set_expr = pgast.FuncCall(
+                name=('edgedb', '_raise_exception_on_null'),
+                args=[
+                    set_expr,
+                    pgast.StringConstant(
+                        val='invalid_parameter_value',
+                    ),
+                    pgast.StringConstant(
+                        val=expr.error_on_null_result,
+                    ),
+                    pgast.StringConstant(
+                        val=irutils.get_source_context_as_json(
+                            expr, errors.InvalidValueError),
+                    ),
+                ]
+            )
+
         func_rel = newctx.rel
 
     return _compile_func_epilogue(
@@ -1948,6 +1968,24 @@ def process_set_as_agg_expr(
         set_expr = pgast.FuncCall(
             name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,
             ser_safe=serialization_safe)
+
+        if expr.error_on_null_result:
+            set_expr = pgast.FuncCall(
+                name=('edgedb', '_raise_exception_on_null'),
+                args=[
+                    set_expr,
+                    pgast.StringConstant(
+                        val='invalid_parameter_value',
+                    ),
+                    pgast.StringConstant(
+                        val=expr.error_on_null_result,
+                    ),
+                    pgast.StringConstant(
+                        val=irutils.get_source_context_as_json(
+                            expr, errors.InvalidValueError),
+                    ),
+                ]
+            )
 
         if expr.force_return_cast:
             # The underlying function has a return value type

@@ -250,8 +250,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_04(self):
         with self.assertRaisesRegex(
-                # FIXME: maybe a different error type should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'json index 10 is out of bounds'):
             await self.con.fetchall(r"""
                 SELECT (to_json('[1, "a", 3]'))[10];
@@ -259,8 +258,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_05(self):
         with self.assertRaisesRegex(
-                # FIXME: maybe a different error type should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'json index -10 is out of bounds'):
             await self.con.fetchall(r"""
                 SELECT (to_json('[1, "a", 3]'))[-10];
@@ -268,9 +266,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_06(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json array by text'):
             await self.con.fetchall(r"""
                 SELECT (to_json('[1, "a", 3]'))['1'];
@@ -278,8 +274,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_07(self):
         with self.assertRaisesRegex(
-                # FIXME: maybe a different error type should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r"json index 'c' is out of bounds"):
             await self.con.fetchall(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))["c"];
@@ -287,9 +282,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_08(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json object by bigint'):
             await self.con.execute(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))[0];
@@ -297,9 +290,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_09(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json null'):
             await self.con.fetchall(r"""
                 SELECT (to_json('null'))[0];
@@ -307,9 +298,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_10(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json boolean'):
             await self.con.execute(r"""
                 SELECT (to_json('true'))[0];
@@ -317,9 +306,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_11(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json number'):
             await self.con.execute(r"""
                 SELECT (to_json('123'))[0];
@@ -327,8 +314,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_12(self):
         with self.assertRaisesRegex(
-                # FIXME: currently JSON strings cannot be indexed or sliced
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json string'):
             await self.con.execute(r"""
                 SELECT (to_json('"qwerty"'))[0];
@@ -357,8 +343,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_14(self):
         with self.assertRaisesRegex(
-                # FIXME: maybe a different error type should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'json index 10 is out of bounds'):
             await self.con.fetchall(r"""
                 WITH
@@ -369,8 +354,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_15(self):
         with self.assertRaisesRegex(
-                # FIXME: maybe a different error type should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'json index -10 is out of bounds'):
             await self.con.fetchall(r"""
                 WITH
@@ -381,9 +365,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_16(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json array by text'):
             await self.con.fetchall(r"""
                 WITH
@@ -394,8 +376,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_17(self):
         with self.assertRaisesRegex(
-                # FIXME: maybe a different error type should be used here
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r"json index 'c' is out of bounds"):
             await self.con.execute(r"""
                 WITH
@@ -406,9 +387,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_18(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json object by bigint'):
             await self.con.fetchall(r"""
                 WITH
@@ -419,9 +398,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_19(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json null'):
             await self.con.execute(r"""
                 WITH
@@ -432,9 +409,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_20(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json boolean'):
             await self.con.execute(r"""
                 WITH
@@ -445,9 +420,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_21(self):
         with self.assertRaisesRegex(
-                # FIXME: a different error should be used here, this
-                # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json number'):
             await self.con.fetchall(r"""
                 WITH
@@ -458,8 +431,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_accessor_22(self):
         with self.assertRaisesRegex(
-                # FIXME: currently JSON strings cannot be indexed or sliced
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot index json string'):
             await self.con.execute(r"""
                 WITH
@@ -790,7 +762,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 # FIXME: a different error should be used here, this
                 # one leaks postgres types
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'cannot call jsonb_each on a non-object'):
             await self.con.fetchall_json(r'''
                 WITH
@@ -1612,7 +1584,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_str_function_02(self):
         with self.assertRaisesRegex(
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r"format 'foo' is invalid"):
             async with self.con.transaction():
                 await self.con.fetchall(r'''
@@ -1620,7 +1592,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r'"fmt" argument must be a non-empty string'):
             async with self.con.transaction():
                 await self.con.fetchall_json(r'''
@@ -1628,7 +1600,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r"format 'PRETTY' is invalid"):
             async with self.con.transaction():
                 await self.con.fetchall(r'''
@@ -1636,7 +1608,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r"format 'Pretty' is invalid"):
             async with self.con.transaction():
                 await self.con.fetchall_json(r'''
@@ -1644,7 +1616,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InternalServerError,
+                edgedb.InvalidValueError,
                 r"format 'p' is invalid"):
             async with self.con.transaction():
                 await self.con.fetchall(r'''

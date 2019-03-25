@@ -110,7 +110,7 @@ def get_runstate_path(data_dir: os.PathLike) -> os.PathLike:
     if devmode.is_in_dev_mode():
         return data_dir
     else:
-        return pathlib.Path(get_build_metadata_value('RUNSTATEDIR'))
+        return pathlib.Path(get_build_metadata_value('RUNSTATE_DIR'))
 
 
 class ClusterError(Exception):

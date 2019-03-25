@@ -1193,11 +1193,7 @@ class AlterObjectProperty(Command):
             new_value = s_expr.Expression(
                 text=edgeql.generate_source(astnode.value, pretty=False))
         else:
-            if isinstance(astnode.value, qlast.BaseConstant):
-                new_value = qlcompiler.evaluate_ast_to_python_val(
-                    astnode.value, schema=schema)
-
-            elif isinstance(astnode.value, qlast.Tuple):
+            if isinstance(astnode.value, qlast.Tuple):
                 new_value = tuple(
                     qlcompiler.evaluate_ast_to_python_val(
                         el.value, schema=schema)
@@ -1216,9 +1212,8 @@ class AlterObjectProperty(Command):
                 new_value = None
 
             else:
-                raise ValueError(
-                    f'unexpected value in attribute {propname}: '
-                    f'{astnode.value!r}')
+                new_value = qlcompiler.evaluate_ast_to_python_val(
+                    astnode.value, schema=schema)
 
         return cls(property=propname, new_value=new_value)
 
