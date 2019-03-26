@@ -61,7 +61,7 @@ def compile_Set(
             return config.top_output_as_config_op(
                 ir_set, ctx.rel, env=ctx.env)
         else:
-            return output.top_output_as_value(ctx.rel, env=ctx.env)
+            return output.top_output_as_value(ctx.rel, ir_set, env=ctx.env)
     else:
         value = pathctx.get_path_value_var(
             ctx.rel, ir_set.path_id, env=ctx.env)
@@ -92,7 +92,8 @@ def _compile_set_impl(
         # this helps in GROUP BY queries.
         value = dispatch.compile(ir_set.expr, ctx=ctx)
         pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
-        if output.in_serialization_ctx(ctx) and ir_set.shape:
+        if (output.in_serialization_ctx(ctx) and ir_set.shape
+                and not ctx.env.ignore_object_shapes):
             _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
 
     elif ir_set.path_scope_id is not None and not is_toplevel:
@@ -526,7 +527,8 @@ def _compile_set(
 
     relgen.get_set_rvar(ir_set, ctx=ctx)
 
-    if output.in_serialization_ctx(ctx) and ir_set.shape:
+    if (output.in_serialization_ctx(ctx) and ir_set.shape
+            and not ctx.env.ignore_object_shapes):
         _compile_shape(ir_set, shape=ir_set.shape, ctx=ctx)
 
 

@@ -518,10 +518,11 @@ class AlterTarget(sd.Command):
         parent_ctx = context.get(LinkSourceCommandContext)
         source_name = parent_ctx.op.classname
 
+        alter_ptr_ctx = context.get(pointers.PointerCommandContext)
+
         targets = qlast.get_targets(astnode.target)
 
         if len(targets) > 1:
-            alter_ptr_ctx = context.get(pointers.PointerCommandContext)
 
             alter_ptr_ctx.op.add(
                 sd.AlterObjectProperty(
@@ -544,7 +545,7 @@ class AlterTarget(sd.Command):
                 module=source_name.module
             )
 
-            target = so.ObjectRef(name=target_name)
+            target_ref = so.ObjectRef(name=target_name)
 
             create_virt_parent = s_objtypes.CreateObjectType(
                 classname=target_name,
@@ -575,8 +576,17 @@ class AlterTarget(sd.Command):
                 delta_ctx.op.add(create_virt_parent)
         else:
             target = targets[0]
+            target_ref = utils.ast_to_typeref(
+                target, modaliases=context.modaliases, schema=schema)
 
-        cmd.new_value = target
+            target_obj = utils.resolve_typeref(target_ref, schema=schema)
+            if target_obj.is_collection():
+                sd.ensure_schema_collection(
+                    schema, target_obj, alter_ptr_ctx.op,
+                    src_context=astnode.target.context,
+                )
+
+        cmd.new_value = target_ref
 
         return cmd
 

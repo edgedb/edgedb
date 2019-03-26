@@ -30,7 +30,6 @@ from . import delta as sd
 from . import functions as s_func
 from . import name as sn
 from . import objects as so
-from . import utils
 
 
 class Operator(s_func.CallableObject, s_abc.Operator):
@@ -244,17 +243,6 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         cmd.add(sd.AlterObjectProperty(
             property='operator_kind',
             new_value=astnode.kind,
-        ))
-
-        cmd.add(sd.AlterObjectProperty(
-            property='return_type',
-            new_value=utils.ast_to_typeref(
-                astnode.returning, modaliases=modaliases, schema=schema)
-        ))
-
-        cmd.add(sd.AlterObjectProperty(
-            property='return_typemod',
-            new_value=astnode.returning_typemod
         ))
 
         if astnode.code is not None:

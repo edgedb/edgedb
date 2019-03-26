@@ -47,6 +47,7 @@ from . import dispatch
 from . import pathctx
 from . import relctx
 from . import shapecomp
+from . import output
 
 
 def init_dml_stmt(
@@ -438,16 +439,20 @@ def insert_value_for_shape_element(
         rel, shape_el.path_id, env=ctx.env)
 
     if isinstance(insvalue, pgast.TupleVar):
-        for element in insvalue.elements:
-            name = element.path_id.rptr_name()
-            if name == 'std::target':
-                insvalue = pathctx.get_path_value_var(
-                    rel, element.path_id,
-                    env=ctx.env)
-                break
+        if shape_el.path_id.is_objtype_path():
+            for element in insvalue.elements:
+                name = element.path_id.rptr_name()
+                if name == 'std::target':
+                    insvalue = pathctx.get_path_value_var(
+                        rel, element.path_id,
+                        env=ctx.env)
+                    break
+            else:
+                raise RuntimeError('could not find std::target in '
+                                   'insert computable')
         else:
-            raise RuntimeError('could not find std::target in '
-                               'insert computable')
+            insvalue = output.output_as_value(insvalue, env=ctx.env)
+
     insvalue = pgast.TypeCast(
         arg=insvalue,
         type_name=pgast.TypeName(name=ptr_info.column_type),

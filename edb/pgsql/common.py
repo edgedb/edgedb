@@ -31,6 +31,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
+from edb.schema import types as s_types
 
 from . import keywords as pg_keywords
 
@@ -255,6 +256,12 @@ def get_index_backend_name(id, module_id, catenate=True, *, aspect=None):
     return convert_name(name, aspect, catenate)
 
 
+def get_tuple_backend_name(id, catenate=True, *, aspect=None):
+
+    name = s_name.Name(module='edgedb', name=f'{id}_t')
+    return convert_name(name, aspect, catenate, prefix='')
+
+
 def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
@@ -299,6 +306,10 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
         module = schema.get_global(s_mod.Module, name.module)
         return get_constraint_backend_name(
             obj.id, module.id, catenate, aspect=aspect)
+
+    elif isinstance(obj, s_types.BaseTuple):
+        return get_tuple_backend_name(
+            obj.id, catenate, aspect=aspect)
 
     else:
         raise ValueError(f'cannot determine backend name for {obj!r}')

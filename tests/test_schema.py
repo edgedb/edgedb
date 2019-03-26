@@ -102,7 +102,7 @@ _123456789_123456789_123456789 -> Object
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
-                  'invalid property target, expected primitive type, '
+                  'invalid property type: expected primitive type, '
                   'got ObjectType',
                   position=59)
     def test_schema_bad_prop_01(self):
@@ -113,7 +113,7 @@ _123456789_123456789_123456789 -> Object
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
-                  'invalid property target, expected primitive type, '
+                  'invalid property type: expected primitive type, '
                   'got ObjectType',
                   position=59)
     def test_schema_bad_prop_02(self):

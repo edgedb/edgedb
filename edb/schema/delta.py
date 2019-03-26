@@ -33,6 +33,7 @@ from . import name as sn
 from . import objects as so
 from . import ordering as s_ordering
 from . import schema as s_schema
+from . import types
 from . import utils
 
 
@@ -772,6 +773,9 @@ class CreateObject(CreateOrAlterObject):
     def _create_innards(self, schema, context):
         mcls = self.get_schema_metaclass()
 
+        for op in self.get_subcommands(type=CollectionTypeCommand):
+            schema, _ = op.apply(schema, context)
+
         for refdict in mcls.get_refdicts():
             schema = self._create_refs(schema, context, self.scls, refdict)
 
@@ -1066,6 +1070,9 @@ class AlterObject(CreateOrAlterObject):
     def _alter_innards(self, schema, context, scls):
         mcls = self.get_schema_metaclass()
 
+        for op in self.get_subcommands(type=CollectionTypeCommand):
+            schema, _ = op.apply(schema, context)
+
         for refdict in mcls.get_refdicts():
             schema = self._alter_refs(schema, context, scls, refdict)
 
@@ -1108,6 +1115,9 @@ class DeleteObject(ObjectCommand):
 
         for refdict in mcls.get_refdicts():
             schema = self._delete_refs(schema, context, scls, refdict)
+
+        for op in self.get_subcommands(type=CollectionTypeCommand):
+            schema, _ = op.apply(schema, context)
 
         return schema
 
@@ -1257,3 +1267,63 @@ class AlterObjectProperty(Command):
         return '<%s.%s "%s":"%s"->"%s">' % (
             self.__class__.__module__, self.__class__.__name__,
             self.property, self.old_value, self.new_value)
+
+
+class CollectionTypeCommandContext(ObjectCommandContext):
+    pass
+
+
+class CollectionTypeCommand(UnqualifiedObjectCommand,
+                            context_class=CollectionTypeCommandContext):
+    pass
+
+
+class CreateCollectionType(CollectionTypeCommand, CreateObject):
+    pass
+
+
+class DeleteCollectionType(CollectionTypeCommand, DeleteObject):
+    pass
+
+
+class CreateTuple(CreateCollectionType, schema_metaclass=types.SchemaTuple):
+    pass
+
+
+class CreateArray(CreateCollectionType, schema_metaclass=types.SchemaArray):
+    pass
+
+
+class DeleteTuple(DeleteCollectionType, schema_metaclass=types.SchemaTuple):
+    pass
+
+
+class DeleteArray(DeleteCollectionType, schema_metaclass=types.SchemaArray):
+    pass
+
+
+def ensure_schema_collection(schema, coll_type, parent_cmd, *,
+                             src_context=None):
+    if not coll_type.is_collection():
+        raise ValueError(
+            f'{coll_type.get_displayname(schema)} is not a collection')
+
+    if coll_type.contains_array_of_tuples():
+        raise errors.UnsupportedFeatureError(
+            'arrays of tuples are not supported at the schema level',
+            context=src_context,
+        )
+
+    if schema.get_by_id(coll_type.id, None) is None:
+        parent_cmd.add(coll_type.as_create_delta(schema))
+
+
+def cleanup_schema_collection(schema, coll_type, parent, parent_cmd):
+    if not coll_type.is_collection():
+        raise ValueError(
+            f'{coll_type.get_displayname(schema)} is not a collection')
+
+    refs = schema.get_referrers(coll_type)
+    if len(refs) == 1 and list(refs)[0].id == parent.id:
+        # The parent is the last user of this collection, drop it.
+        parent_cmd.add(coll_type.as_delete_delta(schema))

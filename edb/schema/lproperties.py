@@ -28,9 +28,7 @@ from . import name as sn
 from . import objects as so
 from . import pointers
 from . import referencing
-from . import scalars
 from . import sources
-from . import types
 from . import utils
 
 
@@ -191,14 +189,27 @@ class CreateProperty(PropertyCommand,
 
             target_type = utils.resolve_typeref(target_ref, schema=schema)
 
-            if (not isinstance(target_type, (scalars.ScalarType,
-                                             types.Collection)) or
-                    target_type.is_polymorphic(schema)):
+            if target_type.is_polymorphic(schema):
                 raise errors.InvalidPropertyTargetError(
-                    f'invalid property target, expected primitive type, '
-                    f'got {target_type.get_displayname(schema)!r}',
+                    f'invalid property type: '
+                    f'{target_type.get_displayname(schema)!r} '
+                    f'is a generic type',
                     context=target.context
                 )
+
+            if (target_type.is_object_type()
+                    or (target_type.is_collection()
+                        and target_type.contains_object())):
+                raise errors.InvalidPropertyTargetError(
+                    f'invalid property type: expected a scalar type, '
+                    f'or a scalar collection, got '
+                    f'{target_type.get_displayname(schema)!r}',
+                    context=target.context
+                )
+
+            if target_type.is_collection():
+                sd.ensure_schema_collection(
+                    schema, target_type, cmd, src_context=target.context)
 
             cmd.add(
                 sd.AlterObjectProperty(
@@ -302,3 +313,16 @@ class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(schema, node, op, context)
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        if isinstance(astnode, qlast.DropConcreteProperty):
+            prop = schema.get(cmd.classname)
+            target = prop.get_target(schema)
+
+            if target.is_collection():
+                sd.cleanup_schema_collection(schema, target, prop, cmd)
+
+        return cmd

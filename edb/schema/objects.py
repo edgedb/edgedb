@@ -1546,6 +1546,35 @@ class ObjectIndexByUnqualifiedName(
     pass
 
 
+class ObjectDict(ObjectCollection, container=tuple):
+
+    @classmethod
+    def create(cls, schema, data: typing.Mapping[object, Object]):
+
+        result = super().create(schema, data.values())
+        result._keys = tuple(data.keys())
+        return result
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self._ids == other._ids and self._keys == other.__keys
+
+    def __hash__(self):
+        return hash((self._ids, self._keys))
+
+    def dump(self, schema):
+        objs = ", ".join(f"{self._keys[i]}: {o.dump(schema)}"
+                         for i, o in enumerate(self.objects(schema)))
+        return f'<{type(self).__name__} objects={objs} at {id(self):#x}>'
+
+    def keys(self, schema):
+        return self._keys
+
+    def items(self, schema):
+        return tuple(zip(self._keys, self.objects(schema)))
+
+
 class ObjectSet(ObjectCollection, container=frozenset):
 
     def __repr__(self):

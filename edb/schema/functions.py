@@ -149,6 +149,9 @@ class ParameterDesc(typing.NamedTuple):
             new_value=utils.reduce_to_typeref(schema, self.type),
         ))
 
+        if self.type.is_collection() and not self.type.is_polymorphic(schema):
+            sd.ensure_schema_collection(schema, self.type, cmd)
+
         for attr in ('num', 'typemod', 'kind', 'default'):
             cmd.add(sd.AlterObjectProperty(
                 property=attr,
@@ -168,6 +171,9 @@ class ParameterDesc(typing.NamedTuple):
         )
 
         cmd = DeleteParameter(classname=param_name)
+
+        if self.type.is_collection() and not self.type.is_polymorphic(schema):
+            sd.cleanup_schema_collection(schema, self.type, self, cmd)
 
         return cmd
 
@@ -530,6 +536,31 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
         for param in params:
             cmd.add(param.as_create_delta(schema, cmd.classname))
 
+        if hasattr(astnode, 'returning'):
+            modaliases = context.modaliases
+
+            return_type_ref = utils.ast_to_typeref(
+                astnode.returning, modaliases=modaliases, schema=schema)
+
+            return_type = utils.resolve_typeref(
+                return_type_ref, schema=schema)
+
+            if (return_type.is_collection()
+                    and not return_type.is_polymorphic(schema)):
+                sd.ensure_schema_collection(
+                    schema, return_type, cmd,
+                    src_context=astnode.returning.context)
+
+            cmd.add(sd.AlterObjectProperty(
+                property='return_type',
+                new_value=return_type_ref,
+            ))
+
+            cmd.add(sd.AlterObjectProperty(
+                property='return_typemod',
+                new_value=astnode.returning_typemod
+            ))
+
         return cmd
 
 
@@ -544,6 +575,12 @@ class DeleteCallableObject(sd.DeleteObject):
 
         for param in params:
             cmd.add(param.as_delete_delta(schema, cmd.classname))
+
+        obj = schema.get(cmd.classname)
+        return_type = obj.get_return_type(schema)
+        if (return_type.is_collection()
+                and not return_type.is_polymorphic(schema)):
+            sd.cleanup_schema_collection(schema, return_type, obj, cmd)
 
         return cmd
 
@@ -761,18 +798,6 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
-        modaliases = context.modaliases
-        cmd.add(sd.AlterObjectProperty(
-            property='return_type',
-            new_value=utils.ast_to_typeref(
-                astnode.returning, modaliases=modaliases, schema=schema)
-        ))
-
-        cmd.add(sd.AlterObjectProperty(
-            property='return_typemod',
-            new_value=astnode.returning_typemod
-        ))
 
         if astnode.code is not None:
             cmd.add(sd.AlterObjectProperty(

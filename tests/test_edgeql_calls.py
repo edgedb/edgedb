@@ -1141,3 +1141,66 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 [1, 2],
             ]
         )
+
+    async def test_edgeql_calls_33(self):
+        # Tuple argument
+
+        await self.con.execute('''
+            CREATE FUNCTION test::call33(
+                a: tuple<int64, tuple<int64>>,
+                b: tuple<foo: int64, bar: str>
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT a.0 + b.foo
+                $$;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call33((1, (2,)), (foo := 10, bar := 'bar'));''',
+            [
+                11,
+            ]
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'arrays of tuples are not supported'):
+            await self.con.execute('''
+                CREATE FUNCTION test::call33_2(
+                    a: array<tuple<int64, int64>>
+                ) -> int64
+                    FROM EdgeQL $$
+                        SELECT a[0].0
+                    $$;
+            ''')
+
+    async def test_edgeql_calls_34(self):
+        # Tuple return
+
+        await self.con.execute('''
+            CREATE FUNCTION test::call34(
+                a: int64
+            ) -> tuple<int64, tuple<foo: int64>>
+                FROM EdgeQL $$
+                    SELECT (a, ((a + 1),))
+                $$;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call34(1);''',
+            [
+                [1, {'foo': 2}]
+            ]
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'arrays of tuples are not supported'):
+            await self.con.execute('''
+                CREATE FUNCTION test::call34_2(
+                    a: int64
+                ) -> array<tuple<int64>>
+                    FROM EdgeQL $$
+                        SELECT [(a,)]
+                    $$;
+            ''')

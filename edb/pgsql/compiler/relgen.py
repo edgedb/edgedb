@@ -708,14 +708,14 @@ def process_set_as_path(
     is_linkprop = ptrref.parent_ptr is not None
     # Path is a reference to a relationship stored in the source table.
     is_inline_ref = ptr_info.table_type == 'ObjectType'
-    is_scalar_ref = not irtyputils.is_object(ptrref.out_target)
-    is_inline_scalar_ref = is_inline_ref and is_scalar_ref
+    is_primitive_ref = not irtyputils.is_object(ptrref.out_target)
+    is_inline_primitive_ref = is_inline_ref and is_primitive_ref
     is_id_ref_to_inline_source = False
 
     semi_join = (
         not source_is_visible and
         ir_source.path_id not in ctx.disable_semi_join and
-        not (is_linkprop or is_scalar_ref)
+        not (is_linkprop or is_primitive_ref)
     )
 
     source_rptr = ir_source.rptr
@@ -768,7 +768,7 @@ def process_set_as_path(
 
             get_set_rvar(ir_source, ctx=srcctx)
 
-            if is_inline_scalar_ref:
+            if is_inline_primitive_ref:
                 # Semi-join variant for inline scalar links,
                 # which is, essentially, just filtering out NULLs.
                 relctx.ensure_source_rvar(ir_source, srcctx.rel, ctx=srcctx)
@@ -802,11 +802,15 @@ def process_set_as_path(
             aspects=['value']
         )
 
-    elif is_inline_scalar_ref:
+    elif is_inline_primitive_ref:
+        # There is an opportunity to also expose the "source" aspect
+        # for tuple refs here, but that requires teaching pathctx about
+        # complex field indirections, so rely on the row_getattr_by_num
+        # fallback for tuple properties for now.
         main_rvar = SetRVar(
             relctx.ensure_source_rvar(ir_source, stmt, ctx=ctx),
             path_id=ir_set.path_id,
-            aspects=['value', 'source']
+            aspects=['value']
         )
 
     elif not semi_join:
@@ -850,10 +854,15 @@ def process_set_as_path(
                 stmt, set_rvar.rvar, path_id=set_rvar.path_id,
                 aspects=set_rvar.aspects, ctx=ctx)
 
+        if is_primitive_ref:
+            aspects = ['value']
+        else:
+            aspects = ['value', 'source']
+
         main_rvar = SetRVar(
             relctx.new_rel_rvar(ir_set, stmt, ctx=ctx),
             path_id=ir_set.path_id,
-            aspects=['value', 'source']
+            aspects=aspects,
         )
 
         rvars = [main_rvar]

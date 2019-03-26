@@ -145,7 +145,8 @@ class Environment:
     """Static compilation environment."""
 
     def __init__(self, *, output_format, use_named_params,
-                 expected_cardinality_one):
+                 expected_cardinality_one, ignore_object_shapes,
+                 explicit_top_cast):
         self.aliases = aliases.AliasGenerator()
         self.root_rels = set()
         self.rel_overlays = collections.defaultdict(list)
@@ -154,3 +155,5 @@ class Environment:
         self.use_named_params = use_named_params
         self.ptrref_source_visibility = {}
         self.expected_cardinality_one = expected_cardinality_one
+        self.ignore_object_shapes = ignore_object_shapes
+        self.explicit_top_cast = explicit_top_cast

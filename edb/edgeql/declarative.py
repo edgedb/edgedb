@@ -401,7 +401,7 @@ class DeclarationLoader:
                 if not isinstance(prop_target, (s_scalars.ScalarType,
                                                 s_types.Collection)):
                     raise errors.InvalidPropertyTargetError(
-                        f'invalid property target, expected primitive type, '
+                        f'invalid property type: expected primitive type, '
                         f'got {prop_target.__class__.__name__}',
                         context=propdecl.target[0].context
                     )
@@ -738,7 +738,7 @@ class DeclarationLoader:
                 if not isinstance(expr_type, (s_scalars.ScalarType,
                                               s_types.Collection)):
                     raise errors.InvalidPropertyTargetError(
-                        f'invalid property target, expected primitive type, '
+                        f'invalid property type: expected primitive type, '
                         f'got {expr_type.__class__.__name__}',
                         context=ptrdecl.expr.context
                     )

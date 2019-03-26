@@ -24,6 +24,7 @@
 #include "funcapi.h"
 #include "nodes/makefuncs.h"
 #include "parser/parse_func.h"
+#include "parser/parse_type.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
@@ -102,7 +103,7 @@ row_getattr_by_num(PG_FUNCTION_ARGS)
 
 	ReleaseTupleDesc(tup_desc);
 
-	if (att_type != val_type)
+	if (att_type != val_type && !(val_type == RECORDOID && ISCOMPLEX(att_type)))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("expected tuple attribute type \"%s\", got \"%s\"",

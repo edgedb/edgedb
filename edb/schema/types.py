@@ -240,6 +240,9 @@ class Collection(Type, s_abc.Collection):
             for st in self.get_subtypes()
         )
 
+    def contains_array_of_tuples(self):
+        raise NotImplementedError
+
     def is_collection(self):
         return True
 
@@ -364,7 +367,8 @@ class Collection(Type, s_abc.Collection):
             strefs.append(st_ref)
 
         return (
-            self.__class__.from_subtypes(schema, strefs),
+            self.__class__.from_subtypes(
+                schema, strefs, typemods=self.get_typemods()),
             (self.__class__, tuple(r.name for r in strefs))
         )
 
@@ -383,7 +387,7 @@ class Collection(Type, s_abc.Collection):
     def __repr__(self):
         return (
             f'<{self.__class__.__name__} '
-            f'{self.name} {self.id}'
+            f'{self.name} {self.id} '
             f'at 0x{id(self):x}>'
         )
 
@@ -395,10 +399,8 @@ class Dimensions(typed.FrozenTypedList, type=int):
     pass
 
 
-class Array(Collection, s_abc.Array):
+class BaseArray(Collection, s_abc.Array):
     schema_name = 'array'
-    element_type = so.Field(so.Object)
-    dimensions = so.Field(Dimensions, coerce=True)
 
     @classmethod
     def create(cls, schema, *, name=None,
@@ -418,6 +420,9 @@ class Array(Collection, s_abc.Array):
         return super()._create(
             schema, id=id, name=name, element_type=element_type,
             dimensions=dimensions, **kwargs)
+
+    def contains_array_of_tuples(self):
+        return self.element_type.is_tuple()
 
     def get_displayname(self, schema):
         return f'array<{self.element_type.get_displayname(schema)}>'
@@ -541,6 +546,46 @@ class Array(Collection, s_abc.Array):
         else:
             return self
 
+    def as_create_delta(self, schema):
+        from . import delta as sd
+
+        cmd = sd.CreateArray(
+            classname=str(self.id),
+        )
+
+        el = self.element_type
+        if el.is_collection() and schema.get_by_id(el.id, None) is None:
+            cmd.add(el.as_create_delta(schema))
+
+        cmd.set_attribute_value('id', self.id)
+        cmd.set_attribute_value('name', str(self.id))
+        cmd.set_attribute_value(
+            'element_type',
+            self.element_type,
+        )
+
+        return cmd
+
+    def as_delete_delta(self, schema):
+        from . import delta as sd
+
+        cmd = sd.DeleteArray(
+            classname=str(self.id),
+        )
+
+        el = self.element_type
+        if (el.is_collection()
+                and list(schema.get_referrers(el))[0].id == self.id):
+            cmd.add(el.as_delete_delta(schema))
+
+        return cmd
+
+
+class Array(BaseArray):
+
+    element_type = so.Field(so.Object)
+    dimensions = so.Field(Dimensions, coerce=True)
+
     def __hash__(self):
         return hash((
             self.__class__,
@@ -559,8 +604,39 @@ class Array(Collection, s_abc.Array):
             self.dimensions == other.dimensions
         )
 
+    def as_schema_coll(self, schema):
 
-class Tuple(Collection, s_abc.Tuple):
+        existing = schema.get_by_id(self.id, None)
+        if existing is not None:
+            return schema, existing
+
+        el_type = self.element_type
+        if el_type.is_collection():
+            schema, el_type = el_type.as_schema_coll(schema)
+
+        return SchemaArray.create_in_schema(
+            schema,
+            id=self.id,
+            name=str(self.id),
+            element_type=el_type,
+        )
+
+
+class SchemaCollectionMeta(type(Type)):
+
+    @property
+    def is_schema_object(cls):
+        return True
+
+
+class SchemaArray(so.UnqualifiedObject, BaseArray,
+                  metaclass=SchemaCollectionMeta):
+
+    element_type = so.SchemaField(so.Object)
+    dimensions = so.SchemaField(Dimensions, default=None, coerce=True)
+
+
+class BaseTuple(Collection, s_abc.Tuple):
     schema_name = 'tuple'
 
     named = so.Field(bool)
@@ -596,15 +672,6 @@ class Tuple(Collection, s_abc.Tuple):
         st_names = ', '.join(st.get_displayname(schema)
                              for st in self.element_types.values())
         return f'tuple<{st_names}>'
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        state['element_types'] = dict(state['element_types'])
-        return state
-
-    def __setstate__(self, state):
-        state['element_types'] = types.MappingProxyType(state['element_types'])
-        self.__dict__.update(state)
 
     def is_tuple(self):
         return True
@@ -778,6 +845,12 @@ class Tuple(Collection, s_abc.Tuple):
     def get_typemods(self):
         return {'named': self.named}
 
+    def contains_array_of_tuples(self):
+        return any(
+            st.contains_array_of_tuples() if st.is_collection() else False
+            for st in self.get_subtypes()
+        )
+
     def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
         if not concrete_type.is_tuple():
             return None
@@ -826,6 +899,19 @@ class Tuple(Collection, s_abc.Tuple):
         return all(st.test_polymorphic(schema, ot)
                    for st, ot in zip(self_subtypes, other_subtypes))
 
+    def _reduce_to_ref(self, schema):
+        strefs = {}
+
+        for n, st in self.element_types.items():
+            st_ref, _ = st._reduce_to_ref(schema)
+            strefs[n] = st_ref
+
+        return (
+            self.__class__.from_subtypes(
+                schema, strefs, typemods=self.get_typemods()),
+            (self.__class__, tuple(r.name for r in strefs.values()))
+        )
+
     def _resolve_ref(self, schema):
         if any(hasattr(st, '_resolve_ref') for st in self.get_subtypes()):
             subtypes = {}
@@ -853,6 +939,80 @@ class Tuple(Collection, s_abc.Tuple):
         else:
             return self
 
+    def as_create_delta(self, schema):
+        from . import delta as sd
+
+        cmd = sd.CreateTuple(
+            classname=str(self.id),
+        )
+
+        for el in self.element_types.values():
+            if el.is_collection() and schema.get_by_id(el.id, None) is None:
+                cmd.add(el.as_create_delta(schema))
+
+        cmd.set_attribute_value('id', self.id)
+        cmd.set_attribute_value('name', str(self.id))
+        cmd.set_attribute_value('named', self.named)
+        cmd.set_attribute_value(
+            'element_types',
+            so.ObjectDict.create(
+                schema,
+                self.element_types,
+            ))
+
+        return cmd
+
+    def as_delete_delta(self, schema):
+        from . import delta as sd
+
+        cmd = sd.DeleteTuple(
+            classname=str(self.id),
+        )
+
+        for el in self.element_types.values():
+            if el.is_collection():
+                refs = schema.get_referrers(el)
+                if len(refs) == 1 and list(refs)[0].id == self.id:
+                    cmd.add(el.as_delete_delta(schema))
+
+        return cmd
+
+
+class Tuple(BaseTuple):
+
+    named = so.Field(bool)
+    element_types = so.Field(dict, coerce=True)
+
+    def as_schema_coll(self, schema):
+
+        existing = schema.get_by_id(self.id, None)
+        if existing is not None:
+            return schema, existing
+
+        el_types = {}
+        for k, v in self.element_types.items():
+            if v.is_collection():
+                schema, v = v.as_schema_coll(schema)
+
+            el_types[k] = v
+
+        return SchemaTuple.create_in_schema(
+            schema,
+            id=self.id,
+            name=str(self.id),
+            named=self.named,
+            element_types=so.ObjectDict.create(schema, el_types),
+        )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['element_types'] = dict(state['element_types'])
+        return state
+
+    def __setstate__(self, state):
+        state['element_types'] = types.MappingProxyType(state['element_types'])
+        self.__dict__.update(state)
+
     def __hash__(self):
         return hash((
             self.__class__,
@@ -870,3 +1030,14 @@ class Tuple(Collection, s_abc.Tuple):
             self.name == other.name and
             self.element_types == other.element_types
         )
+
+
+class SchemaTuple(so.UnqualifiedObject, BaseTuple,
+                  metaclass=SchemaCollectionMeta):
+
+    named = so.SchemaField(
+        bool)
+
+    element_types = so.SchemaField(
+        so.ObjectDict,
+        coerce=True)

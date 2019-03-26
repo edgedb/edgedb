@@ -137,6 +137,14 @@ def tuple_as_json_object(expr, *, styperef, env):
 
 
 def unnamed_tuple_as_json_object(expr, *, styperef, env):
+    has_colls = any(irtyputils.is_collection(st) for st in styperef.subtypes)
+
+    if not has_colls:
+        # No nested collections, take the fast path.
+        return pgast.FuncCall(
+            name=('edgedb',) + _get_json_func('row_to_array', env=env),
+            args=[expr], null_safe=True, ser_safe=True, nullable=expr.nullable)
+
     vals = []
     for el_idx, el_type in enumerate(styperef.subtypes):
         type_sentinel = pgast.TypeCast(
@@ -160,8 +168,8 @@ def unnamed_tuple_as_json_object(expr, *, styperef, env):
         vals.append(val)
 
     return pgast.FuncCall(
-        name=('edgedb',) + _get_json_func('row_to_array', env=env),
-        args=[expr], null_safe=True, ser_safe=True, nullable=expr.nullable)
+        name=_get_json_func('build_array', env=env),
+        args=vals, null_safe=True, ser_safe=True, nullable=expr.nullable)
 
 
 def named_tuple_as_json_object(expr, *, styperef, env):
@@ -324,7 +332,8 @@ def get_pg_type(
 
 
 def top_output_as_value(
-        stmt: pgast.Query, *,
+        stmt: pgast.Query,
+        ir_set: irast.Set, *,
         env: context.Environment) -> pgast.Query:
     """Finalize output serialization on the top level."""
 
@@ -376,6 +385,26 @@ def top_output_as_value(
         stmt.ctes = []
 
         return result
+
+    elif (env.output_format is context.OutputFormat.NATIVE and
+            env.explicit_top_cast is not None):
+
+        typecast = pgast.TypeCast(
+            arg=stmt.target_list[0].val,
+            type_name=pgast.TypeName(
+                name=pgtypes.pg_type_from_ir_typeref(
+                    env.explicit_top_cast,
+                    persistent_tuples=True,
+                ),
+            ),
+        )
+
+        stmt.target_list[0] = pgast.ResTarget(
+            name=env.aliases.get('v'),
+            val=typecast,
+        )
+
+        return stmt
 
     else:
         return stmt

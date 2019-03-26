@@ -1667,7 +1667,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_property_computable_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
-                r"invalid property target, expected.*, got 'std::Object'"):
+                r"invalid property type: expected.*, got 'std::Object'"):
             await self.con.execute('''\
                 CREATE TYPE test::CompPropBad;
                 ALTER TYPE test::CompPropBad {
@@ -1813,7 +1813,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
-                r"invalid property target"):
+                r"invalid property type"):
 
             await self.con.execute("""
                 CREATE ABSTRACT LINK test::test_object_link_prop {
@@ -1835,7 +1835,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_anytype_03(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
-                r"invalid property target"):
+                r"invalid property type"):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject3 {
@@ -1846,7 +1846,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_anytype_04(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
-                r"invalid property target"):
+                r"invalid property type"):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject4 {
@@ -1857,7 +1857,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_anytype_05(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
-                r"invalid property target"):
+                r"invalid property type"):
 
             await self.con.execute("""
                 CREATE TYPE test::AnyObject5 {
@@ -2362,3 +2362,88 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 DROP PROPERTY testp;
             }
         """)
+
+    async def test_edgeql_ddl_tuple_properties(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::TupProp01 {
+                CREATE PROPERTY p1 -> tuple<int64, str>;
+                CREATE PROPERTY p2 -> tuple<foo: int64, bar: str>;
+                CREATE PROPERTY p3 -> tuple<foo: int64,
+                                            bar: tuple<json, json>>;
+            };
+
+            CREATE TYPE test::TupProp02 {
+                CREATE PROPERTY p1 -> tuple<int64, str>;
+                CREATE PROPERTY p2 -> tuple<json, json>;
+            };
+        """)
+
+        # Drop identical p1 properties from both objects,
+        # to check positive refcount.
+        await self.con.execute(r"""
+            ALTER TYPE test::TupProp01 {
+                DROP PROPERTY p1;
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE test::TupProp02 {
+                DROP PROPERTY p1;
+            };
+        """)
+
+        # Re-create the property to check that the associated
+        # composite type was actually removed.
+        await self.con.execute(r"""
+            ALTER TYPE test::TupProp02 {
+                CREATE PROPERTY p1 -> tuple<int64, str>;
+            };
+        """)
+
+        # Now, drop the property that has a nested tuple that
+        # is referred to directly by another property.
+        await self.con.execute(r"""
+            ALTER TYPE test::TupProp01 {
+                DROP PROPERTY p3;
+            };
+        """)
+
+        # Drop the last user.
+        await self.con.execute(r"""
+            ALTER TYPE test::TupProp02 {
+                DROP PROPERTY p2;
+            };
+        """)
+
+        # Re-create to assure cleanup.
+        await self.con.execute(r"""
+            ALTER TYPE test::TupProp02 {
+                CREATE PROPERTY p3 -> tuple<json, json>;
+                CREATE PROPERTY p4 -> tuple<a: json, b: json>;
+            };
+        """)
+
+        await self.con.execute('DECLARE SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidPropertyTargetError,
+                'expected a scalar type, or a scalar collection'):
+
+            await self.con.execute(r"""
+                ALTER TYPE test::TupProp02 {
+                    CREATE PROPERTY p4 -> tuple<test::TupProp02>;
+                };
+            """)
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'arrays of tuples are not supported'):
+
+            await self.con.execute(r"""
+                ALTER TYPE test::TupProp02 {
+                    CREATE PROPERTY p4 -> array<tuple<int64>>;
+                };
+            """)

@@ -143,20 +143,28 @@ def pg_type_from_scalar(
 def pg_type_from_object(
         schema: s_schema.Schema,
         obj: s_obj.Object,
-        topbase: bool=False) -> typing.Tuple[str, ...]:
+        topbase: bool=False,
+        persistent_tuples: bool=False) -> typing.Tuple[str, ...]:
 
     if isinstance(obj, s_scalars.ScalarType):
         return pg_type_from_scalar(schema, obj, topbase=topbase)
 
-    elif isinstance(obj, s_abc.Tuple) or (obj.is_type() and obj.is_anytuple()):
+    elif obj.is_type() and obj.is_anytuple():
         return ('record',)
+
+    elif isinstance(obj, s_abc.Tuple):
+        if persistent_tuples:
+            return common.get_tuple_backend_name(obj.id, catenate=False)
+        else:
+            return ('record',)
 
     elif isinstance(obj, s_abc.Array):
         if obj.is_polymorphic(schema):
             return ('anyarray',)
         else:
             tp = pg_type_from_object(
-                schema, obj.element_type, topbase=topbase)
+                schema, obj.element_type, topbase=topbase,
+                persistent_tuples=persistent_tuples)
             if len(tp) == 1:
                 return (tp[0] + '[]',)
             else:
@@ -174,7 +182,8 @@ def pg_type_from_object(
 
 def pg_type_from_ir_typeref(
         ir_typeref: irast.TypeRef, *,
-        serialized: bool = False) -> typing.Tuple[str, ...]:
+        serialized: bool = False,
+        persistent_tuples: bool = False) -> typing.Tuple[str, ...]:
 
     if irtyputils.is_array(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
@@ -182,14 +191,22 @@ def pg_type_from_ir_typeref(
             return ('anyarray',)
         else:
             tp = pg_type_from_ir_typeref(
-                ir_typeref.subtypes[0], serialized=serialized)
+                ir_typeref.subtypes[0],
+                serialized=serialized,
+                persistent_tuples=persistent_tuples)
             if len(tp) == 1:
                 return (tp[0] + '[]',)
             else:
                 return (tp[0], tp[1] + '[]')
 
-    elif irtyputils.is_tuple(ir_typeref) or irtyputils.is_anytuple(ir_typeref):
+    elif irtyputils.is_anytuple(ir_typeref):
         return ('record',)
+
+    elif irtyputils.is_tuple(ir_typeref):
+        if persistent_tuples:
+            return common.get_tuple_backend_name(ir_typeref.id, catenate=False)
+        else:
+            return ('record',)
 
     elif irtyputils.is_any(ir_typeref):
         return ('anyelement',)
@@ -242,11 +259,15 @@ class _PointerStorageInfo:
     def _resolve_type(cls, schema, pointer):
         pointer_target = pointer.get_target(schema)
         if pointer_target is not None:
-            if isinstance(pointer_target, s_objtypes.ObjectType):
+            if pointer_target.is_object_type():
                 column_type = ('uuid',)
+            elif pointer_target.is_tuple():
+                column_type = common.get_backend_name(schema, pointer_target,
+                                                      catenate=False)
             else:
                 column_type = pg_type_from_object(
-                    schema, pointer.get_target(schema))
+                    schema, pointer.get_target(schema),
+                    persistent_tuples=True)
         else:
             # The target may not be known in circular object-to-object
             # linking scenarios.
@@ -427,7 +448,8 @@ def get_ptrref_storage_info(
         if irtyputils.is_object(target):
             column_type = ('uuid',)
         else:
-            column_type = pg_type_from_ir_typeref(target)
+            column_type = pg_type_from_ir_typeref(
+                target, persistent_tuples=True)
     else:
         column_type = None
 

@@ -43,6 +43,7 @@ def compile_ir_to_sql_tree(
         ir_expr: irast.Base, *,
         output_format: typing.Optional[OutputFormat]=None,
         ignore_shapes: bool=False,
+        explicit_top_cast: typing.Optional[irast.TypeRef]=None,
         singleton_mode: bool=False,
         use_named_params: bool=False,
         expected_cardinality_one: bool=False) -> pgast.Base:
@@ -59,9 +60,9 @@ def compile_ir_to_sql_tree(
         ctx.env = context.Environment(
             output_format=output_format,
             expected_cardinality_one=expected_cardinality_one,
-            use_named_params=use_named_params)
-        if ignore_shapes:
-            ctx.expr_exposed = False
+            use_named_params=use_named_params,
+            ignore_object_shapes=ignore_shapes,
+            explicit_top_cast=explicit_top_cast)
         qtree = dispatch.compile(ir_expr, ctx=ctx)
 
     except Exception as e:  # pragma: no cover
@@ -78,6 +79,7 @@ def compile_ir_to_sql(
         ir_expr: irast.Base, *,
         output_format: typing.Optional[OutputFormat]=None,
         ignore_shapes: bool=False,
+        explicit_top_cast: typing.Optional[irast.TypeRef]=None,
         timer=None,
         use_named_params: bool=False,
         expected_cardinality_one: bool=False,
@@ -88,6 +90,7 @@ def compile_ir_to_sql(
             ir_expr,
             output_format=output_format,
             ignore_shapes=ignore_shapes,
+            explicit_top_cast=explicit_top_cast,
             use_named_params=use_named_params,
             expected_cardinality_one=expected_cardinality_one)
     else:
@@ -96,6 +99,7 @@ def compile_ir_to_sql(
                 ir_expr,
                 output_format=output_format,
                 ignore_shapes=ignore_shapes,
+                explicit_top_cast=explicit_top_cast,
                 use_named_params=use_named_params,
                 expected_cardinality_one=expected_cardinality_one)
 

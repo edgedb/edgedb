@@ -53,6 +53,7 @@ from edb.schema import types as s_types
 from edb.common import ordered
 from edb.common import markup
 
+from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.pgsql import common
@@ -328,6 +329,67 @@ class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
     pass
 
 
+class CreateTuple(ObjectMetaCommand, adapts=sd.CreateTuple):
+
+    def apply(self, schema, context):
+        schema, self.scls = self.__class__.get_adaptee().apply(
+            self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+
+        elements = self.scls.get_element_types(schema).items(schema)
+
+        ctype = dbops.CompositeType(
+            name=common.get_backend_name(schema, self.scls, catenate=False),
+            columns=[
+                dbops.Column(
+                    name=n,
+                    type=q(*types.pg_type_from_object(
+                        schema, t, persistent_tuples=True)),
+                )
+                for n, t in elements
+            ]
+        )
+
+        self.pgops.add(dbops.CreateCompositeType(type=ctype))
+
+        return schema, self.scls
+
+
+class DeleteTuple(ObjectMetaCommand, adapts=sd.DeleteTuple):
+
+    def apply(self, schema, context):
+        tup = schema.get_global(s_types.SchemaTuple, self.classname)
+
+        self.pgops.add(dbops.DropCompositeType(
+            name=common.get_backend_name(schema, tup, catenate=False),
+            priority=2,
+        ))
+
+        schema, self.scls = self.__class__.get_adaptee().apply(
+            self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+
+        return schema, self.scls
+
+
+class CreateArray(ObjectMetaCommand, adapts=sd.CreateArray):
+
+    def apply(self, schema, context):
+        schema, self.scls = self.__class__.get_adaptee().apply(
+            self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        return schema, self.scls
+
+
+class DeleteArray(ObjectMetaCommand, adapts=sd.DeleteArray):
+
+    def apply(self, schema, context):
+        schema, self.scls = self.__class__.get_adaptee().apply(
+            self, schema, context)
+        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        return schema, self.scls
+
+
 class ParameterCommand:
     _table = metaschema.get_metaclass_table(s_funcs.Parameter)
 
@@ -361,7 +423,8 @@ class FunctionCommand:
             return ('anyelement',)
 
         try:
-            return types.pg_type_from_object(schema, obj)
+            return types.pg_type_from_object(
+                schema, obj, persistent_tuples=True)
         except ValueError:
             raise errors.QueryError(
                 f'could not compile parameter type {obj!r} '
@@ -438,6 +501,9 @@ class CreateFunction(FunctionCommand, CreateObject,
         sql_text, _ = compiler.compile_ir_to_sql(
             body_ir,
             ignore_shapes=True,
+            explicit_top_cast=irtyputils.type_to_typeref(
+                schema, func.get_return_type(schema)),
+            output_format=compiler.OutputFormat.NATIVE,
             use_named_params=True)
 
         return self.make_function(func, sql_text, schema)
@@ -1788,30 +1854,10 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
         return rec, updates
 
-    def alter_host_table_column(
-            self, ptr, schema, orig_schema,
-            context, old_type, new_type):
+    def alter_host_table_column(self, ptr, schema, orig_schema, context):
 
-        dropped_scalar = None
-
-        for op in self.get_subcommands(type=s_scalars.ScalarTypeCommand):
-            for rename in op(s_scalars.RenameScalarType):
-                if (old_type == rename.classname and
-                        new_type == rename.new_name):
-                    # Our target alter is a mere rename
-                    return
-            if isinstance(op, s_scalars.CreateScalarType):
-                if op.classname == new_type:
-                    # CreateScalarType will take care of everything for us
-                    return
-            elif isinstance(op, s_scalars.DeleteScalarType):
-                if op.classname == old_type:
-                    # The former target scalar might as well have been dropped
-                    dropped_scalar = orig_schema.get(op.classname)
-
-        old_target = schema.get(old_type, dropped_scalar)
-        assert old_target
-        new_target = schema.get(new_type)
+        old_target = ptr.get_target(orig_schema)
+        new_target = ptr.get_target(schema)
 
         alter_table = context.get(
             s_objtypes.ObjectTypeCommandContext).op.get_alter_table(
@@ -1823,9 +1869,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             target_type = types.pg_type_from_object(schema, new_target)
 
             if isinstance(old_target, s_scalars.ScalarType):
-                AlterScalarType.alter_scalar(
-                    self, schema, context, old_target, new_target,
-                    in_place=False)
                 alter_type = dbops.AlterTableAlterColumnType(
                     ptr_stor_info.column_name, common.qname(*target_type))
                 alter_table.add_operation(alter_type)
@@ -2097,15 +2140,11 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             else:
                 if old_target != new_target and not type_change_ok:
                     if isinstance(old_target, s_scalars.ScalarType):
-                        AlterScalarType.alter_scalar(
-                            self, schema, context, old_target, new_target,
-                            in_place=False)
-
                         alter_table = source_op.get_alter_table(
                             schema, context, priority=1)
 
-                        new_type = \
-                            types.pg_type_from_object(schema, new_target)
+                        new_type = types.pg_type_from_object(
+                            schema, new_target, persistent_tuples=True)
 
                         alter_type = dbops.AlterTableAlterColumnType(
                             old_ptr_stor_info.column_name,
@@ -2710,13 +2749,11 @@ class AlterProperty(
                         {'std::source', 'std::target'}):
                     new_type = op.new_value.name \
                         if op.new_value is not None else None
-                    old_type = op.old_value.name \
-                        if op.old_value is not None else None
                     break
 
             if new_type:
                 self.alter_host_table_column(
-                    prop, schema, orig_schema, context, old_type, new_type)
+                    prop, schema, orig_schema, context)
 
             self.alter_pointer_default(prop, schema, context)
 

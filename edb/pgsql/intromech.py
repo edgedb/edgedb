@@ -274,6 +274,10 @@ class IntrospectionMech:
                     kind=param_data['kind'])
                 params.append(param)
 
+                p_type = param.get_type(schema)
+                if p_type.is_collection():
+                    schema, _ = p_type.as_schema_coll(schema)
+
             return schema, params
         else:
             return schema, []
@@ -295,6 +299,10 @@ class IntrospectionMech:
 
             schema, params = self._decode_func_params(schema, row, param_map)
 
+            r_type = self.unpack_typeref(row['return_type'], schema)
+            if r_type.is_collection():
+                schema, _ = r_type.as_schema_coll(schema)
+
             oper_data = {
                 'id': row['id'],
                 'name': name,
@@ -308,7 +316,7 @@ class IntrospectionMech:
                 'force_return_cast': row['force_return_cast'],
                 'code': row['code'],
                 'recursive': row['recursive'],
-                'return_type': self.unpack_typeref(row['return_type'], schema)
+                'return_type': r_type,
             }
 
             schema, oper = s_opers.Operator.create_in_schema(
@@ -372,6 +380,10 @@ class IntrospectionMech:
 
             schema, params = self._decode_func_params(schema, row, param_map)
 
+            r_type = self.unpack_typeref(row['return_type'], schema)
+            if r_type.is_collection():
+                schema, _ = r_type.as_schema_coll(schema)
+
             func_data = {
                 'id': row['id'],
                 'name': name,
@@ -385,7 +397,7 @@ class IntrospectionMech:
                 'error_on_null_result': row['error_on_null_result'],
                 'code': row['code'],
                 'initial_value': row['initial_value'],
-                'return_type': self.unpack_typeref(row['return_type'], schema)
+                'return_type': r_type,
             }
 
             schema, _ = s_funcs.Function.create_in_schema(schema, **func_data)
@@ -717,6 +729,9 @@ class IntrospectionMech:
             required = r['required']
             target = self.unpack_typeref(r['target'], schema)
             basemap[name] = bases
+
+            if target.is_collection():
+                schema, _ = target.as_schema_coll(schema)
 
             if r['cardinality']:
                 cardinality = qltypes.Cardinality(r['cardinality'])
