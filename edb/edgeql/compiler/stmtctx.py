@@ -68,7 +68,7 @@ def init_context(
         context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
-    if not schema.get('__derived__', None):
+    if not schema.get_global(s_mod.Module, '__derived__', None):
         schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
     ctx.env = context.Environment(
         schema=schema,

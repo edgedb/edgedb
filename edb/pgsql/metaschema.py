@@ -36,6 +36,7 @@ from edb.schema import database as s_db
 from edb.schema import deltas  # NoQA
 from edb.schema import expr as s_expr
 from edb.schema import inheriting as s_inheriting
+from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
@@ -2179,7 +2180,7 @@ def _make_json_caster(schema, json_casts, stype, context):
     else:
         if cast.get_code(schema):
             cast_name = cast.get_name(schema)
-            cast_module = schema.get(cast_name.module)
+            cast_module = schema.get_global(s_mod.Module, cast_name.module)
             func_name = common.get_cast_backend_name(
                 cast_name, cast_module.id, aspect='function')
         else:

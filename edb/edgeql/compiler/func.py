@@ -30,6 +30,7 @@ from edb.ir import utils as irutils
 
 from edb.schema import functions as s_func
 from edb.schema import inheriting as s_inh
+from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import types as s_types
 
@@ -144,7 +145,8 @@ def compile_FunctionCall(
 
     fcall = irast.FunctionCall(
         args=args,
-        func_module_id=env.schema.get(func_name.module).id,
+        func_module_id=env.schema.get_global(
+            s_mod.Module, func_name.module).id,
         func_shortname=func_name,
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
@@ -343,7 +345,8 @@ def compile_operator(
 
     node = irast.OperatorCall(
         args=args,
-        func_module_id=env.schema.get(oper_name.module).id,
+        func_module_id=env.schema.get_global(
+            s_mod.Module, oper_name.module).id,
         func_shortname=oper_name,
         func_polymorphic=is_polymorphic,
         func_sql_function=oper.get_from_function(env.schema),

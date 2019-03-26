@@ -245,6 +245,8 @@ def merge_weak_bool(target, sources, field_name, *, schema):
 def find_item_suggestions(
         name, modaliases, schema, *, item_types=None, limit=3,
         collection=None):
+    from . import modules as s_mod
+
     if isinstance(name, sn.Name):
         orig_modname = name.module
         short_name = name.name
@@ -260,7 +262,7 @@ def find_item_suggestions(
         suggestions.extend(collection)
     else:
         if modname:
-            module = schema.get(modname, None)
+            module = schema.get_global(s_mod.Module, modname, None)
             if module:
                 suggestions.extend(schema.get_objects(modules=[modname]))
 

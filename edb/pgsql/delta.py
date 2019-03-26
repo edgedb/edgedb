@@ -1452,7 +1452,7 @@ class CreateSourceIndex(SourceIndexCommand, CreateObject,
             # list.
             sql_expr = sql_expr[1:-1]
 
-        module = schema.get(index.get_name(schema).module)
+        module = schema.get_global(s_mod.Module, index.get_name(schema).module)
         index_name = common.get_index_backend_name(
             index.id, module.id, catenate=False)
         pg_index = dbops.Index(
@@ -1481,7 +1481,8 @@ class RenameSourceIndex(SourceIndexCommand, RenameObject,
         index_ctx = context.get(s_indexes.SourceIndexCommandContext)
 
         orig_schema = index_ctx.original_schema
-        module = schema.get(index.get_name(orig_schema).module)
+        module = schema.get_global(
+            s_mod.Module, index.get_name(orig_schema).module)
         orig_idx_name = common.get_index_backend_name(
             index.id, module.id, catenate=False)
 
@@ -1525,7 +1526,8 @@ class DeleteSourceIndex(SourceIndexCommand, DeleteObject,
             #
             table_name = common.get_backend_name(
                 schema, source.scls, catenate=False)
-            module = schema.get(index.get_name(orig_schema).module)
+            module = schema.get_global(
+                s_mod.Module, index.get_name(orig_schema).module)
             orig_idx_name = common.get_index_backend_name(
                 index.id, module.id, catenate=False)
             index = dbops.Index(
@@ -3294,7 +3296,7 @@ class AlterModule(ModuleMetaCommand, adapts=s_mod.AlterModule):
 
 class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
     def apply(self, schema, context):
-        module = schema.get(self.classname)
+        module = self.get_object(schema)
         schema_name = common.get_backend_name(schema, module)
 
         schema, _ = CompositeObjectMetaCommand.apply(self, schema, context)

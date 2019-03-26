@@ -24,6 +24,7 @@ import typing
 from edb.edgeql import qltypes
 
 from edb.schema import abc as s_abc
+from edb.schema import modules as s_mod
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
@@ -120,7 +121,7 @@ def type_to_typeref(schema, t: s_types.Type, *,
             name = typename
         else:
             name = t.get_name(schema)
-        module = schema.get(name.module)
+        module = schema.get_global(s_mod.Module, name.module)
 
         result = irast.TypeRef(
             id=t.id,
@@ -214,7 +215,8 @@ def ptrref_from_ptrcls(
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
         name = ptrcls.get_name(schema)
-        kwargs['module_id'] = schema.get(name.module).id
+        kwargs['module_id'] = schema.get_global(
+            s_mod.Module, name.module).id
 
     if direction is s_pointers.PointerDirection.Inbound:
         out_source = target_ref

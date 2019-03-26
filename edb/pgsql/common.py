@@ -258,36 +258,36 @@ def get_index_backend_name(id, module_id, catenate=True, *, aspect=None):
 def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     if isinstance(obj, s_objtypes.ObjectType):
         name = obj.get_name(schema)
-        module = schema.get(name.module)
+        module = schema.get_global(s_mod.Module, name.module)
         return get_objtype_backend_name(
             obj.id, module.id, catenate=catenate, aspect=aspect)
 
     elif isinstance(obj, s_pointers.PointerLike):
         name = obj.get_name(schema)
-        module = schema.get(name.module)
+        module = schema.get_global(s_mod.Module, name.module)
         return get_pointer_backend_name(obj.id, module.id, catenate=catenate)
 
     elif isinstance(obj, s_scalars.ScalarType):
         name = obj.get_name(schema)
-        module = schema.get(name.module)
+        module = schema.get_global(s_mod.Module, name.module)
         return get_scalar_backend_name(obj.id, module.id, catenate=catenate,
                                        aspect=aspect)
 
     elif isinstance(obj, s_opers.Operator):
         name = obj.get_shortname(schema)
-        module = schema.get(name.module)
+        module = schema.get_global(s_mod.Module, name.module)
         return get_operator_backend_name(
             name, module.id, catenate, aspect=aspect)
 
     elif isinstance(obj, s_casts.Cast):
         name = obj.get_name(schema)
-        module = schema.get(name.module)
+        module = schema.get_global(s_mod.Module, name.module)
         return get_cast_backend_name(
             name, module.id, catenate, aspect=aspect)
 
     elif isinstance(obj, s_func.Function):
         name = obj.get_shortname(schema)
-        module = schema.get(name.module)
+        module = schema.get_global(s_mod.Module, name.module)
         return get_function_backend_name(
             name, module.id, catenate)
 
@@ -296,7 +296,7 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
 
     elif isinstance(obj, s_constr.Constraint):
         name = obj.get_name(schema)
-        module = schema.get(name.module)
+        module = schema.get_global(s_mod.Module, name.module)
         return get_constraint_backend_name(
             obj.id, module.id, catenate, aspect=aspect)
 

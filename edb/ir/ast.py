@@ -22,7 +22,7 @@ import uuid
 
 from edb.common import ast, compiler, parsing
 
-from edb.schema import modules as s_modules
+from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as so
 from edb.schema import pointers as s_pointers
@@ -599,7 +599,7 @@ class DeleteStmt(MutatingStmt, FilteredStmt):
 
 class SessionStateCmd(Command):
 
-    modaliases: typing.Dict[typing.Optional[str], s_modules.Module]
+    modaliases: typing.Dict[typing.Optional[str], s_mod.Module]
     testmode: bool
 
 

@@ -88,10 +88,11 @@ def delta_schemas(schema1, schema2):
 
 def delta_module(schema1, schema2, modname):
     from . import derivable
+    from . import modules as s_mod
 
     result = DeltaRoot()
 
-    module2 = schema2.get(modname, None)
+    module2 = schema2.get_global(s_mod.Module, modname, None)
 
     global_adds_mods = []
     global_dels = []
@@ -719,14 +720,15 @@ class UnqualifiedObjectCommand(ObjectCommand):
     def _classname_from_ast(cls, schema, astnode, context):
         return astnode.name.name
 
-
-class GlobalObjectCommand(UnqualifiedObjectCommand):
-
     def get_object(self, schema, *, name=None):
         metaclass = self.get_schema_metaclass()
         if name is None:
             name = self.classname
         return schema.get_global(metaclass, name)
+
+
+class GlobalObjectCommand(UnqualifiedObjectCommand):
+    pass
 
 
 class CreateOrAlterObject(ObjectCommand):

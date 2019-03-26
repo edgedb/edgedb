@@ -46,6 +46,7 @@ from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
 from edb.schema import deltas as s_deltas
+from edb.schema import modules as s_mod
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
@@ -600,7 +601,7 @@ class Compiler(BaseCompiler):
 
         if isinstance(ql, qlast.SessionSetAliasDecl):
             try:
-                schema.get(ql.module)
+                schema.get_global(s_mod.Module, ql.module)
             except errors.InvalidReferenceError:
                 raise errors.UnknownModuleError(
                     f'module {ql.module!r} does not exist') from None

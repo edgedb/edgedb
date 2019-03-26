@@ -27,7 +27,7 @@ from edb import errors
 
 from . import casts as s_casts
 from . import functions as s_func
-from . import modules as s_modules
+from . import modules as s_mod
 from . import name as sn
 from . import objects as so
 from . import operators as s_oper
@@ -44,7 +44,6 @@ _void = object()
 class Schema:
 
     def __init__(self):
-        self._modules = immu.Map()
         self._id_to_data = immu.Map()
         self._id_to_type = immu.Map()
         self._shortname_to_id = immu.Map()
@@ -55,13 +54,8 @@ class Schema:
 
     def _replace(self, *, id_to_data=None, id_to_type=None,
                  name_to_id=None, shortname_to_id=None, globalname_to_id=None,
-                 modules=None, refs_to=None):
+                 refs_to=None):
         new = Schema.__new__(Schema)
-
-        if modules is None:
-            new._modules = self._modules
-        else:
-            new._modules = modules
 
         if id_to_data is None:
             new._id_to_data = self._id_to_data
@@ -102,7 +96,7 @@ class Schema:
         shortname_to_id = self._shortname_to_id
         globalname_to_id = self._globalname_to_id
         stype = type(scls)
-        is_global = issubclass(stype, so.GlobalObject)
+        is_global = issubclass(stype, so.UnqualifiedObject)
 
         has_sn_cache = issubclass(stype, (s_func.Function, s_oper.Operator))
 
@@ -128,7 +122,7 @@ class Schema:
                 if key in globalname_to_id:
                     raise errors.SchemaError(
                         f'{stype.__name__} {new_name!r} '
-                        f'is already in the schema')
+                        f'is already present in the schema')
                 globalname_to_id = globalname_to_id.set(key, obj_id)
             else:
                 if new_name in name_to_id:
@@ -375,11 +369,8 @@ class Schema:
             refs_to=self._update_refs_to(scls, None, data),
         )
 
-        if isinstance(scls, s_modules.Module):
-            updates['modules'] = self._modules.set(name, id)
-        elif isinstance(scls, so.GlobalObject):
-            pass
-        elif name.module not in self._modules:
+        if (not isinstance(scls, so.UnqualifiedObject)
+                and not self.has_module(name.module)):
             raise errors.UnknownModuleError(
                 f'module {name.module!r} is not in this schema')
 
@@ -394,9 +385,6 @@ class Schema:
         name = data['name']
 
         updates = {}
-
-        if isinstance(obj, s_modules.Module):
-            updates['modules'] = self._modules.delete(name)
 
         name_to_id, shortname_to_id, globalname_to_id = self._update_obj_name(
             obj.id, self._id_to_type[obj.id], name, None)
@@ -435,12 +423,6 @@ class Schema:
         if module is not None:
             fqname = sn.SchemaName(shortname, module)
             result = getter(self, fqname)
-            if result is not None:
-                return result
-        else:
-            # Some items have unqualified names, like modules
-            # themselves.
-            result = getter(self, shortname)
             if result is not None:
                 return result
 
@@ -600,7 +582,7 @@ class Schema:
             f'reference to a non-existent schema item: {name}')
 
     def has_module(self, module):
-        return module in self._modules
+        return self.get_global(s_mod.Module, module, None) is not None
 
     def get_children(self, scls):
         _virtual_children = scls.get__virtual_children(self)

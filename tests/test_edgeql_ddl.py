@@ -1934,16 +1934,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        The two types are created in different modules. They shouldn't
-        clash. Currently they clash because the LINK/PROPERTY is given
-        by a short name (much like it would be in SDL) and it
-        expands into "default::clash" for both cases. Which implicitly
-        creates an ABSTRACT LINK and an ABSTRACT PROPERTY with the
-        clashing name in default module.
-
-        Had this been written in SDL it would have worked since
-        the implicit LINK/PROPERTY would have been made in test or
-        test_other module.
+        This fails due to incomplete cleanup when DROP TYPE is executed,
+        so the final DROP MODULE fails to execute since there are
+        still objects within it.
     ''')
     async def test_edgeql_ddl_modules_01(self):
         try:

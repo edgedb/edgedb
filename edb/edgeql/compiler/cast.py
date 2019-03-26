@@ -32,6 +32,7 @@ from edb.ir import utils as irutils
 
 from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
+from edb.schema import modules as s_mod
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -158,7 +159,8 @@ def _cast_to_ir(
         from_type=orig_typeref,
         to_type=new_typeref,
         cast_name=cast_name,
-        cast_module_id=ctx.env.schema.get(cast_name.module).id,
+        cast_module_id=ctx.env.schema.get_global(
+            s_mod.Module, cast_name.module).id,
         sql_function=cast.get_from_function(ctx.env.schema),
         sql_cast=cast.get_from_cast(ctx.env.schema),
         sql_expr=bool(cast.get_code(ctx.env.schema)),
