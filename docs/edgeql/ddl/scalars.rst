@@ -14,7 +14,7 @@ CREATE SCALAR TYPE
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`scalar type <ref_eql_sdl_scalars>`.
+:ref:`Define <ref_eql_sdl_scalars>` a new scalar type.
 
 .. eql:synopsis::
 

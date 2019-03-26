@@ -5,98 +5,25 @@ Functions
 =========
 
 
-Definition
-==========
+Functions are ways to transform one set of data into another.  They
+are defined in :ref:`modules <ref_datamodel_modules>` and are part of
+the database schema.
 
-A function may be defined in EdgeDB Schema using the ``function`` declaration:
+For example, consider the :ref:`function <ref_eql_functions>`
+:eql:func:`len` used to transform a set of :eql:type:`strings <str>` into a set
+of :eql:type:`integers <int64>`:
 
-.. sdl:synopsis::
+.. code-block:: edgeql-repl
 
-    function <funcname> ([<argspec>] [, ...]) -> <returnspec>:
-        from <language> := <functionbody>
-        [ initial value := <initial-value> ]
-        [ <attribute-declarations> ]
+    db> SELECT len({'hello', 'world'});
+    {5, 5}
 
-    # where <argspec> is:
+Compare that with the :ref:`aggregate <ref_eql_fundamentals_aggregates>`
+function :eql:func:`count` that transforms a set of :eql:type:`strings
+<str>` into a single :eql:type:`int64` value, representing the set
+cardinality:
 
-    [ <argkind> ] <argname>: [ <typequal> ] <argtype> [ = <default> ]
+.. code-block:: edgeql-repl
 
-    # <argkind> is:
-
-    [ { variadic | named only } ]
-
-    # <typequal> is:
-
-    [ { set of | optional } ]
-
-    # and <returnspec> is:
-
-    [ <typequal> ] <rettype>
-
-
-Parameters
-----------
-
-:sdl:synopsis:`<funcname>`
-    The function name.
-
-:eql:synopsis:`<argkind>`
-    The kind of an argument: ``variadic`` or ``named only``.
-
-    If not specified, the argument is called *positional*.
-
-    The ``variadic`` modifier indicates that the function takes an
-    arbitrary number of arguments of the specified type.  The passed
-    arguments will be passed as as array of the argument type.
-    Positional arguments cannot follow a ``variadic`` argument.
-    ``variadic`` parameters cannot have a default value.
-
-    The ``named only`` modifier indicates that the argument can only
-    be passed using that specific name.  Positional arguments cannot
-    follow a ``named only`` argument.
-
-:eql:synopsis:`<argname>`
-    The name of an argument.  If ``named only`` modifier is used this
-    argument *must* be passesd using this name only.
-
-:eql:synopsis:`<typequal>`
-    The type qualifier: ``set of`` or ``optional``.
-
-    The ``set of`` qualifier indicates that the function is taking the
-    argument as a *whole set*, as opposed to being called on the input
-    product element-by-element.
-
-    The ``optional`` qualifier indicates that the function will be called
-    if the argument is an empty set.  The default behavior is to return
-    an empty set if the argument is not marked as ``optional``.
-
-:sdl:synopsis:`<argtype>`
-    The data type of the function's arguments
-    (optionally module-qualified).
-
-:sdl:synopsis:`<default>`
-    An expression to be used as default value if the parameter is not
-    specified.  The expression has to be of a type compatible with the
-    type of the argument.
-
-:sdl:synopsis:`<rettype>`
-    The return data type (optionally module-qualified).
-    The ``set of`` modifier indicates that the function will return
-    a non-singleton set.
-
-    The ``optional`` qualifier indicates that the function may return
-    an empty set.
-
-:sdl:synopsis:`<language>`
-    The name of the language that the function is implemented in.
-    The only currently supported value is ``edgeql``.
-
-:sdl:synopsis:`<functionbody>`
-    A string constant defining the function.
-
-
-DDL
-===
-
-Functions can also be defined using the :eql:stmt:`CREATE FUNCTION`
-EdgeQL command.
+    db> SELECT count({'hello', 'world'});
+    {2}

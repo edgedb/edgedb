@@ -18,7 +18,7 @@ or more properties directly:
 
     type User {
         property name -> str;
-        index name_idx on (__subject__.name);
+        index name_idx on __subject__.name;
     }
 
 With the above, ``User`` lookups by the ``name`` property will be faster,
@@ -37,8 +37,8 @@ of the host object type or link:
     type User {
         property firstname -> str;
         property lastname -> str;
-        index name_idx on (str_lower(__subject__.firstname + ' ' +
-                                     __subject__.lastname));
+        index name_idx on str_lower(
+            __subject__.firstname + ' ' + __subject__.lastname);
     }
 
 The index expression must not reference any variables other than
@@ -50,42 +50,3 @@ in the expression must not be set-returning.
     While being beneficial to the speed of queries, indexes increase
     the database size and make insertion and updates slower, and creating
     too many indexes may be detrimental.
-
-
-Definition
-==========
-
-Indexes may be defined in EdgeDB Schema in the context of a ``type`` or
-``abstract link`` declaration using the following two forms:
-
-.. sdl:synopsis::
-
-    { type <TypeName> | abstract link <link-name> }:
-        index <index-name> := <index-expr>
-
-    { type <TypeName> | abstract link <link-name> }:
-        index <index-name>:
-            expr := <index-expr>
-            [ <attr-name> := <attr-value> ]
-            [ ... ]
-
-Parameters
-----------
-
-:sdl:synopsis:`<index-name>`
-    The name of the index.  No module name can be specified, indexes are
-    always created in the same module as the host type or link.  Index
-    names must be unique within their host.
-
-:sdl:synopsis:`<index-expr>`
-    An expression based on one or more properties of the host schema item.
-
-:sdl:synopsis:`[ <attr-name> := <attr-value> ]`
-    An optional list of schema attribute values for the index. See
-    :ref:`schema attributes <ref_datamodel_attributes>` for more information.
-
-
-DDL
-===
-
-Indexes can also be defined using the :eql:stmt:`CREATE INDEX` EdgeQL command.

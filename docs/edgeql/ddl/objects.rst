@@ -15,7 +15,7 @@ CREATE TYPE
 :eql-haswith:
 
 
-Define a new :ref:`object type <ref_eql_sdl_object_types>`.
+:ref:`Define <ref_eql_sdl_object_types>` a new object type.
 
 .. eql:synopsis::
 

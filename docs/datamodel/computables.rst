@@ -16,7 +16,9 @@ non-computable counterparts.
 Computables are useful in the situations where there is a frequent need for
 some value that is derived from the values of existing properties and links.
 
-For example:
+For example, here we define the ``User`` type to contain the
+``fullname`` computable property that is derived from user's first and
+last name:
 
 .. code-block:: sdl
 
@@ -24,9 +26,6 @@ For example:
         required property firstname -> str;
         required property lastname -> str;
         property fullname :=
-            (__source__.firstname + ' ' +
+            (__source__.firstname ++ ' ' ++
              __source__.lastname);
      }
-
-Here we define the ``User`` type to contain the ``fullname`` computable
-property that is derived from user's first and last name.

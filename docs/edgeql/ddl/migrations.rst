@@ -17,7 +17,10 @@ Create a new migration.
 .. eql:synopsis::
 
     [ WITH [ <module-alias> := ] MODULE <module-name> ]
-    CREATE MIGRATION <name> TO <schema-lang> <schema-content> ;
+    CREATE MIGRATION <name> TO "{"
+        <sdl-declaration> ;
+        [ ... ]
+    "}" ;
 
     [ WITH [ <module-alias> := ] MODULE <module-name> ]
     CREATE MIGRATION <name> "{"
@@ -58,16 +61,9 @@ Parameters
     the migration is created for that module, otherwise the effective
     current module is used.
 
-:eql:synopsis:`<schema-lang>`
-    The name of the language used in *schema-content*.  Currently,
-    only ``eschema`` is supported and specifies that the schema
-    is described using the EdgeDB Schema language.
-
-:eql:synopsis:`<schema-content>`
-    The definition of the target schema for the module as a string constant.
-    The format is determined by *schema-lang*.  It is often helpful to use
-    :ref:`dollar quoting <ref_eql_lexical_dollar_quoting>` to write the
-    schema definition string.
+:eql:synopsis:`<sdl-declaration>`
+    Module contents defined using the declarative :ref:`EdgeDB schema
+    definition language<ref_eql_sdl>`.
 
 :eql:synopsis:`<ddl-command>`
     A list of arbitrary DDL commands.  :ref:`Database <ref_eql_ddl_databases>`,

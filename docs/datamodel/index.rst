@@ -28,7 +28,7 @@ Here is an example of a simple EdgeDB type using the Edge Schema notation:
 
 ``str`` in the above example is a
 :ref:`scalar type <ref_datamodel_scalar_types>`.  EdgeDB also supports
-several :ref:`collection types <ref_datamodel_collection_types>`.  Scalar
+:ref:`collection types <ref_datamodel_collection_types>`.  Scalar
 types and collection types are collectively called *primitive types* in
 contrast with object types.
 
@@ -41,13 +41,13 @@ contain *schema items*.
 
 There are several kinds of schema items:
 
-* :ref:`object type definitions <ref_datamodel_object_types>`
-* :ref:`scalar type definitions <ref_datamodel_scalar_types>`
-* :ref:`link definitions <ref_datamodel_links>`
-* :ref:`property definitions <ref_datamodel_props>`
-* :ref:`constraint definitions <ref_datamodel_constraints>`
-* :ref:`schema attribute definitions <ref_datamodel_attributes>`
-* :ref:`function definitions <ref_datamodel_functions>`
+* :ref:`object types <ref_datamodel_object_types>`
+* :ref:`scalar types <ref_datamodel_scalar_types>`
+* :ref:`links <ref_datamodel_links>`
+* :ref:`properties <ref_datamodel_props>`
+* :ref:`constraints <ref_datamodel_constraints>`
+* :ref:`attributes <ref_datamodel_attributes>`
+* :ref:`functions <ref_datamodel_functions>`
 
 There is also a special type ``anytype`` used to define polymorphic
 parameters in functions and operators:
@@ -78,7 +78,8 @@ the parent type.
 EdgeDB Schema
 =============
 
-:ref:`EdgeDB Schema <ref_eschema>` is a high-level declarative alternative to
-:ref:`EdgeQL data definition<ref_eql_ddl>` commands.  It is designed to
-be a consise and readable representation of schema state.  Most of the examples
-and synopses in this section use the EdgeDB Schema notation.
+:ref:`EdgeDB schema definition language<ref_eql_sdl>` is a high-level
+declarative alternative to :ref:`EdgeDB data definition<ref_eql_ddl>`
+commands.  It is designed to be a concise and readable representation
+of schema state.  Most of the examples and synopses in this section
+use the ESDL notation.

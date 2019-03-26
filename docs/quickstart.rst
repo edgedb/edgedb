@@ -74,7 +74,7 @@ and ``Comment``.  Let's define the initial schema with a migration:
     COMMIT;
 
 With the above snippet we defined and applied a migration to a schema
-described using the :ref:`declarative schema language <ref_eschema>`.
+described using the :ref:`declarative schema language <ref_eql_sdl>`.
 We created the three main object types, each with a number of properties
 and links to other objects.
 

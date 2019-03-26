@@ -5,7 +5,7 @@ Functions
 =========
 
 This section describes the DDL commands pertaining to
-:ref:`functions <ref_eql_sdl_functions>`.
+:ref:`functions <ref_datamodel_functions>`.
 
 
 CREATE FUNCTION
@@ -15,7 +15,7 @@ CREATE FUNCTION
 :eql-haswith:
 
 
-Define a new function.
+:ref:`Define <ref_eql_sdl_functions>` a new function.
 
 .. eql:synopsis::
 

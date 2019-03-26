@@ -14,7 +14,7 @@ CREATE INDEX
 :eql-statement:
 
 
-Define an new :ref:`index <ref_eql_sdl_indexes>` for a given object
+:ref:`Define <ref_eql_sdl_indexes>` an new index for a given object
 type or link.
 
 .. eql:synopsis::

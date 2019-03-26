@@ -14,7 +14,7 @@ CREATE VIEW
 :eql-statement:
 :eql-haswith:
 
-Define a new :ref:`view <ref_eql_sdl_views>`.
+:ref:`Define <ref_eql_sdl_views>` a new view.
 
 .. eql:synopsis::
 

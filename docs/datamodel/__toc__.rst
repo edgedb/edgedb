@@ -20,4 +20,3 @@ Data Model
     attributes
     modules
     databases
-    eschema/index
