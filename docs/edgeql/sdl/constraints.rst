@@ -7,6 +7,32 @@ Constraints
 This section describes the SDL declarations pertaining to
 :ref:`constraints <ref_datamodel_constraints>`.
 
+
+Examples
+--------
+
+Declare an *abstract* constraint:
+
+.. code-block:: sdl
+
+    abstract constraint min_value(min: anytype) {
+        errmessage :=
+            'Minimum allowed value for {__subject__} is {min}.';
+        expr := __subject__ >= min;
+    }
+
+Declare a *concrete* constraint on an integer type:
+
+.. code-block:: sdl
+
+    scalar type posint64 extending int64 {
+        constraint min_value(0);
+    }
+
+
+Syntax
+------
+
 Define a constraint corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_constraints>`.
 
@@ -49,11 +75,13 @@ Description
     the argument name, and :sdl:synopsis:`<argtype>`
     specifies the argument type.
 
-:sdl:synopsis:`<subject-expr>`
+:sdl:synopsis:`on ( <subject-expr> )`
     An optional expression defining the *subject* of the constraint.
     If not specified, the subject is the value of the schema item on
-    which the concrete constraint is defined.  The expression must refer
-    to the original subject of the constraint as ``__subject__``.
+    which the concrete constraint is defined.  The expression must
+    refer to the original subject of the constraint as
+    ``__subject__``.  Note also that ``<subject-expr>`` itself has to
+    be parenthesized.
 
 :sdl:synopsis:`extending <base> [, ...]`
     If specified, declares the *parent* constraints for this constraint.

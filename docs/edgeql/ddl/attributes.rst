@@ -1,11 +1,11 @@
 .. _ref_eql_ddl_schema_attributes:
 
-=================
-Schema Attributes
-=================
+==========
+Attributes
+==========
 
 This section describes the DDL commands pertaining to
-:ref:`schema attributes <ref_datamodel_attributes>`.
+:ref:`attributes <ref_datamodel_attributes>`.
 
 
 CREATE ABSTRACT ATTRIBUTE
@@ -13,7 +13,7 @@ CREATE ABSTRACT ATTRIBUTE
 
 :eql-statement:
 
-:ref:`Define <ref_eql_sdl_schema_attributes>` a new schema attribute.
+:ref:`Define <ref_eql_sdl_schema_attributes>` a new attribute.
 
 .. eql:synopsis::
 
@@ -25,7 +25,7 @@ CREATE ABSTRACT ATTRIBUTE
 Description
 -----------
 
-``CREATE ABSTRACT ATTRIBUTE`` defines a new schema attribute for use in the
+``CREATE ABSTRACT ATTRIBUTE`` defines a new attribute for use in the
 current database.
 
 If *name* is qualified with a module name, then the attribute is created

@@ -7,6 +7,36 @@ Links
 This section describes the SDL declarations pertaining to
 :ref:`links <ref_datamodel_links>`.
 
+
+Examples
+--------
+
+Declare an *abstract* link "friends" with a helpful title:
+
+.. code-block:: sdl
+
+    abstract link friends {
+        # declare a specific title for the link
+        attribute title := 'Close contacts';
+    }
+
+Declare a *concrete* link "friends" within a "User" type:
+
+.. code-block:: sdl
+
+    type User {
+        property name -> str;
+        property address -> str;
+        # define a concrete link "friends"
+        multi link friends -> User;
+
+        index user_name_idx on (__subject__.name);
+    }
+
+
+Syntax
+------
+
 Define a new link corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_links>`.
 

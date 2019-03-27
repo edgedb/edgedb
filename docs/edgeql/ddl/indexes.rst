@@ -37,6 +37,10 @@ Parameters
     indexes are always created in the same module as the parent type or
     link.
 
+:sdl:synopsis:`ON ( <index-expr> )`
+    The specific expression for which the index is made.  Note also
+    that ``<index-expr>`` itself has to be parenthesized.
+
 
 Examples
 --------

@@ -7,6 +7,27 @@ Object Types
 This section describes the SDL declarations pertaining to
 :ref:`object types <ref_datamodel_object_types>`.
 
+
+Example
+-------
+
+.. code-block:: sdl
+
+    type User {
+        # define some properties and a link
+        property name -> str;
+        property address -> str;
+
+        multi link friends -> User;
+
+        # define an index for User based on name
+        index user_name_idx on (__subject__.name);
+    }
+
+
+Syntax
+------
+
 Define a new object type corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_object_types>`.
 

@@ -1,11 +1,36 @@
 .. _ref_eql_sdl_schema_attributes:
 
-=================
-Schema Attributes
-=================
+==========
+Attributes
+==========
 
 This section describes the SDL declarations pertaining to
-:ref:`schema attributes <ref_datamodel_attributes>`.
+:ref:`attributes <ref_datamodel_attributes>`.
+
+
+Examples
+--------
+
+Declare a new attribute:
+
+.. code-block:: sdl
+
+    abstract attribute admin_note;
+
+Specify the value of an attribute for a type:
+
+.. code-block:: sdl
+
+    type Status {
+        attribute admin_note := 'system-critical';
+        required property name -> str {
+            constraint exclusive
+        }
+    }
+
+
+Syntax
+------
 
 Define a new attribute corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_schema_attributes>`.

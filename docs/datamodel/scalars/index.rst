@@ -7,13 +7,6 @@ Scalar Types
 *Scalar types* are primitive individual types.  Scalar type instances
 hold a single value, called a *scalar value*.
 
-All scalar types are derived from the ``std::anyscalar`` type:
-
-.. eql:type:: std::anyscalar
-
-    Abstract base scalar type.
-
-
 The standard EdgeDB scalar types are:
 
 - :ref:`Numeric types <ref_datamodel_scalars_numeric>`:

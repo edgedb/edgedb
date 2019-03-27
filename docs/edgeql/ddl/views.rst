@@ -54,7 +54,7 @@ Parameters
     An expression that defines the *shape* and the contents of the view.
 
 :eql:synopsis:`SET ATTRIBUTE <attr-name> := <attr-value>;`
-    An optional list of schema attribute values for the view.
+    An optional list of attribute values for the view.
     See :eql:stmt:`SET ATTRIBUTE` for details.
 
 :eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
