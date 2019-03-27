@@ -21,7 +21,7 @@ abstract type Text {
     # This is an abstract object containing text.
     required property body -> str {
         # Maximum length of text is 10000 characters.
-        constraint max_len(10000);
+        constraint max_len_value(10000);
     }
 }
 
@@ -107,6 +107,6 @@ type Publication {
     required property title -> str;
 }
 
-abstract constraint my_enum(enum: array<anytype>) {
-    expr := contains($enum, __subject__);
+abstract constraint my_one_of(one_of: array<anytype>) {
+    expr := contains(one_of, __subject__);
 }

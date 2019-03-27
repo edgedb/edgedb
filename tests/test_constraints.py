@@ -679,7 +679,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             };
 
             CREATE ABSTRACT CONSTRAINT test::mymax_ext1(max: std::int64)
-                    ON (len(__subject__)) EXTENDING std::max
+                    ON (len(__subject__)) EXTENDING std::max_value
             {
                 SET errmessage :=
                     '{__subject__} must be no longer than {max} characters.';
@@ -828,7 +828,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 };
 
                 CREATE PROPERTY bar -> std::str {
-                    CREATE CONSTRAINT std::max(3) ON (len(__subject__)) {
+                    CREATE CONSTRAINT std::max_value(3) ON (len(__subject__)) {
                         SET errmessage :=
                     # XXX: once simple string concat is possible here
                     #      formatting can be saner

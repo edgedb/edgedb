@@ -53,5 +53,5 @@ Create a new non-negative integer type:
 .. code-block:: sdl
 
     scalar type posint64 extending int64 {
-        constraint min(0);
+        constraint min_value(0);
     }

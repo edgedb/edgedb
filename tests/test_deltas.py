@@ -80,7 +80,7 @@ class TestDeltas(tb.DDLTestCase):
             CREATE SCALAR TYPE test::a1 EXTENDING std::str;
 
             ALTER SCALAR TYPE test::a1 {
-                CREATE CONSTRAINT std::enum('a', 'b') {
+                CREATE CONSTRAINT std::one_of('a', 'b') {
                     SET ATTRIBUTE description :=
                         'test_delta_drop_01_constraint';
                 };
@@ -97,7 +97,7 @@ class TestDeltas(tb.DDLTestCase):
             """,
             [
                 {
-                    'name': 'std::enum',
+                    'name': 'std::one_of',
                 }
             ],
         )

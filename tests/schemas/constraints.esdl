@@ -18,20 +18,20 @@
 
 
 scalar type constraint_length extending str {
-    constraint max_len(16);
-    constraint max_len(10);
-    constraint min_len(5);
-    constraint min_len(8);
+    constraint max_len_value(16);
+    constraint max_len_value(10);
+    constraint min_len_value(5);
+    constraint min_len_value(8);
 }
 
 scalar type constraint_length_2 extending constraint_length {
-    constraint min_len(9);
+    constraint min_len_value(9);
 }
 
 scalar type constraint_minmax extending str {
-    constraint min("99900000");
-    constraint min("99990000");
-    constraint max("9999999989");
+    constraint min_value("99900000");
+    constraint min_value("99990000");
+    constraint max_value("9999999989");
 }
 
 scalar type constraint_strvalue extending str {
@@ -44,19 +44,19 @@ scalar type constraint_strvalue extending str {
     constraint regexp(r"^\d+9{3,}.*$");
 }
 
-# A variant of enum that uses an array argument instead of
+# A variant of one_of that uses an array argument instead of
 # a variadic.
-abstract constraint my_enum(enum: array<anytype>) {
-    expr := contains(enum, __subject__);
+abstract constraint my_one_of(one_of: array<anytype>) {
+    expr := contains(one_of, __subject__);
 }
 
 
 scalar type constraint_enum extending str {
-   constraint enum('foo', 'bar');
+   constraint one_of('foo', 'bar');
 }
 
 scalar type constraint_my_enum extending str {
-   constraint my_enum(['foo', 'bar']);
+   constraint my_one_of(['foo', 'bar']);
 }
 
 
@@ -93,7 +93,7 @@ type Object {
     property c_length -> constraint_length;
     property c_length_2 -> constraint_length_2;
     property c_length_3 -> constraint_length_2 {
-        constraint min_len(10);
+        constraint min_len_value(10);
     }
 
     property c_minmax -> constraint_minmax;

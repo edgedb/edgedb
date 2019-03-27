@@ -92,7 +92,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         abstract type Text {
             required property body -> str {
-                constraint max_len (10000);
+                constraint max_len_value (10000);
             };
         };
         """
@@ -381,11 +381,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         type Foo {
             single property foo -> str {
-                constraint max_len (10000)
+                constraint max_len_value (10000)
             }
 
             multi property bar -> str {
-                constraint max_len (10000)
+                constraint max_len_value (10000)
             }
         }
 
@@ -393,11 +393,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         type Foo {
             single property foo -> str {
-                constraint max_len (10000);
+                constraint max_len_value (10000);
             };
 
             multi property bar -> str {
-                constraint max_len (10000);
+                constraint max_len_value (10000);
             };
         };
         """
@@ -511,8 +511,8 @@ type LogEntry extending    OwnedObject,    Text {
     def test_eschema_syntax_scalar_03(self):
         r"""
         scalar type basic extending int {
-            delegated constraint min(0);
-            constraint max(123456);
+            delegated constraint min_value(0);
+            constraint max_value(123456);
             constraint must_be_even;
 
             title := 'Basic ScalarType';
@@ -523,8 +523,8 @@ type LogEntry extending    OwnedObject,    Text {
     def test_eschema_syntax_scalar_04(self):
         """
         scalar type basic extending int {
-            constraint min(0);
-            constraint max(123456);
+            constraint min_value(0);
+            constraint max_value(123456);
             delegated constraint expr on (__subject__ % 2 = 0);
 
             title := 'Basic ScalarType';
@@ -539,8 +539,8 @@ type LogEntry extending    OwnedObject,    Text {
                 prop :=
                     (__subject__ % 2 = 0);
             };
-            constraint min(0);
-            constraint max(123456);
+            constraint min_value(0);
+            constraint max_value(123456);
 
             title := 'Basic ScalarType';
             default := 2;
@@ -550,8 +550,8 @@ type LogEntry extending    OwnedObject,    Text {
     def test_eschema_syntax_scalar_06(self):
         """
         scalar type basic extending int {
-            constraint min(0);
-            constraint max(123456);
+            constraint min_value(0);
+            constraint max_value(123456);
             constraint expr {
                 abc := (__subject__ % 2 = 0);
             };
@@ -601,27 +601,27 @@ type LogEntry extending    OwnedObject,    Text {
     def test_eschema_syntax_scalar_11(self):
         """
         scalar type constraint_length extending str {
-             constraint max_len(16+1, len(([1])));
+             constraint max_len_value(16+1, len(([1])));
         };
         """
 
     def test_eschema_syntax_scalar_12(self):
         """
         scalar type constraint_length extending str {
-             constraint max_len((16+(4*2))/((4)-1), len(([1])));
+             constraint max_len_value((16+(4*2))/((4)-1), len(([1])));
         };
         """
 
     def test_eschema_syntax_constraint_01(self):
         """
-        abstract constraint max(param:anytype) on (()) {
+        abstract constraint max_value(param:anytype) on (()) {
             expr := __subject__ <= $param;
             errmessage := 'Maximum allowed value for {subject} is {$param}.';
         };
 
 % OK %
 
-        abstract constraint max(param:anytype) on (()) {
+        abstract constraint max_value(param:anytype) on (()) {
             expr := (__subject__ <= $param);
             errmessage := 'Maximum allowed value for {subject} is {$param}.';
         };
@@ -639,7 +639,8 @@ type LogEntry extending    OwnedObject,    Text {
 
     def test_eschema_syntax_constraint_03(self):
         """
-        abstract constraint max_len(param:anytype) extending max, length {
+        abstract constraint max_len_value(param:anytype)
+                extending max, length {
             errmessage :=
                 '{subject} must be no longer than {$param} characters.';
         };
@@ -647,7 +648,7 @@ type LogEntry extending    OwnedObject,    Text {
 
     def test_eschema_syntax_constraint_04(self):
         """
-        abstract constraint max(param:anytype) {
+        abstract constraint max_value(param:anytype) {
             expr := (__subject__ <= $param);
             errmessage := 'Maximum allowed value for {subject} is {$param}.';
         };
@@ -656,7 +657,8 @@ type LogEntry extending    OwnedObject,    Text {
             subject := str::len(<str>__subject__);
         };
 
-        abstract constraint max_len(param:anytype) extending max, length {
+        abstract constraint max_len_value(param:anytype)
+                extending max_value, length {
             errmessage :=
                 '{subject} must be no longer than {$param} characters.';
         };
@@ -676,10 +678,10 @@ type LogEntry extending    OwnedObject,    Text {
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r"missing type declaration.*`param`",
-                  line=2, col=37)
+                  line=2, col=43)
     def test_eschema_syntax_constraint_06(self):
         """
-        abstract constraint max_len(param) extending max, length;
+        abstract constraint max_len_value(param) extending max, length;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -717,7 +719,7 @@ type LogEntry extending    OwnedObject,    Text {
                     '{__subject__} must be no longer than {$param} meters.';
             };
 
-            constraint max_len(4);
+            constraint max_len_value(4);
         };
         """
 
@@ -798,8 +800,8 @@ abstract property foo {
 
         abstract link coollink {
             property foo -> int64 {
-                constraint min(0);
-                constraint max(123456);
+                constraint min_value(0);
+                constraint max_value(123456);
                 constraint expr on (__subject__ % 2 = 0) {
                     title := 'aaa';
                 };

@@ -20,7 +20,7 @@ containing the following schema:
         property synopsis -> str;
         link author -> Author;
         property isbn -> str {
-            constraint max_len(10);
+            constraint max_len_value(10);
         }
     }
 

@@ -192,16 +192,16 @@ class EdgeQL:
     )
     constraint_builtins = (
         "constraint",
-        "enum",
         "exclusive",
         "expression",
-        "len_constraint",
-        "max",
-        "max_ex",
-        "max_len",
-        "min",
-        "min_ex",
-        "min_len",
+        "len_value",
+        "max_ex_value",
+        "max_len_value",
+        "max_value",
+        "min_ex_value",
+        "min_len_value",
+        "min_value",
+        "one_of",
         "regexp",
     )
     fn_builtins = (

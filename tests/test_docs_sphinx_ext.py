@@ -397,12 +397,12 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
             any.
 
-        .. eql:constraint:: std::max_len(v: any)
+        .. eql:constraint:: std::max_len_value(v: any)
 
             blah
 
-        Testing :eql:constraint:`XXX <max_len>` ref.
-        Testing :eql:constraint:`max_len` ref.
+        Testing :eql:constraint:`XXX <max_len_value>` ref.
+        Testing :eql:constraint:`max_len_value` ref.
         '''
 
         out = self.build(src, format='xml')
@@ -418,14 +418,14 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
             x.xpath('''
                 //paragraph /
                 reference[@eql-type="constraint" and
-                    @refid="constraint::std::max_len"] /
+                    @refid="constraint::std::max_len_value"] /
                 literal / text()
             '''),
-            ['XXX', 'max_len'])
+            ['XXX', 'max_len_value'])
 
     def test_sphinx_eql_constr_02(self):
         src = '''
-        .. eql:constraint:: std::len_constraint on (len(<std::str>__subject__))
+        .. eql:constraint:: std::len_value on (len(<std::str>__subject__))
 
             blah
         '''
@@ -440,7 +440,7 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
         self.assertEqual(
             sig.xpath('@eql-signature'),
-            ['std::len_constraint ON (len(<std::str>__subject__))'])
+            ['std::len_value ON (len(<std::str>__subject__))'])
 
         self.assertEqual(
             sig.xpath('@eql-subjexpr'),

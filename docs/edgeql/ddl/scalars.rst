@@ -73,7 +73,7 @@ Create a new non-negative integer type:
 .. code-block:: edgeql
 
     CREATE SCALAR TYPE posint64 EXTENDING int64 {
-        CREATE CONSTRAINT min(0);
+        CREATE CONSTRAINT min_value(0);
     };
 
 
@@ -136,7 +136,7 @@ Define a new constraint on a scalar type:
 .. code-block:: edgeql
 
     ALTER SCALAR TYPE posint64 {
-        CREATE CONSTRAINT max(100);
+        CREATE CONSTRAINT max_value(100);
     };
 
 

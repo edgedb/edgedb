@@ -2886,7 +2886,7 @@ aa';
     def test_edgeql_syntax_ddl_constraint_07(self):
         """
         CREATE SCALAR TYPE std::decimal_rounding_t EXTENDING std::str {
-            CREATE CONSTRAINT max(99) ON (<int64>__subject__);
+            CREATE CONSTRAINT max_value(99) ON (<int64>__subject__);
         };
         """
 

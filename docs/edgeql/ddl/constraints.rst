@@ -297,7 +297,7 @@ Create a maximum length constraint on the property "name" of the "User" type:
 .. code-block:: edgeql
 
     ALTER TYPE User ALTER PROPERTY name
-    CREATE CONSTRAINT max_len(100);
+    CREATE CONSTRAINT max_len_value(100);
 
 
 ALTER CONSTRAINT
@@ -379,7 +379,7 @@ Change the error message on a maximum length constraint on the property
 .. code-block:: edgeql
 
     ALTER TYPE User ALTER PROPERTY name
-    ALTER CONSTRAINT max_len
+    ALTER CONSTRAINT max_len_value
     SET errmessage := 'User name too long';
 
 
@@ -421,10 +421,10 @@ Parameters
 Examples
 --------
 
-Remove constraint "max_len" from the property "name" of the
+Remove constraint "max_len_value" from the property "name" of the
 "User" type:
 
 .. code-block:: edgeql
 
     ALTER TYPE User ALTER PROPERTY name
-    DROP CONSTRAINT max_len;
+    DROP CONSTRAINT max_len_value;
