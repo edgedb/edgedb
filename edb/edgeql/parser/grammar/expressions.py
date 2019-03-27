@@ -1286,6 +1286,11 @@ class TypeName(Nonterm):
         self.val = kids[0].val
 
 
+class TypeNameList(ListNonterm, element=TypeName,
+                   separator=tokens.T_COMMA):
+    pass
+
+
 # This is a type expression without angle brackets, so it
 # can be used without parentheses in a context where the
 # angle bracket has a different meaning.
@@ -1337,6 +1342,11 @@ class Subtype(Nonterm):
     def reduce_Identifier_COLON_FullTypeExpr(self, *kids):
         self.val = kids[2].val
         self.val.name = kids[0].val
+
+    def reduce_EscapedStringConstant(self, *kids):
+        self.val = qlast.TypeExprLiteral(
+            val=kids[0].val,
+        )
 
 
 class SubtypeList(ListNonterm, element=Subtype, separator=tokens.T_COMMA):

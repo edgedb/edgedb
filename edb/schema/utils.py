@@ -62,9 +62,19 @@ def ast_objref_to_objref(
 
 def ast_to_typeref(
         node: ql_ast.TypeName, *,
+        metaclass: typing.Optional[so.ObjectMeta] = None,
         modaliases: typing.Dict[typing.Optional[str], str],
         schema) -> so.ObjectRef:
-    if node.subtypes is not None:
+
+    if node.subtypes is not None and node.maintype.name == 'enum':
+        from . import scalars as s_scalars
+
+        return s_scalars.AnonymousEnumTypeRef(
+            name='std::anyenum',
+            elements=[st.val.value for st in node.subtypes],
+        )
+
+    elif node.subtypes is not None:
         coll = s_types.Collection.get_class(node.maintype.name)
 
         if issubclass(coll, s_abc.Tuple):
@@ -120,7 +130,8 @@ def ast_to_typeref(
         return s_pseudo.AnyTupleRef()
 
     return ast_objref_to_objref(
-        node.maintype, modaliases=modaliases, schema=schema)
+        node.maintype, modaliases=modaliases,
+        metaclass=metaclass, schema=schema)
 
 
 def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:

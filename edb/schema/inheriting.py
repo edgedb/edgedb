@@ -120,15 +120,20 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
 
     @classmethod
     def _classbases_from_ast(cls, schema, astnode, context):
-        classname = cls._classname_from_ast(schema, astnode, context)
-
         modaliases = context.modaliases
 
-        bases = so.ObjectList.create(
-            schema,
-            [utils.ast_to_typeref(b, modaliases=modaliases, schema=schema)
-             for b in getattr(astnode, 'bases', None) or []]
-        )
+        base_refs = [
+            utils.ast_to_typeref(b, modaliases=modaliases, schema=schema)
+            for b in getattr(astnode, 'bases', None) or []
+        ]
+
+        return cls._validate_base_refs(schema, base_refs, astnode, context)
+
+    @classmethod
+    def _validate_base_refs(cls, schema, base_refs, astnode, context):
+        classname = cls._classname_from_ast(schema, astnode, context)
+
+        bases = so.ObjectList.create(schema, base_refs)
 
         for base in bases.objects(schema):
             if base.is_type() and base.contains_any():
@@ -207,6 +212,9 @@ class RebaseInheritingObject(sd.ObjectCommand):
                                 schema, ref_name, attr, local_attr, backref)
                         except KeyError:
                             schema, coll = coll.delete(schema, [ref_name])
+
+        props = self.get_struct_properties(schema)
+        schema = scls.update(schema, props)
 
         for op in self.get_subcommands(type=sd.ObjectCommand):
             schema, _ = op.apply(schema, context)

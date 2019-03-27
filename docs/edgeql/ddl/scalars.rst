@@ -39,7 +39,7 @@ If the ``ABSTRACT`` keyword is specified, the created type will be
 
 All non-abstract scalar types must have an underlying core
 implementation.  For user-defined scalar types this means that
-``CREATE SCALAR TYPE`` must specify another non-abstract scalar type
+``CREATE SCALAR TYPE`` must have another non-abstract scalar type
 as its *supertype*.
 
 The most common use of ``CREATE SCALAR TYPE`` is to define a scalar
@@ -47,6 +47,10 @@ subtype with constraints.
 
 :eql:synopsis:`EXTENDING <supertype>`
     Optional clause specifying the *supertype* of the new type.
+
+    If :eql:synopsis:`<supertype>` is an
+    :eql:type:`enumerated type <std::enum>` declaration then
+    an enumerated scalar type is defined.
 
     Use of ``EXTENDING`` creates a persistent type relationship
     between the new subtype and its supertype(s).  Schema modifications
@@ -75,6 +79,13 @@ Create a new non-negative integer type:
     CREATE SCALAR TYPE posint64 EXTENDING int64 {
         CREATE CONSTRAINT min_value(0);
     };
+
+
+Create a new enumerated type:
+
+.. code-block:: edgeql
+
+    CREATE SCALAR TYPE my_color_t EXTENDING enum<'black', 'white', 'red'>;
 
 
 ALTER SCALAR TYPE

@@ -195,6 +195,7 @@ CREATE TYPE schema::ScalarType
         schema::AttributeSubject, schema::Type
 {
     CREATE PROPERTY default -> std::str;
+    CREATE PROPERTY enum_values -> array<std::str>;
 };
 
 

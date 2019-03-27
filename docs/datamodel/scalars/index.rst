@@ -34,6 +34,8 @@ The standard EdgeDB scalar types are:
 
 - :ref:`JSON type <ref_datamodel_scalars_json>`
 
+- :ref:`Enum types <ref_datamodel_scalars_enum>`
+
 
 .. toctree::
     :maxdepth: 3
@@ -47,3 +49,4 @@ The standard EdgeDB scalar types are:
     sequence
     uuid
     json
+    enum

@@ -84,8 +84,21 @@ class OptSemicolons(Nonterm):
         self.val = None
 
 
-class Extending(Nonterm):
+class ExtendingSimple(Nonterm):
     def reduce_EXTENDING_SimpleTypeNameList(self, *kids):
+        self.val = kids[1].val
+
+
+class OptExtendingSimple(Nonterm):
+    def reduce_ExtendingSimple(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = []
+
+
+class Extending(Nonterm):
+    def reduce_EXTENDING_TypeNameList(self, *kids):
         self.val = kids[1].val
 
 

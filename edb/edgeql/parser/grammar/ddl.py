@@ -383,12 +383,27 @@ class OptInheritPosition(Nonterm):
         self.val = None
 
 
-class AlterExtending(Nonterm):
+class AlterSimpleExtending(Nonterm):
     def reduce_EXTENDING_SimpleTypeNameList_OptInheritPosition(self, *kids):
         self.val = qlast.AlterAddInherit(bases=kids[1].val,
                                          position=kids[2].val)
 
     def reduce_DROP_EXTENDING_SimpleTypeNameList(self, *kids):
+        self.val = qlast.AlterDropInherit(bases=kids[2].val)
+
+    def reduce_AlterAbstract(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterFinal(self, *kids):
+        self.val = kids[0].val
+
+
+class AlterExtending(Nonterm):
+    def reduce_EXTENDING_TypeNameList_OptInheritPosition(self, *kids):
+        self.val = qlast.AlterAddInherit(bases=kids[1].val,
+                                         position=kids[2].val)
+
+    def reduce_DROP_EXTENDING_TypeNameList(self, *kids):
         self.val = qlast.AlterDropInherit(bases=kids[2].val)
 
     def reduce_AlterAbstract(self, *kids):
@@ -619,7 +634,7 @@ class DropRoleStmt(Nonterm):
 class CreateConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce CREATE ABSTRACT CONSTRAINT NodeName OptOnExpr \
-                    OptExtending OptCreateCommandsBlock"""
+                    OptExtendingSimple OptCreateCommandsBlock"""
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
             subjectexpr=kids[4].val,
@@ -629,7 +644,7 @@ class CreateConstraintStmt(Nonterm):
 
     def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
         r"""%reduce CREATE ABSTRACT CONSTRAINT NodeName CreateFunctionArgs \
-                    OptOnExpr OptExtending OptCreateCommandsBlock"""
+                    OptOnExpr OptExtendingSimple OptCreateCommandsBlock"""
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
             params=kids[4].val,
@@ -798,7 +813,7 @@ class DropScalarTypeStmt(Nonterm):
 #
 class CreateAttributeStmt(Nonterm):
     def reduce_CreateAttribute(self, *kids):
-        r"""%reduce CREATE ABSTRACT ATTRIBUTE NodeName OptExtending \
+        r"""%reduce CREATE ABSTRACT ATTRIBUTE NodeName OptExtendingSimple \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateAttribute(
             name=kids[3].val,
@@ -809,7 +824,7 @@ class CreateAttributeStmt(Nonterm):
 
     def reduce_CreateInheritableAttribute(self, *kids):
         r"""%reduce CREATE ABSTRACT INHERITABLE ATTRIBUTE
-                    NodeName OptExtending OptCreateCommandsBlock"""
+                    NodeName OptExtendingSimple OptCreateCommandsBlock"""
         self.val = qlast.CreateAttribute(
             name=kids[4].val,
             bases=kids[5].val,
@@ -860,7 +875,7 @@ class AlterTargetStmt(Nonterm):
 #
 class CreatePropertyStmt(Nonterm):
     def reduce_CreateProperty(self, *kids):
-        r"""%reduce CREATE ABSTRACT PROPERTY NodeName OptExtending \
+        r"""%reduce CREATE ABSTRACT PROPERTY NodeName OptExtendingSimple \
                     OptCreateCommandsBlock \
         """
         self.val = qlast.CreateProperty(
@@ -922,8 +937,9 @@ commands_block(
 class CreateConcretePropertyStmt(Nonterm):
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
-            CREATE OptPtrQuals PROPERTY UnqualifiedPointerName OptExtending
-            ARROW FullTypeExpr OptCreateConcretePropertyCommandsBlock
+            CREATE OptPtrQuals PROPERTY UnqualifiedPointerName
+            OptExtendingSimple ARROW FullTypeExpr
+            OptCreateConcretePropertyCommandsBlock
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
@@ -1039,7 +1055,7 @@ commands_block(
 class CreateLinkStmt(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
-            CREATE ABSTRACT LINK NodeName OptExtending \
+            CREATE ABSTRACT LINK NodeName OptExtendingSimple \
             OptCreateLinkCommandsBlock \
         """
         self.val = qlast.CreateLink(
@@ -1059,7 +1075,7 @@ commands_block(
     SetFieldStmt,
     SetAttributeValueStmt,
     DropAttributeValueStmt,
-    AlterExtending,
+    AlterSimpleExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
     DropConcreteConstraintStmt,
@@ -1147,7 +1163,7 @@ commands_block(
 class CreateConcreteLinkStmt(Nonterm):
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
-            CREATE OptPtrQuals LINK UnqualifiedPointerName OptExtending
+            CREATE OptPtrQuals LINK UnqualifiedPointerName OptExtendingSimple
             ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock
         """
         self.val = qlast.CreateConcreteLink(
@@ -1180,7 +1196,7 @@ commands_block(
     SetCardinalityStmt,
     SetRequiredStmt,
     AlterTargetStmt,
-    AlterExtending,
+    AlterSimpleExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
     DropConcreteConstraintStmt,
@@ -1239,7 +1255,7 @@ class CreateObjectTypeStmt(Nonterm):
     def reduce_CreateAbstractObjectTypeStmt(self, *kids):
         r"""%reduce \
             CREATE ABSTRACT TYPE NodeName \
-            OptExtending OptCreateObjectTypeCommandsBlock \
+            OptExtendingSimple OptCreateObjectTypeCommandsBlock \
         """
         self.val = qlast.CreateObjectType(
             name=kids[3].val,
@@ -1251,7 +1267,7 @@ class CreateObjectTypeStmt(Nonterm):
     def reduce_CreateRegularObjectTypeStmt(self, *kids):
         r"""%reduce \
             CREATE TYPE NodeName \
-            OptExtending OptCreateObjectTypeCommandsBlock \
+            OptExtendingSimple OptCreateObjectTypeCommandsBlock \
         """
         self.val = qlast.CreateObjectType(
             name=kids[2].val,
@@ -1271,7 +1287,7 @@ commands_block(
     SetFieldStmt,
     SetAttributeValueStmt,
     DropAttributeValueStmt,
-    AlterExtending,
+    AlterSimpleExtending,
     CreateConcretePropertyStmt,
     AlterConcretePropertyStmt,
     DropConcretePropertyStmt,

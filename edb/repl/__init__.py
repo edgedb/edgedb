@@ -165,7 +165,11 @@ class Cli:
         return toolbar
 
     def introspect_db(self, con):
-        names = con.fetchall('SELECT schema::ObjectType { name }')
+        names = con.fetchall('''
+            WITH MODULE schema
+            SELECT Type { name }
+            FILTER Type IS (ObjectType | ScalarType);
+        ''')
         self.context.typenames = {n.id: n.name for n in names}
 
     def build_propmpt(self):

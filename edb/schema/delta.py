@@ -937,8 +937,8 @@ class AlterObject(CreateOrAlterObject):
             for astcmd in astnode.commands:
                 if isinstance(astcmd, qlast.AlterDropInherit):
                     dropped_bases.extend(
-                        utils.ast_objref_to_objref(
-                            b.maintype,
+                        utils.ast_to_typeref(
+                            b,
                             metaclass=cls.get_schema_metaclass(),
                             modaliases=context.modaliases,
                             schema=schema,
@@ -948,8 +948,8 @@ class AlterObject(CreateOrAlterObject):
 
                 elif isinstance(astcmd, qlast.AlterAddInherit):
                     bases = [
-                        utils.ast_objref_to_objref(
-                            b.maintype,
+                        utils.ast_to_typeref(
+                            b,
                             metaclass=cls.get_schema_metaclass(),
                             modaliases=context.modaliases,
                             schema=schema,

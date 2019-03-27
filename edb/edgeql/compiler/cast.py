@@ -238,8 +238,13 @@ def _find_cast(
         ctx: context.ContextLevel) -> typing.Optional[s_casts.Cast]:
 
     casts = ctx.env.schema.get_casts_to_type(new_stype)
-    if not casts:
-        return None
+    if not casts and not new_stype.is_collection():
+        for t in new_stype.get_mro(ctx.env.schema).objects(ctx.env.schema):
+            casts = ctx.env.schema.get_casts_to_type(t)
+            if casts:
+                break
+        else:
+            return None
 
     args = [
         (orig_stype, None),

@@ -25,6 +25,7 @@ from .ddl import *  # NOQA
 from .dml import *  # NOQA
 from .databases import *  # NOQA
 from .domains import *  # NOQA
+from .enums import *  # NOQA
 from .extensions import *  # NOQA
 from .functions import *  # NOQA
 from .indexes import *  # NOQA

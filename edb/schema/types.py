@@ -101,6 +101,9 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     def is_tuple(self):
         return False
 
+    def is_enum(self, schema):
+        return False
+
     def test_polymorphic(self, schema, poly: 'Type') -> bool:
         """Check if this type can be matched by a polymorphic type.
 

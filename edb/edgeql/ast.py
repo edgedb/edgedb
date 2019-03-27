@@ -292,6 +292,11 @@ class TypeOf(TypeExpr):
     expr: Expr
 
 
+class TypeExprLiteral(TypeExpr):
+    # Literal type exprs are used in enum declarations.
+    val: StringConstant
+
+
 class TypeName(TypeExpr):
     name: str  # name is used for types in named tuples
     maintype: BaseObjectRef

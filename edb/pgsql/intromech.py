@@ -208,7 +208,8 @@ class IntrospectionMech:
                 'default': (s_expr.Expression(**row['default'])
                             if row['default'] else None),
                 'expr': (s_expr.Expression(**row['expr'])
-                         if row['expr'] else None)
+                         if row['expr'] else None),
+                'enum_values': row['enum_values'],
             }
 
             if scalar_data['bases']:
@@ -253,7 +254,7 @@ class IntrospectionMech:
 
     async def order_scalars(self, schema):
         for scalar in schema.get_objects(type=s_scalars.ScalarType):
-            schema = scalar.acquire_ancestor_inheritance(schema)
+            schema = scalar.finalize(schema)
         return schema
 
     def _decode_func_params(self, schema, row, param_map):

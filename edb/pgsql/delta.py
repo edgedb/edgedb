@@ -1055,25 +1055,35 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         new_domain_name = common.get_backend_name(
             schema, scalar, catenate=False)
-        base = types.get_scalar_base(schema, scalar)
 
-        self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
+        enum_values = scalar.get_enum_values(schema)
+        if enum_values:
+            new_enum_name = common.get_backend_name(
+                schema, scalar, catenate=False, aspect='enum')
+            self.pgops.add(dbops.CreateEnum(
+                name=new_enum_name, values=enum_values))
+            base = q(*new_enum_name)
+
+        else:
+            base = types.get_scalar_base(schema, scalar)
 
         if self.is_sequence(schema, scalar):
             seq_name = common.get_backend_name(
                 schema, scalar, catenate=False, aspect='sequence')
             self.pgops.add(dbops.CreateSequence(name=seq_name))
 
+        self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
+
         default = updates.get('default')
         if default:
-            if (
-                    default is not None and
-                    not isinstance(default, s_expr.Expression)):
-                # We only care to support literal defaults here.  Supporting
-                # defaults based on queries has no sense on the database level
-                # since the database forbids queries for DEFAULT and pre-
-                # calculating the value does not make sense either since the
-                # whole point of query defaults is for them to be dynamic.
+            if (default is not None
+                    and not isinstance(default, s_expr.Expression)):
+                # We only care to support literal defaults here. Supporting
+                # defaults based on queries has no sense on the database
+                # level since the database forbids queries for DEFAULT and
+                # pre- calculating the value does not make sense either
+                # since the whole point of query defaults is for them to be
+                # dynamic.
                 self.pgops.add(
                     dbops.AlterDomainAlterDefault(
                         name=new_domain_name, default=default))
@@ -1096,8 +1106,17 @@ class RenameScalarType(ScalarTypeMetaCommand,
         new_domain_name = common.get_backend_name(
             schema, scls, catenate=False)
 
+        if scls.is_enum(schema):
+            enum_name = common.get_backend_name(
+                orig_schema, scls, catenate=False, aspect='enum')
+            new_enum_name = common.get_backend_name(
+                schema, scls, catenate=False, aspect='enum')
+            self.pgops.add(
+                dbops.RenameEnum(name=enum_name, new_name=new_enum_name))
+
         self.pgops.add(
             dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
+
         self.rename(schema, orig_schema, context, scls)
 
         if self.is_sequence(schema, scls):
@@ -1115,8 +1134,10 @@ class RenameScalarType(ScalarTypeMetaCommand,
 
 class RebaseScalarType(ScalarTypeMetaCommand,
                        adapts=s_scalars.RebaseScalarType):
-    # Rebase is taken care of in AlterScalarType
-    pass
+    def apply(self, schema, context):
+        # Actual rebase is taken care of in AlterScalarType
+        schema, _ = ScalarTypeMetaCommand.apply(self, schema, context)
+        return s_scalars.RebaseScalarType.apply(self, schema, context)
 
 
 class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
@@ -1135,53 +1156,49 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 dbops.Update(
                     table=table, record=updaterec, condition=condition))
 
-        self.alter_scalar(
-            self, schema, orig_schema,
-            context, new_scalar, updates=updates)
+        old_enum_values = new_scalar.get_enum_values(orig_schema)
+        new_enum_values = new_scalar.get_enum_values(schema)
+
+        if new_enum_values:
+            type_name = common.get_backend_name(
+                schema, new_scalar, catenate=False, aspect='enum')
+
+            if old_enum_values != new_enum_values:
+                old_idx = 0
+                old_enum_values = list(old_enum_values)
+                for v in new_enum_values:
+                    if old_idx >= len(old_enum_values):
+                        self.pgops.add(
+                            dbops.AlterEnumAddValue(
+                                type_name, v,
+                            )
+                        )
+                    elif v != old_enum_values[old_idx]:
+                        self.pgops.add(
+                            dbops.AlterEnumAddValue(
+                                type_name, v, before=old_enum_values[old_idx],
+                            )
+                        )
+                        old_enum_values.insert(old_idx, v)
+                    else:
+                        old_idx += 1
+
+        if updates:
+            default_delta = updates.get('default')
+            if default_delta:
+                if (default_delta is None or
+                        isinstance(default_delta, s_expr.Expression)):
+                    new_default = None
+                else:
+                    new_default = default_delta
+
+                domain_name = common.get_backend_name(
+                    schema, new_scalar, catenate=False)
+                adad = dbops.AlterDomainAlterDefault(
+                    name=domain_name, default=new_default)
+                self.pgops.add(adad)
 
         return schema, new_scalar
-
-    @classmethod
-    def alter_scalar(
-            cls, op, schema, orig_schema, context, new_scalar, in_place=True,
-            updates=None):
-
-        old_base = types.get_scalar_base(orig_schema, new_scalar)
-        base = types.get_scalar_base(schema, new_scalar)
-
-        domain_name = common.get_backend_name(
-            schema, new_scalar, catenate=False)
-
-        new_type = None
-        type_intent = 'alter'
-
-        if not new_type and old_base != base:
-            new_type = base
-
-        if new_type:
-            # The change of the underlying data type for domains is a complex
-            # problem. There is no direct way in PostgreSQL to change the base
-            # type of a domain. Instead, a new domain must be created, all
-            # users of the old domain altered to use the new one, and then the
-            # old domain dropped.  Obviously this recurses down to every child
-            # domain.
-            if in_place:
-                op.alter_scalar_type(
-                    new_scalar, schema, new_type, intent=type_intent)
-
-        if type_intent != 'drop':
-            if updates:
-                default_delta = updates.get('default')
-                if default_delta:
-                    if (default_delta is None or
-                            isinstance(default_delta, s_expr.Expression)):
-                        new_default = None
-                    else:
-                        new_default = default_delta
-
-                    adad = dbops.AlterDomainAlterDefault(
-                        name=domain_name, default=new_default)
-                    op.pgops.add(adad)
 
 
 class DeleteScalarType(ScalarTypeMetaCommand,
@@ -1204,10 +1221,20 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         # Domain dropping gets low priority since other things may
         # depend on it.
         table = self.get_table(schema)
+
         cond = dbops.DomainExists(old_domain_name)
         ops.add(
             dbops.DropDomain(
                 name=old_domain_name, conditions=[cond], priority=3))
+
+        if scalar.is_enum(orig_schema):
+            old_enum_name = common.get_backend_name(
+                orig_schema, scalar, catenate=False, aspect='enum')
+            cond = dbops.EnumExists(old_enum_name)
+            ops.add(
+                dbops.DropEnum(
+                    name=old_enum_name, conditions=[cond], priority=3))
+
         ops.add(
             dbops.Delete(
                 table=table, condition=[(

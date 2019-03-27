@@ -248,19 +248,26 @@ class TypeSerializer:
             # This is a scalar type
 
             mt = t.material_type(self.schema)
+            type_id = mt.id
             base_type = mt.get_topmost_concrete_base(self.schema)
+            enum_values = mt.get_enum_values(self.schema)
 
-            if mt is base_type:
-                type_id = mt.id
+            if enum_values:
+                buf.append(b'\x07')
+                buf.append(type_id.bytes)
+                buf.append(_uint16_packer(len(enum_values)))
+                for enum_val in enum_values:
+                    enum_val_bytes = enum_val.encode('utf-8')
+                    buf.append(_uint16_packer(len(enum_val_bytes)))
+                    buf.append(enum_val_bytes)
+
+            elif mt is base_type:
                 if type_id in self.uuid_to_pos:
                     # already described
                     return type_id
 
                 buf.append(b'\x02')
                 buf.append(type_id.bytes)
-
-                self._register_type_id(type_id)
-                return type_id
 
             else:
                 bt_id = self._describe_type(
@@ -274,8 +281,8 @@ class TypeSerializer:
                 buf.append(type_id.bytes)
                 buf.append(_uint16_packer(self.uuid_to_pos[bt_id]))
 
-                self._register_type_id(type_id)
-                return type_id
+            self._register_type_id(type_id)
+            return type_id
 
         else:
             raise errors.InternalServerError(

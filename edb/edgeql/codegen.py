@@ -76,7 +76,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         )
 
     def generic_visit(self, node, *args, **kwargs):
-        if isinstance(node. qlast.SDL):
+        if isinstance(node, qlast.SDL):
             raise EdgeQLSourceGeneratorError(
                 f'No method to generate code for {node.__class__.__name__}')
         else:
@@ -656,6 +656,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_NoneTest(self, node):
         self.visit(node.expr)
         self.write(' IS None')
+
+    def visit_TypeExprLiteral(self, node):
+        self.visit(node.val)
 
     def visit_TypeName(self, node):
         parenthesize = (

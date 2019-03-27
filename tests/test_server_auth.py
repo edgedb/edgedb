@@ -116,3 +116,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             await self.con.fetchall('''
                 CONFIGURE SYSTEM RESET Auth FILTER .name = 'test-2'
             ''')
+
+            await self.con.fetchall('''
+                DROP ROLE foo;
+            ''')

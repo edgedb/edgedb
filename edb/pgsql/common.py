@@ -145,7 +145,7 @@ def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
 def get_scalar_backend_name(id, module_id, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'domain'
-    if aspect not in ('domain', 'sequence'):
+    if aspect not in ('domain', 'sequence', 'enum'):
         raise ValueError(
             f'unexpected aspect for scalar backend name: {aspect!r}')
     name = s_name.Name(module=str(module_id), name=str(id))

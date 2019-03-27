@@ -40,6 +40,8 @@
 #
 #    array:         <type=6> <uuid> <pos>
 #
+#    enum:          <type=7> <uuid> <count> <str>+
+#
 #    type_anno      <type=f0..ff> <uuid> <str>
 #                   -- A type annotation;  0xf0 <= <type> <= 0xff.
 #                      Drivers should ignore unknown type annotations.

@@ -2804,6 +2804,11 @@ aa';
         CREATE SCALAR TYPE anytype EXTENDING int64;
         """
 
+    def test_edgeql_syntax_ddl_scalar_03(self):
+        """
+        CREATE SCALAR TYPE myenum EXTENDING enum<'foo', 'bar'>;
+        """
+
     def test_edgeql_syntax_ddl_attribute_01(self):
         """
         CREATE ABSTRACT ATTRIBUTE std::paramtypes;

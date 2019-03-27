@@ -119,6 +119,8 @@ def pg_type_from_scalar(
 
     if topbase:
         base = scalar.get_topmost_concrete_base(schema)
+    elif scalar.is_enum(schema):
+        base = scalar
     else:
         base = get_scalar_base(schema, scalar.material_type(schema))
 

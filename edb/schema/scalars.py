@@ -19,6 +19,9 @@
 
 import typing
 
+from edb import errors
+
+from edb.common import typed
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
@@ -39,7 +42,13 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
 
     default = so.SchemaField(
         expr.Expression, default=None,
-        coerce=True, compcoef=0.909)
+        coerce=True, compcoef=0.909,
+    )
+
+    enum_values = so.SchemaField(
+        typed.StrList, default=None,
+        coerce=True, compcoef=0.8,
+    )
 
     def _get_deps(self, schema):
         deps = super()._get_deps(schema)
@@ -78,6 +87,9 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
 
     def is_scalar(self):
         return True
+
+    def is_enum(self, schema) -> bool:
+        return bool(self.get_enum_values(schema))
 
     def is_polymorphic(self, schema):
         return self.get_is_abstract(schema)
@@ -140,6 +152,13 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
             return s_casts.find_common_castable_type(schema, left, right)
 
 
+class AnonymousEnumTypeRef(so.ObjectRef):
+
+    def __init__(self, *, name: str, elements: typing.List[str]):
+        super().__init__(name=name)
+        self.__dict__['elements'] = elements
+
+
 class ScalarTypeCommandContext(sd.ObjectCommandContext,
                                attributes.AttributeSubjectCommandContext,
                                constraints.ConsistencySubjectCommandContext,
@@ -158,6 +177,21 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
+    @classmethod
+    def _validate_base_refs(cls, schema, base_refs, astnode, context):
+        has_enums = any(isinstance(br, AnonymousEnumTypeRef)
+                        for br in base_refs)
+
+        if has_enums:
+            if len(base_refs) > 1:
+                raise errors.SchemaError(
+                    f'invalid scalar type definition, enumeration must be the '
+                    f'only supertype specified',
+                    context=astnode.bases[0].context,
+                )
+
+        return super()._validate_base_refs(schema, base_refs, astnode, context)
+
 
 class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
     astnode = qlast.CreateScalarType
@@ -165,6 +199,11 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        bases = cmd.get_attribute_value('bases')
+        if len(bases) == 1 and isinstance(bases._ids[0], AnonymousEnumTypeRef):
+            elements = bases._ids[0].elements
+            cmd.set_attribute_value('enum_values', elements)
 
         for sub in cmd.get_subcommands(type=sd.AlterObjectProperty):
             if sub.property == 'default':
@@ -186,7 +225,65 @@ class RenameScalarType(ScalarTypeCommand, sd.RenameObject):
 
 
 class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
-    pass
+
+    def apply(self, schema, context):
+        scls = self.get_object(schema)
+        self.scls = scls
+
+        enum_values = scls.get_enum_values(schema)
+        if enum_values:
+            raise errors.UnsupportedFeatureError(
+                f'altering enum composition is not supported')
+
+            if self.removed_bases and not self.added_bases:
+                raise errors.SchemaError(
+                    f'cannot DROP EXTENDING enum')
+
+            all_bases = []
+
+            for bases, pos in self.added_bases:
+                if pos:
+                    raise errors.SchemaError(
+                        f'cannot add another enum as supertype '
+                        f'use EXTENDING without position qualification')
+
+                all_bases.extend(bases)
+
+            if len(all_bases) > 1:
+                raise errors.SchemaError(
+                    f'cannot set more than one enum as supertype ')
+
+            new_base = all_bases[0]
+            new_values = new_base.elements
+
+            schema = self._validate_enum_change(
+                scls, enum_values, new_values, schema, context)
+
+            return schema, scls
+        else:
+            return super().apply(self, schema, context)
+
+    def _validate_enum_change(self, stype, cur_labels, new_labels,
+                              schema, context):
+        if len(set(new_labels)) != len(new_labels):
+            raise errors.SchemaError(
+                f'enum labels are not unique')
+
+        cur_set = set(cur_labels)
+
+        if cur_set - set(new_labels):
+            raise errors.SchemaError(
+                f'cannot remove labels from an enumeration type')
+
+        existing = [l for l in new_labels if l in cur_set]
+        if existing != cur_labels:
+            raise errors.SchemaError(
+                f'cannot change the relative order of existing labels '
+                f'in an enumeration type')
+
+        self.set_attribute_value('enum_values', new_labels)
+        schema = stype.set_field_value(schema, 'enum_values', new_labels)
+        return schema
 
 
 class AlterScalarType(ScalarTypeCommand, inheriting.AlterInheritingObject):

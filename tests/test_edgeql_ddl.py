@@ -2061,7 +2061,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_role_01(self):
         await self.con.execute(r"""
-            CREATE ROLE foo;
+            CREATE ROLE foo_01;
         """)
 
         await self.assert_query_result(
@@ -2071,10 +2071,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     allow_login,
                     is_superuser,
                     password,
-                } FILTER .name = 'foo'
+                } FILTER .name = 'foo_01'
             """,
             [{
-                'name': 'foo',
+                'name': 'foo_01',
                 'allow_login': False,
                 'is_superuser': False,
                 'password': None,
@@ -2447,3 +2447,66 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     CREATE PROPERTY p4 -> array<tuple<int64>>;
                 };
             """)
+
+    async def test_edgeql_ddl_enum_01(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::my_enum EXTENDING enum<'foo', 'bar'>;
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::ScalarType {
+                    enum_values,
+                }
+                FILTER .name = 'test::my_enum';
+            """,
+            [{
+                'enum_values': ['foo', 'bar'],
+            }],
+        )
+
+        await self.con.execute('''
+            CREATE TYPE test::EnumHost {
+                CREATE PROPERTY foo -> test::my_enum;
+            }
+        ''')
+
+        await self.con.execute('DECLARE SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                'enumeration must be the only supertype specified'):
+            await self.con.execute('''
+                CREATE SCALAR TYPE test::my_enum_2
+                    EXTENDING enum<'foo', 'bar'>,
+                    std::int32;
+            ''')
+
+        await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
+
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::my_enum_2
+                EXTENDING enum<'foo', 'bar'>;
+        ''')
+
+        await self.con.execute('DECLARE SAVEPOINT t1;')
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'altering enum composition is not supported'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::my_enum_2
+                    EXTENDING enum<'foo', 'bar', 'baz'>;
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t1;')
+
+        await self.con.execute('''
+            ALTER SCALAR TYPE test::my_enum_2
+                RENAME TO test::my_enum_3;
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE test::my_enum_3;
+        ''')

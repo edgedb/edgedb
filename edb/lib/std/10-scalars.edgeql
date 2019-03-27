@@ -58,3 +58,5 @@ CREATE SCALAR TYPE std::float64 EXTENDING std::anyfloat;
 CREATE SCALAR TYPE std::decimal EXTENDING std::anyreal;
 
 CREATE ABSTRACT SCALAR TYPE std::sequence EXTENDING std::int64;
+
+CREATE ABSTRACT SCALAR TYPE std::anyenum EXTENDING std::anyscalar;
