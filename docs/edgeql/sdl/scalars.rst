@@ -7,9 +7,24 @@ Scalar Types
 This section describes the SDL declarations pertaining to
 :ref:`scalar types <ref_datamodel_scalar_types>`.
 
+
+Example
+-------
+
+Declare a new non-negative integer type:
+
+.. code-block:: sdl
+
+    scalar type posint64 extending int64 {
+        constraint min_value(0);
+    }
+
+
+Syntax
+------
+
 Define a new scalar type corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_scalars>`.
-
 
 .. sdl:synopsis::
 
@@ -43,15 +58,3 @@ Description
 
 :sdl:synopsis:`<attribute-declarations>`
     :ref:`Schema attribute <ref_eql_sdl_schema_attributes>` declarations.
-
-
-Examples
---------
-
-Create a new non-negative integer type:
-
-.. code-block:: sdl
-
-    scalar type posint64 extending int64 {
-        constraint min_value(0);
-    }

@@ -10,6 +10,7 @@ Data Model
     objects
     scalars/index
     colltypes
+    abstract
     functions
     links
     props

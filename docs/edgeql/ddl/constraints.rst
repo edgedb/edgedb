@@ -63,11 +63,13 @@ Parameters
     the argument name, and :eql:synopsis:`<argtype>`
     specifies the argument type.
 
-:eql:synopsis:`<subject-expr>`
+:eql:synopsis:`ON ( <subject-expr> )`
     An optional expression defining the *subject* of the constraint.
     If not specified, the subject is the value of the schema item on
-    which the concrete constraint is defined.  The expression must refer
-    to the original subject of the constraint as ``__subject__``.
+    which the concrete constraint is defined.  The expression must
+    refer to the original subject of the constraint as
+    ``__subject__``.  Note also that ``<subject-expr>`` itself has to
+    be parenthesized.
 
 :eql:synopsis:`EXTENDING <base> [, ...]`
     If specified, declares the *parent* constraints for this constraint.
@@ -88,7 +90,7 @@ Parameters
       type, property or link on which the constraint is defined.
 
 :eql:synopsis:`SET <attr-name> := <attr-value>;`
-    An optional list of schema attribute values for the constraint.
+    An optional list of attribute values for the constraint.
     See :eql:stmt:`SET ATTRIBUTE` for details.
 
 
@@ -272,11 +274,13 @@ Parameters
     specifies the argument value.  The argument value specification must
     match the parameter declaration of the abstract constraint.
 
-:eql:synopsis:`<subject-expr>`
+:eql:synopsis:`ON ( <subject-expr> )`
     An optional expression defining the *subject* of the constraint.
     If not specified, the subject is the value of the schema item on
-    which the concrete constraint is defined.  The expression must refer
-    to the original subject of the constraint as ``__subject__``.
+    which the concrete constraint is defined.  The expression must
+    refer to the original subject of the constraint as
+    ``__subject__``.  Note also that ``<subject-expr>`` itself has to
+    be parenthesized.
 
 :eql:synopsis:`SET errmessage := <error_message>`
     An optional string literal defining the error message template that
@@ -285,7 +289,7 @@ Parameters
     of error message template syntax.
 
 :eql:synopsis:`SET <attr-name> := <attr-value>;`
-    An optional list of schema attribute values for the constraint.
+    An optional list of attribute values for the constraint.
     See :eql:stmt:`SET ATTRIBUTE` for details.
 
 

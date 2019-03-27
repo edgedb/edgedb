@@ -57,6 +57,7 @@ form to define an abstract property item.  The abstract form allows creating
 the property in the specified :eql:synopsis:`<module>`.  Concrete link forms
 are always created in the same module as the containing object or link.
 
+.. _ref_eql_ddl_props_syntax:
 
 Parameters
 ----------

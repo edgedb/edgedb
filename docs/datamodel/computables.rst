@@ -29,3 +29,5 @@ last name:
             (__source__.firstname ++ ' ' ++
              __source__.lastname);
      }
+
+Computables are also often used in :ref:`views <ref_datamodel_views>`.

@@ -23,7 +23,7 @@ Here is an example of a simple EdgeDB type using the Edge Schema notation:
     type User {
         property name -> str;
         property address -> str;
-        link friends -> User;
+        multi link friends -> User;
     }
 
 ``str`` in the above example is a
@@ -48,15 +48,6 @@ There are several kinds of schema items:
 * :ref:`constraints <ref_datamodel_constraints>`
 * :ref:`attributes <ref_datamodel_attributes>`
 * :ref:`functions <ref_datamodel_functions>`
-
-There is also a special type ``anytype`` used to define polymorphic
-parameters in functions and operators:
-
-.. eql:type:: anytype
-
-    :index: any anytype
-
-    Generic type.
 
 
 .. _ref_datamodel_inheritance:

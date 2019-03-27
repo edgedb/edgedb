@@ -7,6 +7,24 @@ Functions
 This section describes the SDL declarations pertaining to
 :ref:`functions <ref_datamodel_functions>`.
 
+
+Example
+-------
+
+Declare a custom function that concatenates the length of a string to
+the end of the that string:
+
+.. code-block:: sdl
+
+    function foo(s: str) -> str
+        from EdgeQL $$
+            SELECT s ++ <str>len(a)
+        $$;
+
+
+Syntax
+------
+
 Define a new function corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_functions>`.
 

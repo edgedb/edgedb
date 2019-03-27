@@ -54,28 +54,3 @@ Numeric Types
     All of the following types can be explicitly cast into decimal:
     :eql:type:`str`, :eql:type:`int16`, :eql:type:`int32`,
     :eql:type:`int64`, :eql:type:`float32`, and :eql:type:`float64`.
-
-
-Abstract Numeric Types
-======================
-
-.. eql:type:: std::anyint
-
-    :index: anytype int
-
-    Abstract base scalar type for
-    :eql:type:`int16`, :eql:type:`int32`, and :eql:type:`int64`.
-
-.. eql:type:: std::anyfloat
-
-    :index: anytype float
-
-    Abstract base scalar type for
-    :eql:type:`float32` and :eql:type:`float64`.
-
-.. eql:type:: std::anyreal
-
-    :index: anytype
-
-    Abstract base scalar type for
-    :eql:type:`anyint`, :eql:type:`anyfloat`, and :eql:type:`decimal`.

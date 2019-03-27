@@ -197,6 +197,8 @@ with a module name.
 Parameters
 ----------
 
+.. _ref_eql_ddl_links_syntax:
+
 :eql:synopsis:`<subcommands>`
     The following subcommands are allowed in the
     ``ALTER LINK`` block:
