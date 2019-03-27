@@ -23,16 +23,16 @@
 CREATE MODULE schema;
 
 CREATE SCALAR TYPE schema::cardinality_t EXTENDING std::str {
-    CREATE CONSTRAINT std::enum ('ONE', 'MANY');
+    CREATE CONSTRAINT std::one_of ('ONE', 'MANY');
 };
 
 CREATE SCALAR TYPE schema::target_delete_action_t EXTENDING std::str {
-    CREATE CONSTRAINT std::enum ('RESTRICT', 'DELETE SOURCE', 'SET EMPTY',
-                                 'SET DEFAULT', 'DEFERRED RESTRICT');
+    CREATE CONSTRAINT std::one_of ('RESTRICT', 'DELETE SOURCE', 'SET EMPTY',
+                                   'SET DEFAULT', 'DEFERRED RESTRICT');
 };
 
 CREATE SCALAR TYPE schema::operator_kind_t EXTENDING std::str {
-    CREATE CONSTRAINT std::enum ('INFIX', 'POSTFIX', 'PREFIX', 'TERNARY');
+    CREATE CONSTRAINT std::one_of ('INFIX', 'POSTFIX', 'PREFIX', 'TERNARY');
 };
 
 # Base type for all schema entities.

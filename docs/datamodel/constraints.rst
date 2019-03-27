@@ -22,7 +22,7 @@ Standard Constraints
 
 The standard library defines the following constraints:
 
-.. eql:constraint:: std::enum(VARIADIC members: anytype)
+.. eql:constraint:: std::one_of(VARIADIC members: anytype)
 
     Specifies the list of allowed values directly.
 
@@ -31,7 +31,7 @@ The standard library defines the following constraints:
     .. code-block:: sdl
 
         scalar type status_t extending str {
-            constraint enum ('Open', 'Closed', 'Merged');
+            constraint one_of ('Open', 'Closed', 'Merged');
         }
 
 .. eql:constraint:: std::expression on (expr)
@@ -46,7 +46,7 @@ The standard library defines the following constraints:
             constraint expression on (__subject__[0] = 'A');
         }
 
-.. eql:constraint:: std::max(max: anytype)
+.. eql:constraint:: std::max_value(max: anytype)
 
     Specifies the maximum value for the subject.
 
@@ -55,10 +55,10 @@ The standard library defines the following constraints:
     .. code-block:: sdl
 
         scalar type max_100 extending int64 {
-            constraint max(100);
+            constraint max_value(100);
         }
 
-.. eql:constraint:: std::max_ex(max: anytype)
+.. eql:constraint:: std::max_ex_value(max: anytype)
 
     Specifies the maximum value (as an open interval) for the subject.
 
@@ -67,10 +67,10 @@ The standard library defines the following constraints:
     .. code-block:: sdl
 
         scalar type maxex_100 extending int64 {
-            constraint max_ex(100);
+            constraint max_ex_value(100);
         }
 
-.. eql:constraint:: std::max_len(max: int64)
+.. eql:constraint:: std::max_len_value(max: int64)
 
     Specifies the maximum length of subject string representation.
 
@@ -79,10 +79,10 @@ The standard library defines the following constraints:
     .. code-block:: sdl
 
         scalar type username_t extending str {
-            constraint max_len(30);
+            constraint max_len_value(30);
         }
 
-.. eql:constraint:: std::min(min: anytype)
+.. eql:constraint:: std::min_value(min: anytype)
 
     Specifies the minimum value for the subject.
 
@@ -91,10 +91,10 @@ The standard library defines the following constraints:
     .. code-block:: sdl
 
         scalar type non_negative extending int64 {
-            constraint min(0);
+            constraint min_value(0);
         }
 
-.. eql:constraint:: std::min_ex(min: anytype)
+.. eql:constraint:: std::min_ex_value(min: anytype)
 
     Specifies the minimum value (as an open interval) for the subject.
 
@@ -103,10 +103,10 @@ The standard library defines the following constraints:
     .. code-block:: sdl
 
         scalar type positive_float extending float64 {
-            constraint min_ex(0);
+            constraint min_ex_value(0);
         }
 
-.. eql:constraint:: std::min_len(min: int64)
+.. eql:constraint:: std::min_len_value(min: int64)
 
     Specifies the minimum length of subject string representation.
 
@@ -115,7 +115,7 @@ The standard library defines the following constraints:
     .. code-block:: sdl
 
         scalar type four_decimal_places extending int64 {
-            constraint min_len(4);
+            constraint min_len_value(4);
         }
 
 .. eql:constraint:: std::regexp(pattern: str)

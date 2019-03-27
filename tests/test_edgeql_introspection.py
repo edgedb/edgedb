@@ -332,11 +332,11 @@ class TestIntrospection(tb.QueryTestCase):
                         }
                     }
                 } FILTER
-                    .name LIKE '%my_enum%' AND
+                    .name LIKE '%my_one_of%' AND
                     NOT EXISTS .<constraints;
             """,
             [{
-                'name': 'test::my_enum',
+                'name': 'test::my_one_of',
                 'params': [
                     {
                         'num': 0,
@@ -367,11 +367,11 @@ class TestIntrospection(tb.QueryTestCase):
                         }
                     }
                 } FILTER
-                    .name LIKE '%my_enum%' AND
+                    .name LIKE '%my_one_of%' AND
                     NOT EXISTS .<constraints;
             """,
             [{
-                'name': 'test::my_enum',
+                'name': 'test::my_one_of',
                 'params': [
                     {
                         'num': 0,
@@ -402,11 +402,11 @@ class TestIntrospection(tb.QueryTestCase):
                         }
                     }
                 } FILTER
-                    .name LIKE '%std::enum%' AND
+                    .name LIKE '%std::one_of%' AND
                     NOT EXISTS .<constraints;
             """,
             [{
-                'name': 'std::enum',
+                'name': 'std::one_of',
                 'params': [
                     {
                         'num': 0,
@@ -437,7 +437,7 @@ class TestIntrospection(tb.QueryTestCase):
                 } FILTER .subject.name = 'test::body';
             """,
             [{
-                'name': 'std::max_len',
+                'name': 'std::max_len_value',
                 'subject': {
                     'name': 'test::body'
                 },
@@ -673,7 +673,7 @@ class TestIntrospection(tb.QueryTestCase):
                 {'name': 'test::Named'},
                 {'name': 'test::Owned'},
                 {'name': 'test::Text'},
-                {'name': 'test::my_enum'},
+                {'name': 'test::my_one_of'},
             ]
         )
 

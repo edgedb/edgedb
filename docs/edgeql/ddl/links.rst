@@ -296,7 +296,7 @@ Add a minimum-length constraint to link ``name`` of object type ``User``:
 
     ALTER TYPE User {
         ALTER LINK name {
-            CREATE CONSTRAINT min_len(3);
+            CREATE CONSTRAINT min_len_value(3);
         };
     };
 
