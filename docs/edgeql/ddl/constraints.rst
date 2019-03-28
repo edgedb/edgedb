@@ -282,6 +282,11 @@ Parameters
     ``__subject__``.  Note also that ``<subject-expr>`` itself has to
     be parenthesized.
 
+    .. note::
+
+        Currently EdgeDB only supports constraint expressions on scalar
+        types and properties.
+
 :eql:synopsis:`SET errmessage := <error_message>`
     An optional string literal defining the error message template that
     is raised when the constraint is violated.  See the relevant

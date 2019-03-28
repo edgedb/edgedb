@@ -11,6 +11,10 @@ database that, for a given set of objects or links, a particular expression
 must be *indexed* to allow for faster evaluation of queries which use
 that expression.
 
+The *subject* of an index is either the object or the abstract link on
+which the index is defined. It can be referred to in the index
+expression as ``__subject__``.
+
 The simplest form of index is an index, which references one
 or more properties directly:
 
@@ -30,7 +34,7 @@ to find the matching objects:
     SELECT User FILTER User.name = 'Alice';
 
 Indexes may be defined using an arbitrary expression that references properties
-of the host object type or link:
+of the host object type:
 
 .. code-block:: sdl
 
@@ -41,9 +45,18 @@ of the host object type or link:
             __subject__.firstname + ' ' + __subject__.lastname));
     }
 
-The index expression must not reference any variables other than
-the properties of the host object type or link.  All functions used
-in the expression must not be set-returning.
+Similarly indexes may refer to the link properties if the *subject* is a link:
+
+.. code-block:: sdl
+
+    abstract link friends_base {
+        property nickname -> str;
+        index nickname_idx on (__subject__@nickname);
+    }
+
+The index expression must not reference any variables other than the
+properties of the index *subject*.  All functions used in the
+expression must not be set-returning.
 
 .. note::
 

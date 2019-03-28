@@ -14,7 +14,8 @@ the instances of that scalar, thus the values that the scalar can
 take will be restricted.  Whereas for link or property constraints
 the *subjects* are the targets of those links or properties,
 restricting what objects or values those links and properties may
-reference.
+reference.  The *subject* of a constraint can be referred to in
+the constraint expression as ``__subject__``.
 
 
 Standard Constraints

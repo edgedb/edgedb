@@ -83,6 +83,11 @@ Description
     ``__subject__``.  Note also that ``<subject-expr>`` itself has to
     be parenthesized.
 
+    .. note::
+
+        Currently EdgeDB only supports constraint expressions on scalar
+        types and properties.
+
 :sdl:synopsis:`extending <base> [, ...]`
     If specified, declares the *parent* constraints for this constraint.
 
