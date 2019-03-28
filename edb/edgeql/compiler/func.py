@@ -126,7 +126,7 @@ def compile_FunctionCall(
     if rtype.is_tuple():
         tuple_path_ids = []
         nested_path_ids = []
-        for n, st in rtype.iter_subtypes():
+        for n, st in rtype.iter_subtypes(ctx.env.schema):
             elem_path_id = pathctx.get_tuple_indirection_path_id(
                 path_id, n, st, ctx=ctx).strip_weak_namespaces()
 
@@ -134,7 +134,7 @@ def compile_FunctionCall(
                 nested_path_ids.append([
                     pathctx.get_tuple_indirection_path_id(
                         elem_path_id, nn, sst, ctx=ctx).strip_weak_namespaces()
-                    for nn, sst in st.iter_subtypes()
+                    for nn, sst in st.iter_subtypes(ctx.env.schema)
                 ])
 
             tuple_path_ids.append(elem_path_id)
@@ -373,7 +373,8 @@ def validate_recursive_operator(
     # if larg and rarg are tuples or arrays, recurse into their subtypes
     if (larg[0].is_tuple() and rarg[0].is_tuple() or
             larg[0].is_array() and rarg[0].is_array()):
-        for rsub, lsub in zip(larg[0].get_subtypes(), rarg[0].get_subtypes()):
+        for rsub, lsub in zip(larg[0].get_subtypes(ctx.env.schema),
+                              rarg[0].get_subtypes(ctx.env.schema)):
             matched = validate_recursive_operator(
                 opers, (lsub, larg[1]), (rsub, rarg[1]), ctx=ctx)
             if len(matched) != 1:
@@ -502,7 +503,7 @@ def finalize_args(bound_call: polyres.BoundCall, *,
         if param_kind is ft.ParameterKind.VARIADIC:
             # For variadic params, paramtype would be array<T>,
             # and we need T to cast the arguments.
-            paramtype = list(paramtype.get_subtypes())[0]
+            paramtype = list(paramtype.get_subtypes(ctx.env.schema))[0]
 
         val_material_type = barg.valtype.material_type(ctx.env.schema)
         param_material_type = paramtype.material_type(ctx.env.schema)
@@ -513,8 +514,8 @@ def finalize_args(bound_call: polyres.BoundCall, *,
         compatible = (
             val_material_type.issubclass(ctx.env.schema, param_material_type)
             and (not param_material_type.is_tuple()
-                 or (param_material_type.get_element_names() ==
-                     val_material_type.get_element_names()))
+                 or (param_material_type.get_element_names(ctx.env.schema) ==
+                     val_material_type.get_element_names(ctx.env.schema)))
         )
 
         if not compatible:

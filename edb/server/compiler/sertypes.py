@@ -102,10 +102,10 @@ class TypeSerializer:
         if isinstance(t, s_types.Tuple):
             subtypes = [self._describe_type(st, view_shapes,
                                             view_shapes_metadata)
-                        for st in t.get_subtypes()]
+                        for st in t.get_subtypes(self.schema)]
 
             if t.named:
-                element_names = list(t.element_types)
+                element_names = list(t.get_element_names(self.schema))
                 assert len(element_names) == len(subtypes)
 
                 type_id = self._get_collection_type_id(
@@ -141,7 +141,7 @@ class TypeSerializer:
         elif isinstance(t, s_types.Array):
             subtypes = [self._describe_type(st, view_shapes,
                                             view_shapes_metadata)
-                        for st in t.get_subtypes()]
+                        for st in t.get_subtypes(self.schema)]
 
             assert len(subtypes) == 1
             type_id = self._get_collection_type_id(t.schema_name, subtypes)

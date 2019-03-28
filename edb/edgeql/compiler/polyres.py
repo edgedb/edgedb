@@ -301,7 +301,7 @@ def try_bind_call_args(
                 raise RuntimeError('unprocessed NAMED ONLY parameter')
 
             if param_kind is _VARIADIC:
-                var_type = param.get_type(schema).get_subtypes()[0]
+                var_type = param.get_type(schema).get_subtypes(schema)[0]
                 cd = _get_cast_distance(arg_val, arg_type, var_type)
                 if cd < 0:
                     return _NO_MATCH

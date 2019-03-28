@@ -432,7 +432,7 @@ class CallableObject(attributes.AttributeSubject):
             pt = param.get_type(schema)
             if isinstance(pt, s_abc.Collection):
                 quals.append(pt.schema_name)
-                for st in pt.get_subtypes():
+                for st in pt.get_subtypes(schema):
                     quals.append(st.get_name(schema))
             else:
                 quals.append(pt.get_name(schema))

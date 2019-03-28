@@ -506,7 +506,7 @@ def compile_type_check_op(
         pathctx.register_set_in_scope(left, ctx=ctx)
         result = None
     else:
-        if ltype.is_collection() and ltype.contains_object():
+        if ltype.is_collection() and ltype.contains_object(ctx.env.schema):
             raise errors.QueryError(
                 f'type checks on non-primitive collections are not supported'
             )

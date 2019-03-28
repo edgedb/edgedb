@@ -165,7 +165,7 @@ def pg_type_from_object(
             return ('anyarray',)
         else:
             tp = pg_type_from_object(
-                schema, obj.element_type, topbase=topbase,
+                schema, obj.get_subtypes(schema)[0], topbase=topbase,
                 persistent_tuples=persistent_tuples)
             if len(tp) == 1:
                 return (tp[0] + '[]',)
@@ -563,9 +563,9 @@ class TypeDesc:
         for i, (tn, t) in enumerate(types):
             if isinstance(t, s_abc.Collection):
                 if isinstance(t, s_abc.Tuple) and t.named:
-                    stypes = list(t.element_types.items())
+                    stypes = list(t.iter_subtypes(schema))
                 else:
-                    stypes = [(None, st) for st in t.get_subtypes()]
+                    stypes = [(None, st) for st in t.get_subtypes(schema)]
 
                 subtypes = cls._get_typedesc(
                     schema, stypes, typedesc, is_root=False)

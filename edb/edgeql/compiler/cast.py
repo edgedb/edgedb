@@ -279,6 +279,7 @@ def _cast_tuple(
     pathctx.register_set_in_scope(ir_set, ctx=ctx)
 
     direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+    orig_subtypes = dict(orig_stype.iter_subtypes(ctx.env.schema))
 
     if direct_cast is not None:
         # Direct casting to non-tuple involves casting each tuple
@@ -286,9 +287,9 @@ def _cast_tuple(
         # This is to trigger the downstream logic of casting
         # objects (in elements of the tuple).
         elements = []
-        for i, n in enumerate(orig_stype.element_types):
+        for i, (n, st) in enumerate(orig_subtypes.items()):
             path_id = pathctx.get_tuple_indirection_path_id(
-                ir_set.path_id, n, orig_stype.element_types[n], ctx=ctx)
+                ir_set.path_id, n, st, ctx=ctx)
 
             val = setgen.ensure_set(
                 irast.TupleIndirection(
@@ -316,7 +317,8 @@ def _cast_tuple(
             f'to {new_stype.get_displayname(ctx.env.schema)!r}',
             context=srcctx)
 
-    if len(orig_stype.element_types) != len(new_stype.element_types):
+    new_subtypes = list(new_stype.iter_subtypes(ctx.env.schema))
+    if len(orig_subtypes) != len(new_subtypes):
         raise errors.QueryError(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
             f'to {new_stype.get_displayname(ctx.env.schema)!r}: ',
@@ -325,12 +327,10 @@ def _cast_tuple(
 
     # For tuple-to-tuple casts we generate a new tuple
     # to simplify things on sqlgen side.
-    new_names = list(new_stype.element_types)
-
     elements = []
-    for i, n in enumerate(orig_stype.element_types):
+    for i, (n, orig_st) in enumerate(orig_subtypes.items()):
         path_id = pathctx.get_tuple_indirection_path_id(
-            ir_set.path_id, n, orig_stype.element_types[n], ctx=ctx)
+            ir_set.path_id, n, orig_st, ctx=ctx)
 
         val = setgen.ensure_set(
             irast.TupleIndirection(
@@ -341,12 +341,10 @@ def _cast_tuple(
             ctx=ctx
         )
         val_type = inference.infer_type(val, ctx.env)
-        new_el_name = new_names[i]
-        new_subtypes = list(new_stype.get_subtypes())
-        if val_type != new_stype.element_types[new_el_name]:
+        new_el_name, new_st = new_subtypes[i]
+        if val_type != new_st:
             # Element cast
-            val = compile_cast(
-                val, new_subtypes[i], ctx=ctx, srcctx=srcctx)
+            val = compile_cast(val, new_st, ctx=ctx, srcctx=srcctx)
 
         elements.append(irast.TupleElement(name=new_el_name, val=val))
 
@@ -368,11 +366,11 @@ def _cast_array(
                 f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
                 f'to {new_stype.get_displayname(ctx.env.schema)!r}',
                 context=srcctx)
-        el_type = new_stype.get_subtypes()[0]
+        el_type = new_stype.get_subtypes(ctx.env.schema)[0]
     else:
         el_type = new_stype
 
-    orig_el_type = orig_stype.get_subtypes()[0]
+    orig_el_type = orig_stype.get_subtypes(ctx.env.schema)[0]
 
     el_cast = _find_cast(orig_el_type, el_type, srcctx=srcctx, ctx=ctx)
 
@@ -442,7 +440,7 @@ def _cast_array_literal(
                 f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
                 f'to {new_stype.get_displayname(ctx.env.schema)!r}',
                 context=srcctx) from None
-        el_type = new_stype.get_subtypes()[0]
+        el_type = new_stype.get_subtypes(ctx.env.schema)[0]
     else:
         el_type = new_stype
 

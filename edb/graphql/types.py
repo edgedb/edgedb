@@ -166,7 +166,8 @@ class GQLCoreSchema:
         # only arrays can be validly wrapped, other containers don't
         # produce a valid graphql type
         if isinstance(edb_target, s_abc.Array):
-            el_type = self._convert_edb_type(edb_target.element_type)
+            el_type = self._convert_edb_type(
+                edb_target.get_subtypes(self.edb_schema)[0])
             if el_type:
                 target = GraphQLList(GraphQLNonNull(el_type))
         elif isinstance(edb_target, s_objtypes.ObjectType):

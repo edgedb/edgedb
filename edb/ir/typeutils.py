@@ -143,7 +143,7 @@ def type_to_typeref(schema, t: s_types.Type, *,
             collection=t.schema_name,
             subtypes=tuple(
                 type_to_typeref(schema, st, _name=sn)
-                for sn, st in t.element_types.items()
+                for sn, st in t.iter_subtypes(schema)
             )
         )
     else:
@@ -154,7 +154,7 @@ def type_to_typeref(schema, t: s_types.Type, *,
             collection=t.schema_name,
             subtypes=tuple(
                 type_to_typeref(schema, st)
-                for st in t.get_subtypes()
+                for st in t.get_subtypes(schema)
             )
         )
 

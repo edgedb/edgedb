@@ -337,7 +337,7 @@ def __infer_index(ir, env):
                 f'{int_t.get_name(env.schema)} was expected',
                 context=ir.index.context)
 
-        result = node_type.element_type
+        result = node_type.get_subtypes(env.schema)[0]
 
     elif (node_type.is_any() or
             (node_type.is_scalar() and

@@ -59,7 +59,7 @@ def type_to_ql_typeref(t: s_obj.Object, *,
             ),
             subtypes=[
                 type_to_ql_typeref(st, _name=sn, ctx=ctx)
-                for sn, st in t.element_types.items()
+                for sn, st in t.iter_subtypes(ctx.env.schema)
             ]
         )
     else:
@@ -70,7 +70,7 @@ def type_to_ql_typeref(t: s_obj.Object, *,
             ),
             subtypes=[
                 type_to_ql_typeref(st, ctx=ctx)
-                for st in t.get_subtypes()
+                for st in t.get_subtypes(ctx.env.schema)
             ]
         )
 

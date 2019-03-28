@@ -86,7 +86,7 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     def is_anytuple(self):
         return False
 
-    def contains_any(self):
+    def contains_any(self, schema):
         return self.is_any()
 
     def is_scalar(self):
@@ -232,18 +232,19 @@ class Collection(Type, s_abc.Collection):
 
     def is_polymorphic(self, schema):
         return any(st.is_polymorphic(schema)
-                   for st in self.get_subtypes())
+                   for st in self.get_subtypes(schema))
 
-    def contains_any(self):
-        return any(st.contains_any() for st in self.get_subtypes())
+    def contains_any(self, schema):
+        return any(st.contains_any(schema) for st in self.get_subtypes(schema))
 
-    def contains_object(self):
+    def contains_object(self, schema):
         return any(
-            st.contains_object() if st.is_collection() else st.is_object_type()
-            for st in self.get_subtypes()
+            st.contains_object(schema) if st.is_collection()
+            else st.is_object_type()
+            for st in self.get_subtypes(schema)
         )
 
-    def contains_array_of_tuples(self):
+    def contains_array_of_tuples(self, schema):
         raise NotImplementedError
 
     def is_collection(self):
@@ -262,8 +263,8 @@ class Collection(Type, s_abc.Collection):
         if other.__class__ is not self.__class__:
             return -1
 
-        other_types = other.get_subtypes()
-        my_types = self.get_subtypes()
+        other_types = other.get_subtypes(schema)
+        my_types = self.get_subtypes(schema)
 
         type_dist = 0
         for ot, my in zip(other_types, my_types):
@@ -282,8 +283,8 @@ class Collection(Type, s_abc.Collection):
         if parent.__class__ is not self.__class__:
             return False
 
-        parent_types = parent.get_subtypes()
-        my_types = self.get_subtypes()
+        parent_types = parent.get_subtypes(schema)
+        my_types = self.get_subtypes(schema)
 
         for pt, my in zip(parent_types, my_types):
             if not pt.is_any() and not my.issubclass(schema, pt):
@@ -311,8 +312,8 @@ class Collection(Type, s_abc.Collection):
         if type(ours) is not type(theirs):
             basecoef = 0.2
         else:
-            my_subtypes = ours.get_subtypes()
-            other_subtypes = theirs.get_subtypes()
+            my_subtypes = ours.get_subtypes(our_schema)
+            other_subtypes = theirs.get_subtypes(their_schema)
 
             similarity = []
             for i, st in enumerate(my_subtypes):
@@ -328,7 +329,7 @@ class Collection(Type, s_abc.Collection):
     def get_container(self):
         raise NotImplementedError
 
-    def get_subtypes(self):
+    def get_subtypes(self, schema):
         raise NotImplementedError
 
     def get_typemods(self):
@@ -365,7 +366,7 @@ class Collection(Type, s_abc.Collection):
     def _reduce_to_ref(self, schema):
         strefs = []
 
-        for st in self.get_subtypes():
+        for st in self.get_subtypes(schema):
             st_ref, _ = st._reduce_to_ref(schema)
             strefs.append(st_ref)
 
@@ -376,10 +377,11 @@ class Collection(Type, s_abc.Collection):
         )
 
     def _resolve_ref(self, schema):
-        if any(hasattr(st, '_resolve_ref') for st in self.get_subtypes()):
+        if any(hasattr(st, '_resolve_ref')
+               for st in self.get_subtypes(schema)):
 
             subtypes = []
-            for st in self.get_subtypes():
+            for st in self.get_subtypes(schema):
                 subtypes.append(st._resolve_ref(schema))
 
             return self.__class__.from_subtypes(
@@ -424,11 +426,12 @@ class BaseArray(Collection, s_abc.Array):
             schema, id=id, name=name, element_type=element_type,
             dimensions=dimensions, **kwargs)
 
-    def contains_array_of_tuples(self):
-        return self.element_type.is_tuple()
+    def contains_array_of_tuples(self, schema):
+        return self.get_element_type(schema).is_tuple()
 
     def get_displayname(self, schema):
-        return f'array<{self.element_type.get_displayname(schema)}>'
+        return (
+            f'array<{self.get_element_type(schema).get_displayname(schema)}>')
 
     def is_array(self):
         return True
@@ -441,13 +444,13 @@ class BaseArray(Collection, s_abc.Array):
             attrs: typing.Optional[typing.Mapping]=None) -> Type:
         return schema, Array.from_subtypes(
             schema,
-            [self.element_type],
+            [self.get_element_type(schema)],
             self.get_typemods(),
             name=name,
             **(attrs or {}))
 
-    def get_subtypes(self):
-        return (self.element_type,)
+    def get_element_type(self, schema):
+        raise NotImplementedError
 
     def get_typemods(self):
         return (self.dimensions,)
@@ -456,22 +459,22 @@ class BaseArray(Collection, s_abc.Array):
         if not other.is_array():
             return False
 
-        return self.element_type.implicitly_castable_to(
-            other.element_type, schema)
+        return self.get_element_type(schema).implicitly_castable_to(
+            other.get_element_type(schema), schema)
 
     def get_implicit_cast_distance(self, other: 'Type', schema) -> int:
         if not other.is_array():
             return -1
 
-        return self.element_type.get_implicit_cast_distance(
-            other.element_type, schema)
+        return self.get_element_type(schema).get_implicit_cast_distance(
+            other.get_element_type(schema), schema)
 
     def assignment_castable_to(self, other: Type, schema) -> bool:
         if not other.is_array():
             return False
 
-        return self.element_type.assignment_castable_to(
-            other.element_type, schema)
+        return self.get_element_type(schema).assignment_castable_to(
+            other.get_element_type(schema), schema)
 
     def find_common_implicitly_castable_type(
             self, other: Type, schema) -> typing.Optional[Type]:
@@ -482,8 +485,9 @@ class BaseArray(Collection, s_abc.Array):
         if self == other:
             return self
 
-        subtype = self.element_type.find_common_implicitly_castable_type(
-            other.element_type, schema)
+        my_el = self.get_element_type(schema)
+        subtype = my_el.find_common_implicitly_castable_type(
+            other.get_element_type(schema), schema)
 
         if subtype is not None:
             return Array.from_subtypes(schema, [subtype])
@@ -491,8 +495,8 @@ class BaseArray(Collection, s_abc.Array):
     def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
         if not concrete_type.is_array():
             return None
-        return self.element_type.resolve_polymorphic(
-            schema, concrete_type.element_type)
+        return self.get_element_type(schema).resolve_polymorphic(
+            schema, concrete_type.get_element_type(schema))
 
     def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
         return Array.from_subtypes(schema, (concrete_type,))
@@ -503,7 +507,8 @@ class BaseArray(Collection, s_abc.Array):
         if not other.is_array():
             return False
 
-        return self.element_type.test_polymorphic(schema, other.element_type)
+        return self.get_element_type(schema).test_polymorphic(
+            schema, other.get_element_type(schema))
 
     @classmethod
     def from_subtypes(cls, schema, subtypes, typemods=None, *, name=None):
@@ -523,7 +528,7 @@ class BaseArray(Collection, s_abc.Array):
 
         if isinstance(stype, cls):
             # There is no array of arrays, only multi-dimensional arrays.
-            element_type = stype.element_type
+            element_type = stype.get_element_type(schema)
             if not dimensions:
                 dimensions.append(-1)
             dimensions += stype.dimensions
@@ -538,7 +543,7 @@ class BaseArray(Collection, s_abc.Array):
         # We need to resolve material types based on the subtype recursively.
         new_material_type = False
 
-        st = self.element_type
+        st = self.get_element_type(schema)
         subtypes = [st.material_type(schema)]
         if subtypes[0] is not st:
             new_material_type = True
@@ -556,7 +561,7 @@ class BaseArray(Collection, s_abc.Array):
             classname=str(self.id),
         )
 
-        el = self.element_type
+        el = self.get_element_type(schema)
         if el.is_collection() and schema.get_by_id(el.id, None) is None:
             cmd.add(el.as_create_delta(schema))
 
@@ -564,7 +569,7 @@ class BaseArray(Collection, s_abc.Array):
         cmd.set_attribute_value('name', str(self.id))
         cmd.set_attribute_value(
             'element_type',
-            self.element_type,
+            el,
         )
 
         return cmd
@@ -576,7 +581,7 @@ class BaseArray(Collection, s_abc.Array):
             classname=str(self.id),
         )
 
-        el = self.element_type
+        el = self.get_element_type(schema)
         if (el.is_collection()
                 and list(schema.get_referrers(el))[0].id == self.id):
             cmd.add(el.as_delete_delta(schema))
@@ -588,24 +593,6 @@ class Array(BaseArray):
 
     element_type = so.Field(so.Object)
     dimensions = so.Field(Dimensions, coerce=True)
-
-    def __hash__(self):
-        return hash((
-            self.__class__,
-            self.name,
-            self.element_type,
-            tuple(self.dimensions),
-        ))
-
-    def __eq__(self, other):
-        if self.__class__ is not other.__class__:
-            return False
-
-        return (
-            self.name == other.name and
-            self.element_type == other.element_type and
-            self.dimensions == other.dimensions
-        )
 
     def as_schema_coll(self, schema):
 
@@ -624,6 +611,12 @@ class Array(BaseArray):
             element_type=el_type,
         )
 
+    def get_element_type(self, schema):
+        return self.element_type
+
+    def get_subtypes(self, schema):
+        return (self.element_type,)
+
 
 class SchemaCollectionMeta(type(Type)):
 
@@ -637,6 +630,9 @@ class SchemaArray(so.UnqualifiedObject, BaseArray,
 
     element_type = so.SchemaField(so.Object)
     dimensions = so.SchemaField(Dimensions, default=None, coerce=True)
+
+    def get_subtypes(self, schema):
+        return (self.get_element_type(schema),)
 
 
 class BaseTuple(Collection, s_abc.Tuple):
@@ -673,7 +669,7 @@ class BaseTuple(Collection, s_abc.Tuple):
 
     def get_displayname(self, schema):
         st_names = ', '.join(st.get_displayname(schema)
-                             for st in self.element_types.values())
+                             for st in self.get_subtypes(schema))
         return f'tuple<{st_names}>'
 
     def is_tuple(self):
@@ -682,17 +678,21 @@ class BaseTuple(Collection, s_abc.Tuple):
     def get_container(self):
         return dict
 
-    def get_element_names(self):
-        return list(self.element_types)
+    def get_element_names(self, schema):
+        raise NotImplementedError
 
-    def iter_subtypes(self):
-        yield from self.element_types.items()
+    def iter_subtypes(self, schema):
+        raise NotImplementedError
+
+    def is_named(self, schema) -> bool:
+        raise NotImplementedError
 
     def normalize_index(self, schema, field: str) -> str:
-        if self.named and field.isdecimal():
+        if self.is_named(schema) and field.isdecimal():
             idx = int(field)
-            if idx >= 0 and idx < len(self.element_types):
-                return list(self.element_types.keys())[idx]
+            el_names = self.get_element_names(schema)
+            if idx >= 0 and idx < len(el_names):
+                return el_names[idx]
             else:
                 raise errors.InvalidReferenceError(
                     f'{field} is not a member of '
@@ -703,13 +703,18 @@ class BaseTuple(Collection, s_abc.Tuple):
     def index_of(self, schema, field: str) -> int:
         if field.isdecimal():
             idx = int(field)
-            if idx >= 0 and idx < len(self.element_types):
-                if self.named:
-                    return list(self.element_types.keys()).index(field)
+            el_names = self.get_element_names(schema)
+            if idx >= 0 and idx < len(el_names):
+                if self.is_named(schema):
+                    return el_names.index(field)
                 else:
                     return idx
-        elif self.named and field in self.element_types:
-            return list(self.element_types.keys()).index(field)
+        elif self.is_named(schema):
+            el_names = self.get_element_names(schema)
+            try:
+                return el_names.index(field)
+            except ValueError:
+                pass
 
         raise errors.InvalidReferenceError(
             f'{field} is not a member of {self.get_displayname(schema)}')
@@ -718,27 +723,27 @@ class BaseTuple(Collection, s_abc.Tuple):
         # index can be a name or a position
         if field.isdecimal():
             idx = int(field)
-            if idx >= 0 and idx < len(self.element_types):
-                return list(self.element_types.values())[idx]
+            subtypes = list(self.get_subtypes(schema))
+            if idx >= 0 and idx < len(subtypes):
+                return subtypes[idx]
 
-        elif self.named and field in self.element_types:
-            return self.element_types[field]
+        elif self.is_named(schema):
+            subtypes = dict(self.iter_subtypes(schema))
+            if field in subtypes:
+                return subtypes[field]
 
         raise errors.InvalidReferenceError(
             f'{field} is not a member of {self.get_displayname(schema)}')
 
-    def get_subtypes(self):
-        if self.element_types:
-            return list(self.element_types.values())
-        else:
-            return []
+    def get_subtypes(self, schema):
+        raise NotImplementedError
 
     def derive_subtype(
             self, schema, *, name: str,
             attrs: typing.Optional[typing.Mapping]=None) -> Type:
         return schema, Tuple.from_subtypes(
             schema,
-            self.element_types,
+            dict(self.iter_subtypes(schema)),
             self.get_typemods(),
             name=name,
             **(attrs or {}))
@@ -764,8 +769,8 @@ class BaseTuple(Collection, s_abc.Tuple):
         if not other.is_tuple():
             return False
 
-        self_subtypes = self.get_subtypes()
-        other_subtypes = other.get_subtypes()
+        self_subtypes = self.get_subtypes(schema)
+        other_subtypes = other.get_subtypes(schema)
 
         if len(self_subtypes) != len(other_subtypes):
             return False
@@ -780,8 +785,8 @@ class BaseTuple(Collection, s_abc.Tuple):
         if not other.is_tuple():
             return -1
 
-        self_subtypes = self.get_subtypes()
-        other_subtypes = other.get_subtypes()
+        self_subtypes = self.get_subtypes(schema)
+        other_subtypes = other.get_subtypes(schema)
 
         if len(self_subtypes) != len(other_subtypes):
             return -1
@@ -801,8 +806,8 @@ class BaseTuple(Collection, s_abc.Tuple):
         if not other.is_tuple():
             return False
 
-        self_subtypes = self.get_subtypes()
-        other_subtypes = other.get_subtypes()
+        self_subtypes = self.get_subtypes(schema)
+        other_subtypes = other.get_subtypes(schema)
 
         if len(self_subtypes) != len(other_subtypes):
             return False
@@ -822,8 +827,8 @@ class BaseTuple(Collection, s_abc.Tuple):
         if self == other:
             return self
 
-        subs = self.get_subtypes()
-        other_subs = other.get_subtypes()
+        subs = self.get_subtypes(schema)
+        other_subs = other.get_subtypes(schema)
 
         if len(subs) != len(other_subs):
             return
@@ -835,11 +840,15 @@ class BaseTuple(Collection, s_abc.Tuple):
                 return
             new_types.append(nt)
 
-        if (self.named and
-                other.named and
-                self.element_types.keys() == other.element_types.keys()):
-            new_types = dict(zip(self.element_types.keys(), new_types))
-            typemods = {"named": True}
+        if self.is_named(schema) and other.is_named(schema):
+            my_names = self.get_element_names(schema)
+            other_names = other.get_element_names(schema)
+
+            if my_names == other_names:
+                new_types = dict(zip(my_names, new_types))
+                typemods = {"named": True}
+            else:
+                typemods = None
         else:
             typemods = None
 
@@ -848,18 +857,19 @@ class BaseTuple(Collection, s_abc.Tuple):
     def get_typemods(self):
         return {'named': self.named}
 
-    def contains_array_of_tuples(self):
+    def contains_array_of_tuples(self, schema):
         return any(
-            st.contains_array_of_tuples() if st.is_collection() else False
-            for st in self.get_subtypes()
+            st.contains_array_of_tuples(schema)
+            if st.is_collection() else False
+            for st in self.get_subtypes(schema)
         )
 
     def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
         if not concrete_type.is_tuple():
             return None
 
-        self_subtypes = self.get_subtypes()
-        other_subtypes = concrete_type.get_subtypes()
+        self_subtypes = self.get_subtypes(schema)
+        other_subtypes = concrete_type.get_subtypes(schema)
 
         if len(self_subtypes) != len(other_subtypes):
             return None
@@ -872,15 +882,15 @@ class BaseTuple(Collection, s_abc.Tuple):
 
     def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
         new_types = []
-        for st in self.get_subtypes():
+        for st in self.get_subtypes(schema):
             if st.is_polymorphic(schema):
                 nst = st.to_nonpolymorphic(schema, concrete_type)
             else:
                 nst = st
             new_types.append(nst)
 
-        if self.named:
-            new_types = dict(zip(self.element_types.keys(), new_types))
+        if self.is_named(schema):
+            new_types = dict(zip(self.get_element_names(schema), new_types))
             typemods = {"named": True}
         else:
             typemods = None
@@ -893,8 +903,8 @@ class BaseTuple(Collection, s_abc.Tuple):
         if not other.is_tuple():
             return False
 
-        self_subtypes = self.get_subtypes()
-        other_subtypes = other.get_subtypes()
+        self_subtypes = self.get_subtypes(schema)
+        other_subtypes = other.get_subtypes(schema)
 
         if len(self_subtypes) != len(other_subtypes):
             return False
@@ -905,7 +915,7 @@ class BaseTuple(Collection, s_abc.Tuple):
     def _reduce_to_ref(self, schema):
         strefs = {}
 
-        for n, st in self.element_types.items():
+        for n, st in self.iter_subtypes(schema):
             st_ref, _ = st._reduce_to_ref(schema)
             strefs[n] = st_ref
 
@@ -916,9 +926,10 @@ class BaseTuple(Collection, s_abc.Tuple):
         )
 
     def _resolve_ref(self, schema):
-        if any(hasattr(st, '_resolve_ref') for st in self.get_subtypes()):
+        if any(hasattr(st, '_resolve_ref')
+               for st in self.get_subtypes(schema)):
             subtypes = {}
-            for st_name, st in self.element_types.items():
+            for st_name, st in self.iter_subtypes(schema):
                 subtypes[st_name] = st._resolve_ref(schema)
 
             return self.__class__.from_subtypes(
@@ -931,7 +942,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         new_material_type = False
         subtypes = {}
 
-        for st_name, st in self.element_types.items():
+        for st_name, st in self.iter_subtypes(schema):
             subtypes[st_name] = st.material_type(schema)
             if subtypes[st_name] is not st:
                 new_material_type = True
@@ -949,18 +960,18 @@ class BaseTuple(Collection, s_abc.Tuple):
             classname=str(self.id),
         )
 
-        for el in self.element_types.values():
+        for el in self.get_subtypes(schema):
             if el.is_collection() and schema.get_by_id(el.id, None) is None:
                 cmd.add(el.as_create_delta(schema))
 
         cmd.set_attribute_value('id', self.id)
         cmd.set_attribute_value('name', str(self.id))
-        cmd.set_attribute_value('named', self.named)
+        cmd.set_attribute_value('named', self.is_named(schema))
         cmd.set_attribute_value(
             'element_types',
             so.ObjectDict.create(
                 schema,
-                self.element_types,
+                dict(self.iter_subtypes(schema)),
             ))
 
         return cmd
@@ -972,7 +983,7 @@ class BaseTuple(Collection, s_abc.Tuple):
             classname=str(self.id),
         )
 
-        for el in self.element_types.values():
+        for el in self.get_subtypes(schema):
             if el.is_collection():
                 refs = schema.get_referrers(el)
                 if len(refs) == 1 and list(refs)[0].id == self.id:
@@ -985,6 +996,21 @@ class Tuple(BaseTuple):
 
     named = so.Field(bool)
     element_types = so.Field(dict, coerce=True)
+
+    def is_named(self, schema) -> bool:
+        return self.named
+
+    def get_element_names(self, schema):
+        return list(self.element_types)
+
+    def iter_subtypes(self, schema):
+        yield from self.element_types.items()
+
+    def get_subtypes(self, schema) -> typing.Tuple[Type, ...]:
+        if self.element_types:
+            return tuple(self.element_types.values())
+        else:
+            return ()
 
     def as_schema_coll(self, schema):
 
@@ -1016,24 +1042,6 @@ class Tuple(BaseTuple):
         state['element_types'] = types.MappingProxyType(state['element_types'])
         self.__dict__.update(state)
 
-    def __hash__(self):
-        return hash((
-            self.__class__,
-            self.named,
-            self.name,
-            tuple(self.element_types.items())
-        ))
-
-    def __eq__(self, other):
-        if self.__class__ is not other.__class__:
-            return False
-
-        return (
-            self.named == other.named and
-            self.name == other.name and
-            self.element_types == other.element_types
-        )
-
 
 class SchemaTuple(so.UnqualifiedObject, BaseTuple,
                   metaclass=SchemaCollectionMeta):
@@ -1044,3 +1052,20 @@ class SchemaTuple(so.UnqualifiedObject, BaseTuple,
     element_types = so.SchemaField(
         so.ObjectDict,
         coerce=True)
+
+    def is_named(self, schema) -> bool:
+        return self.get_named(schema)
+
+    def get_element_names(self, schema):
+        return tuple(self.get_element_types(schema).keys())
+
+    def iter_subtypes(self, schema):
+        yield from self.get_element_types(schema).items(schema)
+
+    def get_subtypes(self, schema) -> typing.Tuple[Type, ...]:
+        return self.get_element_types(schema).values(schema)
+
+        if self.element_types:
+            return self.element_types.objects(schema)
+        else:
+            return []

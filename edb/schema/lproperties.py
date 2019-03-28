@@ -199,7 +199,7 @@ class CreateProperty(PropertyCommand,
 
             if (target_type.is_object_type()
                     or (target_type.is_collection()
-                        and target_type.contains_object())):
+                        and target_type.contains_object(schema))):
                 raise errors.InvalidPropertyTargetError(
                     f'invalid property type: expected a scalar type, '
                     f'or a scalar collection, got '

@@ -354,7 +354,7 @@ class DeclarationLoader:
 
         for dep in list(deps):
             if isinstance(dep, s_abc.Collection):
-                deps.update(dep.get_subtypes())
+                deps.update(dep.get_subtypes(self._schema))
                 deps.discard(dep)
 
         # Add dependency on all builtin scalars unconditionally

@@ -155,7 +155,7 @@ def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
                 name=t.schema_name
             ),
             subtypes=[
-                typeref_to_ast(schema, st) for st in t.get_subtypes()
+                typeref_to_ast(schema, st) for st in t.get_subtypes(schema)
             ]
         )
 

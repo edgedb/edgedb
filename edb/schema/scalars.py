@@ -75,7 +75,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
                 if ptypes:
                     for ptype in ptypes:
                         if isinstance(ptype, s_abc.Collection):
-                            subtypes = ptype.get_subtypes()
+                            subtypes = ptype.get_subtypes(schema)
                         else:
                             subtypes = [ptype]
 

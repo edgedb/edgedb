@@ -1308,7 +1308,7 @@ def ensure_schema_collection(schema, coll_type, parent_cmd, *,
         raise ValueError(
             f'{coll_type.get_displayname(schema)} is not a collection')
 
-    if coll_type.contains_array_of_tuples():
+    if coll_type.contains_array_of_tuples(schema):
         raise errors.UnsupportedFeatureError(
             'arrays of tuples are not supported at the schema level',
             context=src_context,

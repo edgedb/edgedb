@@ -136,7 +136,7 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
         bases = so.ObjectList.create(schema, base_refs)
 
         for base in bases.objects(schema):
-            if base.is_type() and base.contains_any():
+            if base.is_type() and base.contains_any(schema):
                 base_type_name = base.get_displayname(schema)
                 raise errors.SchemaError(
                     f"{base_type_name!r} cannot be a parent type")
