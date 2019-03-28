@@ -11,11 +11,11 @@ This section describes the SDL declarations pertaining to
 Examples
 --------
 
-Declare an *abstract* property "address" with a helpful title:
+Declare an *abstract* property "address_base" with a helpful title:
 
 .. code-block:: sdl
 
-    abstract link address {
+    abstract property address_base {
         # declare a specific title for the link
         attribute title := 'Mailing address';
     }
@@ -27,7 +27,7 @@ Declare *concrete* properties "name" and "address" within a "User" type:
     type User {
         # define concrete properties
         property name -> str;
-        property address -> str;
+        property address extending address_base -> str;
 
         multi link friends -> User;
 

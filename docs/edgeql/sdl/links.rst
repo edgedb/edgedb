@@ -11,11 +11,11 @@ This section describes the SDL declarations pertaining to
 Examples
 --------
 
-Declare an *abstract* link "friends" with a helpful title:
+Declare an *abstract* link "friends_base" with a helpful title:
 
 .. code-block:: sdl
 
-    abstract link friends {
+    abstract link friends_base {
         # declare a specific title for the link
         attribute title := 'Close contacts';
     }
@@ -28,7 +28,7 @@ Declare a *concrete* link "friends" within a "User" type:
         property name -> str;
         property address -> str;
         # define a concrete link "friends"
-        multi link friends -> User;
+        multi link friends extending friends_base-> User;
 
         index user_name_idx on (__subject__.name);
     }

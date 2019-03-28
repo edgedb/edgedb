@@ -165,13 +165,11 @@ link as well. Consider the following schema:
 
 .. code-block:: sdl
 
-    abstract link friends {
-        property since -> datetime;
-    }
-
     type User {
         required property name -> str;
-        multi link friends -> User;
+        multi link friends -> User {
+            property since -> datetime;
+        }
     }
 
 
