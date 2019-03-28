@@ -227,6 +227,16 @@ class BinaryRenderer:
         buf.write("<timedelta>", style.code_comment)
         buf.write(repr(str(o)), style.code_string)
 
+    @walk.register(edgedb.EnumValue)
+    def _enum(o: edgedb.EnumValue, repl_ctx: context.ReplContext, buf):
+        if not repl_ctx.introspect_types:
+            typename = 'enum'
+        else:
+            typename = repl_ctx.typenames.get(o.__tid__, 'enum')
+
+        buf.write(f"<{typename}>", style.code_comment)
+        buf.write(f"'{o}'", style.code_string)
+
 
 class JSONRenderer:
 
