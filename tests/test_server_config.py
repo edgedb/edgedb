@@ -467,6 +467,11 @@ class TestServerConfig(tb.QueryTestCase):
             []
         )
 
+        # Repeat reset that doesn't match anything this time.
+        await self.con.fetchall('''
+            CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'test_03_01';
+        ''')
+
         await self.con.fetchall('''
             CONFIGURE SYSTEM INSERT SystemConfig {
                 name := 'test_03',

@@ -763,7 +763,10 @@ cdef class EdgeConnection:
     async def _execute_system_config(self, query_unit):
         data = await self.backend.pgcon.simple_query(
             b';'.join(query_unit.sql), ignore_data=False)
-        config_ops = [config.Operation.from_json(r[0]) for r in data]
+        if data:
+            config_ops = [config.Operation.from_json(r[0]) for r in data]
+        else:
+            config_ops = []
         await self.dbview.apply_config_ops(config_ops)
 
     async def _execute(self, query_unit, bind_args,
