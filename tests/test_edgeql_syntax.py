@@ -2898,6 +2898,37 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_constraint_09(self):
+        """
+        CREATE TYPE Foo {
+            CREATE LINK bar -> Bar {
+                CREATE CONSTRAINT my_constraint ON (
+                    # It's possible to use shapes in the "ON" expression.
+                    # This would be ambiguous without parentheses.
+                    __source__{
+                        baz := __source__.a + __source__.b
+                    }.baz
+                ) {
+                    SET ATTRIBUTE title := 'special';
+                };
+            };
+        };
+
+% OK %
+
+        CREATE TYPE Foo {
+            CREATE LINK bar -> Bar {
+                CREATE CONSTRAINT my_constraint ON (
+                    (__source__{
+                        baz := (__source__.a + __source__.b)
+                    }).baz
+                ) {
+                    SET ATTRIBUTE title := 'special';
+                };
+            };
+        };
+        """
+
     def test_edgeql_syntax_ddl_function_01(self):
         """
         CREATE FUNCTION std::strlen(string: std::str) -> std::int64
@@ -3490,9 +3521,11 @@ aa';
 
     def test_edgeql_syntax_ddl_index_01(self):
         """
-        CREATE INDEX title_name ON Foo;
+        CREATE INDEX title_name ON (Foo);
 
-        CREATE INDEX title_name ON __subject__.title;
+        CREATE INDEX title_name ON (__subject__.title);
+
+        CREATE INDEX title_name ON (SELECT __subject__.title);
 
         DROP INDEX title_name;
         """

@@ -98,8 +98,11 @@ class OptExtending(Nonterm):
 
 
 class OnExpr(Nonterm):
-    def reduce_ON_LPAREN_Expr_RPAREN(self, *kids):
-        self.val = kids[2].val
+    # NOTE: the reason why we need parentheses around the expression
+    # is to disambiguate whether the '{' following the expression is
+    # meant to be a shape or a nested DDL/SDL block.
+    def reduce_ON_ParenExpr(self, *kids):
+        self.val = kids[1].val
 
 
 class OptOnExpr(Nonterm):

@@ -19,7 +19,7 @@ type or link.
 
 .. eql:synopsis::
 
-    CREATE INDEX <index-name> ON <index-expr> ;
+    CREATE INDEX <index-name> ON ( <index-expr> );
 
 
 Description
@@ -50,7 +50,7 @@ Create an object type ``User`` with an indexed ``title`` property:
             SET default := '';
         };
 
-        CREATE INDEX title_name ON __subject__.title;
+        CREATE INDEX title_name ON (__subject__.title);
     };
 
 

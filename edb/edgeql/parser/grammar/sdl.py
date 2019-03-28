@@ -559,10 +559,10 @@ class AttributeDeclarationShort(Nonterm):
 # CREATE INDEX
 #
 class IndexDeclaration(Nonterm):
-    def reduce_INDEX_ShortNodeName_ON_Expr(self, *kids):
+    def reduce_INDEX_ShortNodeName_OnExpr(self, *kids):
         self.val = qlast.IndexDeclaration(
             name=kids[1].val,
-            expression=kids[3].val
+            expression=kids[2].val
         )
 
 

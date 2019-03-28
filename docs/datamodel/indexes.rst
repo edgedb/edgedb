@@ -18,7 +18,7 @@ or more properties directly:
 
     type User {
         property name -> str;
-        index name_idx on __subject__.name;
+        index name_idx on (__subject__.name);
     }
 
 With the above, ``User`` lookups by the ``name`` property will be faster,
@@ -37,8 +37,8 @@ of the host object type or link:
     type User {
         property firstname -> str;
         property lastname -> str;
-        index name_idx on str_lower(
-            __subject__.firstname + ' ' + __subject__.lastname);
+        index name_idx on (str_lower(
+            __subject__.firstname + ' ' + __subject__.lastname));
     }
 
 The index expression must not reference any variables other than

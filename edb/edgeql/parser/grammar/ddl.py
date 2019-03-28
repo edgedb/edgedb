@@ -833,10 +833,10 @@ class DropAttributeStmt(Nonterm):
 # CREATE INDEX
 #
 class CreateIndexStmt(Nonterm):
-    def reduce_CREATE_INDEX_NodeName_ON_Expr(self, *kids):
+    def reduce_CREATE_INDEX_NodeName_OnExpr(self, *kids):
         self.val = qlast.CreateIndex(
             name=kids[2].val,
-            expr=kids[4].val
+            expr=kids[3].val
         )
 
 

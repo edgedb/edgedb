@@ -929,7 +929,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.args, newlines=False)
                 self.write(')')
             if node.subjectexpr:
-                self.write(' on (')
+                self.write(' ON (')
                 self.visit(node.subjectexpr)
                 self.write(')')
 
@@ -1059,8 +1059,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateIndex(self, node):
         def after_name():
-            self.write(' ON ')
+            self.write(' ON (')
             self.visit(node.expr)
+            self.write(')')
         self._visit_CreateObject(node, 'INDEX', after_name=after_name)
 
     def visit_DropIndex(self, node):
