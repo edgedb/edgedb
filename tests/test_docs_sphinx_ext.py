@@ -23,7 +23,8 @@ class BaseDomainTest:
         with tempfile.TemporaryDirectory() as td_in, \
                 tempfile.TemporaryDirectory() as td_out:
 
-            fn = os.path.join(td_in, 'contents.rst')
+            # Since v2.0, Sphinx uses "index" as master_doc by default.
+            fn = os.path.join(td_in, 'index.rst')
             with open(fn, 'wt') as f:
                 f.write(src)
                 f.flush()
@@ -66,7 +67,7 @@ class BaseDomainTest:
                 new_ex.stderr = ex.stderr.decode()
                 raise new_ex from ex
 
-            with open(os.path.join(td_out, f'contents.{format}'), 'rt') as f:
+            with open(os.path.join(td_out, f'index.{format}'), 'rt') as f:
                 out = f.read()
 
             return out
