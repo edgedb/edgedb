@@ -564,6 +564,19 @@ def maybe_get_path_rvar(
         return None
 
 
+def list_path_rvar_aspects(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        env: context.Environment) -> typing.Set[str]:
+
+    aspects = set()
+
+    for rvar_path_id, aspect in stmt.path_rvar_map:
+        if path_id == rvar_path_id:
+            aspects.add(aspect)
+
+    return aspects
+
+
 def maybe_get_path_value_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         env: context.Environment) -> typing.Optional[pgast.BaseRangeVar]:
