@@ -88,3 +88,9 @@ type Field extending Callable {
 }
 
 type Directive extending Callable;
+
+
+type SelfRef {
+    required property name -> str;
+    multi link ref -> SelfRef;
+}

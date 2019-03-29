@@ -1086,3 +1086,122 @@ class TestInsert(tb.QueryTestCase):
             await self.con.execute("""\
                 INSERT test::Foo;
             """)
+
+    @test.xfail('''
+        Self-reference in an INSERT is problematic since it's
+        undefined. It *could* mean the object being inserted or it
+        *could* mean empty set. It's also possible that it's
+        interpreted as equivalent to `DETACHED SelfRef`.
+
+        This is pretty much always a way to shoot yourself in the foot
+        and silently get a result that was wrong. We may want to ban
+        it altogehter.
+    ''')
+    async def test_edgeql_insert_selfref_01(self):
+        with self.assertRaisesRegex(
+                # FIXME: need a specific error message
+                edgedb.QueryError):
+            await self.con.execute(r"""
+                WITH MODULE test
+                INSERT SelfRef {
+                    name := 'myself',
+                    ref := SelfRef
+                };
+            """)
+
+    @test.xfail('''
+        Self-reference in an INSERT is problematic since it's
+        undefined. It *could* mean the object being inserted or it
+        *could* mean empty set. It's also possible that it's
+        interpreted as equivalent to `DETACHED SelfRef`.
+
+        This is pretty much always a way to shoot yourself in the foot
+        and silently get a result that was wrong. We may want to ban
+        it altogehter.
+    ''')
+    async def test_edgeql_insert_selfref_02(self):
+        with self.assertRaisesRegex(
+                # FIXME: need a specific error message
+                edgedb.QueryError):
+            await self.con.execute(r"""
+                WITH MODULE test
+                INSERT SelfRef {
+                    name := 'other'
+                };
+
+                WITH MODULE test
+                INSERT SelfRef {
+                    name := 'myself',
+                    ref := (
+                        SELECT SelfRef
+                        FILTER .name = 'other'
+                    )
+                };
+            """)
+
+    @test.xfail('''
+        Self-reference in an INSERT is problematic since it's
+        undefined. It *could* mean the object being inserted or it
+        *could* mean empty set. It's also possible that it's
+        interpreted as equivalent to `DETACHED SelfRef`.
+
+        This is pretty much always a way to shoot yourself in the foot
+        and silently get a result that was wrong. We may want to ban
+        it altogehter.
+    ''')
+    async def test_edgeql_insert_selfref_03(self):
+        with self.assertRaisesRegex(
+                # FIXME: need a specific error message
+                edgedb.QueryError):
+            await self.con.execute(r"""
+                WITH MODULE test
+                INSERT SelfRef {
+                    name := 'other'
+                };
+
+                WITH MODULE test
+                INSERT SelfRef {
+                    name := 'myself',
+                    ref := (
+                        WITH X := SelfRef
+                        SELECT X
+                        FILTER .name = 'other'
+                    )
+                };
+            """)
+
+    async def test_edgeql_insert_selfref_04(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            INSERT SelfRef {
+                name := 'ok other'
+            };
+
+            WITH MODULE test
+            INSERT SelfRef {
+                name := 'ok myself',
+                ref := (
+                    SELECT DETACHED SelfRef
+                    FILTER .name = 'ok other'
+                )
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT SelfRef {
+                    name,
+                    ref: {
+                        name
+                    }
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'ok myself',
+                'ref': [{'name': 'ok other'}],
+            }, {
+                'name': 'ok other',
+                'ref': [],
+            }],
+        )
