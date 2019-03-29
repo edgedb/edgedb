@@ -63,3 +63,6 @@ expression must not be set-returning.
     While being beneficial to the speed of queries, indexes increase
     the database size and make insertion and updates slower, and creating
     too many indexes may be detrimental.
+
+For details about index introspection see :ref:`this section
+<ref_eql_introspection_indexes>`.

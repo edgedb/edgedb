@@ -15,7 +15,7 @@ Example
 
     type User {
         # define some properties and a link
-        property name -> str;
+        required property name -> str;
         property address -> str;
 
         multi link friends -> User;

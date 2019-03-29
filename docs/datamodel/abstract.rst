@@ -22,6 +22,14 @@ Abstract Types
 
     All scalar types are derived from this type.
 
+.. eql:type:: std::anyenum
+
+    :index: any anytype enum
+
+    Abstract base enumerated type.
+
+    All :eql:type:`enum` types are derived from this type.
+
 .. eql:type:: anytuple
 
     :index: any anytype anytuple

@@ -16,7 +16,8 @@ Schema objects can be referred to by a fully-qualified name using the
 Every EdgeDB schema contains the following standard modules:
 
 - ``std``: standard types, functions and other declarations
-- ``schema``: types describing the introspection schema
+- ``schema``: types describing the :ref:`introspection <ref_eql_introspection>`
+  schema
 - ``sys``: system-wide entities, such as user roles and
   :ref:`databases <ref_datamodel_databases>`
 - ``cfg``: configuration and settings

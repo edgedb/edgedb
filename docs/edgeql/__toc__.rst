@@ -14,4 +14,5 @@ EdgeQL
     ddl/index
     operators/__toc__
     functions/index
+    introspection/index
     lexical

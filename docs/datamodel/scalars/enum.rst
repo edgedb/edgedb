@@ -25,3 +25,6 @@ Enumerated Types
         {false}
         db> SELECT <color_enum_t>'red' IS color_enum_t;
         {true}
+
+    For details about enum introspection see :ref:`this section
+    <ref_eql_introspection_scalar_types>`.
