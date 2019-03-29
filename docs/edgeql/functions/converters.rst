@@ -300,8 +300,9 @@ the functions below allow more options for such conversions.
                   std::to_str(val: float64, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: decimal, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: json, fmt: OPTIONAL str={}) -> str
+                  std::to_str(array: array<str>, delimiter: str) -> str
 
-    :index: stringify dumps
+    :index: stringify dumps join array_to_string
 
     Return string representation of the input value.
 
@@ -366,25 +367,13 @@ the functions below allow more options for such conversions.
         }'}
 
 
-    When converting :eql:type:`json`, this function can take
-    ``'pretty'`` as the optional *fmt* argument to produce
-    pretty-formatted JSON string.
-
-    See also :eql:func:`to_json`.
+    When converting :eql:type:`arrays <array>`, a *delimiter* argument
+    is required:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_str(<json>2);
-        {'2'}
-
-        db> SELECT to_str(<json>['hello', 'world']);
-        {'["hello", "world"]'}
-
-        db> SELECT to_str(<json>(a := 2, b := 'hello'), 'pretty');
-        {'{
-            "a": 2,
-            "b": "hello"
-        }'}
+        db> SELECT to_str(['one', 'two', 'three'], ', ');
+        {'one, two, three'}
 
 
 Formatting

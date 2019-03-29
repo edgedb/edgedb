@@ -282,6 +282,15 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
+std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
+{
+    FROM SQL $$
+    SELECT array_to_string("array", "delimiter");
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_json(str: std::str) -> std::json
 {
     FROM SQL $$

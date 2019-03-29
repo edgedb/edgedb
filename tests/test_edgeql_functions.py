@@ -1795,6 +1795,22 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 await self.con.fetchall(
                     r'''SELECT to_str(<naive_time>'15:01:22', '');''',)
 
+    async def test_edgeql_functions_to_str_08(self):
+        await self.assert_query_result(
+            r'''SELECT to_str(['one', 'two', 'three'], ', ');''',
+            ['one, two, three'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_str(['one', 'two', 'three'], '');''',
+            ['onetwothree'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_str(<array<str>>[], ', ');''',
+            [''],
+        )
+
     async def test_edgeql_functions_to_int_01(self):
         await self.assert_query_result(
             r'''SELECT to_int64(' 123456789', '999999999');''',
