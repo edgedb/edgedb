@@ -25,6 +25,7 @@ import pickle
 import re
 
 import immutables
+import psutil
 
 from edb import errors
 
@@ -371,23 +372,46 @@ async def _populate_data(std_schema, schema, conn):
     return schema
 
 
-async def _trust_all_conns(schema, conn, cluster):
-    script = '''
-        CONFIGURE SYSTEM INSERT Auth {
-            name := 'default',
-            priority := 0,
-            method := (INSERT Trust),
-        }
-    '''
+async def _configure(schema, conn, cluster, insecure=False):
+    scripts = []
 
-    _, sql = compiler.compile_bootstrap_script(
-        schema, schema, script, single_statement=True)
+    memory = psutil.virtual_memory()
+    # 8192 is the value of BLCKSZ in Postgres, which the
+    # shared_buffers and effective_cache_size settings are multiples of.
+    settings = {
+        'shared_buffers': f'"{int(memory.total * 0.25 / 8192)}kB"',
+        'effective_cache_size': f'"{int(memory.total * 0.5 / 8192)}kB"',
+        'query_work_mem': f'"{6 * (2 ** 10)}kB"',
+    }
 
-    config_op_data = await conn.fetchval(sql)
-    config_op = config.Operation.from_json(config_op_data)
+    for setting, value in settings.items():
+        scripts.append(f'''
+            CONFIGURE SYSTEM SET {setting} := {value};
+        ''')
+
+    if insecure:
+        scripts.append('''
+            CONFIGURE SYSTEM INSERT Auth {
+                name := 'default',
+                priority := 0,
+                method := (INSERT Trust),
+            };
+        ''')
 
     config_spec = config.get_settings()
-    settings = config_op.apply(config_spec, immutables.Map())
+
+    for script in scripts:
+        _, sql = compiler.compile_bootstrap_script(
+            schema, schema, script, single_statement=True)
+
+        if debug.flags.bootstrap:
+            debug.header('Bootstrap')
+            debug.dump_code(sql, lexer='sql')
+
+        config_op_data = await conn.fetchval(sql)
+        if config_op_data is not None and isinstance(config_op_data, str):
+            config_op = config.Operation.from_json(config_op_data)
+            settings = config_op.apply(config_spec, immutables.Map())
 
     data_dir = cluster.get_data_dir()
     overrides_fn = os.path.join(data_dir, 'config_sys.json')
@@ -512,7 +536,7 @@ def _pg_log_listener(conn, msg):
     logger.log(level, msg.message)
 
 
-async def bootstrap(cluster, args):
+async def bootstrap(cluster, args) -> bool:
     pgconn = await cluster.connect()
     pgconn.add_log_listener(_pg_log_listener)
     std_schema = None
@@ -539,9 +563,8 @@ async def bootstrap(cluster, args):
                 await _populate_misc_instance_data(std_schema, cluster)
                 schema = await _init_defaults(std_schema, std_schema, conn)
                 schema = await _populate_data(std_schema, schema, conn)
-
-                if args['insecure']:
-                    await _trust_all_conns(std_schema, conn, cluster)
+                await _configure(std_schema, conn, cluster,
+                                 insecure=args['insecure'])
             finally:
                 await conn.close()
         else:
@@ -566,3 +589,5 @@ async def bootstrap(cluster, args):
 
     finally:
         await pgconn.close()
+
+    return need_meta_bootstrap

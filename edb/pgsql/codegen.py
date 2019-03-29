@@ -723,3 +723,27 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write('COALESCE(')
         self.visit_list(node.args, newlines=False)
         self.write(')')
+
+    def visit_AlterSystem(self, node):
+        self.write('ALTER SYSTEM ')
+        if node.value is not None:
+            self.write('SET ')
+            self.write(common.quote_ident(node.name))
+            self.write(' = ')
+            self.visit(node.value)
+        else:
+            self.write('RESET ')
+            self.write(common.quote_ident(node.name))
+
+    def visit_Set(self, node):
+        if node.value is not None:
+            self.write('SET ')
+            self.write(common.quote_ident(node.name))
+            self.write(' = ')
+            self.visit(node.value)
+        else:
+            self.write('RESET ')
+            self.write(common.quote_ident(node.name))
+
+
+generate_source = SQLSourceGenerator.to_source

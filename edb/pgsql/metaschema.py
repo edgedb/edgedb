@@ -1445,7 +1445,7 @@ class SysConfigFunction(dbops.Function):
     # This is a function because "_edgecon_state" is a temporary table
     # and therefore cannot be used in a view.
 
-    text = f'''
+    text = R'''
         BEGIN
         RETURN QUERY EXECUTE $$
             WITH
@@ -1505,6 +1505,24 @@ class SysConfigFunction(dbops.Function):
                         _edgecon_state s
                     WHERE
                         s.type = 'C'
+                    ),
+
+                config_backend AS
+                    (SELECT
+                        name,
+                        to_jsonb(CASE WHEN u.v[1] IS NOT NULL
+                         THEN (setting::int * (u.v[1])::int)::text || u.v[2]
+                         ELSE setting || COALESCE(unit, '')
+                         END
+                        ) AS value,
+                        'backend' AS source,
+                        30 AS priority
+                     FROM
+                        pg_settings,
+                        LATERAL
+                        (SELECT
+                            regexp_match(pg_settings.unit, '(\d+)(\w+)') AS v
+                        ) AS u
                     )
 
             SELECT
@@ -1522,7 +1540,8 @@ class SysConfigFunction(dbops.Function):
                     (
                         SELECT * FROM config_defaults UNION ALL
                         SELECT * FROM config_sys UNION ALL
-                        SELECT * FROM config_sess
+                        SELECT * FROM config_sess UNION ALL
+                        SELECT * FROM config_backend
                     ) AS u
                 ) AS q
             WHERE

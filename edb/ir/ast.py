@@ -607,6 +607,8 @@ class ConfigCommand(Command):
 
     name: str
     system: bool
+    requires_restart: bool
+    backend_setting: str
     scope_tree: ScopeTreeNode
 
 

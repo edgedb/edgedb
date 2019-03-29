@@ -20,7 +20,9 @@
 CREATE MODULE cfg;
 
 
+CREATE ABSTRACT ATTRIBUTE cfg::backend_setting;
 CREATE ABSTRACT ATTRIBUTE cfg::internal;
+CREATE ABSTRACT ATTRIBUTE cfg::requires_restart;
 CREATE ABSTRACT ATTRIBUTE cfg::system;
 
 
@@ -97,6 +99,35 @@ CREATE TYPE cfg::Config {
 
     CREATE MULTI LINK auth -> cfg::Auth {
         SET ATTRIBUTE cfg::system := 'true';
+    };
+
+    # Exposed backend settings follow.
+
+    CREATE PROPERTY shared_buffers -> std::str {
+        SET ATTRIBUTE cfg::system := 'true';
+        SET ATTRIBUTE cfg::backend_setting := '"shared_buffers"';
+        SET ATTRIBUTE cfg::requires_restart := 'true';
+        SET default := '-1';
+    };
+
+    CREATE PROPERTY query_work_mem -> std::str {
+        SET ATTRIBUTE cfg::backend_setting := '"work_mem"';
+        SET default := '-1';
+    };
+
+    CREATE PROPERTY effective_cache_size -> std::str {
+        SET ATTRIBUTE cfg::backend_setting := '"effective_cache_size"';
+        SET default := '-1';
+    };
+
+    CREATE PROPERTY effective_io_concurrency -> std::str {
+        SET ATTRIBUTE cfg::backend_setting := '"effective_io_concurrency"';
+        SET default := '50';
+    };
+
+    CREATE PROPERTY default_statistics_target -> std::str {
+        SET ATTRIBUTE cfg::backend_setting := '"default_statistics_target"';
+        SET default := '100';
     };
 };
 

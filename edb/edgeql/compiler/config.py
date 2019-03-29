@@ -20,6 +20,7 @@
 """CONFIGURE statement compilation functions."""
 
 
+import json
 import typing
 
 from edb import errors
@@ -42,7 +43,7 @@ from . import setgen
 def compile_ConfigSet(
         expr: qlast.ConfigSet, *, ctx: context.ContextLevel) -> irast.Set:
 
-    param_name, _ = _validate_op(expr, ctx=ctx)
+    param_name, _, requires_restart, backend = _validate_op(expr, ctx=ctx)
     param_val = dispatch.compile(expr.expr, ctx=ctx)
 
     try:
@@ -57,6 +58,8 @@ def compile_ConfigSet(
     return irast.ConfigSet(
         name=param_name,
         system=expr.system,
+        requires_restart=requires_restart,
+        backend_setting=backend,
         context=expr.context,
         expr=param_val,
     )
@@ -65,7 +68,8 @@ def compile_ConfigSet(
 @dispatch.compile.register
 def compile_ConfigReset(
         expr: qlast.ConfigReset, *, ctx: context.ContextLevel) -> irast.Set:
-    param_name, param_type = _validate_op(expr, ctx=ctx)
+    param_name, param_type, requires_restart, backend = \
+        _validate_op(expr, ctx=ctx)
     filter_expr = expr.where
 
     if not param_type.is_object_type() and filter_expr is not None:
@@ -93,9 +97,14 @@ def compile_ConfigReset(
         ctx.modaliases[None] = 'cfg'
         select_ir = dispatch.compile(select, ctx=ctx)
 
+    else:
+        select_ir = None
+
     return irast.ConfigReset(
         name=param_name,
         system=expr.system,
+        requires_restart=requires_restart,
+        backend_setting=backend,
         context=expr.context,
         selector=select_ir,
     )
@@ -105,7 +114,7 @@ def compile_ConfigReset(
 def compile_ConfigInsert(
         expr: qlast.ConfigInsert, *, ctx: context.ContextLevel) -> irast.Set:
 
-    param_name, _ = _validate_op(expr, ctx=ctx)
+    param_name, _, requires_restart, backend = _validate_op(expr, ctx=ctx)
 
     if not expr.system:
         raise errors.UnsupportedFeatureError(
@@ -151,6 +160,8 @@ def compile_ConfigInsert(
         irast.ConfigInsert(
             name=param_name,
             system=expr.system,
+            requires_restart=requires_restart,
+            backend_setting=backend,
             expr=insert_subject,
             context=expr.context,
         ),
@@ -261,12 +272,28 @@ def _validate_op(
         and sys_attr.get_value(ctx.env.schema) == 'true'
     )
 
+    restart_attr = ptr.get_attributes(ctx.env.schema).get(
+        ctx.env.schema, 'cfg::requires_restart', None)
+
+    requires_restart = (
+        restart_attr is not None
+        and restart_attr.get_value(ctx.env.schema) == 'true'
+    )
+
+    backend_attr = ptr.get_attributes(ctx.env.schema).get(
+        ctx.env.schema, 'cfg::backend_setting', None)
+
+    if backend_attr is not None:
+        backend_setting = json.loads(backend_attr.get_value(ctx.env.schema))
+    else:
+        backend_setting = None
+
     if not expr.system and system:
         raise errors.ConfigurationError(
             f'{name!r} is a system-level configuration parameter; '
             f'use "CONFIGURE SYSTEM"')
 
-    return name, cfg_type
+    return name, cfg_type, requires_restart, backend_setting
 
 
 def get_config_type_shape(

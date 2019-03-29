@@ -103,7 +103,7 @@ def _internal_state_dir(runstate_dir):
               f'--runstate-dir to specify the correct location')
 
 
-def _init_cluster(cluster, args):
+def _init_cluster(cluster, args) -> bool:
     from edb.server import bootstrap
 
     bootstrap_args = {
@@ -114,10 +114,12 @@ def _init_cluster(cluster, args):
         'insecure': args['insecure'],
     }
 
-    asyncio.run(bootstrap.bootstrap(cluster, bootstrap_args))
+    need_restart = asyncio.run(bootstrap.bootstrap(cluster, bootstrap_args))
 
     global _server_initialized
     _server_initialized = True
+
+    return need_restart
 
 
 def _sd_notify(message):
@@ -266,7 +268,15 @@ def run_server(args):
             cluster.override_connection_spec(
                 user='postgres', database='template1')
 
-            _init_cluster(cluster, args)
+            need_cluster_restart = _init_cluster(cluster, args)
+
+            if need_cluster_restart and pg_cluster_started_by_us:
+                logger.info('Restarting server to reload configuration...')
+                cluster_port = cluster.get_connection_spec()['port']
+                cluster.stop()
+                cluster.start(
+                    port=cluster_port,
+                    server_settings=server_settings)
 
             if not args['bootstrap']:
                 _run_server(cluster, args, runstate_dir, internal_runstate_dir)

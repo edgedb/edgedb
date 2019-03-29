@@ -39,7 +39,7 @@ from prompt_toolkit import lexers as pt_lexers
 from edb.common import term
 from edb.edgeql import pygments as eql_pygments
 
-from edb.server import cluster as edgedb_cluster
+from edb.server import buildmeta
 
 from . import context
 from . import lexutils
@@ -301,7 +301,7 @@ class Cli:
         host = os.path.dirname(pgaddr)
         port = pgaddr.rpartition('.')[2]
 
-        pg_config = edgedb_cluster.get_pg_config_path()
+        pg_config = buildmeta.get_pg_config_path()
         psql = pg_config.parent / 'psql'
 
         cmd = [

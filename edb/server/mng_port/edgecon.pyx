@@ -769,6 +769,12 @@ cdef class EdgeConnection:
             config_ops = []
         await self.dbview.apply_config_ops(config_ops)
 
+        # If this is a backend configuration setting we also
+        # need to make sure it has been loaded.
+        if query_unit.backend_config:
+            await self.backend.pgcon.simple_query(
+                b'SELECT pg_reload_conf()', ignore_data=True)
+
     async def _execute(self, query_unit, bind_args,
                        bint parse, bint use_prep_stmt):
         if self.dbview.in_tx_error():

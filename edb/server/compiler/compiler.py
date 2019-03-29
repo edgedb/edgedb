@@ -50,8 +50,10 @@ from edb.schema import modules as s_mod
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
+from edb.pgsql import ast as pg_ast
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
+from edb.pgsql import codegen as pg_codegen
 from edb.pgsql import common as pg_common
 
 from edb.server import config
@@ -676,10 +678,39 @@ class Compiler(BaseCompiler):
             modaliases=modaliases,
         )
 
-        sql_text, _ = pg_compiler.compile_ir_to_sql(
-            ir,
-            pretty=debug.flags.edgeql_compile,
-            output_format=pg_compiler.OutputFormat.JSONB)
+        is_backend_setting = bool(getattr(ir, 'backend_setting', None))
+
+        if is_backend_setting:
+            if isinstance(ql, qlast.ConfigReset):
+                val = None
+            else:
+                # Postgres is fine with all setting types to be passed
+                # as strings.
+                value = ireval.evaluate_to_python_val(ir.expr, schema=schema)
+                val = pg_ast.StringConstant(val=str(value))
+
+            if ir.system:
+                sql_ast = pg_ast.AlterSystem(
+                    name=ir.backend_setting,
+                    value=val,
+                )
+            else:
+                sql_ast = pg_ast.Set(
+                    name=ir.backend_setting,
+                    value=val,
+                )
+
+            sql_text = pg_codegen.generate_source(sql_ast) + ';'
+
+            sql = (sql_text.encode(),)
+
+        else:
+            sql_text, _ = pg_compiler.compile_ir_to_sql(
+                ir,
+                pretty=debug.flags.edgeql_compile,
+                output_format=pg_compiler.OutputFormat.JSONB)
+
+            sql = (sql_text.encode(),)
 
         if not ql.system:
             config_op = ireval.evaluate_to_config_op(ir, schema=schema)
@@ -692,7 +723,8 @@ class Compiler(BaseCompiler):
             config_op = None
 
         return dbstate.SessionStateQuery(
-            sql=(sql_text.encode(),),
+            sql=sql,
+            is_backend_setting=is_backend_setting,
             is_system_setting=ql.system,
             config_op=config_op,
         )
@@ -849,6 +881,9 @@ class Compiler(BaseCompiler):
                             'transaction block')
 
                     unit.system_config = True
+
+                if comp.is_backend_setting:
+                    unit.backend_config = True
 
                 if ctx.state.current_tx().is_implicit():
                     unit.modaliases = ctx.state.current_tx().get_modaliases()

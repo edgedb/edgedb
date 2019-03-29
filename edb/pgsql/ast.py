@@ -765,3 +765,15 @@ SortDefault = qlast.SortDefault
 
 NullsFirst = qlast.NonesFirst
 NullsLast = qlast.NonesLast
+
+
+class AlterSystem(BaseExpr):
+
+    name: str
+    value: BaseExpr
+
+
+class Set(BaseExpr):
+
+    name: str
+    value: BaseExpr

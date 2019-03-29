@@ -639,6 +639,46 @@ class TestServerConfig(tb.QueryTestCase):
                 }
             ''')
 
+    async def test_server_proto_configure_05(self):
+        await self.con.execute('''
+            CONFIGURE SESSION SET effective_io_concurrency := '10';
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.effective_io_concurrency
+            ''',
+            [
+                '10'
+            ],
+        )
+
+        await self.con.execute('''
+            CONFIGURE SYSTEM SET effective_io_concurrency := '11';
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.effective_io_concurrency
+            ''',
+            [
+                '10'
+            ],
+        )
+
+        await self.con.execute('''
+            CONFIGURE SESSION RESET effective_io_concurrency;
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT cfg::Config.effective_io_concurrency
+            ''',
+            [
+                '11'
+            ],
+        )
+
     async def test_server_version(self):
         srv_ver = await self.con.fetchone(r"""
             SELECT sys::get_version()

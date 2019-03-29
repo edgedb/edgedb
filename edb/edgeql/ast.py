@@ -903,6 +903,7 @@ class ConfigOp(Expr):
 
     name: ObjectRef
     system: bool
+    backend_setting: str
 
 
 class ConfigSet(ConfigOp):
