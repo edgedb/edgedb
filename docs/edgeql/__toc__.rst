@@ -7,6 +7,7 @@ EdgeQL
     :hidden:
 
     overview
+    types
     expressions/index
     statements/index
     sdl/index

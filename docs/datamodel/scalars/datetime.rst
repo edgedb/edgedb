@@ -7,17 +7,64 @@ Date and Time
 
     A type representing date, time, and time zone.
 
+    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
+    :eql:type:`datetime` value in an expression:
+
+    .. code-block:: edgeql
+
+        SELECT <datetime>'2018-05-07T15:01:22.306916+00';
+        SELECT <datetime>'2018-05-07T15:01:22+00';
+
+    See functions :eql:func:`datetime_get`, :eql:func:`to_datetime`,
+    and :eql:func:`to_str` for more ways of working with
+    :eql:type:`datetime`.
+
 .. eql:type:: std::naive_datetime
 
     A type representing date and time without time zone.
+
+    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
+    :eql:type:`naive_datetime` value in an expression:
+
+    .. code-block:: edgeql
+
+        SELECT <naive_datetime>'2018-05-07T15:01:22.306916';
+        SELECT <naive_datetime>'2018-05-07T15:01:22';
+
+    See functions :eql:func:`datetime_get`, :eql:func:`to_naive_datetime`,
+    and :eql:func:`to_str` for more ways of working with
+    :eql:type:`naive_datetime`.
 
 .. eql:type:: std::naive_date
 
     A type representing date without time zone.
 
+    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
+    :eql:type:`naive_date` value in an expression:
+
+    .. code-block:: edgeql
+
+        SELECT <naive_date>'2018-05-07';
+
+    See functions :eql:func:`date_get`, :eql:func:`to_naive_date`,
+    and :eql:func:`to_str` for more ways of working with
+    :eql:type:`naive_date`.
+
 .. eql:type:: std::naive_time
 
     A type representing time without time zone.
+
+    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
+    :eql:type:`naive_time` value in an expression:
+
+    .. code-block:: edgeql
+
+        SELECT <naive_time>'15:01:22.306916';
+        SELECT <naive_time>'15:01:22';
+
+    See functions :eql:func:`time_get`, :eql:func:`to_naive_time`,
+    and :eql:func:`to_str` for more ways of working with
+    :eql:type:`naive_time`.
 
 .. eql:type:: std::timedelta
 
@@ -61,3 +108,7 @@ Date and Time
         db> SELECT <timedelta>
         ...     '12 decades 2403 months 3987 days 12348943ms';
         {'320 years 3 mons 3987 days 03:25:48.943'}
+
+    See functions :eql:func:`timedelta_get`, :eql:func:`to_timedelta`,
+    and :eql:func:`to_str` for more ways of working with
+    :eql:type:`timedelta`.

@@ -25,12 +25,7 @@ Named tuples are created using the following syntax:
 Note that *all* elements in a named tuple must have a name.
 
 A tuple constructor automatically creates a corresponding
-:eql:type:`tuple` type:
-
-.. code-block:: edgeql-repl
-
-    db> SELECT (INTROSPECT TYPEOF ('foo', 42)).name;
-    tuple<std::str, std::int64>
+:ref:`tuple type <ref_eql_types_tuple>`.
 
 
 .. _ref_eql_expr_tuple_elref:

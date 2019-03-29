@@ -49,8 +49,8 @@ Aggregates
 
     Generalized boolean :eql:op:`AND` applied to the set of *values*.
 
-    The result is ``TRUE`` if all of the *values* are ``TRUE`` or the
-    set of *values* is ``{}``. Return ``FALSE`` otherwise.
+    The result is ``true`` if all of the *values* are ``true`` or the
+    set of *values* is ``{}``. Return ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 
@@ -66,8 +66,8 @@ Aggregates
 
     Generalized boolean :eql:op:`OR` applied to the set of *values*.
 
-    The result is ``TRUE`` if any of the *values* are ``TRUE``. Return
-    ``FALSE`` otherwise.
+    The result is ``true`` if any of the *values* are ``true``. Return
+    ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 

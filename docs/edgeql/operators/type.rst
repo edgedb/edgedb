@@ -51,7 +51,8 @@ the specified type:
 
     "<" <type> ">" <expression>
 
-The *type* must be a non-abstract scalar or a container type.
+The :eql:synopsis:`<type>` must be a valid :ref:`type expression
+<ref_eql_types>` denoting a non-abstract scalar or a container type.
 
 Type cast is a run-time operation.  The cast will succeed only if a
 type conversion was defined for the type pair, and if the source value

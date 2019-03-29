@@ -42,11 +42,11 @@ This section describes generic functions provided by EdgeDB.
     A polymorphic function to test if a sequence contains a certain element.
 
     When the *haystack* is :eql:type:`str` or :eql:type:`bytes`,
-    return ``TRUE`` if *needle* is contained as a subsequence in it
-    and ``FALSE`` otherwise.
+    return ``true`` if *needle* is contained as a subsequence in it
+    and ``false`` otherwise.
 
-    When the *haystack* is an :eql:type:`array`, return ``TRUE`` if
-    the array contains the specified element and ``FALSE`` otherwise.
+    When the *haystack* is an :eql:type:`array`, return ``true`` if
+    the array contains the specified element and ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 

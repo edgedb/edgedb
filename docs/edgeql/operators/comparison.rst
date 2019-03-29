@@ -94,7 +94,7 @@ EdgeDB supports the following comparison operators:
     :optype B: anytype
     :resulttype: bool
 
-    ``TRUE`` if ``A`` is less than ``B``.
+    ``true`` if ``A`` is less than ``B``.
 
     .. code-block:: edgeql-repl
 
@@ -108,7 +108,7 @@ EdgeDB supports the following comparison operators:
     :optype B: anytype
     :resulttype: bool
 
-    ``TRUE`` if ``A`` is greater than ``B``.
+    ``true`` if ``A`` is greater than ``B``.
 
     .. code-block:: edgeql-repl
 
@@ -122,7 +122,7 @@ EdgeDB supports the following comparison operators:
     :optype B: anytype
     :resulttype: bool
 
-    ``TRUE`` if ``A`` is less than or equal to ``B``.
+    ``true`` if ``A`` is less than or equal to ``B``.
 
     .. code-block:: edgeql-repl
 
@@ -136,7 +136,7 @@ EdgeDB supports the following comparison operators:
     :optype B: anytype
     :resulttype: bool
 
-    ``TRUE`` if ``A`` is greater than or equal to ``B``.
+    ``true`` if ``A`` is greater than or equal to ``B``.
 
     .. code-block:: edgeql-repl
 

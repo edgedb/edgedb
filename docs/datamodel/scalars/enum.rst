@@ -10,18 +10,18 @@ Enumerated Types
     An enumerated type is a data type consisting of an order list of values.
 
     An enumeration type can be declared in a schema declaration using
-    the following syntax:
+    the following :ref:`syntax <ref_eql_types_enum>`:
 
-    .. eql:synopsis::
+    .. code-block:: sdl
 
-        enum "<" <enum-values> ">"
+        scalar type color_enum_t extending enum<'red', 'green', 'blue'>;
 
-    Where :eql:synopsis:`<enum-values>` is a comma-separated list of
-    quoted string constants comprising the enum type.  Currently, the
-    only valid application of the enum declaration is to define an
-    enumerated scalar type:
+    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain an
+    enum value in an expression:
 
     .. code-block:: edgeql-repl
 
-        db> CREATE SCALAR TYPE my_enum_t EXTENDING enum<'One', 'Two'>;
-        CREATE TYPE
+        db> SELECT 'red' IS color_enum_t;
+        {false}
+        db> SELECT <color_enum_t>'red' IS color_enum_t;
+        {true}

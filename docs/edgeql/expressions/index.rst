@@ -154,7 +154,8 @@ the specified type:
 
     "<" <type> ">" <expression>
 
-The :eql:synopsis:`<type>` must be a non-abstract scalar or a container type.
+The :eql:synopsis:`<type>` must be a valid :ref:`type expression
+<ref_eql_types>` denoting a non-abstract scalar or a container type.
 
 For example, the following expression casts an integer value into a string:
 

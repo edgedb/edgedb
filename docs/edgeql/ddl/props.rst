@@ -93,6 +93,10 @@ Parameters
     If there is no conflict, the link properties are merged to form a
     single property in the new link item.
 
+:eql:synopsis:`<type>`
+    The type must be a valid :ref:`type expression <ref_eql_types>`
+    denoting a non-abstract scalar or a container type.
+
 :eql:synopsis:`<subcommand>`
     Optional sequence of subcommands related to the new link item.
 

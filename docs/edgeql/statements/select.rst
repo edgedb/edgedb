@@ -192,6 +192,8 @@ The above query retrieves the top 3 open Issues with the closest due
 date.
 
 
+.. _ref_eql_statements_select_filter:
+
 Filter
 ------
 

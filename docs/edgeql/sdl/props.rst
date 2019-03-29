@@ -43,7 +43,6 @@ commands <ref_eql_ddl_props>`.
 
 .. sdl:synopsis::
 
-
     # Concrete property form used inside type declaration:
     [ required ] [{single | multi}] property <name>
       [ extending <base> [, ...] ] -> <type>

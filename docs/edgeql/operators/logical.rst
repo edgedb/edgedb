@@ -55,19 +55,19 @@ The truth tables are as follows:
 +-------+-------+-----------+----------+
 |   a   |   b   |  a AND b  |  a OR b  |
 +=======+=======+===========+==========+
-| TRUE  | TRUE  |   TRUE    |   TRUE   |
+| true  | true  |   true    |   true   |
 +-------+-------+-----------+----------+
-| TRUE  | FALSE |   FALSE   |   TRUE   |
+| true  | false |   false   |   true   |
 +-------+-------+-----------+----------+
-| FALSE | TRUE  |   FALSE   |   TRUE   |
+| false | true  |   false   |   true   |
 +-------+-------+-----------+----------+
-| FALSE | FALSE |   FALSE   |   FALSE  |
+| false | false |   false   |   false  |
 +-------+-------+-----------+----------+
 
 +-------+---------+
 |   a   |  NOT a  |
 +=======+=========+
-| TRUE  |  FALSE  |
+| true  |  false  |
 +-------+---------+
-| FALSE |  TRUE   |
+| false |  true   |
 +-------+---------+
