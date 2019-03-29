@@ -2502,6 +2502,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # Recover.
         await self.con.execute('ROLLBACK TO SAVEPOINT t1;')
 
+        await self.con.execute('DECLARE SAVEPOINT t2;')
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                'constraints cannot be defined on an enumerated type'):
+            await self.con.execute('''
+                CREATE SCALAR TYPE test::my_enum_3
+                    EXTENDING enum<'foo', 'bar', 'baz'> {
+                    CREATE CONSTRAINT expression ON (__subject__ = 'bar')
+                };
+            ''')
+
+        # Recover.
+        await self.con.execute('ROLLBACK TO SAVEPOINT t2;')
+
         await self.con.execute('''
             ALTER SCALAR TYPE test::my_enum_2
                 RENAME TO test::my_enum_3;

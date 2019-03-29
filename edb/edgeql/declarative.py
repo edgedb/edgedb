@@ -133,10 +133,13 @@ class DeclarationLoader:
             objects[type(obj)][obj] = decl
 
         # Second, process inheritance references.
+        enums = {}
         chain = itertools.chain.from_iterable
         for obj, decl in chain(t.items() for t in objects.values()):
-            self._schema = obj.set_field_value(
-                self._schema, 'bases', self._get_bases(obj, decl))
+            bases, enum_values = self._get_bases(obj, decl)
+            self._schema = obj.set_field_value(self._schema, 'bases', bases)
+            if enum_values:
+                enums[obj] = enum_values
 
         # Now, with all objects in the declaration in the schema, we can
         # process them in the semantic dependency order.
@@ -154,7 +157,7 @@ class DeclarationLoader:
 
         # ScalarTypes depend only on constraints and attributes,
         # can process them now.
-        self._init_scalars(objects[s_scalars.ScalarType])
+        self._init_scalars(objects[s_scalars.ScalarType], enums)
 
         # Generic links depend on scalars (via props), constraints
         # and attributes.
@@ -264,20 +267,44 @@ class DeclarationLoader:
     def _get_bases(self, obj, decl):
         """Resolve object bases from the "extends" declaration."""
         bases = []
+        enum_values = None
 
         if decl.extends:
             # Explicit inheritance
-            for base_ref in decl.extends:
-                base_name = self._get_ref_name(base_ref.maintype)
+            has_enums = any(br.maintype.name == 'enum' and br.subtypes
+                            for br in decl.extends)
 
-                base = self._schema.get(base_name, type=obj.__class__,
-                                        module_aliases=self._mod_aliases)
-                if base.get_is_final(self._schema):
-                    msg = '{!r} is final and cannot be inherited ' \
-                          'from'.format(base.get_name(self._schema))
-                    raise errors.SchemaError(msg, context=decl)
+            if has_enums:
+                if not obj.is_scalar():
+                    raise errors.SchemaError(
+                        f'{obj.get_displayname(self._schema)} '
+                        f'cannot be an enumerated type',
+                        context=decl.context,
+                    )
 
-                bases.append(base)
+                if len(decl.extends) > 1:
+                    raise errors.SchemaError(
+                        f'invalid scalar type definition, enumeration must '
+                        f'be the only supertype specified',
+                        context=decl.extends[0].context,
+                    )
+
+                enum_values = [st.val.value for st in decl.extends[0].subtypes]
+
+                bases = [self._schema.get('std::anyenum')]
+
+            else:
+                for base_ref in decl.extends:
+                    base_name = self._get_ref_name(base_ref.maintype)
+
+                    base = self._schema.get(base_name, type=obj.__class__,
+                                            module_aliases=self._mod_aliases)
+                    if base.get_is_final(self._schema):
+                        msg = '{!r} is final and cannot be inherited ' \
+                            'from'.format(base.get_name(self._schema))
+                        raise errors.SchemaError(msg, context=decl)
+
+                    bases.append(base)
 
         elif obj.get_name(self._schema) not in type(obj).get_root_classes():
             # Implicit inheritance from the default base class
@@ -287,7 +314,7 @@ class DeclarationLoader:
                     default_base_name, module_aliases=self._mod_aliases)
                 bases.append(default_base)
 
-        return s_obj.ObjectList.create(self._schema, bases)
+        return s_obj.ObjectList.create(self._schema, bases), enum_values
 
     def _init_constraints(self, constraints):
         for constraint, decl in constraints.items():
@@ -331,12 +358,24 @@ class DeclarationLoader:
     def _init_attributes(self, attrs):
         pass
 
-    def _init_scalars(self, scalars):
+    def _init_scalars(self, scalars, enums):
         for scalar, scalardecl in scalars.items():
+            enum_values = enums.get(scalar)
+            if enum_values:
+                self._schema = scalar.update(self._schema, {
+                    'enum_values': enum_values,
+                    'is_final': True,
+                })
+
             if scalardecl.fields:
                 self._parse_field_setters(scalar, scalardecl.fields)
 
             if scalardecl.constraints:
+                if enum_values:
+                    raise errors.UnsupportedFeatureError(
+                        f'constraints cannot be defined on an enumerated type',
+                        context=scalardecl.constraints[0].context,
+                    )
                 self._parse_subject_constraints(scalar, scalardecl)
 
     def _get_scalar_deps(self, scalar):

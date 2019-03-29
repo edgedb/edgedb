@@ -109,35 +109,24 @@ def get_scalar_base(schema, scalar):
 
 def pg_type_from_scalar(
         schema: s_schema.Schema,
-        scalar: s_scalars.ScalarType,
-        topbase: bool=False) -> typing.Tuple[str, ...]:
+        scalar: s_scalars.ScalarType) -> typing.Tuple[str, ...]:
 
     if scalar.is_polymorphic(schema):
         return ('anynonarray',)
 
     scalar = scalar.material_type(schema)
+    is_enum = scalar.is_enum(schema)
 
-    if topbase:
-        base = scalar.get_topmost_concrete_base(schema)
-    elif scalar.is_enum(schema):
+    if is_enum:
         base = scalar
     else:
         base = get_scalar_base(schema, scalar.material_type(schema))
 
-    if topbase:
-        column_type = base_type_name_map.get(base.id)
-        if not column_type:
-            base_class = base.get_bases(schema).first(schema)
-            column_type = (base_type_name_map[base_class.adapts],)
-        else:
-            column_type = (column_type,)
+    column_type = base_type_name_map.get(scalar.id)
+    if column_type:
+        column_type = (base,)
     else:
-        column_type = base_type_name_map.get(scalar.id)
-        if column_type:
-            column_type = (base,)
-        else:
-            column_type = common.get_backend_name(
-                schema, scalar, catenate=False)
+        column_type = common.get_backend_name(schema, scalar, catenate=False)
 
     return column_type
 
@@ -145,11 +134,10 @@ def pg_type_from_scalar(
 def pg_type_from_object(
         schema: s_schema.Schema,
         obj: s_obj.Object,
-        topbase: bool=False,
         persistent_tuples: bool=False) -> typing.Tuple[str, ...]:
 
     if isinstance(obj, s_scalars.ScalarType):
-        return pg_type_from_scalar(schema, obj, topbase=topbase)
+        return pg_type_from_scalar(schema, obj)
 
     elif obj.is_type() and obj.is_anytuple():
         return ('record',)
@@ -165,7 +153,7 @@ def pg_type_from_object(
             return ('anyarray',)
         else:
             tp = pg_type_from_object(
-                schema, obj.get_subtypes(schema)[0], topbase=topbase,
+                schema, obj.get_subtypes(schema)[0],
                 persistent_tuples=persistent_tuples)
             if len(tp) == 1:
                 return (tp[0] + '[]',)

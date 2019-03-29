@@ -37,6 +37,10 @@ from . import objects as so
 from . import types as s_types
 
 
+class FrozenStrList(typed.FrozenTypedList, type=str):
+    pass
+
+
 class ScalarType(nodes.Node, constraints.ConsistencySubject,
                  attributes.AttributeSubject, s_abc.ScalarType):
 
@@ -46,7 +50,7 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
     )
 
     enum_values = so.SchemaField(
-        typed.StrList, default=None,
+        FrozenStrList, default=None,
         coerce=True, compcoef=0.8,
     )
 
@@ -201,13 +205,21 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         bases = cmd.get_attribute_value('bases')
+        is_enum = False
         if len(bases) == 1 and isinstance(bases._ids[0], AnonymousEnumTypeRef):
             elements = bases._ids[0].elements
             cmd.set_attribute_value('enum_values', elements)
+            cmd.set_attribute_value('is_final', True)
+            is_enum = True
 
         for sub in cmd.get_subcommands(type=sd.AlterObjectProperty):
             if sub.property == 'default':
-                sub.new_value = [sub.new_value]
+                if is_enum:
+                    raise errors.UnsupportedFeatureError(
+                        f'enumerated types do not support defaults'
+                    )
+                else:
+                    sub.new_value = [sub.new_value]
 
         return cmd
 

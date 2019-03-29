@@ -261,6 +261,13 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
     def create_concrete_constraint(
             cls, schema, subject, *, name, subjectexpr=None,
             sourcectx=None, args=[], modaliases=None, **kwargs):
+
+        if subject.is_scalar() and subject.is_enum(schema):
+            raise errors.UnsupportedFeatureError(
+                f'constraints cannot be defined on an enumerated type',
+                context=sourcectx,
+            )
+
         constr_base, attrs = cls.get_concrete_constraint_attrs(
             schema, subject, name=name, subjectexpr=subjectexpr,
             sourcectx=sourcectx, args=args, modaliases=modaliases, **kwargs)

@@ -1059,7 +1059,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
         enum_values = scalar.get_enum_values(schema)
         if enum_values:
             new_enum_name = common.get_backend_name(
-                schema, scalar, catenate=False, aspect='enum')
+                schema, scalar, catenate=False)
             self.pgops.add(dbops.CreateEnum(
                 name=new_enum_name, values=enum_values))
             base = q(*new_enum_name)
@@ -1067,26 +1067,26 @@ class CreateScalarType(ScalarTypeMetaCommand,
         else:
             base = types.get_scalar_base(schema, scalar)
 
-        if self.is_sequence(schema, scalar):
-            seq_name = common.get_backend_name(
-                schema, scalar, catenate=False, aspect='sequence')
-            self.pgops.add(dbops.CreateSequence(name=seq_name))
+            if self.is_sequence(schema, scalar):
+                seq_name = common.get_backend_name(
+                    schema, scalar, catenate=False, aspect='sequence')
+                self.pgops.add(dbops.CreateSequence(name=seq_name))
 
-        self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
+            self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
 
-        default = updates.get('default')
-        if default:
-            if (default is not None
-                    and not isinstance(default, s_expr.Expression)):
-                # We only care to support literal defaults here. Supporting
-                # defaults based on queries has no sense on the database
-                # level since the database forbids queries for DEFAULT and
-                # pre- calculating the value does not make sense either
-                # since the whole point of query defaults is for them to be
-                # dynamic.
-                self.pgops.add(
-                    dbops.AlterDomainAlterDefault(
-                        name=new_domain_name, default=default))
+            default = updates.get('default')
+            if default:
+                if (default is not None
+                        and not isinstance(default, s_expr.Expression)):
+                    # We only care to support literal defaults here. Supporting
+                    # defaults based on queries has no sense on the database
+                    # level since the database forbids queries for DEFAULT and
+                    # pre- calculating the value does not make sense either
+                    # since the whole point of query defaults is for them to be
+                    # dynamic.
+                    self.pgops.add(
+                        dbops.AlterDomainAlterDefault(
+                            name=new_domain_name, default=default))
 
         return schema, scalar
 
@@ -1114,8 +1114,9 @@ class RenameScalarType(ScalarTypeMetaCommand,
             self.pgops.add(
                 dbops.RenameEnum(name=enum_name, new_name=new_enum_name))
 
-        self.pgops.add(
-            dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
+        else:
+            self.pgops.add(
+                dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
 
         self.rename(schema, orig_schema, context, scls)
 
@@ -1161,7 +1162,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
         if new_enum_values:
             type_name = common.get_backend_name(
-                schema, new_scalar, catenate=False, aspect='enum')
+                schema, new_scalar, catenate=False)
 
             if old_enum_values != new_enum_values:
                 old_idx = 0
@@ -1222,18 +1223,18 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         # depend on it.
         table = self.get_table(schema)
 
-        cond = dbops.DomainExists(old_domain_name)
-        ops.add(
-            dbops.DropDomain(
-                name=old_domain_name, conditions=[cond], priority=3))
-
         if scalar.is_enum(orig_schema):
             old_enum_name = common.get_backend_name(
-                orig_schema, scalar, catenate=False, aspect='enum')
+                orig_schema, scalar, catenate=False)
             cond = dbops.EnumExists(old_enum_name)
             ops.add(
                 dbops.DropEnum(
                     name=old_enum_name, conditions=[cond], priority=3))
+        else:
+            cond = dbops.DomainExists(old_domain_name)
+            ops.add(
+                dbops.DropDomain(
+                    name=old_domain_name, conditions=[cond], priority=3))
 
         ops.add(
             dbops.Delete(

@@ -27,6 +27,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
         CREATE MIGRATION default::m TO {
             scalar type seq_t extending sequence;
             scalar type seq2_t extending sequence;
+            scalar type enum_t extending enum<'foo', 'bar'>;
 
             type Obj {
                 property seq_prop -> seq_t;
@@ -178,3 +179,38 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 {'seq_prop': 1}
             ],
         )
+
+    async def test_edgeql_dt_enum_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT <enum_t>'foo' = <enum_t>'bar'
+            ''',
+            [
+                False
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <enum_t>'foo' = <enum_t>'foo'
+            ''',
+            [
+                True
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <enum_t>'foo' < <enum_t>'bar'
+            ''',
+            [
+                True
+            ],
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid input value for enum \'default::enum_t\': "bad"'):
+            await self.con.execute(
+                'SELECT <enum_t>"bad";'
+            )

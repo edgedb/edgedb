@@ -43,6 +43,7 @@ class PGError(enum.Enum):
 
     NumericValueOutOfRange = '22003'
     InvalidParameterValue = '22023'
+    InvalidTextRepresentation = '22P02'
 
     DivisionByZeroError = '22012'
 
@@ -69,14 +70,31 @@ constraint_res = {
 }
 
 
-pgtype_re = '|'.join(fr'\b{key}\b' for key in types.base_type_name_map_r)
+pgtype_re = re.compile(
+    '|'.join(fr'\b{key}\b' for key in types.base_type_name_map_r))
+enum_re = re.compile(
+    r'(?P<p>enum) (?P<v>"edgedb_([\w-]+)"."(?P<id>[\w-]+)_domain")')
 
 
-def translate_pgtype(msg):
-    return re.sub(
-        pgtype_re,
+def translate_pgtype(schema, msg):
+    translated = pgtype_re.sub(
         lambda r: types.base_type_name_map_r.get(r.group(0), r.group(0)),
         msg)
+
+    if translated != msg:
+        return translated
+
+    def replace(r):
+        type_id = uuid.UUID(r.group('id'))
+        stype = schema.get_by_id(type_id, None)
+        if stype:
+            return f'{r.group("p")} {stype.get_displayname(schema)!r}'
+        else:
+            return f'{r.group("p")} {r.group("v")}'
+
+    translated = enum_re.sub(replace, msg)
+
+    return translated
 
 
 def interpret_backend_error(schema, fields):
@@ -205,8 +223,11 @@ def interpret_backend_error(schema, fields):
     elif code == PGError.InvalidParameterValue:
         return errors.InvalidValueError(message)
 
+    elif code == PGError.InvalidTextRepresentation:
+        return errors.InvalidValueError(translate_pgtype(schema, message))
+
     elif code == PGError.NumericValueOutOfRange:
-        return errors.NumericOutOfRangeError(translate_pgtype(message))
+        return errors.NumericOutOfRangeError(translate_pgtype(schema, message))
 
     elif code == PGError.DivisionByZeroError:
         return errors.DivisionByZeroError(message)
