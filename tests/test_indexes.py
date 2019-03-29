@@ -18,6 +18,7 @@
 
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestIndexes(tb.DDLTestCase):
@@ -25,7 +26,6 @@ class TestIndexes(tb.DDLTestCase):
     async def test_index_01(self):
         await self.con.execute(r"""
             # setup delta
-            #
             CREATE MIGRATION test::d1 TO {
                 type Person {
                     property first_name -> str;
@@ -79,3 +79,29 @@ class TestIndexes(tb.DDLTestCase):
                 'first_name': 'Elon'
             }]
         )
+
+    @test.xfail("""
+        Creating an index prevents a type from being dropped.
+
+        InvalidReferenceError:
+            reference to a non-existent schema item:
+            test::test|User.name_index@@test|User
+    """)
+    async def test_index_02(self):
+        await self.con.execute(r"""
+            # setup delta
+            CREATE MIGRATION test::d1 TO {
+                type User {
+                    property name -> str;
+
+                    index name_index on (__subject__.name);
+                };
+            };
+
+            COMMIT MIGRATION test::d1;
+        """)
+
+        # simply test that the type can be dropped
+        await self.con.execute(r"""
+            DROP TYPE test::User;
+        """)
