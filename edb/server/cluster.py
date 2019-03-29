@@ -20,7 +20,6 @@
 import asyncio
 import errno
 import os
-import pathlib
 import random
 import socket
 import subprocess
@@ -32,10 +31,10 @@ from asyncpg import cluster as pg_cluster
 
 import edgedb
 
-import edb
 from edb.common import devmode
 from edb.edgeql import quote
 
+from edb.server import buildmeta
 from edb.server import defines as edgedb_defines
 
 
@@ -64,53 +63,9 @@ def find_available_port(port_range=(49152, 65535), max_tries=1000):
     return port
 
 
-def get_build_metadata_value(prop: str) -> str:
-    try:
-        from . import _buildmeta
-        return getattr(_buildmeta, prop)
-    except (ImportError, AttributeError):
-        raise ClusterError(
-            f'could not find {prop} in build metadata') from None
-
-
-def get_pg_config_path() -> os.PathLike:
-    if devmode.is_in_dev_mode():
-        root = pathlib.Path(edb.server.__path__[0]).parent.parent
-        pg_config = (root / 'build' / 'postgres' /
-                     'install' / 'bin' / 'pg_config').resolve()
-        if not pg_config.is_file():
-            try:
-                pg_config = pathlib.Path(
-                    get_build_metadata_value('PG_CONFIG_PATH'))
-            except ClusterError:
-                pass
-
-        if not pg_config.is_file():
-            raise ClusterError('DEV mode: Could not find PostgreSQL build, '
-                               'run `pip install -e .`')
-
-    else:
-        pg_config = pathlib.Path(
-            get_build_metadata_value('PG_CONFIG_PATH'))
-
-        if not pg_config.is_file():
-            raise ClusterError(
-                f'invalid pg_config path: {pg_config!r}: file does not exist '
-                f'or is not a regular file')
-
-    return pg_config
-
-
 def get_pg_cluster(data_dir: os.PathLike) -> pg_cluster.Cluster:
-    pg_config = get_pg_config_path()
+    pg_config = buildmeta.get_pg_config_path()
     return pg_cluster.Cluster(data_dir=data_dir, pg_config_path=str(pg_config))
-
-
-def get_runstate_path(data_dir: os.PathLike) -> os.PathLike:
-    if devmode.is_in_dev_mode():
-        return data_dir
-    else:
-        return pathlib.Path(get_build_metadata_value('RUNSTATE_DIR'))
 
 
 class ClusterError(Exception):
@@ -271,7 +226,7 @@ class Cluster:
                 started = time.monotonic()
                 try:
                     conn = await edgedb.async_connect(
-                        host=get_runstate_path(self._data_dir),
+                        host=buildmeta.get_runstate_path(self._data_dir),
                         port=self._effective_port,
                         admin=True,
                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
@@ -295,7 +250,7 @@ class Cluster:
 
     def set_superuser_password(self, password):
         conn_args = self.get_connect_args().copy()
-        sock_path = get_runstate_path(self._data_dir)
+        sock_path = buildmeta.get_runstate_path(self._data_dir)
         conn_args['host'] = str(sock_path)
         conn_args['admin'] = True
         conn = self.connect(**conn_args)

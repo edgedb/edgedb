@@ -390,14 +390,22 @@ class Cli:
 
         return result, self.connection._get_last_status()
 
+    def show_banner(self):
+        version = self.connection.fetchone('SELECT sys::get_version_as_str()')
+        render.render_status(self.context, f'EdgeDB {version}\n')
+
     def run(self):
         self.prompt = self.build_propmpt()
         self.ensure_connection()
         self.context.use_colors = term.use_colors(sys.stdout.fileno())
+        banner_shown = False
 
         try:
             while True:
                 self.ensure_connection()
+                if not banner_shown:
+                    self.show_banner()
+                    banner_shown = True
 
                 try:
                     text = self.prompt.prompt()

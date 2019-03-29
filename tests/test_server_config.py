@@ -31,6 +31,7 @@ from edb import errors
 from edb.testbase import server as tb
 from edb.schema import objects as s_obj
 
+from edb.server import buildmeta
 from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec
@@ -637,3 +638,23 @@ class TestServerConfig(tb.QueryTestCase):
                     name := 'test_04',
                 }
             ''')
+
+    async def test_server_version(self):
+        srv_ver = await self.con.fetchone(r"""
+            SELECT sys::get_version()
+        """)
+
+        ver = buildmeta.get_version()
+
+        self.assertEqual(
+            (ver.major, ver.minor, ver.stage.name.lower(),
+             ver.stage_no, ver.local),
+            (srv_ver.major, srv_ver.minor, str(srv_ver.stage),
+             srv_ver.stage_no, tuple(srv_ver.local))
+        )
+
+        srv_ver_string = await self.con.fetchone(r"""
+            SELECT sys::get_version_as_str()
+        """)
+
+        self.assertEqual(srv_ver_string, str(ver))

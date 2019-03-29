@@ -58,3 +58,35 @@ System
     released, and ``false`` if the lock was not held.
 
     The function always returns ``true``.
+
+
+.. eql:function:: sys::get_version() -> tuple<major: int64, \
+                                              minor: int64, \
+                                              stage: sys::version_stage, \
+                                              stage_no: int64, \
+                                              local: array<str>>
+
+    Return the server version as a tuple.
+
+    The ``major`` and ``minor`` elements contain the major and the minor
+    components of the version; ``stage`` is an enumeration value containing
+    one of ``'dev'``, ``'alpha'``, ``'beta'``, ``'rc'`` or ``'final'``;
+    ``stage_no`` is the stage sequence number (e.g. ``2`` in an alpha 2
+    release); and ``local`` contains an arbitrary array of local version
+    identifiers.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT sys::get_version();
+        {(major := 1, minor := 0, stage := <sys::version_stage>'alpha',
+          stage_no := 1, local := [])}
+
+
+.. eql:function:: sys::get_version_as_str() -> str
+
+    Return the server version as a string.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT sys::get_version_as_str();
+        {'1.0.alpha.1'}

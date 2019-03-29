@@ -99,7 +99,11 @@ def _compile_parsers(build_lib, inplace=False):
             shutil.copy2(cache, base_path / pickle_path)
 
 
-def _compile_build_meta(build_lib, pg_config, runstatedir):
+def _compile_build_meta(build_lib, version, pg_config, runstatedir):
+    from edb.server.buildmeta import parse_version
+
+    vertuple = parse_version(version)
+
     content = textwrap.dedent('''\
         #
         # This source file is part of the EdgeDB open source project.
@@ -113,7 +117,8 @@ def _compile_build_meta(build_lib, pg_config, runstatedir):
 
         PG_CONFIG_PATH = {pg_config!r}
         RUNSTATE_DIR = {runstatedir!r}
-    ''').format(pg_config=pg_config, runstatedir=runstatedir)
+        VERSION = {version!r}
+    ''').format(version=vertuple, pg_config=pg_config, runstatedir=runstatedir)
 
     directory = build_lib / 'edb' / 'server'
     if not directory.exists():
@@ -266,7 +271,12 @@ class build(distutils_build.build):
         build_lib = pathlib.Path(self.build_lib)
         _compile_parsers(build_lib)
         if self.pg_config:
-            _compile_build_meta(build_lib, self.pg_config, self.runstatedir)
+            _compile_build_meta(
+                build_lib,
+                self.distribution.metadata.parsed_version,
+                self.pg_config,
+                self.runstatedir,
+            )
 
 
 class develop(setuptools_develop.develop):

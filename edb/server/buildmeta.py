@@ -1,0 +1,150 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+import enum
+import os
+import pathlib
+import typing
+
+import edb
+from edb.common import devmode
+
+try:
+    import pkg_resources
+except ImportError:
+    pkg_resources = None
+
+
+class MetadataError(Exception):
+    pass
+
+
+def get_build_metadata_value(prop: str) -> str:
+    try:
+        from . import _buildmeta
+        return getattr(_buildmeta, prop)
+    except (ImportError, AttributeError):
+        raise MetadataError(
+            f'could not find {prop} in build metadata') from None
+
+
+def get_pg_config_path() -> os.PathLike:
+    if devmode.is_in_dev_mode():
+        root = pathlib.Path(edb.server.__path__[0]).parent.parent
+        pg_config = (root / 'build' / 'postgres' /
+                     'install' / 'bin' / 'pg_config').resolve()
+        if not pg_config.is_file():
+            try:
+                pg_config = pathlib.Path(
+                    get_build_metadata_value('PG_CONFIG_PATH'))
+            except MetadataError:
+                pass
+
+        if not pg_config.is_file():
+            raise MetadataError('DEV mode: Could not find PostgreSQL build, '
+                                'run `pip install -e .`')
+
+    else:
+        pg_config = pathlib.Path(
+            get_build_metadata_value('PG_CONFIG_PATH'))
+
+        if not pg_config.is_file():
+            raise MetadataError(
+                f'invalid pg_config path: {pg_config!r}: file does not exist '
+                f'or is not a regular file')
+
+    return pg_config
+
+
+def get_runstate_path(data_dir: os.PathLike) -> os.PathLike:
+    if devmode.is_in_dev_mode():
+        return data_dir
+    else:
+        return pathlib.Path(get_build_metadata_value('RUNSTATE_DIR'))
+
+
+class VersionStage(enum.Enum):
+
+    DEV = 0
+    ALPHA = 10
+    BETA = 20
+    RC = 30
+    FINAL = 40
+
+
+class Version(typing.NamedTuple):
+
+    major: int
+    minor: int
+    stage: VersionStage
+    stage_no: int
+    local: typing.Tuple[str, ...]
+
+    def __str__(self):
+        ver = f'{self.major}.{self.minor}'
+        if self.stage is not VersionStage.FINAL:
+            ver += (
+                f'.{self.stage.name.lower()}.{self.stage_no}'
+                f'{("+" + ".".join(self.local)) if self.local else ""}'
+            )
+
+        return ver
+
+
+def parse_version(ver: object) -> Version:
+    v = ver._version
+    if v.dev:
+        stage = VersionStage.DEV
+        stage_no = v.dev[1]
+    elif v.pre:
+        if v.pre[0] == 'a':
+            stage = VersionStage.ALPHA
+        elif v.pre[0] == 'b':
+            stage = VersionStage.BETA
+        elif v.pre[0] == 'c':
+            stage = VersionStage.RC
+        else:
+            raise MetadataError(
+                f'cannot determine release stage from {ver}')
+
+        stage_no = v.pre[1]
+    else:
+        stage = VersionStage.FINAL
+        stage_no = 0
+
+    return Version(
+        major=v.release[0],
+        minor=v.release[1],
+        stage=stage,
+        stage_no=stage_no,
+        local=v.local,
+    )
+
+
+def get_version() -> Version:
+    if devmode.is_in_dev_mode():
+        if pkg_resources is None:
+            raise MetadataError(
+                'cannot determine build version: no pkg_resources module')
+        pv = pkg_resources.get_distribution('edgedb-server').parsed_version
+        version = parse_version(pv)
+    else:
+        version = Version(*get_build_metadata_value('VERSION'))
+
+    return version

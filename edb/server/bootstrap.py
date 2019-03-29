@@ -17,6 +17,7 @@
 #
 
 
+import json
 import logging
 import os.path
 import pathlib
@@ -41,9 +42,10 @@ from edb.schema import delta as sd
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
-from edb.server import defines as edgedb_defines
+from edb.server import buildmeta
 from edb.server import config
 from edb.server import compiler
+from edb.server import defines as edgedb_defines
 
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
@@ -433,14 +435,30 @@ async def _populate_misc_instance_data(schema, cluster):
     mock_auth_nonce = scram.B64(scram.generate_nonce())
 
     instance_data = {
-        'mock_auth_nonce': mock_auth_nonce
+        'mock_auth_nonce': mock_auth_nonce,
     }
 
     data_dir = cluster.get_data_dir()
-    queries_fn = os.path.join(data_dir, 'instance_data.pickle')
+    fn = os.path.join(data_dir, 'instance_data.pickle')
 
-    with open(queries_fn, 'wb') as f:
+    with open(fn, 'wb') as f:
         pickle.dump(instance_data, f)
+
+    ver = buildmeta.get_version()
+    json_instance_data = {
+        'version': {
+            'major': ver.major,
+            'minor': ver.minor,
+            'stage': ver.stage.name.lower(),
+            'stage_no': ver.stage_no,
+            'local': tuple(ver.local),
+        }
+    }
+
+    fn = os.path.join(data_dir, 'instance_data.json')
+
+    with open(fn, 'wt') as f:
+        json.dump(json_instance_data, f)
 
 
 async def _ensure_edgedb_database(conn, database, owner, *, cluster):

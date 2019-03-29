@@ -94,3 +94,64 @@ sys::advisory_unlock_all() -> std::bool
     SELECT pg_advisory_unlock_all() IS NOT NULL;
     $$;
 };
+
+
+CREATE SCALAR TYPE sys::version_stage
+    EXTENDING enum<'dev', 'alpha', 'beta', 'rc', 'final'>;
+
+
+# An intermediate function is needed because we can't
+# cast JSON to tuples yet.  DO NOT use directly, it'll go away.
+CREATE FUNCTION
+sys::__version_internal() -> tuple<major: std::int64,
+                                   minor: std::int64,
+                                   stage: std::str,
+                                   stage_no: std::int64,
+                                   local: array<std::str>>
+{
+    FROM SQL $$
+    SELECT
+        (v ->> 'major')::int8,
+        (v ->> 'minor')::int8,
+        (v ->> 'stage')::text,
+        (v ->> 'stage_no')::int8,
+        (SELECT array_agg(el)
+         FROM jsonb_array_elements_text(v -> 'local') AS el)
+    FROM
+        edgedb._read_sys_metadata('version') AS v
+    $$;
+};
+
+
+CREATE FUNCTION
+sys::get_version() -> tuple<major: std::int64,
+                            minor: std::int64,
+                            stage: sys::version_stage,
+                            stage_no: std::int64,
+                            local: array<std::str>>
+{
+    FROM EdgeQL $$
+    SELECT <tuple<major: std::int64,
+                  minor: std::int64,
+                  stage: sys::version_stage,
+                  stage_no: std::int64,
+                  local: array<std::str>>>sys::__version_internal()
+    $$;
+};
+
+
+CREATE FUNCTION
+sys::get_version_as_str() -> std::str
+{
+    FROM EdgeQL $$
+    WITH v := sys::get_version()
+    SELECT
+        <str>v.major
+        ++ '.' ++ <str>v.minor
+        ++ ('.' ++ <str>v.stage
+            ++ '.' ++ <str>v.stage_no
+            ++ ('+' ++ std::to_str(v.local, '.')
+                IF len(v.local) > 0 ELSE '')
+        ) IF v.stage != <sys::version_stage>'final' ELSE ''
+    $$;
+};

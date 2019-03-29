@@ -64,6 +64,7 @@ from . import ast as pg_ast
 from .common import qname as q
 from .common import quote_literal as ql
 from .common import quote_ident as qi
+from .common import quote_type as qt
 from . import compiler
 from . import codegen
 from . import schemamech
@@ -343,7 +344,7 @@ class CreateTuple(ObjectMetaCommand, adapts=sd.CreateTuple):
             columns=[
                 dbops.Column(
                     name=n,
-                    type=q(*types.pg_type_from_object(
+                    type=qt(types.pg_type_from_object(
                         schema, t, persistent_tuples=True)),
                 )
                 for n, t in elements

@@ -37,6 +37,7 @@ import click
 from edb.common import devmode
 from edb.common import exceptions
 
+from . import buildmeta
 from . import cluster as edgedb_cluster
 from . import daemon
 from . import defines
@@ -60,8 +61,8 @@ def terminate_server(server, loop):
 def _ensure_runstate_dir(data_dir, runstate_dir):
     if runstate_dir is None:
         try:
-            runstate_dir = edgedb_cluster.get_runstate_path(data_dir)
-        except edgedb_cluster.ClusterError:
+            runstate_dir = buildmeta.get_runstate_path(data_dir)
+        except buildmeta.MetadataError:
             abort(
                 f'cannot determine the runstate directory location; '
                 f'please use --runstate-dir to specify the correct location')
@@ -193,10 +194,12 @@ def _run_server(cluster, args, runstate_dir, internal_runstate_dir):
 
 
 def run_server(args):
+    ver = buildmeta.get_version()
+
     if devmode.is_in_dev_mode():
-        logger.info('EdgeDB server starting in DEV mode.')
+        logger.info(f'EdgeDB server ({ver}) starting in DEV mode.')
     else:
-        logger.info('EdgeDB server starting.')
+        logger.info(f'EdgeDB server ({ver}) starting.')
 
     _init_parsers()
 
