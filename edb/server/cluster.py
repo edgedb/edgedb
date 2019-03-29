@@ -248,7 +248,7 @@ class Cluster:
 
         asyncio.run(test(timeout))
 
-    def set_superuser_password(self, password):
+    def _admin_query(self, query):
         conn_args = self.get_connect_args().copy()
         sock_path = buildmeta.get_runstate_path(self._data_dir)
         conn_args['host'] = str(sock_path)
@@ -256,12 +256,25 @@ class Cluster:
         conn = self.connect(**conn_args)
 
         try:
-            conn.fetchall(f'''
-                ALTER ROLE {edgedb_defines.EDGEDB_SUPERUSER}
-                SET password := {quote.quote_literal(password)}
-            ''')
+            return conn.fetchall(query)
         finally:
             conn.close()
+
+    def set_superuser_password(self, password):
+        self._admin_query(f'''
+            ALTER ROLE {edgedb_defines.EDGEDB_SUPERUSER}
+            SET password := {quote.quote_literal(password)}
+        ''')
+
+    def trust_local_connections(self):
+        self._admin_query('''
+            CONFIGURE SYSTEM INSERT Auth {
+                name := 'default',
+                host := 'loalhost',
+                priority := 0,
+                method := (INSERT Trust),
+            }
+        ''')
 
 
 class TempCluster(Cluster):

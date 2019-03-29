@@ -88,6 +88,7 @@ def inittestdb(*, data_dir, jobs, tests_dir):
     try:
         cluster.init()
         cluster.start(port='dynamic', timezone='UTC')
+        cluster.trust_local_connections()
     except BaseException:
         if os.path.exists(data_dir):
             shutil.rmtree(data_dir)

@@ -1087,20 +1087,10 @@ class TestInsert(tb.QueryTestCase):
                 INSERT test::Foo;
             """)
 
-    @test.xfail('''
-        Self-reference in an INSERT is problematic since it's
-        undefined. It *could* mean the object being inserted or it
-        *could* mean empty set. It's also possible that it's
-        interpreted as equivalent to `DETACHED SelfRef`.
-
-        This is pretty much always a way to shoot yourself in the foot
-        and silently get a result that was wrong. We may want to ban
-        it altogehter.
-    ''')
     async def test_edgeql_insert_selfref_01(self):
         with self.assertRaisesRegex(
-                # FIXME: need a specific error message
-                edgedb.QueryError):
+                edgedb.QueryError,
+                'self-referencing INSERTs are not allowed'):
             await self.con.execute(r"""
                 WITH MODULE test
                 INSERT SelfRef {
@@ -1109,20 +1099,10 @@ class TestInsert(tb.QueryTestCase):
                 };
             """)
 
-    @test.xfail('''
-        Self-reference in an INSERT is problematic since it's
-        undefined. It *could* mean the object being inserted or it
-        *could* mean empty set. It's also possible that it's
-        interpreted as equivalent to `DETACHED SelfRef`.
-
-        This is pretty much always a way to shoot yourself in the foot
-        and silently get a result that was wrong. We may want to ban
-        it altogehter.
-    ''')
     async def test_edgeql_insert_selfref_02(self):
         with self.assertRaisesRegex(
-                # FIXME: need a specific error message
-                edgedb.QueryError):
+                edgedb.QueryError,
+                'self-referencing INSERTs are not allowed'):
             await self.con.execute(r"""
                 WITH MODULE test
                 INSERT SelfRef {
@@ -1139,20 +1119,10 @@ class TestInsert(tb.QueryTestCase):
                 };
             """)
 
-    @test.xfail('''
-        Self-reference in an INSERT is problematic since it's
-        undefined. It *could* mean the object being inserted or it
-        *could* mean empty set. It's also possible that it's
-        interpreted as equivalent to `DETACHED SelfRef`.
-
-        This is pretty much always a way to shoot yourself in the foot
-        and silently get a result that was wrong. We may want to ban
-        it altogehter.
-    ''')
     async def test_edgeql_insert_selfref_03(self):
         with self.assertRaisesRegex(
-                # FIXME: need a specific error message
-                edgedb.QueryError):
+                edgedb.QueryError,
+                'self-referencing INSERTs are not allowed'):
             await self.con.execute(r"""
                 WITH MODULE test
                 INSERT SelfRef {

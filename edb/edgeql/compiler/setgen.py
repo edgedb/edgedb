@@ -311,6 +311,18 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     ctx=ctx)
                 break
 
+        if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
+            dname = stype.get_displayname(ctx.env.schema)
+            raise errors.QueryError(
+                f'invalid reference to {dname}: '
+                f'self-referencing INSERTs are not allowed',
+                hint=(
+                    f'Use DETACHED if you meant to refer to an '
+                    f'uncorrelated {dname} set'
+                ),
+                context=step.context,
+            )
+
         path_sets.append(path_tip)
 
     path_tip.context = expr.context

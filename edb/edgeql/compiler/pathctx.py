@@ -144,3 +144,18 @@ def extend_path_id(
     stmtctx.ensure_ptrref_cardinality(ptrcls, ptrref, ctx=ctx)
 
     return result
+
+
+def ban_path(
+        path_id: irast.PathId, *,
+        ctx: context.CompilerContext) -> None:
+
+    ctx.banned_paths.add(path_id.strip_weak_namespaces())
+
+
+def path_is_banned(
+        path_id: irast.PathId, *,
+        ctx: context.CompilerContext) -> bool:
+
+    s_path_id = path_id.strip_weak_namespaces()
+    return s_path_id in ctx.banned_paths and ctx.path_scope.is_visible(path_id)

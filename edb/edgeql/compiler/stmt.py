@@ -257,6 +257,10 @@ def compile_InsertQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
+
+        # Self-references in INSERT are prohibited.
+        pathctx.ban_path(subject.path_id, ctx=ictx)
+
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
         if subject_stype.get_is_abstract(ctx.env.schema):
             raise errors.QueryError(
