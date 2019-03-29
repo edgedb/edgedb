@@ -25,7 +25,7 @@ Declare a *concrete* link "friends" within a "User" type:
 .. code-block:: sdl
 
     type User {
-        property name -> str;
+        required property name -> str;
         property address -> str;
         # define a concrete link "friends"
         multi link friends extending friends_base-> User;

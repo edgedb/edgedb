@@ -27,3 +27,6 @@ cardinality:
 
     db> SELECT count({'hello', 'world'});
     {2}
+
+For details about function introspection see :ref:`this section
+<ref_eql_introspection_functions>`.

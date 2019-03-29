@@ -16,7 +16,7 @@ Declare an index for a "User" based on the "name" property:
 .. code-block:: sdl
 
     type User {
-        property name -> str;
+        required property name -> str;
         property address -> str;
 
         multi link friends -> User;

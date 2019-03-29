@@ -40,3 +40,6 @@ types in EdgeDB extend ``std::Object`` directly or indirectly.
             # Object type in the information schema.
             required readonly link __type__ -> schema::ObjectType;
         }
+
+For details about object types introspection see :ref:`this section
+<ref_eql_introspection_object_types>`.

@@ -7,6 +7,9 @@ Collection Types
 *Collection types* are special generic types used to group homogeneous or
 heterogeneous data.
 
+For details about collection types introspection see :ref:`this section
+<ref_eql_introspection_collection_types>`.
+
 .. eql:type:: std::array
 
     :index: array

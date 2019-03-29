@@ -17,6 +17,8 @@ restricting what objects or values those links and properties may
 reference.  The *subject* of a constraint can be referred to in
 the constraint expression as ``__subject__``.
 
+For details about constraint introspection see :ref:`this section
+<ref_eql_introspection_constraints>`.
 
 Standard Constraints
 ====================
