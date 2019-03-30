@@ -84,7 +84,10 @@ class Worker:
                 self._server.get_by_pid(self._proc.pid),
                 PROCESS_INITIAL_RESPONSE_TIMEOUT)
         except Exception:
-            self._proc.kill()
+            try:
+                self._proc.kill()
+            except ProcessLookupError:
+                pass
             raise
 
     def get_pid(self):
