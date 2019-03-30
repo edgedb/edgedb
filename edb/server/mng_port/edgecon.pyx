@@ -235,6 +235,7 @@ cdef class EdgeConnection:
                 buf.write_buffer(msg_buf)
 
             msg_buf = WriteBuffer.new_message(b'Z')
+            msg_buf.write_int16(0)  # no headers
             msg_buf.write_byte(b'I')
             msg_buf.end_message()
             buf.write_buffer(msg_buf)
@@ -531,6 +532,8 @@ cdef class EdgeConnection:
             WriteBuffer msg
             WriteBuffer packet
 
+        self.reject_headers()
+
         eql = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
         if not eql:
@@ -667,12 +670,19 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
 
+    cdef inline reject_headers(self):
+        cdef int16_t nheaders = self.buffer.read_int16()
+        if nheaders != 0:
+            raise errors.BinaryProtocolError('unexpected headers')
+
     async def parse(self):
         cdef:
             bint json_mode
             bytes eql
 
         self._last_anon_compiled = None
+
+        self.reject_headers()
 
         json_mode = self.parse_json_mode(self.buffer.read_byte())
         expect_one = (
@@ -691,6 +701,7 @@ cdef class EdgeConnection:
         query_unit = await self._parse(eql, json_mode, expect_one)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
+        buf.write_int16(0)  # no headers
         buf.write_byte(self.render_cardinality(query_unit))
         buf.write_bytes(query_unit.in_type_id)
         buf.write_bytes(query_unit.out_type_id)
@@ -705,6 +716,7 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
+        msg.write_int16(0)  # no headers
 
         msg.write_byte(self.render_cardinality(query_unit))
 
@@ -724,6 +736,7 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'C')
+        msg.write_int16(0)  # no headers
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
 
@@ -731,6 +744,8 @@ cdef class EdgeConnection:
         cdef:
             char rtype
             WriteBuffer msg
+
+        self.reject_headers()
 
         rtype = self.buffer.read_byte()
         if rtype == b'T':
@@ -853,6 +868,7 @@ cdef class EdgeConnection:
             WriteBuffer bound_args_buf
             bint process_sync
 
+        self.reject_headers()
         stmt_name = self.buffer.read_len_prefixed_bytes()
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
@@ -881,6 +897,7 @@ cdef class EdgeConnection:
             bytes out_tid
             bytes bound_args
 
+        self.reject_headers()
         json_mode = self.parse_json_mode(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
@@ -918,9 +935,6 @@ cdef class EdgeConnection:
             query_unit, bind_args, True, bool(query_unit.sql_hash))
 
     async def sync(self):
-        cdef:
-            WriteBuffer buf
-
         self.buffer.consume_message()
 
         await self.backend.pgcon.sync()
@@ -1147,6 +1161,7 @@ cdef class EdgeConnection:
             (<pgcon.PGProto>self.backend.pgcon).xact_status)
 
         buf = WriteBuffer.new_message(b'Z')
+        buf.write_int16(0)  # no headers
         if xact_status == pgcon.PQTRANS_IDLE:
             buf.write_byte(b'I')
         elif xact_status == pgcon.PQTRANS_INTRANS:
