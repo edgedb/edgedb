@@ -17,8 +17,11 @@
 #
 
 
+import os
+
 import click
 
+from edb.common import debug
 from edb.common import devmode as dm
 from edb.server import main as srv_main
 
@@ -36,4 +39,7 @@ def edbcommands(devmode: bool):
 @edbcommands.command()
 @srv_main.server_options
 def server(**kwargs):
+    os.environ['EDGEDB_DEBUG_SERVER'] = '1'
+    debug.init_debug_flags()
+
     srv_main.server_main(insecure=True, **kwargs)

@@ -26,6 +26,7 @@ import subprocess
 import sys
 import time
 
+from edb.common import debug
 from edb.common import supervisor
 from edb.common import taskgroup
 
@@ -75,9 +76,13 @@ class Worker:
             self._manager._sup.create_task(self._kill_proc(self._proc))
             self._proc = None
 
+        env = _ENV
+        if debug.flags.server:
+            env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
+
         self._proc = await asyncio.create_subprocess_exec(
             *self._command_args,
-            env=_ENV,
+            env=env,
             stdin=subprocess.DEVNULL)
         try:
             self._con = await asyncio.wait_for(
