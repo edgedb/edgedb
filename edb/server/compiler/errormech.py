@@ -101,10 +101,14 @@ def interpret_backend_error(schema, fields):
     # See https://www.postgresql.org/docs/current/protocol-error-fields.html
     # for the full list of PostgreSQL error message fields.
     message = fields.get('M')
-    detail = fields.get('D')
 
-    if detail is not None and detail.startswith('{'):
+    detail = fields.get('D')
+    detail_json = None
+    if detail and detail.startswith('{'):
         detail_json = json.loads(detail)
+        detail = None
+
+    if detail_json:
         errcode = detail_json.get('code')
         if errcode:
             try:
@@ -168,17 +172,11 @@ def interpret_backend_error(schema, fields):
                 source=source, pointer=pointer)
 
         elif error_type == 'link_target':
-            if detail:
-                try:
-                    detail = json.loads(detail)
-                except ValueError:
-                    detail = None
-
-            if detail is not None:
-                srcname = detail.get('source')
-                ptrname = detail.get('pointer')
-                target = detail.get('target')
-                expected = detail.get('expected')
+            if detail_json:
+                srcname = detail_json.get('source')
+                ptrname = detail_json.get('pointer')
+                target = detail_json.get('target')
+                expected = detail_json.get('expected')
 
                 if srcname and ptrname:
                     srcname = sn.Name(srcname)
