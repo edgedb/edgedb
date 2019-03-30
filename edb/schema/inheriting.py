@@ -17,6 +17,8 @@
 #
 
 
+import uuid
+
 from edb.common import struct
 from edb.edgeql import ast as qlast
 
@@ -26,6 +28,7 @@ from . import abc as s_abc
 from . import delta as sd
 from . import derivable
 from . import objects as so
+from . import types
 from . import utils
 
 
@@ -357,6 +360,12 @@ def create_virtual_parent(schema, children, *,
         (t.get_name(schema) for t in children),
         module=module_name)
 
+    # Like with collections, the id of the union type must be
+    # derived from its component types to be stable.
+    id = uuid.uuid5(
+        types.TYPE_ID_NAMESPACE,
+        'union::' + ':'.join(sorted(str(t.id) for t in children)))
+
     target = schema.get(name, default=None)
 
     if target:
@@ -387,7 +396,7 @@ def create_virtual_parent(schema, children, *,
         schema, target = \
             s_objtypes.ObjectType.create_in_schema_with_inheritance(
                 schema,
-                name=name, is_abstract=True,
+                id=id, name=name, is_abstract=True,
                 is_virtual=True, bases=[base]
             )
         schema = target.set_field_value(

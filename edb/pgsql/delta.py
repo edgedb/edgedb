@@ -141,27 +141,26 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
     def get_table(self, schema):
         raise NotImplementedError
 
-    def _get_name(self, schema, value):
+    def _get_id(self, schema, value):
         if isinstance(value, s_obj.ObjectRef):
-            name = value.get_name(schema)
+            obj_id = value._resolve_ref(schema).id
         elif isinstance(value, s_obj.Object):
-            name = value.get_name(schema)
+            obj_id = value.id
         else:
             raise ValueError(
                 f'expecting a ObjectRef or an Object, got {value!r}')
 
-        return name
+        return obj_id
 
     def _serialize_field(self, schema, value, col, *, use_defaults=False):
         recvalue = None
         result = value
 
         if isinstance(value, (s_obj.ObjectSet, s_obj.ObjectList)):
-            result = tuple(self._get_name(schema, v)
+            result = tuple(self._get_id(schema, v)
                            for v in value.objects(schema))
-            name_array = ', '.join(ql(n) for n in result)
-            recvalue = dbops.Query(
-                f'edgedb._resolve_type_id(ARRAY[{name_array}]::text[])')
+            id_array = ', '.join(ql(str(v)) for v in result)
+            recvalue = dbops.Query(f'ARRAY[{id_array}]::uuid[]')
 
         elif isinstance(value, s_obj.ObjectIndexBase):
             result = s_types.Tuple.from_subtypes(
@@ -190,10 +189,7 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
             else:
                 recvalue = result
         elif isinstance(recvalue, types.TypeDesc):
-            recvalue = dbops.Query(
-                'edgedb._encode_type({type_desc})'.format(
-                    type_desc=recvalue.to_sql_expr())
-            )
+            recvalue = dbops.Query(recvalue.to_sql_expr())
 
         return result, recvalue
 

@@ -39,7 +39,7 @@ async def fetch(
                 f.sql_func_has_out_params,
                 f.error_on_null_result,
                 f.initial_value,
-                edgedb._resolve_type(f.return_type) AS return_type,
+                f.return_type AS return_type,
                 edgedb._resolve_type_name(f.params) AS params
             FROM
                 edgedb.function f
@@ -63,7 +63,7 @@ async def fetch_params(
                 p.name,
                 p.num,
                 p.default,
-                edgedb._resolve_type(p.type) AS type,
+                p.type AS type,
                 p.typemod,
                 p.kind
             FROM

@@ -37,8 +37,8 @@ async def fetch(
                 o.code,
                 o.allow_implicit,
                 o.allow_assignment,
-                edgedb._resolve_type(o.from_type) AS from_type,
-                edgedb._resolve_type(o.to_type) AS to_type
+                o.from_type AS from_type,
+                o.to_type AS to_type
             FROM
                 edgedb.cast o
             WHERE

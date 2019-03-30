@@ -62,44 +62,13 @@ class Context:
         self.db = conn
 
 
-class TypeNodeType(dbops.CompositeType):
-    """The node of the type_t, which is a forest of type_node_t."""
-    def __init__(self):
-        super().__init__(name=('edgedb', 'type_node_t'))
-
-        self.add_columns([
-            dbops.Column(name='id', type='uuid'),
-            dbops.Column(name='maintype', type='uuid'),
-            dbops.Column(name='name', type='text'),
-            dbops.Column(name='collection', type='text'),
-            dbops.Column(name='subtypes', type='uuid[]'),
-            dbops.Column(name='dimensions', type='smallint[]'),
-            dbops.Column(name='is_root', type='bool'),
-        ])
-
-
-class TypeType(dbops.CompositeType):
-    """A common at-rest type description structure.
-
-    edgedb.type_t is used to describe any type, including composites,
-    lists of types and dicts of types.  The type information is represented
-    by a forest of type_node_t.
-    """
-    def __init__(self):
-        super().__init__(name=('edgedb', 'type_t'))
-
-        self.add_columns([
-            dbops.Column(name='types', type='edgedb.type_node_t[]'),
-        ])
-
-
 class TypeDescNodeType(dbops.CompositeType):
     def __init__(self):
         super().__init__(name=('edgedb', 'type_desc_node_t'))
 
         self.add_columns([
             dbops.Column(name='id', type='uuid'),
-            dbops.Column(name='maintype', type='text'),
+            dbops.Column(name='maintype', type='uuid'),
             dbops.Column(name='name', type='text'),
             dbops.Column(name='collection', type='text'),
             dbops.Column(name='subtypes', type='uuid[]'),
@@ -330,122 +299,16 @@ class DeriveUUIDFunction(dbops.Function):
             text=self.text)
 
 
-class EncodeTypeFunction(dbops.Function):
-    text = '''
-        SELECT
-            ROW(
-                (SELECT
-                    array_agg(ROW(
-                        st.id,
-                        edgedb._resolve_type_id(st.maintype),
-                        st.name,
-                        st.collection,
-                        st.subtypes,
-                        st.dimensions,
-                        st.is_root
-                    )::edgedb.type_node_t ORDER BY st.i)
-                 FROM
-                    UNNEST(type.types)
-                        WITH ORDINALITY
-                            AS st(id, maintype, name, collection,
-                                  subtypes, dimensions, is_root, i)
-                )
-            )::edgedb.type_t
-    '''
-
-    def __init__(self):
-        super().__init__(
-            name=('edgedb', '_encode_type'),
-            args=[('type', ('edgedb', 'typedesc_t'))],
-            returns=('edgedb', 'type_t'),
-            volatility='stable',
-            text=self.text,
-            strict=True)
-
-
-class ResolveTypeFunction(dbops.Function):
-    text = '''
-        SELECT
-            ROW(
-                (SELECT
-                    array_agg(ROW(
-                        st.id,
-                        edgedb._resolve_type_name(st.maintype),
-                        st.name,
-                        st.collection,
-                        st.subtypes,
-                        st.dimensions,
-                        st.is_root
-                    )::edgedb.type_desc_node_t ORDER BY st.i)
-                 FROM
-                    UNNEST(type.types)
-                        WITH ORDINALITY
-                            AS st(id, maintype, name, collection,
-                                  subtypes, dimensions, is_root, i)
-                )
-            )::edgedb.typedesc_t
-    '''
-
-    def __init__(self):
-        super().__init__(
-            name=('edgedb', '_resolve_type'),
-            args=[('type', ('edgedb', 'type_t'))],
-            returns=('edgedb', 'typedesc_t'),
-            volatility='stable',
-            text=self.text,
-            strict=True)
-
-
 class ResolveTypeNameFunction(dbops.Function):
     text = '''
-        SELECT ((edgedb._resolve_type(type)).types[1]).maintype
+        SELECT edgedb._resolve_type_name((type.types[1]).maintype)
     '''
 
     def __init__(self):
         super().__init__(
             name=('edgedb', '_resolve_type_name'),
-            args=[('type', ('edgedb', 'type_t'))],
+            args=[('type', ('edgedb', 'typedesc_t'))],
             returns=('text',),
-            volatility='stable',
-            text=self.text,
-            strict=True)
-
-
-class ResolveSimpleTypeIdFunction(dbops.Function):
-    text = '''
-        SELECT coalesce(
-            (SELECT id FROM edgedb.Object
-             WHERE name = type::text),
-            edgedb._raise_exception(
-                'resolve_type_id: unknown type: "' || type || '"',
-                NULL::uuid
-            )
-        )
-    '''
-
-    def __init__(self):
-        super().__init__(
-            name=('edgedb', '_resolve_type_id'),
-            args=[('type', ('text',))],
-            returns=('uuid',),
-            volatility='volatile',
-            text=self.text,
-            strict=True)
-
-
-class ResolveSimpleTypeIdListFunction(dbops.Function):
-    text = '''
-        SELECT
-            array_agg(edgedb._resolve_type_id(t.name) ORDER BY t.ordinality)
-        FROM
-            UNNEST(types) WITH ORDINALITY AS t(name)
-    '''
-
-    def __init__(self):
-        super().__init__(
-            name=('edgedb', '_resolve_type_id'),
-            args=[('types', ('text[]',))],
-            returns=('uuid[]',),
             volatility='stable',
             text=self.text,
             strict=True)
@@ -1596,14 +1459,14 @@ def _field_to_column(field):
     default = None
 
     if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
-        # ObjectSet and ObjectList are exempt from type_t encoding,
+        # ObjectSet and ObjectList are exempt from typedesc_t encoding,
         # as they always represent only non-collection types, and
         # keeping the encoding simple is important for performance
         # reasons.
         coltype = 'uuid[]'
 
     elif issubclass(ftype, (s_obj.Object, s_obj.ObjectCollection)):
-        coltype = 'edgedb.type_t'
+        coltype = 'edgedb.typedesc_t'
 
     elif issubclass(ftype, s_expr.Expression):
         coltype = 'edgedb.expression_t'
@@ -1735,8 +1598,6 @@ async def bootstrap(conn):
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateExtension(dbops.Extension(name='uuid-ossp')),
         dbops.CreateExtension(dbops.Extension(name='edbsys')),
-        dbops.CreateCompositeType(TypeNodeType()),
-        dbops.CreateCompositeType(TypeType()),
         dbops.CreateCompositeType(TypeDescNodeType()),
         dbops.CreateCompositeType(TypeDescType()),
         dbops.CreateCompositeType(ExpressionType()),
@@ -1760,13 +1621,9 @@ async def bootstrap(conn):
         dbops.CreateFunction(AssertJSONTypeFunction()),
         dbops.CreateFunction(ExtractJSONScalarFunction()),
         dbops.CreateFunction(DeriveUUIDFunction()),
-        dbops.CreateFunction(ResolveSimpleTypeIdFunction()),
-        dbops.CreateFunction(ResolveSimpleTypeIdListFunction()),
         dbops.CreateFunction(ResolveSimpleTypeNameFunction()),
         dbops.CreateFunction(ResolveSimpleTypeNameListFunction()),
-        dbops.CreateFunction(ResolveTypeFunction()),
         dbops.CreateFunction(ResolveTypeNameFunction()),
-        dbops.CreateFunction(EncodeTypeFunction()),
         dbops.CreateFunction(EdgeDBNameToPGNameFunction()),
         dbops.CreateFunction(ConvertNameFunction()),
         dbops.CreateFunction(ObjectTypeNameToTableNameFunction()),
@@ -1969,13 +1826,11 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
             '''
 
         elif issubclass(ftype, (s_obj.Object, s_obj.ObjectCollection)):
-            # All other type fields are encoded as type_t.
+            # All other type fields are encoded as typedesc_t.
             link_query = f'''
                 SELECT
                     s.id        AS source,
-                    (CASE WHEN t.collection IS NULL
-                     THEN t.maintype ELSE t.id END)
-                                AS target
+                    t.maintype  AS target
                 FROM
                     edgedb.{mcls.__name__} AS s,
                     LATERAL UNNEST ((s.{qi(pn.name)}).types) AS t(
@@ -2086,10 +1941,7 @@ def _generate_role_views(schema):
 def _lookup_type(qual):
     return f'''(
         SELECT
-            (CASE WHEN types.collection IS NULL
-            THEN types.maintype
-            ELSE types.id
-            END) AS id
+            types.maintype AS id
         FROM
             types
         WHERE
@@ -2102,10 +1954,7 @@ def _lookup_type(qual):
 def _lookup_types(qual):
     return f'''(
         SELECT
-            (CASE WHEN types.collection IS NULL
-            THEN types.maintype
-            ELSE types.id
-            END) AS id
+            types.maintype AS id
         FROM
             types
         WHERE

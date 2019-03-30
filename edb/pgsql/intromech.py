@@ -39,6 +39,7 @@ from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
+from edb.schema import objects as s_obj
 from edb.schema import operators as s_opers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import roles as s_roles
@@ -503,7 +504,13 @@ class IntrospectionMech:
             scls = s_pseudo.AnyTuple.create()
 
         else:
-            scls = schema.get(t['maintype'])
+            type_id = t['maintype']
+            if type_id == s_obj.get_known_type_id('anytype'):
+                scls = s_pseudo.Any.create()
+            elif type_id == s_obj.get_known_type_id('anytuple'):
+                scls = s_pseudo.AnyTuple.create()
+            else:
+                scls = schema.get_by_id(t['maintype'])
 
         return t['name'], scls
 

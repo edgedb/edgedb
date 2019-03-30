@@ -44,8 +44,7 @@ async def fetch(
                                         AS subject,
                 edgedb._resolve_type_name(a.params)
                                         AS params,
-                edgedb._resolve_type(a.return_type)
-                                        AS return_type,
+                a.return_type           AS return_type,
                 a.return_typemod        AS return_typemod
 
             FROM

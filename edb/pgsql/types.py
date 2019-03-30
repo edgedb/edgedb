@@ -509,7 +509,7 @@ class TypeDescNode(_TypeDescNode):
 
         items = [
             ql(str(self.id)),
-            ql(self.maintype) if self.maintype else 'NULL',
+            ql(str(self.maintype)),
             ql(self.name) if self.name else 'NULL',
             ql(self.collection) if self.collection else 'NULL',
             subtypes,
@@ -562,35 +562,26 @@ class TypeDesc:
                 else:
                     dimensions = []
                 desc = TypeDescNode(
-                    maintype=None, name=tn, collection=t.schema_name,
+                    maintype=t.id, name=tn, collection=t.schema_name,
                     subtypes=subtypes, dimensions=dimensions, is_root=is_root)
             elif t.is_type() and t.is_any():
                 desc = TypeDescNode(
-                    maintype='anytype', name=tn, collection=None,
+                    maintype=t.id, name=tn, collection=None,
                     subtypes=[], dimensions=[], is_root=is_root)
             elif t.is_type() and t.is_anytuple():
                 desc = TypeDescNode(
-                    maintype='anytuple', name=tn, collection=None,
+                    maintype=t.id, name=tn, collection=None,
                     subtypes=[], dimensions=[], is_root=is_root)
             else:
                 desc = TypeDescNode(
-                    maintype=cls._get_name(schema, t),
-                    name=tn, collection=None,
-                    subtypes=[], dimensions=[], is_root=is_root)
+                    maintype=t.id,
+                    name=tn,
+                    collection=None,
+                    subtypes=[],
+                    dimensions=[],
+                    is_root=is_root)
 
             typedesc[indexes[i]] = desc
             result.append(desc.id)
 
         return result
-
-    @classmethod
-    def _get_name(cls, schema, value):
-        if isinstance(value, s_obj.ObjectRef):
-            name = value.classname
-        elif isinstance(value, s_obj.Object):
-            name = value.get_name(schema)
-        else:
-            raise ValueError(
-                f'expecting a ObjectRef or an Object, got {value!r}')
-
-        return name

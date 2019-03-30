@@ -30,7 +30,7 @@ async def fetch(
         SELECT
                 l.id,
                 edgedb._resolve_type_name(l.source) AS source,
-                edgedb._resolve_type(l.target) AS target,
+                l.target AS target,
                 edgedb._resolve_type_name(l.spectargets) AS spectargets,
                 l.name AS name,
                 edgedb._resolve_type_name(l.bases) AS bases,
@@ -75,9 +75,7 @@ async def fetch_properties(
                 p.default               AS default,
                 edgedb._resolve_type_name(p.source)
                                         AS source,
-                edgedb._resolve_type(p.target)
-                                        AS target,
-
+                p.target                AS target,
                 p.is_abstract           AS is_abstract,
                 p.is_final              AS is_final,
                 p.is_derived            AS is_derived
