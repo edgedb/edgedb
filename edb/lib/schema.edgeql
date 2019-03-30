@@ -61,7 +61,7 @@ CREATE ABSTRACT TYPE schema::ContainerType EXTENDING schema::Type;
 
 CREATE TYPE schema::Array EXTENDING schema::ContainerType {
     CREATE REQUIRED LINK element_type -> schema::Type;
-    CREATE PROPERTY dimensions -> array<std::int64>;
+    CREATE PROPERTY dimensions -> array<std::int16>;
 };
 
 

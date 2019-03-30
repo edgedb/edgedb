@@ -209,7 +209,10 @@ class CreateProperty(PropertyCommand,
 
             if target_type.is_collection():
                 sd.ensure_schema_collection(
-                    schema, target_type, cmd, src_context=target.context)
+                    schema, target_type, cmd,
+                    src_context=target.context,
+                    context=context,
+                )
 
             cmd.add(
                 sd.AlterObjectProperty(

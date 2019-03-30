@@ -38,11 +38,17 @@
 #
 #    namedtuple:    <type=5> <uuid> <count> [<str> <pos>]+
 #
-#    array:         <type=6> <uuid> <pos>
+#    array:         <type=6> <uuid> <pos> <count> <int32>+
+#
+#                   -- where <count> specifies the number of dimensions
+#                      and must be >= 1, it is followed by <count> of
+#                      int32 values specifying the cardinality of each
+#                      dimension (-1 means an unbounded dimension).
 #
 #    enum:          <type=7> <uuid> <count> <str>+
 #
 #    type_anno      <type=f0..ff> <uuid> <str>
+#
 #                   -- A type annotation;  0xf0 <= <type> <= 0xff.
 #                      Drivers should ignore unknown type annotations.
 #

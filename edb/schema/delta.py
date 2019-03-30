@@ -525,6 +525,10 @@ class DeltaRootContext(CommandContextToken):
 
 class DeltaRoot(CommandGroup):
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.new_types = set()
+
     def apply(self, schema, context=None):
         from . import modules
 
@@ -1303,7 +1307,7 @@ class DeleteArray(DeleteCollectionType, schema_metaclass=types.SchemaArray):
 
 
 def ensure_schema_collection(schema, coll_type, parent_cmd, *,
-                             src_context=None):
+                             src_context=None, context):
     if not coll_type.is_collection():
         raise ValueError(
             f'{coll_type.get_displayname(schema)} is not a collection')
@@ -1314,8 +1318,12 @@ def ensure_schema_collection(schema, coll_type, parent_cmd, *,
             context=src_context,
         )
 
-    if schema.get_by_id(coll_type.id, None) is None:
+    delta_root = context.top().op
+
+    if (schema.get_by_id(coll_type.id, None) is None
+            and coll_type.id not in delta_root.new_types):
         parent_cmd.add(coll_type.as_create_delta(schema))
+        delta_root.new_types.add(coll_type.id)
 
 
 def cleanup_schema_collection(schema, coll_type, parent, parent_cmd):

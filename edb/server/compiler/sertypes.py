@@ -26,6 +26,7 @@ from edb.schema import objects as s_obj
 from edb.schema import types as s_types
 
 
+_int32_packer = struct.Struct('!l').pack
 _uint16_packer = struct.Struct('!H').pack
 _uint8_packer = struct.Struct('!B').pack
 
@@ -152,6 +153,10 @@ class TypeSerializer:
             buf.append(b'\x06')
             buf.append(type_id.bytes)
             buf.append(_uint16_packer(self.uuid_to_pos[subtypes[0]]))
+            # Number of dimensions (currently always 1)
+            buf.append(_uint16_packer(1))
+            # Dimension cardinality (currently always unbound)
+            buf.append(_int32_packer(-1))
 
             self._register_type_id(type_id)
             return type_id

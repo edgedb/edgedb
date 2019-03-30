@@ -497,15 +497,15 @@ class TypeDescNode(_TypeDescNode):
     def to_sql_expr(self):
         if self.subtypes:
             subtype_list = ', '.join(ql(str(st)) for st in self.subtypes)
-            subtypes = f'ARRAY[{subtype_list}]'
+            subtypes = f'ARRAY[{subtype_list}]::uuid[]'
         else:
             subtypes = 'ARRAY[]::uuid[]'
 
         if self.dimensions:
-            dimensions_list = ', '.join(ql(str(d)) for d in self.dimensions)
-            dimensions = f'ARRAY[{dimensions_list}]'
+            dimensions_list = ', '.join(str(d) for d in self.dimensions)
+            dimensions = f'ARRAY[{dimensions_list}]::smallint[]'
         else:
-            dimensions = 'ARRAY[]::int[]'
+            dimensions = 'ARRAY[]::smallint[]'
 
         items = [
             ql(str(self.id)),

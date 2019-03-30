@@ -268,8 +268,7 @@ class IntrospectionMech:
                     id=param_data['id'],
                     num=param_data['num'],
                     name=sn.Name(param_data['name']),
-                    default=(s_expr.Expression(**param_data['default'])
-                             if param_data['default'] else None),
+                    default=param_data['default'],
                     type=self.unpack_typeref(param_data['type'], schema),
                     typemod=param_data['typemod'],
                     kind=param_data['kind'])

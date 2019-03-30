@@ -73,7 +73,7 @@ class TypeNodeType(dbops.CompositeType):
             dbops.Column(name='name', type='text'),
             dbops.Column(name='collection', type='text'),
             dbops.Column(name='subtypes', type='uuid[]'),
-            dbops.Column(name='dimensions', type='int[]'),
+            dbops.Column(name='dimensions', type='smallint[]'),
             dbops.Column(name='is_root', type='bool'),
         ])
 
@@ -103,7 +103,7 @@ class TypeDescNodeType(dbops.CompositeType):
             dbops.Column(name='name', type='text'),
             dbops.Column(name='collection', type='text'),
             dbops.Column(name='subtypes', type='uuid[]'),
-            dbops.Column(name='dimensions', type='int[]'),
+            dbops.Column(name='dimensions', type='smallint[]'),
             dbops.Column(name='is_root', type='bool'),
         ])
 

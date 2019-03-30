@@ -584,6 +584,7 @@ class AlterTarget(sd.Command):
                 sd.ensure_schema_collection(
                     schema, target_obj, alter_ptr_ctx.op,
                     src_context=astnode.target.context,
+                    context=context,
                 )
 
         cmd.new_value = target_ref

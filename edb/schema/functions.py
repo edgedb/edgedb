@@ -127,7 +127,7 @@ class ParameterDesc(typing.NamedTuple):
             default=props['default'],
         )
 
-    def as_create_delta(self, schema, func_fqname):
+    def as_create_delta(self, schema, func_fqname, *, context):
         CreateParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.CreateObject, Parameter)
 
@@ -150,7 +150,8 @@ class ParameterDesc(typing.NamedTuple):
         ))
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
-            sd.ensure_schema_collection(schema, self.type, cmd)
+            sd.ensure_schema_collection(
+                schema, self.type, cmd, context=context)
 
         for attr in ('num', 'typemod', 'kind', 'default'):
             cmd.add(sd.AlterObjectProperty(
@@ -173,7 +174,8 @@ class ParameterDesc(typing.NamedTuple):
         cmd = DeleteParameter(classname=param_name)
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
-            sd.cleanup_schema_collection(schema, self.type, self, cmd)
+            param = schema.get(param_name)
+            sd.cleanup_schema_collection(schema, self.type, param, cmd)
 
         return cmd
 
@@ -534,7 +536,8 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
             schema, context.modaliases, astnode)
 
         for param in params:
-            cmd.add(param.as_create_delta(schema, cmd.classname))
+            cmd.add(param.as_create_delta(
+                schema, cmd.classname, context=context))
 
         if hasattr(astnode, 'returning'):
             modaliases = context.modaliases
@@ -549,7 +552,9 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
                     and not return_type.is_polymorphic(schema)):
                 sd.ensure_schema_collection(
                     schema, return_type, cmd,
-                    src_context=astnode.returning.context)
+                    src_context=astnode.returning.context,
+                    context=context,
+                )
 
             cmd.add(sd.AlterObjectProperty(
                 property='return_type',

@@ -332,7 +332,7 @@ class Collection(Type, s_abc.Collection):
     def get_subtypes(self, schema):
         raise NotImplementedError
 
-    def get_typemods(self):
+    def get_typemods(self, schema):
         return ()
 
     def get_subtype(self, schema, typeref):
@@ -372,7 +372,7 @@ class Collection(Type, s_abc.Collection):
 
         return (
             self.__class__.from_subtypes(
-                schema, strefs, typemods=self.get_typemods()),
+                schema, strefs, typemods=self.get_typemods(schema)),
             (self.__class__, tuple(r.name for r in strefs))
         )
 
@@ -385,7 +385,7 @@ class Collection(Type, s_abc.Collection):
                 subtypes.append(st._resolve_ref(schema))
 
             return self.__class__.from_subtypes(
-                schema, subtypes, typemods=self.get_typemods())
+                schema, subtypes, typemods=self.get_typemods(schema))
         else:
             return self
 
@@ -410,17 +410,21 @@ class BaseArray(Collection, s_abc.Array):
     @classmethod
     def create(cls, schema, *, name=None,
                id=so.NoDefault, dimensions=None, element_type, **kwargs):
+        if not dimensions:
+            dimensions = [-1]
+
+        if dimensions != [-1]:
+            raise errors.UnsupportedFeatureError(
+                f'multi-dimensional arrays are not supported')
+
         if id is so.NoDefault:
-            id_str = f'array-{element_type.id}'
+            id_str = f'array-{element_type.id}-{dimensions}'
             id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
 
         if name is None:
             name = s_name.SchemaName(
                 module='std',
                 name=f'array<{element_type.get_name(schema)}>')
-
-        if dimensions is None:
-            dimensions = []
 
         return super()._create(
             schema, id=id, name=name, element_type=element_type,
@@ -445,15 +449,18 @@ class BaseArray(Collection, s_abc.Array):
         return schema, Array.from_subtypes(
             schema,
             [self.get_element_type(schema)],
-            self.get_typemods(),
+            self.get_typemods(schema),
             name=name,
             **(attrs or {}))
 
     def get_element_type(self, schema):
         raise NotImplementedError
 
-    def get_typemods(self):
-        return (self.dimensions,)
+    def get_dimensions(self, schema):
+        raise NotImplementedError
+
+    def get_typemods(self, schema):
+        return (self.get_dimensions(schema),)
 
     def implicitly_castable_to(self, other: Type, schema) -> bool:
         if not other.is_array():
@@ -521,22 +528,10 @@ class BaseArray(Collection, s_abc.Array):
             raise errors.UnsupportedFeatureError(
                 f'nested arrays are not supported')
 
-        if typemods:
-            dimensions = typemods[0]
-        else:
-            dimensions = []
+        # One-dimensional unbounded array.
+        dimensions = [-1]
 
-        if isinstance(stype, cls):
-            # There is no array of arrays, only multi-dimensional arrays.
-            element_type = stype.get_element_type(schema)
-            if not dimensions:
-                dimensions.append(-1)
-            dimensions += stype.dimensions
-        else:
-            element_type = stype
-            dimensions = []
-
-        return cls.create(schema, element_type=element_type,
+        return cls.create(schema, element_type=stype,
                           dimensions=dimensions, name=name)
 
     def material_type(self, schema):
@@ -550,7 +545,7 @@ class BaseArray(Collection, s_abc.Array):
 
         if new_material_type:
             return self.__class__.from_subtypes(
-                schema, subtypes, typemods=self.get_typemods())
+                schema, subtypes, typemods=self.get_typemods(schema))
         else:
             return self
 
@@ -567,10 +562,8 @@ class BaseArray(Collection, s_abc.Array):
 
         cmd.set_attribute_value('id', self.id)
         cmd.set_attribute_value('name', str(self.id))
-        cmd.set_attribute_value(
-            'element_type',
-            el,
-        )
+        cmd.set_attribute_value('element_type', el)
+        cmd.set_attribute_value('dimensions', self.get_dimensions(schema))
 
         return cmd
 
@@ -616,6 +609,9 @@ class Array(BaseArray):
 
     def get_subtypes(self, schema):
         return (self.element_type,)
+
+    def get_dimensions(self, schema):
+        return self.dimensions
 
 
 class SchemaCollectionMeta(type(Type)):
@@ -744,7 +740,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         return schema, Tuple.from_subtypes(
             schema,
             dict(self.iter_subtypes(schema)),
-            self.get_typemods(),
+            self.get_typemods(schema),
             name=name,
             **(attrs or {}))
 
@@ -854,8 +850,8 @@ class BaseTuple(Collection, s_abc.Tuple):
 
         return Tuple.from_subtypes(schema, new_types, typemods)
 
-    def get_typemods(self):
-        return {'named': self.named}
+    def get_typemods(self, schema):
+        return {'named': self.is_named(schema)}
 
     def contains_array_of_tuples(self, schema):
         return any(
@@ -921,7 +917,7 @@ class BaseTuple(Collection, s_abc.Tuple):
 
         return (
             self.__class__.from_subtypes(
-                schema, strefs, typemods=self.get_typemods()),
+                schema, strefs, typemods=self.get_typemods(schema)),
             (self.__class__, tuple(r.name for r in strefs.values()))
         )
 
@@ -933,7 +929,7 @@ class BaseTuple(Collection, s_abc.Tuple):
                 subtypes[st_name] = st._resolve_ref(schema)
 
             return self.__class__.from_subtypes(
-                schema, subtypes, typemods=self.get_typemods())
+                schema, subtypes, typemods=self.get_typemods(schema))
         else:
             return self
 
@@ -949,7 +945,7 @@ class BaseTuple(Collection, s_abc.Tuple):
 
         if new_material_type:
             return self.__class__.from_subtypes(
-                schema, subtypes, typemods=self.get_typemods())
+                schema, subtypes, typemods=self.get_typemods(schema))
         else:
             return self
 
