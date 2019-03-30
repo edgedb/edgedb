@@ -7,6 +7,11 @@ It's possbile to explicitly :ref:`cast <ref_eql_expr_typecast>`
 between any numeric types. All numeric types can also be cast to and
 from :eql:type:`str` and :eql:type:`json`.
 
+See also the list of standard
+:ref:`mathematical functions <ref_eql_functions_math>` and
+generic functions such as :eql:func:`min`.
+
+
 .. eql:type:: std::int16
 
     :index: int integer

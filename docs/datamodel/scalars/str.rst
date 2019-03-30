@@ -7,7 +7,7 @@ Strings
 
     A unicode string of text.
 
-    Any other type (except for :eql:type`bytes`) can be :ref:`cast
+    Any other type (except for :eql:type:`bytes`) can be :ref:`cast
     <ref_eql_expr_typecast>` to and from a string:
 
     .. code-block:: edgeql-repl
@@ -16,6 +16,8 @@ Strings
         {'42'}
         db> SELECT <bool>'true';
         {true}
+        db> SELECT "I ❤️ EdgeDB";
+        {'I ❤️ EdgeDB'}
 
     Note that when a :eql:type:`str` is cast into a :eql:type:`json`,
     the result is JSON string value. Same applies for casting back
@@ -38,3 +40,7 @@ Strings
         db> SELECT to_str(<json>[1, 2]);
         {'[1, 2]'}
 
+    See also the list of standard
+    :ref:`str functions <ref_eql_functions_string>` and
+    :ref:`generic functions <ref_eql_functions_generic>`
+    such as :eql:func:`len`.
