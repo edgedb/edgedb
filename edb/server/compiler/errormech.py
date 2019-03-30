@@ -222,7 +222,8 @@ def interpret_backend_error(schema, fields):
                 'unique link constraint violation')
 
     elif code == PGError.InvalidParameterValue:
-        return errors.InvalidValueError(message)
+        return errors.InvalidValueError(
+            message, details=detail if detail else None)
 
     elif code == PGError.InvalidTextRepresentation:
         return errors.InvalidValueError(translate_pgtype(schema, message))
