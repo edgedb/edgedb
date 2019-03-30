@@ -2194,7 +2194,7 @@ def _generate_types_views(schema, type_fields):
             q.id            AS id,
             q.collection    AS name,
             (SELECT id FROM edgedb.Object
-                 WHERE name = 'schema::Array')
+                 WHERE name = 'schema::Tuple')
                             AS __type__,
             (SELECT array_agg(t.id)
              FROM ({_lookup_types('q.subtypes')}) AS t)

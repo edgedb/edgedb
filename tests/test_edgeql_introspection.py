@@ -629,7 +629,6 @@ class TestIntrospection(tb.QueryTestCase):
             [True],
         )
 
-    @test.xfail('Tuples get registered as Arrays.')
     async def test_edgeql_introspection_meta_12(self):
         await self.assert_query_result(
             r'''
