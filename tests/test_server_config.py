@@ -640,44 +640,53 @@ class TestServerConfig(tb.QueryTestCase):
             ''')
 
     async def test_server_proto_configure_05(self):
-        await self.con.execute('''
-            CONFIGURE SESSION SET effective_io_concurrency := '10';
-        ''')
+        try:
+            await self.con.execute('''
+                CONFIGURE SESSION SET effective_cache_size := '1GB';
+            ''')
 
-        await self.assert_query_result(
-            '''
-            SELECT cfg::Config.effective_io_concurrency
-            ''',
-            [
-                '10'
-            ],
-        )
+            await self.assert_query_result(
+                '''
+                SELECT cfg::Config.effective_cache_size
+                ''',
+                [
+                    '1048576kB'
+                ],
+            )
 
-        await self.con.execute('''
-            CONFIGURE SYSTEM SET effective_io_concurrency := '11';
-        ''')
+            await self.con.execute('''
+                CONFIGURE SYSTEM SET effective_cache_size := '2GB';
+            ''')
 
-        await self.assert_query_result(
-            '''
-            SELECT cfg::Config.effective_io_concurrency
-            ''',
-            [
-                '10'
-            ],
-        )
+            await self.assert_query_result(
+                '''
+                SELECT cfg::Config.effective_cache_size
+                ''',
+                [
+                    '1048576kB'
+                ],
+            )
 
-        await self.con.execute('''
-            CONFIGURE SESSION RESET effective_io_concurrency;
-        ''')
+            await self.con.execute('''
+                CONFIGURE SESSION RESET effective_cache_size;
+            ''')
 
-        await self.assert_query_result(
-            '''
-            SELECT cfg::Config.effective_io_concurrency
-            ''',
-            [
-                '11'
-            ],
-        )
+            await self.assert_query_result(
+                '''
+                SELECT cfg::Config.effective_cache_size
+                ''',
+                [
+                    '2097152kB'
+                ],
+            )
+        finally:
+            await self.con.execute('''
+                CONFIGURE SESSION RESET effective_cache_size;
+            ''')
+
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET effective_cache_size;
+            ''')
 
     async def test_server_version(self):
         srv_ver = await self.con.fetchone(r"""
