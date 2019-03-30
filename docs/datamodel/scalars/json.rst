@@ -7,8 +7,8 @@ JSON
 
     Arbitrary JSON data.
 
-    Any other type (except for :eql:type`bytes`) can be :ref:`cast
-    <ref_eql_expr_typecast>` to and from :eql:type:`json`:
+    Any other type (except for :eql:type:`bytes`) can be :ref:`cast
+    <ref_eql_expr_typecast>` to and from JSON:
 
     .. code-block:: edgeql-repl
 
@@ -17,19 +17,26 @@ JSON
         db> SELECT <bool>to_json('true');
         {true}
 
-    Note that when a :eql:type:`str` is cast into a :eql:type:`json`,
-    the result is JSON string value. Same applies for casting back
-    from :eql:type:`json` - only a JSON string value can be cast into
-    a :eql:type:`str`:
+    Note that a :eql:type:`json` value can be cast into a :eql:type:`str`
+    only when it is a JSON string.  Therefore the following will work
+    as expected:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <json>'Hello, world';
-        {'"Hello, world"'}
+        db> SELECT <str>to_json('"something"');
+        {'something'}
 
-    There are :ref:`converter <ref_eql_functions_converters>`
-    functions that can be used to dump or parse a :eql:type:`json`
-    value to or from a :eql:type:`str`:
+    while the below operation (casting a JSON array of string
+    ``["a", "b", "c"]`` to a *str*) will result in an error:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT <str>to_json('["a", "b", "c"]');
+        InternalServerError: expected json string, null; got json array
+
+    Use the :ref:`converter <ref_eql_functions_converters>`
+    functions to dump or parse a :eql:type:`json` value to or
+    from a :eql:type:`str`:
 
     .. code-block:: edgeql-repl
 
@@ -38,3 +45,5 @@ JSON
         db> SELECT to_str(<json>[1, 2]);
         {'[1, 2]'}
 
+    See also the list of standard
+    :ref:`JSON functions <ref_eql_functions_json>`.
