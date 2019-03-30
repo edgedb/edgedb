@@ -267,12 +267,7 @@ class _PointerStorageInfo:
 
     @classmethod
     def _storable_in_source(cls, schema, pointer):
-        return (
-            pointer.singular(schema) or
-            pointer.get_shortname(schema) in {
-                'schema::element_types',
-            }
-        )
+        return pointer.singular(schema)
 
     @classmethod
     def _storable_in_pointer(cls, schema, pointer):
@@ -450,12 +445,7 @@ def get_ptrref_storage_info(
 
 
 def _storable_in_source(ptrref: irast.PointerRef) -> bool:
-    return (
-        ptrref.out_cardinality is qltypes.Cardinality.ONE
-        or ptrref.shortname in {
-            'schema::element_types',
-        }
-    )
+    return ptrref.out_cardinality is qltypes.Cardinality.ONE
 
 
 def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
@@ -466,8 +456,8 @@ def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
 
 
 _TypeDescNode = collections.namedtuple(
-    '_TypeDescNode', ['id', 'maintype', 'name', 'collection',
-                      'subtypes', 'dimensions', 'is_root'],
+    '_TypeDescNode', ['id', 'maintype', 'name', 'position',
+                      'collection', 'subtypes', 'dimensions'],
     module=__name__)
 
 
@@ -485,14 +475,10 @@ class TypeDescNode(_TypeDescNode):
         if data['name'] == 'anytype':
             return s_obj.get_known_type_id('anytype')
 
-        s = (
-            f"{data['maintype']!r}\x00{data['name']!r}\x00"
-            f"{data['collection']!r}\x00"
-            f"{','.join(str(s) for s in data['subtypes'])}\x00"
-            f"{':'.join(str(d) for d in data['dimensions'])}"
-        )
-
-        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, s)
+        # A type desc node is uniquely identified by it's type,
+        # and the name and position within a parent type.
+        id_str = f"{data['maintype']!r}::{data['name']!r}::{data['position']}"
+        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, id_str)
 
     def to_sql_expr(self):
         if self.subtypes:
@@ -511,10 +497,10 @@ class TypeDescNode(_TypeDescNode):
             ql(str(self.id)),
             ql(str(self.maintype)),
             ql(self.name) if self.name else 'NULL',
+            str(self.position) if self.position is not None else 'NULL',
             ql(self.collection) if self.collection else 'NULL',
             subtypes,
             dimensions,
-            str(self.is_root)
         ]
 
         return 'ROW(' + ', '.join(items) + ')::edgedb.type_desc_node_t'
@@ -539,7 +525,7 @@ class TypeDesc:
         return cls(nodes)
 
     @classmethod
-    def _get_typedesc(cls, schema, types, typedesc, is_root=True):
+    def _get_typedesc(cls, schema, types, typedesc, *, is_root=True):
         result = []
         indexes = []
         for tn, t in types:
@@ -563,15 +549,18 @@ class TypeDesc:
                     dimensions = []
                 desc = TypeDescNode(
                     maintype=t.id, name=tn, collection=t.schema_name,
-                    subtypes=subtypes, dimensions=dimensions, is_root=is_root)
+                    subtypes=subtypes, dimensions=dimensions,
+                    position=i if not is_root else None)
             elif t.is_type() and t.is_any():
                 desc = TypeDescNode(
                     maintype=t.id, name=tn, collection=None,
-                    subtypes=[], dimensions=[], is_root=is_root)
+                    subtypes=[], dimensions=[],
+                    position=i if not is_root else None)
             elif t.is_type() and t.is_anytuple():
                 desc = TypeDescNode(
                     maintype=t.id, name=tn, collection=None,
-                    subtypes=[], dimensions=[], is_root=is_root)
+                    subtypes=[], dimensions=[],
+                    position=i if not is_root else None)
             else:
                 desc = TypeDescNode(
                     maintype=t.id,
@@ -579,7 +568,7 @@ class TypeDesc:
                     collection=None,
                     subtypes=[],
                     dimensions=[],
-                    is_root=is_root)
+                    position=i if not is_root else None)
 
             typedesc[indexes[i]] = desc
             result.append(desc.id)

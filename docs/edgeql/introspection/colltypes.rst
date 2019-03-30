@@ -114,4 +114,54 @@ Introspection of the ``schema::Tuple``:
         }
     }
 
-Introspection of the specific :eql:type:`tuple` types is not yet implemented.
+For example, below is an introspection of the return type of
+the :eql:func:`sys::get_version` function:
+
+.. code-block:: edgeql-repl
+
+    db> WITH MODULE schema
+    ... SELECT `Function` {
+    ...     return_type: Tuple {
+    ...         element_types: {
+    ...             name,
+    ...             type: { name }
+    ...         } ORDER BY .num
+    ...     }
+    ... }
+    ... FILTER .name = 'sys::get_version';
+    {
+        Object {
+            return_type: Object {
+                element_types: {
+                    Object {
+                        name: 'major',
+                        type: Object {
+                            name: 'std::int64'
+                        }
+                    },
+                    Object {
+                        name: 'minor',
+                        type: Object {
+                            name: 'std::int64'
+                        }
+                    },
+                    Object {
+                        name: 'stage',
+                        type: Object {
+                            name: 'sys::version_stage'
+                        }
+                    },
+                    Object {
+                        name: 'stage_no',
+                        type: Object {
+                            name: 'std::int64'
+                        }
+                    },
+                    Object {
+                        name: 'local',
+                        type: Object { name: 'array' }
+                    }
+                }
+            }
+        }
+    }

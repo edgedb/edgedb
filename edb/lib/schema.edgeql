@@ -67,13 +67,13 @@ CREATE TYPE schema::Array EXTENDING schema::ContainerType {
 
 CREATE TYPE schema::TypeElement {
     CREATE REQUIRED LINK type -> schema::Type;
-    CREATE REQUIRED PROPERTY num -> std::int64;
+    CREATE REQUIRED PROPERTY num -> std::int16;
     CREATE PROPERTY name -> std::str;
 };
 
 
 CREATE TYPE schema::Tuple EXTENDING schema::ContainerType {
-    CREATE REQUIRED MULTI LINK element_types -> schema::TypeElement {
+    CREATE MULTI LINK element_types -> schema::TypeElement {
         CREATE CONSTRAINT std::exclusive;
     };
 };

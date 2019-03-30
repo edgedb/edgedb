@@ -70,10 +70,10 @@ class TypeDescNodeType(dbops.CompositeType):
             dbops.Column(name='id', type='uuid'),
             dbops.Column(name='maintype', type='uuid'),
             dbops.Column(name='name', type='text'),
+            dbops.Column(name='position', type='smallint'),
             dbops.Column(name='collection', type='text'),
             dbops.Column(name='subtypes', type='uuid[]'),
             dbops.Column(name='dimensions', type='smallint[]'),
-            dbops.Column(name='is_root', type='bool'),
         ])
 
 
@@ -1834,11 +1834,11 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 FROM
                     edgedb.{mcls.__name__} AS s,
                     LATERAL UNNEST ((s.{qi(pn.name)}).types) AS t(
-                        id, maintype, name, collection,
-                        subtypes, dimensions, is_root
+                        id, maintype, name, position, collection,
+                        subtypes, dimensions
                     )
                 WHERE
-                    t.is_root
+                    t.position IS NULL
             '''
 
         else:
@@ -1962,20 +1962,30 @@ def _lookup_types(qual):
     )'''
 
 
-def _generate_type_element_view(schema, type_fields):
-    TypeElement = schema.get('schema::TypeElement')
+def _get_type_source(schema, type_fields):
 
     source = '\nUNION\n'.join(f'''
         (SELECT
             t.*
-        FROM
+         FROM
             {table},
             LATERAL UNNEST (({table}.{qi(field)}).types)
-                WITH ORDINALITY AS t(
-                    id, maintype, name, collection, subtypes,
-                    dimensions, is_root, num
-                ))
+                AS t(
+                    id, maintype, name, position,
+                    collection, subtypes, dimensions
+                )
+        )
     ''' for table, field in type_fields)
+
+    source = f'(SELECT DISTINCT ON (q.id) q.* FROM ({source}) AS q)'
+
+    return source
+
+
+def _generate_type_element_view(schema, type_fields):
+    TypeElement = schema.get('schema::TypeElement')
+
+    source = _get_type_source(schema, type_fields)
 
     view_query = f'''
         WITH
@@ -1988,11 +1998,11 @@ def _generate_type_element_view(schema, type_fields):
             {_lookup_type('q.id')}
                             AS type,
             q.name          AS name,
-            q.num           AS num
+            q.position      AS num
         FROM
             types AS q
         WHERE
-            q.name IS NOT NULL
+            q.position IS NOT NULL
     '''
 
     return dbops.View(name=tabname(schema, TypeElement), query=view_query)
@@ -2000,27 +2010,18 @@ def _generate_type_element_view(schema, type_fields):
 
 def _generate_types_views(schema, type_fields):
     views = []
+    link_views = []
 
     Array = schema.get('schema::Array')
     Tuple = schema.get('schema::Tuple')
 
-    source = '\nUNION\n'.join(f'''
-        (SELECT
-            t.*
-        FROM
-            {table},
-            LATERAL UNNEST (({table}.{qi(field)}).types)
-                AS t(
-                    id, maintype, name, collection, subtypes,
-                    dimensions, is_root
-                ))
-    ''' for table, field in type_fields)
+    source = _get_type_source(schema, type_fields)
 
     view_query = f'''
         WITH
             types AS ({source})
-        SELECT
-            q.id            AS id,
+        SELECT DISTINCT ON (q.maintype)
+            q.maintype      AS id,
             q.collection    AS name,
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Array')
@@ -2039,15 +2040,12 @@ def _generate_types_views(schema, type_fields):
     view_query = f'''
         WITH
             types AS ({source})
-        SELECT
-            q.id            AS id,
+        SELECT DISTINCT ON (q.maintype)
+            q.maintype      AS id,
             q.collection    AS name,
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Tuple')
-                            AS __type__,
-            (SELECT array_agg(t.id)
-             FROM ({_lookup_types('q.subtypes')}) AS t)
-                            AS element_types
+                            AS __type__
         FROM
             types AS q
         WHERE
@@ -2056,7 +2054,27 @@ def _generate_types_views(schema, type_fields):
 
     views.append(dbops.View(name=tabname(schema, Tuple), query=view_query))
 
-    return views
+    link_view_query = f'''
+        WITH
+            types AS ({source})
+        SELECT
+            q.maintype      AS source,
+            st.id           AS target
+        FROM
+            types AS q,
+            LATERAL UNNEST (q.subtypes) WITH ORDINALITY AS st(id)
+        WHERE
+            q.collection = 'tuple'
+    '''
+
+    link_views.append(
+        dbops.View(
+            name=tabname(schema, Tuple.getptr(schema, 'element_types')),
+            query=link_view_query,
+        )
+    )
+
+    return views, link_views
 
 
 def _make_json_caster(schema, json_casts, stype, context):
@@ -2581,11 +2599,7 @@ async def generate_views(conn, schema):
                     '''
                 elif issubclass(field.type, s_obj.Object):
                     col_expr = textwrap.dedent(f'''\
-                        (CASE WHEN
-                            ((t.{qi(ptrstor.column_name)}).types[1]).collection
-                                IS NULL
-                        THEN ((t.{qi(ptrstor.column_name)}).types[1]).maintype
-                        ELSE ((t.{qi(ptrstor.column_name)}).types[1]).id END)
+                        ((t.{qi(ptrstor.column_name)}).types[1]).maintype
                     ''')
                 else:
                     col_expr = f't.{qi(ptrstor.column_name)}'
@@ -2619,9 +2633,10 @@ async def generate_views(conn, schema):
 
         views[view.name] = view
 
-    type_views = _generate_types_views(schema, type_fields)
+    type_views, type_link_views = _generate_types_views(schema, type_fields)
     views.update({v.name: v for v in type_views})
-    for v in type_views:
+    views.update({v.name: v for v in type_link_views})
+    for v in type_views + type_link_views:
         views.move_to_end(v.name, last=False)
 
     te_view = _generate_type_element_view(schema, type_fields)
@@ -2663,6 +2678,8 @@ async def _execute_block(conn, block):
     try:
         await conn.execute(sql_text)
     except Exception as e:
+        import edb.common.debug
+        edb.common.debug.dump(e.__dict__)
         position = getattr(e, 'position', None)
         internal_position = getattr(e, 'internal_position', None)
         context = getattr(e, 'context', '')

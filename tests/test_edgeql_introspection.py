@@ -448,6 +448,76 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_introspection_function_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT `Function` {
+                    name,
+                    attributes: { name, @value },
+                    params: {
+                        kind,
+                        name,
+                        num,
+                        typemod,
+                        type: { name },
+                        default,
+                    },
+                    return_typemod,
+                    return_type: {
+                        name,
+                        [IS Tuple].element_types: {
+                            name,
+                            type: {
+                                name
+                            }
+                        } ORDER BY .num
+                    },
+                }
+                FILTER .name = 'std::count' OR .name = 'sys::get_version'
+                ORDER BY .name;
+            """,
+            [
+                {
+                    "name": "std::count",
+                    "attributes": [],
+                    "params": [
+                        {
+                            "kind": "POSITIONAL",
+                            "name": "s",
+                            "num": 0,
+                            "typemod": "SET OF",
+                            "type": {"name": "anytype"},
+                            "default": None
+                        }
+                    ],
+                    "return_typemod": "SINGLETON",
+                    "return_type": {"name": "std::int64", "element_types": []}
+                },
+                {
+                    "name": "sys::get_version",
+                    "attributes": [],
+                    "params": [],
+                    "return_typemod": "SINGLETON",
+                    "return_type": {
+                        "name": "tuple",
+                        "element_types": [
+                            {"name": "major",
+                             "type": {"name": "std::int64"}},
+                            {"name": "minor",
+                             "type": {"name": "std::int64"}},
+                            {"name": "stage",
+                             "type": {"name": "sys::version_stage"}},
+                            {"name": "stage_no",
+                             "type": {"name": "std::int64"}},
+                            {"name": "local",
+                             "type": {"name": "array"}}
+                        ]
+                    }
+                }
+            ]
+        )
+
     async def test_edgeql_introspection_meta_01(self):
         await self.assert_query_result(
             r'''

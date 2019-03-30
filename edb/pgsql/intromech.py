@@ -522,7 +522,7 @@ class IntrospectionMech:
             }
 
             for t in types:
-                if t['is_root']:
+                if t['position'] is None:
                     node = self._unpack_typedesc_node(typemap, t['id'], schema)
                     result.append(node)
 
