@@ -77,7 +77,8 @@ def init_dml_stmt(
     target_ir_set = ir_stmt.subject
 
     dml_stmt.relation = dbobj.range_for_set(
-        ir_stmt.subject, include_overlays=False, env=ctx.env)
+        ir_stmt.subject, include_overlays=False,
+        common_parent=True, env=ctx.env)
     pathctx.put_path_value_rvar(
         dml_stmt, target_ir_set.path_id, dml_stmt.relation, env=ctx.env)
     pathctx.put_path_source_rvar(

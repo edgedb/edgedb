@@ -376,3 +376,87 @@ class TestDelete(tb.QueryTestCase):
                 'sugar delete 6',
             },
         )
+
+    async def test_edgeql_delete_union(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            FOR x IN {'1', '2', '3', '4', '5', '6'}
+            UNION (INSERT DeleteTest {
+                name := 'delete union ' ++ x
+            });
+
+            WITH MODULE test
+            FOR x IN {'7', '8', '9'}
+            UNION (INSERT DeleteTest2 {
+                name := 'delete union ' ++ x
+            });
+
+            WITH MODULE test
+            INSERT DeleteTest { name := 'not delete union 1' };
+
+            WITH MODULE test
+            INSERT DeleteTest2 { name := 'not delete union 2' };
+        """)
+
+        await self.con.execute(r"""
+            WITH
+                MODULE test,
+                ToDelete := (
+                    (SELECT DeleteTest FILTER .name ILIKE 'delete union%')
+                    UNION
+                    (SELECT DeleteTest2 FILTER .name ILIKE 'delete union%')
+                )
+            DELETE ToDelete;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    test::DeleteTest
+                FILTER
+                    .name ILIKE 'delete union%';
+
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    test::DeleteTest {name}
+                FILTER
+                    .name ILIKE 'not delete union%';
+
+            """,
+            [{
+                'name': 'not delete union 1'
+            }],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    test::DeleteTest2
+                FILTER
+                    .name ILIKE 'delete union%';
+
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    test::DeleteTest2 {name}
+                FILTER
+                    .name ILIKE 'not delete union%';
+
+            """,
+            [{
+                'name': 'not delete union 2'
+            }],
+        )

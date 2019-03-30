@@ -78,6 +78,9 @@ class TypeRef(ImmutableBase):
     # If this is a union type, this would be a set of
     # union elements.
     children: typing.FrozenSet['TypeRef']
+    # If this is a union type, this would be the nearest common
+    # ancestor of the union members.
+    common_parent: typing.Optional['TypeRef']
     # If this node is an element of a collection, and the
     # collection elements are named, this would be then
     # name of the element.

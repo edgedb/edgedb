@@ -29,6 +29,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from . import ast as irast
 
@@ -123,6 +124,13 @@ def type_to_typeref(schema, t: s_types.Type, *,
             name = t.get_name(schema)
         module = schema.get_global(s_mod.Module, name.module)
 
+        if children:
+            common_parent = s_utils.get_class_nearest_common_ancestor(
+                schema, t.children(schema))
+            common_parent_ref = type_to_typeref(schema, common_parent)
+        else:
+            common_parent_ref = None
+
         result = irast.TypeRef(
             id=t.id,
             module_id=module.id,
@@ -130,6 +138,7 @@ def type_to_typeref(schema, t: s_types.Type, *,
             material_type=material_typeref,
             base_type=base_typeref,
             children=children,
+            common_parent=common_parent_ref,
             element_name=_name,
             is_scalar=t.is_scalar(),
             is_abstract=t.get_is_abstract(schema),

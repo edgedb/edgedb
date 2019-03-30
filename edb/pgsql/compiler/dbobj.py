@@ -103,12 +103,17 @@ def range_for_typeref(
         typeref: irast.TypeRef,
         path_id: irast.PathId, *,
         include_overlays: bool=True,
+        common_parent: bool=False,
         env: context.Environment) -> pgast.BaseRangeVar:
     from . import pathctx  # XXX: fix cycle
 
     if not typeref.children:
         rvar = range_for_material_objtype(
             typeref, path_id, include_overlays=include_overlays, env=env)
+    elif common_parent:
+        rvar = range_for_material_objtype(
+            typeref.common_parent, path_id,
+            include_overlays=include_overlays, env=env)
     else:
         # Union object types are represented as a UNION of selects
         # from their children, which is, for most purposes, equivalent
@@ -125,6 +130,9 @@ def range_for_typeref(
             )
 
             pathctx.put_path_value_rvar(qry, path_id, c_rvar, env=env)
+            if path_id.is_objtype_path():
+                pathctx.put_path_source_rvar(qry, path_id, c_rvar, env=env)
+
             pathctx.put_path_bond(qry, path_id)
 
             set_ops.append(('union', qry))
@@ -139,10 +147,14 @@ def range_for_typeref(
 def range_for_set(
         ir_set: irast.Set, *,
         include_overlays: bool=True,
+        common_parent: bool=False,
         env: context.Environment) -> pgast.BaseRangeVar:
     return range_for_typeref(
-        ir_set.typeref, ir_set.path_id,
-        include_overlays=include_overlays, env=env)
+        ir_set.typeref,
+        ir_set.path_id,
+        include_overlays=include_overlays,
+        common_parent=common_parent,
+        env=env)
 
 
 def table_from_ptrref(
