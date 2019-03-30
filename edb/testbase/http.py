@@ -25,6 +25,7 @@ import urllib.request
 
 import edgedb
 
+from edb.errors import base as base_errors
 from edb.server import cluster
 
 from . import server
@@ -199,8 +200,10 @@ class GraphQLTestCase(BaseHttpTest, server.QueryTestCase):
 
         if 'locations' in err:
             # XXX Fix this when LSP "location" objects are implemented
-            ex._attrs['L'] = err['locations'][0]['line']
-            ex._attrs['C'] = err['locations'][0]['column']
+            ex._attrs[base_errors.FIELD_LINE] = str(
+                err['locations'][0]['line']).encode()
+            ex._attrs[base_errors.FIELD_COLUMN] = str(
+                err['locations'][0]['column']).encode()
 
         raise ex
 

@@ -204,9 +204,9 @@ cdef class PGProto:
                 return
             else:
                 if not self.parse_notification():
-                    if PG_DEBUG:
-                        print(f'PGCon.wait_for_sync: discarding '
-                              f'{chr(mtype)!r} message')
+                    if PG_DEBUG or self.debug:
+                        self.debug_print(f'PGCon.wait_for_sync: discarding '
+                                         f'{chr(mtype)!r} message')
                     self.buffer.discard_message()
 
     cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf):
@@ -266,7 +266,8 @@ cdef class PGProto:
         bind_buf.write_bytestring(b'')  # portal name
         bind_buf.write_bytestring(stmt_name)  # statement name
         bind_buf.write_int32(0x00010001)  # binary for all parameters
-        bind_buf.write_int16(len(args))  # number of parameters
+        # number of parameters
+        bind_buf.write_int16(<int16_t><uint16_t>(len(args)))
 
         for arg in args:
             jarg = json.dumps(arg)
@@ -377,7 +378,7 @@ cdef class PGProto:
 
             bint has_result = query.cardinality is not CARD_NA
 
-            uint64_t msgs_num = len(query.sql)
+            uint64_t msgs_num = <uint64_t>(len(query.sql))
             uint64_t msgs_parsed = 0
             uint64_t msgs_executed = 0
             uint64_t i
@@ -636,13 +637,13 @@ cdef class PGProto:
         buf.write_bytestring(b'false')
 
         buf.write_bytestring(b'search_path')
-        buf.write_utf8('edgedb')
+        buf.write_bytestring(b'edgedb')
 
-        buf.write_utf8('user')
-        buf.write_utf8(defines.EDGEDB_SUPERUSER)
+        buf.write_bytestring(b'user')
+        buf.write_bytestring(defines.EDGEDB_SUPERUSER.encode('utf-8'))
 
-        buf.write_utf8('database')
-        buf.write_utf8(self.dbname)
+        buf.write_bytestring(b'database')
+        buf.write_bytestring(self.dbname.encode('utf-8'))
 
         buf.write_bytestring(b'')
 
@@ -770,6 +771,9 @@ cdef class PGProto:
             self.xact_status = PQTRANS_INERROR
         else:
             self.xact_status = PQTRANS_UNKNOWN
+
+        if self.debug:
+            self.debug_print('SYNC MSG', self.xact_status)
 
         self.buffer.finish_message()
 

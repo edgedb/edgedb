@@ -54,6 +54,7 @@ from edb.server.pgcon import errors as pgerror
 from edb.schema import objects as s_obj
 
 from edb import errors
+from edb.errors import base as base_errors
 from edb.common import debug
 
 from edgedb import scram
@@ -177,8 +178,8 @@ cdef class EdgeConnection:
         await self.wait_for_message()
         mtype = self.buffer.get_message_type()
         if mtype == b'0':
-            user = self.buffer.read_utf8()
-            database = self.buffer.read_utf8()
+            user = self.buffer.read_len_prefixed_utf8()
+            database = self.buffer.read_len_prefixed_utf8()
             self.buffer.finish_message()
 
             logger.debug('received connection request by %s to database %s',
@@ -227,8 +228,9 @@ cdef class EdgeConnection:
 
             if self.port.in_dev_mode():
                 msg_buf = WriteBuffer.new_message(b'S')
-                msg_buf.write_utf8('pgaddr')
-                msg_buf.write_utf8(str(self.backend.pgcon.get_pgaddr()))
+                msg_buf.write_len_prefixed_bytes(b'pgaddr')
+                msg_buf.write_len_prefixed_utf8(
+                    str(self.backend.pgcon.get_pgaddr()))
                 msg_buf.end_message()
                 buf.write_buffer(msg_buf)
 
@@ -269,7 +271,7 @@ cdef class EdgeConnection:
         # of zero-terminated strings identifying each method,
         # sorted in the order of server preference.
         msg_buf.write_int32(1)
-        msg_buf.write_utf8('SCRAM-SHA-256')
+        msg_buf.write_len_prefixed_bytes(b'SCRAM-SHA-256')
         msg_buf.end_message()
         self.write(msg_buf)
         self.flush()
@@ -291,24 +293,17 @@ cdef class EdgeConnection:
 
             if selected_mech is None:
                 # Initial response.
-                selected_mech = self.buffer.read_utf8()
-
-                if selected_mech != 'SCRAM-SHA-256':
+                selected_mech = self.buffer.read_len_prefixed_bytes()
+                if selected_mech != b'SCRAM-SHA-256':
                     raise errors.BinaryProtocolError(
                         f'client selected an invalid SASL authentication '
                         f'mechanism')
 
                 verifier, mock_auth = await self._get_scram_verifier(user)
-
-                client_first_len = self.buffer.read_int32()
-                if client_first_len == -1 or client_first_len == 0:
-                    client_first = None
-                else:
-                    client_first = self.buffer.read_bytes(client_first_len)
-
+                client_first = self.buffer.read_len_prefixed_bytes()
                 self.buffer.finish_message()
 
-                if client_first is None:
+                if not client_first:
                     # The client didn't send the Client Initial Response
                     # in SASLInitialResponse, this is an error.
                     raise errors.BinaryProtocolError(
@@ -343,14 +338,15 @@ cdef class EdgeConnection:
                 # AuthenticationSASLContinue
                 msg_buf = WriteBuffer.new_message(b'R')
                 msg_buf.write_int32(11)
-                msg_buf.write_bytes(server_first)
+                msg_buf.write_len_prefixed_bytes(server_first)
                 msg_buf.end_message()
                 self.write(msg_buf)
                 self.flush()
 
             else:
                 # client final message
-                client_final = self.buffer.consume_message()
+                client_final = self.buffer.read_len_prefixed_bytes()
+                self.buffer.finish_message()
 
                 try:
                     cb_data, client_proof, proof_len = (
@@ -393,7 +389,7 @@ cdef class EdgeConnection:
                 # AuthenticationSASLFinal
                 msg_buf = WriteBuffer.new_message(b'R')
                 msg_buf.write_int32(12)
-                msg_buf.write_bytes(server_final.encode('utf-8'))
+                msg_buf.write_len_prefixed_utf8(server_final)
                 msg_buf.end_message()
                 self.write(msg_buf)
                 self.flush()
@@ -535,7 +531,7 @@ cdef class EdgeConnection:
             WriteBuffer msg
             WriteBuffer packet
 
-        eql = self.buffer.read_null_str()
+        eql = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
         if not eql:
             raise errors.BinaryProtocolError('empty query')
@@ -649,13 +645,13 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unknown expected cardinality "{repr(card)[2:-1]}"')
 
-    cdef render_cardinality(self, query_unit):
+    cdef char render_cardinality(self, query_unit) except -1:
         if query_unit.cardinality is CARD_NA:
-            return b'n'
+            return <char>(b'n')
         elif query_unit.cardinality is CARD_ONE:
-            return b'o'
+            return <char>(b'o')
         elif query_unit.cardinality is CARD_MANY:
-            return b'm'
+            return <char>(b'm')
         else:
             raise errors.InternalServerError(
                 f'unknown cardinality {query_unit.cardinality!r}')
@@ -683,19 +679,19 @@ cdef class EdgeConnection:
             self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
         )
 
-        stmt_name = self.buffer.read_utf8()
+        stmt_name = self.buffer.read_len_prefixed_bytes()
         if stmt_name:
             raise errors.UnsupportedFeatureError(
                 'prepared statements are not yet supported')
 
-        eql = self.buffer.read_null_str()
+        eql = self.buffer.read_len_prefixed_bytes()
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
         query_unit = await self._parse(eql, json_mode, expect_one)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
-        buf.write_bytes(self.render_cardinality(query_unit))
+        buf.write_byte(self.render_cardinality(query_unit))
         buf.write_bytes(query_unit.in_type_id)
         buf.write_bytes(query_unit.out_type_id)
         buf.end_message()
@@ -710,29 +706,25 @@ cdef class EdgeConnection:
 
         msg = WriteBuffer.new_message(b'T')
 
-        msg.write_bytes(self.render_cardinality(query_unit))
+        msg.write_byte(self.render_cardinality(query_unit))
 
         in_data = query_unit.in_type_data
         msg.write_bytes(query_unit.in_type_id)
-        msg.write_int16(len(in_data))
-        msg.write_bytes(in_data)
+        msg.write_len_prefixed_bytes(in_data)
 
         out_data = query_unit.out_type_data
         msg.write_bytes(query_unit.out_type_id)
-        msg.write_int16(len(out_data))
-        msg.write_bytes(out_data)
+        msg.write_len_prefixed_bytes(out_data)
 
         msg.end_message()
         return msg
 
-    cdef WriteBuffer make_command_complete_msg(self, query_unit,
-                                               bytes details=b''):
+    cdef WriteBuffer make_command_complete_msg(self, query_unit):
         cdef:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'C')
-        msg.write_bytestring(query_unit.status)
-        msg.write_bytestring(details)
+        msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
 
     async def describe(self):
@@ -743,7 +735,7 @@ cdef class EdgeConnection:
         rtype = self.buffer.read_byte()
         if rtype == b'T':
             # describe "type id"
-            stmt_name = self.buffer.read_utf8()
+            stmt_name = self.buffer.read_len_prefixed_bytes()
 
             if stmt_name:
                 raise errors.UnsupportedFeatureError(
@@ -823,6 +815,16 @@ cdef class EdgeConnection:
                 raise
             except Exception:
                 self.dbview.on_error(query_unit)
+
+                if not process_sync and self.dbview.in_tx():
+                    # An exception occurred while in transaction.
+                    # This "execute" command is not immediately followed by
+                    # a "sync" command, so we don't know the current tx
+                    # status of the Postgres connection.  Query it to
+                    # be able to figure out the tx status of this EdgeDB
+                    # connection with the next "if" block.
+                    await self.backend.pgcon.sync()
+
                 if not self.backend.pgcon.in_tx() and self.dbview.in_tx():
                     # COMMIT command can fail, in which case the
                     # transaction is finished.  This check workarounds
@@ -851,8 +853,9 @@ cdef class EdgeConnection:
             WriteBuffer bound_args_buf
             bint process_sync
 
-        stmt_name = self.buffer.read_utf8()
-        bind_args = self.buffer.consume_message()
+        stmt_name = self.buffer.read_len_prefixed_bytes()
+        bind_args = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
         query_unit = None
 
         if self.debug:
@@ -882,10 +885,11 @@ cdef class EdgeConnection:
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
         )
-        query = self.buffer.read_null_str()
+        query = self.buffer.read_len_prefixed_bytes()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
-        bind_args = self.buffer.consume_message()
+        bind_args = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
 
         if not query:
             raise errors.BinaryProtocolError('empty query')
@@ -1071,6 +1075,7 @@ cdef class EdgeConnection:
     async def write_error(self, exc):
         cdef:
             WriteBuffer buf
+            int16_t fields_len
 
         if debug.flags.server:
             self.loop.call_exception_handler({
@@ -1095,10 +1100,12 @@ cdef class EdgeConnection:
                     'unhandled error while calling interpret_backend_error()')
 
         fields = None
+        fields_len = 0
         if (isinstance(exc, errors.EdgeDBError) and
                 type(exc) is not errors.EdgeDBError):
             exc_code = exc.get_code()
             fields = exc._attrs
+            fields_len = <int16_t><uint16_t>(len(fields))
 
         if not exc_code:
             exc_code = errors.InternalServerError.get_code()
@@ -1117,18 +1124,15 @@ cdef class EdgeConnection:
         buf = WriteBuffer.new_message(b'E')
         buf.write_int32(<int32_t><uint32_t>exc_code)
 
-        buf.write_utf8(str(exc))
+        buf.write_len_prefixed_utf8(str(exc))
 
+        buf.write_int16(fields_len + 1)
         if fields is not None:
             for k, v in fields.items():
-                assert len(k) == 1
-                buf.write_byte(ord(k.encode()))
-                buf.write_utf8(str(v))
-
-        buf.write_byte(b'T')
-        buf.write_utf8(formatted_error)
-
-        buf.write_byte(b'\x00')
+                buf.write_int16(<int16_t><uint16_t>k)
+                buf.write_len_prefixed_utf8(str(v))
+        buf.write_int16(base_errors.FIELD_SERVER_TRACEBACK)
+        buf.write_len_prefixed_utf8(formatted_error)
 
         buf.end_message()
 
@@ -1185,8 +1189,6 @@ cdef class EdgeConnection:
 
         # all parameters are in binary
         out_buf.write_int32(0x00010001)
-
-        frb_read(&in_buf, 4)  # ignore buffer length
 
         # number of elements in the tuple
         argsnum = hton.unpack_int32(frb_read(&in_buf, 4))

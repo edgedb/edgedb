@@ -114,8 +114,9 @@ def interpret_backend_error(schema, fields):
                 pass
             else:
                 err = errcls(message)
-                err._attrs['L'] = detail_json.get('line')
-                err._attrs['C'] = detail_json.get('column')
+                err.set_linecol(
+                    detail_json.get('line', -1),
+                    detail_json.get('column', -1))
                 return err
 
     try:

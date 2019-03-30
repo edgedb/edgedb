@@ -27,6 +27,8 @@ import uuid
 import edgedb
 from edgedb import introspect
 
+from edb.errors import base as base_errors
+
 from edb.common.markup.renderers import terminal
 from edb.common.markup.renderers import styles
 
@@ -345,14 +347,21 @@ def render_error(repl_ctx: context.ReplContext, error):
 def render_exception(repl_ctx: context.ReplContext, exc, *, query=None):
     print(f'{type(exc).__name__}: {exc}')
 
+    def read_str_field(key, default=None):
+        val = exc._attrs.get(key)
+        if val:
+            return val.decode('utf-8')
+        return default
+
     if isinstance(exc, edgedb.EdgeDBError):
-        exc_hint = exc._attrs.get('H')
+        exc_hint = read_str_field(base_errors.FIELD_HINT)
         if exc_hint:
+            exc_hint = exc_hint.decode()
             print(f'Hint: {exc_hint}')
 
         if query:
-            exc_line = int(exc._attrs.get('L', -1))
-            exc_col = int(exc._attrs.get('C', -1))
+            exc_line = int(read_str_field(base_errors.FIELD_LINE, -1))
+            exc_col = int(read_str_field(base_errors.FIELD_COLUMN, -1))
             if exc_line >= 0 and exc_col >= 0:
                 for lineno, line in enumerate(query.split('\n'), 1):
                     print('###', line)

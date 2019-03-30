@@ -61,8 +61,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         self._attrs = {}
 
         if isinstance(context, pctx.ParserContext):
-            self._attrs['L'] = context.start.line
-            self._attrs['C'] = context.start.column
+            self.set_linecol(context.start.line, context.start.column)
             self.set_source_context(context)
 
         self.set_hint_and_details(hint, details)
@@ -78,38 +77,53 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
             raise RuntimeError('EdgeDB exception code is not set')
         return cls._code
 
+    def set_linecol(self, line, col):
+        self._attrs[FIELD_LINE] = str(line)
+        self._attrs[FIELD_COLUMN] = str(col)
+
     def set_hint_and_details(self, hint, details=None):
         ex.replace_context(
             self, ex.DefaultExceptionContext(hint=hint, details=details))
 
         if hint is not None:
-            self._attrs['H'] = hint
+            self._attrs[FIELD_HINT] = hint
         if details is not None:
-            self._attrs['D'] = details
+            self._attrs[FIELD_DETAILS] = details
 
     def set_source_context(self, context):
         ex.replace_context(self, context)
 
         if context.start is not None:
-            self._attrs['P'] = str(context.start.pointer)
-            self._attrs['p'] = str(context.end.pointer)
+            self._attrs[FIELD_POSITION_START] = str(context.start.pointer)
+            self._attrs[FIELD_POSITION_END] = str(context.end.pointer)
 
     @property
     def line(self):
-        return int(self._attrs.get('L', -1))
+        return int(self._attrs.get(FIELD_LINE, -1))
 
     @property
     def col(self):
-        return int(self._attrs.get('C', -1))
+        return int(self._attrs.get(FIELD_COLUMN, -1))
 
     @property
     def position(self):
-        return int(self._attrs.get('P'))
+        return int(self._attrs.get(FIELD_POSITION_START))
 
     @property
     def hint(self):
-        return self._attrs.get('H')
+        return self._attrs.get(FIELD_HINT)
 
     @property
     def details(self):
-        return self._attrs.get('D')
+        return self._attrs.get(FIELD_DETAILS)
+
+
+FIELD_HINT = 0x_00_01
+FIELD_DETAILS = 0x_00_02
+FIELD_SERVER_TRACEBACK = 0x_01_01
+
+# XXX: Subject to be changed/deprecated.
+FIELD_POSITION_START = 0x_FF_F1
+FIELD_POSITION_END = 0x_FF_F2
+FIELD_LINE = 0x_FF_F3
+FIELD_COLUMN = 0x_FF_F4

@@ -36,6 +36,8 @@ from prompt_toolkit import shortcuts as pt_shortcuts
 from prompt_toolkit import styles as pt_styles
 from prompt_toolkit import lexers as pt_lexers
 
+from edb.errors import base as base_errors
+
 from edb.common import term
 from edb.edgeql import pygments as eql_pygments
 
@@ -350,8 +352,9 @@ class Cli:
 
         print(f'CODE: {hex(exc.get_code())}')
 
-        hint = attrs.get('H')
+        hint = attrs.get(base_errors.FIELD_HINT)
         if hint:
+            hint = hint.decode('utf-8')
             print(f'HINT: {hint}')
 
         srv_tb = exc.get_server_context()

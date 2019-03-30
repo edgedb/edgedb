@@ -73,7 +73,7 @@ cdef class EdgeConnection:
 
     cdef parse_json_mode(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
-    cdef render_cardinality(self, query_unit)
+    cdef char render_cardinality(self, query_unit) except -1
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
@@ -87,5 +87,4 @@ cdef class EdgeConnection:
     cdef WriteBuffer recode_bind_args(self, bytes bind_args)
 
     cdef WriteBuffer make_describe_msg(self, query_unit)
-    cdef WriteBuffer make_command_complete_msg(
-        self, query_unit, bytes details=?)
+    cdef WriteBuffer make_command_complete_msg(self, query_unit)

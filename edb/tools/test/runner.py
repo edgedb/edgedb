@@ -808,7 +808,7 @@ class ParallelTextTestRunner:
                 self._fill('-', fg=fg)
                 if _is_exc_info(err):
                     if isinstance(err[1], edgedb.EdgeDBError):
-                        srv_tb = err[1]._attrs.get('T')
+                        srv_tb = err[1].get_server_context()
                         if srv_tb:
                             self._echo('Server Traceback:',
                                        fg='red', bold=True)

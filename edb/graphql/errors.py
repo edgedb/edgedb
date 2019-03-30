@@ -31,8 +31,7 @@ class GraphQLError(errors.QueryError):
         if loc:
             # XXX Will be fixes when we have proper LSP SourceLocation
             # abstraction.
-            self._attrs['L'] = loc[0]
-            self._attrs['C'] = loc[1]
+            self.set_linecol(loc[0], loc[1])
 
 
 class GraphQLTranslationError(GraphQLError):
