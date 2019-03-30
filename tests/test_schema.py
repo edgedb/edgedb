@@ -202,18 +202,18 @@ _123456789_123456789_123456789 -> str
             frozenset({
                 foo,         # Object 1 is a Object2.foo target
                 foo_target,  # and also a target of its @target property
-                Obj3,        # It is also in Object3's bases and mro
+                Obj3,        # It is also in Object3's bases and ancestors
                 Obj4,        # Likewise for Object4
-                Obj6,        # Object6 through its mro
+                Obj6,        # Object6 through its ancestors
             })
         )
 
         self.assertEqual(
             schema.get_referrers(Obj1, scls_type=s_objtypes.ObjectType),
             {
-                Obj3,        # It is also in Object3's bases and mro
+                Obj3,        # It is also in Object3's bases and ancestors
                 Obj4,        # Likewise for Object4
-                Obj6,        # Object6 through its mro
+                Obj6,        # Object6 through its ancestors
             }
         )
 
@@ -242,7 +242,7 @@ _123456789_123456789_123456789 -> str
             frozenset({
                 foo,         # Object 1 is a Object2.foo target
                 foo_target,  # and also a target of its @target property
-                Obj3,        # It is also in Object3's bases and mro
+                Obj3,        # It is also in Object3's bases and ancestors
             })
         )
 

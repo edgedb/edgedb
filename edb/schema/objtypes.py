@@ -63,7 +63,7 @@ class ObjectType(BaseObjectType, constraints.ConsistencySubject,
                 and not l.get_source(schema).is_view(schema))
         }
 
-        for obj in self.get_mro(schema).objects(schema):
+        for obj in self.get_ancestors(schema).objects(schema):
             ptrs.update(
                 l for l in schema.get_referrers(obj, scls_type=links.Link,
                                                 field_name='target')

@@ -239,7 +239,8 @@ def _find_cast(
 
     casts = ctx.env.schema.get_casts_to_type(new_stype)
     if not casts and not new_stype.is_collection():
-        for t in new_stype.get_mro(ctx.env.schema).objects(ctx.env.schema):
+        ancestors = new_stype.get_ancestors(ctx.env.schema)
+        for t in ancestors.objects(ctx.env.schema):
             casts = ctx.env.schema.get_casts_to_type(t)
             if casts:
                 break

@@ -399,7 +399,8 @@ class GQLCoreSchema:
             if t_name in self._gql_interfaces:
                 interfaces.append(self._gql_interfaces[t_name])
 
-            for st in t.get_mro(self.edb_schema).objects(self.edb_schema):
+            ancestors = t.get_ancestors(self.edb_schema)
+            for st in ancestors.objects(self.edb_schema):
                 if (isinstance(st, s_objtypes.ObjectType) and
                         st.get_name(self.edb_schema) in self._gql_interfaces):
                     interfaces.append(

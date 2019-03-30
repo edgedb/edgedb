@@ -98,7 +98,7 @@ CREATE ABSTRACT TYPE schema::AttributeSubject EXTENDING schema::Object {
 
 CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
     CREATE MULTI LINK bases -> schema::InheritingObject;
-    CREATE MULTI LINK mro -> schema::InheritingObject;
+    CREATE MULTI LINK ancestors -> schema::InheritingObject;
 
     CREATE PROPERTY is_abstract -> std::bool {
         SET default := false;

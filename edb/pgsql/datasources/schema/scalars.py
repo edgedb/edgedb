@@ -36,7 +36,7 @@ async def fetch(
             c.expr AS expr,
             c.enum_values AS enum_values,
             edgedb._resolve_type_name(c.bases) AS bases,
-            edgedb._resolve_type_name(c.mro) AS mro,
+            edgedb._resolve_type_name(c.ancestors) AS ancestors,
             c.default AS default
         FROM
             edgedb.ScalarType c

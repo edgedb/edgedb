@@ -1906,7 +1906,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
     async def test_edgeql_ddl_extending_03(self):
-        # Check that the mro is recomputed properly on rebase.
+        # Check that ancestors are recomputed properly on rebase.
         await self.con.execute(r"""
             CREATE TYPE test::ExtA3;
             CREATE TYPE test::ExtB3 EXTENDING test::ExtA3;
@@ -1916,7 +1916,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.assert_query_result(
             r"""
                 SELECT (SELECT schema::ObjectType
-                        FILTER .name = 'test::ExtC3').mro.name;
+                        FILTER .name = 'test::ExtC3').ancestors.name;
             """,
             {'std::Object', 'test::ExtA3', 'test::ExtB3'}
         )
@@ -1928,7 +1928,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.assert_query_result(
             r"""
                 SELECT (SELECT schema::ObjectType
-                        FILTER .name = 'test::ExtC3').mro.name;
+                        FILTER .name = 'test::ExtC3').ancestors.name;
             """,
             {'std::Object', 'test::ExtB3'}
         )

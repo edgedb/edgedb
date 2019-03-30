@@ -248,7 +248,7 @@ def _validate_op(
         ptr = None
 
         mro = [cfg_type] + list(
-            cfg_type.get_mro(ctx.env.schema).objects(ctx.env.schema))
+            cfg_type.get_ancestors(ctx.env.schema).objects(ctx.env.schema))
         for ct in mro:
             ptrs = ctx.env.schema.get_referrers(
                 ct, scls_type=s_links.Link, field_name='target')

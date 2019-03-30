@@ -816,7 +816,7 @@ class CreateObject(CreateOrAlterObject):
                 )
                 for b in base_names
             ]
-        elif op.property == 'mro':
+        elif op.property == 'ancestors':
             pass
         elif op.property == 'is_abstract':
             node.is_abstract = op.new_value

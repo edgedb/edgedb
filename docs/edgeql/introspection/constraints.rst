@@ -30,7 +30,7 @@ Introspection of the ``schema::Constraint``:
                 Object { name: 'args' },
                 Object { name: 'attributes' },
                 Object { name: 'bases' },
-                Object { name: 'mro' },
+                Object { name: 'ancestors' },
                 Object { name: 'params' },
                 Object { name: 'return_type' },
                 Object { name: 'subject' }

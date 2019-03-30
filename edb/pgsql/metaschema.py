@@ -576,7 +576,7 @@ class IssubclassFunction(dbops.Function):
     text = '''
         SELECT
             clsid = any(classes) OR (
-                SELECT classes && o.mro
+                SELECT classes && o.ancestors
                 FROM edgedb.InheritingObject o
                 WHERE o.id = clsid
             );
@@ -595,7 +595,7 @@ class IssubclassFunction2(dbops.Function):
     text = '''
         SELECT
             clsid = pclsid OR (
-                SELECT pclsid = any(o.mro)
+                SELECT pclsid = any(o.ancestors)
                 FROM edgedb.InheritingObject o
                 WHERE o.id = clsid
             );
@@ -1716,12 +1716,12 @@ def make_register_any_command():
     pseudo_type_table = get_metaclass_table(s_pseudo.PseudoType)
 
     anytype = pseudo_type_table.record
-    anytype.mro = None
+    anytype.ancestors = None
     anytype.id = s_obj.get_known_type_id('anytype')
     anytype.name = 'anytype'
 
     anytuple = pseudo_type_table.record
-    anytuple.mro = None
+    anytuple.ancestors = None
     anytuple.id = s_obj.get_known_type_id('anytuple')
     anytuple.name = 'anytuple'
 
@@ -1872,7 +1872,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     FROM
                     {schematab} s
                     LEFT JOIN LATERAL
-                        UNNEST(s.mro) WITH ORDINALITY
+                        UNNEST(s.ancestors) WITH ORDINALITY
                                     AS ancestry(ancestor, depth) ON true
 
                     UNION ALL

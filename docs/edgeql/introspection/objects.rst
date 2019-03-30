@@ -32,7 +32,7 @@ Introspection of the ``schema::ObjectType``:
                 Object { name: 'constraints' },
                 Object { name: 'indexes' },
                 Object { name: 'links' },
-                Object { name: 'mro' },
+                Object { name: 'ancestors' },
                 Object { name: 'pointers' },
                 Object { name: 'properties' }
             },
@@ -73,7 +73,7 @@ Introspection of ``User``:
     ...     is_abstract,
     ...     is_final,
     ...     bases: { name },
-    ...     mro: { name },
+    ...     ancestors: { name },
     ...     attributes: { name, @value },
     ...     links: {
     ...         name,
@@ -97,7 +97,7 @@ Introspection of ``User``:
             is_abstract: false,
             is_final: false,
             bases: {Object { name: 'default::Addressable' }},
-            mro: {
+            ancestors: {
                 Object { name: 'std::Object' },
                 Object { name: 'default::Addressable' }
             },

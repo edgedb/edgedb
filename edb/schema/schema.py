@@ -601,10 +601,10 @@ class Schema:
             for c in _virtual_children.objects(self):
                 descendants.add(c)
                 descendants.update(self.get_referrers(
-                    c, scls_type=type(scls), field_name='mro'))
+                    c, scls_type=type(scls), field_name='ancestors'))
         else:
             descendants.update(self.get_referrers(
-                scls, scls_type=type(scls), field_name='mro'))
+                scls, scls_type=type(scls), field_name='ancestors'))
 
         return frozenset(descendants)
 

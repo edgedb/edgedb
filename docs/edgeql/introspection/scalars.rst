@@ -30,7 +30,7 @@ Introspection of the ``schema::ScalarType``:
                 Object { name: 'attributes' },
                 Object { name: 'bases' },
                 Object { name: 'constraints' },
-                Object { name: 'mro' }
+                Object { name: 'ancestors' }
             },
             properties: {
                 Object { name: 'default' },
@@ -55,7 +55,7 @@ Introspection of the built-in scalar :eql:type:`str`:
     ...     is_abstract,
     ...     is_final,
     ...     bases: { name },
-    ...     mro: { name },
+    ...     ancestors: { name },
     ...     attributes: { name, @value },
     ...     constraints: { name },
     ... }
@@ -68,7 +68,7 @@ Introspection of the built-in scalar :eql:type:`str`:
             is_abstract: {},
             is_final: {},
             bases: {Object { name: 'std::anyscalar' }},
-            mro: {Object { name: 'std::anyscalar' }},
+            ancestors: {Object { name: 'std::anyscalar' }},
             attributes: {},
             constraints: {}
         }
@@ -93,7 +93,7 @@ Introspection of the enum scalar ``color_enum_t``:
     ...     is_abstract,
     ...     is_final,
     ...     bases: { name },
-    ...     mro: { name },
+    ...     ancestors: { name },
     ...     attributes: { name, @value },
     ...     constraints: { name },
     ... }
@@ -106,7 +106,7 @@ Introspection of the enum scalar ``color_enum_t``:
             is_abstract: {},
             is_final: true,
             bases: {Object { name: 'std::anyenum' }},
-            mro: {
+            ancestors: {
                 Object { name: 'std::anyscalar' },
                 Object { name: 'std::anyenum' }
             },

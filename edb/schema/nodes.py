@@ -70,8 +70,8 @@ class Node(inheriting.InheritingObject, s_types.Type):
         if ancestor == self:
             return 0
         else:
-            mro = list(self.get_mro(schema).objects(schema))
-            return mro.index(ancestor) + 1
+            ancestors = list(self.get_ancestors(schema).objects(schema))
+            return ancestors.index(ancestor) + 1
 
 
 class NodeCommandContext:

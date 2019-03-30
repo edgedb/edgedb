@@ -261,14 +261,14 @@ class RebaseInheritingObject(sd.ObjectCommand):
                 bases = []
 
         schema = scls.set_field_value(schema, 'bases', bases)
-        new_mro = compute_mro(schema, scls)[1:]
-        schema = scls.set_field_value(schema, 'mro', new_mro)
+        new_ancestors = compute_mro(schema, scls)[1:]
+        schema = scls.set_field_value(schema, 'ancestors', new_ancestors)
 
         if not self.has_attribute_value('bases'):
             self.set_attribute_value('bases', bases)
 
-        if not self.has_attribute_value('mro'):
-            self.set_attribute_value('mro', new_mro)
+        if not self.has_attribute_value('ancestors'):
+            self.set_attribute_value('ancestors', new_ancestors)
 
         alter_cmd = sd.ObjectCommandMeta.get_command_class(
             sd.AlterObject, metaclass)
@@ -276,12 +276,13 @@ class RebaseInheritingObject(sd.ObjectCommand):
         descendants = list(scls.descendants(schema))
         if descendants and not list(self.get_subcommands(type=alter_cmd)):
             for descendant in descendants:
-                new_mro = compute_mro(schema, descendant)[1:]
-                schema = descendant.set_field_value(schema, 'mro', new_mro)
+                new_ancestors = compute_mro(schema, descendant)[1:]
+                schema = descendant.set_field_value(
+                    schema, 'ancestors', new_ancestors)
                 alter = alter_cmd(classname=descendant.get_name(schema))
                 alter.add(sd.AlterObjectProperty(
-                    property='mro',
-                    new_value=new_mro,
+                    property='ancestors',
+                    new_value=new_ancestors,
                 ))
                 self.add(alter)
 
@@ -402,7 +403,7 @@ class InheritingObject(derivable.DerivableObject):
         default=so.ObjectList,
         coerce=True, inheritable=False, compcoef=0.714)
 
-    mro = so.SchemaField(
+    ancestors = so.SchemaField(
         so.ObjectList,
         coerce=True, default=None, hashable=False)
 
@@ -758,7 +759,7 @@ class InheritingObject(derivable.DerivableObject):
             schema, bases=bases, apply_defaults=apply_defaults,
             dctx=dctx)
         schema = self.set_field_value(
-            schema, 'mro', compute_mro(schema, self)[1:])
+            schema, 'ancestors', compute_mro(schema, self)[1:])
         schema = self.acquire_ancestor_inheritance(schema, dctx=dctx)
 
         if bases is None:
