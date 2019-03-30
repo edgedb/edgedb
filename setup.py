@@ -63,7 +63,7 @@ EXTRA_DEPS = {
     ],
 
     'docs': [
-        'Sphinx',
+        'Sphinx~=2.0.0',
         'lxml',
         'requests-xml',
     ],
