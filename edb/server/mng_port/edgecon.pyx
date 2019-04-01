@@ -93,7 +93,6 @@ cdef class EdgeConnection:
         self._reading_messages = False
 
         self._main_task = None
-        self._startup_msg_waiter = self.loop.create_future()
         self._msg_take_waiter = None
 
         self._last_anon_compiled = None
@@ -159,19 +158,17 @@ cdef class EdgeConnection:
 
     async def auth(self):
         cdef:
-            int16_t hi
-            int16_t lo
             char mtype
-
             WriteBuffer msg_buf
             WriteBuffer buf
 
-        await self._startup_msg_waiter
+        await self.wait_for_message()
+        mtype = self.buffer.get_message_type()
+        if mtype != b'V':
+            raise errors.BinaryProtocolError(
+                f'unexpected initial message: {mtype}, expected "V"')
 
-        hi = self.buffer.read_int16()
-        lo = self.buffer.read_int16()
-        if hi != 1 or lo != 0:
-            raise errors.UnsupportedProtocolVersionError
+        await self.negotiate_protocol()
 
         self._con_status = EDGECON_STARTED
 
@@ -245,6 +242,38 @@ cdef class EdgeConnection:
 
         else:
             self.fallthrough(False)
+
+    async def negotiate_protocol(self):
+        cdef:
+            uint16_t hi
+            uint16_t lo
+            int i
+            uint16_t nexts
+            dict exts = {}
+
+        hi = <uint16_t>self.buffer.read_int16()
+        lo = <uint16_t>self.buffer.read_int16()
+        nexts = <uint16_t>self.buffer.read_int16()
+
+        for i in range(nexts):
+            extname = self.buffer.read_len_prefixed_utf8()
+            exts[extname] = self.parse_headers()
+
+        self.buffer.finish_message()
+
+        if hi != 1 or lo != 0 or nexts > 0:
+            # NegotiateProtocolVersion
+            buf = WriteBuffer.new_message(b'v')
+            # Highest supported major version of the protocol.
+            buf.write_int16(1)
+            # Highest supported minor version of the protocol.
+            buf.write_int16(0)
+            # No extensions are currently supported.
+            buf.write_int16(0)
+            buf.end_message()
+
+            self.write(buf)
+            self.flush()
 
     async def _get_role_record(self, user):
         role_query = self.port.get_server().get_sys_query('role')
@@ -674,6 +703,22 @@ cdef class EdgeConnection:
         cdef int16_t nheaders = self.buffer.read_int16()
         if nheaders != 0:
             raise errors.BinaryProtocolError('unexpected headers')
+
+    cdef dict parse_headers(self):
+        cdef:
+            dict attrs
+            uint16_t num_fields
+            uint16_t key
+            bytes value
+
+        attrs = {}
+        num_fields = <uint16_t>self.buffer.read_int16()
+        while num_fields:
+            key = <uint16_t>self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
+            attrs[key] = value
+            num_fields -= 1
+        return attrs
 
     async def parse(self):
         cdef:
@@ -1240,11 +1285,7 @@ cdef class EdgeConnection:
 
     def data_received(self, data):
         self.buffer.feed_data(data)
-
-        if self._con_status == EDGECON_NEW and self.buffer.len() >= 4:
-            self._startup_msg_waiter.set_result(True)
-
-        elif self._msg_take_waiter is not None and self.buffer.take_message():
+        if self._msg_take_waiter is not None and self.buffer.take_message():
             self._msg_take_waiter.set_result(True)
             self._msg_take_waiter = None
 

@@ -90,3 +90,4 @@ cdef class EdgeConnection:
     cdef WriteBuffer make_command_complete_msg(self, query_unit)
 
     cdef inline reject_headers(self)
+    cdef dict parse_headers(self)
