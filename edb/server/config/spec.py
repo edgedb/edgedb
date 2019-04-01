@@ -142,6 +142,8 @@ def load_spec_from_schema(schema):
         if deflt is not None:
             deflt = qlcompiler.evaluate_to_python_val(
                 deflt.text, schema=schema)
+            if set_of and not isinstance(deflt, frozenset):
+                deflt = frozenset((deflt,))
 
         if deflt is None:
             if set_of:

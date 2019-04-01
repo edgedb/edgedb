@@ -20,6 +20,8 @@
 from edb import errors
 from edb.ir import ast as irast
 
+from edb.edgeql import qltypes
+
 from edb.pgsql import ast as pgast
 
 from . import astutils
@@ -36,9 +38,11 @@ def compile_ConfigSet(
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
     with ctx.new() as subctx:
-        subctx.singleton_mode = True
         val = dispatch.compile(op.expr, ctx=subctx)
-        val = output.serialize_expr(val, path_id=op.expr.path_id, env=ctx.env)
+        pathctx.get_path_serialized_output(
+            val, op.expr.path_id, env=ctx.env)
+        if op.cardinality is qltypes.Cardinality.MANY:
+            val = output.aggregate_json_output(val, op.expr, env=ctx.env)
 
     result_row = pgast.RowExpr(
         args=[

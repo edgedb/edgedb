@@ -331,6 +331,57 @@ def get_pg_type(
         return pgtypes.pg_type_from_ir_typeref(typeref)
 
 
+def aggregate_json_output(
+        stmt: pgast.Query,
+        ir_set: irast.Set, *,
+        env: context.Environment) -> pgast.Query:
+
+    subrvar = pgast.RangeSubselect(
+        subquery=stmt,
+        alias=pgast.Alias(
+            aliasname=env.aliases.get('aggw')
+        )
+    )
+
+    stmt_res = stmt.target_list[0]
+
+    if stmt_res.name is None:
+        stmt_res = stmt.target_list[0] = pgast.ResTarget(
+            name=env.aliases.get('v'),
+            val=stmt_res.val,
+        )
+
+    new_val = pgast.FuncCall(
+        name=_get_json_func('agg', env=env),
+        args=[pgast.ColumnRef(name=[stmt_res.name])]
+    )
+
+    new_val = pgast.CoalesceExpr(
+        args=[
+            new_val,
+            pgast.StringConstant(val='[]')
+        ]
+    )
+
+    result = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=new_val
+            )
+        ],
+
+        from_clause=[
+            subrvar
+        ]
+    )
+
+    result.ctes = stmt.ctes
+    result.argnames = stmt.argnames
+    stmt.ctes = []
+
+    return result
+
+
 def top_output_as_value(
         stmt: pgast.Query,
         ir_set: irast.Set, *,
@@ -341,50 +392,7 @@ def top_output_as_value(
             not env.expected_cardinality_one):
         # For JSON we just want to aggregate the whole thing
         # into a JSON array.
-        subrvar = pgast.RangeSubselect(
-            subquery=stmt,
-            alias=pgast.Alias(
-                aliasname=env.aliases.get('aggw')
-            )
-        )
-
-        stmt_res = stmt.target_list[0]
-
-        if stmt_res.name is None:
-            stmt_res = stmt.target_list[0] = pgast.ResTarget(
-                name=env.aliases.get('v'),
-                val=stmt_res.val,
-            )
-
-        new_val = pgast.FuncCall(
-            name=_get_json_func('agg', env=env),
-            args=[pgast.ColumnRef(name=[stmt_res.name])]
-        )
-
-        new_val = pgast.CoalesceExpr(
-            args=[
-                new_val,
-                pgast.StringConstant(val='[]')
-            ]
-        )
-
-        result = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=new_val
-                )
-            ],
-
-            from_clause=[
-                subrvar
-            ]
-        )
-
-        result.ctes = stmt.ctes
-        result.argnames = stmt.argnames
-        stmt.ctes = []
-
-        return result
+        return aggregate_json_output(stmt, ir_set, env=env)
 
     elif (env.output_format is context.OutputFormat.NATIVE and
             env.explicit_top_cast is not None):

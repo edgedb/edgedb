@@ -27,6 +27,8 @@ import immutables
 
 from edb import errors
 from edb.common import enum
+from edb.common import typeutils
+
 from edb.edgeql import qltypes
 from edb.schema import objects as s_obj
 
@@ -71,6 +73,21 @@ class Operation(typing.NamedTuple):
             except (ValueError, TypeError):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
+        elif setting.set_of:
+            if self.value is None and allow_missing:
+                return None
+            elif not typeutils.is_container(self.value):
+                raise errors.ConfigurationError(
+                    f'invalid value type for the '
+                    f'{setting.name!r} setting')
+            else:
+                for v in self.value:
+                    if not isinstance(v, setting.type):
+                        raise errors.ConfigurationError(
+                            f'invalid value type for the '
+                            f'{setting.name!r} setting')
+
+                return frozenset(self.value)
         else:
             if isinstance(self.value, setting.type):
                 return self.value
@@ -92,18 +109,33 @@ class Operation(typing.NamedTuple):
         value = self.coerce_value(setting, allow_missing=allow_missing)
 
         if self.opcode is OpCode.CONFIG_SET:
-            assert not setting.set_of
+            if issubclass(setting.type, types.ConfigType):
+                raise errors.InternalServerError(
+                    f'unexpected CONFIGURE SET on a non-primitive '
+                    f'configuration parameter: {self.setting_name}'
+                )
+
             storage = storage.set(self.setting_name, value)
 
         elif self.opcode is OpCode.CONFIG_RESET:
-            assert not setting.set_of
+            if issubclass(setting.type, types.ConfigType):
+                raise errors.InternalServerError(
+                    f'unexpected CONFIGURE RESET on a non-primitive '
+                    f'configuration parameter: {self.setting_name}'
+                )
+
             try:
                 storage = storage.delete(self.setting_name)
             except KeyError:
                 pass
 
         elif self.opcode is OpCode.CONFIG_ADD:
-            assert setting.set_of
+            if not issubclass(setting.type, types.ConfigType):
+                raise errors.InternalServerError(
+                    f'unexpected CONFIGURE ADD on a primitive '
+                    f'configuration parameter: {self.setting_name}'
+                )
+
             exist_value = storage.get(self.setting_name, setting.default)
             if value in exist_value:
                 props = []
@@ -125,7 +157,12 @@ class Operation(typing.NamedTuple):
             storage = storage.set(self.setting_name, new_value)
 
         elif self.opcode is OpCode.CONFIG_REM:
-            assert setting.set_of
+            if not issubclass(setting.type, types.ConfigType):
+                raise errors.InternalServerError(
+                    f'unexpected CONFIGURE REM on a primitive '
+                    f'configuration parameter: {self.setting_name}'
+                )
+
             exist_value = storage.get(self.setting_name, setting.default)
             new_value = exist_value - {value}
             storage = storage.set(self.setting_name, new_value)

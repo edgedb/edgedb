@@ -70,4 +70,8 @@ ALTER TYPE cfg::Config {
         SET ATTRIBUTE cfg::internal := 'true';
         SET default := false;
     };
+
+    CREATE MULTI PROPERTY multiprop -> std::str {
+        SET ATTRIBUTE cfg::internal := 'true';
+    };
 };

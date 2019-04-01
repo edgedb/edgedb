@@ -619,6 +619,7 @@ class ConfigCommand(Command):
 
     name: str
     system: bool
+    cardinality: qltypes.Cardinality
     requires_restart: bool
     backend_setting: str
     scope_tree: ScopeTreeNode

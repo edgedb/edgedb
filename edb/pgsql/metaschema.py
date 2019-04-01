@@ -1386,6 +1386,13 @@ class SysConfigFunction(dbops.Function):
                         (SELECT
                             regexp_match(pg_settings.unit, '(\d+)(\w+)') AS v
                         ) AS u
+                     WHERE name = any(ARRAY[
+                         'shared_buffers',
+                         'work_mem',
+                         'effective_cache_size',
+                         'effective_io_concurrency',
+                         'default_statistics_target'
+                     ])
                     )
 
             SELECT

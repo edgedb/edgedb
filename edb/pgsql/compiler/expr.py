@@ -91,6 +91,8 @@ def _compile_set_impl(
         # constant expressions.  Besides being an optimization,
         # this helps in GROUP BY queries.
         value = dispatch.compile(ir_set.expr, ctx=ctx)
+        if ctx.rel is None:
+            ctx.rel = ctx.toplevel_stmt = pgast.SelectStmt()
         pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
         if (output.in_serialization_ctx(ctx) and ir_set.shape
                 and not ctx.env.ignore_object_shapes):

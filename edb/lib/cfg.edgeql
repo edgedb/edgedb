@@ -102,7 +102,9 @@ CREATE TYPE cfg::Config {
     };
 
     # Exposed backend settings follow.
-
+    # When exposing a new setting, remember to modify
+    # the _read_sys_config function to select the value
+    # from pg_settings in the config_backend CTE.
     CREATE PROPERTY shared_buffers -> std::str {
         SET ATTRIBUTE cfg::system := 'true';
         SET ATTRIBUTE cfg::backend_setting := '"shared_buffers"';

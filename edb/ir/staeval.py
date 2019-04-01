@@ -283,7 +283,8 @@ def object_type_to_python_type(
         else:
             pytype = scalar_type_to_python_type(ptype, schema)
 
-        if p.get_cardinality(schema) is qltypes.Cardinality.MANY:
+        is_multi = p.get_cardinality(schema) is qltypes.Cardinality.MANY
+        if is_multi:
             pytype = typing.FrozenSet[pytype]
 
         default = p.get_default(schema)
@@ -293,6 +294,8 @@ def object_type_to_python_type(
         else:
             default = ql_compiler.evaluate_to_python_val(
                 default.text, schema=schema)
+            if is_multi and not isinstance(default, frozenset):
+                default = frozenset((default,))
 
         constraints = p.get_constraints(schema).objects(schema)
         exclusive = schema.get('std::exclusive')

@@ -25,6 +25,8 @@ import typing
 
 from edb import errors
 
+from edb.edgeql import qltypes
+
 from edb.ir import ast as irast
 from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
@@ -39,27 +41,36 @@ from . import dispatch
 from . import setgen
 
 
+class SettingInfo(typing.NamedTuple):
+    param_name: str
+    param_type: s_types.Type
+    cardinality: qltypes.Cardinality
+    requires_restart: bool
+    backend_setting: str
+
+
 @dispatch.compile.register
 def compile_ConfigSet(
         expr: qlast.ConfigSet, *, ctx: context.ContextLevel) -> irast.Set:
 
-    param_name, _, requires_restart, backend = _validate_op(expr, ctx=ctx)
+    info = _validate_op(expr, ctx=ctx)
     param_val = dispatch.compile(expr.expr, ctx=ctx)
 
     try:
         ireval.evaluate(param_val, schema=ctx.env.schema)
-    except ireval.UnsupportedExpressionError:
+    except ireval.UnsupportedExpressionError as e:
         level = 'SYSTEM' if expr.system else 'SESSION'
         raise errors.QueryError(
             f'non-constant expression in CONFIGURE {level} SET',
             context=expr.expr.context
-        ) from None
+        ) from e
 
     return irast.ConfigSet(
-        name=param_name,
+        name=info.param_name,
+        cardinality=info.cardinality,
         system=expr.system,
-        requires_restart=requires_restart,
-        backend_setting=backend,
+        requires_restart=info.requires_restart,
+        backend_setting=info.backend_setting,
         context=expr.context,
         expr=param_val,
     )
@@ -68,19 +79,18 @@ def compile_ConfigSet(
 @dispatch.compile.register
 def compile_ConfigReset(
         expr: qlast.ConfigReset, *, ctx: context.ContextLevel) -> irast.Set:
-    param_name, param_type, requires_restart, backend = \
-        _validate_op(expr, ctx=ctx)
+    info = _validate_op(expr, ctx=ctx)
     filter_expr = expr.where
 
-    if not param_type.is_object_type() and filter_expr is not None:
+    if not info.param_type.is_object_type() and filter_expr is not None:
         raise errors.QueryError(
             'RESET of a primitive configuration parameter '
             'must not have a FILTER clause',
             context=expr.context,
         )
 
-    elif param_type.is_object_type():
-        param_type_name = param_type.get_name(ctx.env.schema)
+    elif info.param_type.is_object_type():
+        param_type_name = info.param_type.get_name(ctx.env.schema)
         param_type_ref = qlast.ObjectRef(
             name=param_type_name.name,
             module=param_type_name.module,
@@ -89,7 +99,7 @@ def compile_ConfigReset(
             result=qlast.Shape(
                 expr=qlast.Path(steps=[param_type_ref]),
                 elements=get_config_type_shape(
-                    ctx.env.schema, param_type, path=[param_type_ref]),
+                    ctx.env.schema, info.param_type, path=[param_type_ref]),
             ),
             where=filter_expr,
         )
@@ -101,10 +111,11 @@ def compile_ConfigReset(
         select_ir = None
 
     return irast.ConfigReset(
-        name=param_name,
+        name=info.param_name,
+        cardinality=info.cardinality,
         system=expr.system,
-        requires_restart=requires_restart,
-        backend_setting=backend,
+        requires_restart=info.requires_restart,
+        backend_setting=info.backend_setting,
         context=expr.context,
         selector=select_ir,
     )
@@ -114,7 +125,7 @@ def compile_ConfigReset(
 def compile_ConfigInsert(
         expr: qlast.ConfigInsert, *, ctx: context.ContextLevel) -> irast.Set:
 
-    param_name, _, requires_restart, backend = _validate_op(expr, ctx=ctx)
+    info = _validate_op(expr, ctx=ctx)
 
     if not expr.system:
         raise errors.UnsupportedFeatureError(
@@ -158,10 +169,11 @@ def compile_ConfigInsert(
 
     return setgen.ensure_set(
         irast.ConfigInsert(
-            name=param_name,
+            name=info.param_name,
+            cardinality=info.cardinality,
             system=expr.system,
-            requires_restart=requires_restart,
-            backend_setting=backend,
+            requires_restart=info.requires_restart,
+            backend_setting=info.backend_setting,
             expr=insert_subject,
             context=expr.context,
         ),
@@ -272,6 +284,8 @@ def _validate_op(
         and sys_attr.get_value(ctx.env.schema) == 'true'
     )
 
+    cardinality = ptr.get_cardinality(ctx.env.schema)
+
     restart_attr = ptr.get_attributes(ctx.env.schema).get(
         ctx.env.schema, 'cfg::requires_restart', None)
 
@@ -293,7 +307,11 @@ def _validate_op(
             f'{name!r} is a system-level configuration parameter; '
             f'use "CONFIGURE SYSTEM"')
 
-    return name, cfg_type, requires_restart, backend_setting
+    return SettingInfo(param_name=name,
+                       param_type=cfg_type,
+                       cardinality=cardinality,
+                       requires_restart=requires_restart,
+                       backend_setting=backend_setting)
 
 
 def get_config_type_shape(

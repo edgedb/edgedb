@@ -279,18 +279,18 @@ class TestServerConfigUtils(unittest.TestCase):
         storage2 = op.apply(testspec1, storage1)
 
         op = ops.Operation(
-            ops.OpCode.CONFIG_ADD,
+            ops.OpCode.CONFIG_SET,
             ops.OpLevel.SESSION,
             'ints',
-            42
+            {42}
         )
         storage2 = op.apply(testspec1, storage2)
 
         op = ops.Operation(
-            ops.OpCode.CONFIG_ADD,
+            ops.OpCode.CONFIG_SET,
             ops.OpLevel.SESSION,
             'ints',
-            43
+            {42, 43}
         )
         storage2 = op.apply(testspec1, storage2)
 
@@ -686,6 +686,55 @@ class TestServerConfig(tb.QueryTestCase):
 
             await self.con.execute('''
                 CONFIGURE SYSTEM RESET effective_cache_size;
+            ''')
+
+    async def test_server_proto_configure_06(self):
+        try:
+            await self.con.execute('''
+                CONFIGURE SESSION SET multiprop := {'1', '2', '3'};
+            ''')
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [
+                    '1', '2', '3'
+                ],
+            )
+
+            await self.con.execute('''
+                CONFIGURE SYSTEM SET multiprop := {'4', '5'};
+            ''')
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [
+                    '1', '2', '3'
+                ],
+            )
+
+            await self.con.execute('''
+                CONFIGURE SESSION RESET multiprop;
+            ''')
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [
+                    '4', '5'
+                ],
+            )
+        finally:
+            await self.con.execute('''
+                CONFIGURE SESSION RESET multiprop;
+            ''')
+
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET multiprop;
             ''')
 
     async def test_server_version(self):
