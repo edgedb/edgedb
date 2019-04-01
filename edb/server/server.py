@@ -28,8 +28,10 @@ from edb.common import taskgroup
 from edb.edgeql import parser as ql_parser
 
 from edb.server import config
+from edb.server import defines
 from edb.server import http_edgeql_port
 from edb.server import http_graphql_port
+from edb.server import mng_port
 from edb.server import pgcon
 
 from . import dbview
@@ -42,7 +44,8 @@ class Server:
 
     def __init__(self, *, loop, cluster, runstate_dir,
                  internal_runstate_dir,
-                 max_backend_connections):
+                 max_backend_connections,
+                 nethost, netport):
 
         self._loop = loop
 
@@ -59,6 +62,10 @@ class Server:
         self._internal_runstate_dir = internal_runstate_dir
         self._max_backend_connections = max_backend_connections
 
+        self._mgmt_port = None
+        self._mgmt_host_addr = nethost
+        self._mgmt_port_no = netport
+
         self._ports = []
         self._sys_conf_ports = {}
         self._sys_auth = tuple()
@@ -66,6 +73,20 @@ class Server:
     async def init(self):
         self._dbindex = await dbview.DatabaseIndex.init(self)
         self._populate_sys_auth()
+
+        cfg = self._dbindex.get_sys_config()
+
+        if not self._mgmt_host_addr:
+            self._mgmt_host_addr = cfg.get('listen_addresses') or 'localhost'
+
+        if not self._mgmt_port_no:
+            self._mgmt_port_no = cfg.get('listen_port', defines.EDGEDB_PORT)
+
+        self._mgmt_port = self._new_port(
+            mng_port.ManagementPort,
+            nethost=self._mgmt_host_addr,
+            netport=self._mgmt_port_no,
+        )
 
     def _populate_sys_auth(self):
         self._sys_auth = tuple(sorted(
@@ -97,6 +118,33 @@ class Server:
             raise
         return compiler_worker
 
+    def _new_port(self, portcls, **kwargs):
+        return portcls(
+            server=self,
+            loop=self._loop,
+            pg_addr=self._pg_addr,
+            pg_data_dir=self._pg_data_dir,
+            runstate_dir=self._runstate_dir,
+            internal_runstate_dir=self._internal_runstate_dir,
+            dbindex=self._dbindex,
+            **kwargs,
+        )
+
+    async def _restart_mgmt_port(self, nethost, netport):
+        try:
+            self._mgmt_port = self._new_port(
+                mng_port.ManagementPort,
+                nethost=nethost,
+                netport=netport,
+            )
+            await self._mgmt_port.start()
+        except Exception:
+            raise
+        else:
+            await self._mgmt_port.stop()
+            self._mgmt_host_addr = nethost
+            self._mgmt_host_port = netport
+
     async def _start_portconf(self, portconf: config.ConfigType, *,
                               suppress_errors=False):
         if portconf in self._sys_conf_ports:
@@ -112,14 +160,8 @@ class Server:
             raise errors.InvalidReferenceError(
                 f'unknown protocol {portconf.protocol!r}')
 
-        port = port_cls(
-            server=self,
-            loop=self._loop,
-            pg_addr=self._pg_addr,
-            pg_data_dir=self._pg_data_dir,
-            runstate_dir=self._runstate_dir,
-            internal_runstate_dir=self._internal_runstate_dir,
-            dbindex=self._dbindex,
+        port = self._new_port(
+            port_cls,
             netport=portconf.port,
             nethost=portconf.address,
             database=portconf.database,
@@ -170,11 +212,21 @@ class Server:
 
     async def _on_system_config_set(self, setting_name, value):
         # CONFIGURE SYSTEM SET setting_name := value;
-        pass
+        if setting_name == 'listen_addresses':
+            await self._restart_mgmt_port(value, self._mgmt_host_port)
+
+        elif setting_name == 'listen_port':
+            await self._restart_mgmt_port(self._mgmt_host_addr, value)
 
     async def _on_system_config_reset(self, setting_name):
         # CONFIGURE SYSTEM RESET setting_name;
-        pass
+        if setting_name == 'listen_addresses':
+            await self._restart_mgmt_port(
+                'localhost', self._mgmt_host_port)
+
+        elif setting_name == 'listen_port':
+            await self._restart_mgmt_port(
+                self._mgmt_host_addr, defines.EDGEDB_PORT)
 
     async def _after_system_config_add(self, setting_name, value):
         # CONFIGURE SYSTEM INSERT ConfigObject;
@@ -202,16 +254,9 @@ class Server:
             raise RuntimeError(
                 'cannot add new ports after start() call')
 
-        self._ports.append(
-            portcls(
-                server=self,
-                loop=self._loop,
-                pg_addr=self._pg_addr,
-                pg_data_dir=self._pg_data_dir,
-                runstate_dir=self._runstate_dir,
-                internal_runstate_dir=self._internal_runstate_dir,
-                dbindex=self._dbindex,
-                **kwargs))
+        port = self._new_port(portcls, **kwargs)
+        self._ports.append(port)
+        return port
 
     async def start(self):
         # Make sure that EdgeQL parser is preloaded; edgecon might use
@@ -219,6 +264,7 @@ class Server:
         ql_parser.preload()
 
         async with taskgroup.TaskGroup() as g:
+            g.create_task(self._mgmt_port.start())
             for port in self._ports:
                 g.create_task(port.start())
 
@@ -239,6 +285,8 @@ class Server:
             for port in self._sys_conf_ports.values():
                 g.create_task(port.stop())
             self._sys_conf_ports.clear()
+            g.create_task(self._mgmt_port.stop())
+            self._mgmt_port = None
 
     async def get_auth_method(self, user, database, conn):
         authlist = self._sys_auth

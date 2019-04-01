@@ -93,6 +93,15 @@ CREATE TYPE cfg::Auth {
 
 
 CREATE TYPE cfg::Config {
+    CREATE REQUIRED PROPERTY listen_port -> std::int16 {
+        SET ATTRIBUTE cfg::system := 'true';
+        SET default := 5656;
+    };
+
+    CREATE REQUIRED MULTI PROPERTY listen_addresses -> std::str {
+        SET ATTRIBUTE cfg::system := 'true';
+    };
+
     CREATE MULTI LINK ports -> cfg::Port {
         SET ATTRIBUTE cfg::system := 'true';
     };

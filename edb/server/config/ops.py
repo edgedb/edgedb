@@ -132,7 +132,7 @@ class Operation(typing.NamedTuple):
         elif self.opcode is OpCode.CONFIG_ADD:
             if not issubclass(setting.type, types.ConfigType):
                 raise errors.InternalServerError(
-                    f'unexpected CONFIGURE ADD on a primitive '
+                    f'unexpected CONFIGURE SET += on a primitive '
                     f'configuration parameter: {self.setting_name}'
                 )
 
@@ -159,7 +159,7 @@ class Operation(typing.NamedTuple):
         elif self.opcode is OpCode.CONFIG_REM:
             if not issubclass(setting.type, types.ConfigType):
                 raise errors.InternalServerError(
-                    f'unexpected CONFIGURE REM on a primitive '
+                    f'unexpected CONFIGURE SET -= on a primitive '
                     f'configuration parameter: {self.setting_name}'
                 )
 

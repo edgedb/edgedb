@@ -126,7 +126,14 @@ class ManagementPort(baseport.Port):
             raise
 
         self._servers.append(tcp_srv)
-        logger.info('Serving on %s:%s', self._nethost, self._netport)
+        if not isinstance(self._nethost, str):
+            if len(self._nethost) > 1:
+                host_str = f"{{{', '.join(self._nethost)}}}"
+            else:
+                host_str = next(iter(self._nethost))
+        else:
+            host_str = self._nethost
+        logger.info('Serving on %s:%s', host_str, self._netport)
         self._servers.append(unix_srv)
         logger.info('Serving on %s', unix_sock_path)
         self._servers.append(admin_unix_srv)

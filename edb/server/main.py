@@ -42,7 +42,6 @@ from . import cluster as edgedb_cluster
 from . import daemon
 from . import defines
 from . import logsetup
-from . import mng_port
 
 
 logger = logging.getLogger('edb.server')
@@ -165,14 +164,12 @@ def _run_server(cluster, args, runstate_dir, internal_runstate_dir):
             cluster=cluster,
             runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
-            max_backend_connections=args['max_backend_connections'])
+            max_backend_connections=args['max_backend_connections'],
+            nethost=args['bind_address'],
+            netport=args['port'],
+        )
 
         loop.run_until_complete(ss.init())
-
-        ss.add_port(
-            mng_port.ManagementPort,
-            nethost=args['bind_address'],
-            netport=args['port'])
 
         try:
             loop.run_until_complete(ss.start())
@@ -326,10 +323,10 @@ _server_options = [
         help='enable or disable the test mode',
         default=False),
     click.option(
-        '-I', '--bind-address', type=str, default='127.0.0.1',
+        '-I', '--bind-address', type=str, default=None,
         help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS'),
     click.option(
-        '-p', '--port', type=int, default=defines.EDGEDB_PORT,
+        '-p', '--port', type=int, default=None,
         help='port to listen on'),
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
