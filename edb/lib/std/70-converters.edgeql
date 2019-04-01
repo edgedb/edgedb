@@ -22,7 +22,7 @@
 # std::to_str
 # --------
 
-# Normalize [naive] datetime to text conversion to have
+# Normalize [local] datetime to text conversion to have
 # the same format as one would get by serializing to JSON.
 # Otherwise Postgres doesn't follow the ISO8601 standard
 # and uses ' ' instead of 'T' as a separator between date
@@ -83,7 +83,7 @@ std::to_str(td: std::timedelta, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
-std::to_str(dt: std::naive_datetime, fmt: OPTIONAL str={}) -> std::str
+std::to_str(dt: std::local_datetime, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
@@ -109,7 +109,7 @@ std::to_str(dt: std::naive_datetime, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
-std::to_str(d: std::naive_date, fmt: OPTIONAL str={}) -> std::str
+std::to_str(d: std::local_date, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
@@ -134,14 +134,14 @@ std::to_str(d: std::naive_date, fmt: OPTIONAL str={}) -> std::str
 };
 
 
-# Currently naive time is formatted by composing it with the naive
+# Currently local time is formatted by composing it with the local
 # current local date. This at least guarantees that the time
 # formatting is accessible and consistent with full datetime
 # formatting, but it exposes current date as well if it is included in
 # the format.
 # FIXME: date formatting should not have any special effect.
 CREATE FUNCTION
-std::to_str(nt: std::naive_time, fmt: OPTIONAL str={}) -> std::str
+std::to_str(nt: std::local_time, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
@@ -355,8 +355,8 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
 
 
 CREATE FUNCTION
-std::to_naive_datetime(s: std::str, fmt: OPTIONAL str={})
-    -> std::naive_datetime
+std::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
+    -> std::local_datetime
 {
     FROM SQL $$
     SELECT (
@@ -365,14 +365,14 @@ std::to_naive_datetime(s: std::str, fmt: OPTIONAL str={})
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
-                'to_naive_datetime(): "fmt" argument must be a non-empty string',
+                'to_local_datetime(): "fmt" argument must be a non-empty string',
                 '',
                 NULL::timestamp)
         ELSE
             edgedb._raise_exception_on_null(
                 to_timestamp("s", "fmt")::timestamp,
                 'invalid_parameter_value',
-                'to_naive_datetime(): format ''' || "fmt" || ''' is invalid',
+                'to_local_datetime(): format ''' || "fmt" || ''' is invalid',
                 ''
             )
         END
@@ -382,9 +382,9 @@ std::to_naive_datetime(s: std::str, fmt: OPTIONAL str={})
 
 
 CREATE FUNCTION
-std::to_naive_datetime(year: std::int64, month: std::int64, day: std::int64,
+std::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
                        hour: std::int64, min: std::int64, sec: std::float64)
-    -> std::naive_datetime
+    -> std::local_datetime
 {
     FROM SQL $$
     SELECT make_timestamp(
@@ -396,7 +396,7 @@ std::to_naive_datetime(year: std::int64, month: std::int64, day: std::int64,
 
 
 CREATE FUNCTION
-std::to_naive_date(s: std::str, fmt: OPTIONAL str={}) -> std::naive_date
+std::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> std::local_date
 {
     FROM SQL $$
     SELECT (
@@ -405,14 +405,14 @@ std::to_naive_date(s: std::str, fmt: OPTIONAL str={}) -> std::naive_date
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
-                'to_naive_date(): "fmt" argument must be a non-empty string',
+                'to_local_date(): "fmt" argument must be a non-empty string',
                 '',
                 NULL::date)
         ELSE
             edgedb._raise_exception_on_null(
                 to_date("s", "fmt"),
                 'invalid_parameter_value',
-                'to_naive_date(): format ''' || "fmt" || ''' is invalid',
+                'to_local_date(): format ''' || "fmt" || ''' is invalid',
                 ''
             )
         END
@@ -422,8 +422,8 @@ std::to_naive_date(s: std::str, fmt: OPTIONAL str={}) -> std::naive_date
 
 
 CREATE FUNCTION
-std::to_naive_date(year: std::int64, month: std::int64, day: std::int64)
-    -> std::naive_date
+std::to_local_date(year: std::int64, month: std::int64, day: std::int64)
+    -> std::local_date
 {
     FROM SQL $$
     SELECT make_date("year"::int, "month"::int, "day"::int)
@@ -432,7 +432,7 @@ std::to_naive_date(year: std::int64, month: std::int64, day: std::int64)
 
 
 CREATE FUNCTION
-std::to_naive_time(s: std::str, fmt: OPTIONAL str={}) -> std::naive_time
+std::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> std::local_time
 {
     FROM SQL $$
     SELECT (
@@ -441,14 +441,14 @@ std::to_naive_time(s: std::str, fmt: OPTIONAL str={}) -> std::naive_time
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
-                'to_naive_time(): "fmt" argument must be a non-empty string',
+                'to_local_time(): "fmt" argument must be a non-empty string',
                 '',
                 NULL::time)
         ELSE
             edgedb._raise_exception_on_null(
                 to_timestamp("s", "fmt")::time,
                 'invalid_parameter_value',
-                'to_naive_time(): format ''' || "fmt" || ''' is invalid',
+                'to_local_time(): format ''' || "fmt" || ''' is invalid',
                 ''
             )
         END
@@ -458,8 +458,8 @@ std::to_naive_time(s: std::str, fmt: OPTIONAL str={}) -> std::naive_time
 
 
 CREATE FUNCTION
-std::to_naive_time(hour: std::int64, min: std::int64, sec: std::float64)
-    -> std::naive_time
+std::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
+    -> std::local_time
 {
     FROM SQL $$
     SELECT make_time("hour"::int, "min"::int, "sec")

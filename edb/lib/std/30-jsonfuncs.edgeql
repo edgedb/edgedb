@@ -140,15 +140,15 @@ CREATE CAST FROM std::datetime TO std::json
     FROM SQL FUNCTION 'to_jsonb';
 
 
-CREATE CAST FROM std::naive_datetime TO std::json
+CREATE CAST FROM std::local_datetime TO std::json
     FROM SQL FUNCTION 'to_jsonb';
 
 
-CREATE CAST FROM std::naive_date TO std::json
+CREATE CAST FROM std::local_date TO std::json
     FROM SQL FUNCTION 'to_jsonb';
 
 
-CREATE CAST FROM std::naive_time TO std::json
+CREATE CAST FROM std::local_time TO std::json
     FROM SQL FUNCTION 'to_jsonb';
 
 
@@ -204,19 +204,19 @@ CREATE CAST FROM std::json TO std::datetime
     $$;
 
 
-CREATE CAST FROM std::json TO std::naive_datetime
+CREATE CAST FROM std::json TO std::local_datetime
     FROM SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::timestamp;
     $$;
 
 
-CREATE CAST FROM std::json TO std::naive_date
+CREATE CAST FROM std::json TO std::local_date
     FROM SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::date;
     $$;
 
 
-CREATE CAST FROM std::json TO std::naive_time
+CREATE CAST FROM std::json TO std::local_time
     FROM SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::time;
     $$;

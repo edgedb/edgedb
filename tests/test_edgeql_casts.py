@@ -100,21 +100,21 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot cast'):
             await self.con.execute("""
-                SELECT <bytes>to_naive_datetime('2018-05-07T20:01:22.306916');
+                SELECT <bytes>to_local_datetime('2018-05-07T20:01:22.306916');
             """)
 
     async def test_edgeql_casts_bytes_07(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot cast'):
             await self.con.execute("""
-                SELECT <bytes>to_naive_date('2018-05-07');
+                SELECT <bytes>to_local_date('2018-05-07');
             """)
 
     async def test_edgeql_casts_bytes_08(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot cast'):
             await self.con.execute("""
-                SELECT <bytes>to_naive_time('20:01:22.306916');
+                SELECT <bytes>to_local_time('20:01:22.306916');
             """)
 
     async def test_edgeql_casts_bytes_09(self):
@@ -201,24 +201,24 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_datetime><naive_datetime>to_naive_datetime(
-                    '2018-05-07T20:01:22.306916') IS naive_datetime;
+                SELECT <local_datetime><local_datetime>to_local_datetime(
+                    '2018-05-07T20:01:22.306916') IS local_datetime;
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_date><naive_date>to_naive_date(
-                    '2018-05-07') IS naive_date;
+                SELECT <local_date><local_date>to_local_date(
+                    '2018-05-07') IS local_date;
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_time><naive_time>to_naive_time(
-                    '20:01:22.306916') IS naive_time;
+                SELECT <local_time><local_time>to_local_time(
+                    '20:01:22.306916') IS local_time;
             ''',
             [True],
         )
@@ -304,25 +304,25 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_datetime><naive_datetime>to_naive_datetime(
+                SELECT <local_datetime><local_datetime>to_local_datetime(
                     '2018-05-07T20:01:22.306916') =
-                to_naive_datetime('2018-05-07T20:01:22.306916');
+                to_local_datetime('2018-05-07T20:01:22.306916');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_date><naive_date>to_naive_date('2018-05-07') =
-                    to_naive_date('2018-05-07');
+                SELECT <local_date><local_date>to_local_date('2018-05-07') =
+                    to_local_date('2018-05-07');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_time><naive_time>to_naive_time(
-                    '20:01:22.306916') = to_naive_time('20:01:22.306916');
+                SELECT <local_time><local_time>to_local_time(
+                    '20:01:22.306916') = to_local_time('20:01:22.306916');
             ''',
             [True],
         )
@@ -411,25 +411,25 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_datetime><str>to_naive_datetime(
+                SELECT <local_datetime><str>to_local_datetime(
                         '2018-05-07T20:01:22.306916') =
-                    to_naive_datetime('2018-05-07T20:01:22.306916');
+                    to_local_datetime('2018-05-07T20:01:22.306916');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_date><str>to_naive_date('2018-05-07') =
-                    to_naive_date('2018-05-07');
+                SELECT <local_date><str>to_local_date('2018-05-07') =
+                    to_local_date('2018-05-07');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_time><str>to_naive_time('20:01:22.306916') =
-                    to_naive_time('20:01:22.306916');
+                SELECT <local_time><str>to_local_time('20:01:22.306916') =
+                    to_local_time('20:01:22.306916');
             ''',
             [True],
         )
@@ -604,7 +604,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := '2018-05-07T20:01:22.306916'
-                SELECT <str><naive_datetime>x = x;
+                SELECT <str><local_datetime>x = x;
             ''',
             [True],
         )
@@ -617,21 +617,21 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2018-05-07,20:01:22.306916',
                     '2018-05-07;20:01:22.306916',
                 }
-                SELECT <str><naive_datetime>x = x;
+                SELECT <str><local_datetime>x = x;
             ''',
             [False, False, False],
         )
 
         await self.assert_query_result(
-            # validating that these are all in fact the same naive_datetime
+            # validating that these are all in fact the same local_datetime
             r'''
                 WITH x := {
                     '2018-05-07 20:01:22.306916',
                     '2018-05-07,20:01:22.306916',
                     '2018-05-07;20:01:22.306916',
                 }
-                SELECT <naive_datetime>x =
-                    <naive_datetime>'2018-05-07T20:01:22.306916';
+                SELECT <local_datetime>x =
+                    <local_datetime>'2018-05-07T20:01:22.306916';
             ''',
             [True, True, True],
         )
@@ -642,7 +642,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := '2018-05-07'
-                SELECT <str><naive_date>x = x;
+                SELECT <str><local_date>x = x;
             ''',
             [True],
         )
@@ -657,7 +657,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2018`05`07',
                     '20180507',
                 }
-                SELECT <str><naive_date>x = x;
+                SELECT <str><local_date>x = x;
             ''',
             [False, False, False, False, False],
         )
@@ -672,7 +672,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2018`05`07',
                     '20180507',
                 }
-                SELECT <naive_date>x = <naive_date>'2018-05-07';
+                SELECT <local_date>x = <local_date>'2018-05-07';
             ''',
             [True, True, True, True, True],
         )
@@ -683,7 +683,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := '20:01:22.306916'
-                SELECT <str><naive_time>x = x;
+                SELECT <str><local_time>x = x;
             ''',
             [True],
         )
@@ -695,7 +695,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2018-05-07 20:01:22.306916',
                     '200122.306916',
                 }
-                SELECT <str><naive_time>x = x;
+                SELECT <str><local_time>x = x;
             ''',
             [False, False],
         )
@@ -707,7 +707,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2018-05-07 20:01:22.306916',
                     '200122.306916',
                 }
-                SELECT <naive_time>x = <naive_time>'20:01:22.306916';
+                SELECT <local_time>x = <local_time>'20:01:22.306916';
             ''',
             [True, True],
         )
@@ -938,8 +938,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <naive_datetime><str>T.p_naive_datetime =
-                    T.p_naive_datetime;
+                SELECT <local_datetime><str>T.p_local_datetime =
+                    T.p_local_datetime;
             ''',
             [True],
         )
@@ -947,7 +947,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <naive_date><str>T.p_naive_date = T.p_naive_date;
+                SELECT <local_date><str>T.p_local_date = T.p_local_date;
             ''',
             [True],
         )
@@ -955,7 +955,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <naive_time><str>T.p_naive_time = T.p_naive_time;
+                SELECT <local_time><str>T.p_local_time = T.p_local_time;
             ''',
             [True],
         )
@@ -1417,25 +1417,25 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_datetime><json>to_naive_datetime(
+                SELECT <local_datetime><json>to_local_datetime(
                         '2018-05-07T20:01:22.306916') =
-                    to_naive_datetime('2018-05-07T20:01:22.306916');
+                    to_local_datetime('2018-05-07T20:01:22.306916');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_date><json>to_naive_date('2018-05-07') =
-                    to_naive_date('2018-05-07');
+                SELECT <local_date><json>to_local_date('2018-05-07') =
+                    to_local_date('2018-05-07');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_time><json>to_naive_time('20:01:22.306916') =
-                    to_naive_time('20:01:22.306916');
+                SELECT <local_time><json>to_local_time('20:01:22.306916') =
+                    to_local_time('20:01:22.306916');
             ''',
             [True],
         )
@@ -1514,8 +1514,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <naive_datetime><json>T.p_naive_datetime =
-                    T.p_naive_datetime;
+                SELECT <local_datetime><json>T.p_local_datetime =
+                    T.p_local_datetime;
             ''',
             [True],
         )
@@ -1523,7 +1523,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <naive_date><json>T.p_naive_date = T.p_naive_date;
+                SELECT <local_date><json>T.p_local_date = T.p_local_date;
             ''',
             [True],
         )
@@ -1531,7 +1531,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <naive_time><json>T.p_naive_time = T.p_naive_time;
+                SELECT <local_time><json>T.p_local_time = T.p_local_time;
             ''',
             [True],
         )
@@ -1632,7 +1632,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-                SELECT <naive_datetime>J.j_naive_datetime = T.p_naive_datetime;
+                SELECT <local_datetime>J.j_local_datetime = T.p_local_datetime;
             ''',
             [True],
         )
@@ -1643,7 +1643,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-                SELECT <naive_date>J.j_naive_date = T.p_naive_date;
+                SELECT <local_date>J.j_local_date = T.p_local_date;
             ''',
             [True],
         )
@@ -1654,7 +1654,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-                SELECT <naive_time>J.j_naive_time = T.p_naive_time;
+                SELECT <local_time>J.j_local_time = T.p_local_time;
             ''',
             [True],
         )

@@ -25,9 +25,9 @@ type Test {
     property p_bool -> bool;
     property p_str -> str;
     property p_datetime -> datetime;
-    property p_naive_datetime -> naive_datetime;
-    property p_naive_date -> naive_date;
-    property p_naive_time -> naive_time;
+    property p_local_datetime -> local_datetime;
+    property p_local_date -> local_date;
+    property p_local_time -> local_time;
     property p_timedelta -> timedelta;
     property p_int16 -> int16;
     property p_int32 -> int32;
@@ -41,9 +41,9 @@ type JSONTest {
     property j_bool -> json;
     property j_str -> json;
     property j_datetime -> json;
-    property j_naive_datetime -> json;
-    property j_naive_date -> json;
-    property j_naive_time -> json;
+    property j_local_datetime -> json;
+    property j_local_date -> json;
+    property j_local_time -> json;
     property j_timedelta -> json;
     property j_int16 -> json;
     property j_int32 -> json;
@@ -58,9 +58,9 @@ type ScalarTest {
     property p_uuid -> uuid;
     property p_str -> str;
     property p_datetime -> datetime;
-    property p_naive_datetime -> naive_datetime;
-    property p_naive_date -> naive_date;
-    property p_naive_time -> naive_time;
+    property p_local_datetime -> local_datetime;
+    property p_local_date -> local_date;
+    property p_local_time -> local_time;
     property p_timedelta -> timedelta;
     property p_int16 -> int16;
     property p_int32 -> int32;

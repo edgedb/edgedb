@@ -74,7 +74,7 @@ type shape.
     db> WITH MODULE schema
     ... SELECT <json>(Type {
     ...     name,
-    ...     timestamp := <naive_date>datetime_current()
+    ...     timestamp := <local_date>datetime_current()
     ... })
     ... FILTER Type.name = 'std::bool';
     {{name: 'std::bool', timestamp: '2019-01-18'}}
@@ -132,7 +132,7 @@ The fields of JSON *objects* can also be accessed via ``[]``:
 
     db> SELECT j := <json>(schema::Type {
     ...     name,
-    ...     timestamp := <naive_date>datetime_current()
+    ...     timestamp := <local_date>datetime_current()
     ... })
     ... FILTER j['name'] = <json>'std::bool';
     {{name: 'std::bool', timestamp: '2019-01-18'}}

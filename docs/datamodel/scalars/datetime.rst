@@ -19,52 +19,52 @@ Date and Time
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`datetime`.
 
-.. eql:type:: std::naive_datetime
+.. eql:type:: std::local_datetime
 
     A type representing date and time without time zone.
 
     :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
-    :eql:type:`naive_datetime` value in an expression:
+    :eql:type:`local_datetime` value in an expression:
 
     .. code-block:: edgeql
 
-        SELECT <naive_datetime>'2018-05-07T15:01:22.306916';
-        SELECT <naive_datetime>'2018-05-07T15:01:22';
+        SELECT <local_datetime>'2018-05-07T15:01:22.306916';
+        SELECT <local_datetime>'2018-05-07T15:01:22';
 
-    See functions :eql:func:`datetime_get`, :eql:func:`to_naive_datetime`,
+    See functions :eql:func:`datetime_get`, :eql:func:`to_local_datetime`,
     and :eql:func:`to_str` for more ways of working with
-    :eql:type:`naive_datetime`.
+    :eql:type:`local_datetime`.
 
-.. eql:type:: std::naive_date
+.. eql:type:: std::local_date
 
     A type representing date without time zone.
 
     :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
-    :eql:type:`naive_date` value in an expression:
+    :eql:type:`local_date` value in an expression:
 
     .. code-block:: edgeql
 
-        SELECT <naive_date>'2018-05-07';
+        SELECT <local_date>'2018-05-07';
 
-    See functions :eql:func:`date_get`, :eql:func:`to_naive_date`,
+    See functions :eql:func:`date_get`, :eql:func:`to_local_date`,
     and :eql:func:`to_str` for more ways of working with
-    :eql:type:`naive_date`.
+    :eql:type:`local_date`.
 
-.. eql:type:: std::naive_time
+.. eql:type:: std::local_time
 
     A type representing time without time zone.
 
     :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
-    :eql:type:`naive_time` value in an expression:
+    :eql:type:`local_time` value in an expression:
 
     .. code-block:: edgeql
 
-        SELECT <naive_time>'15:01:22.306916';
-        SELECT <naive_time>'15:01:22';
+        SELECT <local_time>'15:01:22.306916';
+        SELECT <local_time>'15:01:22';
 
-    See functions :eql:func:`time_get`, :eql:func:`to_naive_time`,
+    See functions :eql:func:`time_get`, :eql:func:`to_local_time`,
     and :eql:func:`to_str` for more ways of working with
-    :eql:type:`naive_time`.
+    :eql:type:`local_time`.
 
 .. eql:type:: std::timedelta
 

@@ -22,7 +22,7 @@ Date and Time
     Return the date and time of the start of the current statement.
 
 .. eql:function:: std::datetime_get(dt: datetime, el: str) -> float64
-                  std::datetime_get(dt: naive_datetime, el: str) -> float64
+                  std::datetime_get(dt: local_datetime, el: str) -> float64
 
     Extract a specific element of input datetime by name.
 
@@ -36,7 +36,7 @@ Date and Time
     - ``'doy'`` - the day of the year (1-366)
     - ``'epoch'`` - the number of seconds since 1970-01-01 00:00:00
       UTC for :eql:type:`datetime` or local time for
-      :eql:type:`naive_datetime`. It can be negative.
+      :eql:type:`local_datetime`. It can be negative.
     - ``'hour'`` - the hour (0-23)
     - ``'isodow'`` - the ISO day of the week from Monday (1) to Sunday (7)
     - ``'isoyear'`` - the ISO 8601 week-numbering year that the date falls in.
@@ -60,7 +60,7 @@ Date and Time
       first week of a year must contain Jan 4 of that year.
     - ``'year'`` - the year
 
-    For :eql:type:`naive_datetime` inputs the elements ``'timezone'``,
+    For :eql:type:`local_datetime` inputs the elements ``'timezone'``,
     ``'timezone_hour'``, and ``'timezone_minute'`` are invalid.
 
     .. code-block:: edgeql-repl
@@ -82,11 +82,11 @@ Date and Time
         {15}
 
 
-.. eql:function:: std::time_get(dt: naive_time, el: str) -> float64
+.. eql:function:: std::time_get(dt: local_time, el: str) -> float64
 
     Extract a specific element of input time by name.
 
-    The :eql:type:`naive_time` scalar has the following elements
+    The :eql:type:`local_time` scalar has the following elements
     available for extraction:
 
     - ``'epoch'``
@@ -102,36 +102,36 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT time_get(
-        ...     <naive_time>'15:01:22.306916', 'minute');
+        ...     <local_time>'15:01:22.306916', 'minute');
         {1}
 
         db> SELECT time_get(
-        ...     <naive_time>'15:01:22.306916', 'milliseconds');
+        ...     <local_time>'15:01:22.306916', 'milliseconds');
         {22306.916}
 
-.. eql:function:: std::date_get(dt: naive_date, el: str) -> float64
+.. eql:function:: std::date_get(dt: local_date, el: str) -> float64
 
     Extract a specific element of input date by name.
 
-    Valid elements for :eql:type:`naive_date` are the same as for
-    :eql:type:`naive_datetime` in :eql:func:`datetime_get`.
+    Valid elements for :eql:type:`local_date` are the same as for
+    :eql:type:`local_datetime` in :eql:func:`datetime_get`.
 
     .. code-block:: edgeql-repl
 
         db> SELECT date_get(
-        ...     <naive_date>'2018-05-07T15:01:22.306916', 'century');
+        ...     <local_date>'2018-05-07T15:01:22.306916', 'century');
         {21}
 
         db> SELECT date_get(
-        ...     <naive_date>'2018-05-07T15:01:22.306916', 'year');
+        ...     <local_date>'2018-05-07T15:01:22.306916', 'year');
         {2018}
 
         db> SELECT date_get(
-        ...     <naive_date>'2018-05-07T15:01:22.306916', 'month');
+        ...     <local_date>'2018-05-07T15:01:22.306916', 'month');
         {5}
 
         db> SELECT date_get(
-        ...     <naive_date>'2018-05-07T15:01:22.306916', 'doy');
+        ...     <local_date>'2018-05-07T15:01:22.306916', 'doy');
         {127}
 
 .. eql:function:: std::timedelta_get(dt: timedelta, el: str) -> float64

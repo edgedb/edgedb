@@ -71,18 +71,18 @@ VALUES = {
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, decimal=False),
 
-    '<naive_datetime>"2018-05-07T20:01:22.306916"':
-        value(typename='naive_datetime',
+    '<local_datetime>"2018-05-07T20:01:22.306916"':
+        value(typename='local_datetime',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, decimal=False),
 
-    '<naive_date>"2018-05-07"':
-        value(typename='naive_date',
+    '<local_date>"2018-05-07"':
+        value(typename='local_date',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, decimal=False),
 
-    '<naive_time>"20:01:22.306916"':
-        value(typename='naive_time',
+    '<local_time>"20:01:22.306916"':
+        value(typename='local_time',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, decimal=False),
 
@@ -1066,7 +1066,7 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH A := <naive_datetime>{
+                WITH A := <local_datetime>{
                     "2018-05-07T20:01:22.306916",
                     "2017-05-07T20:01:22.306916"
                 }
@@ -1080,7 +1080,7 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH A := <naive_date>{
+                WITH A := <local_date>{
                     "2018-05-07",
                     "2017-05-07"
                 }
@@ -1094,7 +1094,7 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH A := <naive_time>{
+                WITH A := <local_time>{
                     "20:01:22.306916",
                     "19:01:22.306916"
                 }

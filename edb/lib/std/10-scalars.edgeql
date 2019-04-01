@@ -31,11 +31,11 @@ CREATE SCALAR TYPE std::json EXTENDING std::anyscalar;
 
 CREATE SCALAR TYPE std::datetime EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::naive_datetime EXTENDING std::anyscalar;
+CREATE SCALAR TYPE std::local_datetime EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::naive_date EXTENDING std::anyscalar;
+CREATE SCALAR TYPE std::local_date EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::naive_time EXTENDING std::anyscalar;
+CREATE SCALAR TYPE std::local_time EXTENDING std::anyscalar;
 
 CREATE SCALAR TYPE std::timedelta EXTENDING std::anyscalar;
 

@@ -100,10 +100,10 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2020-11-10T00:00:00+00:00'],
         )
 
-    async def test_edgeql_dt_naive_datetime_01(self):
+    async def test_edgeql_dt_local_datetime_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <naive_datetime>'2017-10-10T13:11' +
+                SELECT <local_datetime>'2017-10-10T13:11' +
                     <timedelta>'1 day';
             ''',
             ['2017-10-11T13:11:00'],
@@ -112,48 +112,48 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <timedelta>'1 day' +
-                    <naive_datetime>'2017-10-10T13:11';
+                    <local_datetime>'2017-10-10T13:11';
             ''',
             ['2017-10-11T13:11:00'],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <naive_datetime>'2017-10-10T13:11' -
+                SELECT <local_datetime>'2017-10-10T13:11' -
                     <timedelta>'1 day';
             ''',
             ['2017-10-09T13:11:00'],
         )
 
-    async def test_edgeql_dt_naive_date_01(self):
+    async def test_edgeql_dt_local_date_01(self):
         await self.assert_query_result(
-            r'''SELECT <naive_date>'2017-10-10' + <timedelta>'1 day';''',
+            r'''SELECT <local_date>'2017-10-10' + <timedelta>'1 day';''',
             ['2017-10-11'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <timedelta>'1 day' + <naive_date>'2017-10-10';''',
+            r'''SELECT <timedelta>'1 day' + <local_date>'2017-10-10';''',
             ['2017-10-11'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <naive_date>'2017-10-10' - <timedelta>'1 day';''',
+            r'''SELECT <local_date>'2017-10-10' - <timedelta>'1 day';''',
             ['2017-10-09'],
         )
 
-    async def test_edgeql_dt_naive_time_01(self):
+    async def test_edgeql_dt_local_time_01(self):
         await self.assert_query_result(
-            r'''SELECT <naive_time>'10:01:01' + <timedelta>'1 hour';''',
+            r'''SELECT <local_time>'10:01:01' + <timedelta>'1 hour';''',
             ['11:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <timedelta>'1 hour' + <naive_time>'10:01:01';''',
+            r'''SELECT <timedelta>'1 hour' + <local_time>'10:01:01';''',
             ['11:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <naive_time>'10:01:01' - <timedelta>'1 hour';''',
+            r'''SELECT <local_time>'10:01:01' - <timedelta>'1 hour';''',
             ['09:01:01'],
         )
 

@@ -73,85 +73,85 @@ the functions below allow more options for such conversions.
     <ref_eql_functions_converters_datetime_fmt>`.
 
 
-.. eql:function:: std::to_naive_datetime(s: str, fmt: OPTIONAL str={}) \
-                    -> naive_datetime
-                  std::to_naive_datetime(year: int64, month: int64, \
+.. eql:function:: std::to_local_datetime(s: str, fmt: OPTIONAL str={}) \
+                    -> local_datetime
+                  std::to_local_datetime(year: int64, month: int64, \
                     day: int64, hour: int64, min: int64, sec: float64) \
-                    -> naive_datetime
+                    -> local_datetime
 
-    :index: parse naive_datetime
+    :index: parse local_datetime
 
-    Create a :eql:type:`naive_datetime` value.
+    Create a :eql:type:`local_datetime` value.
 
-    Similar to :eql:func:`to_datetime`, the :eql:type:`naive_datetime`
+    Similar to :eql:func:`to_datetime`, the :eql:type:`local_datetime`
     value can be parsed from the input :eql:type:`str` *s* with an
     optional *fmt* argument or it can be given in terms of its
     component parts: *year*, *month*, *day*, *hour*, *min*, *sec*.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_naive_datetime('2018-05-07T15:01:22.306916');
-        {<naive_datetime>'2018-05-07T15:01:22.306916'}
-        db> SELECT to_naive_datetime('May 7th, 2018 15:01:22',
+        db> SELECT to_local_datetime('2018-05-07T15:01:22.306916');
+        {<local_datetime>'2018-05-07T15:01:22.306916'}
+        db> SELECT to_local_datetime('May 7th, 2018 15:01:22',
         ...                          'Mon DDth, YYYY HH24:MI:SS');
-        {<naive_datetime>'2018-05-07T15:01:22'}
-        db> SELECT to_naive_datetime(
+        {<local_datetime>'2018-05-07T15:01:22'}
+        db> SELECT to_local_datetime(
         ...     2018, 5, 7, 15, 1, 22.306916);
-        {<naive_datetime>'2018-05-07T15:01:22.306916'}
+        {<local_datetime>'2018-05-07T15:01:22.306916'}
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_datetime_fmt>`.
 
 
-.. eql:function:: std::to_naive_date(s: str, fmt: OPTIONAL str={}) \
-                    -> naive_date
-                  std::to_naive_date(year: int64, month: int64, \
-                    day: int64) -> naive_date
+.. eql:function:: std::to_local_date(s: str, fmt: OPTIONAL str={}) \
+                    -> local_date
+                  std::to_local_date(year: int64, month: int64, \
+                    day: int64) -> local_date
 
-    :index: parse naive_date
+    :index: parse local_date
 
-    Create a :eql:type:`naive_date` value.
+    Create a :eql:type:`local_date` value.
 
-    Similar to :eql:func:`to_datetime`, the :eql:type:`naive_date`
+    Similar to :eql:func:`to_datetime`, the :eql:type:`local_date`
     value can be parsed from the input :eql:type:`str` *s* with an
     optional *fmt* argument or it can be given in terms of its
     component parts: *year*, *month*, *day*.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_naive_date('2018-05-07');
-        {<naive_date>'2018-05-07'}
-        db> SELECT to_naive_date('May 7th, 2018', 'Mon DDth, YYYY');
-        {<naive_date>'2018-05-07'}
-        db> SELECT to_naive_date(2018, 5, 7);
-        {<naive_date>'2018-05-07'}
+        db> SELECT to_local_date('2018-05-07');
+        {<local_date>'2018-05-07'}
+        db> SELECT to_local_date('May 7th, 2018', 'Mon DDth, YYYY');
+        {<local_date>'2018-05-07'}
+        db> SELECT to_local_date(2018, 5, 7);
+        {<local_date>'2018-05-07'}
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_datetime_fmt>`.
 
 
-.. eql:function:: std::to_naive_time(s: str, fmt: OPTIONAL str={}) \
-                    -> naive_time
-                  std::to_naive_time(hour: int64, min: int64, sec: float64) \
-                    -> naive_time
+.. eql:function:: std::to_local_time(s: str, fmt: OPTIONAL str={}) \
+                    -> local_time
+                  std::to_local_time(hour: int64, min: int64, sec: float64) \
+                    -> local_time
 
-    :index: parse naive_time
+    :index: parse local_time
 
-    Create a :eql:type:`naive_time` value.
+    Create a :eql:type:`local_time` value.
 
-    Similar to :eql:func:`to_datetime`, the :eql:type:`naive_time`
+    Similar to :eql:func:`to_datetime`, the :eql:type:`local_time`
     value can be parsed from the input :eql:type:`str` *s* with an
     optional *fmt* argument or it can be given in terms of its
     component parts: *hour*, *min*, *sec*.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_naive_time('15:01:22.306916');
-        {<naive_time>'15:01:22.306916'}
-        db> SELECT to_naive_time('03:01:22pm', 'HH:MI:SSam');
-        {<naive_time>'15:01:22'}
-        db> SELECT to_naive_time(15, 1, 22.306916);
-        {<naive_time>'15:01:22.306916'}
+        db> SELECT to_local_time('15:01:22.306916');
+        {<local_time>'15:01:22.306916'}
+        db> SELECT to_local_time('03:01:22pm', 'HH:MI:SSam');
+        {<local_time>'15:01:22'}
+        db> SELECT to_local_time(15, 1, 22.306916);
+        {<local_time>'15:01:22.306916'}
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_datetime_fmt>`.
@@ -292,9 +292,9 @@ the functions below allow more options for such conversions.
         {'world'}
 
 .. eql:function:: std::to_str(val: datetime, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: naive_datetime, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: naive_date, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: naive_time, fmt: OPTIONAL str={}) -> str
+                  std::to_str(val: local_datetime, fmt: OPTIONAL str={}) -> str
+                  std::to_str(val: local_date, fmt: OPTIONAL str={}) -> str
+                  std::to_str(val: local_time, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: timedelta, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: int64, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: float64, fmt: OPTIONAL str={}) -> str
@@ -311,11 +311,11 @@ the functions below allow more options for such conversions.
     converter functions from :eql:type:`str` back to the specific
     types, which share the meaning of the format argument *fmt*.
 
-    When converting :eql:type:`datetime`, :eql:type:`naive_datetime`,
-    :eql:type:`naive_date`, :eql:type:`naive_time`,
+    When converting :eql:type:`datetime`, :eql:type:`local_datetime`,
+    :eql:type:`local_date`, :eql:type:`local_time`,
     :eql:type:`timedelta` this function is the inverse of
-    :eql:func:`to_datetime`, :eql:func:`to_naive_datetime`,
-    :eql:func:`to_naive_date`, :eql:func:`to_naive_time`,
+    :eql:func:`to_datetime`, :eql:func:`to_local_datetime`,
+    :eql:func:`to_local_date`, :eql:func:`to_local_time`,
     :eql:func:`to_timedelta`, correspondingly.
 
     .. code-block:: edgeql-repl
@@ -323,7 +323,7 @@ the functions below allow more options for such conversions.
         db> SELECT to_str(<datetime>'2018-05-07 15:01:22.306916-05',
         ...               'FMDDth of FMMonth, YYYY');
         {'7th of May, 2018'}
-        db> SELECT to_str(<naive_date>'2018-05-07', 'CCth "century"');
+        db> SELECT to_str(<local_date>'2018-05-07', 'CCth "century"');
         {'21st century'}
 
     When converting one of the numeric types, this function is the
@@ -560,10 +560,10 @@ the *FX* prefix modifier is used. For example:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT to_naive_date(
+    db> SELECT to_local_date(
     ...     '2000    JUN', 'YYYY MON');
-    {<naive_date>'2000-06-01'}
-    db> SELECT to_naive_date(
+    {<local_date>'2000-06-01'}
+    db> SELECT to_local_date(
     ...     '2000    JUN', 'FXYYYY MON');
     InternalServerError: invalid value "   " for "MON"
 

@@ -1063,7 +1063,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <naive_datetime>'2018-05-07T15:01:22.306916', 'year');
+                    <local_datetime>'2018-05-07T15:01:22.306916', 'year');
             ''',
             {2018},
         )
@@ -1071,7 +1071,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <naive_datetime>'2018-05-07T15:01:22.306916', 'month');
+                    <local_datetime>'2018-05-07T15:01:22.306916', 'month');
             ''',
             {5},
         )
@@ -1079,7 +1079,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <naive_datetime>'2018-05-07T15:01:22.306916', 'day');
+                    <local_datetime>'2018-05-07T15:01:22.306916', 'day');
             ''',
             {7},
         )
@@ -1087,7 +1087,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <naive_datetime>'2018-05-07T15:01:22.306916', 'hour');
+                    <local_datetime>'2018-05-07T15:01:22.306916', 'hour');
             ''',
             {15},
         )
@@ -1095,7 +1095,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <naive_datetime>'2018-05-07T15:01:22.306916', 'minute');
+                    <local_datetime>'2018-05-07T15:01:22.306916', 'minute');
             ''',
             {1},
         )
@@ -1103,7 +1103,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <naive_datetime>'2018-05-07T15:01:22.306916', 'second');
+                    <local_datetime>'2018-05-07T15:01:22.306916', 'second');
             ''',
             {22.306916},
         )
@@ -1114,40 +1114,40 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 'timestamp units "timezone_hour" not supported'):
             await self.con.fetchall('''
                 SELECT datetime_get(
-                    <naive_datetime>'2018-05-07T15:01:22.306916',
+                    <local_datetime>'2018-05-07T15:01:22.306916',
                     'timezone_hour'
                 );
             ''')
 
     async def test_edgeql_functions_date_get_01(self):
         await self.assert_query_result(
-            r'''SELECT date_get(<naive_date>'2018-05-07', 'year');''',
+            r'''SELECT date_get(<local_date>'2018-05-07', 'year');''',
             {2018},
         )
 
         await self.assert_query_result(
-            r'''SELECT date_get(<naive_date>'2018-05-07', 'month');''',
+            r'''SELECT date_get(<local_date>'2018-05-07', 'month');''',
             {5},
         )
 
         await self.assert_query_result(
-            r'''SELECT date_get(<naive_date>'2018-05-07', 'day');''',
+            r'''SELECT date_get(<local_date>'2018-05-07', 'day');''',
             {7},
         )
 
     async def test_edgeql_functions_time_get_01(self):
         await self.assert_query_result(
-            r'''SELECT time_get(<naive_time>'15:01:22.306916', 'hour')''',
+            r'''SELECT time_get(<local_time>'15:01:22.306916', 'hour')''',
             {15},
         )
 
         await self.assert_query_result(
-            r'''SELECT time_get(<naive_time>'15:01:22.306916', 'minute')''',
+            r'''SELECT time_get(<local_time>'15:01:22.306916', 'minute')''',
             {1},
         )
 
         await self.assert_query_result(
-            r'''SELECT time_get(<naive_time>'15:01:22.306916', 'second')''',
+            r'''SELECT time_get(<local_time>'15:01:22.306916', 'second')''',
             {22.306916},
         )
 
@@ -1304,18 +1304,18 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.fetchall('SELECT to_datetime("2017-10-10", "")')
 
-    async def test_edgeql_functions_to_naive_datetime_01(self):
+    async def test_edgeql_functions_to_local_datetime_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_naive_datetime(2018, 5, 7, 15, 1, 22.306916);
+                SELECT <str>to_local_datetime(2018, 5, 7, 15, 1, 22.306916);
             ''',
             ['2018-05-07T15:01:22.306916'],
         )
 
-    async def test_edgeql_functions_to_naive_date_01(self):
+    async def test_edgeql_functions_to_local_date_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_naive_date(2018, 5, 7);
+                SELECT <str>to_local_date(2018, 5, 7);
             ''',
             ['2018-05-07'],
         )
@@ -1324,12 +1324,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(
-                    'SELECT to_naive_date("2017-10-10", "")')
+                    'SELECT to_local_date("2017-10-10", "")')
 
-    async def test_edgeql_functions_to_naive_time_01(self):
+    async def test_edgeql_functions_to_local_time_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_naive_time(15, 1, 22.306916);
+                SELECT <str>to_local_time(15, 1, 22.306916);
             ''',
             ['15:01:22.306916'],
         )
@@ -1337,7 +1337,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('SELECT to_naive_time("12:00:00", "")')
+                await self.con.fetchall('SELECT to_local_time("12:00:00", "")')
 
     async def test_edgeql_functions_to_timedelta_01(self):
         await self.assert_query_result(
@@ -1420,7 +1420,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH D := <naive_date>datetime_current()
+            WITH D := <local_date>datetime_current()
             SELECT <str>D = to_str(D);
             ''',
             [True],
@@ -1428,7 +1428,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH NT := <naive_time>datetime_current()
+            WITH NT := <local_time>datetime_current()
             SELECT <str>NT = to_str(NT);
             ''',
             [True],
@@ -1567,7 +1567,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_str_04(self):
         await self.assert_query_result(
             r'''
-            WITH DT := <naive_date>'2018-05-07'
+            WITH DT := <local_date>'2018-05-07'
             SELECT to_str(DT, 'YYYY-MM-DD');
             ''',
             {'2018-05-07'},
@@ -1575,7 +1575,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH DT := <naive_date>'2018-05-07'
+            WITH DT := <local_date>'2018-05-07'
             SELECT to_str(DT, 'YYYYBC');
             ''',
             {'2018AD'},
@@ -1583,7 +1583,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH DT := <naive_date>'2018-05-07'
+            WITH DT := <local_date>'2018-05-07'
             SELECT to_str(DT, 'FMDDth of FMMonth, YYYY');
             ''',
             {'7th of May, 2018'},
@@ -1591,7 +1591,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH DT := <naive_date>'2018-05-07'
+            WITH DT := <local_date>'2018-05-07'
             SELECT to_str(DT, 'CCth "century"');
             ''',
             {'21st century'},
@@ -1599,7 +1599,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH DT := <naive_date>'2018-05-07'
+            WITH DT := <local_date>'2018-05-07'
             SELECT to_str(DT, 'Y,YYY Month DD Day');
             ''',
             {'2,018 May       07 Monday   '},
@@ -1608,7 +1608,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             # the format string doesn't have any special characters
-            WITH DT := <naive_date>'2018-05-07'
+            WITH DT := <local_date>'2018-05-07'
             SELECT to_str(DT, 'foo');
             ''',
             {'foo'},
@@ -1618,7 +1618,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(r'''
-                    WITH DT := <naive_time>'12:00:00'
+                    WITH DT := <local_time>'12:00:00'
                     SELECT to_str(DT, '');
                 ''')
 
@@ -1626,7 +1626,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(r'''
-                    WITH DT := <naive_date>'2018-05-07'
+                    WITH DT := <local_date>'2018-05-07'
                     SELECT to_str(DT, '');
                 ''')
 
@@ -1770,22 +1770,22 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_to_str_07(self):
         await self.assert_query_result(
-            r'''SELECT to_str(<naive_time>'15:01:22', 'HH:MI A.M.');''',
+            r'''SELECT to_str(<local_time>'15:01:22', 'HH:MI A.M.');''',
             {'03:01 P.M.'},
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<naive_time>'15:01:22', 'HH:MI:SSam.');''',
+            r'''SELECT to_str(<local_time>'15:01:22', 'HH:MI:SSam.');''',
             {'03:01:22pm.'},
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<naive_time>'15:01:22', 'HH24:MI');''',
+            r'''SELECT to_str(<local_time>'15:01:22', 'HH24:MI');''',
             {'15:01'},
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<naive_time>'15:01:22', ' ');''',
+            r'''SELECT to_str(<local_time>'15:01:22', ' ');''',
             {' '},
         )
 
@@ -1793,7 +1793,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(
-                    r'''SELECT to_str(<naive_time>'15:01:22', '');''',)
+                    r'''SELECT to_str(<local_time>'15:01:22', '');''',)
 
     async def test_edgeql_functions_to_str_08(self):
         await self.assert_query_result(
@@ -2235,7 +2235,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>min(<naive_datetime>{
+                SELECT <str>min(<local_datetime>{
                     '2018-05-07T15:01:22.306916',
                     '2017-05-07T16:01:22.306916',
                     '2017-01-07T11:01:22.306916',
@@ -2247,7 +2247,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>min(<naive_date>{
+                SELECT <str>min(<local_date>{
                     '2018-05-07',
                     '2017-05-07',
                     '2017-01-07',
@@ -2259,7 +2259,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>min(<naive_time>{
+                SELECT <str>min(<local_time>{
                     '15:01:22',
                     '16:01:22',
                     '11:01:22',
@@ -2371,7 +2371,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>max(<naive_datetime>{
+                SELECT <str>max(<local_datetime>{
                     '2018-05-07T15:01:22.306916',
                     '2017-05-07T16:01:22.306916',
                     '2017-01-07T11:01:22.306916',
@@ -2383,7 +2383,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>max(<naive_date>{
+                SELECT <str>max(<local_date>{
                     '2018-05-07',
                     '2017-05-07',
                     '2017-01-07',
@@ -2395,7 +2395,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>max(<naive_time>{
+                SELECT <str>max(<local_time>{
                     '15:01:22',
                     '16:01:22',
                     '11:01:22',

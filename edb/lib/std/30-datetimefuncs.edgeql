@@ -51,7 +51,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::datetime_get(dt: std::naive_datetime, el: std::str) -> std::float64
+std::datetime_get(dt: std::local_datetime, el: std::str) -> std::float64
 {
     FROM SQL $$
     SELECT date_part("el", "dt")
@@ -60,7 +60,7 @@ std::datetime_get(dt: std::naive_datetime, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::time_get(dt: std::naive_time, el: std::str) -> std::float64
+std::time_get(dt: std::local_time, el: std::str) -> std::float64
 {
     FROM SQL $$
     SELECT date_part("el", "dt")
@@ -69,7 +69,7 @@ std::time_get(dt: std::naive_time, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::date_get(dt: std::naive_date, el: std::str) -> std::float64
+std::date_get(dt: std::local_date, el: std::str) -> std::float64
 {
     FROM SQL $$
     SELECT date_part("el", "dt")
@@ -169,116 +169,116 @@ std::`-` (l: std::datetime, r: std::datetime) -> std::timedelta
     FROM SQL OPERATOR r'-';
 
 
-# std::naive_datetime
+# std::local_datetime
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::naive_datetime, r: std::naive_datetime) -> std::bool
+std::`=` (l: std::local_datetime, r: std::local_datetime) -> std::bool
     FROM SQL OPERATOR r'=';
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::naive_datetime,
-           r: OPTIONAL std::naive_datetime) -> std::bool
+std::`?=` (l: OPTIONAL std::local_datetime,
+           r: OPTIONAL std::local_datetime) -> std::bool
     FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::naive_datetime, r: std::naive_datetime) -> std::bool
+std::`!=` (l: std::local_datetime, r: std::local_datetime) -> std::bool
     FROM SQL OPERATOR r'<>';
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::naive_datetime,
-            r: OPTIONAL std::naive_datetime) -> std::bool
+std::`?!=` (l: OPTIONAL std::local_datetime,
+            r: OPTIONAL std::local_datetime) -> std::bool
     FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::naive_datetime, r: std::naive_datetime) -> std::bool
+std::`>` (l: std::local_datetime, r: std::local_datetime) -> std::bool
     FROM SQL OPERATOR r'>';
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::naive_datetime, r: std::naive_datetime) -> std::bool
+std::`>=` (l: std::local_datetime, r: std::local_datetime) -> std::bool
     FROM SQL OPERATOR r'>=';
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::naive_datetime, r: std::naive_datetime) -> std::bool
+std::`<` (l: std::local_datetime, r: std::local_datetime) -> std::bool
     FROM SQL OPERATOR r'<';
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::naive_datetime, r: std::naive_datetime) -> std::bool
+std::`<=` (l: std::local_datetime, r: std::local_datetime) -> std::bool
     FROM SQL OPERATOR r'<=';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::naive_datetime, r: std::timedelta) -> std::naive_datetime
+std::`+` (l: std::local_datetime, r: std::timedelta) -> std::local_datetime
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::timedelta, r: std::naive_datetime) -> std::naive_datetime
+std::`+` (l: std::timedelta, r: std::local_datetime) -> std::local_datetime
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::naive_datetime, r: std::timedelta) -> std::naive_datetime
+std::`-` (l: std::local_datetime, r: std::timedelta) -> std::local_datetime
     FROM SQL OPERATOR r'-';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::naive_datetime, r: std::naive_datetime) -> std::timedelta
+std::`-` (l: std::local_datetime, r: std::local_datetime) -> std::timedelta
     FROM SQL OPERATOR r'-';
 
 
-# std::naive_date
+# std::local_date
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::naive_date, r: std::naive_date) -> std::bool
+std::`=` (l: std::local_date, r: std::local_date) -> std::bool
     FROM SQL OPERATOR r'=';
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::naive_date,
-           r: OPTIONAL std::naive_date) -> std::bool
+std::`?=` (l: OPTIONAL std::local_date,
+           r: OPTIONAL std::local_date) -> std::bool
     FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::naive_date, r: std::naive_date) -> std::bool
+std::`!=` (l: std::local_date, r: std::local_date) -> std::bool
     FROM SQL OPERATOR r'<>';
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::naive_date,
-            r: OPTIONAL std::naive_date) -> std::bool
+std::`?!=` (l: OPTIONAL std::local_date,
+            r: OPTIONAL std::local_date) -> std::bool
     FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::naive_date, r: std::naive_date) -> std::bool
+std::`>` (l: std::local_date, r: std::local_date) -> std::bool
     FROM SQL OPERATOR r'>';
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::naive_date, r: std::naive_date) -> std::bool
+std::`>=` (l: std::local_date, r: std::local_date) -> std::bool
     FROM SQL OPERATOR r'>=';
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::naive_date, r: std::naive_date) -> std::bool
+std::`<` (l: std::local_date, r: std::local_date) -> std::bool
     FROM SQL OPERATOR r'<';
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::naive_date, r: std::naive_date) -> std::bool
+std::`<=` (l: std::local_date, r: std::local_date) -> std::bool
     FROM SQL OPERATOR r'<=';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::naive_date, r: std::timedelta) -> std::naive_date
+std::`+` (l: std::local_date, r: std::timedelta) -> std::local_date
 {
     FROM SQL OPERATOR '+';
     SET force_return_cast := true;
@@ -286,7 +286,7 @@ std::`+` (l: std::naive_date, r: std::timedelta) -> std::naive_date
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::timedelta, r: std::naive_date) -> std::naive_date
+std::`+` (l: std::timedelta, r: std::local_date) -> std::local_date
 {
     FROM SQL OPERATOR '+';
     SET force_return_cast := true;
@@ -294,7 +294,7 @@ std::`+` (l: std::timedelta, r: std::naive_date) -> std::naive_date
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::naive_date, r: std::timedelta) -> std::naive_date
+std::`-` (l: std::local_date, r: std::timedelta) -> std::local_date
 {
     FROM SQL OPERATOR '-';
     SET force_return_cast := true;
@@ -302,73 +302,73 @@ std::`-` (l: std::naive_date, r: std::timedelta) -> std::naive_date
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::naive_date, r: std::naive_date) -> std::timedelta
+std::`-` (l: std::local_date, r: std::local_date) -> std::timedelta
     FROM SQL $$
     SELECT make_interval(days => "l" - "r")
     $$;
 
 
-# std::naive_time
+# std::local_time
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::naive_time, r: std::naive_time) -> std::bool
+std::`=` (l: std::local_time, r: std::local_time) -> std::bool
     FROM SQL OPERATOR r'=';
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::naive_time,
-           r: OPTIONAL std::naive_time) -> std::bool
+std::`?=` (l: OPTIONAL std::local_time,
+           r: OPTIONAL std::local_time) -> std::bool
     FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::naive_time, r: std::naive_time) -> std::bool
+std::`!=` (l: std::local_time, r: std::local_time) -> std::bool
     FROM SQL OPERATOR r'<>';
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::naive_time,
-            r: OPTIONAL std::naive_time) -> std::bool
+std::`?!=` (l: OPTIONAL std::local_time,
+            r: OPTIONAL std::local_time) -> std::bool
     FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::naive_time, r: std::naive_time) -> std::bool
+std::`>` (l: std::local_time, r: std::local_time) -> std::bool
     FROM SQL OPERATOR r'>';
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::naive_time, r: std::naive_time) -> std::bool
+std::`>=` (l: std::local_time, r: std::local_time) -> std::bool
     FROM SQL OPERATOR r'>=';
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::naive_time, r: std::naive_time) -> std::bool
+std::`<` (l: std::local_time, r: std::local_time) -> std::bool
     FROM SQL OPERATOR r'<';
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::naive_time, r: std::naive_time) -> std::bool
+std::`<=` (l: std::local_time, r: std::local_time) -> std::bool
     FROM SQL OPERATOR r'<=';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::naive_time, r: std::timedelta) -> std::naive_time
+std::`+` (l: std::local_time, r: std::timedelta) -> std::local_time
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::timedelta, r: std::naive_time) -> std::naive_time
+std::`+` (l: std::timedelta, r: std::local_time) -> std::local_time
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::naive_time, r: std::timedelta) -> std::naive_time
+std::`-` (l: std::local_time, r: std::timedelta) -> std::local_time
     FROM SQL OPERATOR r'-';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::naive_time, r: std::naive_time) -> std::timedelta
+std::`-` (l: std::local_time, r: std::local_time) -> std::timedelta
     FROM SQL OPERATOR r'-';
 
 
@@ -435,27 +435,27 @@ std::`-` (v: std::timedelta) -> std::timedelta
 ## Date/time casts
 ## ---------------
 
-CREATE CAST FROM std::datetime TO std::naive_datetime
+CREATE CAST FROM std::datetime TO std::local_datetime
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::datetime TO std::naive_date
+CREATE CAST FROM std::datetime TO std::local_date
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::datetime TO std::naive_time
+CREATE CAST FROM std::datetime TO std::local_time
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::naive_datetime TO std::naive_date
+CREATE CAST FROM std::local_datetime TO std::local_date
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::naive_datetime TO std::naive_time
+CREATE CAST FROM std::local_datetime TO std::local_time
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::naive_date TO std::naive_datetime
+CREATE CAST FROM std::local_date TO std::local_datetime
     FROM SQL CAST;
 
 
@@ -465,15 +465,15 @@ CREATE CAST FROM std::str TO std::datetime
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::str TO std::naive_datetime
+CREATE CAST FROM std::str TO std::local_datetime
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::str TO std::naive_date
+CREATE CAST FROM std::str TO std::local_date
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::str TO std::naive_time
+CREATE CAST FROM std::str TO std::local_time
     FROM SQL CAST;
 
 
@@ -481,7 +481,7 @@ CREATE CAST FROM std::str TO std::timedelta
     FROM SQL CAST;
 
 
-# Normalize [naive] datetime to text conversion to have
+# Normalize [local] datetime to text conversion to have
 # the same format as one would get by serializing to JSON.
 # Otherwise Postgres doesn't follow the ISO8601 standard
 # and uses ' ' instead of 'T' as a separator between date
@@ -492,17 +492,17 @@ CREATE CAST FROM std::datetime TO std::str
     $$;
 
 
-CREATE CAST FROM std::naive_datetime TO std::str
+CREATE CAST FROM std::local_datetime TO std::str
     FROM SQL $$
     SELECT trim(to_json(val)::text, '"');
     $$;
 
 
-CREATE CAST FROM std::naive_date TO std::str
+CREATE CAST FROM std::local_date TO std::str
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::naive_time TO std::str
+CREATE CAST FROM std::local_time TO std::str
     FROM SQL CAST;
 
 

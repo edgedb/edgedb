@@ -210,18 +210,18 @@ class BinaryRenderer:
         if o.tzinfo:
             buf.write("<datetime>", style.code_comment)
         else:
-            buf.write("<naive_datetime>", style.code_comment)
+            buf.write("<local_datetime>", style.code_comment)
 
         buf.write(repr(o.isoformat()), style.code_string)
 
     @walk.register(datetime.date)
     def _date(o, repl_ctx: context.ReplContext, buf):
-        buf.write("<naive_date>", style.code_comment)
+        buf.write("<local_date>", style.code_comment)
         buf.write(repr(o.isoformat()), style.code_string)
 
     @walk.register(datetime.time)
     def _time(o, repl_ctx: context.ReplContext, buf):
-        buf.write("<naive_time>", style.code_comment)
+        buf.write("<local_time>", style.code_comment)
         buf.write(repr(o.isoformat()), style.code_string)
 
     @walk.register(datetime.timedelta)
