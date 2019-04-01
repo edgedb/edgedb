@@ -318,6 +318,11 @@ def is_terminal_relation(
     return isinstance(rel, (pgast.Relation, pgast.NullRelation))
 
 
+def is_values_relation(
+        rel: pgast.BaseRelation) -> bool:
+    return bool(getattr(rel, 'values', None))
+
+
 def maybe_get_path_var(
         rel: pgast.Query, path_id: irast.PathId, *, aspect: str,
         env: context.Environment) -> typing.Optional[pgast.OutputVar]:
@@ -744,6 +749,7 @@ def _get_path_output(
     if result is not None:
         return result
 
+    alias = None
     rptr = path_id.rptr()
     if rptr is not None and irtyputils.is_id_ptrref(rptr):
         # A value reference to Object.id is the same as a value
@@ -757,6 +763,11 @@ def _get_path_output(
     if is_terminal_relation(rel):
         return _get_rel_path_output(rel, path_id, aspect=aspect,
                                     ptr_info=ptr_info, env=env)
+    elif is_values_relation(rel):
+        # The VALUES() construct seems to always expose its
+        # value as "column1".
+        alias = 'column1'
+        ref = pgast.ColumnRef(name=[alias])
     else:
         ref = get_path_var(rel, path_id, aspect=aspect, env=env)
 
@@ -791,7 +802,8 @@ def _get_path_output(
         if astutils.is_set_op_query(rel):
             result = dbobj.strip_output_var(ref)
         else:
-            alias = get_path_output_alias(path_id, aspect, env=env)
+            if alias is None:
+                alias = get_path_output_alias(path_id, aspect, env=env)
 
             restarget = pgast.ResTarget(
                 name=alias, val=ref, ser_safe=getattr(ref, 'ser_safe', False))

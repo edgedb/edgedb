@@ -356,10 +356,14 @@ class Expr(ImmutableBase):
     pass
 
 
-class BaseConstant(Expr):
+class ConstExpr(Expr):
+
+    typeref: TypeRef
+
+
+class BaseConstant(ConstExpr):
 
     value: str
-    typeref: TypeRef
 
     def __init__(self, *args, typeref, **kwargs):
         super().__init__(*args, typeref=typeref, **kwargs)
@@ -396,6 +400,11 @@ class BooleanConstant(BaseConstant):
 class BytesConstant(BaseConstant):
 
     value: bytes
+
+
+class ConstantSet(ConstExpr):
+
+    elements: typing.Tuple[BaseConstant, ...]
 
 
 class Parameter(Expr):

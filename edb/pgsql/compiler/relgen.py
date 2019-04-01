@@ -281,6 +281,10 @@ def _get_set_rvar(
         # INTROSPECT <type-expr>
         rvars = process_set_as_type_introspection(ir_set, stmt, ctx=ctx)
 
+    elif isinstance(ir_set.expr, irast.ConstantSet):
+        # {<const>[, <const> ...]}
+        rvars = process_set_as_const_set(ir_set, stmt, ctx=ctx)
+
     elif ir_set.expr is not None:
         # All other expressions.
         rvars = process_set_as_expr(ir_set, stmt, ctx=ctx)
@@ -1458,6 +1462,22 @@ def process_set_as_type_introspection(
     set_rvar = relctx.new_rel_rvar(ir_set, substmt, ctx=ctx)
 
     return new_simple_set_rvar(ir_set, set_rvar, ['value', 'source'])
+
+
+def process_set_as_const_set(
+        ir_set: irast.Set, stmt: pgast.Query, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+
+    with ctx.subrel() as subctx:
+        vals = [dispatch.compile(v, ctx=subctx) for v in ir_set.expr.elements]
+        vals_rel = subctx.rel
+        vals_rel.values = [pgast.ImplicitRowExpr(args=[v]) for v in vals]
+
+    vals_rvar = relctx.new_rel_rvar(ir_set, vals_rel, ctx=ctx)
+    relctx.include_rvar(stmt, vals_rvar, ir_set.path_id, ctx=ctx)
+
+    rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
+    return new_simple_set_rvar(ir_set, rvar)
 
 
 def process_set_as_expr(

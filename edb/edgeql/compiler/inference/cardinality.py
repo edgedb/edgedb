@@ -167,6 +167,11 @@ def __infer_const_or_param(ir, scope_tree, env):
     return ONE
 
 
+@_infer_cardinality.register(irast.ConstantSet)
+def __infer_const_set(ir, scope_tree, env):
+    return ONE if len(ir.elements) == 1 else MANY
+
+
 @_infer_cardinality.register(irast.TypeCheckOp)
 def __infer_typecheckop(ir, scope_tree, env):
     return infer_cardinality(ir.left, scope_tree, env)

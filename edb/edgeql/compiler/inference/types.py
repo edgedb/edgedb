@@ -148,6 +148,7 @@ def __infer_func_call(ir, env):
 
 
 @_infer_type.register(irast.BaseConstant)
+@_infer_type.register(irast.ConstantSet)
 @_infer_type.register(irast.Parameter)
 def __infer_const_or_param(ir, env):
     return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)

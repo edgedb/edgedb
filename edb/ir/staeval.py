@@ -88,10 +88,10 @@ def evaluate_Set(
             'expression is not constant', context=ir_set.context)
 
 
-@evaluate.register(irast.BaseConstant)
+@evaluate.register(irast.ConstExpr)
 def evaluate_BaseConstant(
-        ir_const: irast.BaseConstant,
-        schema: s_schema.Schema) -> irast.BaseConstant:
+        ir_const: irast.ConstExpr,
+        schema: s_schema.Schema) -> irast.ConstExpr:
     return ir_const
 
 
@@ -106,6 +106,9 @@ def evaluate_OperatorCall(
         opcall: irast.OperatorCall,
         schema: s_schema.Schema) -> irast.BaseConstant:
 
+    if irutils.is_union_expr(opcall):
+        return _evaluate_union(opcall, schema)
+
     eval_func = op_table.get((opcall.operator_kind, opcall.func_shortname))
     if eval_func is None:
         raise UnsupportedExpressionError(
@@ -114,7 +117,13 @@ def evaluate_OperatorCall(
 
     args = []
     for arg in opcall.args:
-        args.append(evaluate_to_python_val(arg.expr, schema=schema))
+        arg_val = evaluate_to_python_val(arg.expr, schema=schema)
+        if isinstance(arg_val, tuple):
+            raise UnsupportedExpressionError(
+                f'non-singleton operations are not supported',
+                context=opcall.context)
+
+        args.append(arg_val)
 
     value = eval_func(*args)
     qlconst = qlast.BaseConstant.from_python(value)
@@ -125,12 +134,37 @@ def evaluate_OperatorCall(
     return result
 
 
+def _evaluate_union(
+        opcall: irast.OperatorCall,
+        schema: s_schema.Schema) -> irast.ConstantSet:
+
+    elements = []
+    for arg in opcall.args:
+        val = evaluate(arg.expr, schema=schema)
+        if isinstance(val, irast.ConstantSet):
+            elements.extend(val.elements)
+        else:
+            elements.append(val)
+
+    return irast.ConstantSet(
+        elements=tuple(elements),
+        typeref=next(iter(elements)).typeref,
+    )
+
+
 @functools.singledispatch
 def const_to_python(
         ir: irast.BaseConstant,
         schema: s_schema.Schema) -> object:
     raise UnsupportedExpressionError(
         f'cannot convert {ir!r} to Python value')
+
+
+@const_to_python.register(irast.ConstantSet)
+def const_set_to_python(
+        ir: irast.ConstantSet,
+        schema: s_schema.Schema) -> tuple:
+    return tuple(const_to_python(v, schema) for v in ir.elements)
 
 
 @const_to_python.register(irast.IntegerConstant)
