@@ -152,8 +152,7 @@ refer to an otherwise related set as if it were unrelated:
 
 .. code-block:: edgeql
 
-    WITH
-        MODULE example
+    WITH MODULE example
     UPDATE User
     FILTER .name = 'Dave'
     SET {

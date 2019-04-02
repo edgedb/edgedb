@@ -84,7 +84,7 @@ of an object are updated.
 .. code-block:: edgeql
 
     UPDATE Issue
-    FILTER Issue.name = 'Issue #1'
+    FILTER .name = 'Issue #1'
     SET
     # Update shape follows
     {

@@ -67,7 +67,7 @@ Here are a couple of examples of using the ``UPDATE`` statement:
     # update the user with the name 'Alice Smith'
     WITH MODULE example
     UPDATE User
-    FILTER User.name = 'Alice Smith'
+    FILTER .name = 'Alice Smith'
     SET {
         name := 'Alice J. Smith'
     };
@@ -75,7 +75,7 @@ Here are a couple of examples of using the ``UPDATE`` statement:
     # update all users whose name is 'Bob'
     WITH MODULE example
     UPDATE User
-    FILTER User.name LIKE 'Bob%'
+    FILTER .name LIKE 'Bob%'
     SET {
         name := User.name + '*'
     };
