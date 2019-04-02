@@ -131,19 +131,32 @@ class Server:
         )
 
     async def _restart_mgmt_port(self, nethost, netport):
+        await self._mgmt_port.stop()
+
         try:
-            self._mgmt_port = self._new_port(
+            new_mgmt_port = self._new_port(
                 mng_port.ManagementPort,
                 nethost=nethost,
                 netport=netport,
             )
-            await self._mgmt_port.start()
         except Exception:
+            await self._mgmt_port.start()
+            raise
+
+        try:
+            await new_mgmt_port.start()
+        except Exception:
+            try:
+                await new_mgmt_port.stop()
+            except Exception:
+                logging.exception('could not stop the new server')
+                pass
+            await self._mgmt_port.start()
             raise
         else:
-            await self._mgmt_port.stop()
             self._mgmt_host_addr = nethost
-            self._mgmt_host_port = netport
+            self._mgmt_port_no = netport
+            self._mgmt_port = new_mgmt_port
 
     async def _start_portconf(self, portconf: config.ConfigType, *,
                               suppress_errors=False):
@@ -213,7 +226,7 @@ class Server:
     async def _on_system_config_set(self, setting_name, value):
         # CONFIGURE SYSTEM SET setting_name := value;
         if setting_name == 'listen_addresses':
-            await self._restart_mgmt_port(value, self._mgmt_host_port)
+            await self._restart_mgmt_port(value, self._mgmt_port_no)
 
         elif setting_name == 'listen_port':
             await self._restart_mgmt_port(self._mgmt_host_addr, value)
@@ -222,7 +235,7 @@ class Server:
         # CONFIGURE SYSTEM RESET setting_name;
         if setting_name == 'listen_addresses':
             await self._restart_mgmt_port(
-                'localhost', self._mgmt_host_port)
+                'localhost', self._mgmt_port_no)
 
         elif setting_name == 'listen_port':
             await self._restart_mgmt_port(
