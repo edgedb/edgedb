@@ -107,7 +107,7 @@ derived from the objects being updated. That is a good use-case when a
     # express without the use of FOR statement
     WITH MODULE example
     UPDATE User
-    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    FILTER .name IN {'Alice', 'Bob', 'Carol', 'Dave'}
     SET {
         theme := 'red'  IF .name = 'Alice' ELSE
                  'star' IF .name = 'Bob' ELSE
@@ -126,7 +126,7 @@ derived from the objects being updated. That is a good use-case when a
     }
     UNION (
         UPDATE User
-        FILTER User.name = x.name
+        FILTER .name = x.name
         SET {
             theme := x.theme
         }
@@ -140,7 +140,7 @@ advised to use it for performance reasons.
 
     WITH MODULE example
     UPDATE User
-    FILTER User.name IN {'Alice', 'Bob', 'Carol', 'Dave'}
+    FILTER .name IN {'Alice', 'Bob', 'Carol', 'Dave'}
     SET {
         theme := 'halloween'
     };
@@ -151,7 +151,7 @@ advised to use it for performance reasons.
     FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
     UNION (
         UPDATE User
-        FILTER User.name = x
+        FILTER .name = x
         SET {
             theme := 'halloween'
         }
@@ -183,7 +183,7 @@ an intuitive manner.
     }
     UNION (
         UPDATE User
-        FILTER User.name = x.name
+        FILTER .name = x.name
         SET {
             friends := (
                 FOR f in {unnest(x.friends)}
