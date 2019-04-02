@@ -362,10 +362,9 @@ the functions below allow more options for such conversions.
     .. code-block:: edgeql-repl
 
         db> SELECT to_json('[1, "hello", null]')[1];
-        {'hello'}
-
+        {'"hello"'}
         db> SELECT to_json('{"hello": "world"}')['hello'];
-        {'world'}
+        {'"world"'}
 
 
 ------------
