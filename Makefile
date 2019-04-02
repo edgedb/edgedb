@@ -1,4 +1,4 @@
-.PHONY: docs cython postgres pygments
+.PHONY: docs cython postgres postgres-ext pygments
 
 SPHINXOPTS:="-W -n"
 
@@ -15,6 +15,10 @@ docs:
 
 postgres:
 	python setup.py build_postgres
+
+
+postgres-ext:
+	python setup.py build_postgres_ext
 
 
 pygments:

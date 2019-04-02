@@ -52,16 +52,10 @@ Date and Time
     - ``'quarter'`` - the quarter of the year (1-4)
     - ``'second'`` - the seconds, including fractional value from 0 up to and
       not including 60
-    - ``'timezone'`` - the time zone offset from UTC, measured in seconds
-    - ``'timezone_hour'`` - the hour component of time zone offset
-    - ``'timezone_minute'`` - the minute component of time zone offset
     - ``'week'`` - the number of the ISO 8601 week-numbering week of
       the year. ISO weeks are defined to start on Mondays and the
       first week of a year must contain Jan 4 of that year.
     - ``'year'`` - the year
-
-    For :eql:type:`local_datetime` inputs the elements ``'timezone'``,
-    ``'timezone_hour'``, and ``'timezone_minute'`` are invalid.
 
     .. code-block:: edgeql-repl
 

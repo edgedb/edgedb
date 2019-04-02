@@ -214,10 +214,11 @@ def run_server(args):
             'client_min_messages': 'INFO',
             'listen_addresses': '',  # we use Unix sockets
             'unix_socket_permissions': '0700',
+            # We always enforce UTC timezone:
+            # * timestamptz is stored in UTC anyways;
+            # * this makes the DB server more predictable.
+            'TimeZone': 'UTC',
         }
-
-        if args['timezone']:
-            server_settings['TimeZone'] = args['timezone']
 
         cluster = edgedb_cluster.get_pg_cluster(args['data_dir'])
         cluster_status = cluster.get_status()
@@ -333,9 +334,6 @@ _server_options = [
     click.option(
         '--pidfile', type=str, default='/run/edgedb/',
         help='path to PID file directory'),
-    click.option(
-        '--timezone', type=str,
-        help='timezone for displaying and interpreting timestamps'),
     click.option(
         '--daemon-user', type=int),
     click.option(

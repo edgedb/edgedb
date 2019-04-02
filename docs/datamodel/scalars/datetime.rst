@@ -3,9 +3,26 @@
 Date and Time
 =============
 
+EdgeDB has two classes of date/time types:
+
+* a timezone-aware :eql:type:`std::datetime` type;
+
+* a set of "local" date/time objects, not attached to any particular
+  timezone: :eql:type:`std::local_datetime`, :eql:type:`std::local_date`,
+  and :eql:type:`std::local_time`.
+
+All date/time :ref:`operators <ref_eql_operators_datetime>`,
+:ref:`functions <ref_eql_functions_datetime>`,
+:ref:`type converters <ref_eql_functions_converters>`, and type casts
+are designed to maintain a strict separation between timezone-aware
+and "local" date/time values.
+
+EdgeDB stores and outputs timezone-aware values in UTC.
+
+
 .. eql:type:: std::datetime
 
-    A type representing date, time, and time zone.
+    A timezone-aware type representing date and time.
 
     :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
     :eql:type:`datetime` value in an expression:
@@ -14,6 +31,16 @@ Date and Time
 
         SELECT <datetime>'2018-05-07T15:01:22.306916+00';
         SELECT <datetime>'2018-05-07T15:01:22+00';
+
+    Note that when casting from strings a timezone is always required:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT <datetime>'January 01 2019';
+        InvalidValueError: an explicit timezone is required
+
+        db> SELECT <datetime>'January 01 2019 UTC';
+        {<datetime>'2019-01-01T00:00:00+00:00'}
 
     See functions :eql:func:`datetime_get`, :eql:func:`to_datetime`,
     and :eql:func:`to_str` for more ways of working with
@@ -30,6 +57,17 @@ Date and Time
 
         SELECT <local_datetime>'2018-05-07T15:01:22.306916';
         SELECT <local_datetime>'2018-05-07T15:01:22';
+
+    Note that when casting from strings a timezone must not be
+    included:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT <local_datetime>'January 01 2019 UTC';
+        InvalidValueError: invalid input syntax for type std::local_datetime
+
+        db> SELECT <local_datetime>'January 01 2019';
+        {<local_datetime>'2019-01-01T00:00:00'}
 
     See functions :eql:func:`datetime_get`, :eql:func:`to_local_datetime`,
     and :eql:func:`to_str` for more ways of working with
@@ -109,6 +147,17 @@ Date and Time
         ...     '12 decades 2403 months 3987 days 12348943ms';
         {'320 years 3 mons 3987 days 03:25:48.943'}
 
+    All date/time types support the ``+`` and ``-`` arithmetic operations
+    with time intervals:
+
+    .. code-block:: edgeql-repl
+
+        db> select <datetime>'January 01 2019 UTC' - <timedelta>'1 day';
+        {<datetime>'2018-12-31T00:00:00+00:00'}
+        db> select <local_time>'22:00' + <timedelta>'1 hour';
+        {<local_time>'23:00:00'}
+
     See functions :eql:func:`timedelta_get`, :eql:func:`to_timedelta`,
-    and :eql:func:`to_str` for more ways of working with
-    :eql:type:`timedelta`.
+    and :eql:func:`to_str` and date/time :
+    :ref:`operators <ref_eql_operators_datetime>` for more ways of
+    working with :eql:type:`timedelta`.

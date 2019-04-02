@@ -571,14 +571,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             r'''
                 WITH x := {
                     '2018-05-07 20:01:22.306916+00:00',
-                    '2018-05-07T20:01:22.306916',
                     '2018-05-07T20:01:22.306916+00',
                     '2018-05-07T15:01:22.306916-05:00',
                     '2018-05-07T15:01:22.306916-05',
                 }
                 SELECT <str><datetime>x = x;
             ''',
-            [False, False, False, False, False],
+            [False, False, False, False],
         )
 
         await self.assert_query_result(
@@ -586,16 +585,24 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             r'''
                 WITH x := {
                     '2018-05-07 20:01:22.306916+00:00',
-                    '2018-05-07T20:01:22.306916',
                     '2018-05-07T20:01:22.306916+00',
                     '2018-05-07T15:01:22.306916-05:00',
                     '2018-05-07T15:01:22.306916-05',
+                    '2018-05-07T15:01:22.306916 EST',
+                    '2018-05-07T15:01:22.306916 US/Central',
+                    '2018-05-07T15:01:22.306916 UTC+05',
                 }
                 SELECT <datetime>x =
                     <datetime>'2018-05-07T20:01:22.306916+00:00';
             ''',
-            [True, True, True, True, True],
+            [True, True, True, True, True, True, True],
         )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'missing required timezone'):
+            await self.con.fetchone(
+                'SELECT <datetime>"2018-05-07T20:01:22.306916"')
 
     async def test_edgeql_casts_str_06(self):
         # Canonical date and time str representations must follow ISO
@@ -635,6 +642,24 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             ''',
             [True, True, True],
         )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type'):
+            await self.con.fetchone(
+                'SELECT <local_datetime>"2018-05-07T20:01:22.306916+01:00"')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type'):
+            await self.con.fetchone(
+                'SELECT <local_date>"2018-05-07+01:00"')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type'):
+            await self.con.fetchone(
+                'SELECT <local_time>"20:01:22.306916+01:00"')
 
     async def test_edgeql_casts_str_07(self):
         # Canonical date and time str representations must follow ISO
@@ -689,28 +714,17 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            # non-canonical
             r'''
-                WITH x := {
-                    '2018-05-07 20:01:22.306916',
-                    '200122.306916',
-                }
-                SELECT <str><local_time>x = x;
+                WITH x := '20:01'
+                SELECT <str><local_time>x;
             ''',
-            [False, False],
+            ['20:01:00'],
         )
 
-        await self.assert_query_result(
-            # validating that these are all in fact the same time
-            r'''
-                WITH x := {
-                    '2018-05-07 20:01:22.306916',
-                    '200122.306916',
-                }
-                SELECT <local_time>x = <local_time>'20:01:22.306916';
-            ''',
-            [True, True],
-        )
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid input syntax for type std::local_time'):
+            await self.con.fetchone("SELECT <local_time>'2018-05-07 20:01:22'")
 
     async def test_edgeql_casts_str_09(self):
         # Canonical timedelta is a bit weird.

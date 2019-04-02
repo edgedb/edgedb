@@ -435,18 +435,6 @@ std::`-` (v: std::timedelta) -> std::timedelta
 ## Date/time casts
 ## ---------------
 
-CREATE CAST FROM std::datetime TO std::local_datetime
-    FROM SQL CAST;
-
-
-CREATE CAST FROM std::datetime TO std::local_date
-    FROM SQL CAST;
-
-
-CREATE CAST FROM std::datetime TO std::local_time
-    FROM SQL CAST;
-
-
 CREATE CAST FROM std::local_datetime TO std::local_date
     FROM SQL CAST;
 
@@ -462,19 +450,19 @@ CREATE CAST FROM std::local_date TO std::local_datetime
 ## String casts
 
 CREATE CAST FROM std::str TO std::datetime
-    FROM SQL CAST;
+    FROM SQL FUNCTION 'edgedb.timestamptz_in';
 
 
 CREATE CAST FROM std::str TO std::local_datetime
-    FROM SQL CAST;
+    FROM SQL FUNCTION 'edgedb.timestamp_in';
 
 
 CREATE CAST FROM std::str TO std::local_date
-    FROM SQL CAST;
+    FROM SQL FUNCTION 'edgedb.date_in';
 
 
 CREATE CAST FROM std::str TO std::local_time
-    FROM SQL CAST;
+    FROM SQL FUNCTION 'edgedb.time_in';
 
 
 CREATE CAST FROM std::str TO std::timedelta

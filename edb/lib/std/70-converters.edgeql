@@ -314,7 +314,7 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
                 NULL::timestamptz)
         ELSE
             edgedb._raise_exception_on_null(
-                to_timestamp("s", "fmt"),
+                edgedb.to_timestamptz("s", "fmt"),
                 'invalid_parameter_value',
                 'to_datetime(): format ''' || "fmt" || ''' is invalid',
                 ''
@@ -326,15 +326,11 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
 
 
 CREATE FUNCTION
-std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
-                 hour: std::int64, min: std::int64, sec: std::float64)
+std::to_datetime(local: std::local_datetime, zone: std::str)
     -> std::datetime
 {
     FROM SQL $$
-    SELECT make_timestamptz(
-        "year"::int, "month"::int, "day"::int,
-        "hour"::int, "min"::int, "sec"
-    )
+    SELECT timezone("zone", "local");
     $$;
 };
 
@@ -370,7 +366,7 @@ std::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
                 NULL::timestamp)
         ELSE
             edgedb._raise_exception_on_null(
-                to_timestamp("s", "fmt")::timestamp,
+                edgedb.to_timestamp("s", "fmt")::timestamp,
                 'invalid_parameter_value',
                 'to_local_datetime(): format ''' || "fmt" || ''' is invalid',
                 ''
@@ -391,6 +387,16 @@ std::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
         "year"::int, "month"::int, "day"::int,
         "hour"::int, "min"::int, "sec"
     )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_local_datetime(dt: std::datetime, zone: std::str)
+    -> std::local_datetime
+{
+    FROM SQL $$
+    SELECT timezone("zone", "dt");
     $$;
 };
 
@@ -417,6 +423,16 @@ std::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> std::local_date
             )
         END
     )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_local_date(dt: std::datetime, zone: std::str)
+    -> std::local_date
+{
+    FROM SQL $$
+    SELECT timezone("zone", "dt")::date;
     $$;
 };
 
@@ -453,6 +469,16 @@ std::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> std::local_time
             )
         END
     )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_local_time(dt: std::datetime, zone: std::str)
+    -> std::local_time
+{
+    FROM SQL $$
+    SELECT timezone("zone", "dt")::time;
     $$;
 };
 

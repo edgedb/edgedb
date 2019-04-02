@@ -19,6 +19,39 @@
 
 
 --
+-- Custom variants of to_timestamp()
+--
+CREATE FUNCTION to_timestamp(text, text)
+RETURNS timestamp
+AS '$libdir/edbsys', 'edb_to_timestamp'
+LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION to_timestamptz(text, text)
+RETURNS timestamptz
+AS '$libdir/edbsys', 'edb_to_timestamptz'
+LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION time_in(text)
+RETURNS time
+AS '$libdir/edbsys', 'edb_time_in'
+LANGUAGE C IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION date_in(text)
+RETURNS date
+AS '$libdir/edbsys', 'edb_date_in'
+LANGUAGE C IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION timestamp_in(text)
+RETURNS timestamp
+AS '$libdir/edbsys', 'edb_timestamp_in'
+LANGUAGE C IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION timestamptz_in(text)
+RETURNS timestamptz
+AS '$libdir/edbsys', 'edb_timestamptz_in'
+LANGUAGE C IMMUTABLE PARALLEL SAFE;
+
+--
 -- Return the given attribute value from a row value.
 --
 CREATE FUNCTION row_getattr_by_num(record, integer, anyelement)

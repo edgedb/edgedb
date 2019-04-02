@@ -33,8 +33,8 @@ simple cast is not sufficient to specify how data must be converted,
 the functions below allow more options for such conversions.
 
 .. eql:function:: std::to_datetime(s: str, fmt: OPTIONAL str={}) -> datetime
-                  std::to_datetime(year: int64, month: int64, day: int64, \
-                    hour: int64, min: int64, sec: float64) -> datetime
+                  std::to_datetime(local: local_datetime, zone: str) \
+                    -> datetime
                   std::to_datetime(year: int64, month: int64, day: int64, \
                     hour: int64, min: int64, sec: float64, timezone: str) \
                     -> datetime
@@ -58,10 +58,18 @@ the functions below allow more options for such conversions.
         ...                    'Mon DDth, YYYY HH24:MI:SS TZM');
         {<datetime>'2018-05-07T15:01:22+00:00'}
 
-    Alternatively, the :eql:type:`datetime` value can be given in
-    terms of its component parts: *year*, *month*, *day*, *hour*,
-    *min*, *sec*, and possibly *timezone* (if the *timezone* is not
-    specified, the DB timezone will be assumed).
+    Alternatively, the :eql:type:`datetime` value can be constructed
+    from a :eql:type:`std::local_datetime` value:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_datetime(
+        ...   <local_datetime>'January 1, 2019 12:00AM', 'HKT');
+        {<datetime>'2018-12-31T16:00:00+00:00'}
+
+    Yet another way to construct a the :eql:type:`datetime` value
+    is to specify it in terms of its component parts: *year*, *month*,
+    *day*, *hour*, *min*, *sec*, and *timezone*:
 
     .. code-block:: edgeql-repl
 
@@ -74,6 +82,8 @@ the functions below allow more options for such conversions.
 
 
 .. eql:function:: std::to_local_datetime(s: str, fmt: OPTIONAL str={}) \
+                    -> local_datetime
+                  std::to_local_datetime(dt: datetime, zone: str) \
                     -> local_datetime
                   std::to_local_datetime(year: int64, month: int64, \
                     day: int64, hour: int64, min: int64, sec: float64) \
@@ -98,6 +108,16 @@ the functions below allow more options for such conversions.
         db> SELECT to_local_datetime(
         ...     2018, 5, 7, 15, 1, 22.306916);
         {<local_datetime>'2018-05-07T15:01:22.306916'}
+
+    A timezone-aware :eql:type:`datetime` type can be converted
+    to local datetime in the specified timezone:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_local_datetime(
+        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
+        ...   'US/Central');
+        {<local_datetime>'2019-01-01T00:00:00'}
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_datetime_fmt>`.
@@ -126,11 +146,23 @@ the functions below allow more options for such conversions.
         db> SELECT to_local_date(2018, 5, 7);
         {<local_date>'2018-05-07'}
 
+    A timezone-aware :eql:type:`datetime` type can be converted
+    to local date in the specified timezone:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_local_date(
+        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
+        ...   'US/Central');
+        {<local_date>'2019-01-01'}
+
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_datetime_fmt>`.
 
 
 .. eql:function:: std::to_local_time(s: str, fmt: OPTIONAL str={}) \
+                    -> local_time
+                  std::to_local_time(dt: datetime, zone: str) \
                     -> local_time
                   std::to_local_time(hour: int64, min: int64, sec: float64) \
                     -> local_time
@@ -152,6 +184,16 @@ the functions below allow more options for such conversions.
         {<local_time>'15:01:22'}
         db> SELECT to_local_time(15, 1, 22.306916);
         {<local_time>'15:01:22.306916'}
+
+    A timezone-aware :eql:type:`datetime` type can be converted
+    to local date in the specified timezone:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_local_time(
+        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
+        ...   'US/Pacific');
+        {<local_date>'22:00:00'}
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_datetime_fmt>`.

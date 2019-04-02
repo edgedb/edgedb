@@ -1278,14 +1278,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>to_datetime(
-                    2018, 5, 7, 15, 1, 22.306916);
-            ''',
-            ['2018-05-07T15:01:22.306916+00:00'],
-        )
-
-        await self.assert_query_result(
-            r'''
-                SELECT <str>to_datetime(
                     2018, 5, 7, 15, 1, 22.306916, 'EST');
             ''',
             ['2018-05-07T20:01:22.306916+00:00'],
@@ -1304,7 +1296,27 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.fetchall('SELECT to_datetime("2017-10-10", "")')
 
+    async def test_edgeql_functions_to_datetime_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT <str>to_datetime(
+                    to_local_datetime(2018, 5, 7, 15, 1, 22.306916),
+                    'EST')
+            ''',
+            ['2018-05-07T20:01:22.306916+00:00'],
+        )
+
     async def test_edgeql_functions_to_local_datetime_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT <str>to_local_datetime(
+                    <datetime>'2018-05-07T20:01:22.306916+00:00',
+                    'US/Pacific');
+            ''',
+            ['2018-05-07T13:01:22.306916'],
+        )
+
+    async def test_edgeql_functions_to_local_datetime_02(self):
         await self.assert_query_result(
             r'''
                 SELECT <str>to_local_datetime(2018, 5, 7, 15, 1, 22.306916);
@@ -1326,6 +1338,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 await self.con.fetchall(
                     'SELECT to_local_date("2017-10-10", "")')
 
+    async def test_edgeql_functions_to_local_date_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT <str>to_local_date(
+                    <datetime>'2018-05-07T20:01:22.306916+00:00',
+                    'US/Pacific');
+            ''',
+            ['2018-05-07'],
+        )
+
     async def test_edgeql_functions_to_local_time_01(self):
         await self.assert_query_result(
             r'''
@@ -1338,6 +1360,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall('SELECT to_local_time("12:00:00", "")')
+
+    async def test_edgeql_functions_to_local_time_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT <str>to_local_time(
+                    <datetime>'2018-05-07T20:01:22.306916+00:00',
+                    'US/Pacific');
+            ''',
+            ['13:01:22.306916'],
+        )
 
     async def test_edgeql_functions_to_timedelta_01(self):
         await self.assert_query_result(
@@ -1420,7 +1452,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH D := <local_date>datetime_current()
+            WITH D := to_local_date(datetime_current(), 'UTC')
             SELECT <str>D = to_str(D);
             ''',
             [True],
@@ -1428,7 +1460,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH NT := <local_time>datetime_current()
+            WITH NT := to_local_time(datetime_current(), 'UTC')
             SELECT <str>NT = to_str(NT);
             ''',
             [True],

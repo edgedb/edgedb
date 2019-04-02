@@ -326,6 +326,23 @@ class build_postgres(setuptools.Command):
             pathlib.Path('build').resolve())
 
 
+class build_postgres_ext(setuptools.Command):
+
+    description = "build postgres extensions"
+
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self, *args, **kwargs):
+        _compile_postgres_extensions(
+            pathlib.Path('build').resolve())
+
+
 class build_ext(distutils_build_ext.build_ext):
 
     user_options = distutils_build_ext.build_ext.user_options + [
@@ -424,6 +441,7 @@ setuptools.setup(
         'build_ext': build_ext,
         'develop': develop,
         'build_postgres': build_postgres,
+        'build_postgres_ext': build_postgres_ext,
     },
     entry_points={
         'console_scripts': [

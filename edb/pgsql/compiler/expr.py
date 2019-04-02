@@ -223,7 +223,7 @@ def compile_TypeCast(
             func_name = common.get_cast_backend_name(
                 expr.cast_name, expr.cast_module_id, aspect='function')
         else:
-            func_name = (expr.sql_function,)
+            func_name = tuple(expr.sql_function.split('.'))
 
         return pgast.FuncCall(
             name=func_name,

@@ -49,6 +49,9 @@ class PGError(enum.Enum):
 
     ReadOnlySQLTransactionError = '25006'
 
+    InvalidDatetimeFormatError = '22007'
+    DatetimeError = '22008'
+
 
 constraint_errors = frozenset({
     PGError.IntegrityConstraintViolationError,
@@ -235,5 +238,8 @@ def interpret_backend_error(schema, fields):
     elif code == PGError.ReadOnlySQLTransactionError:
         return errors.TransactionError(
             'cannot execute query in a read-only transaction')
+
+    elif code in {PGError.InvalidDatetimeFormatError, PGError.DatetimeError}:
+        return errors.InvalidValueError(translate_pgtype(schema, message))
 
     return errors.InternalServerError(message)

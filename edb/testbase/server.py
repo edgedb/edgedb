@@ -161,7 +161,7 @@ def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings={}):
     if cluster.get_status() == 'not-initialized':
         cluster.init(server_settings=init_settings)
 
-    cluster.start(port='dynamic', timezone='UTC')
+    cluster.start(port='dynamic')
     cluster.set_superuser_password('test')
 
     if cleanup_atexit:
