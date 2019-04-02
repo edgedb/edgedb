@@ -23,6 +23,10 @@ JSON
         db> SELECT json_array_unpack(to_json('[1, "a"]'));
         {1, 'a'}
 
+
+----------
+
+
 .. eql:function:: std::json_get(json: json, \
                                 VARIADIC path: str) -> OPTIONAL json
 
@@ -68,6 +72,10 @@ JSON
         ... }', 'w', '2')) ?? <json>'"mydefault"';
         {'mydefault'}
 
+
+----------
+
+
 .. eql:function:: std::json_object_unpack(json: json) -> \
                   SET OF tuple<str, json>
 
@@ -84,6 +92,10 @@ JSON
         ...     "e": true
         ... }'));
         {['e', true], ['q', 1], ['w', [2, 'foo']]}
+
+
+----------
+
 
 .. eql:function:: std::json_typeof(json: json) -> str
 

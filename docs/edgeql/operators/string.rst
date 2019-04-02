@@ -17,6 +17,9 @@ elements and string slices can be produced by using ``[]``:
     {'text'}
 
 
+----------
+
+
 .. eql:operator:: STRPLUS: A ++ B
 
     :optype A: str
@@ -29,6 +32,9 @@ elements and string slices can be produced by using ``[]``:
 
         db> SELECT 'some' ++ ' text';
         {'some text'}
+
+
+----------
 
 
 .. eql:operator:: LIKE: V LIKE P or V NOT LIKE P
@@ -79,6 +85,9 @@ elements and string slices can be produced by using ``[]``:
         {false}
         db> SELECT 'a%%c' NOT LIKE 'a\%c';
         {true}
+
+
+----------
 
 
 .. eql:operator:: ILIKE: V ILIKE P or V NOT ILIKE P

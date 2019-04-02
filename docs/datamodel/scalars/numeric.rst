@@ -12,6 +12,9 @@ See also the list of standard
 generic functions such as :eql:func:`min`.
 
 
+----------
+
+
 .. eql:type:: std::int16
 
     :index: int integer
@@ -19,6 +22,10 @@ generic functions such as :eql:func:`min`.
     A 16-bit signed integer.
 
     An integer value in range from ``-32768`` to ``+32767`` (inclusive).
+
+
+----------
+
 
 .. eql:type:: std::int32
 
@@ -29,6 +36,10 @@ generic functions such as :eql:func:`min`.
     An integer value in range from ``-2147483648`` to ``+2147483647``
     (inclusive).
 
+
+----------
+
+
 .. eql:type:: std::int64
 
     :index: int integer
@@ -37,6 +48,10 @@ generic functions such as :eql:func:`min`.
 
     An integer value in range from ``-9223372036854775808`` to
     ``+9223372036854775807`` (inclusive).
+
+
+----------
+
 
 .. eql:type:: std::float32
 
@@ -48,6 +63,10 @@ generic functions such as :eql:func:`min`.
     approximate range of a ``float32`` is ``-3.4e+38`` to
     ``+3.4e+38``.
 
+
+----------
+
+
 .. eql:type:: std::float64
 
     :index: float double
@@ -56,6 +75,10 @@ generic functions such as :eql:func:`min`.
 
     Minimal guaranteed precision is at least 15 decimal digits. The
     approximate range of a ``float32`` is ``-1.7e+308`` to ``+1.7e+308``.
+
+
+----------
+
 
 .. eql:type:: std::decimal
 

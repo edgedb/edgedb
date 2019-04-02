@@ -26,6 +26,9 @@ System
         {true}
 
 
+----------
+
+
 .. eql:function:: sys::advisory_lock(key: int64) -> bool
 
     Obtain an exclusive session-level advisory lock.
@@ -40,6 +43,9 @@ System
     The function always returns ``true``.
 
 
+----------
+
+
 .. eql:function:: sys::advisory_unlock(key: int64) -> bool
 
     Release an exclusive session-level advisory lock.
@@ -50,6 +56,9 @@ System
     *key* must be a non-negative integer.
 
 
+----------
+
+
 .. eql:function:: sys::advisory_unlock_all() -> bool
 
     Release all session-level advisory locks held by the current session.
@@ -58,6 +67,9 @@ System
     released, and ``false`` if the lock was not held.
 
     The function always returns ``true``.
+
+
+----------
 
 
 .. eql:function:: sys::get_version() -> tuple<major: int64, \
@@ -80,6 +92,9 @@ System
         db> SELECT sys::get_version();
         {(major := 1, minor := 0, stage := <sys::version_stage>'alpha',
           stage_no := 1, local := [])}
+
+
+----------
 
 
 .. eql:function:: sys::get_version_as_str() -> str

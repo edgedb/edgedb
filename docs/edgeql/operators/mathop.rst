@@ -26,6 +26,9 @@ Numerical
         {4}
 
 
+----------
+
+
 .. eql:operator:: MINUS: A - B
 
     :optype A: anyreal
@@ -41,6 +44,9 @@ Numerical
         {1}
 
 
+----------
+
+
 .. eql:operator:: UMINUS: -A
 
     :optype A: anyreal
@@ -53,6 +59,9 @@ Numerical
 
         db> SELECT -5;
         {-5}
+
+
+----------
 
 
 .. eql:operator:: MULT: A * B
@@ -70,6 +79,9 @@ Numerical
         {20}
 
 
+----------
+
+
 .. eql:operator:: DIV: A / B
 
     :optype A: anyreal
@@ -83,6 +95,9 @@ Numerical
 
         db> SELECT 10 / 4;
         {2.5}
+
+
+----------
 
 
 .. eql:operator:: FLOORDIV: A // B
@@ -111,6 +126,9 @@ Numerical
     related in the following way: ``A / B = (A // B + A % B)``
 
 
+----------
+
+
 .. eql:operator:: MOD: A % B
 
     :optype A: anyreal
@@ -124,6 +142,9 @@ Numerical
 
         db> SELECT 7 % 4;
         {3}
+
+
+----------
 
 
 .. eql:operator:: POW: A ^ B
@@ -168,6 +189,9 @@ Date and Time
         {<timedelta>'3:00:00'}
 
 
+----------
+
+
 .. eql:operator:: DTMINUS: A - B
 
     :optype A: datetime or local_datetime or local_time or \
@@ -202,6 +226,6 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-    db> select <datetime>'January 01 2019 UTC' -
-    ...   <local_datetime>'January 02 2019';
-    QueryError: operator '-' cannot be applied to operands ...
+        db> select <datetime>'January 01 2019 UTC' -
+        ...   <local_datetime>'January 02 2019';
+        QueryError: operator '-' cannot be applied to operands ...

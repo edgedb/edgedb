@@ -20,6 +20,9 @@ and "local" date/time values.
 EdgeDB stores and outputs timezone-aware values in UTC.
 
 
+----------
+
+
 .. eql:type:: std::datetime
 
     A timezone-aware type representing date and time.
@@ -45,6 +48,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     See functions :eql:func:`datetime_get`, :eql:func:`to_datetime`,
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`datetime`.
+
+
+----------
+
 
 .. eql:type:: std::local_datetime
 
@@ -73,6 +80,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`local_datetime`.
 
+
+----------
+
+
 .. eql:type:: std::local_date
 
     A type representing date without time zone.
@@ -87,6 +98,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     See functions :eql:func:`date_get`, :eql:func:`to_local_date`,
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`local_date`.
+
+
+----------
+
 
 .. eql:type:: std::local_time
 
@@ -103,6 +118,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     See functions :eql:func:`time_get`, :eql:func:`to_local_time`,
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`local_time`.
+
+
+----------
+
 
 .. eql:type:: std::timedelta
 

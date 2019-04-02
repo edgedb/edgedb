@@ -25,6 +25,9 @@ This section describes EdgeQL operators that work on whole sets.
         {1, 2, 3}
 
 
+----------
+
+
 .. eql:operator:: IN: A IN B or A NOT IN B
 
     :optype A: anytype
@@ -48,6 +51,9 @@ This section describes EdgeQL operators that work on whole sets.
 
         db> SELECT {1, 2} IN {1, 3, 5};
         {true, false}
+
+
+----------
 
 
 .. eql:operator:: UNION: A UNION B

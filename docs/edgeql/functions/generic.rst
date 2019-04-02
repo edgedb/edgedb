@@ -32,6 +32,9 @@ This section describes generic functions provided by EdgeDB.
         {3}
 
 
+----------
+
+
 .. eql:function:: std::contains(haystack: str, needle: str) -> bool
                   std::contains(haystack: bytes, needle: bytes) -> bool
                   std::contains(haystack: array<anytype>, needle: anytype) \
@@ -58,6 +61,9 @@ This section describes generic functions provided by EdgeDB.
 
         db> SELECT contains([2, 5, 7, 2, 100], 2);
         {true}
+
+
+----------
 
 
 .. eql:function:: std::find(haystack: str, needle: str) -> int32
@@ -93,6 +99,9 @@ This section describes generic functions provided by EdgeDB.
 
         db> SELECT find([2, 5, 7, 2, 100], 2, 1);
         {3}
+
+
+----------
 
 
 .. eql:function:: std::round(value: int64) -> float64
@@ -153,6 +162,9 @@ This section describes generic functions provided by EdgeDB.
         {200}
 
 
+----------
+
+
 .. eql:function:: std::random() -> float64
 
     Return a pseudo-random number in the range ``0.0 <= x < 1.0``.
@@ -161,6 +173,9 @@ This section describes generic functions provided by EdgeDB.
 
         db> SELECT random();
         {0.62649393780157}
+
+
+----------
 
 
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
@@ -176,6 +191,9 @@ This section describes generic functions provided by EdgeDB.
         ...           8, 9, 10, 11, 12, 13 ,14, 15}
         ... UNION bytes_get_bit(b'ab', n);
         {1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0}
+
+
+----------
 
 
 .. eql:function:: std::uuid_generate_v1mc() -> uuid

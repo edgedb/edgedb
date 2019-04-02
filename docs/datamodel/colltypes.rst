@@ -10,6 +10,10 @@ heterogeneous data.
 For details about collection types introspection see :ref:`this section
 <ref_eql_introspection_collection_types>`.
 
+
+----------
+
+
 .. eql:type:: std::array
 
     :index: array
@@ -39,6 +43,10 @@ For details about collection types introspection see :ref:`this section
     See also the list of standard
     :ref:`array functions <ref_eql_functions_array>` and
     generic functions such as :eql:func:`len`.
+
+
+----------
+
 
 .. eql:type:: std::tuple
 

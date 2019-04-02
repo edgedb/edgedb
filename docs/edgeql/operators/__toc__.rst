@@ -11,15 +11,15 @@ EdgeDB provides a number of operators for the standard data types.
     :hidden:
 
     set
-    logical
+
+    mathop
     comparison
     conditional
     coalesce
+    logical
     type
 
     array
     string
     bytes
     json
-
-    mathop

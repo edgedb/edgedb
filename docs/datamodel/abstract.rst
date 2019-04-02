@@ -14,6 +14,10 @@ Abstract Types
     requirements are needed, such as defining polymorphic parameters
     in functions and operators
 
+
+----------
+
+
 .. eql:type:: std::anyscalar
 
     :index: any anytype scalar
@@ -22,6 +26,10 @@ Abstract Types
 
     All scalar types are derived from this type.
 
+
+----------
+
+
 .. eql:type:: std::anyenum
 
     :index: any anytype enum
@@ -29,6 +37,10 @@ Abstract Types
     Abstract base enumerated type.
 
     All :eql:type:`enum` types are derived from this type.
+
+
+----------
+
 
 .. eql:type:: anytuple
 
@@ -54,12 +66,20 @@ There are a number of abstract numeric types extending ``anyscalar``:
     Abstract base scalar type for
     :eql:type:`int16`, :eql:type:`int32`, and :eql:type:`int64`.
 
+
+----------
+
+
 .. eql:type:: std::anyfloat
 
     :index: any anytype float
 
     Abstract base scalar type for
     :eql:type:`float32` and :eql:type:`float64`.
+
+
+----------
+
 
 .. eql:type:: std::anyreal
 

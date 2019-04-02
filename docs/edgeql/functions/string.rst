@@ -13,6 +13,10 @@ String
         db> SELECT str_lower('Some Fancy Title');
         {'some fancy title'}
 
+
+----------
+
+
 .. eql:function:: std::str_upper(string: str) -> str
 
     Return an uppercase copy of the input *string*.
@@ -21,6 +25,10 @@ String
 
         db> SELECT str_upper('Some Fancy Title');
         {'SOME FANCY TITLE'}
+
+
+----------
+
 
 .. eql:function:: std::str_title(string: str) -> str
 
@@ -33,6 +41,10 @@ String
 
         db> SELECT str_title('sOmE fAnCy TiTlE');
         {'Some Fancy Title'}
+
+
+----------
+
 
 .. eql:function:: std::str_lpad(string: str, n: int64, fill: str = ' ') -> str
 
@@ -52,6 +64,10 @@ String
         db> SELECT str_lpad('short', 10, '.:');
         {'.:.:.short'}
 
+
+----------
+
+
 .. eql:function:: std::str_rpad(string: str, n: int64, fill: str = ' ') -> str
 
     Return the input *string* right-padded to the length *n*.
@@ -69,6 +85,10 @@ String
         {'much too l'}
         db> SELECT str_rpad('short', 10, '.:');
         {'short.:.:.'}
+
+
+----------
+
 
 .. eql:function:: std::str_ltrim(string: str, trim: str = ' ') -> str
 
@@ -91,6 +111,10 @@ String
         db> SELECT str_ltrim('.:.:.data', '.:');
         {'data'}
 
+
+----------
+
+
 .. eql:function:: std::str_rtrim(string: str, trim: str = ' ') -> str
 
     Return the input *string* with all rightmost *trim* characters removed.
@@ -111,6 +135,10 @@ String
         {'data'}
         db> SELECT str_rtrim('data.:.:.', '.:');
         {'data'}
+
+
+----------
+
 
 .. eql:function:: std::str_trim(string: str, trim: str = ' ') -> str
 
@@ -134,6 +162,10 @@ String
         db> SELECT str_trim(':.:.data.:.', '.:');
         {'data'}
 
+
+----------
+
+
 .. eql:function:: std::str_repeat(string: str, n: int64) -> str
 
     Repeat the input *string* *n* times.
@@ -146,6 +178,10 @@ String
         {'...'}
         db> SELECT str_repeat('foo', -1);
         {''}
+
+
+----------
+
 
 .. eql:function:: std::re_match(pattern: str, \
                                 string: str) -> array<str>
@@ -164,6 +200,10 @@ String
         db> SELECT re_match(r'\w{4}ql', 'I ❤️ edgeql');
         {['edgeql']}
 
+
+----------
+
+
 .. eql:function:: std::re_match_all(pattern: str, \
                                     string: str) -> SET OF array<str>
 
@@ -180,6 +220,10 @@ String
 
         db> SELECT re_match_all(r'a\w+', 'an abstract concept');
         {['an'], ['abstract']}
+
+
+----------
+
 
 .. eql:function:: std::re_replace(pattern: str, sub: str, \
                                   string: str, \
@@ -202,6 +246,10 @@ String
         ...                   flags := 'g');
         {'HeLLo WorLd'}
 
+
+----------
+
+
 .. eql:function:: std::re_test(pattern: str, string: str) -> bool
 
     :index: regex regexp regular match
@@ -217,6 +265,10 @@ String
 
         db> SELECT re_test(r'a', 'abc');
         {true}
+
+
+----------
+
 
 Regular Expressions
 -------------------

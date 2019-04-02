@@ -20,6 +20,10 @@ Aggregates
         db> SELECT count(User);  # number of User objects in db
         {4}
 
+
+----------
+
+
 .. eql:function:: std::sum(s: SET OF int32) -> int64
                   std::sum(s: SET OF int64) -> int64
                   std::sum(s: SET OF float32) -> float32
@@ -43,6 +47,10 @@ Aggregates
         db> SELECT sum({0.2, 0.3, 0.5});
         {1.0}
 
+
+----------
+
+
 .. eql:function:: std::all(values: SET OF bool) -> bool
 
     :index: aggregate
@@ -60,6 +68,10 @@ Aggregates
         db> SELECT all({1, 2, 3, 4} < 4);
         {false}
 
+
+----------
+
+
 .. eql:function:: std::any(values: SET OF bool) -> bool
 
     :index: aggregate
@@ -76,6 +88,10 @@ Aggregates
 
         db> SELECT any({1, 2, 3, 4} < 4);
         {true}
+
+
+----------
+
 
 .. eql:function:: std::enumerate(values: SET OF anytype) -> \
                   SET OF tuple<int64, anytype>
@@ -104,11 +120,23 @@ Aggregates
         db> SELECT enumerate(User.name);
         {(0, 'Alice'), (1, 'Bob'), (2, 'Dave')}
 
+
+----------
+
+
 .. eql:function:: std::min(values: SET OF anytype) -> OPTIONAL anytype
 
     :index: aggregate
 
     Return the smallest value of the input set.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT min({-1, 100});
+        {-1}
+
+
+----------
 
 
 .. eql:function:: std::max(values: SET OF anytype) -> OPTIONAL anytype
@@ -116,6 +144,14 @@ Aggregates
     :index: aggregate
 
     Return the greatest value of the input set.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT max({-1, 100});
+        {100}
+
+
+----------
 
 
 Here's a list of aggregate functions covered in other sections:

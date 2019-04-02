@@ -20,6 +20,9 @@ EdgeDB supports the following comparison operators:
         {true}
 
 
+----------
+
+
 .. eql:operator:: NEQ: A != B
 
     :optype A: anytype
@@ -32,6 +35,9 @@ EdgeDB supports the following comparison operators:
 
         db> SELECT 3 != 3.14;
         {true}
+
+
+----------
 
 
 .. eql:operator:: COALEQ: A ?= B
@@ -61,6 +67,9 @@ EdgeDB supports the following comparison operators:
         {true}
 
 
+----------
+
+
 .. eql:operator:: COALNEQ: A ?!= B
 
     :optype A: OPTIONAL anytype
@@ -88,6 +97,9 @@ EdgeDB supports the following comparison operators:
         {false}
 
 
+----------
+
+
 .. eql:operator:: LT: A < B
 
     :optype A: anytype
@@ -100,6 +112,9 @@ EdgeDB supports the following comparison operators:
 
         db> SELECT 1 < 2;
         {true}
+
+
+----------
 
 
 .. eql:operator:: GT: A > B
@@ -116,6 +131,9 @@ EdgeDB supports the following comparison operators:
         {false}
 
 
+----------
+
+
 .. eql:operator:: LTEQ: A <= B
 
     :optype A: anytype
@@ -130,6 +148,9 @@ EdgeDB supports the following comparison operators:
         {true}
 
 
+----------
+
+
 .. eql:operator:: GTEQ: A >= B
 
     :optype A: anytype
@@ -142,6 +163,9 @@ EdgeDB supports the following comparison operators:
 
         db> SELECT 1 >= 2;
         {false}
+
+
+----------
 
 
 .. eql:operator:: EXISTS: EXISTS A

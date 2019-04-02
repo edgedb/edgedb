@@ -21,6 +21,9 @@ Array
         {[1, 2, 3, 99, 98]}
 
 
+----------
+
+
 .. _ref_eql_expr_array_elref:
 
 Accessing Array Elements
@@ -55,6 +58,9 @@ exception "array index is out of bounds":
 .. code-block:: edgeql-repl
 
     db> SELECT [1, 2, 3][4];
+
+
+----------
 
 
 .. _ref_eql_expr_array_slice:

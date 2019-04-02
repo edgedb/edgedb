@@ -13,13 +13,25 @@ Date and Time
         db> SELECT datetime_current();
         {'2018-05-14T20:07:11.755827+00:00'}
 
+
+----------
+
+
 .. eql:function:: std::datetime_of_transaction() -> datetime
 
     Return the date and time of the start of the current transaction.
 
+
+----------
+
+
 .. eql:function:: std::datetime_of_statement() -> datetime
 
     Return the date and time of the start of the current statement.
+
+
+----------
+
 
 .. eql:function:: std::datetime_get(dt: datetime, el: str) -> float64
                   std::datetime_get(dt: local_datetime, el: str) -> float64
@@ -76,6 +88,9 @@ Date and Time
         {15}
 
 
+----------
+
+
 .. eql:function:: std::time_get(dt: local_time, el: str) -> float64
 
     Extract a specific element of input time by name.
@@ -103,6 +118,10 @@ Date and Time
         ...     <local_time>'15:01:22.306916', 'milliseconds');
         {22306.916}
 
+
+----------
+
+
 .. eql:function:: std::date_get(dt: local_date, el: str) -> float64
 
     Extract a specific element of input date by name.
@@ -127,6 +146,10 @@ Date and Time
         db> SELECT date_get(
         ...     <local_date>'2018-05-07T15:01:22.306916', 'doy');
         {127}
+
+
+----------
+
 
 .. eql:function:: std::timedelta_get(dt: timedelta, el: str) -> float64
 
@@ -200,6 +223,10 @@ Date and Time
         ...     <timedelta>'365 days 6 hours', 'epoch');
         {31557600}
 
+
+----------
+
+
 .. eql:function:: std::datetime_trunc(dt: datetime, unit: str) -> datetime
 
     Truncate the input datetime to a particular precision.
@@ -237,6 +264,10 @@ Date and Time
         db> SELECT datetime_trunc(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'hour');
         {'2018-05-07T15:00:00+00:00'}
+
+
+----------
+
 
 .. eql:function:: std::timedelta_trunc(dt: timedelta, unit: str) -> timedelta
 

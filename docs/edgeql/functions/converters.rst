@@ -32,6 +32,7 @@ These functions convert between different scalar types. When a
 simple cast is not sufficient to specify how data must be converted,
 the functions below allow more options for such conversions.
 
+
 .. eql:function:: std::to_datetime(s: str, fmt: OPTIONAL str={}) -> datetime
                   std::to_datetime(local: local_datetime, zone: str) \
                     -> datetime
@@ -81,6 +82,9 @@ the functions below allow more options for such conversions.
     <ref_eql_functions_converters_datetime_fmt>`.
 
 
+------------
+
+
 .. eql:function:: std::to_local_datetime(s: str, fmt: OPTIONAL str={}) \
                     -> local_datetime
                   std::to_local_datetime(dt: datetime, zone: str) \
@@ -123,6 +127,9 @@ the functions below allow more options for such conversions.
     <ref_eql_functions_converters_datetime_fmt>`.
 
 
+------------
+
+
 .. eql:function:: std::to_local_date(s: str, fmt: OPTIONAL str={}) \
                     -> local_date
                   std::to_local_date(year: int64, month: int64, \
@@ -158,6 +165,9 @@ the functions below allow more options for such conversions.
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_datetime_fmt>`.
+
+
+------------
 
 
 .. eql:function:: std::to_local_time(s: str, fmt: OPTIONAL str={}) \
@@ -199,6 +209,9 @@ the functions below allow more options for such conversions.
     <ref_eql_functions_converters_datetime_fmt>`.
 
 
+------------
+
+
 .. eql:function:: std::to_timedelta( \
                     NAMED ONLY years: int64=0, \
                     NAMED ONLY months: int64=0, \
@@ -230,6 +243,9 @@ the functions below allow more options for such conversions.
     <ref_eql_functions_converters_datetime_fmt>`.
 
 
+------------
+
+
 .. eql:function:: std::to_decimal(s: str, fmt: OPTIONAL str={}) -> decimal
 
     :index: parse decimal
@@ -252,6 +268,9 @@ the functions below allow more options for such conversions.
     <ref_eql_functions_converters_number_fmt>`.
 
 
+------------
+
+
 .. eql:function:: std::to_int16(s: str, fmt: OPTIONAL str={}) -> int16
 
     :index: parse int16
@@ -263,6 +282,9 @@ the functions below allow more options for such conversions.
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_number_fmt>`.
+
+
+------------
 
 
 .. eql:function:: std::to_int32(s: str, fmt: OPTIONAL str={}) -> int32
@@ -278,6 +300,9 @@ the functions below allow more options for such conversions.
     <ref_eql_functions_converters_number_fmt>`.
 
 
+------------
+
+
 .. eql:function:: std::to_int64(s: str, fmt: OPTIONAL str={}) -> int64
 
     :index: parse int64
@@ -289,6 +314,9 @@ the functions below allow more options for such conversions.
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_number_fmt>`.
+
+
+------------
 
 
 .. eql:function:: std::to_float32(s: str, fmt: OPTIONAL str={}) -> float32
@@ -304,6 +332,9 @@ the functions below allow more options for such conversions.
     <ref_eql_functions_converters_number_fmt>`.
 
 
+------------
+
+
 .. eql:function:: std::to_float64(s: str, fmt: OPTIONAL str={}) -> float64
 
     :index: parse float64
@@ -315,6 +346,9 @@ the functions below allow more options for such conversions.
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_number_fmt>`.
+
+
+------------
 
 
 .. eql:function:: std::to_json(string: str) -> json
@@ -332,6 +366,10 @@ the functions below allow more options for such conversions.
 
         db> SELECT to_json('{"hello": "world"}')['hello'];
         {'world'}
+
+
+------------
+
 
 .. eql:function:: std::to_str(val: datetime, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: local_datetime, fmt: OPTIONAL str={}) -> str
@@ -416,6 +454,9 @@ the functions below allow more options for such conversions.
 
         db> SELECT to_str(['one', 'two', 'three'], ', ');
         {'one, two, three'}
+
+
+------------
 
 
 Formatting

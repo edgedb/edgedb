@@ -21,6 +21,10 @@ Array
         db> SELECT array_agg(User.name ORDER BY User.name);
         {['Alice', 'Bob', 'Joe', 'Sam']}
 
+
+----------
+
+
 .. eql:function:: std::array_get(array: array<anytype>, \
                                  index: int64, \
                                  NAMED ONLY default: anytype = {} \
@@ -46,6 +50,10 @@ Array
         {}
         db> SELECT array_get([2, 3, 5], 100, default := 42);
         {42}
+
+
+----------
+
 
 .. eql:function:: std::array_unpack(array: array<anytype>) -> SET OF anytype
 
