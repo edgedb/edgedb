@@ -84,6 +84,8 @@ class DeclarationLoader:
             (s_objtypes.ObjectType if t is s_objtypes.BaseObjectType else t,
              collections.OrderedDict()) for t in order)
 
+        views = []
+
         # First, iterate over all top-level declarations
         # to get a sense of what's in the schema so that
         # forward references work.
@@ -92,6 +94,9 @@ class DeclarationLoader:
                 objcls = _DECL_MAP[type(decl)]
             except KeyError:
                 if isinstance(decl, qlast.Import):
+                    continue
+                elif isinstance(decl, qlast.ViewDeclaration):
+                    views.append(decl)
                     continue
                 msg = 'unexpected declaration type: {!r}'.format(decl)
                 raise TypeError(msg) from None
@@ -200,6 +205,9 @@ class DeclarationLoader:
 
         for objtype, objtypedecl in objects[s_objtypes.ObjectType].items():
             self._normalize_objtype_expressions(objtype, objtypedecl)
+
+        for viewdecl in views:
+            self._compile_view(viewdecl)
 
         return self._schema
 
@@ -807,6 +815,63 @@ class DeclarationLoader:
                 'type {!r}'.format(
                     ptr.get_target(self._schema).get_name(self._schema)),
                 context=expr.context)
+
+    def _compile_view(self, viewdecl):
+        view_ql = None
+
+        for field_decl in viewdecl.fields:
+            fieldname = field_decl.name.name
+            if fieldname == 'expr':
+                view_ql = field_decl.value
+                break
+
+        if view_ql is None:
+            raise errors.SchemaError(
+                'missing required expression in view definition',
+                context=viewdecl.context,
+            )
+
+        if not isinstance(view_ql, qlast.Statement):
+            view_ql = qlast.SelectQuery(result=view_ql)
+
+        viewname = s_name.Name(
+            module=self._module.get_name(self._schema),
+            name=viewdecl.name)
+
+        ir = qlcompiler.compile_ast_to_ir(
+            view_ql,
+            self._schema,
+            derived_target_module=self._module.get_name(self._schema),
+            modaliases=self._mod_aliases,
+            result_view_name=viewname,
+            schema_view_mode=True)
+
+        self._schema = ir.schema
+
+        scls = self._schema.get(viewname)
+        self._parse_field_setters(scls, viewdecl.fields)
+
+        existing_aliases = {}
+        for alias in view_ql.aliases:
+            if isinstance(alias, qlast.ModuleAliasDecl):
+                existing_aliases[alias.alias] = alias.module
+
+        aliases_to_add = set(self._mod_aliases) - set(existing_aliases)
+        for alias in aliases_to_add:
+            view_ql.aliases.append(
+                qlast.ModuleAliasDecl(
+                    alias=alias,
+                    module=self._mod_aliases[alias],
+                )
+            )
+
+        view_expr = qlcodegen.generate_source(view_ql, pretty=False)
+
+        self._schema = scls.set_field_value(
+            self._schema, 'expr', s_expr.Expression(text=view_expr))
+
+        self._schema = scls.set_field_value(
+            self._schema, 'view_type', s_types.ViewType.Select)
 
 
 def load_module_declarations(schema, declarations):

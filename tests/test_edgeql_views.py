@@ -715,3 +715,45 @@ class TestEdgeQLViews(tb.QueryTestCase):
             """,
             res
         )
+
+    async def test_edgeql_views_esdl_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT WaterOrEarthCard {
+                    name,
+                    owned_by_alice,
+                }
+                FILTER .name ILIKE {'%turtle%', 'dwarf'}
+                ORDER BY .name;
+            """,
+            [
+                {
+                    'name': 'Dwarf',
+                    'owned_by_alice': True,
+                },
+                {
+                    'name': 'Giant turtle',
+                    'owned_by_alice': True,
+                },
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT EarthOrFireCard {
+                    name,
+                }
+                FILTER .name = {'Imp', 'Dwarf'}
+                ORDER BY .name;
+            """,
+            [
+                {
+                    'name': 'Dwarf'
+                },
+                {
+                    'name': 'Imp'
+                },
+            ]
+        )

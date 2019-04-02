@@ -53,3 +53,16 @@ type Card extending Named {
 type SpecialCard extending Card;
 
 type Award extending Named;
+
+
+view WaterOrEarthCard := (
+    SELECT Card {
+        owned_by_alice := EXISTS (SELECT Card.<deck[IS User].name = 'Alice')
+    }
+    FILTER .element = 'Water' OR .element = 'Earth'
+);
+
+
+view EarthOrFireCard {
+    expr := (SELECT Card FILTER .element = 'Fire' OR .element = 'Earth')
+};

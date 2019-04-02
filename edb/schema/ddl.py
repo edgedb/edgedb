@@ -72,7 +72,11 @@ def compile_migration(cmd, target_schema, current_schema):
 
     stdmodules = s_schema.STD_MODULES
     moditems = target_schema.get_objects(type=modules.Module)
-    modnames = {m.get_name(target_schema) for m in moditems} - stdmodules
+    modnames = (
+        {m.get_name(target_schema) for m in moditems}
+        - stdmodules
+        - {'__derived__'}
+    )
     if len(modnames) != 1:
         raise RuntimeError('unexpected delta module structure')
 

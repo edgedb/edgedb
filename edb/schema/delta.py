@@ -1087,10 +1087,6 @@ class AlterObject(CreateOrAlterObject):
 
     def _alter_refs(self, schema, context, scls, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            derived_from = op.get_attribute_value('derived_from')
-            if derived_from is not None:
-                continue
-
             schema, _ = op.apply(schema, context=context)
         return schema
 

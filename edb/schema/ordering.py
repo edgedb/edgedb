@@ -51,11 +51,15 @@ def sort_objects(schema, objects):
 
         if isinstance(obj, inheriting.InheritingObject):
             obj_bases = obj.get_bases(schema)
+            derived_from = obj.get_derived_from(schema)
         else:
             obj_bases = None
+            derived_from = None
+
+        deps = g[obj.get_name(schema)]['deps']
 
         if obj_bases:
-            g[obj.get_name(schema)]['deps'].extend(
+            deps.extend(
                 b.get_name(schema)
                 for b in obj_bases.objects(schema))
 
@@ -63,6 +67,9 @@ def sort_objects(schema, objects):
                 base_name = base.get_name(schema)
                 if base_name.module != obj.get_name(schema).module:
                     g[base_name] = {'item': base, 'merge': [], 'deps': []}
+
+        if derived_from is not None:
+            deps.append(derived_from.get_name(schema))
 
     if not g:
         return ordered.OrderedSet()
