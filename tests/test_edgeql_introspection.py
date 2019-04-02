@@ -448,6 +448,125 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_introspection_constraint_05(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    properties: {
+                        name,
+                        constraints: {
+                            name,
+                            expr,
+                            attributes: { name, @value },
+                            subject: { name },
+                            args: { name, @value, type: { name } },
+                            return_typemod,
+                            return_type: { name },
+                            errmessage,
+                        },
+                    },
+                }
+                FILTER .name = 'test::Text';
+            """,
+            [{
+                'name': 'test::Text',
+                'properties': [
+                    {
+                        'name': 'body',
+                        'constraints': [
+                            {
+                                'name': 'std::max_len_value',
+                                'expr': '(__subject__ <= max)',
+                                'attributes': {},
+                                'subject': {'name': 'test::body'},
+                                'args': [
+                                    {
+                                        'name': 'max',
+                                        'type': {'name': 'std::int64'},
+                                        '@value': '10000'
+                                    }
+                                ],
+                                'return_typemod': 'SINGLETON',
+                                'return_type': {'name': 'std::bool'},
+                                'errmessage':
+                                    '{__subject__} must be no longer than '
+                                    '10000 characters.'
+                            }
+                        ]
+                    },
+                    {
+                        'name': 'id',
+                        'constraints': [
+                            {
+                                'name': 'std::exclusive',
+                                'expr': 'std::_is_exclusive(__subject__)',
+                                'attributes': {},
+                                'subject': {'name': 'std::id'},
+                                'args': {},
+                                'return_typemod': 'SINGLETON',
+                                'return_type': {'name': 'std::bool'},
+                                'errmessage':
+                                    '{__subject__} violates exclusivity '
+                                    'constraint'
+                            }
+                        ]
+                    }
+                ]
+            }]
+        )
+
+    @test.xfail('''
+        The @value for the constraint variadic args only has 'ONE',
+        whereas the expectation is that it will be the full array of
+        options. Incidentally, the same array is mentioned in the
+        errmessage without any issues.
+    ''')
+    async def test_edgeql_introspection_constraint_06(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ScalarType {
+                    name,
+                    constraints: {
+                        name,
+                        expr,
+                        attributes: { name, @value },
+                        subject: { name },
+                        args: { name, @value, type: { name } },
+                        return_typemod,
+                        return_type: { name },
+                        errmessage,
+                    },
+                }
+                FILTER .name = 'schema::cardinality_t';
+            """,
+            [{
+
+                'name': 'schema::cardinality_t',
+                'constraints': [
+                    {
+                        'name': 'std::one_of',
+                        'expr': 'contains(vals, __subject__)',
+                        'attributes': {},
+                        'subject': {'name': 'schema::cardinality_t'},
+                        'args': [
+                            {
+                                'name': 'vals',
+                                'type': {'name': 'array'},
+                                '@value': "['ONE', 'MANY']"
+                            }
+                        ],
+                        'return_typemod': 'SINGLETON',
+                        'return_type': {'name': 'std::bool'},
+                        'errmessage':
+                            "{__subject__} must be one of: ['ONE', 'MANY']."
+                    }
+                ]
+            }]
+        )
+
     async def test_edgeql_introspection_function_01(self):
         await self.assert_query_result(
             r"""
