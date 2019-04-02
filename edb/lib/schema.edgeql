@@ -56,10 +56,10 @@ ALTER TYPE std::Object {
 CREATE TYPE schema::Module EXTENDING schema::Object;
 
 
-CREATE ABSTRACT TYPE schema::ContainerType EXTENDING schema::Type;
+CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::Type;
 
 
-CREATE TYPE schema::Array EXTENDING schema::ContainerType {
+CREATE TYPE schema::Array EXTENDING schema::CollectionType {
     CREATE REQUIRED LINK element_type -> schema::Type;
     CREATE PROPERTY dimensions -> array<std::int16>;
 };
@@ -72,7 +72,7 @@ CREATE TYPE schema::TypeElement {
 };
 
 
-CREATE TYPE schema::Tuple EXTENDING schema::ContainerType {
+CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
     CREATE MULTI LINK element_types -> schema::TypeElement {
         CREATE CONSTRAINT std::exclusive;
     };
@@ -160,13 +160,13 @@ ALTER TYPE schema::Constraint {
 };
 
 
-CREATE TYPE schema::SourceIndex EXTENDING schema::Object {
+CREATE TYPE schema::Index EXTENDING schema::Object {
     CREATE PROPERTY expr -> std::str;
 };
 
 
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
-    CREATE MULTI LINK indexes -> schema::SourceIndex {
+    CREATE MULTI LINK indexes -> schema::Index {
         CREATE CONSTRAINT std::exclusive;
     };
 };

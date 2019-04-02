@@ -36,7 +36,7 @@ async def fetch(
                 edgedb._resolve_type_name(i.subject)
                                 AS subject_name
             FROM
-                edgedb.SourceIndex i
+                edgedb.Index i
             WHERE
                 ($1::text[] IS NULL
                  OR split_part(i.name, '::', 1) = any($1::text[]))

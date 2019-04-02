@@ -7,7 +7,7 @@ Indexes
 This section describes introspection of :ref:`indexes
 <ref_datamodel_indexes>`.
 
-Introspection of the ``schema::SourceIndex``:
+Introspection of the ``schema::Index``:
 
 .. code-block:: edgeql-repl
 
@@ -21,10 +21,10 @@ Introspection of the ``schema::SourceIndex``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::SourceIndex';
+    ... FILTER .name = 'schema::Index';
     {
         Object {
-            name: 'schema::SourceIndex',
+            name: 'schema::Index',
             links: {Object { name: '__type__' }},
             properties: {
                 Object { name: 'expr' },
@@ -57,7 +57,7 @@ Introspection of ``user_name_idx``:
 .. code-block:: edgeql-repl
 
     db> WITH MODULE schema
-    ... SELECT SourceIndex {
+    ... SELECT Index {
     ...     name,
     ...     expr,
     ... }
