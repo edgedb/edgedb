@@ -189,8 +189,15 @@ class BinaryRenderer:
         buf.write(str(o), style.code_number)
 
     @walk.register(str)
-    @walk.register(bytes)
     def _str(o, repl_ctx: context.ReplContext, buf):
+        if "'" in o:
+            rs = '"' + o.replace('"', r'\"') + '"'
+        else:
+            rs = "'" + o.replace("'", r"\'") + "'"
+        buf.write(rs, style.code_string)
+
+    @walk.register(bytes)
+    def _bytes(o, repl_ctx: context.ReplContext, buf):
         buf.write(repr(o), style.code_string)
 
     @walk.register(bool)
