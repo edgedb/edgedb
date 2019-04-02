@@ -161,7 +161,6 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-    @unittest.expectedFailure
     async def test_constraints_exclusive_across_ancestry(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
@@ -192,8 +191,6 @@ class TestConstraintsSchema(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
-                # FIXME: the FILTER clause seems to filter out
-                # everything, so the UPDATE is empty
                 await self.con.execute("""
                     UPDATE
                         test::UniqueNameInherited

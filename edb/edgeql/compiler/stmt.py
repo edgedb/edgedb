@@ -319,6 +319,11 @@ def compile_UpdateQuery(
                 context=expr.subject.context
             )
 
+        ictx.partial_path_prefix = subject
+
+        clauses.compile_where_clause(
+            stmt, expr.where, ctx=ictx)
+
         stmt.subject = compile_query_subject(
             subject,
             shape=expr.shape,
@@ -340,9 +345,6 @@ def compile_UpdateQuery(
             view_name=ctx.toplevel_result_view_name,
             compile_views=ictx.stmt is ictx.toplevel_stmt,
             ctx=ictx)
-
-        clauses.compile_where_clause(
-            stmt, expr.where, ctx=ictx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

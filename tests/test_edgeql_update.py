@@ -58,7 +58,7 @@ class TestUpdate(tb.QueryTestCase):
                 WITH MODULE test
                 UPDATE UpdateTest
                 # bad name doesn't exist, so no update is expected
-                FILTER UpdateTest.name = 'bad name'
+                FILTER .name = 'bad name'
                 SET {
                     status := (SELECT Status FILTER Status.name = 'Closed')
                 };
@@ -90,6 +90,7 @@ class TestUpdate(tb.QueryTestCase):
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
+                    name := 'update-test1-updated',
                     status := (SELECT Status FILTER Status.name = 'Closed')
                 };
             """,
@@ -111,7 +112,7 @@ class TestUpdate(tb.QueryTestCase):
             [
                 {
                     'id': orig1['id'],
-                    'name': 'update-test1',
+                    'name': 'update-test1-updated',
                     'status': {
                         'name': 'Closed'
                     }
