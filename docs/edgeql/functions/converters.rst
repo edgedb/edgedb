@@ -69,7 +69,7 @@ the functions below allow more options for such conversions.
 
     Yet another way to construct a the :eql:type:`datetime` value
     is to specify it in terms of its component parts: *year*, *month*,
-    *day*, *hour*, *min*, *sec*, and *timezone*:
+    *day*, *hour*, *min*, *sec*, and *timezone*
 
     .. code-block:: edgeql-repl
 

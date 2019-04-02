@@ -190,7 +190,9 @@ class TestDocSnippets(unittest.TestCase):
                     # no, this is output
                     in_query = False
 
-        return ['\n'.join(s[1]) for s in snips]
+        return ['\n'.join(s[1]) for s in snips
+                # ignore the "\c" and other REPL commands
+                if not re.match(r'\\\w+', s[1][0])]
 
     def run_block_test(self, block):
         try:

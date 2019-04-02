@@ -148,7 +148,7 @@ Consider an example using the ``FILTER`` optional clause:
 
 The above example retrieves a single user with a specific name. The
 fact that there is only one such user is a detail that can be well-
-known and important to the creator of the DB, but otherwise non-
+known and important to the creator of the database, but otherwise non-
 obvious. However, forcing the cardinality to be at most 1 by using the
 ``LIMIT`` clause ensures that a set with a single object or
 ``{}`` is returned. This way any further code that relies on the

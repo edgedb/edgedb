@@ -73,4 +73,4 @@ EdgeDB Schema
 declarative alternative to :ref:`EdgeDB data definition<ref_eql_ddl>`
 commands.  It is designed to be a concise and readable representation
 of schema state.  Most of the examples and synopses in this section
-use the ESDL notation.
+use the SDL notation.
