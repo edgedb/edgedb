@@ -87,6 +87,8 @@ Parameters
 .. TODO: write examples
 
 
+.. _ref_eql_ddl_object_types_alter:
+
 ALTER TYPE
 ==========
 

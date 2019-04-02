@@ -65,6 +65,8 @@ There are some specific conventions as to how *arguments* in GraphQL
 queries are used to allow filtering, ordering, and paginating data.
 
 
+.. _ref_graphql_overview_filter:
+
 Filtering
 ---------
 

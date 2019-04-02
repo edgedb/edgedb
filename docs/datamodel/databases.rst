@@ -4,12 +4,12 @@
 Databases
 =========
 
-An EdgeDB cluster can have multiple databases in it. The
+An EdgeDB instance can have multiple databases in it. The
 :eql:stmt:`CREATE DATABASE` EdgeQL command adds a new database to the
-EdgeDB cluster.
+EdgeDB instance.
 
 The following command will get a list of all databases present in the
-cluster:
+instance:
 
 .. code-block:: edgeql
 

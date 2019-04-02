@@ -137,8 +137,9 @@ clause.
 
 .. note::
 
-    Statements in EdgeQL represent an atomic interaction with the DB. From
-    the point of view of a statement all side-effects (such as DB updates)
-    happen after the statement is executed. So as far as each statement is
-    concerned, it is some purely functional expression evaluated on some
-    specific input (DB state).
+    Statements in EdgeQL represent an atomic interaction with the
+    database. From the point of view of a statement all side-effects
+    (such as database updates) happen after the statement is executed.
+    So as far as each statement is concerned, it is some purely
+    functional expression evaluated on some specific input (database
+    state).
