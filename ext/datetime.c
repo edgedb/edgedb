@@ -29,7 +29,6 @@
 #include "utils/datetime.h"
 #include "utils/formatting.h"
 #include "utils/nabstime.h"
-#include "utils/guc.h"
 
 
 static int	tm2time(struct pg_tm *tm, fsec_t fsec, TimeADT *result);

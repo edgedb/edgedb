@@ -19,8 +19,9 @@
 
 
 --
--- Custom variants of to_timestamp()
+-- Custom variants of date/time functions.
 --
+
 CREATE FUNCTION to_timestamp(text, text)
 RETURNS timestamp
 AS '$libdir/edbsys', 'edb_to_timestamp'
@@ -50,6 +51,16 @@ CREATE FUNCTION timestamptz_in(text)
 RETURNS timestamptz
 AS '$libdir/edbsys', 'edb_timestamptz_in'
 LANGUAGE C IMMUTABLE PARALLEL SAFE;
+
+
+--
+-- Custom variant of the bool cast.
+--
+CREATE FUNCTION bool_in(text)
+RETURNS boolean
+AS '$libdir/edbsys', 'edb_bool_in'
+LANGUAGE C IMMUTABLE PARALLEL SAFE;
+
 
 --
 -- Return the given attribute value from a row value.

@@ -2250,68 +2250,6 @@ class TestExpressions(tb.QueryTestCase):
             [[123, 11]],
         )
 
-    async def test_edgeql_expr_cast_06(self):
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['t', 'tr', 'tru', 'true'];''',
-            [[True, True, True, True]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['T', 'TR', 'TRU', 'TRUE'];''',
-            [[True, True, True, True]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['True', 'TrUe', '1'];''',
-            [[True, True, True]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['y', 'ye', 'yes'];''',
-            [[True, True, True]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['Y', 'YE', 'YES'];''',
-            [[True, True, True]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['Yes', 'yEs', 'YeS'];''',
-            [[True, True, True]],
-        )
-
-    async def test_edgeql_expr_cast_07(self):
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['f', 'fa', 'fal', 'fals', 'false'];''',
-            [[False, False, False, False, False]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['F', 'FA', 'FAL', 'FALS', 'FALSE'];''',
-            [[False, False, False, False, False]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['False', 'FaLSe', '0'];''',
-            [[False, False, False]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['n', 'no'];''',
-            [[False, False]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['N', 'NO'];''',
-            [[False, False]],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <array<bool>>['No', 'nO'];''',
-            [[False, False]],
-        )
-
     async def test_edgeql_expr_cast_08(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'cannot cast.*tuple.*to.*array.*'):

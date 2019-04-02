@@ -96,7 +96,7 @@ std::`<` (l: std::bool, r: std::bool) -> std::bool
 ## -------------
 
 CREATE CAST FROM std::str TO std::bool
-    FROM SQL CAST;
+    FROM SQL FUNCTION 'edgedb.bool_in';
 
 
 CREATE CAST FROM std::bool TO std::str

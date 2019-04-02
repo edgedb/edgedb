@@ -493,21 +493,31 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            # non-canonical
             r'''
-                WITH x := {'True', 'False', 'TRUE', 'FALSE'}
+                WITH x := {'True', 'False', 'TRUE', 'FALSE', '  TrUe   '}
                 SELECT <str><bool>x = x;
             ''',
-            [False, False, False, False],
+            [False, False, False, False, False],
         )
 
         await self.assert_query_result(
             r'''
-                WITH x := {'True', 'False', 'TRUE', 'FALSE'}
+                WITH x := {'True', 'False', 'TRUE', 'FALSE', 'TrUe'}
                 SELECT <str><bool>x = str_lower(x);
             ''',
-            [True, True, True, True],
+            [True, True, True, True, True],
         )
+
+        for variant in {'😈', 'yes', '1', 'no', 'on', 'OFF'}:
+            with self.assertRaisesRegex(
+                    edgedb.InvalidValueError,
+                    fr'invalid syntax for std::bool: "{variant}"'):
+                await self.con.fetchone(f'SELECT <bool>"{variant}"')
+
+        self.assertTrue(
+            await self.con.fetchone('SELECT <bool>"    TruE   "'))
+        self.assertFalse(
+            await self.con.fetchone('SELECT <bool>"    FalsE   "'))
 
     async def test_edgeql_casts_str_03(self):
         # str to json is always lossless
