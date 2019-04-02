@@ -313,7 +313,7 @@ class TestServerConfigUtils(unittest.TestCase):
         )
 
 
-class TestServerConfig(tb.QueryTestCase):
+class TestServerConfig(tb.QueryTestCase, tb.CLITestCaseMixin):
 
     ISOLATED_METHODS = False
     SERIALIZED = True
@@ -756,3 +756,78 @@ class TestServerConfig(tb.QueryTestCase):
         """)
 
         self.assertEqual(srv_ver_string, str(ver))
+
+    async def test_config_cli(self):
+        try:
+            self.run_cli(
+                'configure', 'set', '__internal_testvalue', '10',
+            )
+
+            await self.assert_query_result(
+                '''
+                SELECT cfg::Config.__internal_testvalue
+                ''',
+                [
+                    10,
+                ],
+            )
+
+            self.run_cli(
+                'configure', 'set', 'multiprop', 'a', 'b', 'c'
+            )
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [
+                    'a', 'b', 'c'
+                ],
+            )
+
+            self.run_cli(
+                'configure', 'reset', 'multiprop'
+            )
+
+            await self.assert_query_result(
+                '''
+                SELECT _ := cfg::Config.multiprop ORDER BY _
+                ''',
+                [],
+            )
+
+            self.run_cli(
+                'configure', 'insert', 'systemconfig', '--name=cliconf'
+            )
+
+            await self.assert_query_result(
+                '''
+                SELECT cfg::Config.sysobj {
+                    name,
+                }
+                FILTER .name = 'cliconf'
+                ORDER BY .name;
+                ''',
+                [
+                    {
+                        'name': 'cliconf',
+                    },
+                ],
+            )
+
+            self.run_cli(
+                'configure', 'reset', 'systemconfig', '--name=cliconf'
+            )
+
+        finally:
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET __internal_testvalue;
+            ''')
+
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET multiprop;
+            ''')
+
+            await self.con.execute('''
+                CONFIGURE SYSTEM RESET SystemConfig FILTER .name = 'cliconf';
+            ''')

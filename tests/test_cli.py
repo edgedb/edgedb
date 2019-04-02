@@ -17,44 +17,20 @@
 #
 
 
-import click.testing
-
 import edgedb
-
-from edb import cli
 
 from edb.testbase import server as tb
 
 
-class TestCLI(tb.ConnectedTestCase):
+class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
 
     ISOLATED_METHODS = False
-
-    def _run_cli(self, *args, input=None):
-        conn_args = self.get_connect_args()
-
-        cmd_args = (
-            '--host', conn_args['host'],
-            '--port', conn_args['port'],
-            '--user', conn_args['user'],
-        ) + args
-
-        if conn_args['password']:
-            cmd_args = ('--password-from-stdin',) + cmd_args
-            if input is not None:
-                input = f"{conn_args['password']}\n{input}"
-            else:
-                input = f"{conn_args['password']}\n"
-
-        runner = click.testing.CliRunner()
-        return runner.invoke(
-            cli.cli, args=cmd_args, input=input,
-            catch_exceptions=False)
+    SERIALIZED = True
 
     async def test_cli_role(self):
-        self._run_cli('create', 'role', 'foo', '--allow-login',
-                      '--password-from-stdin',
-                      input='foo-pass\n')
+        self.run_cli('create', 'role', 'foo', '--allow-login',
+                     '--password-from-stdin',
+                     input='foo-pass\n')
 
         conn = await self.connect(
             user='foo',
@@ -62,7 +38,7 @@ class TestCLI(tb.ConnectedTestCase):
         )
         await conn.close()
 
-        self._run_cli('alter', 'role', 'foo', '--no-allow-login')
+        self.run_cli('alter', 'role', 'foo', '--no-allow-login')
 
         # good password, but allow_login is False
         with self.assertRaisesRegex(
@@ -73,9 +49,9 @@ class TestCLI(tb.ConnectedTestCase):
                 password='foo-pass',
             )
 
-        self._run_cli('alter', 'role', 'foo', '--allow-login',
-                      '--password-from-stdin',
-                      input='foo-new-pass\n')
+        self.run_cli('alter', 'role', 'foo', '--allow-login',
+                     '--password-from-stdin',
+                     input='foo-new-pass\n')
 
         conn = await self.connect(
             user='foo',
@@ -83,7 +59,7 @@ class TestCLI(tb.ConnectedTestCase):
         )
         await conn.close()
 
-        self._run_cli('drop', 'role', 'foo')
+        self.run_cli('drop', 'role', 'foo')
 
         with self.assertRaisesRegex(
                 edgedb.AuthenticationError,
@@ -93,6 +69,6 @@ class TestCLI(tb.ConnectedTestCase):
                 password='foo-new-pass',
             )
 
-        result = self._run_cli('create', 'role', 'foo', '--allow-login',
-                               '--password', input='foo-pass\n')
+        result = self.run_cli('create', 'role', 'foo', '--allow-login',
+                              '--password', input='foo-pass\n')
         self.assertIn('input is not a TTY', result.output)

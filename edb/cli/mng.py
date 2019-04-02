@@ -17,7 +17,9 @@
 #
 
 
+import re
 import sys
+import textwrap
 
 import click
 
@@ -49,6 +51,247 @@ def connect(ctx):
 
     ctx.obj['conn'] = conn
     ctx.call_on_close(lambda: conn.close())
+
+
+@cli.group()
+@click.pass_context
+def configure(ctx):
+    connect(ctx)
+
+
+@configure.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
+@click.pass_context
+@click.argument('parameter', type=str)
+@click.argument('values', nargs=-1, type=click.UNPROCESSED)
+def insert(ctx, parameter: str, values):
+    if not values:
+        raise click.UsageError(
+            'missing configuration value properties', ctx=ctx)
+
+    try:
+        cfg_obj_name, props = _process_configure_composite_options(
+            ctx, parameter, values)
+    except NotAnObjectError as e:
+        raise click.UsageError(str(e), ctx=ctx) from None
+
+    attrs = []
+
+    for pn, (pval, ptype) in props.items():
+        if ptype.__type__.name == 'schema::ObjectType':
+            pval = f'(INSERT {pval})'
+        else:
+            pval = f'<{ptype.name}>{ql(pval)}'
+
+        attrs.append(f'{qi(pn)} := {pval}')
+
+    attrs = ',\n'.join(attrs)
+
+    qry = textwrap.dedent(f'''\
+        CONFIGURE SYSTEM INSERT {cfg_obj_name} {{
+            {textwrap.indent(attrs, ' ' * 12).strip()}
+        }}
+    ''')
+
+    try:
+        ctx.obj['conn'].execute(qry)
+    except edgedb.EdgeDBError as e:
+        raise click.ClickException(str(e)) from e
+    else:
+        click.echo(ctx.obj['conn']._get_last_status())
+
+
+@configure.command()
+@click.pass_context
+@click.argument('parameter', type=str)
+@click.argument('value', nargs=-1, type=str)
+def set(ctx, parameter: str, value):
+    cfg_obj_name, cfg_type, cfg_card = _process_configure_scalar(
+        ctx, parameter, [])
+
+    if cfg_card == 'ONE':
+        if len(value) > 1:
+            raise click.ClickException('too many values', ctx=ctx)
+        value = value[0]
+        val_expr = ql(value)
+    else:
+        val_expr = f'{{{", ".join(ql(v) for v in value)}}}'
+
+    # Canonicalize the values by casting them.
+    vals = ctx.obj['conn'].fetchall(f'''
+        SELECT <str><{cfg_type.name}>{val_expr}
+    ''')
+
+    args = []
+    for val in vals:
+        if cfg_type.is_numeric or cfg_type.is_bool:
+            args.append(val)
+        elif cfg_type.is_str:
+            args.append(ql(val))
+        else:
+            raise click.ClickException(
+                f'cannot set {parameter}: it is not a string, numeric or bool'
+            )
+
+    args_list = ', '.join(args)
+    args_expr = f'{{{args_list}}}'
+
+    qry = textwrap.dedent(f'''
+        CONFIGURE SYSTEM SET {cfg_obj_name} := {args_expr}
+    ''')
+
+    try:
+        ctx.obj['conn'].execute(qry)
+    except edgedb.EdgeDBError as e:
+        raise click.ClickException(str(e)) from e
+    else:
+        click.echo(ctx.obj['conn']._get_last_status())
+
+
+@configure.command(context_settings=dict(
+    ignore_unknown_options=True,
+))
+@click.pass_context
+@click.argument('parameter', type=str)
+@click.argument('values', nargs=-1, type=click.UNPROCESSED)
+def reset(ctx, parameter: str, values):
+    try:
+        cfg_obj_name, props = _process_configure_composite_options(
+            ctx, parameter, values)
+    except NotAnObjectError:
+        is_scalar = True
+    else:
+        is_scalar = False
+
+    if is_scalar:
+        cfg_obj_name, cfg_type, cfg_card = _process_configure_scalar(
+            ctx, parameter, values)
+
+        qry = f'CONFIGURE SYSTEM RESET {cfg_obj_name}'
+    else:
+        attrs = []
+
+        for pn, (pval, ptype) in props.items():
+            if ptype.__type__.name == 'schema::ObjectType':
+                pval = f'.{pn} IS {pval}'
+            else:
+                pval = f'.{pn} = <{ptype.name}>{ql(pval)}'
+
+            attrs.append(pval)
+
+        if attrs:
+            flt = f"FILTER {' AND '.join(attrs)}"
+        else:
+            flt = ''
+
+        qry = textwrap.dedent(f'''
+            CONFIGURE SYSTEM RESET {cfg_obj_name} {flt}
+        ''')
+
+    try:
+        ctx.obj['conn'].execute(qry)
+    except edgedb.EdgeDBError as e:
+        raise click.ClickException(str(e)) from e
+    else:
+        click.echo(ctx.obj['conn']._get_last_status())
+
+
+class NotAnObjectError(Exception):
+    pass
+
+
+def _process_configure_composite_options(ctx, parameter, values):
+    props = {}
+
+    cfg_objects = ctx.obj['conn'].fetchall('''
+        WITH MODULE schema
+        SELECT ObjectType {
+            name
+        } FILTER .name LIKE 'cfg::%'
+    ''')
+
+    cfg_objmap = {}
+
+    for obj in cfg_objects:
+        _, _, obj_name = obj.name.partition('::')
+        cfg_objmap[obj_name] = obj_name
+        cfg_objmap[obj_name.lower()] = obj_name
+
+    cfg_obj_name = cfg_objmap.get(parameter)
+    if not cfg_obj_name:
+        raise NotAnObjectError(
+            f'{parameter} is not a valid configuration object')
+
+    cfg_props = ctx.obj['conn'].fetchall('''
+        WITH
+            MODULE schema,
+            Cfg := (SELECT ObjectType FILTER .name = <str>$typename)
+        SELECT Cfg.pointers {
+            name,
+            target: {name, __type__: {name}}
+        };
+    ''', typename=f'cfg::{cfg_obj_name}')
+
+    cfg_prop_map = {p.name: p.target for p in cfg_props}
+
+    for value in values:
+        v = re.match(r'--(\w+)(?: |=)(.*)', value)
+        if not v:
+            raise click.UsageError(f'unrecognized option: {value}', ctx=ctx)
+
+        propname = v.group(1)
+        propval = v.group(2)
+
+        proptype = cfg_prop_map.get(propname)
+        if proptype is None:
+            raise click.UsageError(
+                f'{propname!r} is not a valid {cfg_obj_name} property',
+                ctx=ctx)
+
+        if propval in cfg_objmap:
+            propval = cfg_objmap[propval]
+
+        props[propname] = (propval, proptype)
+
+    return cfg_obj_name, props
+
+
+def _process_configure_scalar(ctx, parameter, values):
+    if values:
+        raise click.UsageError(f'unexpected option: {next(iter(values))}')
+
+    cfg_props = ctx.obj['conn'].fetchall('''
+        WITH
+            MODULE schema,
+            Cfg := (SELECT ObjectType FILTER .name = <str>$typename)
+        SELECT Cfg.pointers {
+            name,
+            cardinality,
+            target: {
+                name,
+                __type__: {name},
+                is_numeric := (
+                    'std::anyreal' IN
+                        Cfg.pointers.target[IS ScalarType].ancestors.name),
+                is_bool := (
+                    Cfg.pointers.target.name = 'std::bool'
+                    OR 'std::bool' IN
+                        Cfg.pointers.target[IS ScalarType].ancestors.name),
+                is_str := (
+                    Cfg.pointers.target.name = 'std::str'
+                    OR any({'std::str', 'std::anyenum'} IN
+                        Cfg.pointers.target[IS ScalarType].ancestors.name)),
+            }
+        } FILTER .name = <str>$propname;
+    ''', typename=f'cfg::Config', propname=parameter)
+
+    if len(cfg_props) == 0:
+        raise click.UsageError(
+            f'{parameter!r} is not a valid configuration parameter',
+            ctx=ctx)
+
+    return parameter, cfg_props[0].target, cfg_props[0].cardinality
 
 
 @cli.group()
