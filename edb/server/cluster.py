@@ -269,8 +269,7 @@ class Cluster:
     def trust_local_connections(self):
         self._admin_query('''
             CONFIGURE SYSTEM INSERT Auth {
-                name := 'default',
-                host := 'loalhost',
+                host := 'localhost',
                 priority := 0,
                 method := (INSERT Trust),
             }

@@ -64,7 +64,7 @@ class TestServerAuth(tb.ConnectedTestCase):
 
         await self.con.fetchall('''
             CONFIGURE SYSTEM INSERT Auth {
-                name := 'test',
+                comment := 'test',
                 priority := 0,
                 method := (INSERT Trust),
             }
@@ -94,7 +94,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             # insert password auth with a higher priority
             await self.con.fetchall('''
                 CONFIGURE SYSTEM INSERT Auth {
-                    name := 'test-2',
+                    comment := 'test-2',
                     priority := -1,
                     method := (INSERT SCRAM),
                 }
@@ -110,11 +110,11 @@ class TestServerAuth(tb.ConnectedTestCase):
                 )
         finally:
             await self.con.fetchall('''
-                CONFIGURE SYSTEM RESET Auth FILTER .name = 'test'
+                CONFIGURE SYSTEM RESET Auth FILTER .comment = 'test'
             ''')
 
             await self.con.fetchall('''
-                CONFIGURE SYSTEM RESET Auth FILTER .name = 'test-2'
+                CONFIGURE SYSTEM RESET Auth FILTER .comment = 'test-2'
             ''')
 
             await self.con.fetchall('''

@@ -61,11 +61,6 @@ CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
 
 
 CREATE TYPE cfg::Auth {
-    CREATE REQUIRED PROPERTY name -> std::str {
-        CREATE CONSTRAINT std::exclusive;
-        SET readonly := true;
-    };
-
     CREATE REQUIRED PROPERTY priority -> std::int64 {
         CREATE CONSTRAINT std::exclusive;
         SET readonly := true;
@@ -88,6 +83,10 @@ CREATE TYPE cfg::Auth {
 
     CREATE SINGLE LINK method -> cfg::AuthMethod {
         CREATE CONSTRAINT std::exclusive;
+    };
+
+    CREATE PROPERTY comment -> std::str {
+        SET readonly := true;
     };
 };
 

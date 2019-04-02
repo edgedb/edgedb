@@ -392,7 +392,6 @@ async def _configure(schema, conn, cluster, insecure=False):
     if insecure:
         scripts.append('''
             CONFIGURE SYSTEM INSERT Auth {
-                name := 'default',
                 priority := 0,
                 method := (INSERT Trust),
             };
