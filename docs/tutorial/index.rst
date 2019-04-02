@@ -1,6 +1,6 @@
-==========
-Quickstart
-==========
+========
+Tutorial
+========
 
 * Start with the :ref:`ref_tutorial_install`
 * Set up your :ref:`ref_tutorial_createdb`
