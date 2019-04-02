@@ -101,7 +101,7 @@ class PointerLike:
 
 
 class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
-              PointerLike):
+              PointerLike, s_abc.Pointer):
 
     source = so.SchemaField(
         so.Object,

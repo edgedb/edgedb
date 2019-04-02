@@ -21,6 +21,7 @@ from edb.edgeql import ast as qlast
 
 from edb import errors
 
+from . import abc as s_abc
 from . import constraints
 from . import delta as sd
 from . import inheriting
@@ -32,7 +33,7 @@ from . import sources
 from . import utils
 
 
-class Property(pointers.Pointer):
+class Property(pointers.Pointer, s_abc.Property):
 
     schema_class_displayname = 'property'
 
@@ -326,6 +327,8 @@ class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
             target = prop.get_target(schema)
 
             if target.is_collection():
-                sd.cleanup_schema_collection(schema, target, prop, cmd)
+                sd.cleanup_schema_collection(
+                    schema, target, prop, cmd, context=context,
+                    src_context=astnode.context)
 
         return cmd

@@ -161,7 +161,7 @@ class ParameterDesc(typing.NamedTuple):
 
         return cmd
 
-    def as_delete_delta(self, schema, func_fqname):
+    def as_delete_delta(self, schema, func_fqname, *, context):
         DeleteParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.DeleteObject, Parameter)
 
@@ -175,7 +175,8 @@ class ParameterDesc(typing.NamedTuple):
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
             param = schema.get(param_name)
-            sd.cleanup_schema_collection(schema, self.type, param, cmd)
+            sd.cleanup_schema_collection(schema, self.type, param, cmd,
+                                         context=context)
 
         return cmd
 
@@ -493,8 +494,8 @@ class CallableCommand(sd.ObjectCommand):
 
         return schema
 
-    def _delete_innards(self, schema, context, scls):
-        schema = super()._delete_innards(schema, context, scls)
+    def _delete_finalize(self, schema, context, scls):
+        schema = super()._delete_finalize(schema, context, scls)
 
         for op in self.get_subcommands(metaclass=Parameter):
             schema, _ = op.apply(schema, context=context)
@@ -569,7 +570,7 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
         return cmd
 
 
-class DeleteCallableObject(sd.DeleteObject):
+class DeleteCallableObject(CallableCommand, sd.DeleteObject):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -579,13 +580,16 @@ class DeleteCallableObject(sd.DeleteObject):
             schema, context.modaliases, astnode)
 
         for param in params:
-            cmd.add(param.as_delete_delta(schema, cmd.classname))
+            cmd.add(param.as_delete_delta(
+                schema, cmd.classname, context=context))
 
         obj = schema.get(cmd.classname)
         return_type = obj.get_return_type(schema)
         if (return_type.is_collection()
                 and not return_type.is_polymorphic(schema)):
-            sd.cleanup_schema_collection(schema, return_type, obj, cmd)
+            sd.cleanup_schema_collection(
+                schema, return_type, obj, cmd, context=context,
+                src_context=astnode.context)
 
         return cmd
 

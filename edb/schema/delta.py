@@ -28,6 +28,7 @@ from edb.edgeql import ast as qlast
 
 from edb.common import markup, ordered, struct, typed
 
+from . import abc as s_abc
 from . import expr as s_expr
 from . import name as sn
 from . import objects as so
@@ -528,6 +529,7 @@ class DeltaRoot(CommandGroup):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.new_types = set()
+        self.deleted_types = {}
 
     def apply(self, schema, context=None):
         from . import modules
@@ -547,8 +549,12 @@ class DeltaRoot(CommandGroup):
 
             for op in self:
                 if not isinstance(op, (modules.CreateModule,
-                                       modules.AlterModule)):
+                                       modules.AlterModule,
+                                       DeleteCollectionType)):
                     schema, _ = op.apply(schema, context)
+
+            for op in self.get_subcommands(type=DeleteCollectionType):
+                schema, _ = op.apply(schema, context)
 
         return schema, None
 
@@ -1122,6 +1128,48 @@ class DeleteObject(ObjectCommand):
         return schema
 
     def _delete_finalize(self, schema, context, scls):
+        refs = schema.get_referrers(self.scls)
+        if refs:
+            ref_strs = []
+
+            for ref in refs:
+                if (ref.get_shortname(schema) == 'std::target'
+                        or ref.get_shortname(schema) == 'std::source'):
+                    continue
+
+                dn = ref.get_displayname(schema)
+                if isinstance(ref, s_abc.Link):
+                    source = ref.get_source(schema)
+                    source_dn = source.get_displayname(schema)
+                    ref_str = f'link {dn} of {source_dn}'
+                elif isinstance(ref, s_abc.Property):
+                    source = ref.get_source(schema)
+                    source_dn = source.get_displayname(schema)
+                    ref_str = f'property {dn} of {source_dn}'
+                elif isinstance(ref, s_abc.Parameter):
+                    callables = [
+                        c for c in schema.get_referrers(ref)
+                        if isinstance(c, s_abc.Callable)
+                    ]
+                    if callables:
+                        callable_dn = callables[0].get_displayname(schema)
+                        ref_str = f'parameter {dn} of {callable_dn}'
+                    else:
+                        ref_str = dn
+                else:
+                    ref_str = dn
+
+                ref_strs.append(ref_str)
+
+            dn = self.scls.get_displayname(schema)
+            detail = '; '.join(f'{ref_str} depends on {dn}'
+                               for ref_str in ref_strs)
+            raise errors.SchemaError(
+                f'cannot drop {dn} because '
+                f'other objects in the schema depend on it',
+                details=detail,
+            )
+
         schema = schema.delete(scls)
         return schema
 
@@ -1131,6 +1179,12 @@ class DeleteObject(ObjectCommand):
         all_refs = set(
             scls.get_field_value(schema, refdict.local_attr).objects(schema)
         )
+
+        if refdict.non_inheritable_attr:
+            all_refs.update(
+                scls.get_field_value(
+                    schema, refdict.non_inheritable_attr).objects(schema)
+            )
 
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
             schema, deleted_ref = op.apply(schema, context=context)
@@ -1321,13 +1375,24 @@ def ensure_schema_collection(schema, coll_type, parent_cmd, *,
         parent_cmd.add(coll_type.as_create_delta(schema))
         delta_root.new_types.add(coll_type.id)
 
+    if coll_type.id in delta_root.deleted_types:
+        # Revert the deletion decision.
+        del_cmd = delta_root.deleted_types.pop(coll_type.id)
+        delta_root.discard(del_cmd)
 
-def cleanup_schema_collection(schema, coll_type, parent, parent_cmd):
+
+def cleanup_schema_collection(schema, coll_type, parent, parent_cmd, *,
+                              src_context=None, context):
     if not coll_type.is_collection():
         raise ValueError(
             f'{coll_type.get_displayname(schema)} is not a collection')
 
+    delta_root = context.top().op
+
     refs = schema.get_referrers(coll_type)
-    if len(refs) == 1 and list(refs)[0].id == parent.id:
+    if (len(refs) == 1 and list(refs)[0].id == parent.id
+            and coll_type.id not in delta_root.deleted_types):
         # The parent is the last user of this collection, drop it.
-        parent_cmd.add(coll_type.as_delete_delta(schema))
+        del_cmd = coll_type.as_delete_delta(schema)
+        delta_root.deleted_types[coll_type.id] = del_cmd
+        delta_root.add(del_cmd)

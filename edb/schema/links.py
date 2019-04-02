@@ -23,6 +23,7 @@ from edb.edgeql import ast as qlast
 
 from edb import errors
 
+from . import abc as s_abc
 from . import constraints
 from . import delta as sd
 from . import indexes
@@ -83,7 +84,7 @@ def merge_actions(target: so.Object, sources: typing.List[so.Object],
         return ours
 
 
-class Link(sources.Source, pointers.Pointer):
+class Link(sources.Source, pointers.Pointer, s_abc.Link):
 
     schema_class_displayname = 'link'
 

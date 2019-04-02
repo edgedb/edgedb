@@ -33,15 +33,19 @@ class Constraint(Object):
     pass
 
 
-class Function(Object):
+class Callable(Object):
     pass
 
 
-class Operator(Object):
+class Function(Callable):
     pass
 
 
-class Cast(Object):
+class Operator(Callable):
+    pass
+
+
+class Cast(Callable):
     pass
 
 
@@ -70,4 +74,16 @@ class Tuple(Collection):
 
 
 class Array(Collection):
+    pass
+
+
+class Pointer(Object):
+    pass
+
+
+class Property(Pointer):
+    pass
+
+
+class Link(Pointer):
     pass

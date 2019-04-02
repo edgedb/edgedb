@@ -158,6 +158,42 @@ class TestDeltas(tb.DDLTestCase):
             []
         )
 
+    async def test_delta_drop_refuse_01(self):
+        # Check that the schema refuses to drop objects with live references
+        await self.con.execute("""
+            CREATE TYPE test::DropA;
+            CREATE ABSTRACT ATTRIBUTE test::dropattr;
+            CREATE ABSTRACT LINK test::l1_parent;
+            CREATE TYPE test::DropB {
+                CREATE LINK l1 EXTENDING test::l1_parent -> test::DropA {
+                    SET ATTRIBUTE test::dropattr := 'foo';
+                };
+            };
+            CREATE SCALAR TYPE test::dropint EXTENDING int64;
+            CREATE FUNCTION test::dropfunc(a: test::dropint) -> int64
+                FROM EdgeQL $$ SELECT a; $$;
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                'cannot drop test::DropA.*other objects'):
+            await self.con.execute('DROP TYPE test::DropA')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                'cannot drop test::dropattr.*other objects'):
+            await self.con.execute('DROP ABSTRACT ATTRIBUTE test::dropattr')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                'cannot drop l1_parent.*other objects'):
+            await self.con.execute('DROP ABSTRACT LINK test::l1_parent')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                'cannot drop.*dropint.*other objects'):
+            await self.con.execute('DROP SCALAR TYPE test::dropint')
+
     async def test_delta_unicode_01(self):
         await self.con.execute(r"""
             # setup delta
