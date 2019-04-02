@@ -235,10 +235,9 @@ the ``first_name`` and ``last_name`` properties. This time we will use
     .........         property first_name -> str;
     .........         required property last_name -> str;
     .........         property name :=
-    .........             __source__.first_name ++ ' ' ++
-    .........             __source__.last_name
-    .........             IF EXISTS __source__.first_name ELSE
-    .........             __source__.last_name;
+    .........             .first_name ++ ' ' ++ .last_name
+    .........             IF EXISTS .first_name
+    .........             ELSE .last_name;
     .........     }
     ......... };
     CREATE MIGRATION

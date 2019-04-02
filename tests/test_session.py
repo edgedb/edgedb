@@ -163,17 +163,19 @@ class TestSession(tb.QueryTestCase):
             await self.con.execute('''
                 ALTER TYPE User {
                     CREATE PROPERTY aaa := len(
-                        'yes' IF __source__ IS User ELSE 'no')
+                        'yes' IF __source__ IS User ELSE 'no');
+                    CREATE PROPERTY name_upper := str_upper(.name);
                 }
             ''')
 
             await self.assert_query_result(
                 """
-                    SELECT User {name, aaa};
+                    SELECT User {name, aaa, name_upper};
                 """,
                 [{
                     'name': 'user',
                     'aaa': 3,
+                    'name_upper': 'USER',
                 }]
             )
         finally:

@@ -419,7 +419,7 @@ a EXTENDING std::property -> array<std::int64>;
             CREATE MIGRATION test::d4 TO {
                 abstract type Foo {
                     property bar -> str;
-                    property __typename := __source__.__type__.name;
+                    property __typename := .__type__.name;
                 };
             };
         """)

@@ -155,8 +155,7 @@ CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
 
 
 ALTER TYPE schema::Constraint {
-    CREATE LINK subject :=
-        __source__.<constraints[IS schema::ConsistencySubject];
+    CREATE LINK subject := .<constraints[IS schema::ConsistencySubject];
 };
 
 
@@ -233,14 +232,14 @@ ALTER TYPE schema::Pointer {
 
 
 ALTER TYPE schema::Link {
-    CREATE LINK properties := __source__.pointers;
+    CREATE LINK properties := .pointers;
     CREATE PROPERTY on_target_delete -> schema::target_delete_action_t;
 };
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE LINK links := __source__.pointers[IS schema::Link];
-    CREATE LINK properties := __source__.pointers[IS schema::Property];
+    CREATE LINK links := .pointers[IS schema::Link];
+    CREATE LINK properties := .pointers[IS schema::Property];
 };
 
 

@@ -37,6 +37,7 @@ from edb.ir import typeutils as irtyputils
 from .decompiler import decompile_ir  # NOQA
 from . import dispatch
 from . import inference
+from . import setgen
 from . import stmtctx
 
 from .config import get_config_type_shape  # NOQA
@@ -50,12 +51,14 @@ def compile_fragment_to_ir(expr,
                            schema,
                            *,
                            anchors=None,
+                           path_prefix_anchor=None,
                            location=None,
                            modaliases=None):
     """Compile given EdgeQL expression fragment into EdgeDB IR."""
     tree = ql_parser.parse_fragment(expr)
     return compile_ast_fragment_to_ir(
         tree, schema, anchors=anchors,
+        path_prefix_anchor=path_prefix_anchor,
         location=location, modaliases=modaliases)
 
 
@@ -63,12 +66,18 @@ def compile_ast_fragment_to_ir(tree,
                                schema,
                                *,
                                anchors=None,
+                               path_prefix_anchor=None,
                                location=None,
                                modaliases=None):
     """Compile given EdgeQL AST fragment into EdgeDB IR."""
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, modaliases=modaliases)
     ctx.clause = location or 'where'
+    if path_prefix_anchor is not None:
+        path_prefix = anchors[path_prefix_anchor]
+        ctx.partial_path_prefix = setgen.class_set(path_prefix, ctx=ctx)
+        ctx.partial_path_prefix.anchor = path_prefix_anchor
+        ctx.partial_path_prefix.show_as_anchor = path_prefix_anchor
     ir_set = dispatch.compile(tree, ctx=ctx)
     try:
         result_type = inference.infer_type(ir_set, ctx.env)
@@ -85,6 +94,7 @@ def compile_to_ir(expr,
                   schema,
                   *,
                   anchors=None,
+                  path_prefix_anchor=None,
                   security_context=None,
                   modaliases=None,
                   implicit_id_in_shapes=False,
@@ -98,7 +108,7 @@ def compile_to_ir(expr,
     tree = ql_parser.parse(expr, modaliases)
 
     return compile_ast_to_ir(
-        tree, schema, anchors=anchors,
+        tree, schema, anchors=anchors, path_prefix_anchor=path_prefix_anchor,
         security_context=security_context, modaliases=modaliases,
         implicit_id_in_shapes=implicit_id_in_shapes,
         implicit_tid_in_shapes=implicit_tid_in_shapes)
@@ -108,6 +118,7 @@ def compile_ast_to_ir(tree,
                       schema,
                       *,
                       anchors=None,
+                      path_prefix_anchor=None,
                       singletons=None,
                       func=None,
                       security_context=None,
@@ -135,6 +146,12 @@ def compile_ast_to_ir(tree,
         schema_view_mode=schema_view_mode,
         disable_constant_folding=disable_constant_folding,
         json_parameters=json_parameters)
+
+    if path_prefix_anchor is not None:
+        path_prefix = anchors[path_prefix_anchor]
+        ctx.partial_path_prefix = setgen.class_set(path_prefix, ctx=ctx)
+        ctx.partial_path_prefix.anchor = path_prefix_anchor
+        ctx.partial_path_prefix.show_as_anchor = path_prefix_anchor
 
     ir_set = dispatch.compile(tree, ctx=ctx)
     ir_expr = stmtctx.fini_expression(ir_set, ctx=ctx)

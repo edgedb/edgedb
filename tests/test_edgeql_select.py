@@ -4713,14 +4713,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Issue {
                 number,
                 watchers: {
-                    name
+                    name,
+                    name_upper := str_upper(.name)
                 } FILTER .name = 'Yury'
             } FILTER .status.name = 'Open' AND .owner.name = 'Elvis';
             ''',
             [{
                 'number': '1',
                 'watchers': [{
-                    'name': 'Yury'
+                    'name': 'Yury',
+                    'name_upper': 'YURY',
                 }]
             }]
         )

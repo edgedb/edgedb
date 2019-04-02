@@ -87,11 +87,13 @@ def index_parameters(ql_args: typing.List[qlast.Base], *,
 
 
 def normalize_tree(expr, schema, *, modaliases=None, anchors=None,
-                   inline_anchors=False, singletons=None):
+                   path_prefix_anchor=None, inline_anchors=False,
+                   singletons=None):
 
     ir = compiler.compile_ast_to_ir(
         expr, schema, modaliases=modaliases,
-        anchors=anchors, singletons=singletons)
+        anchors=anchors, path_prefix_anchor=path_prefix_anchor,
+        singletons=singletons)
 
     edgeql_tree = compiler.decompile_ir(
         ir, inline_anchors=inline_anchors, schema=ir.schema)

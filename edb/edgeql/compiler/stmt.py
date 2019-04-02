@@ -68,6 +68,10 @@ def compile_SelectQuery(
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+        if expr.implicit:
+            # Make sure path prefix does not get blown away by
+            # implicit subqueries.
+            sctx.partial_path_prefix = ctx.partial_path_prefix
 
         compile_limit_offset = False
 

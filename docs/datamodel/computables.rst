@@ -36,6 +36,18 @@ last name:
              __source__.lastname);
     }
 
+If the computable expression is simple (i.e. not a subquery), shortcut
+paths may also be used instead of explicit references to ``__source__``:
+
+.. code-block:: sdl
+
+    type User {
+        required property firstname -> str;
+        required property lastname -> str;
+        property fullname := (
+            .firstname ++ ' ' ++ .lastname);
+    }
+
 Computables are also often used in :ref:`views <ref_datamodel_views>`.
 For example, using the ``User`` from the above example, a ``UserView``
 can be defined with a ``lastname_first`` computable which lists the
@@ -46,8 +58,7 @@ lists:
 
     view UserView := User {
         lastname_first := (
-            __source__.lastname ++ ', ' ++
-            __source__.firstname)
+            .lastname ++ ', ' ++ .firstname)
     }
 
 Computables can be used in :ref:`shapes <ref_eql_expr_shapes>`, too:
@@ -56,6 +67,5 @@ Computables can be used in :ref:`shapes <ref_eql_expr_shapes>`, too:
 
     SELECT User {
         lastname_first := (
-            __source__.lastname ++ ', ' ++
-            __source__.firstname)
+            .lastname ++ ', ' ++ .firstname)
     };

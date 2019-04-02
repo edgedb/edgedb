@@ -28,7 +28,7 @@ type User extending Named {
         property count -> int64;
     }
 
-    property deck_cost := sum(__source__.deck.cost);
+    property deck_cost := sum(.deck.cost);
 
     multi link friends -> User {
         property nickname -> str;
@@ -46,8 +46,7 @@ type Card extending Named {
     required property cost -> int64;
     link owners := __source__.<deck[IS User];
     # computable property
-    property elemental_cost :=
-        <str>__source__.cost ++ ' ' ++ __source__.element;
+    property elemental_cost := <str>.cost ++ ' ' ++ .element;
 }
 
 type SpecialCard extending Card;

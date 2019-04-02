@@ -761,6 +761,7 @@ class DeclarationLoader:
             expr, self._schema,
             modaliases=module_aliases,
             anchors={qlast.Source: source},
+            path_prefix_anchor=qlast.Source,
             singletons=[source])
 
         expr_type = ir.stype
