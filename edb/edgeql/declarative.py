@@ -589,7 +589,7 @@ class DeclarationLoader:
                 anchors={qlast.Subject: subject},
                 inline_anchors=True)
 
-            self._schema, index = s_indexes.SourceIndex.create_in_schema(
+            self._schema, index = s_indexes.Index.create_in_schema(
                 self._schema,
                 name=der_name,
                 expr=s_expr.Expression(text=index_expr),

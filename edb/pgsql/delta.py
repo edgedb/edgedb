@@ -1509,16 +1509,14 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
         return schema
 
 
-class SourceIndexCommand(sd.ObjectCommand,
-                         metaclass=ReferencedObjectCommandMeta):
-    _table = metaschema.get_metaclass_table(s_indexes.SourceIndex)
+class IndexCommand(sd.ObjectCommand, metaclass=ReferencedObjectCommandMeta):
+    _table = metaschema.get_metaclass_table(s_indexes.Index)
 
     def get_table(self, schema):
         return self._table
 
 
-class CreateSourceIndex(SourceIndexCommand, CreateObject,
-                        adapts=s_indexes.CreateSourceIndex):
+class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
 
     def apply(self, schema, context):
         schema, index = CreateObject.apply(self, schema, context)
@@ -1555,11 +1553,10 @@ class CreateSourceIndex(SourceIndexCommand, CreateObject,
         return schema, index
 
 
-class RenameSourceIndex(SourceIndexCommand, RenameObject,
-                        adapts=s_indexes.RenameSourceIndex):
+class RenameIndex(IndexCommand, RenameObject, adapts=s_indexes.RenameIndex):
 
     def apply(self, schema, context):
-        schema, index = s_indexes.RenameSourceIndex.apply(
+        schema, index = s_indexes.RenameIndex.apply(
             self, schema, context)
         schema, _ = RenameObject.apply(self, schema, context)
 
@@ -1569,7 +1566,7 @@ class RenameSourceIndex(SourceIndexCommand, RenameObject,
         orig_table_name = common.get_backend_name(
             subject.original_schema, index, catenate=False)
 
-        index_ctx = context.get(s_indexes.SourceIndexCommandContext)
+        index_ctx = context.get(s_indexes.IndexCommandContext)
 
         orig_schema = index_ctx.original_schema
         module = schema.get_global(
@@ -1589,21 +1586,19 @@ class RenameSourceIndex(SourceIndexCommand, RenameObject,
         return schema, index
 
 
-class AlterSourceIndex(SourceIndexCommand, AlterObject,
-                       adapts=s_indexes.AlterSourceIndex):
+class AlterIndex(IndexCommand, AlterObject, adapts=s_indexes.AlterIndex):
     def apply(self, schema, context=None):
-        schema, result = s_indexes.AlterSourceIndex.apply(
+        schema, result = s_indexes.AlterIndex.apply(
             self, schema, context)
         schema, _ = AlterObject.apply(self, schema, context)
         return schema, result
 
 
-class DeleteSourceIndex(SourceIndexCommand, DeleteObject,
-                        adapts=s_indexes.DeleteSourceIndex):
+class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
 
     def apply(self, schema, context=None):
         orig_schema = schema
-        schema, index = s_indexes.DeleteSourceIndex.apply(
+        schema, index = s_indexes.DeleteIndex.apply(
             self, schema, context)
         schema, _ = DeleteObject.apply(self, schema, context)
 

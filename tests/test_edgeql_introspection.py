@@ -606,12 +606,12 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
     @test.xfail('''
-        ContainerType queries cause the following error:
+        CollectionType queries cause the following error:
         relation "edgedbss.6b1e0cfa-1511-11e9-8f2e-b5ee4369b429" does not exist
     ''')
     async def test_edgeql_introspection_meta_06(self):
         await self.assert_query_result(
-            r'''SELECT count(schema::ContainerType) > 0;''',
+            r'''SELECT count(schema::CollectionType) > 0;''',
             [True],
         )
 
@@ -626,32 +626,34 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT count(schema::ContainerType) < count(schema::Type);''',
+            r'''SELECT count(schema::CollectionType) < count(schema::Type);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT count(schema::Array) < count(schema::ContainerType);''',
+            r'''SELECT count(schema::Array) <
+                    count(schema::CollectionType);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT count(schema::Tuple) < count(schema::ContainerType);''',
+            r'''SELECT count(schema::Tuple) <
+                    count(schema::CollectionType);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT DISTINCT (schema::ContainerType IS schema::Type);''',
+            r'''SELECT DISTINCT (schema::CollectionType IS schema::Type);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT DISTINCT (schema::Array IS schema::ContainerType);''',
+            r'''SELECT DISTINCT (schema::Array IS schema::CollectionType);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT DISTINCT (schema::Tuple IS schema::ContainerType);''',
+            r'''SELECT DISTINCT (schema::Tuple IS schema::CollectionType);''',
             [True],
         )
 

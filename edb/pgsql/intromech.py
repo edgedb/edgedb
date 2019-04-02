@@ -571,7 +571,7 @@ class IntrospectionMech:
                             f'the corresponding PostgreSQL index is missing.'
                 ) from None
 
-            schema, index = s_indexes.SourceIndex.create_in_schema(
+            schema, index = s_indexes.Index.create_in_schema(
                 schema,
                 id=index_data['id'],
                 name=index_name,

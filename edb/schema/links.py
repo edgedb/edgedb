@@ -474,7 +474,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         objtype = context.get(LinkSourceCommandContext)
 
         if not objtype:
-            for op in self.get_subcommands(type=indexes.SourceIndexCommand):
+            for op in self.get_subcommands(type=indexes.IndexCommand):
                 self._append_subcmd_ast(schema, node, op, context)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
@@ -611,7 +611,7 @@ class AlterLink(LinkCommand, sd.AlterObject):
         objtype = context.get(LinkSourceCommandContext)
 
         if not objtype:
-            for op in self.get_subcommands(type=indexes.SourceIndexCommand):
+            for op in self.get_subcommands(type=indexes.IndexCommand):
                 self._append_subcmd_ast(schema, node, op, context)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
@@ -663,7 +663,7 @@ class DeleteLink(LinkCommand, sd.DeleteObject):
             self._append_subcmd_ast(schema, node, op, context)
 
         if not objtype:
-            for op in self.get_subcommands(type=indexes.SourceIndexCommand):
+            for op in self.get_subcommands(type=indexes.IndexCommand):
                 self._append_subcmd_ast(schema, node, op, context)
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):

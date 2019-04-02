@@ -29,7 +29,7 @@ from . import referencing
 from . import utils as s_utils
 
 
-class SourceIndex(inheriting.InheritingObject):
+class Index(inheriting.InheritingObject):
 
     subject = so.SchemaField(so.Object)
 
@@ -49,7 +49,7 @@ class IndexableSubject(inheriting.InheritingObject):
     indexes_refs = so.RefDict(
         attr='indexes',
         local_attr='own_indexes',
-        ref_cls=SourceIndex)
+        ref_cls=Index)
 
     indexes = so.SchemaField(
         so.ObjectIndexByShortname,
@@ -73,14 +73,14 @@ class IndexSourceCommand(inheriting.InheritingObjectCommand):
     pass
 
 
-class SourceIndexCommandContext(sd.ObjectCommandContext):
+class IndexCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class SourceIndexCommand(referencing.ReferencedObjectCommand,
-                         schema_metaclass=SourceIndex,
-                         context_class=SourceIndexCommandContext,
-                         referrer_context_class=IndexSourceCommandContext):
+class IndexCommand(referencing.ReferencedObjectCommand,
+                   schema_metaclass=Index,
+                   context_class=IndexCommandContext,
+                   referrer_context_class=IndexSourceCommandContext):
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
         parent_ctx = context.get(sd.CommandContextToken)
@@ -94,7 +94,7 @@ class SourceIndexCommand(referencing.ReferencedObjectCommand,
         return sn.Name(name=idx_name, module=subject_name.module)
 
 
-class CreateSourceIndex(SourceIndexCommand, sd.CreateObject):
+class CreateIndex(IndexCommand, sd.CreateObject):
     astnode = qlast.CreateIndex
 
     @classmethod
@@ -137,13 +137,13 @@ class CreateSourceIndex(SourceIndexCommand, sd.CreateObject):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameSourceIndex(SourceIndexCommand, sd.RenameObject):
+class RenameIndex(IndexCommand, sd.RenameObject):
     pass
 
 
-class AlterSourceIndex(SourceIndexCommand, sd.AlterObject):
+class AlterIndex(IndexCommand, sd.AlterObject):
     pass
 
 
-class DeleteSourceIndex(SourceIndexCommand, sd.DeleteObject):
+class DeleteIndex(IndexCommand, sd.DeleteObject):
     astnode = qlast.DropIndex
