@@ -12,28 +12,26 @@ by casting a value into :eql:type:`json` or by using :eql:func:`to_json`:
 .. code-block:: edgeql-repl
 
     db> SELECT to_json('{"hello": "world"}');
-    {{hello: 'world'}}
-
+    {'{"hello": "world"}'}
     db> SELECT <json>'hello world';
-    {'hello world'}
+    {'"hello world"'}
 
 Anything in EdgeDB can be cast into :eql:type:`json`:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT <json>2018;
-    {2018}
-
-    db> SELECT <json>current_date();
-    {'2018-10-18'}
-
+    db> SELECT <json>2019;
+    {'2019'}
+    db> SELECT <json>to_local_date(datetime_current(), 'UTC');
+    {'"2019-04-02"'}
     db> SELECT <json>(
     ...     SELECT schema::Object {
     ...         name,
-    ...         timestamp := current_date()
+    ...         timestamp := to_local_date(
+    ...             datetime_current(), 'UTC')
     ...     }
     ...     FILTER .name = 'std::bool');
-    {{name: 'std::bool', timestamp: '2018-10-18'}}
+    {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
 
 JSON values can also be cast back into scalars. This casting is
 symmetrical meaning that if a scalar can be cast into JSON, only that
@@ -74,10 +72,10 @@ type shape.
     db> WITH MODULE schema
     ... SELECT <json>(Type {
     ...     name,
-    ...     timestamp := <local_date>datetime_current()
+    ...     timestamp := to_local_date(datetime_current(), 'UTC')
     ... })
     ... FILTER Type.name = 'std::bool';
-    {{name: 'std::bool', timestamp: '2019-01-18'}}
+    {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
 
 
 Accessing JSON Array Elements
@@ -88,10 +86,9 @@ The contents of JSON *arrays* can also be accessed via ``[]``:
 .. code-block:: edgeql-repl
 
     db> SELECT to_json('[1, "a", null]')[1];
-    {'a'}
-
+    {'"a"'}
     db> SELECT to_json('[1, "a", null]')[-1];
-    {None}
+    {'null'}
 
 The element access operator ``[]`` will raise an exception if the
 specified index is not valid for the base JSON value. To access
@@ -108,16 +105,13 @@ a new JSON array:
 .. code-block:: edgeql-repl
 
     db> SELECT to_json('[1, 2, 3]')[0:2];
-    {[1, 2]}
-
+    {'[1, 2]'}
     db> SELECT to_json('[1, 2, 3]')[2:];
-    {[3]}
-
+    {'[3]'}
     db> SELECT to_json('[1, 2, 3]')[:1];
-    {[1]}
-
+    {'[1]'}
     db> SELECT to_json('[1, 2, 3]')[:-2];
-    {[1]}
+    {'[1]'}
 
 
 Accessing JSON Object Fields
@@ -128,14 +122,13 @@ The fields of JSON *objects* can also be accessed via ``[]``:
 .. code-block:: edgeql-repl
 
     db> SELECT to_json('{"a": 2, "b": 5}')['b'];
-    {5}
-
+    {'5'}
     db> SELECT j := <json>(schema::Type {
     ...     name,
-    ...     timestamp := <local_date>datetime_current()
+    ...     timestamp := to_local_date(datetime_current(), 'UTC')
     ... })
     ... FILTER j['name'] = <json>'std::bool';
-    {{name: 'std::bool', timestamp: '2019-01-18'}}
+    {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
 
 The field access operator ``[]`` will raise an exception if the
 specified field does not exist for the base JSON value. To access

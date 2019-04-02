@@ -21,7 +21,7 @@ JSON
     .. code-block:: edgeql-repl
 
         db> SELECT json_array_unpack(to_json('[1, "a"]'));
-        {1, 'a'}
+        {'1', '"a"'}
 
 
 ----------
@@ -45,8 +45,8 @@ JSON
         ...     "q": 1,
         ...     "w": [2, "foo"],
         ...     "e": true
-        ... }', 'w', '1'));
-        {'foo'}
+        ... }'), 'w', '1');
+        {'"foo"'}
 
     This is useful when certain structure of JSON data is assumed, but
     cannot be reliably guaranteed:
@@ -57,7 +57,7 @@ JSON
         ...     "q": 1,
         ...     "w": [2, "foo"],
         ...     "e": true
-        ... }', 'w', '2'));
+        ... }'), 'w', '2');
         {}
 
     Also, a default value can be supplied by using the
@@ -69,8 +69,8 @@ JSON
         ...     "q": 1,
         ...     "w": [2, "foo"],
         ...     "e": true
-        ... }', 'w', '2')) ?? <json>'"mydefault"';
-        {'mydefault'}
+        ... }'), 'w', '2') ?? <json>'mydefault';
+        {'"mydefault"'}
 
 
 ----------
@@ -91,7 +91,7 @@ JSON
         ...     "w": [2, "foo"],
         ...     "e": true
         ... }'));
-        {['e', true], ['q', 1], ['w', [2, 'foo']]}
+        {('e', 'true'), ('q', '1'), ('w', '[2, "foo"]')}
 
 
 ----------
@@ -110,9 +110,7 @@ JSON
 
         db> SELECT json_typeof(<json>2);
         {'number'}
-
         db> SELECT json_typeof(to_json('null'));
         {'null'}
-
         db> SELECT json_typeof(to_json('{"a": 2}'));
         {'object'}
