@@ -1,7 +1,10 @@
 .. _ref_datamodel_scalars_uuid:
 
-UUID Type
-=========
+UUID
+====
+
+:edb-alt-title: UUID Type
+
 
 .. eql:type:: std::uuid
 

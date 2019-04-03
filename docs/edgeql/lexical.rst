@@ -297,6 +297,7 @@ EdgeQL operators listed in order of precedence from lowest to highest:
 .. list-table::
     :widths: auto
     :header-rows: 1
+    :class: codeblocks
 
     * - operator
     * - :eql:op:`UNION`
@@ -317,7 +318,9 @@ EdgeQL operators listed in order of precedence from lowest to highest:
     * - :eql:op:`??<COALESCE>`
     * - :eql:op:`DISTINCT`, unary :eql:op:`-<UMINUS>`
     * - :eql:op:`^<POW>`
-    * - :ref:`type cast <ref_eql_expr_typecast>`
-    * - :ref:`element access <ref_eql_expr_array_elref>` or
-        :ref:`slice <ref_eql_expr_array_slice>` ``[]``
+    * - :eql:op:`type cast <CAST>`
+    * - :eql:op:`array indexing operator <ARRAYIDX>`,
+        :eql:op:`string indexing operator <STRIDX>`,
+        :eql:op:`JSON indexing operator <JSONIDX>`,
+        :eql:op:`bytes indexing operator <BYTESIDX>`.
     * - :ref:`DETACHED <ref_eql_with_detached>`

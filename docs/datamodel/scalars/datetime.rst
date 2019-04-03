@@ -3,6 +3,9 @@
 Date and Time
 =============
 
+:edb-alt-title: Date/Time Types
+
+
 EdgeDB has two classes of date/time types:
 
 * a timezone-aware :eql:type:`std::datetime` type;
@@ -11,11 +14,9 @@ EdgeDB has two classes of date/time types:
   timezone: :eql:type:`std::local_datetime`, :eql:type:`std::local_date`,
   and :eql:type:`std::local_time`.
 
-All date/time :ref:`operators <ref_eql_operators_datetime>`,
-:ref:`functions <ref_eql_functions_datetime>`,
-:ref:`type converters <ref_eql_functions_converters>`, and type casts
-are designed to maintain a strict separation between timezone-aware
-and "local" date/time values.
+All date/time :ref:`functions/operators<ref_eql_funcops_datetime>`
+and type casts are designed to maintain a strict separation between
+timezone-aware and "local" date/time values.
 
 EdgeDB stores and outputs timezone-aware values in UTC.
 
@@ -27,7 +28,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A timezone-aware type representing date and time.
 
-    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
+    :eql:op:`Casting <CAST>` is required to obtain a
     :eql:type:`datetime` value in an expression:
 
     .. code-block:: edgeql
@@ -57,7 +58,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing date and time without time zone.
 
-    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
+    :eql:op:`Casting <CAST>` is required to obtain a
     :eql:type:`local_datetime` value in an expression:
 
     .. code-block:: edgeql
@@ -88,7 +89,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing date without time zone.
 
-    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
+    :eql:op:`Casting <CAST>` is required to obtain a
     :eql:type:`local_date` value in an expression:
 
     .. code-block:: edgeql
@@ -107,7 +108,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing time without time zone.
 
-    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain a
+    :eql:op:`Casting <CAST>` is required to obtain a
     :eql:type:`local_time` value in an expression:
 
     .. code-block:: edgeql
@@ -177,6 +178,5 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         {<local_time>'23:00:00'}
 
     See functions :eql:func:`timedelta_get`, :eql:func:`to_timedelta`,
-    and :eql:func:`to_str` and date/time :
-    :ref:`operators <ref_eql_operators_datetime>` for more ways of
-    working with :eql:type:`timedelta`.
+    and :eql:func:`to_str` and date/time :eql:op:`operators <DTMINUS>`
+    for more ways of working with :eql:type:`timedelta`.

@@ -1,8 +1,8 @@
-.. _ref_eql_functions:
+.. _ref_eql_funcops:
 
-=========
-Functions
-=========
+=======================
+Functions and Operators
+=======================
 
 EdgeDB provides a number of functions for the standard data types.
 Custom functions can be created using
@@ -55,11 +55,15 @@ singletons. Examples of aggregate functions include built-ins such as
     :hidden:
 
     generic
-    setagg
+    set
+    type
+    bool
+    numerics
     array
     string
     datetime
     json
-    converters
+    bytes
     math
     sys
+    uuid

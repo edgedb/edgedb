@@ -10,7 +10,7 @@ special syntax for referring to :eql:type:`array`,
 :ref:`property <ref_eql_sdl_props>`, :ref:`scalar
 <ref_eql_sdl_scalars>`, or :ref:`function <ref_eql_sdl_functions>`
 declarations as well as in type expressions involving :eql:op:`IS`
-or a :ref:`cast <ref_eql_expr_typecast>`.
+or a :eql:op:`cast <CAST>`.
 
 
 .. _ref_eql_types_array:

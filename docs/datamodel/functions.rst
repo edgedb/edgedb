@@ -9,7 +9,7 @@ Functions are ways to transform one set of data into another.  They
 are defined in :ref:`modules <ref_datamodel_modules>` and are part of
 the database schema.
 
-For example, consider the :ref:`function <ref_eql_functions>`
+For example, consider the :ref:`function <ref_eql_funcops>`
 :eql:func:`len` used to transform a set of :eql:type:`strings <str>` into a set
 of :eql:type:`integers <int64>`:
 

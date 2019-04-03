@@ -99,7 +99,7 @@ argument set.  A function or an operator with an aggregate parameter is
 called an *aggregate*.  Non-aggregate functions and operators are
 *regular* functions and operators.
 
-For example, basic arithmetic :ref:`operators <ref_eql_operators_math>`
+For example, basic arithmetic :ref:`operators <ref_eql_functions_math>`
 are regular operators, while the :eql:func:`sum` function and the
 :eql:op:`DISTINCT` operator are aggregates.
 

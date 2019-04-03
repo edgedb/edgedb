@@ -5,6 +5,34 @@
 System
 ======
 
+:edb-alt-title: System Functions
+
+
+.. list-table::
+    :class: funcoptable
+
+    * - :eql:func:`sys::sleep`
+      - :eql:func-desc:`sys::sleep`
+
+    * - :eql:func:`sys::advisory_lock`
+      - :eql:func-desc:`sys::advisory_lock`
+
+    * - :eql:func:`sys::advisory_unlock`
+      - :eql:func-desc:`sys::advisory_unlock`
+
+    * - :eql:func:`sys::advisory_unlock_all`
+      - :eql:func-desc:`sys::advisory_unlock_all`
+
+    * - :eql:func:`sys::get_version`
+      - :eql:func-desc:`sys::get_version`
+
+    * - :eql:func:`sys::get_version_as_str`
+      - :eql:func-desc:`sys::get_version_as_str`
+
+
+-----------
+
+
 .. eql:function:: sys::sleep(duration: float64) -> bool
                   sys::sleep(duration: timedelta) -> bool
 

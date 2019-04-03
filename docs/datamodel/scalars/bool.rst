@@ -1,7 +1,11 @@
 .. _ref_datamodel_scalars_bool:
 
-Boolean Type
-============
+=======
+Boolean
+=======
+
+:edb-alt-title: Boolean Type
+
 
 .. eql:type:: std::bool
 
@@ -18,8 +22,8 @@ Boolean Type
         {(false, false, false)}
 
     A boolean value may arise as a result of a :ref:`logical
-    <ref_eql_operators_logical>` or :ref:`comparison
-    <ref_eql_operators_comparison>` operations as well as :eql:op:`IN`
+    <ref_eql_operators_logical>` or :eql:op:`comparison <EQ>`
+    operations as well as :eql:op:`IN`
     and :eql:op:`NOT IN <IN>`:
 
     .. code-block:: edgeql-repl
@@ -29,7 +33,7 @@ Boolean Type
         db> SELECT '!' IN {'hello', 'world'};
         {false}
 
-    It is also possible to :ref:`cast <ref_eql_expr_typecast>` between
+    It is also possible to :eql:op:`cast <CAST>` between
     :eql:type:`bool`, :eql:type:`str`, and :eql:type:`json`:
 
     .. code-block:: edgeql-repl

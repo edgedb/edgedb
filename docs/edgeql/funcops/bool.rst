@@ -1,11 +1,28 @@
 .. _ref_eql_operators_logical:
 
+
 =======
 Logical
 =======
 
-EdgeDB supports the following boolean logical operators:
-``AND``, ``OR``, and ``NOT``.
+:edb-alt-title: Logical Operators
+
+
+.. list-table::
+    :class: funcoptable
+
+    * - :eql:op:`a OR b <OR>`
+      - :eql:op-desc:`OR`
+
+    * - :eql:op:`a AND b <AND>`
+      - :eql:op-desc:`AND`
+
+    * - :eql:op:`NOT a <NOT>`
+      - :eql:op-desc:`NOT`
+
+
+----------
+
 
 .. eql:operator:: OR: A OR B
 

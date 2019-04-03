@@ -4,7 +4,247 @@
 Generic
 =======
 
-This section describes generic functions provided by EdgeDB.
+:edb-alt-title: Generic Functions and Operators
+
+
+.. list-table::
+    :class: funcoptable
+
+    * - :eql:op:`A = B <EQ>`
+      - :eql:op-desc:`EQ`
+
+    * - :eql:op:`A != B <NEQ>`
+      - :eql:op-desc:`NEQ`
+
+    * - :eql:op:`A ?= B <COALEQ>`
+      - :eql:op-desc:`COALEQ`
+
+    * - :eql:op:`A ?!= B <COALNEQ>`
+      - :eql:op-desc:`COALNEQ`
+
+    * - :eql:op:`A \< B <LT>`
+      - :eql:op-desc:`LT`
+
+    * - :eql:op:`A \> B <GT>`
+      - :eql:op-desc:`GT`
+
+    * - :eql:op:`A \<= B <LTEQ>`
+      - :eql:op-desc:`LTEQ`
+
+    * - :eql:op:`A \>= B <GTEQ>`
+      - :eql:op-desc:`GTEQ`
+
+    * - :eql:op:`a IF condition ELSE b <IF..ELSE>`
+      - :eql:op-desc:`IF..ELSE`
+
+    * - :eql:func:`len`
+      - :eql:func-desc:`len`
+
+    * - :eql:func:`contains`
+      - :eql:func-desc:`contains`
+
+    * - :eql:func:`find`
+      - :eql:func-desc:`find`
+
+    * - :eql:func:`round`
+      - :eql:func-desc:`round`
+
+    * - :eql:func:`random`
+      - :eql:func-desc:`random`
+
+
+-----------
+
+
+.. eql:operator:: IF..ELSE: A IF C ELSE B
+
+    :optype A: SET OF anytype
+    :optype C: bool
+    :optype B: SET OF anytype
+    :resulttype: SET OF anytype
+
+    :index: if else ifelse elif ternary
+
+    Conditionally provide one or the other result.
+
+    IF *C* is ``true``, then the value of the ``IF..ELSE`` expression
+    is the value of *A*, if *C* is ``false``, the result is the value of
+    *B*.
+
+    ``IF..ELSE`` expressions can be chained when checking multiple conditions
+    is necessary:
+
+    .. code-block:: edgeql
+
+        SELECT 'Apple' IF Fruit IS Apple ELSE
+               'Banana' IF Fruit IS Banana ELSE
+               'Orange' IF Fruit IS Orange ELSE
+               'Other';
+
+
+-----------
+
+
+.. eql:operator:: EQ: A = B
+
+    :optype A: anytype
+    :optype B: anytype
+    :resulttype: bool
+
+    Compare two values for equality.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 3 = 3.0;
+        {true}
+
+
+----------
+
+
+.. eql:operator:: NEQ: A != B
+
+    :optype A: anytype
+    :optype B: anytype
+    :resulttype: bool
+
+    Compare two values for inequality.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 3 != 3.14;
+        {true}
+
+
+----------
+
+
+.. eql:operator:: COALEQ: A ?= B
+
+    :optype A: OPTIONAL anytype
+    :optype B: OPTIONAL anytype
+    :resulttype: bool
+
+    Compare two (potentially empty) values for equality.
+
+    Works the same as regular :eql:op:`=<EQ>`, but also allows
+    comparing ``{}``.  Two ``{}`` are considered equal.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT {1} ?= {1.0};
+        {true}
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT {1} ?= {};
+        {false}
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT <int64>{} ?= {};
+        {true}
+
+
+----------
+
+
+.. eql:operator:: COALNEQ: A ?!= B
+
+    :optype A: OPTIONAL anytype
+    :optype B: OPTIONAL anytype
+    :resulttype: bool
+
+    Compare two (potentially empty) values for inequality.
+
+    Works the same as regular :eql:op:`\!=<NEQ>`, but also allows
+    comparing ``{}``.  Two ``{}`` are considered equal.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT {2} ?!= {2};
+        {false}
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT {1} ?!= {};
+        {true}
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT <int64>{} ?!= {};
+        {false}
+
+
+----------
+
+
+.. eql:operator:: LT: A < B
+
+    :optype A: anytype
+    :optype B: anytype
+    :resulttype: bool
+
+    ``true`` if ``A`` is less than ``B``.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 1 < 2;
+        {true}
+
+
+----------
+
+
+.. eql:operator:: GT: A > B
+
+    :optype A: anytype
+    :optype B: anytype
+    :resulttype: bool
+
+    ``true`` if ``A`` is greater than ``B``.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 1 > 2;
+        {false}
+
+
+----------
+
+
+.. eql:operator:: LTEQ: A <= B
+
+    :optype A: anytype
+    :optype B: anytype
+    :resulttype: bool
+
+    ``true`` if ``A`` is less than or equal to ``B``.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 1 <= 2;
+        {true}
+
+
+----------
+
+
+.. eql:operator:: GTEQ: A >= B
+
+    :optype A: anytype
+    :optype B: anytype
+    :resulttype: bool
+
+    ``true`` if ``A`` is greater than or equal to ``B``.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 1 >= 2;
+        {false}
+
+
+----------
 
 
 .. eql:function:: std::len(value: str) -> int64
@@ -173,37 +413,3 @@ This section describes generic functions provided by EdgeDB.
 
         db> SELECT random();
         {0.62649393780157}
-
-
-----------
-
-
-.. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
-
-    Get the *nth* bit of the *bytes* value.
-
-    When looking for the *nth* bit, this function enumerates bits from
-    least to most significant in each byte.
-
-    .. code-block:: edgeql-repl
-
-        db> FOR n IN {0, 1, 2, 3, 4, 5, 6, 7,
-        ...           8, 9, 10, 11, 12, 13 ,14, 15}
-        ... UNION bytes_get_bit(b'ab', n);
-        {1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0}
-
-
-----------
-
-
-.. eql:function:: std::uuid_generate_v1mc() -> uuid
-
-    Return a version 1 UUID.
-
-    The algorithm uses a random multicast MAC address instead of the
-    real MAC address of the computer.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT uuid_generate_v1mc();
-        {'1893e2b6-57ce-11e8-8005-13d4be166783'}

@@ -1,14 +1,17 @@
 .. _ref_datamodel_scalars_str:
 
-Strings
-=======
+String
+======
+
+:edb-alt-title: String Type
+
 
 .. eql:type:: std::str
 
     A unicode string of text.
 
-    Any other type (except for :eql:type:`bytes`) can be :ref:`cast
-    <ref_eql_expr_typecast>` to and from a string:
+    Any other type (except :eql:type:`bytes`) can be
+    :eql:op:`cast <CAST>` to and from a string:
 
     .. code-block:: edgeql-repl
 
@@ -28,19 +31,3 @@ Strings
 
         db> SELECT <json>'Hello, world';
         {'"Hello, world"'}
-
-    There are :ref:`converter <ref_eql_functions_converters>`
-    functions that can be used to dump or parse a :eql:type:`json`
-    value to or from a :eql:type:`str`:
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT to_json('[1, "a"]');
-        {'[1, "a"]'}
-        db> SELECT to_str(<json>[1, 2]);
-        {'[1, 2]'}
-
-    See also the list of standard
-    :ref:`str functions <ref_eql_functions_string>` and
-    :ref:`generic functions <ref_eql_functions_generic>`
-    such as :eql:func:`len`.

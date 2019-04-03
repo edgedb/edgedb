@@ -47,8 +47,7 @@ For details about scalar types introspection see :ref:`this section
     str
     bool
     datetime
-    bytes
-    sequence
-    uuid
     json
     enum
+    bytes
+    uuid

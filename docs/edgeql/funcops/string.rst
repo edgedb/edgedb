@@ -1,369 +1,478 @@
-..
-    Portions Copyright (c) 2019 MagicStack Inc. and the EdgeDB authors.
+.. _ref_eql_functions_string:
 
-    Portions Copyright (c) 1996-2018, PostgreSQL Global Development Group
-    Portions Copyright (c) 1994, The Regents of the University of California
+======
+String
+======
 
-    Permission to use, copy, modify, and distribute this software and its
-    documentation for any purpose, without fee, and without a written agreement
-    is hereby granted, provided that the above copyright notice and this
-    paragraph and the following two paragraphs appear in all copies.
-
-    IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
-    DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
-    LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
-    DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
-    POSSIBILITY OF SUCH DAMAGE.
-
-    THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
-    AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
-    ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
-    PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+:edb-alt-title: String Functions and Operators
 
 
-.. _ref_eql_functions_converters:
+.. list-table::
+    :class: funcoptable
+
+    * - :eql:op:`str[i] <STRIDX>`
+      - :eql:op-desc:`STRIDX`
+
+    * - :eql:op:`str[from:to] <STRSLICE>`
+      - :eql:op-desc:`STRSLICE`
+
+    * - :eql:op:`str ++ str <STRPLUS>`
+      - :eql:op-desc:`STRPLUS`
+
+    * - :eql:op:`str LIKE pattern <LIKE>`
+      - :eql:op-desc:`LIKE`
+
+    * - :eql:op:`str ILIKE pattern <ILIKE>`
+      - :eql:op-desc:`ILIKE`
+
+    * - :eql:func:`to_str`
+      - :eql:func-desc:`to_str`
+
+    * - :eql:func:`len`
+      - Return string's length.
+
+    * - :eql:func:`contains`
+      - Test if a string contains a substring.
+
+    * - :eql:func:`find`
+      - Find index of a substring.
+
+    * - :eql:func:`str_lower`
+      - :eql:func-desc:`str_lower`
+
+    * - :eql:func:`str_upper`
+      - :eql:func-desc:`str_upper`
+
+    * - :eql:func:`str_title`
+      - :eql:func-desc:`str_title`
+
+    * - :eql:func:`str_lpad`
+      - :eql:func-desc:`str_lpad`
+
+    * - :eql:func:`str_rpad`
+      - :eql:func-desc:`str_rpad`
+
+    * - :eql:func:`str_trim`
+      - :eql:func-desc:`str_trim`
+
+    * - :eql:func:`str_ltrim`
+      - :eql:func-desc:`str_ltrim`
+
+    * - :eql:func:`str_rtrim`
+      - :eql:func-desc:`str_rtrim`
+
+    * - :eql:func:`str_repeat`
+      - :eql:func-desc:`str_repeat`
+
+    * - :eql:func:`re_match`
+      - :eql:func-desc:`re_match`
+
+    * - :eql:func:`re_match_all`
+      - :eql:func-desc:`re_match_all`
+
+    * - :eql:func:`re_replace`
+      - :eql:func-desc:`re_replace`
+
+    * - :eql:func:`re_test`
+      - :eql:func-desc:`re_test`
 
 
-Type Converters
-===============
-
-These functions convert between different scalar types. When a
-simple cast is not sufficient to specify how data must be converted,
-the functions below allow more options for such conversions.
+----------
 
 
-.. eql:function:: std::to_datetime(s: str, fmt: OPTIONAL str={}) -> datetime
-                  std::to_datetime(local: local_datetime, zone: str) \
-                    -> datetime
-                  std::to_datetime(year: int64, month: int64, day: int64, \
-                    hour: int64, min: int64, sec: float64, timezone: str) \
-                    -> datetime
+.. eql:operator:: STRIDX: STR [ INDEX ]
 
-    :index: parse datetime
+    :optype STR: str
+    :optype INDEX: int64
+    :resulttype: str
 
-    Create a :eql:type:`datetime` value.
-
-    The :eql:type:`datetime` value can be parsed from the input
-    :eql:type:`str` *s*. By default, the input is expected to conform
-    to ISO 8601 format. However, the optional argument *fmt* can be
-    used to override the input format to other forms.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT to_datetime('2018-05-07T15:01:22.306916+00');
-        {<datetime>'2018-05-07T15:01:22.306916+00:00'}
-        db> SELECT to_datetime('2018-05-07T15:01:22+00');
-        {<datetime>'2018-05-07T15:01:22+00:00'}
-        db> SELECT to_datetime('May 7th, 2018 15:01:22 +00',
-        ...                    'Mon DDth, YYYY HH24:MI:SS TZM');
-        {<datetime>'2018-05-07T15:01:22+00:00'}
-
-    Alternatively, the :eql:type:`datetime` value can be constructed
-    from a :eql:type:`std::local_datetime` value:
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT to_datetime(
-        ...   <local_datetime>'January 1, 2019 12:00AM', 'HKT');
-        {<datetime>'2018-12-31T16:00:00+00:00'}
-
-    Yet another way to construct a the :eql:type:`datetime` value
-    is to specify it in terms of its component parts: *year*, *month*,
-    *day*, *hour*, *min*, *sec*, and *timezone*
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT to_datetime(
-        ...     2018, 5, 7, 15, 1, 22.306916, 'UTC');
-        {<datetime>'2018-05-07T15:01:22.306916+00:00'}
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
-
-
-------------
-
-
-.. eql:function:: std::to_local_datetime(s: str, fmt: OPTIONAL str={}) \
-                    -> local_datetime
-                  std::to_local_datetime(dt: datetime, zone: str) \
-                    -> local_datetime
-                  std::to_local_datetime(year: int64, month: int64, \
-                    day: int64, hour: int64, min: int64, sec: float64) \
-                    -> local_datetime
-
-    :index: parse local_datetime
-
-    Create a :eql:type:`local_datetime` value.
-
-    Similar to :eql:func:`to_datetime`, the :eql:type:`local_datetime`
-    value can be parsed from the input :eql:type:`str` *s* with an
-    optional *fmt* argument or it can be given in terms of its
-    component parts: *year*, *month*, *day*, *hour*, *min*, *sec*.
+    String indexing.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_datetime('2018-05-07T15:01:22.306916');
-        {<local_datetime>'2018-05-07T15:01:22.306916'}
-        db> SELECT to_local_datetime('May 7th, 2018 15:01:22',
-        ...                          'Mon DDth, YYYY HH24:MI:SS');
-        {<local_datetime>'2018-05-07T15:01:22'}
-        db> SELECT to_local_datetime(
-        ...     2018, 5, 7, 15, 1, 22.306916);
-        {<local_datetime>'2018-05-07T15:01:22.306916'}
-
-    A timezone-aware :eql:type:`datetime` type can be converted
-    to local datetime in the specified timezone:
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT to_local_datetime(
-        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
-        ...   'US/Central');
-        {<local_datetime>'2019-01-01T00:00:00'}
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
+        db> SELECT 'some text'[1];
+        {'o'}
+        db> SELECT 'some text'[1:3];
+        {'om'}
+        db> SELECT 'some text'[-4:];
+        {'text'}
 
 
-------------
+----------
 
 
-.. eql:function:: std::to_local_date(s: str, fmt: OPTIONAL str={}) \
-                    -> local_date
-                  std::to_local_date(dt: datetime, zone: str) -> local_date
-                  std::to_local_date(year: int64, month: int64, \
-                    day: int64) -> local_date
+.. eql:operator:: STRSLICE: STR [ FROM : TO ]
 
-    :index: parse local_date
+    :optype STR: str
+    :optype FROM: int64
+    :optype TO: int64
+    :resulttype: str
 
-    Create a :eql:type:`local_date` value.
-
-    Similar to :eql:func:`to_datetime`, the :eql:type:`local_date`
-    value can be parsed from the input :eql:type:`str` *s* with an
-    optional *fmt* argument or it can be given in terms of its
-    component parts: *year*, *month*, *day*.
+    String slicing.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_date('2018-05-07');
-        {<local_date>'2018-05-07'}
-        db> SELECT to_local_date('May 7th, 2018', 'Mon DDth, YYYY');
-        {<local_date>'2018-05-07'}
-        db> SELECT to_local_date(2018, 5, 7);
-        {<local_date>'2018-05-07'}
-
-    A timezone-aware :eql:type:`datetime` type can be converted
-    to local date in the specified timezone:
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT to_local_date(
-        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
-        ...   'US/Central');
-        {<local_date>'2019-01-01'}
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
+        db> SELECT 'some text'[1:3];
+        {'om'}
+        db> SELECT 'some text'[-4:];
+        {'text'}
 
 
-------------
+----------
 
 
-.. eql:function:: std::to_local_time(s: str, fmt: OPTIONAL str={}) \
-                    -> local_time
-                  std::to_local_time(dt: datetime, zone: str) \
-                    -> local_time
-                  std::to_local_time(hour: int64, min: int64, sec: float64) \
-                    -> local_time
+.. eql:operator:: STRPLUS: A ++ B
 
-    :index: parse local_time
+    :optype A: str
+    :optype B: str
+    :resulttype: str
 
-    Create a :eql:type:`local_time` value.
-
-    Similar to :eql:func:`to_datetime`, the :eql:type:`local_time`
-    value can be parsed from the input :eql:type:`str` *s* with an
-    optional *fmt* argument or it can be given in terms of its
-    component parts: *hour*, *min*, *sec*.
+    String concatenation.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_time('15:01:22.306916');
-        {<local_time>'15:01:22.306916'}
-        db> SELECT to_local_time('03:01:22pm', 'HH:MI:SSam');
-        {<local_time>'15:01:22'}
-        db> SELECT to_local_time(15, 1, 22.306916);
-        {<local_time>'15:01:22.306916'}
-
-    A timezone-aware :eql:type:`datetime` type can be converted
-    to local date in the specified timezone:
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT to_local_time(
-        ...   <datetime>'December 31, 2018 10:00PM GMT+8',
-        ...   'US/Pacific');
-        {<local_date>'22:00:00'}
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
+        db> SELECT 'some' ++ ' text';
+        {'some text'}
 
 
-------------
+----------
 
 
-.. eql:function:: std::to_timedelta( \
-                    NAMED ONLY years: int64=0, \
-                    NAMED ONLY months: int64=0, \
-                    NAMED ONLY weeks: int64=0, \
-                    NAMED ONLY days: int64=0, \
-                    NAMED ONLY hours: int64=0, \
-                    NAMED ONLY mins: int64=0, \
-                    NAMED ONLY secs: float64=0 \
-                  ) -> timedelta
+.. eql:operator:: LIKE: V LIKE P or V NOT LIKE P
 
-    :index: timedelta
+    :optype V: str or bytes
+    :optype P: str or bytes
+    :resulttype: bool
 
-    Create a :eql:type:`timedelta` value.
+    Case-sensitive simple string matching.
 
-    This function uses ``NAMED ONLY`` arguments  to create a
-    :eql:type:`timedelta` value. The available timedelta fields are:
-    *years*, *months*, *weeks*, *days*, *hours*, *mins*, *secs*.
+    Returns ``true`` if the *value* ``V`` matches the *pattern* ``P``
+    and ``false`` otherwise.  The operator :eql:op:`NOT LIKE<LIKE>` is
+    the negation of :eql:op:`LIKE`.
 
-    .. code-block:: edgeql-repl
+    The pattern matching rules are as follows:
 
-        db> SELECT to_timedelta(hours := 1,
-        ...                     mins := 20,
-        ...                     secs := 45);
-        {<timedelta>'1:20:45'}
-        db> SELECT to_timedelta(secs := 4845);
-        {<timedelta>'1:20:45'}
+    .. list-table::
+        :widths: auto
+        :header-rows: 1
 
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
+        * - pattern
+          - interpretation
+        * - ``%``
+          - matches zero or more characters
+        * - ``_``
+          - matches exactly one character
+        * - ``\%``
+          - matches a literal "%"
+        * - ``\_``
+          - matches a literal "_"
+        * - any other character
+          - matches itself
 
-
-------------
-
-
-.. eql:function:: std::to_decimal(s: str, fmt: OPTIONAL str={}) -> decimal
-
-    :index: parse decimal
-
-    Create a :eql:type:`decimal` value.
-
-    Parse a :eql:type:`decimal` from the input *s* and optional format
-    specification *fmt*.
+    In particular, this means that if there are no special symbols in
+    the *pattern*, the operators :eql:op:`LIKE` and :eql:op:`NOT
+    LIKE<LIKE>` work identical to :eql:op:`EQ` and :eql:op:`NEQ`,
+    respectively.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_decimal('-000,012,345', 'S099,999,999,999');
-        {-12345n}
-        db> SELECT to_decimal('-012.345');
-        {-12.345n}
-        db> SELECT to_decimal('31st', '999th');
-        {31n}
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
-
-
-------------
+        db> SELECT 'abc' LIKE 'abc';
+        {true}
+        db> SELECT 'abc' LIKE 'a%';
+        {true}
+        db> SELECT 'abc' LIKE '_b_';
+        {true}
+        db> SELECT 'abc' LIKE 'c';
+        {false}
+        db> SELECT 'a%%c' NOT LIKE 'a\%c';
+        {true}
 
 
-.. eql:function:: std::to_int16(s: str, fmt: OPTIONAL str={}) -> int16
-
-    :index: parse int16
-
-    Create a :eql:type:`int16` value.
-
-    Parse a :eql:type:`int16` from the input *s* and optional format
-    specification *fmt*.
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
+----------
 
 
-------------
+.. eql:operator:: ILIKE: V ILIKE P or V NOT ILIKE P
 
+    :optype V: str or bytes
+    :optype P: str or bytes
+    :resulttype: bool
 
-.. eql:function:: std::to_int32(s: str, fmt: OPTIONAL str={}) -> int32
+    Case-insensitive simple string matching.
 
-    :index: parse int32
-
-    Create a :eql:type:`int32` value.
-
-    Parse a :eql:type:`int32` from the input *s* and optional format
-    specification *fmt*.
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
-
-
-------------
-
-
-.. eql:function:: std::to_int64(s: str, fmt: OPTIONAL str={}) -> int64
-
-    :index: parse int64
-
-    Create a :eql:type:`int64` value.
-
-    Parse a :eql:type:`int64` from the input *s* and optional format
-    specification *fmt*.
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
-
-
-------------
-
-
-.. eql:function:: std::to_float32(s: str, fmt: OPTIONAL str={}) -> float32
-
-    :index: parse float32
-
-    Create a :eql:type:`float32` value.
-
-    Parse a :eql:type:`float32` from the input *s* and optional format
-    specification *fmt*.
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
-
-
-------------
-
-
-.. eql:function:: std::to_float64(s: str, fmt: OPTIONAL str={}) -> float64
-
-    :index: parse float64
-
-    Create a :eql:type:`float64` value.
-
-    Parse a :eql:type:`float64` from the input *s* and optional format
-    specification *fmt*.
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
-
-
-------------
-
-
-.. eql:function:: std::to_json(string: str) -> json
-
-    :index: json parse loads
-
-    Return JSON value represented by the input *string*.
+    The operators :eql:op:`ILIKE` and :eql:op:`NOT ILIKE<ILIKE>` work
+    the same way as :eql:op:`LIKE` and :eql:op:`NOT LIKE<LIKE>`,
+    except that the *pattern* is matched in a case-insensitive manner.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_json('[1, "hello", null]')[1];
-        {'"hello"'}
-        db> SELECT to_json('{"hello": "world"}')['hello'];
-        {'"world"'}
+        db> SELECT 'Abc' ILIKE 'a%';
+        {true}
+
+
+----------
+
+
+.. eql:function:: std::str_lower(string: str) -> str
+
+    Return a lowercase copy of the input *string*.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_lower('Some Fancy Title');
+        {'some fancy title'}
+
+
+----------
+
+
+.. eql:function:: std::str_upper(string: str) -> str
+
+    Return an uppercase copy of the input *string*.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_upper('Some Fancy Title');
+        {'SOME FANCY TITLE'}
+
+
+----------
+
+
+.. eql:function:: std::str_title(string: str) -> str
+
+    Return a titlecase copy of the input *string*.
+
+    Every word in the *string* will have the first letter capitalized
+    and the rest converted to lowercase.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_title('sOmE fAnCy TiTlE');
+        {'Some Fancy Title'}
+
+
+----------
+
+
+.. eql:function:: std::str_lpad(string: str, n: int64, fill: str = ' ') -> str
+
+    Return the input *string* left-padded to the length *n*.
+
+    If the *string* is longer than *n*, then it is truncated to the
+    first *n* characters. Otherwise, the *string* is padded on the
+    left up to the total length *n* using *fill* characters (space by
+    default).
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_lpad('short', 10);
+        {'     short'}
+        db> SELECT str_lpad('much too long', 10);
+        {'much too l'}
+        db> SELECT str_lpad('short', 10, '.:');
+        {'.:.:.short'}
+
+
+----------
+
+
+.. eql:function:: std::str_rpad(string: str, n: int64, fill: str = ' ') -> str
+
+    Return the input *string* right-padded to the length *n*.
+
+    If the *string* is longer than *n*, then it is truncated to the
+    first *n* characters. Otherwise, the *string* is padded on the
+    right up to the total length *n* using *fill* characters (space by
+    default).
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_rpad('short', 10);
+        {'short     '}
+        db> SELECT str_rpad('much too long', 10);
+        {'much too l'}
+        db> SELECT str_rpad('short', 10, '.:');
+        {'short.:.:.'}
+
+
+----------
+
+
+.. eql:function:: std::str_ltrim(string: str, trim: str = ' ') -> str
+
+    Return the input *string* with all leftmost *trim* characters removed.
+
+    If the *trim* specifies more than one character they will be
+    removed from the beginning of the *string* regardless of the order
+    in which they appear.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_ltrim('     data');
+        {'data'}
+        db> SELECT str_ltrim('.....data', '.:');
+        {'data'}
+        db> SELECT str_ltrim(':::::data', '.:');
+        {'data'}
+        db> SELECT str_ltrim(':...:data', '.:');
+        {'data'}
+        db> SELECT str_ltrim('.:.:.data', '.:');
+        {'data'}
+
+
+----------
+
+
+.. eql:function:: std::str_rtrim(string: str, trim: str = ' ') -> str
+
+    Return the input *string* with all rightmost *trim* characters removed.
+
+    If the *trim* specifies more than one character they will be
+    removed from the end of the *string* regardless of the order
+    in which they appear.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_rtrim('data     ');
+        {'data'}
+        db> SELECT str_rtrim('data.....', '.:');
+        {'data'}
+        db> SELECT str_rtrim('data:::::', '.:');
+        {'data'}
+        db> SELECT str_rtrim('data:...:', '.:');
+        {'data'}
+        db> SELECT str_rtrim('data.:.:.', '.:');
+        {'data'}
+
+
+----------
+
+
+.. eql:function:: std::str_trim(string: str, trim: str = ' ') -> str
+
+    Return the input *string* with *trim* characters removed from both ends.
+
+    If the *trim* specifies more than one character they will be
+    removed from both ends of the *string* regardless of the order
+    in which they appear. This is the same as applying
+    :eql:func:`str_ltrim` and :eql:func:`str_rtrim`.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_trim('  data     ');
+        {'data'}
+        db> SELECT str_trim('::data.....', '.:');
+        {'data'}
+        db> SELECT str_trim('..data:::::', '.:');
+        {'data'}
+        db> SELECT str_trim('.:data:...:', '.:');
+        {'data'}
+        db> SELECT str_trim(':.:.data.:.', '.:');
+        {'data'}
+
+
+----------
+
+
+.. eql:function:: std::str_repeat(string: str, n: int64) -> str
+
+    Repeat the input *string* *n* times.
+
+    If *n* is zero or negative an empty string is returned.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT str_repeat('.', 3);
+        {'...'}
+        db> SELECT str_repeat('foo', -1);
+        {''}
+
+
+----------
+
+
+.. eql:function:: std::re_match(pattern: str, \
+                                string: str) -> array<str>
+
+    :index: regex regexp regular
+
+    Find the first regular expression match in a string.
+
+    Given an input *string* and a regular expression *pattern* find
+    the first match for the regular expression within the *string*.
+    Return the match, each match represented by an
+    :eql:type:`array\<str\>` of matched groups.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT re_match(r'\w{4}ql', 'I ❤️ edgeql');
+        {['edgeql']}
+
+
+----------
+
+
+.. eql:function:: std::re_match_all(pattern: str, \
+                                    string: str) -> SET OF array<str>
+
+    :index: regex regexp regular
+
+    Find all regular expression matches in a string.
+
+    Given an input *string* and a regular expression *pattern*
+    repeatedly match the regular expression within the *string*.
+    Return the set of all matches, each match represented by an
+    :eql:type:`array\<str\>` of matched groups.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT re_match_all(r'a\w+', 'an abstract concept');
+        {['an'], ['abstract']}
+
+
+----------
+
+
+.. eql:function:: std::re_replace(pattern: str, sub: str, \
+                                  string: str, \
+                                  NAMED ONLY flags: str='') \
+                  -> str
+
+    :index: regex regexp regular replace
+
+    Replace matching substrings in a given string.
+
+    Given an input *string* and a regular expression *pattern* replace
+    matching substrings with the replacement string *sub*. Optional
+    :ref:`flag <string_regexp_flags>` argument can be used to specify
+    additional regular expression flags. Return the string resulting
+    from substring replacement.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT re_replace(r'l', r'L', 'Hello World',
+        ...                   flags := 'g');
+        {'HeLLo WorLd'}
+
+
+----------
+
+
+.. eql:function:: std::re_test(pattern: str, string: str) -> bool
+
+    :index: regex regexp regular match
+
+    Test if a regular expression has a match in a string.
+
+    Given an input *string* and a regular expression *pattern* test
+    whether there is a match for the regular expression within the
+    *string*. Return ``true`` if there is a match, ``false``
+    otherwise.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT re_test(r'a', 'abc');
+        {true}
 
 
 ------------
@@ -454,11 +563,79 @@ the functions below allow more options for such conversions.
         {'one, two, three'}
 
 
-------------
+----------
+
+
+Regular Expressions
+-------------------
+
+EdgeDB supports Regular expressions (REs), as defined in POSIX 1003.2.
+They come in two forms: BRE (basic RE) and ERE (extended RE). In
+addition to that EdgeDB supports certain common extensions to the
+POSIX standard commonly known as ARE (advanced RE). More details about
+BRE, ERE, and ARE support can be found in `PostgreSQL documentation`_.
+
+
+.. _`PostgreSQL documentation`:
+                https://www.postgresql.org/docs/10/static/
+                functions-matching.html#POSIX-SYNTAX-DETAILS
+
+For convenience, here's a table outlining the different options
+accepted as the ``flag`` argument to various regular expression
+functions:
+
+.. _string_regexp_flags:
+
+Option Flags
+^^^^^^^^^^^^
+
+======  ==================================================================
+Option  Description
+======  ==================================================================
+``b``   rest of RE is a BRE
+``c``   case-sensitive matching (overrides operator type)
+``e``   rest of RE is an ERE
+``i``   case-insensitive matching (overrides operator type)
+``m``   historical synonym for n
+``n``   newline-sensitive matching
+``p``   partial newline-sensitive matching
+``q``   rest of RE is a literal ("quoted") string, all ordinary characters
+``s``   non-newline-sensitive matching (default)
+``t``   tight syntax (default)
+``w``   inverse partial newline-sensitive ("weird") matching
+``x``   expanded syntax ignoring white-space characters
+======  ==================================================================
+
+
+----------
 
 
 Formatting
 ----------
+
+..
+    Portions Copyright (c) 2019 MagicStack Inc. and the EdgeDB authors.
+
+    Portions Copyright (c) 1996-2018, PostgreSQL Global Development Group
+    Portions Copyright (c) 1994, The Regents of the University of California
+
+    Permission to use, copy, modify, and distribute this software and its
+    documentation for any purpose, without fee, and without a written agreement
+    is hereby granted, provided that the above copyright notice and this
+    paragraph and the following two paragraphs appear in all copies.
+
+    IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+    DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+    LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+    DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+    THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+    AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+    ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+    PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
 
 Some of the type converter functions take an extra argument specifying
 the formatting (either for converting to a :eql:type:`str` or parsing

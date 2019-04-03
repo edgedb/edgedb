@@ -120,7 +120,7 @@ Unary prefix operator syntax:
     <operator> <expression>
 
 A complete reference of standard EdgeQL operators can be found in
-:ref:`ref_eql_operators`.
+:ref:`ref_eql_funcops`.
 
 
 .. _ref_eql_expr_index_function_call:
@@ -139,7 +139,7 @@ function, and :eql:synopsis:`<argument>` is an *expression* optionally
 prefixed with an argument name and the assignment operator (``:=``).
 
 A complete reference of standard EdgeQL functions can be found in
-:ref:`ref_eql_functions`.
+:ref:`ref_eql_funcops`.
 
 
 .. _ref_eql_expr_index_typecast:
@@ -164,7 +164,7 @@ For example, the following expression casts an integer value into a string:
     db> SELECT <str>10;
     {"10"}
 
-See :ref:`type cast reference <ref_eql_expr_typecast>` for more
+See the :eql:op:`type cast operator <CAST>` section for more
 information on type casting rules.
 
 

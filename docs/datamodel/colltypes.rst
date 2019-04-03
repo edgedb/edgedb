@@ -37,11 +37,8 @@ For details about collection types introspection see :ref:`this section
     The syntax of an array type declaration can be found in :ref:`this
     section <ref_eql_types_array>`.
 
-    Arrays support concatenation, indexing, and slicing, read more
-    about it :ref:`here <ref_eql_operators_array>`.
-
     See also the list of standard
-    :ref:`array functions <ref_eql_functions_array>` and
+    :ref:`array functions <ref_eql_funcops_array>` and
     generic functions such as :eql:func:`len`.
 
 

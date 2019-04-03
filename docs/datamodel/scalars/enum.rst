@@ -1,7 +1,10 @@
 .. _ref_datamodel_scalars_enum:
 
-Enumerated Types
-================
+Enum
+====
+
+:edb-alt-title: Enumerated Type
+
 
 .. eql:type:: std::enum
 
@@ -16,7 +19,7 @@ Enumerated Types
 
         scalar type color_enum_t extending enum<'red', 'green', 'blue'>;
 
-    :ref:`Casting <ref_eql_expr_typecast>` is required to obtain an
+    :eql:op:`Casting <CAST>` is required to obtain an
     enum value in an expression:
 
     .. code-block:: edgeql-repl

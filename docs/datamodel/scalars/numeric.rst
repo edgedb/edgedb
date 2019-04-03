@@ -1,10 +1,12 @@
 .. _ref_datamodel_scalars_numeric:
 
-Numeric Types
-=============
+Numerics
+========
 
-It's possbile to explicitly :ref:`cast <ref_eql_expr_typecast>`
-between any numeric types. All numeric types can also be cast to and
+:edb-alt-title: Numeric Types
+
+It's possible to explicitly :eql:op:`cast <CAST>`
+between all numeric types. All numeric types can also be cast to and
 from :eql:type:`str` and :eql:type:`json`.
 
 See also the list of standard
@@ -106,3 +108,11 @@ generic functions such as :eql:func:`min`.
         {true}
         db> SELECT 1.23n IS decimal;
         {true}
+
+
+----------
+
+
+.. eql:type:: std::sequence
+
+    Auto-incrementing sequence of :eql:type:`int64`.

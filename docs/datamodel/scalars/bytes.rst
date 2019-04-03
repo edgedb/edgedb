@@ -3,6 +3,9 @@
 Bytes
 =====
 
+:edb-alt-title: Bytes Type
+
+
 .. eql:type:: std::bytes
 
     A sequence of bytes.
