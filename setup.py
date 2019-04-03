@@ -42,6 +42,7 @@ RUNTIME_DEPS = [
     'psutil~=5.6.1',
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
+    'setuptools_scm~=3.2.0',
     'uvloop~=0.12.2',
 
     'graphql-core~=2.1.0',
@@ -432,9 +433,7 @@ class build_ext(distutils_build_ext.build_ext):
 
 
 setuptools.setup(
-    setup_requires=[
-        'setuptools_scm',
-    ] + RUNTIME_DEPS + BUILD_DEPS,
+    setup_requires=RUNTIME_DEPS + BUILD_DEPS,
     use_scm_version=True,
     name='edgedb-server',
     description='EdgeDB Server',
