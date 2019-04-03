@@ -24,3 +24,19 @@ The number of targets as specified by keywords :ref:`required
 and :ref:`multi <ref_eql_ddl_links_syntax>`.  It is also possible to
 restrict how many source objects can link to the same target via
 :eql:constraint:`exclusive` constraint.
+
+Links also have a policy of handling link target *deletion*. There are
+4 possible *actions* that can be taken when this happens:
+
+- ``RESTRICT`` - any attempt to delete the target object immediately
+  raises an exception;
+- ``DELETE SOURCE`` - when the target of a link is deleted, the source
+  is also deleted;
+- ``ALLOW`` - the target object is deleted and is removed from the
+  set of the link targets;
+- ``DEFERRED RESTRICT`` - any attempt to delete the target object
+  raises an exception at the end of the transaction, unless by
+  that time this object is no longer in the set of link targets.
+
+This :ref:`section <ref_eql_ddl_links_syntax>` covers the syntax of
+how to set these policies in more detail.

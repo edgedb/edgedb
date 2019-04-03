@@ -6,8 +6,7 @@ Schema Definition
 This section describes the high-level language used to define EdgeDB
 schema.  It is called the *EdgeDB schema definition language* or
 *SDL*.  There's a correspondence between this declarative high-level
-language and the imperative low-level
-:ref:`DDL <ref_eql_ddl>`.
+language and the imperative low-level :ref:`DDL <ref_eql_ddl>`.
 
 SDL is a declarative language optimized for human readability and
 expressing the state of the EdgeDB schema without getting into the
@@ -18,6 +17,32 @@ a complete schema state for a particular
 Syntactically, an SDL declaration mirrors the ``CREATE`` DDL for the
 corresponding entity, but with all of the ``CREATE`` and ``SET``
 keywords omitted.
+
+SDL is used to specify a :ref:`migration <ref_eql_ddl_migrations>` to a to a
+specific schema state. For example:
+
+.. code-block:: edgeql-repl
+
+    db> START TRANSACTION;
+    START TRANSACTION
+    db> CREATE MIGRATION movies TO {
+    ...     type Movie {
+    ...         required property title -> str;
+    ...         # the year of release
+    ...         property year -> int64;
+    ...         required link director -> Person;
+    ...         required multi link cast -> Person;
+    ...     }
+    ...     type Person {
+    ...         required property first_name -> str;
+    ...         required property last_name -> str;
+    ...     }
+    ... };
+    CREATE MIGRATION
+    db> COMMIT MIGRATION movies;
+    COMMIT MIGRATION
+    db> COMMIT;
+    COMMIT TRANSACTION
 
 
 .. toctree::

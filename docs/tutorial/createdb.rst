@@ -101,6 +101,7 @@ In DDL the order of the commands matters, so the ``Person`` :ref:`type
     .........     CREATE REQUIRED PROPERTY first_name -> str;
     .........     CREATE REQUIRED PROPERTY last_name -> str;
     ......... };
+    CREATE
 
 Now a ``Movie`` :ref:`type <ref_eql_ddl_object_types>` can be created with
 :ref:`links <ref_eql_ddl_links>` referring to ``Person``:
@@ -114,6 +115,7 @@ Now a ``Movie`` :ref:`type <ref_eql_ddl_object_types>` can be created with
     .........     CREATE REQUIRED LINK director -> Person;
     .........     CREATE MULTI LINK cast -> Person;
     ......... };
+    CREATE
 
 Now that the schema is set up we're ready to
 :ref:`populate the database with data <ref_tutorial_queries>`.

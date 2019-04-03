@@ -120,8 +120,10 @@ Parameters
         See :eql:stmt:`CREATE CONSTRAINT` for details.
 
     :eql:synopsis:`ON TARGET DELETE <action>`
-        The details of what ``ON TARGET DELETE`` options mean are
-        described in :ref:`this section <ref_datamodel_links>`.
+        Valid values for *action* are: ``RESTRICT``, ``DELETE
+        SOURCE``, ``ALLOW``, and ``DEFERRED RESTRICT``. The details of
+        what ``ON TARGET DELETE`` options mean are described in
+        :ref:`this section <ref_datamodel_links>`.
 
 Examples
 --------
@@ -275,8 +277,10 @@ Parameters
         :eql:stmt:`DROP CONSTRAINT` for details.
 
     :eql:synopsis:`ON TARGET DELETE <action>`
-        Change link target deletion policy.  The details of what
-        ``ON TARGET DELETE`` options mean are described in
+        Change link target deletion policy. Valid values for *action*
+        are: ``RESTRICT``, ``DELETE SOURCE``, ``ALLOW``, and
+        ``DEFERRED RESTRICT``. The details of what ``ON TARGET
+        DELETE`` options mean are described in
         :ref:`this section <ref_datamodel_links>`.
 
 
