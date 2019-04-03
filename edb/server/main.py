@@ -246,9 +246,18 @@ def run_server(args):
             pg_cluster_init_by_us = True
 
         cluster_status = cluster.get_status()
+        data_dir = cluster.get_data_dir()
 
-        runstate_dir = _ensure_runstate_dir(
-            cluster.get_data_dir(), args['runstate_dir'])
+        if args['runstate_dir']:
+            specified_runstate_dir = args['runstate_dir']
+        elif args['bootstrap']:
+            # If we are bootstrapping, it is often necessary to
+            # avoid using the global runstate dir.
+            specified_runstate_dir = data_dir
+        else:
+            specified_runstate_dir = None
+
+        runstate_dir = _ensure_runstate_dir(data_dir, specified_runstate_dir)
 
         with _internal_state_dir(runstate_dir) as internal_runstate_dir:
             server_settings['unix_socket_directories'] = args['data_dir']
