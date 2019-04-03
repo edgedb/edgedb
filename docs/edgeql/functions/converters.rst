@@ -132,6 +132,7 @@ the functions below allow more options for such conversions.
 
 .. eql:function:: std::to_local_date(s: str, fmt: OPTIONAL str={}) \
                     -> local_date
+                  std::to_local_date(dt: datetime, zone: str) -> local_date
                   std::to_local_date(year: int64, month: int64, \
                     day: int64) -> local_date
 
