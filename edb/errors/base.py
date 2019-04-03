@@ -24,7 +24,7 @@ from edb.common import exceptions as ex
 
 
 __all__ = (
-    'EdgeDBError',
+    'EdgeDBError', 'EdgeDBMessage',
 )
 
 
@@ -43,6 +43,17 @@ class EdgeDBErrorMeta(type):
     @classmethod
     def get_error_class_from_code(mcls, code):
         return mcls._error_map[code]
+
+
+class EdgeDBMessage(Warning):
+
+    _code = None
+
+    @classmethod
+    def get_code(cls):
+        if cls._code is None:
+            raise RuntimeError('EdgeDB message code is not set')
+        return cls._code
 
 
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):

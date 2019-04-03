@@ -71,6 +71,13 @@ ALTER TYPE cfg::Config {
         SET default := false;
     };
 
+    CREATE PROPERTY __internal_restart -> std::bool {
+        SET ATTRIBUTE cfg::internal := 'true';
+        SET ATTRIBUTE cfg::system := 'true';
+        SET ATTRIBUTE cfg::requires_restart := 'true';
+        SET default := false;
+    };
+
     CREATE MULTI PROPERTY multiprop -> std::str {
         SET ATTRIBUTE cfg::internal := 'true';
     };

@@ -132,6 +132,7 @@ class ErrorsTree:
 
     DEFAULT_BASE_IMPORT = 'from edb.errors.base import *'
     DEFAULT_BASE_CLASS = 'EdgeDBError'
+    DEFAULT_MESSAGE_BASE_CLASS = 'EdgeDBMessage'
     DEFAULT_EXTRA_ALL = 'base.__all__'
 
     def __init__(self):
@@ -163,7 +164,8 @@ class ErrorsTree:
             .setdefault(b3, SparseArray) \
             .setdefault(b4, lambda: name)
 
-    def generate_pycode(self, *, base_class, base_import, extra_all, client):
+    def generate_pycode(self, *, message_base_class, base_class,
+                        base_import, extra_all, client):
         classes = []
 
         for i1 in self._tree.indices():
@@ -201,7 +203,10 @@ class ErrorsTree:
                             else:
                                 base = b1
                         if base == b4:
-                            base = base_class
+                            if b4.endswith('Error'):
+                                base = base_class
+                            else:
+                                base = message_base_class
 
                         classes.append((b4, base, i1, i2, i3, i4))
 
@@ -235,7 +240,8 @@ def die(msg):
     sys.exit(1)
 
 
-def main(*, base_class, base_import, stdout, extra_all, client):
+def main(*, base_class, message_base_class,
+         base_import, stdout, extra_all, client):
     import edb
     for p in edb.__path__:
         ep = pathlib.Path(p) / 'api' / 'errors.txt'
@@ -266,7 +272,7 @@ def main(*, base_class, base_import, stdout, extra_all, client):
                    (?P<b4>[0-9A-F]{2})
 
                 \s+
-                (?P<name>[A-Z][a-zA-Z]+Error)
+                (?P<name>[A-Z][a-zA-Z]+(?:Error|Message))
                 \s*
             $''',
             line
@@ -284,6 +290,7 @@ def main(*, base_class, base_import, stdout, extra_all, client):
         tree.add(b1, b2, b3, b4, name)
 
     code = tree.generate_pycode(base_class=base_class,
+                                message_base_class=message_base_class,
                                 base_import=base_import,
                                 extra_all=extra_all,
                                 client=client)
@@ -291,6 +298,9 @@ def main(*, base_class, base_import, stdout, extra_all, client):
     cmd_line = '#    $ edb gen-errors'
     if base_class != ErrorsTree.DEFAULT_BASE_CLASS:
         cmd_line += f' \\\n#        --base-class "{base_class}"'
+    if message_base_class != ErrorsTree.DEFAULT_MESSAGE_BASE_CLASS:
+        cmd_line += \
+            f' \\\n#        --message-base-class "{message_base_class}"'
     if base_import != ErrorsTree.DEFAULT_BASE_IMPORT:
         cmd_line += f' \\\n#        --import "{base_import}"'
     if extra_all != ErrorsTree.DEFAULT_EXTRA_ALL:
@@ -321,6 +331,9 @@ def main(*, base_class, base_import, stdout, extra_all, client):
 @click.option(
     '--base-class', type=str, default=ErrorsTree.DEFAULT_BASE_CLASS)
 @click.option(
+    '--message-base-class', type=str,
+    default=ErrorsTree.DEFAULT_MESSAGE_BASE_CLASS)
+@click.option(
     '--import', 'base_import', type=str,
     default=ErrorsTree.DEFAULT_BASE_IMPORT)
 @click.option(
@@ -329,10 +342,12 @@ def main(*, base_class, base_import, stdout, extra_all, client):
     '--stdout', type=bool, default=False, is_flag=True)
 @click.option(
     '--client', type=bool, default=False, is_flag=True)
-def gen_errors(*, base_class, base_import, stdout, extra_all, client):
+def gen_errors(*, base_class, message_base_class, base_import,
+               stdout, extra_all, client):
     """Generate edb/errors.py from edb/api/errors.txt"""
     try:
         main(base_class=base_class,
+             message_base_class=message_base_class,
              base_import=base_import,
              stdout=stdout,
              extra_all=extra_all,

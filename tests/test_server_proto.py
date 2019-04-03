@@ -598,6 +598,27 @@ class TestServerProto(tb.QueryTestCase):
                     'select sys::advisory_unlock(<int64>$0)', lock_key),
                 [True])
 
+    async def test_server_proto_log_message_01(self):
+        msgs = []
+
+        def on_log(con, msg):
+            msgs.append(msg)
+
+        self.con.add_log_listener(on_log)
+        try:
+            await self.con.fetchall(
+                'configure system set __internal_restart := true;')
+            await asyncio.sleep(0.01)  # allow the loop to call the callback
+        finally:
+            self.con.remove_log_listener(on_log)
+
+        for msg in msgs:
+            if (msg.get_severity_name() == 'NOTICE' and
+                    'server restart is required' in str(msg)):
+                break
+        else:
+            raise AssertionError('a notice message was not delivered')
+
     async def test_server_proto_tx_savepoint_01(self):
         # Basic test that SAVEPOINTS actually work; test with DML.
 

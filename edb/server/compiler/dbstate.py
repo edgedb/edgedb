@@ -77,6 +77,7 @@ class SessionStateQuery(BaseQuery):
 
     is_system_setting: bool = False
     is_backend_setting: bool = False
+    requires_restart: bool = False
     config_op: typing.Optional[config.Operation] = None
 
 
@@ -155,6 +156,7 @@ class QueryUnit:
 
     # Set only when this unit contains a CONFIGURE SYSTEM command.
     system_config: bool = False
+    config_requires_restart: bool = False
     # Set only when this unit contains a CONFIGURE command which
     # alters a backend configuration setting.
     backend_config: bool = False

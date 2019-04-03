@@ -827,6 +827,13 @@ cdef class EdgeConnection:
             await self.backend.pgcon.simple_query(
                 b'SELECT pg_reload_conf()', ignore_data=True)
 
+        if query_unit.config_requires_restart:
+            self.write_log(
+                EdgeSeverity.EDGE_SEVERITY_NOTICE,
+                errors.LogMessage.get_code(),
+                'server restart is required for the configuration '
+                'change to take effect')
+
     async def _execute(self, query_unit, bind_args,
                        bint parse, bint use_prep_stmt):
         if self.dbview.in_tx_error():
@@ -1181,11 +1188,12 @@ cdef class EdgeConnection:
                 formatted_error = 'could not serialize error traceback'
 
         buf = WriteBuffer.new_message(b'E')
+        buf.write_byte(<char><uint8_t>EdgeSeverity.EDGE_SEVERITY_ERROR)
         buf.write_int32(<int32_t><uint32_t>exc_code)
 
         buf.write_len_prefixed_utf8(str(exc))
 
-        buf.write_int16(fields_len + 1)
+        buf.write_int16(fields_len + 1)  # number of headers
         if fields is not None:
             for k, v in fields.items():
                 buf.write_int16(<int16_t><uint16_t>k)
@@ -1193,6 +1201,24 @@ cdef class EdgeConnection:
         buf.write_int16(base_errors.FIELD_SERVER_TRACEBACK)
         buf.write_len_prefixed_utf8(formatted_error)
 
+        buf.end_message()
+
+        self.write(buf)
+
+    cdef write_log(self, EdgeSeverity severity, uint32_t code, str message):
+        cdef:
+            WriteBuffer buf
+
+        if severity >= EdgeSeverity.EDGE_SEVERITY_ERROR:
+            # This is an assertion.
+            raise errors.InternalServerError(
+                'emitting a log message with severity=ERROR')
+
+        buf = WriteBuffer.new_message(b'L')
+        buf.write_byte(<char><uint8_t>severity)
+        buf.write_int32(<int32_t><uint32_t>code)
+        buf.write_len_prefixed_utf8(message)
+        buf.write_int16(0)  # number of headers
         buf.end_message()
 
         self.write(buf)

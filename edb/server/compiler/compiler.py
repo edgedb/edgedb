@@ -679,6 +679,7 @@ class Compiler(BaseCompiler):
         )
 
         is_backend_setting = bool(getattr(ir, 'backend_setting', None))
+        requires_restart = bool(getattr(ir, 'requires_restart', False))
 
         if is_backend_setting:
             if isinstance(ql, qlast.ConfigReset):
@@ -726,6 +727,7 @@ class Compiler(BaseCompiler):
             sql=sql,
             is_backend_setting=is_backend_setting,
             is_system_setting=ql.system,
+            requires_restart=requires_restart,
             config_op=config_op,
         )
 
@@ -884,6 +886,8 @@ class Compiler(BaseCompiler):
 
                 if comp.is_backend_setting:
                     unit.backend_config = True
+                if comp.requires_restart:
+                    unit.config_requires_restart = True
 
                 if ctx.state.current_tx().is_implicit():
                     unit.modaliases = ctx.state.current_tx().get_modaliases()

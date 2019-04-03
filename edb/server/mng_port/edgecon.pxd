@@ -33,6 +33,16 @@ from edb.server.dbview cimport dbview
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 
+cdef enum EdgeSeverity:
+    EDGE_SEVERITY_DEBUG = 20
+    EDGE_SEVERITY_INFO = 40
+    EDGE_SEVERITY_NOTICE = 60
+    EDGE_SEVERITY_WARNING = 80
+    EDGE_SEVERITY_ERROR = 120
+    EDGE_SEVERITY_FATAL = 200
+    EDGE_SEVERITY_PANIC = 255
+
+
 cdef enum EdgeConnectionStatus:
     EDGECON_NEW = 0
     EDGECON_STARTED = 1
@@ -91,3 +101,5 @@ cdef class EdgeConnection:
 
     cdef inline reject_headers(self)
     cdef dict parse_headers(self)
+
+    cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)

@@ -122,6 +122,13 @@
 0x_07_01_00_00   AuthenticationError
 
 
+####
+
+0x_F0_00_00_00   LogMessage
+
+0x_F0_01_00_00   WarningMessage
+
+
 #### Suggested errors for EdgeDB clients
 
 0x_FF_00_00_00   ClientError

@@ -227,6 +227,10 @@ class Cli:
 
         return prompt
 
+    def on_edgedb_log_message(self, connection, msg):
+        render.render_status(self.context,
+                             f'{msg.get_severity_name()}: {msg}')
+
     def ensure_connection(self):
         try:
             if self.connection is None:
@@ -259,6 +263,8 @@ class Cli:
                 dbname = 'EdgeDB'
             print(f'Could not establish connection to {dbname}: {reason}')
             exit(1)
+
+        self.connection.add_log_listener(self.on_edgedb_log_message)
 
     @_command('c', R'\c DBNAME', 'connect to database DBNAME')
     def command_connect(self, args):
