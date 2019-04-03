@@ -997,6 +997,62 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }]
         })
 
+    def test_graphql_functional_enums_01(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(
+                    order: {color: {dir: DESC}},
+                    first: 1
+                ) {
+                    select
+                    color
+                }
+            }
+        """, {
+            'other__Foo': [{
+                'select': None,
+                'color': "BLUE",
+            }]
+        })
+
+    def test_graphql_functional_enums_02(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(
+                    order: {color: {dir: ASC}},
+                    after: "0"
+                ) {
+                    select
+                    color
+                }
+            }
+        """, {
+            "other__Foo": [{
+                "select": "b",
+                "color": "GREEN",
+            }, {
+                "select": None,
+                "color": "BLUE",
+            }]
+        })
+
+    def test_graphql_functional_enums_03(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(
+                    filter: {color: {eq: RED}},
+                ) {
+                    select
+                    color
+                }
+            }
+        """, {
+            "other__Foo": [{
+                "select": "a",
+                "color": "RED",
+            }]
+        })
+
     def test_graphql_functional_fragment_01(self):
         self.assert_graphql_query_result(r"""
             fragment groupFrag on UserGroup {
@@ -4560,3 +4616,35 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
         for item in items:
             self.assertIn(item, types)
+
+    def test_graphql_functional_type_14(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                __type(name:"other__color_enum_t") {
+                    __typename
+                    name
+                    kind
+                    enumValues {
+                        name
+                    }
+                }
+            }
+        """, {
+
+            "__type": {
+                "kind": "ENUM",
+                "name": "other__color_enum_t",
+                "__typename": "__Type",
+                "enumValues": [
+                    {
+                        "name": "RED"
+                    },
+                    {
+                        "name": "GREEN"
+                    },
+                    {
+                        "name": "BLUE"
+                    },
+                ]
+            }
+        })

@@ -81,15 +81,21 @@ INSERT Person {
     score := 4.2
 };
 
-INSERT other::Foo {
+WITH MODULE other
+INSERT Foo {
     `select` := 'a',
+    color := <color_enum_t>'RED',
 };
 
-INSERT other::Foo {
+WITH MODULE other
+INSERT Foo {
     `select` := 'b',
     after := 'w',
+    color := <color_enum_t>'GREEN',
 };
 
-INSERT other::Foo {
+WITH MODULE other
+INSERT Foo {
     after := 'q',
+    color := <color_enum_t>'BLUE',
 };
