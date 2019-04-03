@@ -10,6 +10,9 @@ import collections
 import json
 import os
 import re
+import subprocess
+import sys
+import tempfile
 import textwrap
 import unittest
 
@@ -303,3 +306,31 @@ class TestDocSnippets(unittest.TestCase):
                 self.RestructuredTextStyleError,
                 r'lint errors:[.\s]*Title underline too short'):
             self.extract_code_blocks(source, '<test>')
+
+    def test_doc_full_build(self):
+        docs_root = os.path.join(find_edgedb_root(), 'docs')
+
+        with tempfile.TemporaryDirectory() as td:
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    '-m', 'sphinx',
+                    '-W',
+                    '-n',
+                    '-b', 'xml',
+                    '-q',
+                    '-D', 'master_doc=index',
+                    docs_root,
+                    td,
+                ],
+                text=True,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+
+        if proc.returncode:
+            raise AssertionError(
+                f'Unable to build docs with Sphinx.\n\n'
+                f'STDOUT:\n{proc.stdout}\n\n'
+                f'STDERR:\n{proc.stderr}\n'
+            )

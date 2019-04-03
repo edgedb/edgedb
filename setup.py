@@ -50,6 +50,7 @@ RUNTIME_DEPS = [
 ]
 
 CYTHON_DEPENDENCY = 'Cython==0.29.6'
+SPHINX_DEPENDENCY = 'Sphinx~=2.0.0'
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
@@ -61,12 +62,14 @@ EXTRA_DEPS = {
         'pycodestyle~=2.5.0',
         'coverage~=4.5.2',
         'requests-xml~=0.2.3',
+        SPHINX_DEPENDENCY,
+        'lxml',
+        'requests-xml',
     ],
 
     'docs': [
-        'Sphinx~=2.0.0',
+        SPHINX_DEPENDENCY,
         'lxml',
-        'requests-xml',
     ],
 }
 
