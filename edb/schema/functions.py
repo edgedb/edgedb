@@ -729,10 +729,10 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the polymorphic `{signature} -> '
                     f'{return_typemod.to_edgeql()} '
-                    f'{return_type.get_name(schema)}` '
+                    f'{return_type.get_displayname(schema)}` '
                     f'function: overloading another function with different '
                     f'return type {func_return_typemod.to_edgeql()} '
-                    f'{func.get_return_type(schema).get_name(schema)}',
+                    f'{func.get_return_type(schema).get_displayname(schema)}',
                     context=self.source_context)
 
             if func_from_function:
@@ -772,7 +772,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the `{signature}` function: '
                     f'invalid default value {p_default} of parameter '
-                    f'${p.get_name(schema)}: {ex}',
+                    f'{p.get_displayname(schema)!r}: {ex}',
                     context=self.source_context)
 
             check_default_type = True
@@ -783,7 +783,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     raise errors.InvalidFunctionDefinitionError(
                         f'cannot create the `{signature}` function: '
                         f'polymorphic parameter of type '
-                        f'{p_type.get_name(schema)} cannot '
+                        f'{p_type.get_displayname(schema)} cannot '
                         f'have a non-empty default value',
                         context=self.source_context)
             elif (p.get_typemod(schema) is ft.TypeModifier.OPTIONAL and
@@ -796,7 +796,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     raise errors.InvalidFunctionDefinitionError(
                         f'cannot create the `{signature}` function: '
                         f'invalid declaration of parameter '
-                        f'${p.get_name(schema)}: '
+                        f'{p.get_displayname(schema)!r}: '
                         f'unexpected type of the default expression: '
                         f'{default_type.get_displayname(schema)}, expected '
                         f'{p_type.get_displayname(schema)}',
