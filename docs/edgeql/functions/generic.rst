@@ -66,10 +66,10 @@ This section describes generic functions provided by EdgeDB.
 ----------
 
 
-.. eql:function:: std::find(haystack: str, needle: str) -> int32
-                  std::find(haystack: bytes, needle: bytes) -> int32
+.. eql:function:: std::find(haystack: str, needle: str) -> int64
+                  std::find(haystack: bytes, needle: bytes) -> int64
                   std::find(haystack: array<anytype>, needle: anytype, \
-                            from_pos: int64=0) -> int32
+                            from_pos: int64=0) -> int64
 
     :index: find strpos strstr position array
 

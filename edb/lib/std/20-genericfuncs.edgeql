@@ -246,31 +246,31 @@ std::contains(haystack: array<anytype>, needle: anytype) -> std::bool
 # ---------
 
 CREATE FUNCTION
-std::find(haystack: std::str, needle: std::str) -> std::int32
+std::find(haystack: std::str, needle: std::str) -> std::int64
 {
     FROM SQL $$
-    SELECT strpos("haystack", "needle") - 1
+    SELECT (strpos("haystack", "needle") - 1)::int8
     $$;
 };
 
 
 CREATE FUNCTION
-std::find(haystack: std::bytes, needle: std::bytes) -> std::int32
+std::find(haystack: std::bytes, needle: std::bytes) -> std::int64
 {
     FROM SQL $$
-    SELECT position("needle" in "haystack") - 1
+    SELECT (position("needle" in "haystack") - 1)::int8
     $$;
 };
 
 
 CREATE FUNCTION
 std::find(haystack: array<anytype>, needle: anytype,
-          from_pos: std::int64=0) -> std::int32
+          from_pos: std::int64=0) -> std::int64
 {
     FROM SQL $$
     SELECT COALESCE(
-        array_position("haystack", "needle", ("from_pos" + 1)::int4) - 1,
-        -1)
+        array_position("haystack", "needle", ("from_pos"::int4 + 1)::int4) - 1,
+        -1)::int8
     $$;
 };
 
