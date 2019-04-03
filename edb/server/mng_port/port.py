@@ -96,9 +96,11 @@ class ManagementPort(baseport.Port):
     async def start(self):
         await super().start()
 
+        nethost = await self._fix_localhost(self._nethost, self._netport)
+
         tcp_srv = await self._loop.create_server(
             lambda: edgecon.EdgeConnection(self),
-            host=self._nethost, port=self._netport)
+            host=nethost, port=self._netport)
 
         try:
             unix_sock_path = os.path.join(
@@ -126,13 +128,10 @@ class ManagementPort(baseport.Port):
             raise
 
         self._servers.append(tcp_srv)
-        if not isinstance(self._nethost, str):
-            if len(self._nethost) > 1:
-                host_str = f"{{{', '.join(self._nethost)}}}"
-            else:
-                host_str = next(iter(self._nethost))
+        if len(nethost) > 1:
+            host_str = f"{{{', '.join(nethost)}}}"
         else:
-            host_str = self._nethost
+            host_str = next(iter(nethost))
         logger.info('Serving on %s:%s', host_str, self._netport)
         self._servers.append(unix_srv)
         logger.info('Serving on %s', unix_sock_path)

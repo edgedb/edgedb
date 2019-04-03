@@ -17,6 +17,9 @@
 #
 
 
+import collections.abc
+import socket
+
 from edb.common import devmode
 from edb.server import procpool
 
@@ -83,3 +86,45 @@ class Port:
             self._compiler_manager = None
         self._compiler_manager = None
         self._serving = False
+
+    async def _fix_localhost(self, host, port):
+        # On many systems 'localhost' resolves to _both_ IPv4 and IPv6
+        # addresses, even if the system is not capable of handling
+        # IPv6 connections.  Due to the common nature of this issue
+        # we explicitly disable the AF_INET6 component of 'localhost'.
+
+        if (isinstance(host, str)
+                or not isinstance(host, collections.abc.Iterable)):
+            hosts = [host]
+        else:
+            hosts = list(host)
+
+        try:
+            idx = hosts.index('localhost')
+        except ValueError:
+            # No localhost, all good
+            return hosts
+
+        localhost = await self._loop.getaddrinfo(
+            'localhost',
+            port,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+            flags=socket.AI_PASSIVE,
+            proto=0,
+        )
+
+        infos = [a for a in localhost if a[0] == socket.AF_INET]
+
+        if not infos:
+            # "localhost" did not resolve to an IPv4 address,
+            # let create_server handle the situation.
+            return hosts
+
+        # Replace 'localhost' with explicitly resolved AF_INET addresses.
+        hosts.pop(idx)
+        for info in reversed(infos):
+            addr, *_ = info[4]
+            hosts.insert(idx, addr)
+
+        return hosts

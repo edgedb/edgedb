@@ -106,9 +106,10 @@ class BaseHttpPort(baseport.Port):
             self._pgcons.put_nowait(con_task.result())
             self._pgcons_list.append(con_task.result())
 
+        nethost = await self._fix_localhost(self._nethost, self._netport)
         srv = await self._loop.create_server(
             self.build_protocol,
-            host=self._nethost, port=self._netport)
+            host=nethost, port=self._netport)
 
         self._servers.append(srv)
 
