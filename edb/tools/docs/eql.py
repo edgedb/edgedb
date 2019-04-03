@@ -498,6 +498,10 @@ class BaseEQLDirective(s_directives.ObjectDescription):
         indexnode, node = super().run()
         self._validate_fields(node)
         self._validate_and_extract_summary(node)
+
+        objects = self.env.domaindata['eql']['objects']
+        objects[self.__eql_target] += (node['summary'],)
+
         return [indexnode, node]
 
     def add_target_and_index(self, name, sig, signode):
@@ -518,6 +522,8 @@ class BaseEQLDirective(s_directives.ObjectDescription):
             raise shared.DirectiveParseError(
                 self, f'duplicate {self.objtype} {name} description')
         objects[target] = (self.env.docname, self.objtype)
+
+        self.__eql_target = target
 
 
 class EQLTypeDirective(BaseEQLDirective):
@@ -797,6 +803,14 @@ class EQLFunctionXRef(s_roles.XRefRole):
             env, refnode, has_explicit_title, title, target)
 
 
+class EQLFunctionDescXRef(s_roles.XRefRole):
+    pass
+
+
+class EQLOperatorDescXRef(s_roles.XRefRole):
+    pass
+
+
 class EQLConstraintXRef(s_roles.XRefRole):
     pass
 
@@ -807,11 +821,11 @@ class EdgeQLDomain(s_domains.Domain):
     label = "EdgeQL"
 
     object_types = {
-        'function': s_domains.ObjType('function', 'func'),
+        'function': s_domains.ObjType('function', 'func', 'func-desc'),
         'constraint': s_domains.ObjType('constraint', 'constraint'),
         'type': s_domains.ObjType('type', 'type'),
         'keyword': s_domains.ObjType('keyword', 'kw'),
-        'operator': s_domains.ObjType('operator', 'op'),
+        'operator': s_domains.ObjType('operator', 'op', 'op-desc'),
         'statement': s_domains.ObjType('statement', 'stmt'),
     }
 
@@ -832,15 +846,22 @@ class EdgeQLDomain(s_domains.Domain):
 
     roles = {
         'func': EQLFunctionXRef(),
+        'func-desc': EQLFunctionDescXRef(),
         'constraint': EQLConstraintXRef(),
         'type': EQLTypeXRef(),
         'kw': s_roles.XRefRole(),
         'op': s_roles.XRefRole(),
+        'op-desc': EQLOperatorDescXRef(),
         'stmt': s_roles.XRefRole(),
     }
 
+    desc_roles = {
+        'func-desc',
+        'op-desc',
+    }
+
     initial_data = {
-        'objects': {}  # fullname -> docname, objtype
+        'objects': {}  # fullname -> docname, objtype, description
     }
 
     def resolve_xref(self, env, fromdocname, builder,
@@ -865,9 +886,10 @@ class EdgeQLDomain(s_domains.Domain):
 
         docname = None
         obj_type = None
+        obj_desc = None
         for target in targets:
             try:
-                docname, obj_type = objects[target]
+                docname, obj_type, obj_desc = objects[target]
             except KeyError:
                 continue
 
@@ -884,23 +906,27 @@ class EdgeQLDomain(s_domains.Domain):
                 f'the type of referred object {expected_type!r} '
                 f'does not match the reftype')
 
-        node = s_nodes_utils.make_refnode(
-            builder, fromdocname, docname, target, contnode, None)
-        node['eql-type'] = obj_type
+        if node['reftype'] in self.desc_roles:
+            node = d_nodes.Text(obj_desc)
+        else:
+            node = s_nodes_utils.make_refnode(
+                builder, fromdocname, docname, target, contnode, None)
+            node['eql-type'] = obj_type
+
         return node
 
     def clear_doc(self, docname):
-        for fullname, (fn, _l) in list(self.data['objects'].items()):
+        for fullname, (fn, _l, _d) in list(self.data['objects'].items()):
             if fn == docname:
                 del self.data['objects'][fullname]
 
     def merge_domaindata(self, docnames, otherdata):
-        for fullname, (fn, objtype) in otherdata['objects'].items():
+        for fullname, (fn, objtype, desc) in otherdata['objects'].items():
             if fn in docnames:
-                self.data['objects'][fullname] = (fn, objtype)
+                self.data['objects'][fullname] = (fn, objtype, desc)
 
     def get_objects(self):
-        for refname, (docname, type) in self.data['objects'].items():
+        for refname, (docname, type, desc) in self.data['objects'].items():
             yield (refname, refname, type, docname, refname, 1)
 
     def get_full_qualified_name(self, node):
@@ -961,7 +987,7 @@ class StatementTransform(s_transforms.SphinxTransform):
                 raise shared.EdgeSphinxExtensionError(
                     f'duplicate {title!r} statement')
 
-            objects[target] = (self.env.docname, 'statement')
+            objects[target] = (self.env.docname, 'statement', summary)
 
             section['ids'].append(target)
 

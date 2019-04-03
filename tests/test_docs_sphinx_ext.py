@@ -226,6 +226,8 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_func_01(self):
         src = '''
+        Testing DESC !! :eql:func-desc:`test` !! >> ref.
+
         .. eql:type:: std::int64
 
             An integer.
@@ -238,7 +240,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
             :index: xxx YyY
 
-            blah
+            A super function.
 
         Testing :eql:func:`XXX <test>` ref.
         Testing :eql:func:`test` ref.
@@ -251,7 +253,8 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
         self.assertEqual(len(func), 1)
         func = func[0]
 
-        self.assertEqual(func.attrs['summary'], 'blah')
+        self.assertEqual(func.attrs['summary'], 'A super function.')
+        self.assertIn('!! A super function. !!', out)
 
         self.assertEqual(
             x.xpath('//desc_returns / text()'),
@@ -453,6 +456,8 @@ class TestEqlOperator(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_op_01(self):
         src = '''
+        Testing ?? :eql:op-desc:`PLUS` ??.
+
         .. eql:type:: int64
 
             int64
@@ -476,6 +481,8 @@ class TestEqlOperator(unittest.TestCase, BaseDomainTest):
 
         out = self.build(src, format='xml')
         x = requests_xml.XML(xml=out)
+
+        self.assertIn('Testing ?? Arithmetic addition. ??.', out)
 
         self.assertEqual(
             len(x.xpath('''
