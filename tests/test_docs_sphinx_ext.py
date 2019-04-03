@@ -724,6 +724,8 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
         Functions
         =========
 
+        :edb-alt-title: Functions and Operators
+
         This section describes the DDL commands ...
 
 
@@ -746,6 +748,12 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
 
         out = self.build(src, format='xml')
         x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('''
+                //section/title[text()="Functions"]/@edb-alt-title
+            '''),
+            ['Functions and Operators'])
 
         self.assertEqual(
             x.xpath('''

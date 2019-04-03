@@ -946,10 +946,29 @@ class StatementTransform(s_transforms.SphinxTransform):
             x = lxml.etree.XML(section.asdom().toxml())
 
             fields = set(x.xpath('field_list/field/field_name/text()'))
+            title = x.xpath('title/text()')[0]
+
+            page_title = None
+            if 'edb-alt-title' in fields:
+                page_titles = x.xpath(
+                    '''//field_list/field/field_name[text()="edb-alt-title"]
+                        /parent::field/field_body/paragraph/text()
+                    ''')
+                if page_titles:
+                    page_title = page_titles[0]
+
+            if page_title:
+                if (not section.children or
+                        not isinstance(section.children[0], d_nodes.title)):
+                    raise shared.EdgeSphinxExtensionError(
+                        f'cannot apply :edb-alt-title: field to the {title!r} '
+                        f'section')
+
+                section.children[0]['edb-alt-title'] = page_title
+
             if 'eql-statement' not in fields:
                 continue
 
-            title = x.xpath('title/text()')[0]
             if not re.match(r'^([A-Z]+\s?)+$', title):
                 raise shared.EdgeSphinxExtensionError(
                     f'section {title!r} is marked with an :eql-statement: '
