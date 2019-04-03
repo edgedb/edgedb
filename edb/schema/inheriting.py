@@ -308,7 +308,9 @@ def _merge_mro(schema, obj, mros):
                 break
         else:
             raise errors.SchemaError(
-                f"Could not find consistent MRO for {obj.get_name(schema)}")
+                f"Could not find consistent ancestor order for "
+                f"{obj.get_verbosename(schema)}"
+            )
 
         result.append(candidate)
 
@@ -708,7 +710,7 @@ class InheritingObject(derivable.DerivableObject):
                 return ancestor
 
         raise errors.SchemaError(
-            f'{self.get_name(schema)} has no non-abstract ancestors')
+            f'{self.get_verbosename(schema)} has no non-abstract ancestors')
 
     def compute_mro(self, schema):
         return compute_mro(schema, self)

@@ -268,7 +268,7 @@ def __infer_slice(ir, env):
     else:
         # the base type is not valid
         raise errors.QueryError(
-            f'cannot slice {node_type.get_name(env.schema)}',
+            f'{node_type.get_verbosename(env.schema)} cannot be sliced',
             context=ir.start.context)
 
     for index in [ir.start, ir.stop]:
@@ -278,8 +278,8 @@ def __infer_slice(ir, env):
             if not index_type.implicitly_castable_to(int_t, env.schema):
                 raise errors.QueryError(
                     f'cannot slice {base_name} by '
-                    f'{index_type.get_name(env.schema)}, '
-                    f'{int_t.get_name(env.schema)} was expected',
+                    f'{index_type.get_displayname(env.schema)}, '
+                    f'{int_t.get_displayname(env.schema)} was expected',
                     context=index.context)
 
     return node_type
@@ -301,8 +301,9 @@ def __infer_index(ir, env):
 
         if not index_type.implicitly_castable_to(int_t, env.schema):
             raise errors.QueryError(
-                f'cannot index string by {index_type.get_name(env.schema)}, '
-                f'{int_t.get_name(env.schema)} was expected',
+                f'cannot index string by '
+                f'{index_type.get_displayname(env.schema)}, '
+                f'{int_t.get_displayname(env.schema)} was expected',
                 context=ir.index.context)
 
         result = str_t
@@ -311,8 +312,9 @@ def __infer_index(ir, env):
 
         if not index_type.implicitly_castable_to(int_t, env.schema):
             raise errors.QueryError(
-                f'cannot index bytes by {index_type.get_name(env.schema)}, '
-                f'{int_t.get_name(env.schema)} was expected',
+                f'cannot index bytes by '
+                f'{index_type.get_displayname(env.schema)}, '
+                f'{int_t.get_displayname(env.schema)} was expected',
                 context=ir.index.context)
 
         result = bytes_t
@@ -323,9 +325,10 @@ def __infer_index(ir, env):
                 index_type.implicitly_castable_to(str_t, env.schema)):
 
             raise errors.QueryError(
-                f'cannot index json by {index_type.get_name(env.schema)}, '
-                f'{int_t.get_name(env.schema)} or '
-                f'{str_t.get_name(env.schema)} was expected',
+                f'cannot index json by '
+                f'{index_type.get_displayname(env.schema)}, '
+                f'{int_t.get_displayname(env.schema)} or '
+                f'{str_t.get_displayname(env.schema)} was expected',
                 context=ir.index.context)
 
         result = json_t
@@ -334,8 +337,9 @@ def __infer_index(ir, env):
 
         if not index_type.implicitly_castable_to(int_t, env.schema):
             raise errors.QueryError(
-                f'cannot index array by {index_type.get_name(env.schema)}, '
-                f'{int_t.get_name(env.schema)} was expected',
+                f'cannot index array by '
+                f'{index_type.get_displayname(env.schema)}, '
+                f'{int_t.get_displayname(env.schema)} was expected',
                 context=ir.index.context)
 
         result = node_type.get_subtypes(env.schema)[0]
@@ -349,7 +353,8 @@ def __infer_index(ir, env):
 
     else:
         raise errors.QueryError(
-            f'cannot index {node_type.get_name(env.schema)}',
+            f'index indirection cannot be applied to '
+            f'{node_type.get_verbosename(env.schema)}',
             context=ir.index.context)
 
     return result

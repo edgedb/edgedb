@@ -399,8 +399,7 @@ def _infer_pointer_cardinality(
             raise errors.QueryError(
                 f'possibly more than one element returned by an '
                 f'expression for a computable '
-                f'{ptrcls.schema_class_displayname} '
-                f'{ptrcls.get_displayname(ctx.env.schema)!r} '
+                f'{ptrcls.get_verbosename(ctx.env.schema)} '
                 f"declared as 'single'",
                 context=source_ctx
             )
@@ -467,7 +466,7 @@ def once_pointer_cardinality_is_inferred(
 
     pending = ctx.pending_cardinality.get(ptrcls)
     if pending is None:
-        raise ValueError(
+        raise errors.InternalServerError(
             f'{ptrcls.get_name(ctx.env.schema)!r} is not pending '
             f'the cardinality inference')
 

@@ -42,6 +42,10 @@ class BaseObjectType(sources.Source, nodes.Node):
 class ObjectType(BaseObjectType, constraints.ConsistencySubject,
                  attributes.AttributeSubject, s_abc.ObjectType):
 
+    @classmethod
+    def get_schema_class_displayname(cls):
+        return 'object type'
+
     def is_object_type(self):
         return True
 

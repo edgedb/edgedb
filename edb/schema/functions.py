@@ -210,6 +210,19 @@ class Parameter(so.Object, s_abc.Parameter):
         else:
             return fullname
 
+    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+        vn = super().get_verbosename(schema)
+        if with_parent:
+            pfns = [r for r in schema.get_referrers(self)
+                    if isinstance(r, CallableObject)]
+            if pfns:
+                pvn = pfns[0].get_verbosename(schema, with_parent=True)
+                return f'{vn} of {pvn}'
+            else:
+                return vn
+        else:
+            return vn
+
     def get_shortname(self, schema) -> str:
         fullname = self.get_name(schema)
         return self.paramname_from_fullname(fullname)
@@ -626,6 +639,11 @@ class Function(CallableObject, s_abc.Function):
         # support non-constant defaults.
         return bool(self.get_language(schema) is qlast.Language.EdgeQL and
                     self.get_params(schema).find_named_only(schema))
+
+    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+        params = self.get_params(schema)
+        sn = self.get_shortname(schema)
+        return f'function {sn}{params.as_str(schema)}'
 
 
 class FunctionCommandContext(CallableCommandContext):

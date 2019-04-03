@@ -399,22 +399,22 @@ def _normalize_view_ptr_expr(
             # Validate that the insert/update expression is
             # of the correct class.
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-            lname = f'({ptrsource.get_name(ctx.env.schema)}).{ptrcls_sn.name}'
             expected = [
                 repr(str(base_ptrcls.get_target(
-                    ctx.env.schema).get_name(ctx.env.schema)))
+                    ctx.env.schema).get_displayname(ctx.env.schema)))
             ]
 
             if ptrcls.is_property(ctx.env.schema):
                 ercls = errors.InvalidPropertyTargetError
-                ptrkind = 'property'
             else:
                 ercls = errors.InvalidLinkTargetError
-                ptrkind = 'link'
+
+            ptr_vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+
             raise ercls(
-                f'invalid target for {ptrkind} {str(lname)!r}: '
-                f'{str(ptr_target.get_name(ctx.env.schema))!r} (expecting '
-                f'{" or ".join(expected)})'
+                f'invalid target for {ptr_vn}: '
+                f'{str(ptr_target.get_displayname(ctx.env.schema))!r} '
+                f'(expecting {" or ".join(expected)})'
             )
 
     if (qlexpr is not None or

@@ -138,7 +138,24 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
         merge_fn=merge_cardinality)
 
     def get_displayname(self, schema) -> str:
-        return self.get_shortname(schema).name
+        sn = self.get_shortname(schema)
+        if self.generic(schema):
+            return sn
+        else:
+            return sn.name
+
+    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+        is_abstract = self.generic(schema)
+        vn = super().get_verbosename(schema)
+        if is_abstract:
+            return f'abstract {vn}'
+        else:
+            if with_parent:
+                pvn = self.get_source(schema).get_verbosename(
+                    schema, with_parent=True)
+                return f'{vn} of {pvn}'
+            else:
+                return vn
 
     def is_scalar(self) -> bool:
         return False
@@ -231,13 +248,13 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
         elif isinstance(t1, s_abc.ScalarType):
             # Targets are both scalars
             if t1 != t2:
-                pn = ptr.get_shortname(schema)
+                vn = ptr.get_verbosename(schema, with_parent=True)
                 raise errors.SchemaError(
                     f'could not merge {pn!r} pointer: targets conflict',
-                    details=f'({source.get_name(schema)}).({pn}) '
-                            f'targets scalar type {t1.get_name(schema)!r} '
-                            f'while it also targets incompatible scalar type '
-                            f'{t2.get_name(schema)!r} in other parent.')
+                    details=f'{vn} targets scalar type '
+                            f'{t1.get_displayname(schema)!r} while it also '
+                            f'targets incompatible scalar type '
+                            f'{t2.get_displayname(schema)!r} in a supertype.')
 
             return schema, t1
 
@@ -268,14 +285,14 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
                     # The link is neither a subclass, nor a superclass
                     # of the previously seen targets, which creates an
                     # unresolvable target requirement conflict.
-                    pn = ptr.get_displayname(schema)
+                    vn = ptr.get_verbosename(schema, with_parent=True)
                     raise errors.SchemaError(
-                        f'could not merge {pn!r} pointer: targets conflict',
-                        details=f'{source.get_name(schema)}.{pn} targets '
-                                f'object {t2.get_name(schema)!r} which '
-                                f'is not related to any of targets found in '
-                                f'other sources being merged: '
-                                f'{t1.get_name(schema)!r}.')
+                        f'could not merge {vn} pointer: targets conflict',
+                        details=f'{vn} targets {t2.get_verbosename(schema)} '
+                                f'which is not related to any of targets '
+                                f'found in other sources being merged: '
+                                f'{t1.get_displayname(schema)!r}.'
+                    )
 
             for tgt1 in tt1:
                 if not any(tgt2.issubclass(schema, tgt1) for tgt2 in tt2):

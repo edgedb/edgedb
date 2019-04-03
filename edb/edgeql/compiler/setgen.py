@@ -682,8 +682,8 @@ def ensure_set(
             not stype.implicitly_castable_to(typehint, ctx.env.schema)):
         raise errors.QueryError(
             f'expecting expression of type '
-            f'{typehint.get_name(ctx.env.schema)}, '
-            f'got {stype.get_name(ctx.env.schema)}',
+            f'{typehint.get_displayname(ctx.env.schema)}, '
+            f'got {stype.get_displayname(ctx.env.schema)}',
             context=expr.context
         )
 

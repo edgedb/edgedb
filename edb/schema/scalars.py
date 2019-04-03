@@ -54,6 +54,10 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
         coerce=True, compcoef=0.8,
     )
 
+    @classmethod
+    def get_schema_class_displayname(cls):
+        return 'scalar type'
+
     def _get_deps(self, schema):
         deps = super()._get_deps(schema)
 

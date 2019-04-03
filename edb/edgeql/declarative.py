@@ -60,6 +60,7 @@ _DECL_MAP = {
     qlast.ObjectTypeDeclaration: s_objtypes.ObjectType,
     qlast.ConstraintDeclaration: s_constr.Constraint,
     qlast.LinkDeclaration: s_links.Link,
+    qlast.PropertyDeclaration: s_props.Property,
     qlast.AttributeDeclaration: s_attrs.Attribute,
 }
 
@@ -803,7 +804,8 @@ class DeclarationLoader:
                 if ptrdecl.cardinality is qltypes.Cardinality.ONE:
                     raise errors.SchemaError(
                         f'computable expression possibly returns more than '
-                        f'one value, but the {ptr.schema_class_displayname!r} '
+                        f'one value, but the '
+                        f'{ptr.get_schema_class_displayname()} '
                         f'is declared as "single"',
                         context=expr.context)
 

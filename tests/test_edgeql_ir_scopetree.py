@@ -761,7 +761,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         }
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
+    @tb.must_fail(errors.QueryError,
                   "reference to 'User.name' changes the interpretation",
                   line=4, col=9)
     def test_edgeql_ir_scope_tree_bad_01(self):
@@ -771,7 +771,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         FILTER User.name
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
+    @tb.must_fail(errors.QueryError,
                   "reference to 'User' changes the interpretation",
                   line=4, col=9)
     def test_edgeql_ir_scope_tree_bad_02(self):
@@ -781,7 +781,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         FILTER User.deck@count
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
+    @tb.must_fail(errors.QueryError,
                   "reference to 'User' changes the interpretation",
                   line=3, col=35)
     def test_edgeql_ir_scope_tree_bad_03(self):
@@ -790,11 +790,25 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         SELECT User.deck { foo := User }
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
+    @tb.must_fail(errors.QueryError,
                   "reference to 'User.name' changes the interpretation",
                   line=3, col=40)
     def test_edgeql_ir_scope_tree_bad_04(self):
         """
         WITH MODULE test
         UPDATE User.deck SET { name := User.name }
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "reference to 'U.r' changes the interpretation",
+                  line=7, col=58)
+    def test_edgeql_ir_scope_tree_bad_05(self):
+        """
+        WITH
+            MODULE test,
+            U := User {id, r := random()}
+        SELECT
+            (
+                users := array_agg((SELECT U.id ORDER BY U.r LIMIT 10))
+            )
         """

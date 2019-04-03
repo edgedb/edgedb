@@ -452,6 +452,11 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
     def get_displayname(self, schema) -> str:
         return str(self.get_shortname(schema))
 
+    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+        clsname = self.get_schema_class_displayname()
+        dname = self.get_displayname(schema)
+        return f"{clsname} '{dname}'"
+
     def __init__(self, *, _private_init):
         pass
 
@@ -462,6 +467,10 @@ class Object(s_abc.Object, metaclass=ObjectMeta):
 
     def __hash__(self):
         return hash((self.id, type(self)))
+
+    @classmethod
+    def get_schema_class_displayname(cls):
+        return cls.__name__.lower()
 
     @classmethod
     def _prepare_id(cls, id: typing.Optional[uuid.UUID],

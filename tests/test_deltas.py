@@ -176,17 +176,17 @@ class TestDeltas(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
-                'cannot drop test::DropA.*other objects'):
+                'cannot drop object type.*test::DropA.*other objects'):
             await self.con.execute('DROP TYPE test::DropA')
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
-                'cannot drop test::dropattr.*other objects'):
+                'cannot drop abstract attr.*test::dropattr.*other objects'):
             await self.con.execute('DROP ABSTRACT ATTRIBUTE test::dropattr')
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
-                'cannot drop l1_parent.*other objects'):
+                'cannot drop abstract link.*test::l1_parent.*other objects'):
             await self.con.execute('DROP ABSTRACT LINK test::l1_parent')
 
         async with self.assertRaisesRegexTx(
@@ -265,7 +265,8 @@ class TestDeltaLinkInheritance(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidLinkTargetError,
-                r"invalid target for link '\(test::ObjectType01\)\.target': "
+                r"invalid target for link 'target' of object type "
+                r"'test::ObjectType01': "
                 r"'test::Target0' \(expecting 'test::Target1'\)"):
             # Target0 is not allowed to be targeted by ObjectType01, since
             # ObjectType01 inherits from ObjectType1 which requires more

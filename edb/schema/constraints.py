@@ -64,6 +64,19 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
     errmessage = so.SchemaField(
         str, default=None, compcoef=0.971, allow_ddl_set=True)
 
+    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+        is_abstract = self.generic(schema)
+        vn = super().get_verbosename(schema)
+        if is_abstract:
+            return f'abstract {vn}'
+        else:
+            if with_parent:
+                pvn = self.get_subject(schema).get_verbosename(
+                    schema, with_parent=True)
+                return f'{vn} of {pvn}'
+            else:
+                return vn
+
     def generic(self, schema):
         return self.get_subject(schema) is None
 

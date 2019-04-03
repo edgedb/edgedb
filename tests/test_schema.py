@@ -282,3 +282,129 @@ _123456789_123456789_123456789 -> str
             Object1.get_attribute(schema, 'test::inh'), 'inherit me')
         self.assertEqual(
             Object2.get_attribute(schema, 'test::inh'), 'inherit me')
+
+    def test_schema_object_verbosename(self):
+        schema = self.load_schema("""
+            abstract inheritable attribute attr;
+            abstract link lnk_1;
+            abstract property prop_1;
+
+            type Object1 {
+                attribute attr := 'inherit me';
+                property foo -> std::str {
+                    attribute attr := 'propprop';
+                    constraint max_len_value(10)
+                }
+
+                link bar -> Object {
+                    constraint exclusive;
+                    attribute attr := 'bbb';
+                    property bar_prop -> std::str {
+                        attribute attr := 'aaa';
+                        constraint max_len_value(10);
+                    }
+                }
+            };
+        """)
+
+        schema = self.run_ddl(schema, '''
+            CREATE FUNCTION test::foo (a: int64) -> int64
+            FROM EdgeQL $$ SELECT a; $$;
+        ''')
+
+        self.assertEqual(
+            schema.get('test::attr').get_verbosename(schema),
+            "abstract attribute 'test::attr'",
+        )
+
+        self.assertEqual(
+            schema.get('test::lnk_1').get_verbosename(schema),
+            "abstract link 'test::lnk_1'",
+        )
+
+        self.assertEqual(
+            schema.get('test::prop_1').get_verbosename(schema),
+            "abstract property 'test::prop_1'",
+        )
+
+        self.assertEqual(
+            schema.get('std::max_len_value').get_verbosename(schema),
+            "abstract constraint 'std::max_len_value'",
+        )
+
+        fn = list(schema.get_functions('std::json_typeof'))[0]
+        self.assertEqual(
+            fn.get_verbosename(schema),
+            'function std::json_typeof(json: std::json)',
+        )
+
+        fn_param = fn.get_params(schema).get_by_name(schema, 'json')
+        self.assertEqual(
+            fn_param.get_verbosename(schema, with_parent=True),
+            "parameter 'json' of function std::json_typeof(json: std::json)",
+        )
+
+        op = list(schema.get_operators('std::AND'))[0]
+        self.assertEqual(
+            op.get_verbosename(schema),
+            'operator "std::bool AND std::bool"',
+        )
+
+        obj = schema.get('test::Object1')
+
+        self.assertEqual(
+            obj.get_verbosename(schema),
+            "object type 'test::Object1'",
+        )
+
+        self.assertEqual(
+            obj.get_attributes(schema).get(
+                schema, 'test::attr').get_verbosename(
+                    schema, with_parent=True),
+            "attribute 'test::attr' of object type 'test::Object1'",
+        )
+
+        foo_prop = obj.get_pointers(schema).get(schema, 'foo')
+        self.assertEqual(
+            foo_prop.get_verbosename(schema, with_parent=True),
+            "property 'foo' of object type 'test::Object1'",
+        )
+
+        self.assertEqual(
+            foo_prop.get_attributes(schema).get(
+                schema, 'test::attr').get_verbosename(
+                    schema, with_parent=True),
+            "attribute 'test::attr' of property 'foo' of "
+            "object type 'test::Object1'",
+        )
+
+        self.assertEqual(
+            next(iter(foo_prop.get_constraints(
+                schema).objects(schema))).get_verbosename(
+                    schema, with_parent=True),
+            "constraint 'std::max_len_value' of property 'foo' of "
+            "object type 'test::Object1'",
+        )
+
+        bar_link = obj.get_pointers(schema).get(schema, 'bar')
+        self.assertEqual(
+            bar_link.get_verbosename(schema, with_parent=True),
+            "link 'bar' of object type 'test::Object1'",
+        )
+
+        bar_link_prop = bar_link.get_pointers(schema).get(schema, 'bar_prop')
+        self.assertEqual(
+            bar_link_prop.get_attributes(schema).get(
+                schema, 'test::attr').get_verbosename(
+                    schema, with_parent=True),
+            "attribute 'test::attr' of property 'bar_prop' of "
+            "link 'bar' of object type 'test::Object1'",
+        )
+
+        self.assertEqual(
+            next(iter(bar_link_prop.get_constraints(
+                schema).objects(schema))).get_verbosename(
+                    schema, with_parent=True),
+            "constraint 'std::max_len_value' of property 'bar_prop' of "
+            "link 'bar' of object type 'test::Object1'",
+        )

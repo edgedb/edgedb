@@ -80,6 +80,9 @@ class Operator(s_func.CallableObject, s_abc.Operator):
         else:
             raise ValueError('unexpected operator kind')
 
+    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+        return f'operator "{self.get_display_signature(schema)}"'
+
 
 class OperatorCommandContext(s_func.CallableCommandContext):
     pass

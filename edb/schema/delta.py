@@ -28,7 +28,6 @@ from edb.edgeql import ast as qlast
 
 from edb.common import markup, ordered, struct, typed
 
-from . import abc as s_abc
 from . import expr as s_expr
 from . import name as sn
 from . import objects as so
@@ -1137,35 +1136,14 @@ class DeleteObject(ObjectCommand):
                         or ref.get_shortname(schema) == 'std::source'):
                     continue
 
-                dn = ref.get_displayname(schema)
-                if isinstance(ref, s_abc.Link):
-                    source = ref.get_source(schema)
-                    source_dn = source.get_displayname(schema)
-                    ref_str = f'link {dn} of {source_dn}'
-                elif isinstance(ref, s_abc.Property):
-                    source = ref.get_source(schema)
-                    source_dn = source.get_displayname(schema)
-                    ref_str = f'property {dn} of {source_dn}'
-                elif isinstance(ref, s_abc.Parameter):
-                    callables = [
-                        c for c in schema.get_referrers(ref)
-                        if isinstance(c, s_abc.Callable)
-                    ]
-                    if callables:
-                        callable_dn = callables[0].get_displayname(schema)
-                        ref_str = f'parameter {dn} of {callable_dn}'
-                    else:
-                        ref_str = dn
-                else:
-                    ref_str = dn
+                ref_strs.append(ref.get_verbosename(schema, with_parent=True))
 
-                ref_strs.append(ref_str)
-
+            vn = self.scls.get_verbosename(schema, with_parent=True)
             dn = self.scls.get_displayname(schema)
             detail = '; '.join(f'{ref_str} depends on {dn}'
                                for ref_str in ref_strs)
             raise errors.SchemaError(
-                f'cannot drop {dn} because '
+                f'cannot drop {vn} because '
                 f'other objects in the schema depend on it',
                 details=detail,
             )

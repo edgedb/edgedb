@@ -4981,7 +4981,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_precedence_01(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError, r'cannot index.*int'):
+                edgedb.QueryError, r'index indirection cannot.*int64.*'):
 
             await self.con.fetchall("""
                 # index access is higher precedence than cast
@@ -4990,7 +4990,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_precedence_02(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError, r'cannot index.*int'):
+                edgedb.QueryError, r'index indirection cannot.*int64.*'):
 
             await self.con.fetchall("""
                 WITH MODULE test

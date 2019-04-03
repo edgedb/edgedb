@@ -22,6 +22,7 @@ from __future__ import annotations
 from . import typeutils
 
 from edb.schema import abc as s_abc
+from edb.schema import name as s_name
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
@@ -259,7 +260,8 @@ class PathId:
 
         path = self._path
 
-        result += f'{path[0].name_hint.name}'
+        start_name = s_name.shortname_from_fullname(path[0].name_hint)
+        result += f'{start_name.name}'
 
         for i in range(1, len(path) - 1, 2):
             ptr_name = path[i][0].shortname

@@ -35,8 +35,6 @@ from . import utils
 
 class Property(pointers.Pointer, s_abc.Property):
 
-    schema_class_displayname = 'property'
-
     def derive(self, schema, source, target=None, attrs=None, **kwargs):
         if target is None:
             target = self.get_target(schema)
@@ -104,7 +102,7 @@ class Property(pointers.Pointer, s_abc.Property):
     def is_link_property(self, schema):
         source = self.get_source(schema)
         if source is None:
-            raise ValueError(f'{self.get_name(schema)} is abstract')
+            raise ValueError(f'{self.get_verbosename(schema)} is abstract')
         return isinstance(source, pointers.Pointer)
 
     @classmethod

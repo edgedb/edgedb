@@ -364,8 +364,8 @@ class ScopeTreeNode:
                                 f'reference to '
                                 f'{offending_node.path_id.pformat()!r} '
                                 f'changes the interpretation of '
-                                f'{existing.path_id.pformat()!r} in '
-                                f'an outer scope',
+                                f'{existing.path_id.pformat()!r} '
+                                f'elsewhere in the query',
                                 offending_node=offending_node,
                                 existing_node=existing
                             )

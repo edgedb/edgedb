@@ -92,7 +92,7 @@ def register_set_in_scope(
     try:
         path_scope.attach_path(ir_set.path_id)
     except irast.InvalidScopeConfiguration as e:
-        raise errors.EdgeQLSyntaxError(
+        raise errors.QueryError(
             e.args[0], context=ir_set.context) from e
 
 

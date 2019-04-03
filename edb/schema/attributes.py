@@ -40,6 +40,10 @@ class Attribute(inheriting.InheritingObject):
     inheritable = so.SchemaField(
         bool, default=False, compcoef=0.2)
 
+    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+        vn = super().get_verbosename(schema)
+        return f"abstract {vn}"
+
 
 class AttributeValue(inheriting.InheritingObject):
 
@@ -59,6 +63,19 @@ class AttributeValue(inheriting.InheritingObject):
         return '<{}: at 0x{:x}>'.format(self.__class__.__name__, id(self))
 
     __repr__ = __str__
+
+    @classmethod
+    def get_schema_class_displayname(cls):
+        return 'attribute'
+
+    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+        vn = super().get_verbosename(schema)
+        if with_parent:
+            pvn = self.get_subject(schema).get_verbosename(
+                schema, with_parent=True)
+            return f'{vn} of {pvn}'
+        else:
+            return vn
 
 
 class AttributeSubject(so.Object):

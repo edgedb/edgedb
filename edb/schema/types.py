@@ -221,6 +221,9 @@ class Collection(Type, s_abc.Collection):
     def get_shortname(self, schema):
         return self.name
 
+    def get_verbosename(self, schema, *, with_parent=False):
+        return self.get_displayname(schema)
+
     def get_view_type(self, schema):
         return self.view_type
 

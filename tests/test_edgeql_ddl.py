@@ -1880,7 +1880,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_extending_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"Could not find consistent MRO for test::Merged1"):
+                r"Could not find consistent ancestor order for "
+                r"object type 'test::Merged1'"):
 
             await self.con.execute(r"""
                 CREATE TYPE test::ExtA1;
