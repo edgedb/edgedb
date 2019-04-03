@@ -116,6 +116,7 @@ class GQLCoreSchema:
         self._gql_objtypes = {}
         self._gql_inobjtypes = {}
         self._gql_ordertypes = {}
+        self._gql_enums = {}
 
         self._define_types()
 
@@ -175,6 +176,12 @@ class GQLCoreSchema:
                 edb_target.get_name(self.edb_schema),
                 self._gql_objtypes.get(edb_target.get_name(self.edb_schema))
             )
+        elif edb_target.is_scalar() and edb_target.is_enum(self.edb_schema):
+            name = self.get_gql_name(edb_target.get_name(self.edb_schema))
+
+            if name in self._gql_enums:
+                target = self._gql_enums.get(name)
+
         else:
             target = EDB_TO_GQL_SCALARS_MAP.get(
                 edb_target.get_name(self.edb_schema).name)
@@ -276,6 +283,37 @@ class GQLCoreSchema:
 
         return fields
 
+    def define_enums(self):
+        self._gql_enums['directionEnum'] = GraphQLEnumType(
+            'directionEnum',
+            values=OrderedDict(
+                ASC=GraphQLEnumValue(),
+                DESC=GraphQLEnumValue()
+            )
+        )
+        self._gql_enums['nullsOrderingEnum'] = GraphQLEnumType(
+            'nullsOrderingEnum',
+            values=OrderedDict(
+                SMALLEST=GraphQLEnumValue(),
+                BIGGEST=GraphQLEnumValue(),
+            )
+        )
+
+        scalar_types = list(
+            self.edb_schema.get_objects(modules=self.modules,
+                                        type=s_scalars.ScalarType))
+        for st in scalar_types:
+            if st.is_enum(self.edb_schema):
+
+                name = self.get_gql_name(st.get_name(self.edb_schema))
+                self._gql_enums[name] = GraphQLEnumType(
+                    name,
+                    values=OrderedDict(
+                        (key, GraphQLEnumValue()) for key in
+                        st.get_enum_values(self.edb_schema)
+                    )
+                )
+
     def define_generic_filter_types(self):
         eq = ['eq', 'neq']
         comp = eq + ['gte', 'gt', 'lte', 'lt']
@@ -287,6 +325,10 @@ class GQLCoreSchema:
         self._make_generic_input_type(GraphQLFloat, comp)
         self._make_generic_input_type(GraphQLString, string)
 
+        for name, etype in self._gql_enums.items():
+            if name not in {'directionEnum', 'nullsOrderingEnum'}:
+                self._make_generic_input_type(etype, comp)
+
     def _make_generic_input_type(self, base, ops):
         name = f'Filter{base.name}'
         self._gql_inobjtypes[name] = GraphQLInputObjectType(
@@ -295,28 +337,18 @@ class GQLCoreSchema:
         )
 
     def define_generic_order_types(self):
-        self._gql_ordertypes['directionEnum'] = GraphQLEnumType(
-            'directionEnum',
-            values=OrderedDict(
-                ASC=GraphQLEnumValue(),
-                DESC=GraphQLEnumValue()
-            )
-        )
-        self._gql_ordertypes['nullsOrderingEnum'] = GraphQLEnumType(
-            'nullsOrderingEnum',
-            values=OrderedDict(
-                SMALLEST=GraphQLEnumValue(),
-                BIGGEST=GraphQLEnumValue(),
-            )
-        )
+        self._gql_ordertypes['directionEnum'] = \
+            self._gql_enums['directionEnum']
+        self._gql_ordertypes['nullsOrderingEnum'] = \
+            self._gql_enums['nullsOrderingEnum']
         self._gql_ordertypes['Ordering'] = GraphQLInputObjectType(
             'Ordering',
             fields=OrderedDict(
                 dir=GraphQLInputObjectField(
-                    GraphQLNonNull(self._gql_ordertypes['directionEnum']),
+                    GraphQLNonNull(self._gql_enums['directionEnum']),
                 ),
                 nulls=GraphQLInputObjectField(
-                    self._gql_ordertypes['nullsOrderingEnum'],
+                    self._gql_enums['nullsOrderingEnum'],
                     default_value='SMALLEST',
                 ),
             )
@@ -354,6 +386,7 @@ class GQLCoreSchema:
         interface_types = []
         obj_types = []
 
+        self.define_enums()
         self.define_generic_filter_types()
         self.define_generic_order_types()
 
@@ -503,6 +536,9 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         # expected to generate non-empty results, so messy EQL is not
         # needed.
         self.dummy = dummy
+
+    def is_enum(self):
+        return False
 
     @property
     def name(self):
@@ -664,6 +700,9 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 class GQLShadowType(GQLBaseType):
     def is_field_shadowed(self, name):
         return self.has_native_field(name)
+
+    def is_enum(self):
+        return self.edb_base.is_enum(self.edb_schema)
 
 
 class GQLQuery(GQLBaseType):

@@ -17,7 +17,10 @@
 #
 
 
+scalar type color_enum_t extending enum<'RED', 'GREEN', 'BLUE'>;
+
 type Foo {
     property `select` -> str;
     property after -> str;
+    property color -> color_enum_t;
 }

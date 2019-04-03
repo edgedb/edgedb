@@ -848,9 +848,11 @@ class GraphQLTranslator:
         name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
         name = qlast.Path(steps=name)
 
-        typename = target.get_field_type(fname).short_name
+        ftype = target.get_field_type(fname)
+        typename = ftype.short_name
         if typename not in {'str', 'uuid'}:
-            if gt.EDB_TO_GQL_SCALARS_MAP[typename] == graphql.GraphQLString:
+            gql_type = gt.EDB_TO_GQL_SCALARS_MAP.get(typename)
+            if gql_type == graphql.GraphQLString:
                 # potentially need to cast the 'name' side into a
                 # <str>, so as to be compatible with the 'value'
                 name = qlast.TypeCast(
@@ -861,11 +863,16 @@ class GraphQLTranslator:
         self._context.filter = name
 
         value = self.visit(node.value)
-        # we need to cast a target string into <uuid>
+        # we need to cast a target string into <uuid> or enum
         if typename == 'uuid' and not isinstance(value.right, qlast.TypeCast):
             value.right = qlast.TypeCast(
                 expr=value.right,
                 type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),
+            )
+        elif ftype.is_enum():
+            value.right = qlast.TypeCast(
+                expr=value.right,
+                type=qlast.TypeName(maintype=qlast.ObjectRef(name=ftype.name)),
             )
 
         return value
@@ -976,6 +983,9 @@ class GraphQLTranslator:
     def visit_BooleanValue(self, node):
         value = 'true' if node.value else 'false'
         return qlast.BooleanConstant(value=value)
+
+    def visit_EnumValue(self, node):
+        return qlast.StringConstant(value=node.value, quote='"')
 
     def _visit_list_of_inputs(self, inputlist, op):
         if not isinstance(inputlist, gql_ast.ListValue):
