@@ -125,10 +125,9 @@ class EdgeQLLexer(RegexLexer):
                         )
                         |
                         (?: \d+\.\d+)
-
-                        (n)?
                     )
+                    n?
             ''', token.Number),
-            (r'(?<!\w)\d+(n?)', token.Number),
+            (r'(?<!\w)\d+n?', token.Number),
         ],
     }
