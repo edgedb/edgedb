@@ -12,7 +12,7 @@ Abstract Types
 
     It is a placeholder used in cases where no specific type
     requirements are needed, such as defining polymorphic parameters
-    in functions and operators
+    in functions and operators.
 
 
 ----------

@@ -46,4 +46,5 @@ JSON
         {'[1, 2]'}
 
     See also the list of standard
-    :ref:`JSON functions <ref_eql_functions_json>`.
+    :ref:`JSON functions <ref_eql_functions_json>` and
+    :ref:`operators <ref_eql_operators_json>`.

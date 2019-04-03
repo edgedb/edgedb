@@ -357,8 +357,6 @@ the functions below allow more options for such conversions.
 
     Return JSON value represented by the input *string*.
 
-    This is the reverse of :eql:func:`to_str`.
-
     .. code-block:: edgeql-repl
 
         db> SELECT to_json('[1, "hello", null]')[1];

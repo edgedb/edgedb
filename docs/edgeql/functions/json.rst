@@ -5,6 +5,18 @@
 JSON
 ====
 
+
+EdgeDB ships with many tools to work with :eql:type:`JSON <std::json>`.
+This section lists the built-in functions to traverse nested JSON
+structures, unpack them into :ref:`sets <ref_eql_fundamentals_set>`,
+and introspecting types. Be sure to also check out the list of supported
+:ref:`JSON operators <ref_eql_operators_json>` and converter functions
+like :eql:func:`to_json`.
+
+
+----------
+
+
 .. eql:function:: std::json_array_unpack(json: json) -> SET OF json
 
     :index: array unpack
