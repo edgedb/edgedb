@@ -30,6 +30,11 @@ try:
 except ImportError:
     pkg_resources = None
 
+try:
+    import setuptools_scm
+except ImportError:
+    setuptools_scm = None
+
 
 class MetadataError(Exception):
     pass
@@ -79,7 +84,7 @@ def get_runstate_path(data_dir: os.PathLike) -> os.PathLike:
         return pathlib.Path(get_build_metadata_value('RUNSTATE_DIR'))
 
 
-class VersionStage(enum.Enum):
+class VersionStage(enum.IntEnum):
 
     DEV = 0
     ALPHA = 10
@@ -142,9 +147,16 @@ def get_version() -> Version:
         if pkg_resources is None:
             raise MetadataError(
                 'cannot determine build version: no pkg_resources module')
-        pv = pkg_resources.get_distribution('edgedb-server').parsed_version
+        if setuptools_scm is None:
+            raise MetadataError(
+                'cannot determine build version: no setuptools_scm module')
+        version = setuptools_scm.get_version(
+            root='../..', relative_to=__file__)
+        pv = pkg_resources.parse_version(version)
         version = parse_version(pv)
     else:
-        version = Version(*get_build_metadata_value('VERSION'))
+        vertuple = list(get_build_metadata_value('VERSION'))
+        vertuple[2] = VersionStage(vertuple[2])
+        version = Version(*vertuple)
 
     return version
