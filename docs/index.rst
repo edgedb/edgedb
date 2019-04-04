@@ -18,3 +18,5 @@ Welcome to the EdgeDB |version| documentation.
     datamodel/__toc__
     edgeql/__toc__
     clients/__toc__
+    admin/index
+    cli/__toc__

@@ -5,6 +5,11 @@ Administration
 
 Administrative commands for managing EdgeDB:
 
+
+* :ref:`CONFIGURE <ref_eql_statements_configure>`
+
+  Configure server behavior.
+
 * :ref:`DATABASE <ref_admin_databases>`
 
   Create or remove a database.
@@ -18,5 +23,6 @@ Administrative commands for managing EdgeDB:
     :maxdepth: 3
     :hidden:
 
+    configure
     databases
     roles

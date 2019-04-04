@@ -7,7 +7,7 @@ First step in a brand new project is to create the database for it:
 
 .. code-block:: edgeql-repl
 
-    db> CREATE DATABASE tutorial;
+    edgedb> CREATE DATABASE tutorial;
     CREATE
 
 The above :ref:`command <ref_admin_databases>` creates a new
@@ -18,7 +18,7 @@ we should connect to it:
 
 .. code-block:: edgeql-repl
 
-    db> \c tutorial
+    edgedb> \c tutorial
     tutorial>
 
 Now we need to set up the schema. Let's set up a basic schema for a
