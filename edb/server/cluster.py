@@ -89,9 +89,11 @@ class Cluster:
         if testmode:
             self._edgedb_cmd.append('--testmode')
 
-        if runstate_dir is not None:
-            self._edgedb_cmd.extend(['--runstate-dir', runstate_dir])
+        if runstate_dir is None:
+            runstate_dir = buildmeta.get_runstate_path(self._data_dir)
 
+        self._runstate_dir = runstate_dir
+        self._edgedb_cmd.extend(['--runstate-dir', runstate_dir])
         self._pg_cluster = get_pg_cluster(self._data_dir)
         self._pg_superuser = pg_superuser
         self._daemon_process = None
@@ -226,7 +228,7 @@ class Cluster:
                 started = time.monotonic()
                 try:
                     conn = await edgedb.async_connect(
-                        host=str(buildmeta.get_runstate_path(self._data_dir)),
+                        host=str(self._runstate_dir),
                         port=self._effective_port,
                         admin=True,
                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
@@ -250,8 +252,7 @@ class Cluster:
 
     def _admin_query(self, query):
         conn_args = self.get_connect_args().copy()
-        sock_path = buildmeta.get_runstate_path(self._data_dir)
-        conn_args['host'] = str(sock_path)
+        conn_args['host'] = str(self._runstate_dir)
         conn_args['admin'] = True
         conn = self.connect(**conn_args)
 
