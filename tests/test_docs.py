@@ -24,6 +24,11 @@ try:
 except ImportError:
     docutils = None
 
+try:
+    import sphinx
+except ImportError:
+    sphinx = None
+
 from graphql.language import parser as graphql_parser
 
 from edb.edgeql import parser as ql_parser
@@ -307,6 +312,7 @@ class TestDocSnippets(unittest.TestCase):
                 r'lint errors:[.\s]*Title underline too short'):
             self.extract_code_blocks(source, '<test>')
 
+    @unittest.skipIf(sphinx is None, 'sphinx is missing')
     def test_doc_full_build(self):
         docs_root = os.path.join(find_edgedb_root(), 'docs')
 
