@@ -58,7 +58,7 @@ Bytes
 ---------
 
 
-.. eql:operator:: BYTEPLUS: A ++ B
+.. eql:operator:: BYTEPLUS: bytes ++ bytes -> bytes
 
     :optype A: bytes
     :optype B: bytes
