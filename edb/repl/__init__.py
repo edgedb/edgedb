@@ -535,11 +535,12 @@ def execute_script(conn_args, data):
 
 def _data_in_stdin():
     try:
-        select.select([sys.stdin], [], [], 0.0)[0]
+        if select.select([sys.stdin], [], [], 0.0)[0]:
+            data = sys.stdin.read()
+        else:
+            data = ''
     except io.UnsupportedOperation:
         # Mock stdin cannot be selected, just read it
-        data = sys.stdin.read()
-    else:
         data = sys.stdin.read()
 
     return data
