@@ -18,3 +18,5 @@ Welcome to the EdgeDB |version| documentation.
     datamodel/__toc__
     edgeql/__toc__
     graphql/index
+    admin/index
+    cli/__toc__

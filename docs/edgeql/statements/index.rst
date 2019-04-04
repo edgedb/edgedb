@@ -83,3 +83,5 @@ Session state control statements:
 
     sess_set_alias
     sess_reset_alias
+
+    configure
