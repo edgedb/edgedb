@@ -80,11 +80,7 @@ String
 ----------
 
 
-.. eql:operator:: STRIDX: STR [ INDEX ]
-
-    :optype STR: str
-    :optype INDEX: int64
-    :resulttype: str
+.. eql:operator:: STRIDX: str [ int64 ] -> str
 
     String indexing.
 
@@ -101,12 +97,7 @@ String
 ----------
 
 
-.. eql:operator:: STRSLICE: STR [ FROM : TO ]
-
-    :optype STR: str
-    :optype FROM: int64
-    :optype TO: int64
-    :resulttype: str
+.. eql:operator:: STRSLICE: str [ int64 : int64 ] -> str
 
     String slicing.
 
@@ -121,11 +112,7 @@ String
 ----------
 
 
-.. eql:operator:: STRPLUS: A ++ B
-
-    :optype A: str
-    :optype B: str
-    :resulttype: str
+.. eql:operator:: STRPLUS: str ++ str -> str
 
     String concatenation.
 
@@ -138,11 +125,8 @@ String
 ----------
 
 
-.. eql:operator:: LIKE: V LIKE P or V NOT LIKE P
-
-    :optype V: str or bytes
-    :optype P: str or bytes
-    :resulttype: bool
+.. eql:operator:: LIKE: str LIKE str -> bool
+                        str NOT LIKE str -> bool
 
     Case-sensitive simple string matching.
 
@@ -191,11 +175,8 @@ String
 ----------
 
 
-.. eql:operator:: ILIKE: V ILIKE P or V NOT ILIKE P
-
-    :optype V: str or bytes
-    :optype P: str or bytes
-    :resulttype: bool
+.. eql:operator:: ILIKE: str ILIKE str -> bool
+                         str NOT ILIKE str -> bool
 
     Case-insensitive simple string matching.
 

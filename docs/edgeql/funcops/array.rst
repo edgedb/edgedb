@@ -45,11 +45,7 @@ Array
 ----------
 
 
-.. eql:operator:: ARRAYIDX: ARRAY [ INDEX ]
-
-    :optype ARRAY: array<anytype>
-    :optype INDEX: int64
-    :resulttype: anytype
+.. eql:operator:: ARRAYIDX: array<anytype> [ int64 ] -> anytype
 
     Array indexing.
 
@@ -78,12 +74,7 @@ Array
 ----------
 
 
-.. eql:operator:: ARRAYSLICE: ARRAY [ FROM : TO ]
-
-    :optype ARRAY: array<anytype>
-    :optype FROM: int64
-    :optype TO: int64
-    :resulttype: anytype
+.. eql:operator:: ARRAYSLICE: array<anytype> [ int64 : int64 ] -> anytype
 
     Array slicing.
 
@@ -119,11 +110,7 @@ Array
 ---------
 
 
-.. eql:operator:: ARRAYPLUS: A ++ B
-
-    :optype A: array<anytype>
-    :optype B: array<anytype>
-    :resulttype: array<anytype>
+.. eql:operator:: ARRAYPLUS: array<anytype> ++ array<anytype> -> array<anytype>
 
     Array concatenation.
 

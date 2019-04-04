@@ -24,11 +24,7 @@ Logical
 ----------
 
 
-.. eql:operator:: OR: A OR B
-
-    :optype A: bool
-    :optype B: bool
-    :resulttype: bool
+.. eql:operator:: OR: bool OR bool -> bool
 
     Logical disjunction.
 
@@ -41,11 +37,7 @@ Logical
 ----------
 
 
-.. eql:operator:: AND: A AND B
-
-    :optype A: bool
-    :optype B: bool
-    :resulttype: bool
+.. eql:operator:: AND: bool AND bool -> bool
 
     Logical conjunction.
 
@@ -58,10 +50,7 @@ Logical
 ----------
 
 
-.. eql:operator:: NOT: NOT A
-
-    :optype A: bool
-    :resulttype: bool
+.. eql:operator:: NOT: NOT bool -> bool
 
     Logical negation.
 

@@ -69,23 +69,20 @@ Date and Time
 ----------
 
 
-.. eql:operator:: DTPLUS: A + B
-
-    :optype A: datetime or local_datetime or local_time or \
-               local_date or timedelta
-    :optype B: datetime or local_datetime or local_time or \
-               local_date or timedelta
-    :resulttype: datetime or local_datetime or local_time or \
-                 local_date or timedelta
-    :index: plus add
+.. eql:operator:: DTPLUS: datetime + timedelta -> datetime
+                          local_datetime + timedelta -> local_datetime
+                          local_date + timedelta -> local_date
+                          local_time + timedelta -> local_time
 
     Time interval addition.
+
+    This operator is commutative.
 
     .. code-block:: edgeql-repl
 
         db> select <local_time>'22:00' + <timedelta>'1 hour';
         {<local_time>'23:00:00'}
-        db> select  <timedelta>'1 hour' + <local_time>'22:00';
+        db> select <timedelta>'1 hour' + <local_time>'22:00';
         {<local_time>'23:00:00'}
         db> select  <timedelta>'1 hour' + <timedelta>'2 hours';
         {<timedelta>'3:00:00'}
@@ -94,15 +91,15 @@ Date and Time
 ----------
 
 
-.. eql:operator:: DTMINUS: A - B
-
-    :optype A: datetime or local_datetime or local_time or \
-               local_date or timedelta
-    :optype B: datetime or local_datetime or local_time or \
-               local_date or timedelta
-    :resulttype: datetime or local_datetime or local_time or \
-                 local_date or timedelta
-    :index: minus subtract
+.. eql:operator:: DTMINUS: datetime - datetime -> timedelta
+                           local_datetime - local_datetime -> timedelta
+                           local_time - local_time -> timedelta
+                           local_date - local_date -> timedelta
+                           timedelta - timedelta -> timedelta
+                           datetime - timedelta -> datetime
+                           local_datetime - timedelta -> local_datetime
+                           local_time - timedelta -> local_time
+                           local_date - timedelta -> local_date
 
     Time interval and date/time subtraction.
 

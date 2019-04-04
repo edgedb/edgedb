@@ -72,10 +72,7 @@ Set
 ----------
 
 
-.. eql:operator:: DISTINCT: DISTINCT A
-
-    :optype A: SET OF anytype
-    :resulttype: SET OF anytype
+.. eql:operator:: DISTINCT: DISTINCT SET OF anytype -> SET OF anytype
 
     Return a set without repeating any elements.
 
@@ -91,13 +88,8 @@ Set
 ----------
 
 
-.. eql:operator:: IN: A IN B or A NOT IN B
-
-    :optype A: anytype
-    :optype B: SET OF anytype
-    :resulttype: bool
-
-    :index: in
+.. eql:operator:: IN: anytype IN SET OF anytype -> bool
+                      anytype NOT IN SET OF anytype -> bool
 
     Test the membership of an element in a set.
 
@@ -119,11 +111,7 @@ Set
 ----------
 
 
-.. eql:operator:: UNION: A UNION B
-
-    :optype A: SET OF anytype
-    :optype B: SET OF anytype
-    :resulttype: SET OF anytype
+.. eql:operator:: UNION: SET OF anytype UNION SET OF anytype -> SET OF anytype
 
     Merge two sets.
 
@@ -139,11 +127,8 @@ Set
 ----------
 
 
-.. eql:operator:: COALESCE: A ?? B
-
-    :optype A: OPTIONAL anytype
-    :optype B: SET OF anytype
-    :resulttype: SET OF anytype
+.. eql:operator:: COALESCE: OPTIONAL anytype ?? SET OF anytype \
+                              -> SET OF anytype
 
     Coalesce.
 
@@ -165,10 +150,7 @@ Set
 ----------
 
 
-.. eql:operator:: EXISTS: EXISTS A
-
-    :optype A: SET OF anytype
-    :resulttype: bool
+.. eql:operator:: EXISTS: EXISTS SET OF anytype -> bool
 
     Test whether a set is not empty.
 

@@ -56,11 +56,8 @@ Numerics
 ----------
 
 
-.. eql:operator:: PLUS: A + B
+.. eql:operator:: PLUS: anyreal + anyreal -> anyreal
 
-    :optype A: anyreal
-    :optype B: anyreal
-    :resulttype: anyreal
     :index: plus add
 
     Arithmetic addition.
@@ -74,11 +71,8 @@ Numerics
 ----------
 
 
-.. eql:operator:: MINUS: A - B
+.. eql:operator:: MINUS: anyreal - anyreal -> anyreal
 
-    :optype A: anyreal
-    :optype B: anyreal
-    :resulttype: anyreal
     :index: minus subtract
 
     Arithmetic subtraction.
@@ -92,10 +86,8 @@ Numerics
 ----------
 
 
-.. eql:operator:: UMINUS: -A
+.. eql:operator:: UMINUS: - anyreal -> anyreal
 
-    :optype A: anyreal
-    :resulttype: anyreal
     :index: unary minus subtract
 
     Arithmetic negation.
@@ -109,11 +101,8 @@ Numerics
 ----------
 
 
-.. eql:operator:: MULT: A * B
+.. eql:operator:: MULT: anyreal * anyreal -> anyreal
 
-    :optype A: anyreal
-    :optype B: anyreal
-    :resulttype: anyreal
     :index: multiply multiplication
 
     Arithmetic multiplication.
@@ -127,11 +116,8 @@ Numerics
 ----------
 
 
-.. eql:operator:: DIV: A / B
+.. eql:operator:: DIV: anyreal / anyreal -> anyreal
 
-    :optype A: anyreal
-    :optype B: anyreal
-    :resulttype: anyreal
     :index: divide division
 
     Arithmetic division.
@@ -145,11 +131,8 @@ Numerics
 ----------
 
 
-.. eql:operator:: FLOORDIV: A // B
+.. eql:operator:: FLOORDIV: anyreal // anyreal -> anyreal
 
-    :optype A: anyreal
-    :optype B: anyreal
-    :resulttype: anyreal
     :index: floor divide division
 
     Floor division.
@@ -187,11 +170,8 @@ Numerics
 ----------
 
 
-.. eql:operator:: MOD: A % B
+.. eql:operator:: MOD: anyreal % anyreal -> anyreal
 
-    :optype A: anyreal
-    :optype B: anyreal
-    :resulttype: anyreal
     :index: modulo mod division
 
     Remainder from division (modulo).
@@ -222,11 +202,8 @@ Numerics
 -----------
 
 
-.. eql:operator:: POW: A ^ B
+.. eql:operator:: POW: anyreal ^ anyreal -> anyreal
 
-    :optype A: anyreal
-    :optype B: anyreal
-    :resulttype: anyreal
     :index: power pow
 
     Power operation.

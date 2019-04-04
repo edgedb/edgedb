@@ -26,11 +26,7 @@ Bytes
 ----------
 
 
-.. eql:operator:: BYTESIDX: BYTES [ INDEX ]
-
-    :optype BYTES: bytes
-    :optype INDEX: int64
-    :resulttype: bytes
+.. eql:operator:: BYTESIDX: bytes [ int64 ] -> bytes
 
     Bytes indexing.
 
@@ -45,12 +41,7 @@ Bytes
 ----------
 
 
-.. eql:operator:: BYTESSLICE: BYTES [ FROM : TO ]
-
-    :optype BYTES: bytes
-    :optype FROM: int64
-    :optype TO: int64
-    :resulttype: bytes
+.. eql:operator:: BYTESSLICE: bytes [ int64 : int64 ] -> bytes
 
     Bytes slicing.
 

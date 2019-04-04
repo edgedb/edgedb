@@ -14,18 +14,15 @@ Types
     * - :eql:op:`IS type <IS>`
       - :eql:op-desc:`IS`
 
-    * - :eql:op:`<type>val <CAST>`
+    * - :eql:op:`<type> val <CAST>`
       - :eql:op-desc:`CAST`
 
 
 ----------
 
 
-.. eql:operator:: IS: A IS B or A IS NOT B
-
-    :optype A: anytype
-    :optype B: type
-    :resulttype: bool
+.. eql:operator:: IS: anytype IS type -> bool
+                      anytype IS NOT type -> bool
 
     Type checking operator
 
@@ -55,10 +52,7 @@ Types
 -----------
 
 
-.. eql:operator:: CAST: <type> VALUE
-
-    :optype VALUE: anytype
-    :resulttype: anytype
+.. eql:operator:: CAST: < type > anytype -> anytype
 
     Type cast operator.
 

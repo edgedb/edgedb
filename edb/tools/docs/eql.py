@@ -619,16 +619,19 @@ class EQLOperatorDirective(BaseEQLDirective):
     ]
 
     def handle_signature(self, sig, signode):
-        try:
-            name, sig = sig.split(':', 1)
-        except Exception as ex:
-            raise shared.DirectiveParseError(
-                self,
-                f':eql:operator signature must match "NAME: SIGNATURE" '
-                f'template',
-                cause=ex)
+        if self.names:
+            name = self.names[0]
+        else:
+            try:
+                name, sig = sig.split(':', 1)
+            except Exception as ex:
+                raise shared.DirectiveParseError(
+                    self,
+                    f':eql:operator signature must match "NAME: SIGNATURE" '
+                    f'template',
+                    cause=ex)
+            name = name.strip()
 
-        name = name.strip()
         sig = sig.strip()
         if not name or not sig:
             raise shared.DirectiveParseError(

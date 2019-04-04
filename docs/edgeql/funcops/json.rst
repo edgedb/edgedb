@@ -41,11 +41,7 @@ JSON
 ----------
 
 
-.. eql:operator:: JSONIDX: JSON [ INDEX ]
-
-    :optype JSON: json
-    :optype INDEX: int64
-    :resulttype: json
+.. eql:operator:: JSONIDX: json [ int64 ] -> json
 
     JSON array/string indexing.
 
@@ -72,12 +68,7 @@ JSON
 ----------
 
 
-.. eql:operator:: JSONSLICE: JSON [ FROM : TO ]
-
-    :optype JSON: json
-    :optype FROM: int64
-    :optype TO: int64
-    :resulttype: json
+.. eql:operator:: JSONSLICE: json [ int64 : int64 ] -> json
 
     JSON array/string slicing.
 
@@ -103,11 +94,7 @@ JSON
 ----------
 
 
-.. eql:operator:: JSONOBJDEST: JSON [ ATTR ]
-
-    :optype JSON: json
-    :optype ATTR: str
-    :resulttype: json
+.. eql:operator:: JSONOBJDEST: json [ str ] -> json
 
     JSON object destructuring.
 

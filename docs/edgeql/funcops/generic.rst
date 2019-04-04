@@ -56,40 +56,42 @@ Generic
 -----------
 
 
-.. eql:operator:: IF..ELSE: A IF C ELSE B
-
-    :optype A: SET OF anytype
-    :optype C: bool
-    :optype B: SET OF anytype
-    :resulttype: SET OF anytype
+.. eql:operator:: IF..ELSE: anytype IF bool ELSE anytype -> anytype
 
     :index: if else ifelse elif ternary
 
     Conditionally provide one or the other result.
 
-    IF *C* is ``true``, then the value of the ``IF..ELSE`` expression
-    is the value of *A*, if *C* is ``false``, the result is the value of
-    *B*.
+    .. eql:synopsis::
+
+        <left_expr> IF <condition> ELSE <right_expr>
+
+    If :eql:synopsis:`<condition>` is ``true``, then the value of the
+    ``IF..ELSE`` expression is the value of :eql:synopsis:`<left_expr>`,
+    if :eql:synopsis:`<condition>` is ``false``, the result is the value of
+    :eql:synopsis:`<right_expr>`.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 'hello' IF 2 * 2 = 4 ELSE 'bye';
+        {'hello'}
 
     ``IF..ELSE`` expressions can be chained when checking multiple conditions
     is necessary:
 
-    .. code-block:: edgeql
+    .. code-block:: edgeql-repl
 
-        SELECT 'Apple' IF Fruit IS Apple ELSE
-               'Banana' IF Fruit IS Banana ELSE
-               'Orange' IF Fruit IS Orange ELSE
-               'Other';
-
+        db> WITH color := 'yellow'
+        ... SELECT 'Apple' IF color = 'red' ELSE
+        ...        'Banana' IF color = 'yellow' ELSE
+        ...        'Orange' IF color = 'orange' ELSE
+        ...        'Other';
+        {'Banana'}
 
 -----------
 
 
-.. eql:operator:: EQ: A = B
-
-    :optype A: anytype
-    :optype B: anytype
-    :resulttype: bool
+.. eql:operator:: EQ: anytype = anytype -> bool
 
     Compare two values for equality.
 
@@ -102,11 +104,7 @@ Generic
 ----------
 
 
-.. eql:operator:: NEQ: A != B
-
-    :optype A: anytype
-    :optype B: anytype
-    :resulttype: bool
+.. eql:operator:: NEQ: anytype != anytype -> bool
 
     Compare two values for inequality.
 
@@ -119,11 +117,7 @@ Generic
 ----------
 
 
-.. eql:operator:: COALEQ: A ?= B
-
-    :optype A: OPTIONAL anytype
-    :optype B: OPTIONAL anytype
-    :resulttype: bool
+.. eql:operator:: COALEQ: OPTIONAL anytype ?= OPTIONAL anytype -> bool
 
     Compare two (potentially empty) values for equality.
 
@@ -134,14 +128,8 @@ Generic
 
         db> SELECT {1} ?= {1.0};
         {true}
-
-    .. code-block:: edgeql-repl
-
         db> SELECT {1} ?= {};
         {false}
-
-    .. code-block:: edgeql-repl
-
         db> SELECT <int64>{} ?= {};
         {true}
 
@@ -149,11 +137,7 @@ Generic
 ----------
 
 
-.. eql:operator:: COALNEQ: A ?!= B
-
-    :optype A: OPTIONAL anytype
-    :optype B: OPTIONAL anytype
-    :resulttype: bool
+.. eql:operator:: COALNEQ: OPTIONAL anytype ?!= OPTIONAL anytype -> bool
 
     Compare two (potentially empty) values for inequality.
 
@@ -179,47 +163,47 @@ Generic
 ----------
 
 
-.. eql:operator:: LT: A < B
+.. eql:operator:: LT: anytype < anytype -> bool
 
-    :optype A: anytype
-    :optype B: anytype
-    :resulttype: bool
+    Less than operator.
 
-    ``true`` if ``A`` is less than ``B``.
+    Return ``true`` if the value of the left expression is less
+    than the value of the right expression.
 
     .. code-block:: edgeql-repl
 
         db> SELECT 1 < 2;
+        {true}
+        db> SELECT 2 < 2;
+        {false}
+
+----------
+
+
+.. eql:operator:: GT: anytype > anytype -> bool
+
+    Greater than operator.
+
+    Return ``true`` if the value of the left expression is greater
+    than the value of the right expression.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 1 > 2;
+        {false}
+        db> SELECT 3 > 2;
         {true}
 
 
 ----------
 
 
-.. eql:operator:: GT: A > B
+.. eql:operator:: LTEQ: anytype <= anytype -> bool
 
-    :optype A: anytype
-    :optype B: anytype
-    :resulttype: bool
+    Less or equal operator.
 
-    ``true`` if ``A`` is greater than ``B``.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT 1 > 2;
-        {false}
-
-
-----------
-
-
-.. eql:operator:: LTEQ: A <= B
-
-    :optype A: anytype
-    :optype B: anytype
-    :resulttype: bool
-
-    ``true`` if ``A`` is less than or equal to ``B``.
+    Return ``true`` if the value of the left expression is less
+    than or equal to the value of the right expression.
 
     .. code-block:: edgeql-repl
 
@@ -230,13 +214,12 @@ Generic
 ----------
 
 
-.. eql:operator:: GTEQ: A >= B
+.. eql:operator:: GTEQ: anytype >= anytype -> bool
 
-    :optype A: anytype
-    :optype B: anytype
-    :resulttype: bool
+    Greater or equal operator.
 
-    ``true`` if ``A`` is greater than or equal to ``B``.
+    Return ``true`` if the value of the left expression is greater
+    than or equal to the value of the right expression.
 
     .. code-block:: edgeql-repl
 
