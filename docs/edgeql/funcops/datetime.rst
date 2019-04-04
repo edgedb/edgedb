@@ -11,11 +11,14 @@ Date and Time
 .. list-table::
     :class: funcoptable
 
-    * - :eql:op:`DT + DT <DTPLUS>`
+    * - :eql:op:`dt + dt <DTPLUS>`
       - :eql:op-desc:`DTPLUS`
 
-    * - :eql:op:`DT - DT <DTMINUS>`
+    * - :eql:op:`dt - dt <DTMINUS>`
       - :eql:op-desc:`DTMINUS`
+
+    * - :eql:op:`dt = dt <EQ>`, :eql:op:`dt \< dt <LT>`, ...
+      - Comparison operators.
 
     * - :eql:func:`to_str`
       - Render a date/time value to a string.
@@ -28,9 +31,6 @@ Date and Time
 
     * - :eql:func:`to_local_date`
       - :eql:func-desc:`to_local_date`
-
-    * - :eql:func:`to_local_time`
-      - :eql:func-desc:`to_local_time`
 
     * - :eql:func:`to_local_time`
       - :eql:func-desc:`to_local_time`
@@ -85,7 +85,7 @@ Date and Time
         {<local_time>'23:00:00'}
         db> SELECT <timedelta>'1 hour' + <local_time>'22:00';
         {<local_time>'23:00:00'}
-        db> SELECT  <timedelta>'1 hour' + <timedelta>'2 hours';
+        db> SELECT <timedelta>'1 hour' + <timedelta>'2 hours';
         {<timedelta>'3:00:00'}
 
 
@@ -112,7 +112,7 @@ Date and Time
         db> SELECT <datetime>'January 01 2019 UTC' -
         ...   <datetime>'January 02 2019 UTC';
         {<timedelta>'-1 day, 0:00:00'}
-        db> SELECT  <timedelta>'1 hour' -
+        db> SELECT <timedelta>'1 hour' -
         ...   <timedelta>'2 hours';
         {<timedelta>'-1 day, 23:00:00'}
 
@@ -173,14 +173,14 @@ Date and Time
     The :eql:type:`datetime` scalar has the following elements
     available for extraction:
 
+    - ``'epoch'`` - the number of seconds since 1970-01-01 00:00:00
+      UTC for :eql:type:`datetime` or local time for
+      :eql:type:`local_datetime`. It can be negative.
     - ``'century'`` - the century according to the Gregorian calendar
     - ``'day'`` - the day of the month (1-31)
     - ``'decade'`` - the decade (year divided by 10 and rounded down)
     - ``'dow'`` - the day of the week from Sunday (0) to Saturday (6)
     - ``'doy'`` - the day of the year (1-366)
-    - ``'epoch'`` - the number of seconds since 1970-01-01 00:00:00
-      UTC for :eql:type:`datetime` or local time for
-      :eql:type:`local_datetime`. It can be negative.
     - ``'hour'`` - the hour (0-23)
     - ``'isodow'`` - the ISO day of the week from Monday (1) to Sunday (7)
     - ``'isoyear'`` - the ISO 8601 week-numbering year that the date falls in.

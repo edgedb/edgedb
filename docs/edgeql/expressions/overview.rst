@@ -1,8 +1,11 @@
 .. _ref_eql_expr:
 
 
-Expressions
-===========
+Overview
+========
+
+:edb-alt-title: Expressions Overview
+
 
 Expressions are used to represent a *value* or a *set of values* in EdgeQL
 commands.
@@ -13,39 +16,41 @@ commands.
 Scalar Literals
 ---------------
 
-EdgeQL supports the following literals:
+EdgeQL supports the following scalar literals:
 
-.. table::
-    :class: codeblocks
+====================================== =============================
+ Syntax                                 Type
+====================================== =============================
+ :eql:code:`SELECT true;`               :eql:type:`bool`
+ :eql:code:`SELECT false;`              :eql:type:`bool`
+ :eql:code:`SELECT 42;`                 :eql:type:`int64`
+ :eql:code:`SELECT -1.1;`               :eql:type:`float64`
+ :eql:code:`SELECT 1e-3;`               :eql:type:`float64`
+ :eql:code:`SELECT -42n;`               :eql:type:`decimal`
+ :eql:code:`SELECT 100.1n;`             :eql:type:`decimal`
+ :eql:code:`SELECT 'hello';`            :eql:type:`str`
+ :eql:code:`SELECT r'hello';`           :eql:type:`str` (raw string)
+ :eql:code:`SELECT $$ CREATE .. $$;`    :eql:type:`str` (raw string)
+ :eql:code:`SELECT b'bina\\x01ry';`     :eql:type:`bytes`
+====================================== =============================
 
-    ====================================== =============================
-     Syntax                                 Type
-    ====================================== =============================
-     :eql:code:`SELECT true;`               :eql:type:`bool`
-     :eql:code:`SELECT false;`              :eql:type:`bool`
-     :eql:code:`SELECT 42;`                 :eql:type:`int64`
-     :eql:code:`SELECT -1.1;`               :eql:type:`float64`
-     :eql:code:`SELECT 1e-3;`               :eql:type:`float64`
-     :eql:code:`SELECT -42n;`               :eql:type:`decimal`
-     :eql:code:`SELECT 100.1n;`             :eql:type:`decimal`
-     :eql:code:`SELECT 'hello';`            :eql:type:`str`
-     :eql:code:`SELECT r'hello';`           :eql:type:`str` (raw string)
-     :eql:code:`SELECT $$ CREATE .. $$;`    :eql:type:`str` (raw string)
-     :eql:code:`SELECT b'binary \\x01';`    :eql:type:`bytes`
-    ====================================== =============================
-
-
-See :ref:`ref_eql_lexical_const` for more details about
-the syntax for standard scalar literals.
+Refer to :ref:`lexical structure <ref_eql_lexical_const>` for more details
+about the syntax for standard scalar literals.
 
 Additionally, many scalar values can be represented as
 a cast string literal:
 
 .. code-block:: edgeql
 
+    SELECT <int16>'1' = <int16>1;
     SELECT <float32>'1.23';
     SELECT <timedelta>'1 day';
-    SELECT <decimal>'1.23';  # Same as SELECT 1.23n;
+    SELECT <decimal>'1.23' = 1.23n;
+
+
+EdgeQL defines many functions and operators to work with various
+scalar types, see the :ref:`functions and operators <ref_eql_funcops>`
+section for more details.
 
 
 .. _ref_eql_expr_index_setref:
@@ -72,7 +77,16 @@ information about set references.
 Paths
 -----
 
-Path expression syntax and semantics are described in a
+A *path expression* (or simply a *path*) represents a set of values that are
+reachable when traversing a given sequence of links or properties from some
+source set.  For example, here is s a path that represents the names of all
+friends of all ``User`` objects in the database.
+
+.. code-block:: edgeql
+
+    SELECT User.friends.name;
+
+Path expression syntax and semantics are described in detail in a
 :ref:`dedicated section <ref_eql_expr_paths>`.
 
 
@@ -81,7 +95,32 @@ Path expression syntax and semantics are described in a
 Shapes
 ------
 
-See :ref:`this section <ref_eql_expr_shapes>` for information on
+A *shape* is a powerful syntactic construct that can be used to dynamically
+describe a portion of an object graph.  For example, the below query returns
+a set of ``Issue`` objects and includes a ``number`` and an associated
+owner ``User`` object, which in turn includes the ``name`` and the
+``email`` for that user:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT
+    ...     Issue {
+    ...         number,
+    ...         owner: {  # sub-shape, selects Issue.owner objects
+    ...            name,
+    ...            email
+    ...         }
+    ...     };
+
+    {
+        'number': 1,
+        'owner': {
+            'name': 'Alice',
+            'email': 'alice@example.com'
+        }
+    }
+
+See :ref:`this section <ref_eql_expr_shapes>` for more information on
 shape syntax and semantics.
 
 
@@ -121,6 +160,19 @@ Unary prefix operator syntax:
 
 A complete reference of standard EdgeQL operators can be found in
 :ref:`ref_eql_funcops`.
+
+
+.. _ref_eql_expr_index_parens:
+
+Parentheses
+-----------
+
+Expressions can be enclosed in parentheses to indicate explicit evaluation
+precedence and to group subexpressions visually for better readability:
+
+.. code-block:: edgeql
+
+    SELECT (1 + 1) * 2 / (3 + 8);
 
 
 .. _ref_eql_expr_index_function_call:
@@ -199,40 +251,36 @@ it must be used together with a type cast:
 Tuples
 ------
 
-.. _ref_eql_expr_index_tuple_ctor:
+A *tuple* is collection of values of possibly different types.  For
+example:
 
-Tuple Constructor
-~~~~~~~~~~~~~~~~~
+.. code-block:: edgeql-repl
 
-A tuple constructor is an expression that consists of a sequence of
-comma-separated expressions enclosed in parentheses.  It produces a
-tuple value:
+    db> SELECT (1.0, -2.0, 'red');
+    {(1.0, -2.0, 'red')}
+    db> SELECT (180, 82);
+    {(180, 82)}
+    db> SELECT (180, 82).0;
+    {180}
 
-.. eql:synopsis::
+EdgeQL also supports *named tuples*:
 
-    "(" <expr> [, ... ] ")"
+.. code-block:: edgeql-repl
 
-See :ref:`tuple expression reference <ref_eql_expr_tuple_ctor>` for more
-information on tuple constructors.
+    db> SELECT (x := 1.0, y := -2.0, color := 'red');
+    {(x := 1.0, y := -2.0, color := 'red')}
+    db> SELECT (height := 180, weight := 82);
+    {(height := 180, weight := 82)}
+    db> SELECT (height := 180, weight := 82).height;
+    {180}
+    db> SELECT (height := 180, weight := 82).1;
+    {82}
 
+Tuples can be nested in arrays, returned from functions, be
+a valid object property type.
 
-.. _ref_eql_expr_index_tuple_elref:
-
-Tuple Element References
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-An element of a tuple can be referenced in the form:
-
-.. eql:synopsis::
-
-    <expr> "." <element-index>
-
-Here, *expr* is any expression that has a tuple type, and *element-name* is
-either the *zero-based index* of the element, if the tuple is unnamed, or
-the name of an element in a named tuple.
-
-See :ref:`tuple expression reference <ref_eql_expr_tuple_elref>` for more
-information on accessing tuple elements.
+See the :ref:`tuple expression reference <ref_eql_expr_tuple_ctor>`
+for more information on tuple constructors and accessing tuple elements.
 
 
 .. _ref_eql_expr_index_array_ctor:
@@ -240,13 +288,16 @@ information on accessing tuple elements.
 Arrays
 ------
 
-An array constructor is an expression that consists of a sequence of
-comma-separated expressions *of the same type* enclosed in square brackets.
-It produces an array value:
+An array is a collection of values of the same type.  For example:
 
-.. eql:synopsis::
+.. code-block:: edgeql-repl
 
-    "[" <expr> [, ...] "]"
+    db> SELECT [1, 2, 3];
+    {[1, 2, 3]}
+    db> SELECT ['hello', 'world'];
+    {['hello', 'world']}
+    db> SELECT [(1, 2), (100, 200)];
+    {[(1, 2), (100, 200)]}
 
 See :ref:`array expression reference <ref_eql_expr_array_ctor>` for more
 information on array constructors.
@@ -265,17 +316,4 @@ are required around the statement to disambiguate:
 
     SELECT 1 + (SELECT len(User.name));
 
-See :ref:`ref_eql_statements` for more information.
-
-
-.. _ref_eql_expr_index_parens:
-
-Parentheses
------------
-
-Expressions can be enclosed in parentheses to indicate explicit evaluation
-precedence and to group subexpressions visually for better readability:
-
-.. code-block:: edgeql
-
-    SELECT (1 + 1) * 2 / (3 + 8);
+See the :ref:`statements <ref_eql_statements>` section for more information.

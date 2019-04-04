@@ -297,7 +297,6 @@ EdgeQL operators listed in order of precedence from lowest to highest:
 .. list-table::
     :widths: auto
     :header-rows: 1
-    :class: codeblocks
 
     * - operator
     * - :eql:op:`UNION`

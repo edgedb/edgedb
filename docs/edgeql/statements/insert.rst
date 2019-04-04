@@ -23,12 +23,6 @@ When evaluating an ``INSERT`` statement, *expression* is used solely to
 determine the *type* of the inserted object and is not evaluated in any
 other way.
 
-An optional *insert-shape* expression (see
-:ref:`shapes <ref_eql_expr_shapes_insert>`), may be used to specify the values
-of the links for the inserted object.  If a link is not present in
-*insert-shape*, a default value is used: either the declared default value
-for the link, or an empty set if there is none.
-
 If a value for a *required* link is evaluated to an empty set, an error is
 raised.
 

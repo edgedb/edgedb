@@ -5,20 +5,23 @@
 Logical
 =======
 
-:edb-alt-title: Logical Operators
+:edb-alt-title: Boolean Type and Logical Operators
 
 
 .. list-table::
     :class: funcoptable
 
-    * - :eql:op:`a OR b <OR>`
+    * - :eql:op:`bool OR bool <OR>`
       - :eql:op-desc:`OR`
 
-    * - :eql:op:`a AND b <AND>`
+    * - :eql:op:`bool AND bool <AND>`
       - :eql:op-desc:`AND`
 
-    * - :eql:op:`NOT a <NOT>`
+    * - :eql:op:`NOT bool <NOT>`
       - :eql:op-desc:`NOT`
+
+    * - :eql:op:`bool = bool <EQ>`, :eql:op:`bool \< bool <LT>`, ...
+      - Comparison operators.
 
 
 ----------
@@ -30,7 +33,7 @@ Logical
 
     .. code-block:: edgeql-repl
 
-        db> select false or true;
+        db> SELECT false OR true;
         {true}
 
 
@@ -67,22 +70,14 @@ The ``AND`` and ``OR`` operators are commutative.
 
 The truth tables are as follows:
 
-+-------+-------+-----------+----------+
-|   a   |   b   |  a AND b  |  a OR b  |
-+=======+=======+===========+==========+
-| true  | true  |   true    |   true   |
-+-------+-------+-----------+----------+
-| true  | false |   false   |   true   |
-+-------+-------+-----------+----------+
-| false | true  |   false   |   true   |
-+-------+-------+-----------+----------+
-| false | false |   false   |   false  |
-+-------+-------+-----------+----------+
-
-+-------+---------+
-|   a   |  NOT a  |
-+=======+=========+
-| true  |  false  |
-+-------+---------+
-| false |  true   |
-+-------+---------+
++-------+-------+-----------+----------+----------+
+|   a   |   b   |  a AND b  |  a OR b  |  NOT a   |
++=======+=======+===========+==========+==========+
+| true  | true  |   true    |   true   |   false  |
++-------+-------+-----------+----------+----------+
+| true  | false |   false   |   true   |   false  |
++-------+-------+-----------+----------+----------+
+| false | true  |   false   |   true   |   true   |
++-------+-------+-----------+----------+----------+
+| false | false |   false   |   false  |   true   |
++-------+-------+-----------+----------+----------+

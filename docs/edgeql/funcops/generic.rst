@@ -10,31 +10,31 @@ Generic
 .. list-table::
     :class: funcoptable
 
-    * - :eql:op:`A = B <EQ>`
+    * - :eql:op:`anytype = anytype <EQ>`
       - :eql:op-desc:`EQ`
 
-    * - :eql:op:`A != B <NEQ>`
+    * - :eql:op:`anytype != anytype <NEQ>`
       - :eql:op-desc:`NEQ`
 
-    * - :eql:op:`A ?= B <COALEQ>`
+    * - :eql:op:`anytype ?= anytype <COALEQ>`
       - :eql:op-desc:`COALEQ`
 
-    * - :eql:op:`A ?!= B <COALNEQ>`
+    * - :eql:op:`anytype ?!= anytype <COALNEQ>`
       - :eql:op-desc:`COALNEQ`
 
-    * - :eql:op:`A \< B <LT>`
+    * - :eql:op:`anytype \< anytype <LT>`
       - :eql:op-desc:`LT`
 
-    * - :eql:op:`A \> B <GT>`
+    * - :eql:op:`anytype \> anytype <GT>`
       - :eql:op-desc:`GT`
 
-    * - :eql:op:`A \<= B <LTEQ>`
+    * - :eql:op:`anytype \<= anytype <LTEQ>`
       - :eql:op-desc:`LTEQ`
 
-    * - :eql:op:`A \>= B <GTEQ>`
+    * - :eql:op:`anytype \>= anytype <GTEQ>`
       - :eql:op-desc:`GTEQ`
 
-    * - :eql:op:`a IF condition ELSE b <IF..ELSE>`
+    * - :eql:op:`anytype IF bool ELSE anytype <IF..ELSE>`
       - :eql:op-desc:`IF..ELSE`
 
     * - :eql:func:`len`
@@ -99,6 +99,12 @@ Generic
 
         db> SELECT 3 = 3.0;
         {true}
+        db> SELECT [1, 2] = [1, 2];
+        {true}
+        db> SELECT (x := 1, y := 2) = (x := 1, y := 2);
+        {true}
+        db> SELECT 'hello' = 'hello';
+        {true}
 
 
 ----------
@@ -128,9 +134,9 @@ Generic
 
         db> SELECT {1} ?= {1.0};
         {true}
-        db> SELECT {1} ?= {};
+        db> SELECT {1} ?= <int64>{};
         {false}
-        db> SELECT <int64>{} ?= {};
+        db> SELECT <int64>{} ?= <int64>{};
         {true}
 
 
@@ -151,12 +157,12 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT {1} ?!= {};
+        db> SELECT {1} ?!= <int64>{};
         {true}
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <int64>{} ?!= {};
+        db> SELECT <bool>{} ?!= <bool>{};
         {false}
 
 
@@ -208,6 +214,8 @@ Generic
     .. code-block:: edgeql-repl
 
         db> SELECT 1 <= 2;
+        {true}
+        db> SELECT 'aaa' <= 'bbb';
         {true}
 
 
@@ -354,14 +362,14 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT round(<decimal>1.2);
-        {1}
+        db> SELECT round(1.2n);
+        {1n}
 
-        db> SELECT round(<decimal>1.5);
-        {2}
+        db> SELECT round(1.5n);
+        {2n}
 
-        db> SELECT round(<decimal>2.5);
-        {3}
+        db> SELECT round(2.5n);
+        {3n}
 
     Additionally, when rounding a :eql:type:`decimal` *value* an
     optional argument *d* can be provided to specify to what decimal
@@ -369,20 +377,20 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT round(<decimal>163.278, 2);
-        {163.28}
+        db> SELECT round(163.278n, 2);
+        {163.28n}
 
-        db> SELECT round(<decimal>163.278, 1);
-        {163.3}
+        db> SELECT round(163.278n, 1);
+        {163.3n}
 
-        db> SELECT round(<decimal>163.278, 0);
-        {163}
+        db> SELECT round(163.278n, 0);
+        {163n}
 
-        db> SELECT round(<decimal>163.278, -1);
-        {160}
+        db> SELECT round(163.278n, -1);
+        {160n}
 
-        db> SELECT round(<decimal>163.278, -2);
-        {200}
+        db> SELECT round(163.278n, -2);
+        {200n}
 
 
 ----------

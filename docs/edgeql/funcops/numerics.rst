@@ -10,29 +10,33 @@ Numerics
 .. list-table::
     :class: funcoptable
 
-    * - :eql:op:`a + b <PLUS>`
+    * - :eql:op:`anyreal + anyreal <PLUS>`
       - :eql:op-desc:`PLUS`
 
-    * - :eql:op:`a - b <MINUS>`
+    * - :eql:op:`anyreal - anyreal <MINUS>`
       - :eql:op-desc:`MINUS`
 
-    * - :eql:op:`-a <UMINUS>`
+    * - :eql:op:`-anyreal <UMINUS>`
       - :eql:op-desc:`UMINUS`
 
-    * - :eql:op:`a * b <MULT>`
+    * - :eql:op:`anyreal * anyreal <MULT>`
       - :eql:op-desc:`MULT`
 
-    * - :eql:op:`a / b <DIV>`
+    * - :eql:op:`anyreal / anyreal <DIV>`
       - :eql:op-desc:`DIV`
 
-    * - :eql:op:`a // b <FLOORDIV>`
+    * - :eql:op:`anyreal // anyreal <FLOORDIV>`
       - :eql:op-desc:`FLOORDIV`
 
-    * - :eql:op:`a % b <MOD>`
+    * - :eql:op:`anyreal % anyreal <MOD>`
       - :eql:op-desc:`MOD`
 
-    * - :eql:op:`a ^ b <POW>`
+    * - :eql:op:`anyreal ^ anyreal <POW>`
       - :eql:op-desc:`POW`
+
+    * - :eql:op:`anyreal = anyreal <EQ>`,
+        :eql:op:`anyreal \< anyreal <LT>`, ...
+      - Comparison operators.
 
     * - :eql:func:`to_decimal`
       - :eql:func-desc:`to_decimal`
@@ -127,6 +131,13 @@ Numerics
         db> SELECT 10 / 4;
         {2.5}
 
+    Division by zero results in an error:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 10 / 0;
+        DivisionByZeroError: division by zero
+
 
 ----------
 
@@ -163,8 +174,8 @@ Numerics
         db> SELECT 37 // 11;
         {3}
 
-    Regular division, integer division and :eql:op:`%<MOD>` are
-    related in the following way: ``(A - (A % B)) / B = A // B``
+    Regular division, floor division, and :eql:op:`%<MOD>` are
+    related in the following way: ``A // B  =  (A - (A % B)) / B``.
 
 
 ----------
@@ -176,7 +187,7 @@ Numerics
 
     Remainder from division (modulo).
 
-    This is specifically the remainder from floor division. Just as is
+    This is the remainder from floor division. Just as is
     the case with :eql:op:`//<FLOORDIV>` the result type of the
     remainder operator corresponds to the operand type:
 
@@ -184,6 +195,8 @@ Numerics
 
         db> SELECT 10 % 4;
         {2}
+        db> SELECT 10n % 4;
+        {2n}
         db> SELECT -10 % 4;
         {2}
         db> # floating arithmetic is inexact, so
@@ -196,7 +209,14 @@ Numerics
         {4}
 
     Regular division, :eql:op:`//<FLOORDIV>` and :eql:op:`%<MOD>` are
-    related in the following way: ``(A - (A % B)) / B = A // B``
+    related in the following way: ``A // B  =  (A - (A % B)) / B``.
+
+    Modulo division by zero results in an error:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 10 % 0;
+        DivisionByZeroError: division by zero
 
 
 -----------

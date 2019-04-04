@@ -20,6 +20,9 @@ Array
     * - :eql:op:`array ++ array <ARRAYPLUS>`
       - :eql:op-desc:`ARRAYPLUS`
 
+    * - :eql:op:`array = array <EQ>`, :eql:op:`array \< array <LT>`, ...
+      - Comparison operators.
+
     * - :eql:func:`len`
       - Return number of elements in the array.
 
@@ -55,6 +58,8 @@ Array
 
         db> SELECT [1, 2, 3][0];
         {1}
+        db> SELECT [(x := 1, y := 1), (x := 2, y := 3.3)][1];
+        {(x := 2, y := 3.3)}
 
     Negative indexing is supported:
 

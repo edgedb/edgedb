@@ -48,31 +48,6 @@ the :eql:synopsis:`<expr>` set that are instances of
   depending on the context.
 
 
-.. _ref_eql_expr_shapes_insert:
-
-Shapes in INSERT
-================
-
-A shape in an ``INSERT`` statement is used to specify the data to insert
-into a database.  The recursive nature of shapes allows creating an entire
-tree of objects with a single ``INSERT`` statement.
-
-.. code-block:: edgeql
-
-    INSERT Issue {
-        name := 'Issue #1',
-        comments: Comment {
-            body := 'Issue #1 created'
-        }
-    };
-
-The above query inserts a new ``Issue`` object, and creates and links a new
-``Comment`` object to it.
-
-See :ref:`ref_eql_statements_insert` for more information on the use of
-shapes in ``INSERT`` statements.
-
-
 .. _ref_eql_expr_shapes_update:
 
 Shapes in UPDATE

@@ -7,10 +7,10 @@ EdgeQL
     :hidden:
 
     overview
+    expressions/__toc__
+    statements/index
     funcops/index
     types
-    expressions/index
-    statements/index
     sdl/index
     ddl/index
     introspection/index

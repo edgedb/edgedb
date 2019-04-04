@@ -10,6 +10,9 @@ UUID
 .. list-table::
     :class: funcoptable
 
+    * - :eql:op:`uuid = uuid <EQ>`, :eql:op:`uuid \< uuid <LT>`, ...
+      - Comparison operators.
+
     * - :eql:func:`uuid_generate_v1mc`
       - :eql:func-desc:`uuid_generate_v1mc`
 

@@ -19,6 +19,9 @@ Bytes
     * - :eql:op:`bytes ++ bytes <BYTEPLUS>`
       - :eql:op-desc:`BYTEPLUS`
 
+    * - :eql:op:`bytes = bytes <EQ>`, :eql:op:`bytes \< bytes <LT>`, ...
+      - Comparison operators.
+
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
 
@@ -34,7 +37,7 @@ Bytes
 
     .. code-block:: edgeql-repl
 
-        db> SELECT b'\x01\x02\x03\x04 world!'[1];
+        db> SELECT b'binary \x01\x02\x03\x04 ftw!'[8];
         {b'\x02'}
 
 
@@ -49,8 +52,8 @@ Bytes
 
     .. code-block:: edgeql-repl
 
-        db> SELECT b'\x01\x02\x03\x04 world!'[1:-1];
-        {b'\x02\x03\x04 world'}
+        db> SELECT b'\x01\x02\x03\x04 ftw!'[2:-1];
+        {b'\x03\x04 ftw'}
         db> SELECT b'some bytes'[2:-3];
         {b'me by'}
 
