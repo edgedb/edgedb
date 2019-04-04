@@ -73,6 +73,7 @@ Date and Time
                           local_datetime + timedelta -> local_datetime
                           local_date + timedelta -> local_date
                           local_time + timedelta -> local_time
+                          timedelta + timedelta -> timedelta
 
     Time interval addition.
 
@@ -80,22 +81,22 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> select <local_time>'22:00' + <timedelta>'1 hour';
+        db> SELECT <local_time>'22:00' + <timedelta>'1 hour';
         {<local_time>'23:00:00'}
-        db> select <timedelta>'1 hour' + <local_time>'22:00';
+        db> SELECT <timedelta>'1 hour' + <local_time>'22:00';
         {<local_time>'23:00:00'}
-        db> select  <timedelta>'1 hour' + <timedelta>'2 hours';
+        db> SELECT  <timedelta>'1 hour' + <timedelta>'2 hours';
         {<timedelta>'3:00:00'}
 
 
 ----------
 
 
-.. eql:operator:: DTMINUS: datetime - datetime -> timedelta
+.. eql:operator:: DTMINUS: timedelta - timedelta -> timedelta
+                           datetime - datetime -> timedelta
                            local_datetime - local_datetime -> timedelta
                            local_time - local_time -> timedelta
                            local_date - local_date -> timedelta
-                           timedelta - timedelta -> timedelta
                            datetime - timedelta -> datetime
                            local_datetime - timedelta -> local_datetime
                            local_time - timedelta -> local_time
@@ -105,19 +106,22 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> select <datetime>'January 01 2019 UTC' - <timedelta>'1 day';
+        db> SELECT <datetime>'January 01 2019 UTC' -
+        ...   <timedelta>'1 day';
         {<datetime>'2018-12-31T00:00:00+00:00'}
-        db> select <datetime>'January 01 2019 UTC' -
+        db> SELECT <datetime>'January 01 2019 UTC' -
         ...   <datetime>'January 02 2019 UTC';
         {<timedelta>'-1 day, 0:00:00'}
-        db> select  <timedelta>'1 hour' - <timedelta>'2 hours';
+        db> SELECT  <timedelta>'1 hour' -
+        ...   <timedelta>'2 hours';
         {<timedelta>'-1 day, 23:00:00'}
 
     It is an error to subtract a date/time object from a time interval:
 
     .. code-block:: edgeql-repl
 
-        db> select <timedelta>'1 day' - <datetime>'January 01 2019 UTC';
+        db> SELECT <timedelta>'1 day' -
+        ...   <datetime>'January 01 2019 UTC';
         QueryError: operator '-' cannot be applied to operands ...
 
     It is also an error to subtract timezone-aware :eql:type:`std::datetime`
@@ -125,7 +129,7 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> select <datetime>'January 01 2019 UTC' -
+        db> SELECT <datetime>'January 01 2019 UTC' -
         ...   <local_datetime>'January 02 2019';
         QueryError: operator '-' cannot be applied to operands ...
 
@@ -200,19 +204,28 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT datetime_get(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'year');
+        ...     <datetime>'2018-05-07T15:01:22.306916+00',
+        ...     'epoch');
+        {1525705282.306916}
+
+        db> SELECT datetime_get(
+        ...     <datetime>'2018-05-07T15:01:22.306916+00',
+        ...     'year');
         {2018}
 
         db> SELECT datetime_get(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'quarter');
+        ...     <datetime>'2018-05-07T15:01:22.306916+00',
+        ...     'quarter');
         {2}
 
         db> SELECT datetime_get(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'doy');
+        ...     <datetime>'2018-05-07T15:01:22.306916+00',
+        ...     'doy');
         {127}
 
         db> SELECT datetime_get(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'hour');
+        ...     <datetime>'2018-05-07T15:01:22.306916+00',
+        ...     'hour');
         {15}
 
 
@@ -260,19 +273,23 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT date_get(
-        ...     <local_date>'2018-05-07T15:01:22.306916', 'century');
+        ...     <local_date>'2018-05-07T15:01:22.306916',
+        ...     'century');
         {21}
 
         db> SELECT date_get(
-        ...     <local_date>'2018-05-07T15:01:22.306916', 'year');
+        ...     <local_date>'2018-05-07T15:01:22.306916',
+        ...     'year');
         {2018}
 
         db> SELECT date_get(
-        ...     <local_date>'2018-05-07T15:01:22.306916', 'month');
+        ...     <local_date>'2018-05-07T15:01:22.306916',
+        ...     'month');
         {5}
 
         db> SELECT date_get(
-        ...     <local_date>'2018-05-07T15:01:22.306916', 'doy');
+        ...     <local_date>'2018-05-07T15:01:22.306916',
+        ...     'doy');
         {127}
 
 
