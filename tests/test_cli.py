@@ -72,3 +72,7 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
         result = self.run_cli('create', 'role', 'foo', '--allow-login',
                               '--password', input='foo-pass\n')
         self.assertIn('input is not a TTY', result.output)
+
+    async def test_cli_repl_script(self):
+        result = self.run_cli(input='SELECT 1 + 1')
+        self.assertEqual(list(result.output.split('\n'))[0], '{2}')

@@ -63,12 +63,14 @@ def cli(ctx, host, port, user, database, admin, password, password_from_stdin):
         password = None
 
     if ctx.invoked_subcommand is None:
-        repl.main(
+        status = repl.main(
             host=host, port=port, user=user,
             database=database, password=password,
             password_prompt=password_prompt,
             admin=admin,
         )
+
+        sys.exit(status)
     else:
         ctx.obj['host'] = host
         ctx.obj['port'] = port

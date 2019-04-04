@@ -18,6 +18,7 @@
 
 
 import functools
+import io
 import os
 import select
 import subprocess
@@ -504,15 +505,44 @@ class Cli:
 
 
 def execute_script(conn_args, data):
-    con = edgedb.connect(**conn_args)
+    password_prompt = conn_args.pop('password_prompt', None)
+    try:
+        con = edgedb.connect(**conn_args)
+    except edgedb.AuthenticationError:
+        if password_prompt:
+            password = password_prompt()
+            con = edgedb.connect(**{**conn_args, 'password': password})
+        else:
+            raise
+
     queries = lexutils.split_edgeql(data)[0]
     ctx = context.ReplContext()
     for query in queries:
-        ret = con.fetchall(query)
-        render.render_binary(
-            ctx,
-            ret,
-            max_width=80)
+        try:
+            ret = con.fetchall(query)
+        except Exception as ex:
+            render.render_exception(
+                ctx,
+                ex,
+                query=query)
+            return 1
+        else:
+            render.render_binary(
+                ctx,
+                ret,
+                max_width=80)
+
+
+def _data_in_stdin():
+    try:
+        select.select([sys.stdin], [], [], 0.0)[0]
+    except io.UnsupportedOperation:
+        # Mock stdin cannot be selected, just read it
+        data = sys.stdin.read()
+    else:
+        data = sys.stdin.read()
+
+    return data
 
 
 def main(*, host, port, user, database, password, password_prompt, admin):
@@ -527,9 +557,8 @@ def main(*, host, port, user, database, password, password_prompt, admin):
         'timeout': 60,
     }
 
-    if select.select([sys.stdin], [], [], 0.0)[0]:
-        data = sys.stdin.read()
-        execute_script(connect_kwargs, data)
-        return
-
-    Cli(connect_kwargs).run()
+    stdin_data = _data_in_stdin()
+    if stdin_data:
+        return execute_script(connect_kwargs, stdin_data)
+    else:
+        return Cli(connect_kwargs).run()
