@@ -46,11 +46,35 @@ commands <ref_eql_ddl_props>`.
     # Concrete property form used inside type declaration:
     [ required ] [{single | multi}] property <name>
       [ extending <base> [, ...] ] -> <type>
-      [ "{" <subcommand>; [...] "}" ] ;
+      [ "{"
+          [ default := <expression> ; ]
+          [ readonly := {true | false} ; ]
+          [ <attribute-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
 
     # Computable property form used inside type declaration:
     [ required ] [{single | multi}] property <name> := <expression>;
 
     # Abstract property form:
     abstract property [<module>::]<name> [extending <base> [, ...]]
-    [ "{" <subcommand>; [...] "}" ]
+    [ "{"
+        [ readonly := {true | false} ; ]
+        [ <attribute-declarations> ]
+        ...
+      "}" ]
+
+Description
+-----------
+
+The core of the declaration is identical to :eql:stmt:`CREATE PROPERTY`,
+while the valid SDL sub-declarations are listed below:
+
+:sdl:synopsis:`<attribute-declarations>`
+    Set property :ref:`attribute <ref_eql_sdl_schema_attributes>`
+    to a given *value*.
+
+:sdl:synopsis:`<constraint-declarations>`
+    Define a concrete :ref:`constraint <ref_eql_sdl_constraints>` on
+    the property.

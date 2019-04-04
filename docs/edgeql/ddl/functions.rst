@@ -25,25 +25,28 @@ CREATE FUNCTION
 
     [ WITH <with-item> [, ...] ]
     CREATE FUNCTION <name> ([ <argspec> ] [, ... ]) -> <returnspec>
-    "{"
-        <subcommand> [, ...]
-    "}" ;
+    "{" <subcommand> [, ...] "}" ;
 
     # where <argspec> is:
 
-    [ <argkind> ] <argname>: [ <typequal> ] <argtype> [ = <default> ]
+      [ <argkind> ] <argname>: [ <typequal> ] <argtype> [ = <default> ]
 
     # <argkind> is:
 
-    [ { VARIADIC | NAMED ONLY } ]
+      [ { VARIADIC | NAMED ONLY } ]
 
     # <typequal> is:
 
-    [ { SET OF | OPTIONAL } ]
+      [ { SET OF | OPTIONAL } ]
 
     # and <returnspec> is:
 
-    [ <typequal> ] <rettype>
+      [ <typequal> ] <rettype>
+
+    # where <subcommand> is one of
+
+      FROM <language> <functionbody>
+      SET ATTRIBUTE <attribute> := <value>
 
 
 Description
@@ -129,11 +132,11 @@ Subcommands
 ``CREATE FUNCTION`` allows specifying the following subcommands in its
 block:
 
-:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>`
     Set the functions's *attribute* to *value*.
     See :eql:stmt:`SET ATTRIBUTE` for details.
 
-:eql:synopsis:`FROM <language> <functionbody>;`
+:eql:synopsis:`FROM <language> <functionbody>`
     See the meaning of *language* and *functionbody* above.
 
 

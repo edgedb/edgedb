@@ -14,7 +14,7 @@ CREATE LINK
 :eql-statement:
 :eql-haswith:
 
-:ref:`Define <ref_eql_sdl_links>` a new  link.
+:ref:`Define <ref_eql_sdl_links>` a new link.
 
 .. eql:synopsis::
 
@@ -31,9 +31,9 @@ CREATE LINK
 
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} TYPE <TypeName> "{"
-        [ ... ]
-        CREATE [REQUIRED] [{SINGLE | MULTI}] LINK <name> := <expression>;
-        [ ... ]
+      [ ... ]
+      CREATE [REQUIRED] [{SINGLE | MULTI}] LINK <name> := <expression>;
+      [ ... ]
     "}"
 
     # Abstract link form:
@@ -41,6 +41,16 @@ CREATE LINK
     [ WITH <with-item> [, ...] ]
     CREATE ABSTRACT LINK [<module>::]<name> [EXTENDING <base> [, ...]]
     [ "{" <subcommand>; [...] "}" ]
+
+    # where <subcommand> is one of
+
+      SET default := <expression>
+      SET readonly := {true | false}
+      SET ATTRIBUTE <attribute> := <value>
+      CREATE PROPERTY <property-name> ...
+      CREATE CONSTRAINT <constraint-name> ...
+      ON TARGET DELETE <action>
+      CREATE INDEX <index-name> ON <index-expr>
 
 
 Description
@@ -92,38 +102,40 @@ Parameters
     If there is no conflict, the link properties are merged to form a
     single property in the new link item.
 
-:eql:synopsis:`<subcommand>`
-    Optional sequence of subcommands related to the new link item.
+The following subcommands are allowed in the ``CREATE LINK`` block:
 
-    The following actions are allowed in the
-    ``CREATE LINK`` block:
+:eql:synopsis:`SET default := <expression>`
+    Specifies the default value for the link as an EdgeQL expression.
+    The default value is used in an ``INSERT`` statement if an explicit
+    value for this link is not specified.
 
-    :eql:synopsis:`SET default := <expression>`
-        Specifies the default value for the link as an EdgeQL expression.
-        The default value is used in an ``INSERT`` statement if an explicit
-        value for this link is not specified.
+:eql:synopsis:`SET readonly := {true | false}`
+    If ``true``, the link is considered *read-only*.  Modifications
+    of this link are prohibited once an object is created.
 
-    :eql:synopsis:`SET readonly := {true|false}`
-        If ``true``, the link is considered *read-only*.  Modifications
-        of this link are prohibited once an object is created.
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
+    Set link *attribute* to *value*.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`CREATE PROPERTY <property-name> ...`
+    Define a concrete property item for this link.  See
+    :eql:stmt:`CREATE PROPERTY` for details.
 
-    :eql:synopsis:`CREATE PROPERTY`
-        Define a concrete property on the link.
-        See :eql:stmt:`CREATE PROPERTY` for details.
+:eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
+    Define a concrete constraint for this link.  See
+    :eql:stmt:`CREATE CONSTRAINT` for details.
 
-    :eql:synopsis:`CREATE CONSTRAINT`
-        Define a concrete constraint on the link.
-        See :eql:stmt:`CREATE CONSTRAINT` for details.
+:eql:synopsis:`ON TARGET DELETE <action>`
+    Valid values for *action* are: ``RESTRICT``, ``DELETE
+    SOURCE``, ``ALLOW``, and ``DEFERRED RESTRICT``. The details of
+    what ``ON TARGET DELETE`` options mean are described in
+    :ref:`this section <ref_datamodel_links>`.
 
-    :eql:synopsis:`ON TARGET DELETE <action>`
-        Valid values for *action* are: ``RESTRICT``, ``DELETE
-        SOURCE``, ``ALLOW``, and ``DEFERRED RESTRICT``. The details of
-        what ``ON TARGET DELETE`` options mean are described in
-        :ref:`this section <ref_datamodel_links>`.
+:eql:synopsis:`CREATE INDEX <index-name> ON <index-expr>`
+    Define a new :ref:`index <ref_datamodel_indexes>` named
+    *index-name* using *index-expr* for this link.  See
+    :eql:stmt:`CREATE INDEX` for details.
+
 
 Examples
 --------
@@ -185,6 +197,26 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
     ALTER ABSTRACT LINK [<module>::]<name>
     [ "{" ] <subcommand>; [...] [ "}" ];
 
+    # where <subcommand> is one of
+
+      SET default := <expression>
+      SET readonly := {true | false}
+      RENAME TO <newname>
+      EXTENDING ...
+      SET SINGLE
+      SET MULTI
+      ALTER TARGET <typename> [, ...]
+      SET ATTRIBUTE <attribute> := <value>
+      DROP ATTRIBUTE <attribute>
+      CREATE PROPERTY <property-name> ...
+      ALTER PROPERTY <property-name> ...
+      DROP PROPERTY <property-name> ...
+      CREATE CONSTRAINT <constraint-name> ...
+      ALTER CONSTRAINT <constraint-name> ...
+      DROP CONSTRAINT <constraint-name> ...
+      ON TARGET DELETE <action>
+      CREATE INDEX <index-name> ON <index-expr>
+      DROP INDEX <index-name>
 
 Description
 -----------
@@ -201,87 +233,73 @@ Parameters
 
 .. _ref_eql_ddl_links_syntax:
 
-:eql:synopsis:`<subcommands>`
-    The following subcommands are allowed in the
-    ``ALTER LINK`` block:
+The following subcommands are allowed in the ``ALTER LINK`` block:
 
-    :eql:synopsis:`RENAME TO <newname>`
-        Change the name of the link item to *newname*.  All concrete links
-        inheriting from this links are also renamed.
+:eql:synopsis:`RENAME TO <newname>`
+    Change the name of the link item to *newname*.  All concrete links
+    inheriting from this links are also renamed.
 
-    :eql:synopsis:`EXTENDING ...`
-        Alter the link parent list.  The full syntax of this action is:
+:eql:synopsis:`EXTENDING ...`
+    Alter the link parent list.  The full syntax of this action is:
 
-        .. eql:synopsis::
+    .. eql:synopsis::
 
-             EXTENDING <name> [, ...]
-                [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
+         EXTENDING <name> [, ...]
+            [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
 
-        This action makes the link item a child of the specified list
-        of parent link items.  The requirements for the parent-child
-        relationship are the same as when creating a link.
+    This action makes the link item a child of the specified list
+    of parent link items.  The requirements for the parent-child
+    relationship are the same as when creating a link.
 
-        It is possible to specify the position in the parent list
-        using the following optional keywords:
+    It is possible to specify the position in the parent list
+    using the following optional keywords:
 
-        * ``FIRST`` -- insert parent(s) at the beginning of the
-          parent list,
-        * ``LAST`` -- insert parent(s) at the end of the parent list,
-        * ``BEFORE <parent>`` -- insert parent(s) before an
-          existing *parent*,
-        * ``AFTER <parent>`` -- insert parent(s) after an existing
-          *parent*.
+    * ``FIRST`` -- insert parent(s) at the beginning of the
+      parent list,
+    * ``LAST`` -- insert parent(s) at the end of the parent list,
+    * ``BEFORE <parent>`` -- insert parent(s) before an
+      existing *parent*,
+    * ``AFTER <parent>`` -- insert parent(s) after an existing
+      *parent*.
 
-    :eql:synopsis:`SET SINGLE`
-        Change the maximum cardinality of the link set to *one*.  Only
-        valid for concrete links.
+:eql:synopsis:`SET SINGLE`
+    Change the maximum cardinality of the link set to *one*.  Only
+    valid for concrete links.
 
-    :eql:synopsis:`SET MULTI`
-        Change the maximum cardinality of the link set to *greater then one*.
-        Only valid for concrete links;
+:eql:synopsis:`SET MULTI`
+    Change the maximum cardinality of the link set to *greater than one*.
+    Only valid for concrete links;
 
-    :eql:synopsis:`ALTER TARGET <typename> [, ...]`
-        Change the target type of the link to the specified type or
-        a union of types.  Only valid for concrete links.
+:eql:synopsis:`ALTER TARGET <typename> [, ...]`
+    Change the target type of the link to the specified type or
+    a union of types.  Only valid for concrete links.
 
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`DROP ATTRIBUTE <attribute>;`
+    Remove link item's *attribute*.
+    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
-    :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-        Remove link item's *attribute*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
+:eql:synopsis:`ALTER PROPERTY <property-name> ...`
+    Alter the definition of a property item for this link.  See
+    :eql:stmt:`ALTER PROPERTY` for details.
 
-    :eql:synopsis:`CREATE PROPERTY <property-name> ...`
-        Define a new property item for this link.  See
-        :eql:stmt:`CREATE PROPERTY` for details.
+:eql:synopsis:`DROP PROPERTY <property-name>;`
+    Remove a property item from this link.  See
+    :eql:stmt:`DROP PROPERTY` for details.
 
-    :eql:synopsis:`ALTER PROPERTY <property-name> ...`
-        Alter the definition of a property item for this link.  See
-        :eql:stmt:`ALTER PROPERTY` for details.
+:eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
+    Alter the definition of a constraint for this link.  See
+    :eql:stmt:`ALTER CONSTRAINT` for details.
 
-    :eql:synopsis:`DROP PROPERTY <property-name>;`
-        Remove a property item from this link.  See
-        :eql:stmt:`DROP PROPERTY` for details.
+:eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
+    Remove a constraint from this link.  See
+    :eql:stmt:`DROP CONSTRAINT` for details.
 
-    :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
-        Define a new constraint for this link.  See
-        :eql:stmt:`CREATE CONSTRAINT` for details.
+:eql:synopsis:`DROP INDEX <index-name>`
+    Remove an :ref:`index <ref_datamodel_indexes>` named *index-name*
+    from this link.  See :eql:stmt:`DROP INDEX` for details.
 
-    :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
-        Alter the definition of a constraint for this link.  See
-        :eql:stmt:`ALTER CONSTRAINT` for details.
-
-    :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
-        Remove a constraint from this link.  See
-        :eql:stmt:`DROP CONSTRAINT` for details.
-
-    :eql:synopsis:`ON TARGET DELETE <action>`
-        Change link target deletion policy. Valid values for *action*
-        are: ``RESTRICT``, ``DELETE SOURCE``, ``ALLOW``, and
-        ``DEFERRED RESTRICT``. The details of what ``ON TARGET
-        DELETE`` options mean are described in
-        :ref:`this section <ref_datamodel_links>`.
+All the subcommands allowed in the ``CREATE LINK`` block are also
+valid subcommands for ``ALTER LINK`` block.
 
 
 Examples

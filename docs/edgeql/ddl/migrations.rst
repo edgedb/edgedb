@@ -66,7 +66,7 @@ Parameters
     definition language<ref_eql_sdl>`.
 
 :eql:synopsis:`<ddl-command>`
-    A list of arbitrary DDL commands.  :ref:`Database <ref_eql_ddl_databases>`,
+    A list of arbitrary DDL commands.  :ref:`Database <ref_admin_databases>`,
     :ref:`module <ref_eql_ddl_modules>`, and migration commands cannot be
     used here.
 

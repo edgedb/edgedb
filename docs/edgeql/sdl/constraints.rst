@@ -56,55 +56,10 @@ commands <ref_eql_ddl_constraints>`.
 Description
 -----------
 
-:sdl:synopsis:`abstract`
-    If specified, the declared constraint will be *abstract*.
-
-:sdl:synopsis:`delegated`
-    If specified, the constraint is defined as *delegated*, which means
-    that it will not be enforced on the type it's declared on, and
-    the enforcement will be delegated to the subtypes of this type.
-    This is particularly useful for :eql:constraint:`exclusive`
-    constraints in abstract types.
-
-:sdl:synopsis:`<name>`
-    The name (optionally module-qualified) of the new constraint.
-
-:sdl:synopsis:`<argspec>`
-    An optional list of constraint arguments.
-    :sdl:synopsis:`<argname>` optionally specifies
-    the argument name, and :sdl:synopsis:`<argtype>`
-    specifies the argument type.
-
-:sdl:synopsis:`on ( <subject-expr> )`
-    An optional expression defining the *subject* of the constraint.
-    If not specified, the subject is the value of the schema item on
-    which the concrete constraint is defined.  The expression must
-    refer to the original subject of the constraint as
-    ``__subject__``.  Note also that ``<subject-expr>`` itself has to
-    be parenthesized.
-
-    .. note::
-
-        Currently EdgeDB only supports constraint expressions on scalar
-        types and properties.
-
-:sdl:synopsis:`extending <base> [, ...]`
-    If specified, declares the *parent* constraints for this constraint.
-
-:sdl:synopsis:`expr := <constr_expression>`
-    A boolean expression that returns ``true`` for valid data and
-    ``false`` for invalid data.  The expression may refer to the subject
-    of the constraint as ``__subject__``.
-
-:sdl:synopsis:`errmessage := <error_message>`
-    An optional string literal defining the error message template that
-    is raised when the constraint is violated.  The template is a formatted
-    string that may refer to constraint context variables in curly braces.
-    The template may refer to the following:
-
-    - ``$argname`` -- the value of the specified constraint argument
-    - ``__subject__`` -- the value of the ``title`` attribute of the scalar
-      type, property or link on which the constraint is defined.
+The core of the declaration is identical to
+:eql:stmt:`CREATE CONSTRAINT <CREATE ABSTRACT CONSTRAINT>`,
+while the valid SDL sub-declarations are listed below:
 
 :sdl:synopsis:`<attribute-declarations>`
-    :ref:`Schema attribute <ref_eql_sdl_schema_attributes>` declarations.
+    Set constraint :ref:`attribute <ref_eql_sdl_schema_attributes>`
+    to a given *value*.

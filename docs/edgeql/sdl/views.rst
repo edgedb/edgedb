@@ -41,11 +41,9 @@ commands <ref_eql_ddl_views>`.
 Description
 -----------
 
-:sdl:synopsis:`<view-name>`
-    The name (optionally module-qualified) of a view to be created.
-
-:sdl:synopsis:`<view-expr>`
-    An expression that defines the *shape* and the contents of the view.
+The core of the declaration is identical to :eql:stmt:`CREATE VIEW`,
+while the valid SDL sub-declarations are listed below:
 
 :sdl:synopsis:`<attribute-declarations>`
-    :ref:`Schema attribute <ref_eql_sdl_schema_attributes>` declarations.
+    Set view :ref:`attribute <ref_eql_sdl_schema_attributes>`
+    to a given *value*.

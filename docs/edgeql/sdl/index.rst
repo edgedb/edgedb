@@ -1,10 +1,13 @@
 .. _ref_eql_sdl:
 
-Schema Definition
-=================
+Schema Definition (SDL)
+=======================
+
+:edb-alt-title: Schema Definition Language
+
 
 This section describes the high-level language used to define EdgeDB
-schema.  It is called the *EdgeDB schema definition language* or
+schema.  It is called the EdgeDB *schema definition language* or
 *SDL*.  There's a correspondence between this declarative high-level
 language and the imperative low-level :ref:`DDL <ref_eql_ddl>`.
 

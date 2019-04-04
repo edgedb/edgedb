@@ -44,18 +44,10 @@ commands <ref_eql_ddl_schema_attributes>`.
 Description
 -----------
 
-:sdl:synopsis:`abstract`
-    If specified, the declared attribute will be *abstract*.
-
-:sdl:synopsis:`inheritable`
-    The attributes are non-inheritable by default.  That is, if a
-    schema item has an attribute defined on it, the descendants of
-    that schema item will not automatically inherit the attribute.
-    Normal inheritance behavior can be turned on by declaring the
-    attribute with the *inheritable* qualifier.
-
-:sdl:synopsis:`<name>`
-    Specifies the name of the attribute.
+The core of the declaration is identical to
+:eql:stmt:`CREATE ABSTRACT ATTRIBUTE`, while the valid SDL
+sub-declarations are listed below:
 
 :sdl:synopsis:`<attribute-declarations>`
-    Attributes can have attribute declarations.
+    Attributes can also have attributes. Set the *attribute* of the
+    enclosing attribute to a specific value.

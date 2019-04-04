@@ -30,8 +30,8 @@ commands <ref_eql_ddl_scalars>`.
 
     [abstract] scalar type <TypeName> [extending <supertype> [, ...] ]
     [ "{"
-        [ <constraint-declarations> ]
         [ <attribute-declarations> ]
+        [ <constraint-declarations> ]
         ...
       "}" ]
 
@@ -39,22 +39,14 @@ commands <ref_eql_ddl_scalars>`.
 Description
 -----------
 
-:sdl:synopsis:`abstract`
-    If specified, the declared type will be *abstract*.
-
-:sdl:synopsis:`<TypeName>`
-    Specifies the name of the scalar type.  Customarily, scalar type names
-    use the CapWords convention.
-
-:sdl:synopsis:`extending <supertype> [, ...]`
-    If specified, declares the *supertypes* of the new type.
-
-    Use of ``extending`` creates a persistent type relationship
-    between the new subtype and its supertype(s).  Schema modifications
-    to the supertype(s) propagate to the subtype.
-
-:sdl:synopsis:`<constraint-declarations>`
-    :ref:`Constraint <ref_eql_sdl_constraints>` declarations.
+The core of the declaration is identical to
+:eql:stmt:`CREATE SCALAR TYPE`, while the valid SDL sub-declarations
+are listed below:
 
 :sdl:synopsis:`<attribute-declarations>`
-    :ref:`Schema attribute <ref_eql_sdl_schema_attributes>` declarations.
+    Set scalar type :ref:`attribute <ref_eql_sdl_schema_attributes>`
+    to a given *value*.
+
+:sdl:synopsis:`<constraint-declarations>`
+    Define a concrete :ref:`constraint <ref_eql_sdl_constraints>` for
+    this scalar type.

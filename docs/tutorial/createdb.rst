@@ -10,7 +10,7 @@ First step in a brand new project is to create the database for it:
     db> CREATE DATABASE tutorial;
     CREATE
 
-The above :ref:`command <ref_eql_ddl_databases>` creates a new
+The above :ref:`command <ref_admin_databases>` creates a new
 :ref:`database <ref_datamodel_databases>` in the EdgeDB instance. Now
 we should connect to it:
 

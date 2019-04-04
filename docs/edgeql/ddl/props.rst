@@ -31,9 +31,10 @@ CREATE PROPERTY
 
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
-        [ ... ]
-        CREATE [REQUIRED] [{SINGLE | MULTI}] PROPERTY <name> := <expression>;
-        [ ... ]
+      [ ... ]
+      CREATE [REQUIRED] [{SINGLE | MULTI}]
+        PROPERTY <name> := <expression>;
+      [ ... ]
     "}"
 
     # Abstract property form:
@@ -41,6 +42,13 @@ CREATE PROPERTY
     [ WITH <with-item> [, ...] ]
     CREATE ABSTRACT PROPERTY [<module>::]<name> [EXTENDING <base> [, ...]]
     [ "{" <subcommand>; [...] "}" ]
+
+    # where <subcommand> is one of
+
+      SET default := <expression>
+      SET readonly := {true | false}
+      SET ATTRIBUTE <attribute> := <value>
+      CREATE CONSTRAINT <constraint-name> ...
 
 
 Description
@@ -97,32 +105,24 @@ Parameters
     The type must be a valid :ref:`type expression <ref_eql_types>`
     denoting a non-abstract scalar or a container type.
 
-:eql:synopsis:`<subcommand>`
-    Optional sequence of subcommands related to the new link item.
+The following subcommands are allowed in the ``CREATE PROPERTY`` block:
 
-    The following actions are allowed in the
-    ``CREATE LINK`` block:
+:eql:synopsis:`SET default := <expression>`
+    Specifies the default value for the property as an EdgeQL expression.
+    The default value is used in an ``INSERT`` statement if an explicit
+    value for this property is not specified.
 
-    :eql:synopsis:`SET default := <expression>`
-        Specifies the default value for the link as an EdgeQL expression.
-        The default value is used in an ``INSERT`` statement if an explicit
-        value for this link is not specified.
+:eql:synopsis:`SET readonly := {true | false}`
+    If ``true``, the property is considered *read-only*.  Modifications
+    of this property are prohibited once an object is created.
 
-    :eql:synopsis:`SET readonly := {true|false}`
-        If ``true``, the link is considered *read-only*.  Modifications
-        of this link are prohibited once an object is created.
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>`
+    Set property *attribute* to *value*.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
-
-    :eql:synopsis:`CREATE PROPERTY`
-        Define a concrete property on the link.
-        See :eql:stmt:`CREATE PROPERTY` for details.
-
-    :eql:synopsis:`CREATE CONSTRAINT`
-        Define a concrete constraint on the link.
-        See :eql:stmt:`CREATE CONSTRAINT` for details.
+:eql:synopsis:`CREATE CONSTRAINT`
+    Define a concrete constraint on the property.
+    See :eql:stmt:`CREATE CONSTRAINT` for details.
 
 
 ALTER PROPERTY
@@ -149,6 +149,21 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
     ALTER ABSTRACT PROPERTY [<module>::]<name>
     [ "{" ] <subcommand>; [...] [ "}" ];
 
+    # where <subcommand> is one of
+
+      SET default := <expression>
+      SET readonly := {true | false}
+      RENAME TO <newname>
+      EXTENDING ...
+      SET SINGLE
+      SET MULTI
+      ALTER TARGET <typename> [, ...]
+      SET ATTRIBUTE <attribute> := <value>
+      DROP ATTRIBUTE <attribute>
+      CREATE CONSTRAINT <constraint-name> ...
+      ALTER CONSTRAINT <constraint-name> ...
+      DROP CONSTRAINT <constraint-name> ...
+
 
 Description
 -----------
@@ -174,69 +189,62 @@ Parameters
     Optional name of the module to create or alter the abstract property in.
     If not specified, the current module is used.
 
-:eql:synopsis:`<subcommands>`
-    The following subcommands are allowed in the
-    ``ALTER LINK`` block:
+The following subcommands are allowed in the ``ALTER LINK`` block:
 
-    :eql:synopsis:`RENAME TO <newname>`
-        Change the name of the property to :eql:synopsis:`<newname>`.
-        All concrete properties inheriting from this property are
-        also renamed.
+:eql:synopsis:`RENAME TO <newname>`
+    Change the name of the property to :eql:synopsis:`<newname>`.
+    All concrete properties inheriting from this property are
+    also renamed.
 
-    :eql:synopsis:`EXTENDING ...`
-        Alter the property parent list.  The full syntax of this action is:
+:eql:synopsis:`EXTENDING ...`
+    Alter the property parent list.  The full syntax of this action is:
 
-        .. eql:synopsis::
+    .. eql:synopsis::
 
-             EXTENDING <name> [, ...]
-                [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
+         EXTENDING <name> [, ...]
+            [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
 
-        This action makes the property item a child of the specified list
-        of parent property items.  The requirements for the parent-child
-        relationship are the same as when creating a property.
+    This action makes the property item a child of the specified list
+    of parent property items.  The requirements for the parent-child
+    relationship are the same as when creating a property.
 
-        It is possible to specify the position in the parent list
-        using the following optional keywords:
+    It is possible to specify the position in the parent list
+    using the following optional keywords:
 
-        * ``FIRST`` -- insert parent(s) at the beginning of the
-          parent list,
-        * ``LAST`` -- insert parent(s) at the end of the parent list,
-        * ``BEFORE <parent>`` -- insert parent(s) before an
-          existing *parent*,
-        * ``AFTER <parent>`` -- insert parent(s) after an existing
-          *parent*.
+    * ``FIRST`` -- insert parent(s) at the beginning of the
+      parent list,
+    * ``LAST`` -- insert parent(s) at the end of the parent list,
+    * ``BEFORE <parent>`` -- insert parent(s) before an
+      existing *parent*,
+    * ``AFTER <parent>`` -- insert parent(s) after an existing
+      *parent*.
 
-    :eql:synopsis:`SET SINGLE`
-        Change the maximum cardinality of the property set to *one*.  Only
-        valid for concrete properties.
+:eql:synopsis:`SET SINGLE`
+    Change the maximum cardinality of the property set to *one*.  Only
+    valid for concrete properties.
 
-    :eql:synopsis:`SET MULTI`
-        Change the maximum cardinality of the property set to
-        *greater then one*.  Only valid for concrete properties;
+:eql:synopsis:`SET MULTI`
+    Change the maximum cardinality of the property set to
+    *greater than one*.  Only valid for concrete properties;
 
-    :eql:synopsis:`ALTER TARGET <typename> [, ...]`
-        Change the target type of the property to the specified type or
-        a union of types.  Only valid for concrete properties.
+:eql:synopsis:`ALTER TARGET <typename> [, ...]`
+    Change the target type of the property to the specified type or
+    a union of types.  Only valid for concrete properties.
 
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set property :eql:synopsis:`<attribute>` to :eql:synopsis:`<value>`.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`DROP ATTRIBUTE <attribute>;`
+    Remove property :eql:synopsis:`<attribute>`.
+    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
-    :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-        Remove property :eql:synopsis:`<attribute>`.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
+:eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
+    Alter the definition of a constraint for this property.  See
+    :eql:stmt:`ALTER CONSTRAINT` for details.
 
-    :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
-        Define a new constraint for this property.  See
-        :eql:stmt:`CREATE CONSTRAINT` for details.
+:eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
+    Remove a constraint from this property.  See
+    :eql:stmt:`DROP CONSTRAINT` for details.
 
-    :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
-        Alter the definition of a constraint for this property.  See
-        :eql:stmt:`ALTER CONSTRAINT` for details.
-
-    :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
-        Remove a constraint from this property.  See
-        :eql:stmt:`DROP CONSTRAINT` for details.
+All the subcommands allowed in the ``CREATE PROPERTY`` block are also
+valid subcommands for ``ALTER PROPERTY`` block.
 
 
 DROP PROPERTY
