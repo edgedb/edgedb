@@ -226,7 +226,7 @@ class Cluster:
                 started = time.monotonic()
                 try:
                     conn = await edgedb.async_connect(
-                        host=buildmeta.get_runstate_path(self._data_dir),
+                        host=str(buildmeta.get_runstate_path(self._data_dir)),
                         port=self._effective_port,
                         admin=True,
                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
