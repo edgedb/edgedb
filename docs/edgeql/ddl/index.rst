@@ -1,7 +1,10 @@
 .. _ref_eql_ddl:
 
-Data Definition
-===============
+Data Definition (DDL)
+=====================
+
+:edb-alt-title: Data Definition Language
+
 
 EdgeQL includes a set of commands to manipulate all aspects of the
 database schema.  It is called the *data definition language* or *DDL*,
@@ -32,7 +35,6 @@ another, the other type has to be created first. For example:
     :maxdepth: 3
     :hidden:
 
-    databases
     modules
     objects
     scalars

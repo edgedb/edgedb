@@ -385,6 +385,11 @@ class IntrospectionMech:
             if r_type.is_collection():
                 schema, _ = r_type.as_schema_coll(schema)
 
+            if row['initial_value']:
+                initial_value = s_expr.Expression(**row['initial_value'])
+            else:
+                initial_value = None
+
             func_data = {
                 'id': row['id'],
                 'name': name,
@@ -397,7 +402,7 @@ class IntrospectionMech:
                 'sql_func_has_out_params': row['sql_func_has_out_params'],
                 'error_on_null_result': row['error_on_null_result'],
                 'code': row['code'],
-                'initial_value': row['initial_value'],
+                'initial_value': initial_value,
                 'return_type': r_type,
             }
 

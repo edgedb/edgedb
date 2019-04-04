@@ -34,17 +34,10 @@ commands <ref_eql_ddl_indexes>`.
 
 .. sdl:synopsis::
 
-    index <index-name> ON ( <index-expr> ) ;
+    index <index-name> on ( <index-expr> ) ;
 
 
 Description
 -----------
 
-:sdl:synopsis:`<index-name>`
-    The name of the index to be created.  No module name can be specified,
-    indexes are always created in the same module as the parent type or
-    link.
-
-:sdl:synopsis:`on ( <index-expr> )`
-    The specific expression for which the index is made.  Note also
-    that ``<index-expr>`` itself has to be parenthesized.
+The core of the declaration is identical to :eql:stmt:`CREATE INDEX`.

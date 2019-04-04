@@ -20,18 +20,19 @@ CREATE ABSTRACT CONSTRAINT
 
     [ WITH [ <module-alias> := ] MODULE <module-name> ]
     CREATE ABSTRACT CONSTRAINT <name> [ ( [<argspec>] [, ...] ) ]
-        [ ON ( <subject-expr> ) ]
-        [ EXTENDING <base> [, ...] ]
-    "{"
-        [ SET expr := <constr-expression> ; ]
-        [ SET errmessage := <error-message> ; ]
-        [ SET <attr-name> := <attr-value> ; ]
-        [ ... ]
-    "}" ;
+      [ ON ( <subject-expr> ) ]
+      [ EXTENDING <base> [, ...] ]
+    "{" <subcommand>; [...] "}" ;
 
     # where <argspec> is:
 
-    [ $<argname>: ] <argtype>
+      [ $<argname>: ] <argtype>
+
+    # where <subcommand> is one of
+
+      SET expr := <constr-expression>
+      SET errmessage := <error-message>
+      SET ATTRIBUTE <attribute> := <value>
 
 
 Description
@@ -74,6 +75,9 @@ Parameters
 :eql:synopsis:`EXTENDING <base> [, ...]`
     If specified, declares the *parent* constraints for this constraint.
 
+The following subcommands are allowed in the ``CERATE ABSTRACT
+CONSTRAINT`` block:
+
 :eql:synopsis:`SET expr := <constr_expression>`
     A boolean expression that returns ``true`` for valid data and
     ``false`` for invalid data.  The expression may refer to the subject
@@ -89,8 +93,8 @@ Parameters
     - ``__subject__`` -- the value of the ``title`` attribute of the scalar
       type, property or link on which the constraint is defined.
 
-:eql:synopsis:`SET <attr-name> := <attr-value>;`
-    An optional list of attribute values for the constraint.
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
+    Set constraint *attribute* to *value*.
     See :eql:stmt:`SET ATTRIBUTE` for details.
 
 
@@ -122,13 +126,15 @@ Alter the definition of an
 
     [ WITH [ <module-alias> := ] MODULE <module-name> ]
     ALTER ABSTRACT CONSTRAINT <name>
-    "{"
-        [ RENAME TO <new-name> ; ]
-        [ SET expr := <constr-expression> ; ]
-        [ SET errmessage := <error-message> ; ]
-        [ SET <attr-name> := <attr-value> ; ]
-        [ ... ]
-    "}" ;
+    "{" <subcommand>; [...] "}" ;
+
+    # where <subcommand> is one of
+
+      RENAME TO <newname>
+      SET expr := <constr-expression>
+      SET errmessage := <error-message>
+      SET ATTRIBUTE <attribute> := <value>
+      DROP ATTRIBUTE <attribute>
 
 
 Description
@@ -151,17 +157,20 @@ Parameters
 :eql:synopsis:`<name>`
     The name (optionally module-qualified) of the constraint to alter.
 
-:eql:synopsis:`RENAME TO <new-name>`
-    Change the name of the constraint to *new-name*.  All concrete
+The following subcommands are allowed in the ``ALTER ABSTRACT
+CONSTRAINT`` block:
+
+:eql:synopsis:`RENAME TO <newname>`
+    Change the name of the constraint to *newname*.  All concrete
     constraints inheriting from this constraint are also renamed.
 
-:eql:synopsis:`SET expr := <constr_expression>`
-    Changes the constraint expression.  See the relevant paragraph in
-    :eql:stmt:`CREATE ABSTRACT CONSTRAINT` for details on constraint
-    expressions.
+:eql:synopsis:`DROP ATTRIBUTE <attribute>;`
+    Remove constraint :eql:synopsis:`<attribute>`.
+    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
-:eql:synopsis:`SET errmessage := <error_message>`
-    Changes the constraint error message.
+All the subcommands allowed in the ``CREATE ABSTRACT CONSTRAINT``
+block are also valid subcommands for ``ALTER ABSTRACT CONSTRAINT``
+block.
 
 
 DROP ABSTRACT CONSTRAINT
@@ -222,17 +231,18 @@ Define a concrete constraint on the specified schema item.
 
     [ WITH [ <module-alias> := ] MODULE <module-name> ]
     CREATE [ DELEGATED ] CONSTRAINT <name>
-        [ ( [<argspec>] [, ...] ) ]
-        [ ON ( <subject-expr> ) ]
-    "{"
-        [ SET errmessage := <error-message> ; ]
-        [ SET <attr-name> := <attr-value> ; ]
-        [ ... ]
-    "}" ;
+      [ ( [<argspec>] [, ...] ) ]
+      [ ON ( <subject-expr> ) ]
+    "{" <subcommand>; [...] "}" ;
 
     # where <argspec> is:
 
-    [ $<argname> := ] <argvalue>
+      [ $<argname>: ] <argtype>
+
+    # where <subcommand> is one of
+
+      SET errmessage := <error-message>
+      SET ATTRIBUTE <attribute> := <value>
 
 
 Description
@@ -287,6 +297,8 @@ Parameters
         Currently EdgeDB only supports constraint expressions on scalar
         types and properties.
 
+The following subcommands are allowed in the ``CERATE CONSTRAINT`` block:
+
 :eql:synopsis:`SET errmessage := <error_message>`
     An optional string literal defining the error message template that
     is raised when the constraint is violated.  See the relevant
@@ -320,28 +332,28 @@ Alter the definition of a concrete constraint on the specified schema item.
 
     [ WITH [ <module-alias> := ] MODULE <module-name> [, ...] ]
     ALTER CONSTRAINT <name>
-    "{"
-        <action>; [ ... ]
-    "}" ;
+    "{" <subcommand>; [ ... ] "}" ;
 
     # -- or --
 
     [ WITH [ <module-alias> := ] MODULE <module-name> [, ...] ]
-    ALTER CONSTRAINT <name> <action> ;
+    ALTER CONSTRAINT <name> <subcommand> ;
 
-    # where <action> is one of:
+    # where <subcommand> is one of:
 
-        SET DELEGATED ;
-        DROP DELEGATED ;
-        SET errmessage := <error-message> ;
-        SET <attr-name> := <attr-value> ;
+      SET DELEGATED
+      DROP DELEGATED
+      RENAME TO <newname>
+      SET errmessage := <error-message>
+      SET ATTRIBUTE <attribute> := <value>
+      DROP ATTRIBUTE <attribute>
 
 
 Description
 -----------
 
 ``ALTER CONSTRAINT`` changes the definition of a concrete constraint.
-As for most ``ALTER`` commands, both single- and multi-action forms are
+As for most ``ALTER`` commands, both single- and multi-command forms are
 supported.
 
 
@@ -358,26 +370,23 @@ Parameters
     The name (optionally module-qualified) of the concrete constraint
     that is being altered.
 
+The following subcommands are allowed in the ``ALTER CONSTRAINT`` block:
+
 :eql:synopsis:`SET DELEGATED`
     Makes the constraint delegated.
 
 :eql:synopsis:`DROP DELEGATED`
     Makes the constraint non-delegated.
 
-:eql:synopsis:`SET errmessage := <error_message>`
-    Changes the message template of an error which is raised when
-    the constraint is violated.  See the relevant paragraph in
-    :eql:stmt:`CREATE ABSTRACT CONSTRAINT` for the rules of error
-    message template syntax.
-
-:eql:synopsis:`SET <attr-name> := <attr-value>;`
-    Set constraint *attribute* to *value*.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`RENAME TO <newname>`
+    Change the name of the constraint to :eql:synopsis:`<newname>`.
 
 :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
     Remove constraint *attribute*.
     See :eql:stmt:`DROP ATTRIBUTE` for details.
 
+All the subcommands allowed in the ``CREATE CONSTRAINT`` block are also
+valid subcommands for ``ALTER CONSTRAINT`` block.
 
 Examples
 --------

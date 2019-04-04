@@ -1,10 +1,10 @@
-.. _ref_eql_ddl_databases:
+.. _ref_admin_databases:
 
 =========
 Databases
 =========
 
-This section describes the DDL commands pertaining to
+This section describes the administrative commands pertaining to
 :ref:`databases <ref_datamodel_databases>`.
 
 

@@ -19,7 +19,10 @@ CREATE ABSTRACT ATTRIBUTE
 
     [ WITH <with-item> [, ...] ]
     CREATE ABSTRACT [ INHERITABLE ] ATTRIBUTE <name>
-    [ "{" <subdefinition>; [...] "}" ] ;
+    [ "{"
+        SET ATTRIBUTE <attribute> := <value> ;
+        [...]
+      "}" ] ;
 
 
 Description
@@ -38,13 +41,13 @@ has an attribute defined on it, the descendants of that schema item will
 not automatically inherit the attribute.  Normal inheritance behavior can
 be turned on by declaring the attribute with the *INHERITABLE* qualifier.
 
-:eql:synopsis:`<subdefinition>`
-    Optional sequence of subdefinitions related to the new attribute.
+The following subcommands are allowed in the
+``CREATE ABSTRACT ATTRIBUTE`` block:
 
-    The following subdefinitions are allowed in the
-    ``CREATE ABSTRACT ATTRIBUTE`` block:
-
-    * :eql:stmt:`SET ATTRIBUTE`
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>`
+    Attributes can also have attributes. Set the *attribute* of the
+    enclosing attribute to a specific *value*.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
 
 Examples
@@ -105,7 +108,7 @@ Description
 *attribute* refers to the name of a defined attribute, and
 *value* must be a constant EdgeQL expression evaluating into a string.
 
-This statement can only be used as a subdefinition in another
+This statement can only be used as a subcommand in another
 DDL statement.
 
 
@@ -143,7 +146,7 @@ Description
 *attribute* refers to the name of a defined attribute.  The attribute
 value does not have to exist on a schema item.
 
-This statement can only be used as a subdefinition in another
+This statement can only be used as a subcommand in another
 DDL statement.
 
 

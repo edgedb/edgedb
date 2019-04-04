@@ -7,6 +7,7 @@ EdgeQL
     :hidden:
 
     overview
+    admin/index
     expressions/__toc__
     statements/index
     funcops/index

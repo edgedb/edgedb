@@ -45,12 +45,47 @@ commands <ref_eql_ddl_links>`.
     # Concrete link form used inside type declaration:
     [ required ] [{single | multi}] link <name>
       [ extending <base> [, ...] ] -> <type>
-      [ "{" <subcommand>; [...] "}" ] ;
+      [ "{"
+          [ default := <expression> ; ]
+          [ readonly := {true | false} ; ]
+          [ on target delete <action> ; ]
+          [ <attribute-declarations> ]
+          [ <property-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
 
     # Computable link form used inside type declaration:
     [ required ] [{single | multi}] link <name> := <expression>;
 
     # Abstract link form:
-    abstract link [<module>::]<name> [extending <base> [, ...]]
-    [ "{" <subcommand>; [...] "}" ]
+    abstract link <name> [extending <base> [, ...]]
+    [ "{"
+        [ readonly := {true | false} ; ]
+        [ <attribute-declarations> ]
+        [ <property-declarations> ]
+        [ <constraint-declarations> ]
+        [ <index-declarations> ]
+        ...
+      "}" ]
 
+Description
+-----------
+
+The core of the declaration is identical to :eql:stmt:`CREATE LINK`,
+while the valid SDL sub-declarations are listed below:
+
+:sdl:synopsis:`<attribute-declarations>`
+    Set link :ref:`attribute <ref_eql_sdl_schema_attributes>`
+    to a given *value*.
+
+:sdl:synopsis:`<property-declarations>`
+    Define a concrete :ref:`property <ref_eql_sdl_props>` on the link.
+
+:sdl:synopsis:`<constraint-declarations>`
+    Define a concrete :ref:`constraint <ref_eql_sdl_constraints>` on the link.
+
+:sdl:synopsis:`<index-declarations>`
+    Define an :ref:`index <ref_eql_sdl_indexes>` for this abstract
+    link. Note that this index can only refer to link properties.

@@ -23,6 +23,13 @@ CREATE TYPE
     CREATE [ABSTRACT] TYPE <name> [ EXTENDING <supertype> [, ...] ]
     [ "{" <subcommand>; [...] "}" ] ;
 
+    # where <subcommand> is one of
+
+      SET ATTRIBUTE <attribute> := <value>
+      CREATE LINK <link-name> ...
+      CREATE PROPERTY <property-name> ...
+      CREATE INDEX <index-name> ON <index-expr>
+
 Description
 -----------
 
@@ -65,24 +72,24 @@ Parameters
     If there is no conflict, the links are merged to form a single
     link in the new type.
 
-:eql:synopsis:`<subcommand>`
-    Optional sequence of subcommands related to the new object type.
+The following subcommands are allowed in the ``CREATE TYPE`` block:
 
-    The following subcommands are allowed in the ``CREATE TYPE``
-    block:
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>`
+    Set object type *attribute* to *value*.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`CREATE LINK <link-name> ...`
+    Define a new link for this object type.  See
+    :eql:stmt:`CREATE LINK` for details.
 
-    :eql:synopsis:`CREATE LINK`
-        Define a concrete link on the object type.
-        See :eql:stmt:`CREATE LINK` for details.
+:eql:synopsis:`CREATE PROPERTY <property-name> ...`
+    Define a new property for this object type.  See
+    :eql:stmt:`CREATE PROPERTY` for details.
 
-    :eql:synopsis:`CREATE PROPERTY`
-        Define a concrete link on the object type.
-        See :eql:stmt:`CREATE PROPERTY` for details.
-
+:eql:synopsis:`CREATE INDEX <index-name> ON <index-expr>`
+    Define a new :ref:`index <ref_datamodel_indexes>` named
+    *index-name* using *index-expr* for this object type.  See
+    :eql:stmt:`CREATE INDEX` for details.
 
 .. TODO: write examples
 
@@ -103,25 +110,25 @@ Change the definition of an
 
     [ WITH <with-item> [, ...] ]
     ALTER TYPE <name>
-    [ "{" <action>; [...] "}" ] ;
+    [ "{" <subcommand>; [...] "}" ] ;
 
     [ WITH <with-item> [, ...] ]
-    ALTER TYPE <name> <action> ;
+    ALTER TYPE <name> <subcommand> ;
 
-    # where <action> is one of
+    # where <subcommand> is one of
 
-        RENAME TO <newname>;
-        EXTENDING <parent> [, ...]
-        SET ATTRIBUTE <attribute> := <value>;
-        DROP ATTRIBUTE <attribute>;
-        CREATE LINK <link-name> ...
-        ALTER LINK <link-name> ...
-        DROP LINK <link-name> ...
-        CREATE PROPERTY <property-name> ...
-        ALTER PROPERTY <property-name> ...
-        DROP PROPERTY <property-name> ...
-        CREATE INDEX <index-name> ON <index-expr>;
-        DROP INDEX <index-name>;
+      RENAME TO <newname>
+      EXTENDING <parent> [, ...]
+      SET ATTRIBUTE <attribute> := <value>
+      DROP ATTRIBUTE <attribute>
+      CREATE LINK <link-name> ...
+      ALTER LINK <link-name> ...
+      DROP LINK <link-name> ...
+      CREATE PROPERTY <property-name> ...
+      ALTER PROPERTY <property-name> ...
+      DROP PROPERTY <property-name> ...
+      CREATE INDEX <index-name> ON <index-expr>
+      DROP INDEX <index-name>
 
 
 Description
@@ -134,6 +141,8 @@ with a module name.
 Parameters
 ----------
 
+The following subcommands are allowed in the ``ALTER TYPE`` block:
+
 :eql:synopsis:`WITH <with-item> [, ...]`
     Alias declarations.
 
@@ -144,15 +153,15 @@ Parameters
 :eql:synopsis:`<name>`
     The name (optionally module-qualified) of the type being altered.
 
-:eql:synopsis:`EXTENDING ...`
-    Alter the supertype list.  The full syntax of this action is:
+:eql:synopsis:`EXTENDING <parent> [, ...]`
+    Alter the supertype list.  The full syntax of this subcommand is:
 
     .. eql:synopsis::
 
          EXTENDING <parent> [, ...]
             [ FIRST | LAST | BEFORE <exparent> | AFTER <exparent> ]
 
-    This action makes the type a subtype of the specified list
+    This subcommand makes the type a subtype of the specified list
     of supertypes.  The requirements for the parent-child relationship
     are the same as when creating an object type.
 
@@ -167,42 +176,32 @@ Parameters
     * ``AFTER <parent>`` -- insert parent(s) after an existing
       *parent*.
 
-:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-    Set object type *attribute* to *value*.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
-
-:eql:synopsis:`DROP ATTRIBUTE <attribute>;`
+:eql:synopsis:`DROP ATTRIBUTE <attribute>`
     Remove object type *attribute*.
     See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
-
-:eql:synopsis:`CREATE LINK <link-name> ...`
-    Define a new link for this object type.  See
-    :eql:stmt:`CREATE LINK` for details.
 
 :eql:synopsis:`ALTER LINK <link-name> ...`
     Alter the definition of a link for this object type.  See
     :eql:stmt:`ALTER LINK` for details.
 
-:eql:synopsis:`DROP LINK <link-name>;`
+:eql:synopsis:`DROP LINK <link-name>`
     Remove a link item from this object type.  See
     :eql:stmt:`DROP LINK` for details.
-
-:eql:synopsis:`CREATE PROPERTY <property-name> ...`
-    Define a new property item for this object type.  See
-    :eql:stmt:`CREATE PROPERTY` for details.
 
 :eql:synopsis:`ALTER PROPERTY <property-name> ...`
     Alter the definition of a property item for this object type.
     See :eql:stmt:`ALTER PROPERTY` for details.
 
-:eql:synopsis:`DROP PROPERTY <property-name>;`
+:eql:synopsis:`DROP PROPERTY <property-name>`
     Remove a property item from this object type.  See
     :eql:stmt:`DROP PROPERTY` for details.
 
-:eql:synopsis:`CREATE INDEX <index-name> ON <index-expr>;`
-    Define a new :ref:`index <ref_datamodel_indexes>` named *index-name*
-    using *index-expr* for this object type.  See :eql:stmt:`CREATE INDEX`
-    for details.
+:eql:synopsis:`DROP INDEX <index-name>`
+    Remove an :ref:`index <ref_datamodel_indexes>` named *index-name*
+    from this object type.  See :eql:stmt:`DROP INDEX` for details.
+
+All the subcommands allowed in the ``CREATE TYPE`` block are also
+valid subcommands for ``ALTER TYPE`` block.
 
 
 .. TODO: write examples

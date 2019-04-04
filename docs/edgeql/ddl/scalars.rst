@@ -20,7 +20,12 @@ CREATE SCALAR TYPE
 
     [ WITH <with-item> [, ...] ]
     CREATE [ABSTRACT] SCALAR TYPE <name> [ EXTENDING <supertype> ]
-    [ "{" <action>; [...] "}" ] ;
+    [ "{" <subcommand>; [...] "}" ] ;
+
+    # where <subcommand> is one of
+
+      SET ATTRIBUTE <attribute> := <value>
+      CREATE CONSTRAINT <constraint-name> ...
 
 
 Description
@@ -56,17 +61,15 @@ subtype with constraints.
     between the new subtype and its supertype(s).  Schema modifications
     to the supertype(s) propagate to the subtype.
 
-:eql:synopsis:`<action>`
-    The following actions are allowed in the ``CREATE SCALAR TYPE``
-    block:
+The following subcommands are allowed in the ``CREATE SCALAR TYPE`` block:
 
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set link item's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
+    Set scalar type's *attribute* to *value*.
+    See :eql:stmt:`SET ATTRIBUTE` for details.
 
-    :eql:synopsis:`CREATE CONSTRAINT`
-        Define a concrete constraint on the scalar type.
-        See :eql:stmt:`CREATE CONSTRAINT` for details.
+:eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
+    Define a new constraint for this scalar type.  See
+    :eql:stmt:`CREATE CONSTRAINT` for details.
 
 
 Examples
@@ -85,7 +88,8 @@ Create a new enumerated type:
 
 .. code-block:: edgeql
 
-    CREATE SCALAR TYPE my_color_t EXTENDING enum<'black', 'white', 'red'>;
+    CREATE SCALAR TYPE my_color_t
+        EXTENDING enum<'black', 'white', 'red'>;
 
 
 ALTER SCALAR TYPE
@@ -101,7 +105,17 @@ Alter the definition of a :ref:`scalar type <ref_datamodel_scalar_types>`.
 
     [ WITH <with-item> [, ...] ]
     ALTER SCALAR TYPE <name>
-    "{" <action>; [...] "}" ;
+    "{" <subcommand>; [...] "}" ;
+
+    # where <subcommand> is one of
+
+      RENAME TO <newname>
+      EXTENDING ...
+      SET ATTRIBUTE <attribute> := <value>
+      DROP ATTRIBUTE <attribute>
+      CREATE CONSTRAINT <constraint-name> ...
+      ALTER CONSTRAINT <constraint-name> ...
+      DROP CONSTRAINT <constraint-name> ...
 
 
 Description
@@ -111,32 +125,29 @@ Description
 *name* must be a name of an existing scalar type, optionally qualified
 with a module name.
 
-:eql:synopsis:`<action>`
-    The following actions are allowed in the
-    ``ALTER SCALAR TYPE`` block:
+The following subcommands are allowed in the ``ALTER SCALAR TYPE`` block:
 
-    :eql:synopsis:`RENAME TO <newname>;`
-        Change the name of the scalar type to *newname*.
+:eql:synopsis:`RENAME TO <newname>;`
+    Change the name of the scalar type to *newname*.
 
-    :eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-        Set scalar type's *attribute* to *value*.
-        See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`EXTENDING ...`
+    Alter the supertype list.  It works the same way as in
+    :eql:stmt:`ALTER TYPE`.
 
-    :eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-        Remove scalar type's *attribute* to *value*.
-        See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
+:eql:synopsis:`DROP ATTRIBUTE <attribute>`
+    Remove scalar type's *attribute* to *value*.
+    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
 
-    :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
-        Define a new constraint for this scalar type.  See
-        :eql:stmt:`CREATE CONSTRAINT` for details.
+:eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
+    Alter the definition of a constraint for this scalar type.  See
+    :eql:stmt:`ALTER CONSTRAINT` for details.
 
-    :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
-        Alter the definition of a constraint for this scalar type.  See
-        :eql:stmt:`ALTER CONSTRAINT` for details.
+:eql:synopsis:`DROP CONSTRAINT <constraint-name>`
+    Remove a constraint from this scalar type.  See
+    :eql:stmt:`DROP CONSTRAINT` for details.
 
-    :eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
-        Remove a constraint from this scalar type.  See
-        :eql:stmt:`DROP CONSTRAINT` for details.
+All the subcommands allowed in the ``CREATE SCALAR TYPE`` block are also
+valid subcommands for ``ALTER SCALAR TYPE`` block.
 
 
 Examples

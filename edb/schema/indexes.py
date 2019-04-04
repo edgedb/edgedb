@@ -34,8 +34,7 @@ class Index(inheriting.InheritingObject):
     subject = so.SchemaField(so.Object)
 
     expr = so.SchemaField(
-        s_expr.Expression, coerce=True, compcoef=0.909,
-        allow_ddl_set=True)
+        s_expr.Expression, coerce=True, compcoef=0.909)
 
     def __repr__(self):
         cls = self.__class__
