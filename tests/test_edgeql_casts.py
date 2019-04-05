@@ -614,6 +614,12 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             await self.con.fetchone(
                 'SELECT <datetime>"2018-05-07T20:01:22.306916"')
 
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'missing required timezone'):
+            await self.con.fetchone(
+                'SELECT <datetime><json>"2018-05-07T20:01:22.306916"')
+
     async def test_edgeql_casts_str_06(self):
         # Canonical date and time str representations must follow ISO
         # 8601. This test assumes that the server is configured to be
@@ -663,6 +669,14 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
+                '''SELECT <local_datetime><json>
+                    "2018-05-07T20:01:22.306916+01:00"
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type'):
+            await self.con.fetchone(
                 'SELECT <local_date>"2018-05-07+01:00"')
 
         with self.assertRaisesRegex(
@@ -670,6 +684,18 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r'invalid input syntax for type'):
             await self.con.fetchone(
                 'SELECT <local_time>"20:01:22.306916+01:00"')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type'):
+            await self.con.fetchone(
+                'SELECT <local_date><json>"2018-05-07+01:00"')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type'):
+            await self.con.fetchone(
+                'SELECT <local_time><json>"20:01:22.306916+01:00"')
 
     async def test_edgeql_casts_str_07(self):
         # Canonical date and time str representations must follow ISO

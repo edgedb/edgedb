@@ -200,25 +200,25 @@ CREATE CAST FROM std::json TO std::str
 
 CREATE CAST FROM std::json TO std::datetime
     FROM SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string')::timestamptz;
+    SELECT edgedb.timestamptz_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 
 
 CREATE CAST FROM std::json TO std::local_datetime
     FROM SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string')::timestamp;
+    SELECT edgedb.timestamp_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 
 
 CREATE CAST FROM std::json TO std::local_date
     FROM SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string')::date;
+    SELECT edgedb.date_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 
 
 CREATE CAST FROM std::json TO std::local_time
     FROM SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string')::time;
+    SELECT edgedb.time_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 
 
