@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-## Generic attributes.
+## Generic annotations.
 
-CREATE ABSTRACT ATTRIBUTE std::title;
-CREATE ABSTRACT ATTRIBUTE std::description;
+CREATE ABSTRACT ANNOTATION std::title;
+CREATE ABSTRACT ANNOTATION std::description;

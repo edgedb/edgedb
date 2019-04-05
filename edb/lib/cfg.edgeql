@@ -20,10 +20,10 @@
 CREATE MODULE cfg;
 
 
-CREATE ABSTRACT ATTRIBUTE cfg::backend_setting;
-CREATE ABSTRACT ATTRIBUTE cfg::internal;
-CREATE ABSTRACT ATTRIBUTE cfg::requires_restart;
-CREATE ABSTRACT ATTRIBUTE cfg::system;
+CREATE ABSTRACT ANNOTATION cfg::backend_setting;
+CREATE ABSTRACT ANNOTATION cfg::internal;
+CREATE ABSTRACT ANNOTATION cfg::requires_restart;
+CREATE ABSTRACT ANNOTATION cfg::system;
 
 
 CREATE TYPE cfg::Port {
@@ -93,20 +93,20 @@ CREATE TYPE cfg::Auth {
 
 CREATE TYPE cfg::Config {
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
-        SET ATTRIBUTE cfg::system := 'true';
+        SET ANNOTATION cfg::system := 'true';
         SET default := 5656;
     };
 
     CREATE REQUIRED MULTI PROPERTY listen_addresses -> std::str {
-        SET ATTRIBUTE cfg::system := 'true';
+        SET ANNOTATION cfg::system := 'true';
     };
 
     CREATE MULTI LINK ports -> cfg::Port {
-        SET ATTRIBUTE cfg::system := 'true';
+        SET ANNOTATION cfg::system := 'true';
     };
 
     CREATE MULTI LINK auth -> cfg::Auth {
-        SET ATTRIBUTE cfg::system := 'true';
+        SET ANNOTATION cfg::system := 'true';
     };
 
     # Exposed backend settings follow.
@@ -114,29 +114,29 @@ CREATE TYPE cfg::Config {
     # the _read_sys_config function to select the value
     # from pg_settings in the config_backend CTE.
     CREATE PROPERTY shared_buffers -> std::str {
-        SET ATTRIBUTE cfg::system := 'true';
-        SET ATTRIBUTE cfg::backend_setting := '"shared_buffers"';
-        SET ATTRIBUTE cfg::requires_restart := 'true';
+        SET ANNOTATION cfg::system := 'true';
+        SET ANNOTATION cfg::backend_setting := '"shared_buffers"';
+        SET ANNOTATION cfg::requires_restart := 'true';
         SET default := '-1';
     };
 
     CREATE PROPERTY query_work_mem -> std::str {
-        SET ATTRIBUTE cfg::backend_setting := '"work_mem"';
+        SET ANNOTATION cfg::backend_setting := '"work_mem"';
         SET default := '-1';
     };
 
     CREATE PROPERTY effective_cache_size -> std::str {
-        SET ATTRIBUTE cfg::backend_setting := '"effective_cache_size"';
+        SET ANNOTATION cfg::backend_setting := '"effective_cache_size"';
         SET default := '-1';
     };
 
     CREATE PROPERTY effective_io_concurrency -> std::str {
-        SET ATTRIBUTE cfg::backend_setting := '"effective_io_concurrency"';
+        SET ANNOTATION cfg::backend_setting := '"effective_io_concurrency"';
         SET default := '50';
     };
 
     CREATE PROPERTY default_statistics_target -> std::str {
-        SET ATTRIBUTE cfg::backend_setting := '"default_statistics_target"';
+        SET ANNOTATION cfg::backend_setting := '"default_statistics_target"';
         SET default := '100';
     };
 };

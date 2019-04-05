@@ -24,7 +24,7 @@ CREATE VIEW
     [ WITH <with-item> [, ...] ]
     CREATE VIEW <view-name> "{"
         SET expr := <view-expr>;
-        [ SET ATTRIBUTE <attr-name> := <attr-value>; ... ]
+        [ SET ANNOTATION <attr-name> := <attr-value>; ... ]
     "}" ;
 
     # where <with-item> is:
@@ -53,9 +53,9 @@ Parameters
 :eql:synopsis:`<view-expr>`
     An expression that defines the *shape* and the contents of the view.
 
-:eql:synopsis:`SET ATTRIBUTE <attr-name> := <attr-value>;`
-    An optional list of attribute values for the view.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+    An optional list of annotation values for the view.
+    See :eql:stmt:`SET ANNOTATION` for details.
 
 :eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
     An optional list of module alias declarations to be used in the

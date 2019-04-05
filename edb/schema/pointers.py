@@ -27,7 +27,7 @@ from edb.common import enum
 from edb import errors
 
 from . import abc as s_abc
-from . import attributes
+from . import annotations
 from . import constraints
 from . import delta as sd
 from . import expr as s_expr
@@ -100,7 +100,7 @@ class PointerLike:
         return False
 
 
-class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
+class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
               PointerLike, s_abc.Pointer):
 
     source = so.SchemaField(
@@ -421,12 +421,12 @@ class Pointer(constraints.ConsistencySubject, attributes.AttributeSubject,
 
 
 class PointerCommandContext(sd.ObjectCommandContext,
-                            attributes.AttributeSubjectCommandContext):
+                            annotations.AnnotationSubjectCommandContext):
     pass
 
 
 class PointerCommand(constraints.ConsistencySubjectCommand,
-                     attributes.AttributeSubjectCommand,
+                     annotations.AnnotationSubjectCommand,
                      referencing.ReferencedInheritingObjectCommand):
 
     @classmethod

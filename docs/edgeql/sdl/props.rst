@@ -17,7 +17,7 @@ Declare an *abstract* property "address_base" with a helpful title:
 
     abstract property address_base {
         # declare a specific title for the link
-        attribute title := 'Mailing address';
+        annotation title := 'Mailing address';
     }
 
 Declare *concrete* properties "name" and "address" within a "User" type:
@@ -49,7 +49,7 @@ commands <ref_eql_ddl_props>`.
       [ "{"
           [ default := <expression> ; ]
           [ readonly := {true | false} ; ]
-          [ <attribute-declarations> ]
+          [ <annotation-declarations> ]
           [ <constraint-declarations> ]
           ...
         "}" ]
@@ -61,7 +61,7 @@ commands <ref_eql_ddl_props>`.
     abstract property [<module>::]<name> [extending <base> [, ...]]
     [ "{"
         [ readonly := {true | false} ; ]
-        [ <attribute-declarations> ]
+        [ <annotation-declarations> ]
         ...
       "}" ]
 
@@ -71,8 +71,8 @@ Description
 The core of the declaration is identical to :eql:stmt:`CREATE PROPERTY`,
 while the valid SDL sub-declarations are listed below:
 
-:sdl:synopsis:`<attribute-declarations>`
-    Set property :ref:`attribute <ref_eql_sdl_schema_attributes>`
+:sdl:synopsis:`<annotation-declarations>`
+    Set property :ref:`annotation <ref_eql_sdl_schema_annotations>`
     to a given *value*.
 
 :sdl:synopsis:`<constraint-declarations>`

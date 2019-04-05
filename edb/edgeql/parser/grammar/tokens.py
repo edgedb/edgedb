@@ -177,7 +177,7 @@ class T_NAMEDONLY(Token):
     pass
 
 
-class T_SETATTRIBUTE(Token):
+class T_SETANNOTATION(Token):
     pass
 
 

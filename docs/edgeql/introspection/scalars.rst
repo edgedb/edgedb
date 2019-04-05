@@ -27,7 +27,7 @@ Introspection of the ``schema::ScalarType``:
             name: 'schema::ScalarType',
             links: {
                 Object { name: '__type__' },
-                Object { name: 'attributes' },
+                Object { name: 'annotations' },
                 Object { name: 'bases' },
                 Object { name: 'constraints' },
                 Object { name: 'ancestors' }
@@ -56,7 +56,7 @@ Introspection of the built-in scalar :eql:type:`str`:
     ...     is_final,
     ...     bases: { name },
     ...     ancestors: { name },
-    ...     attributes: { name, @value },
+    ...     annotations: { name, @value },
     ...     constraints: { name },
     ... }
     ... FILTER .name = 'std::str';
@@ -69,7 +69,7 @@ Introspection of the built-in scalar :eql:type:`str`:
             is_final: {},
             bases: {Object { name: 'std::anyscalar' }},
             ancestors: {Object { name: 'std::anyscalar' }},
-            attributes: {},
+            annotations: {},
             constraints: {}
         }
     }
@@ -94,7 +94,7 @@ Introspection of the enum scalar ``color_enum_t``:
     ...     is_final,
     ...     bases: { name },
     ...     ancestors: { name },
-    ...     attributes: { name, @value },
+    ...     annotations: { name, @value },
     ...     constraints: { name },
     ... }
     ... FILTER .name = 'default::color_enum_t';
@@ -110,7 +110,7 @@ Introspection of the enum scalar ``color_enum_t``:
                 Object { name: 'std::anyscalar' },
                 Object { name: 'std::anyenum' }
             },
-            attributes: {},
+            annotations: {},
             constraints: {}
         }
     }

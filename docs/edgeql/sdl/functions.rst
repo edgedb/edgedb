@@ -36,7 +36,7 @@ commands <ref_eql_ddl_functions>`.
     function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     "{"
         from <language> <functionbody> ;
-        [ <attribute-declarations> ]
+        [ <annotation-declarations> ]
     "}" ;
 
     # where <argspec> is:
@@ -62,6 +62,6 @@ Description
 The core of the declaration is identical to :eql:stmt:`CREATE FUNCTION`,
 while the valid SDL sub-declarations are listed below:
 
-:sdl:synopsis:`<attribute-declarations>`
-    Set function :ref:`attribute <ref_eql_sdl_schema_attributes>`
+:sdl:synopsis:`<annotation-declarations>`
+    Set function :ref:`annotation <ref_eql_sdl_schema_annotations>`
     to a given *value*.

@@ -18,7 +18,7 @@ Every property is declared to have a specific
 There are two kinds of property item declarations: *abstract properties*,
 and *concrete properties*.  Abstract properties are defined on module level
 and are not tied to any particular object type or link.  Typically this is
-done to set some :ref:`attributes <ref_datamodel_attributes>`, or define
+done to set some :ref:`annotations <ref_datamodel_annotations>`, or define
 :ref:`constraints <ref_datamodel_constraints>`.  Concrete properties
 are defined on specific object types.  For more information and examples refer
 to :ref:`this section <ref_eql_sdl_props>`.

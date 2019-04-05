@@ -1274,7 +1274,7 @@ class AlterObjectProperty(Command):
                     not self.old_value))
 
         if new_value_empty and not old_value_empty:
-            op = qlast.DropAttributeValue(
+            op = qlast.DropAnnotationValue(
                 name=qlast.ObjectRef(module='', name=self.property))
             return op
 

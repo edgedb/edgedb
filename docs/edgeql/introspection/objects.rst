@@ -27,7 +27,7 @@ Introspection of the ``schema::ObjectType``:
             name: 'schema::ObjectType',
             links: {
                 Object { name: '__type__' },
-                Object { name: 'attributes' },
+                Object { name: 'annotations' },
                 Object { name: 'bases' },
                 Object { name: 'constraints' },
                 Object { name: 'indexes' },
@@ -74,7 +74,7 @@ Introspection of ``User``:
     ...     is_final,
     ...     bases: { name },
     ...     ancestors: { name },
-    ...     attributes: { name, @value },
+    ...     annotations: { name, @value },
     ...     links: {
     ...         name,
     ...         cardinality,
@@ -101,7 +101,7 @@ Introspection of ``User``:
                 Object { name: 'std::Object' },
                 Object { name: 'default::Addressable' }
             },
-            attributes: {},
+            annotations: {},
             links: {
                 Object {
                     name: '__type__',

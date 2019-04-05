@@ -25,7 +25,7 @@ from edb.common import typed
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
-from . import attributes
+from . import annotations
 from . import casts as s_casts
 from . import constraints
 from . import delta as sd
@@ -42,7 +42,7 @@ class FrozenStrList(typed.FrozenTypedList, type=str):
 
 
 class ScalarType(nodes.Node, constraints.ConsistencySubject,
-                 attributes.AttributeSubject, s_abc.ScalarType):
+                 annotations.AnnotationSubject, s_abc.ScalarType):
 
     default = so.SchemaField(
         expr.Expression, default=None,
@@ -168,14 +168,14 @@ class AnonymousEnumTypeRef(so.ObjectRef):
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext,
-                               attributes.AttributeSubjectCommandContext,
+                               annotations.AnnotationSubjectCommandContext,
                                constraints.ConsistencySubjectCommandContext,
                                nodes.NodeCommandContext):
     pass
 
 
 class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
-                        attributes.AttributeSubjectCommand,
+                        annotations.AnnotationSubjectCommand,
                         nodes.NodeCommand,
                         schema_metaclass=ScalarType,
                         context_class=ScalarTypeCommandContext):

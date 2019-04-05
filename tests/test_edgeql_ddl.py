@@ -41,7 +41,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::TestObjectType {
                 CREATE LINK test_object_link -> std::Object {
                     CREATE PROPERTY test_link_prop -> std::int64 {
-                        SET ATTRIBUTE title := 'Test Property';
+                        SET ANNOTATION title := 'Test Property';
                     };
                 };
             };
@@ -539,7 +539,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_09(self):
         await self.con.execute("""
             CREATE FUNCTION test::attr_func_1() -> std::str {
-                SET ATTRIBUTE description := 'hello';
+                SET ANNOTATION description := 'hello';
                 FROM EdgeQL "SELECT '1'";
             };
         """)
@@ -547,13 +547,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.assert_query_result(
             r"""
                 SELECT schema::Function {
-                    attributes: {
+                    annotations: {
                         @value
                     } FILTER .name = 'std::description'
                 } FILTER .name = 'test::attr_func_1';
             """,
             [{
-                'attributes': [{
+                'annotations': [{
                     '@value': 'hello'
                 }]
             }],
@@ -1380,7 +1380,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''
             ALTER INFIX OPERATOR test::`+++`
                 (left: int64, right: int64)
-                SET ATTRIBUTE description := 'my plus';
+                SET ANNOTATION description := 'my plus';
         ''')
 
         await self.assert_query_result(
@@ -1391,8 +1391,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }
                 FILTER
                     .name = 'test::+++'
-                    AND .attributes.name = 'std::description'
-                    AND .attributes@value = 'my plus';
+                    AND .annotations.name = 'std::description'
+                    AND .annotations@value = 'my plus';
             ''',
             [{
                 'name': 'test::+++',
@@ -1675,12 +1675,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
-    async def test_edgeql_ddl_attribute_01(self):
+    async def test_edgeql_ddl_annotation_01(self):
         await self.con.execute("""
-            CREATE ABSTRACT ATTRIBUTE test::attr1;
+            CREATE ABSTRACT ANNOTATION test::attr1;
 
             CREATE SCALAR TYPE test::TestAttrType1 EXTENDING std::str {
-                SET ATTRIBUTE test::attr1 := 'aaaa';
+                SET ANNOTATION test::attr1 := 'aaaa';
             };
         """)
 
@@ -1688,7 +1688,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r'''
                 WITH MODULE schema
                 SELECT ScalarType {
-                    attributes: {
+                    annotations: {
                         name,
                         @value,
                     }
@@ -1696,15 +1696,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FILTER
                     .name = 'test::TestAttrType1';
             ''',
-            [{"attributes": [{"name": "test::attr1", "@value": "aaaa"}]}]
+            [{"annotations": [{"name": "test::attr1", "@value": "aaaa"}]}]
         )
 
         await self.con.execute("""
             CREATE MIGRATION test::mig1 TO {
-                abstract attribute attr2;
+                abstract annotation attr2;
 
                 scalar type TestAttrType1 extending std::str {
-                    attribute attr2 := 'aaaa';
+                    annotation attr2 := 'aaaa';
                 };
             };
 
@@ -1715,7 +1715,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r'''
                 WITH MODULE schema
                 SELECT ScalarType {
-                    attributes: {
+                    annotations: {
                         name,
                         @value,
                     }
@@ -1723,24 +1723,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FILTER
                     .name = 'test::TestAttrType1';
             ''',
-            [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
+            [{"annotations": [{"name": "test::attr2", "@value": "aaaa"}]}]
         )
 
-    async def test_edgeql_ddl_attribute_02(self):
+    async def test_edgeql_ddl_annotation_02(self):
         await self.con.execute("""
-            CREATE ABSTRACT ATTRIBUTE test::attr1;
+            CREATE ABSTRACT ANNOTATION test::attr1;
 
             CREATE TYPE test::TestAttrType2 {
-                SET ATTRIBUTE test::attr1 := 'aaaa';
+                SET ANNOTATION test::attr1 := 'aaaa';
             };
         """)
 
         await self.con.execute("""
             CREATE MIGRATION test::mig1 TO {
-                abstract attribute attr2;
+                abstract annotation attr2;
 
                 type TestAttrType2 {
-                    attribute attr2 := 'aaaa';
+                    annotation attr2 := 'aaaa';
                 };
             };
 
@@ -1751,7 +1751,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r'''
                 WITH MODULE schema
                 SELECT ObjectType {
-                    attributes: {
+                    annotations: {
                         name,
                         @value,
                     } FILTER .name = 'test::attr2'
@@ -1759,17 +1759,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 FILTER
                     .name = 'test::TestAttrType2';
             ''',
-            [{"attributes": [{"name": "test::attr2", "@value": "aaaa"}]}]
+            [{"annotations": [{"name": "test::attr2", "@value": "aaaa"}]}]
         )
 
-    async def test_edgeql_ddl_attribute_03(self):
+    async def test_edgeql_ddl_annotation_03(self):
         await self.con.execute("""
-            CREATE ABSTRACT ATTRIBUTE test::noninh;
-            CREATE ABSTRACT INHERITABLE ATTRIBUTE test::inh;
+            CREATE ABSTRACT ANNOTATION test::noninh;
+            CREATE ABSTRACT INHERITABLE ANNOTATION test::inh;
 
             CREATE TYPE test::TestAttr1 {
-                SET ATTRIBUTE test::noninh := 'no inherit';
-                SET ATTRIBUTE test::inh := 'inherit me';
+                SET ANNOTATION test::noninh := 'no inherit';
+                SET ANNOTATION test::inh := 'inherit me';
             };
 
             CREATE TYPE test::TestAttr2 EXTENDING test::TestAttr1;
@@ -1779,7 +1779,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r'''
                 WITH MODULE schema
                 SELECT ObjectType {
-                    attributes: {
+                    annotations: {
                         name,
                         inheritable,
                         @value,
@@ -1793,7 +1793,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     .name;
             ''',
             [{
-                "attributes": [{
+                "annotations": [{
                     "name": "test::inh",
                     "inheritable": True,
                     "@value": "inherit me",
@@ -1802,7 +1802,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "@value": "no inherit",
                 }]
             }, {
-                "attributes": [{
+                "annotations": [{
                     "name": "test::inh",
                     "inheritable": True,
                     "@value": "inherit me",

@@ -28,7 +28,7 @@ Introspection of the ``schema::Constraint``:
             links: {
                 Object { name: '__type__' },
                 Object { name: 'args' },
-                Object { name: 'attributes' },
+                Object { name: 'annotations' },
                 Object { name: 'bases' },
                 Object { name: 'ancestors' },
                 Object { name: 'params' },
@@ -67,7 +67,7 @@ Introspection of the scalar ``maxex_100`` with focus on the constraint:
     ...     constraints: {
     ...         name,
     ...         expr,
-    ...         attributes: { name, @value },
+    ...         annotations: { name, @value },
     ...         subject: { name },
     ...         args: { name, @value, type: { name } },
     ...         return_typemod,
@@ -83,7 +83,7 @@ Introspection of the scalar ``maxex_100`` with focus on the constraint:
                 Object {
                     name: 'std::max_ex_value',
                     expr: '(__subject__ <= max)',
-                    attributes: {},
+                    annotations: {},
                     subject: Object { name: 'default::maxex_100' },
                     args: {
                         Object {

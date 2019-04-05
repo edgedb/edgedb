@@ -25,7 +25,7 @@ CREATE TYPE
 
     # where <subcommand> is one of
 
-      SET ATTRIBUTE <attribute> := <value>
+      SET ANNOTATION <annotation-name> := <value>
       CREATE LINK <link-name> ...
       CREATE PROPERTY <property-name> ...
       CREATE INDEX <index-name> ON <index-expr>
@@ -74,9 +74,11 @@ Parameters
 
 The following subcommands are allowed in the ``CREATE TYPE`` block:
 
-:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>`
-    Set object type *attribute* to *value*.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+    Set object type :eql:synopsis:`<annotation-name>` to
+    :eql:synopsis:`<value>`.
+
+    See :eql:stmt:`SET ANNOTATION` for details.
 
 :eql:synopsis:`CREATE LINK <link-name> ...`
     Define a new link for this object type.  See
@@ -119,8 +121,8 @@ Change the definition of an
 
       RENAME TO <newname>
       EXTENDING <parent> [, ...]
-      SET ATTRIBUTE <attribute> := <value>
-      DROP ATTRIBUTE <attribute>
+      SET ANNOTATION <annotation-name> := <value>
+      DROP ANNOTATION <annotation-name>
       CREATE LINK <link-name> ...
       ALTER LINK <link-name> ...
       DROP LINK <link-name> ...
@@ -176,9 +178,9 @@ The following subcommands are allowed in the ``ALTER TYPE`` block:
     * ``AFTER <parent>`` -- insert parent(s) after an existing
       *parent*.
 
-:eql:synopsis:`DROP ATTRIBUTE <attribute>`
-    Remove object type *attribute*.
-    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
+:eql:synopsis:`DROP ANNOTATION <annotation-name>`
+    Remove object type :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
 
 :eql:synopsis:`ALTER LINK <link-name> ...`
     Alter the definition of a link for this object type.  See

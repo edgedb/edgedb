@@ -19,12 +19,12 @@
 
 from edb.edgeql import ast as qlast
 
-from . import attributes
+from . import annotations
 from . import delta as sd
 from . import objects as so
 
 
-class Module(so.UnqualifiedObject, attributes.AttributeSubject):
+class Module(so.UnqualifiedObject, annotations.AnnotationSubject):
     pass
 
 

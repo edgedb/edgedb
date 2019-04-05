@@ -133,7 +133,7 @@ def load_spec_from_schema(schema):
 
         attributes = {
             a: json.loads(v.get_value(schema))
-            for a, v in p.get_attributes(schema).items(schema)
+            for a, v in p.get_annotations(schema).items(schema)
         }
 
         set_of = p.get_cardinality(schema) is qltypes.Cardinality.MANY

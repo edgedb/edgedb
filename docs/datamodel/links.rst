@@ -12,7 +12,7 @@ instances relate one *object* to one or more different objects.
 There are two kinds of link item declarations: *abstract links*, and
 *concrete links*.  Abstract links are defined on module level and are
 not tied to any particular object type. Typically this is done to set
-some :ref:`attributes <ref_datamodel_attributes>`, define
+some :ref:`annotations <ref_datamodel_annotations>`, define
 :ref:`link properties <ref_datamodel_props>`, or setup :ref:`constraints
 <ref_datamodel_constraints>`.  Concrete links are defined on specific object
 types.  For more information and examples refer to

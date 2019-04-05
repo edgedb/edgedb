@@ -46,7 +46,7 @@ CREATE FUNCTION
     # where <subcommand> is one of
 
       FROM <language> <functionbody>
-      SET ATTRIBUTE <attribute> := <value>
+      SET ANNOTATION <annotation-name> := <value>
 
 
 Description
@@ -132,9 +132,11 @@ Subcommands
 ``CREATE FUNCTION`` allows specifying the following subcommands in its
 block:
 
-:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>`
-    Set the functions's *attribute* to *value*.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+    Set the function's :eql:synopsis:`<annotation-name>` to
+    :eql:synopsis:`<value>`.
+
+    See :eql:stmt:`SET ANNOTATION` for details.
 
 :eql:synopsis:`FROM <language> <functionbody>`
     See the meaning of *language* and *functionbody* above.
@@ -169,7 +171,7 @@ Define a function using the block syntax:
         FROM edgeql $$
             SELECT a + b;
         $$;
-        SET ATTRIBUTE title := "My sum function.";
+        SET ANNOTATION title := "My sum function.";
     };
 
 

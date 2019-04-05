@@ -973,7 +973,7 @@ abstract property foo {
         """
         function myfunc(arg1: str, arg2: str = 'DEFAULT',
                         variadic arg3: std::int64) -> set of int {
-            attribute description := 'myfunc sample';
+            annotation description := 'myfunc sample';
             from sql
                 $$SELECT blarg;$$;
         };
@@ -1184,7 +1184,7 @@ abstract property foo {
     def test_eschema_syntax_view_01(self):
         """
         view FooBaz {
-            attribute description := 'Special Foo';
+            annotation description := 'Special Foo';
             expr := (SELECT Foo FILTER Foo.bar = 'baz');
         };
         """
@@ -1214,74 +1214,74 @@ abstract property foo {
         );
         """
 
-    def test_eschema_syntax_attribute_01(self):
+    def test_eschema_syntax_annotation_01(self):
         """
-        abstract attribute foobar;
-        """
-
-    def test_eschema_syntax_attribute_03(self):
-        """
-        abstract attribute foobar extending baz;
+        abstract annotation foobar;
         """
 
-    def test_eschema_syntax_attribute_04(self):
+    def test_eschema_syntax_annotation_03(self):
         """
-        abstract attribute foobar {
+        abstract annotation foobar extending baz;
+        """
+
+    def test_eschema_syntax_annotation_04(self):
+        """
+        abstract annotation foobar {
             title := 'Some title';
         };
         """
 
-    def test_eschema_syntax_attribute_06(self):
+    def test_eschema_syntax_annotation_06(self):
         """
-        abstract attribute foobar extending baz {
+        abstract annotation foobar extending baz {
             title := 'Some title';
         };
         """
 
-    def test_eschema_syntax_attribute_08(self):
+    def test_eschema_syntax_annotation_08(self):
         """
-        abstract attribute foobar extending foo1, foo2;
+        abstract annotation foobar extending foo1, foo2;
         """
 
-    def test_eschema_syntax_attribute_09(self):
+    def test_eschema_syntax_annotation_09(self):
         """
-        abstract attribute foobar extending foo1,
+        abstract annotation foobar extending foo1,
     foo2;
         """
 
-    def test_eschema_syntax_attribute_10(self):
+    def test_eschema_syntax_annotation_10(self):
         """
-        abstract attribute foobar extending foo1,
+        abstract annotation foobar extending foo1,
     foo2 {
             title := 'Title';
         };
         """
 
-    def test_eschema_syntax_attribute_11(self):
+    def test_eschema_syntax_annotation_11(self):
         """
-        abstract attribute as extending foo;
-        """
-
-    def test_eschema_syntax_attribute_12(self):
-        """
-        abstract inheritable attribute foo;
+        abstract annotation as extending foo;
         """
 
-    def test_eschema_syntax_attribute_13(self):
+    def test_eschema_syntax_annotation_12(self):
         """
-        abstract inheritable attribute foo extending bar;
+        abstract inheritable annotation foo;
+        """
+
+    def test_eschema_syntax_annotation_13(self):
+        """
+        abstract inheritable annotation foo extending bar;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'extending'", line=2, col=41)
-    def test_eschema_syntax_attribute_14(self):
+                  r"Unexpected 'extending'", line=2, col=42)
+    def test_eschema_syntax_annotation_14(self):
         """
-        abstract attribute as extending extending foo;
+        abstract annotation as extending extending foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'attribute'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'annotation'",
                   line=2, col=1)
-    def test_eschema_syntax_attribute_15(self):
+    def test_eschema_syntax_annotation_15(self):
         """
-attribute foo;
+annotation foo;
         """

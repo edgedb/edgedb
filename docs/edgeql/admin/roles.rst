@@ -24,7 +24,7 @@ Create a role.
       SET allow_login := {true | false}
       SET is_superuser := {true | false}
       SET password := <password>
-      SET ATTRIBUTE <attribute> := <value>
+      SET ANNOTATION <annotation-name> := <value>
 
 
 Description
@@ -52,9 +52,9 @@ The following subcommands are allowed in the ``CREATE ROLE`` block:
 :eql:synopsis:`SET password := <password>`
     Set the password for the role.
 
-:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-    Set role *attribute* to *value*.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+    Set role :eql:synopsis:`<annotation-name>` to :eql:synopsis:`<value>`.
+    See :eql:stmt:`SET ANNOTATION` for details.
 
 
 Examples
@@ -87,8 +87,8 @@ Alter an existing role.
       SET allow_login := {true | false}
       SET is_superuser := {true | false}
       SET password := <password>
-      SET ATTRIBUTE <attribute> := <value>
-      DROP ATTRIBUTE <attribute>
+      SET ANNOTATION <annotation-name> := <value>
+      DROP ANNOTATION <annotation-name>
 
 
 Description
@@ -105,9 +105,9 @@ The following subcommands are allowed in the ``ALTER ROLE`` block:
 :eql:synopsis:`RENAME TO <newname>`
     Change the name of the role to *newname*.
 
-:eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-    Remove role :eql:synopsis:`<attribute>`.
-    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
+:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+    Remove role :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
 
 All the subcommands allowed in the ``CREATE ROLE`` block are also
 valid subcommands for ``ALTER ROLE`` block.

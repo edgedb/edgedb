@@ -34,7 +34,7 @@ commands <ref_eql_ddl_views>`.
 
     view <view-name> "{"
         expr := <view-expr>;
-        [ <attribute-declarations> ]
+        [ <annotation-declarations> ]
     "}" ;
 
 
@@ -44,6 +44,6 @@ Description
 The core of the declaration is identical to :eql:stmt:`CREATE VIEW`,
 while the valid SDL sub-declarations are listed below:
 
-:sdl:synopsis:`<attribute-declarations>`
-    Set view :ref:`attribute <ref_eql_sdl_schema_attributes>`
+:sdl:synopsis:`<annotation-declarations>`
+    Set view :ref:`annotation <ref_eql_sdl_schema_annotations>`
     to a given *value*.

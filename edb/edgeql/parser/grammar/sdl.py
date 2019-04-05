@@ -44,7 +44,7 @@ _new_nonterm = sdl_nontem_helper._new_nonterm
 def _process_commands(block):
     props = {}
 
-    attributes = []
+    annotations = []
     fields = []
     properties = []
     links = []
@@ -76,8 +76,8 @@ def _process_commands(block):
             else:
                 # FROM SQL EXPRESSION
                 from_expr = True
-        elif isinstance(node, qlast.Attribute):
-            attributes.append(node)
+        elif isinstance(node, qlast.Annotation):
+            annotations.append(node)
         elif isinstance(node, qlast.Field):
             fields.append(node)
         elif isinstance(node, qlast.Property):
@@ -104,8 +104,8 @@ def _process_commands(block):
             code=code,
         )
 
-    if attributes:
-        props['attributes'] = attributes
+    if annotations:
+        props['annotations'] = annotations
     if fields:
         props['fields'] = fields
     if properties:
@@ -142,7 +142,7 @@ class SDLBlockStatement(Nonterm):
     def reduce_ScalarTypeDeclaration(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AttributeDeclaration(self, *kids):
+    def reduce_AnnotationDeclaration(self, *kids):
         self.val = kids[0].val
 
     def reduce_ObjectTypeDeclaration(self, *kids):
@@ -175,7 +175,7 @@ class SDLShortStatement(Nonterm):
     def reduce_ScalarTypeDeclarationShort(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AttributeDeclarationShort(self, *kids):
+    def reduce_AnnotationDeclarationShort(self, *kids):
         self.val = kids[0].val
 
     def reduce_ObjectTypeDeclarationShort(self, *kids):
@@ -313,15 +313,15 @@ class SetField(Nonterm):
         self.val = qlast.Field(name=kids[0].val, value=kids[2].val)
 
 
-class SetAttribute(Nonterm):
-    def reduce_ATTRIBUTE_ShortNodeName_ASSIGN_Expr(self, *kids):
-        self.val = qlast.Attribute(name=kids[1].val, value=kids[3].val)
+class SetAnnotation(Nonterm):
+    def reduce_ANNOTATION_ShortNodeName_ASSIGN_Expr(self, *kids):
+        self.val = qlast.Annotation(name=kids[1].val, value=kids[3].val)
 
 
 sdl_commands_block(
     'Create',
     SetField,
-    SetAttribute)
+    SetAnnotation)
 
 
 #
@@ -430,7 +430,7 @@ class ConcreteConstraintShort(Nonterm):
 sdl_commands_block(
     'CreateScalarType',
     SetField,
-    SetAttribute,
+    SetAnnotation,
     ConcreteConstraintBlock,
     ConcreteConstraintShort,
 )
@@ -508,13 +508,13 @@ class ScalarTypeDeclarationShort(Nonterm):
 
 
 #
-# CREATE ATTRIBUTE
+# CREATE ANNOTATION
 #
-class AttributeDeclaration(Nonterm):
-    def reduce_CreateAttribute(self, *kids):
-        r"""%reduce ABSTRACT ATTRIBUTE ShortNodeName OptExtendingSimple \
+class AnnotationDeclaration(Nonterm):
+    def reduce_CreateAnnotation(self, *kids):
+        r"""%reduce ABSTRACT ANNOTATION ShortNodeName OptExtendingSimple \
                     CreateSDLCommandsBlock"""
-        self.val = qlast.AttributeDeclaration(
+        self.val = qlast.AnnotationDeclaration(
             abstract=True,
             name=kids[2].val.name,
             extends=kids[3].val,
@@ -522,10 +522,10 @@ class AttributeDeclaration(Nonterm):
             **_process_commands(kids[4].val)
         )
 
-    def reduce_CreateInheritableAttribute(self, *kids):
-        r"""%reduce ABSTRACT INHERITABLE ATTRIBUTE
+    def reduce_CreateInheritableAnnotation(self, *kids):
+        r"""%reduce ABSTRACT INHERITABLE ANNOTATION
                     ShortNodeName OptExtendingSimple CreateSDLCommandsBlock"""
-        self.val = qlast.AttributeDeclaration(
+        self.val = qlast.AnnotationDeclaration(
             abstract=True,
             name=kids[3].val.name,
             extends=kids[4].val,
@@ -534,20 +534,20 @@ class AttributeDeclaration(Nonterm):
         )
 
 
-class AttributeDeclarationShort(Nonterm):
-    def reduce_CreateAttribute(self, *kids):
-        r"""%reduce ABSTRACT ATTRIBUTE ShortNodeName OptExtendingSimple"""
-        self.val = qlast.AttributeDeclaration(
+class AnnotationDeclarationShort(Nonterm):
+    def reduce_CreateAnnotation(self, *kids):
+        r"""%reduce ABSTRACT ANNOTATION ShortNodeName OptExtendingSimple"""
+        self.val = qlast.AnnotationDeclaration(
             abstract=True,
             name=kids[2].val.name,
             extends=kids[3].val,
             inheritable=False,
         )
 
-    def reduce_CreateInheritableAttribute(self, *kids):
-        r"""%reduce ABSTRACT INHERITABLE ATTRIBUTE
+    def reduce_CreateInheritableAnnotation(self, *kids):
+        r"""%reduce ABSTRACT INHERITABLE ANNOTATION
                     ShortNodeName OptExtendingSimple"""
-        self.val = qlast.AttributeDeclaration(
+        self.val = qlast.AnnotationDeclaration(
             abstract=True,
             name=kids[3].val.name,
             extends=kids[4].val,
@@ -599,7 +599,7 @@ class PropertyDeclarationShort(Nonterm):
 sdl_commands_block(
     'CreateConcreteProperty',
     SetField,
-    SetAttribute,
+    SetAnnotation,
     ConcreteConstraintBlock,
     ConcreteConstraintShort,
 )
@@ -689,7 +689,7 @@ class ConcretePropertyShort(Nonterm):
 sdl_commands_block(
     'CreateLink',
     SetField,
-    SetAttribute,
+    SetAnnotation,
     ConcreteConstraintBlock,
     ConcreteConstraintShort,
     ConcretePropertyBlock,
@@ -751,7 +751,7 @@ class SDLOnTargetDelete(Nonterm):
 sdl_commands_block(
     'CreateConcreteLink',
     SetField,
-    SetAttribute,
+    SetAnnotation,
     ConcreteConstraintBlock,
     ConcreteConstraintShort,
     ConcretePropertyBlock,
@@ -844,7 +844,7 @@ class ConcreteLinkShort(Nonterm):
 sdl_commands_block(
     'CreateObjectType',
     SetField,
-    SetAttribute,
+    SetAnnotation,
     ConcretePropertyBlock,
     ConcretePropertyShort,
     ConcreteLinkBlock,
@@ -904,7 +904,7 @@ class ObjectTypeDeclarationShort(Nonterm):
 sdl_commands_block(
     'CreateView',
     SetField,
-    SetAttribute,
+    SetAnnotation,
     opt=False
 )
 
@@ -1010,7 +1010,7 @@ sdl_commands_block(
     'CreateFunction',
     SDLFromFunction,
     SetField,
-    SetAttribute,
+    SetAnnotation,
     opt=False
 )
 

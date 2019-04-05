@@ -27,7 +27,7 @@ Introspection of the ``schema::Function``:
             name: 'schema::Function',
             links: {
                 Object { name: '__type__' },
-                Object { name: 'attributes' },
+                Object { name: 'annotations' },
                 Object { name: 'params' },
                 Object { name: 'return_type' }
             },
@@ -79,7 +79,7 @@ Introspection of the built-in :eql:func:`count`:
     db> WITH MODULE schema
     ... SELECT `Function` {
     ...     name,
-    ...     attributes: { name, @value },
+    ...     annotations: { name, @value },
     ...     params: {
     ...         kind,
     ...         name,
@@ -95,7 +95,7 @@ Introspection of the built-in :eql:func:`count`:
     {
         Object {
             name: 'std::count',
-            attributes: {},
+            annotations: {},
             params: {
                 Object {
                     kind: 'POSITIONAL',

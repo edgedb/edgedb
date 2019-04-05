@@ -84,13 +84,13 @@ CREATE TYPE schema::Delta EXTENDING schema::Object {
 };
 
 
-CREATE TYPE schema::Attribute EXTENDING schema::Object {
+CREATE TYPE schema::Annotation EXTENDING schema::Object {
     CREATE PROPERTY inheritable -> std::bool;
 };
 
 
-CREATE ABSTRACT TYPE schema::AttributeSubject EXTENDING schema::Object {
-    CREATE MULTI LINK attributes -> schema::Attribute {
+CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
+    CREATE MULTI LINK annotations -> schema::Annotation {
         CREATE PROPERTY value -> std::str;
     };
 };
@@ -121,7 +121,7 @@ CREATE TYPE schema::Parameter {
 
 
 CREATE ABSTRACT TYPE schema::CallableObject
-    EXTENDING schema::AttributeSubject
+    EXTENDING schema::AnnotationSubject
 {
 
     CREATE MULTI LINK params -> schema::Parameter {
@@ -174,7 +174,7 @@ CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
 CREATE ABSTRACT TYPE schema::Pointer
     EXTENDING
         schema::InheritingObject, schema::ConsistencySubject,
-        schema::AttributeSubject
+        schema::AnnotationSubject
 {
     CREATE REQUIRED PROPERTY cardinality -> schema::cardinality_t;
     CREATE REQUIRED PROPERTY required -> std::bool;
@@ -191,7 +191,7 @@ ALTER TYPE schema::Source {
 CREATE TYPE schema::ScalarType
     EXTENDING
         schema::InheritingObject, schema::ConsistencySubject,
-        schema::AttributeSubject, schema::Type
+        schema::AnnotationSubject, schema::Type
 {
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY enum_values -> array<std::str>;
@@ -201,7 +201,7 @@ CREATE TYPE schema::ScalarType
 CREATE TYPE schema::ObjectType
     EXTENDING
         schema::InheritingObject, schema::ConsistencySubject,
-        schema::AttributeSubject, schema::Type, schema::Source;
+        schema::AnnotationSubject, schema::Type, schema::Source;
 
 
 CREATE TYPE schema::UnionObjectType

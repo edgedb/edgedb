@@ -21,14 +21,14 @@ from edgedb import scram
 
 from edb.edgeql import ast as qlast
 
-from . import attributes
+from . import annotations
 from . import delta as sd
 from . import inheriting
 from . import objects as so
 
 
 class Role(so.GlobalObject, inheriting.InheritingObject,
-           attributes.AttributeSubject):
+           annotations.AnnotationSubject):
 
     allow_login = so.SchemaField(
         bool,
@@ -51,13 +51,13 @@ class Role(so.GlobalObject, inheriting.InheritingObject,
 
 class RoleCommandContext(
         sd.ObjectCommandContext,
-        attributes.AttributeSubjectCommandContext):
+        annotations.AnnotationSubjectCommandContext):
     pass
 
 
 class RoleCommand(sd.GlobalObjectCommand,
                   inheriting.InheritingObjectCommand,
-                  attributes.AttributeSubjectCommand,
+                  annotations.AnnotationSubjectCommand,
                   schema_metaclass=Role,
                   context_class=RoleCommandContext):
 

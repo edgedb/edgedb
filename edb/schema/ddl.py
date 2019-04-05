@@ -28,7 +28,7 @@ from . import schema as s_schema
 # necessary mappers from/to DDL AST.
 
 from . import scalars  # NOQA
-from . import attributes  # NOQA
+from . import annotations  # NOQA
 from . import casts  # NOQA
 from . import delta as sd
 from . import objtypes  # NOQA

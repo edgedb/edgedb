@@ -26,7 +26,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
 from . import abc as s_abc
-from . import attributes
+from . import annotations
 from . import delta as sd
 from . import expr as s_expr
 from . import functions as s_func
@@ -296,7 +296,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
     def format_error_message(self, schema):
         errmsg = self.get_errmessage(schema)
         subject = self.get_subject(schema)
-        titleattr = subject.get_attribute(schema, 'std::title')
+        titleattr = subject.get_annotation(schema, 'std::title')
 
         if not titleattr:
             subjname = subject.get_shortname(schema)
@@ -412,7 +412,7 @@ class ConsistencySubjectCommand(inheriting.InheritingObjectCommand):
 
 
 class ConstraintCommandContext(sd.ObjectCommandContext,
-                               attributes.AttributeSubjectCommandContext):
+                               annotations.AnnotationSubjectCommandContext):
     pass
 
 
@@ -424,16 +424,17 @@ class ConstraintCommand(
 
     @classmethod
     def _validate_subcommands(cls, astnode):
-        # check that 'subject' and 'subjectexpr' are not set as attributes
+        # check that 'subject' and 'subjectexpr' are not set as annotations
         for command in astnode.commands:
-            if cls._is_special_name(command.name):
+            cname = command.name
+            if cls._is_special_name(cname):
                 raise errors.InvalidConstraintDefinitionError(
-                    f'{command.name.name} is not a valid constraint attribute',
+                    f'{cname.name} is not a valid constraint annotation',
                     context=command.context)
 
     @classmethod
     def _is_special_name(cls, astnode):
-        # check that 'subject' and 'subjectexpr' are not set as attributes
+        # check that 'subject' and 'subjectexpr' are not set as annotations
         return (astnode.name in {'subject', 'subjectexpr'} and
                 not astnode.module)
 

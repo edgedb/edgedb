@@ -258,14 +258,14 @@ _123456789_123456789_123456789 -> str
             })
         )
 
-    def test_schema_attribute_inheritance(self):
+    def test_schema_annotation_inheritance(self):
         schema = self.load_schema("""
-            abstract attribute noninh;
-            abstract inheritable attribute inh;
+            abstract annotation noninh;
+            abstract inheritable annotation inh;
 
             type Object1 {
-                attribute noninh := 'bar';
-                attribute inh := 'inherit me';
+                annotation noninh := 'bar';
+                annotation inh := 'inherit me';
             };
 
             type Object2 extending Object1;
@@ -274,33 +274,33 @@ _123456789_123456789_123456789 -> str
         Object1 = schema.get('test::Object1')
         Object2 = schema.get('test::Object2')
 
-        self.assertEqual(Object1.get_attribute(schema, 'test::noninh'), 'bar')
+        self.assertEqual(Object1.get_annotation(schema, 'test::noninh'), 'bar')
         # Attributes are non-inheritable by default
-        self.assertIsNone(Object2.get_attribute(schema, 'test::noninh'))
+        self.assertIsNone(Object2.get_annotation(schema, 'test::noninh'))
 
         self.assertEqual(
-            Object1.get_attribute(schema, 'test::inh'), 'inherit me')
+            Object1.get_annotation(schema, 'test::inh'), 'inherit me')
         self.assertEqual(
-            Object2.get_attribute(schema, 'test::inh'), 'inherit me')
+            Object2.get_annotation(schema, 'test::inh'), 'inherit me')
 
     def test_schema_object_verbosename(self):
         schema = self.load_schema("""
-            abstract inheritable attribute attr;
+            abstract inheritable annotation attr;
             abstract link lnk_1;
             abstract property prop_1;
 
             type Object1 {
-                attribute attr := 'inherit me';
+                annotation attr := 'inherit me';
                 property foo -> std::str {
-                    attribute attr := 'propprop';
+                    annotation attr := 'propprop';
                     constraint max_len_value(10)
                 }
 
                 link bar -> Object {
                     constraint exclusive;
-                    attribute attr := 'bbb';
+                    annotation attr := 'bbb';
                     property bar_prop -> std::str {
-                        attribute attr := 'aaa';
+                        annotation attr := 'aaa';
                         constraint max_len_value(10);
                     }
                 }
@@ -314,7 +314,7 @@ _123456789_123456789_123456789 -> str
 
         self.assertEqual(
             schema.get('test::attr').get_verbosename(schema),
-            "abstract attribute 'test::attr'",
+            "abstract annotation 'test::attr'",
         )
 
         self.assertEqual(
@@ -358,10 +358,10 @@ _123456789_123456789_123456789 -> str
         )
 
         self.assertEqual(
-            obj.get_attributes(schema).get(
+            obj.get_annotations(schema).get(
                 schema, 'test::attr').get_verbosename(
                     schema, with_parent=True),
-            "attribute 'test::attr' of object type 'test::Object1'",
+            "annotation 'test::attr' of object type 'test::Object1'",
         )
 
         foo_prop = obj.get_pointers(schema).get(schema, 'foo')
@@ -371,10 +371,10 @@ _123456789_123456789_123456789 -> str
         )
 
         self.assertEqual(
-            foo_prop.get_attributes(schema).get(
+            foo_prop.get_annotations(schema).get(
                 schema, 'test::attr').get_verbosename(
                     schema, with_parent=True),
-            "attribute 'test::attr' of property 'foo' of "
+            "annotation 'test::attr' of property 'foo' of "
             "object type 'test::Object1'",
         )
 
@@ -394,10 +394,10 @@ _123456789_123456789_123456789 -> str
 
         bar_link_prop = bar_link.get_pointers(schema).get(schema, 'bar_prop')
         self.assertEqual(
-            bar_link_prop.get_attributes(schema).get(
+            bar_link_prop.get_annotations(schema).get(
                 schema, 'test::attr').get_verbosename(
                     schema, with_parent=True),
-            "attribute 'test::attr' of property 'bar_prop' of "
+            "annotation 'test::attr' of property 'bar_prop' of "
             "link 'bar' of object type 'test::Object1'",
         )
 

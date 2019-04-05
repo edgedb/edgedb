@@ -32,7 +32,7 @@ CREATE ABSTRACT CONSTRAINT
 
       SET expr := <constr-expression>
       SET errmessage := <error-message>
-      SET ATTRIBUTE <attribute> := <value>
+      SET ANNOTATION <annotation-name> := <value>
 
 
 Description
@@ -90,12 +90,14 @@ CONSTRAINT`` block:
     The template may refer to the following:
 
     - ``$argname`` -- the value of the specified constraint argument
-    - ``__subject__`` -- the value of the ``title`` attribute of the scalar
+    - ``__subject__`` -- the value of the ``title`` annotation of the scalar
       type, property or link on which the constraint is defined.
 
-:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>;`
-    Set constraint *attribute* to *value*.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+    Set constraint :eql:synopsis:`<annotation-name>` to
+    :eql:synopsis:`<value>`.
+
+    See :eql:stmt:`SET ANNOTATION` for details.
 
 
 Examples
@@ -107,7 +109,7 @@ is a string in upper case.
 .. code-block:: edgeql
 
     CREATE ABSTRACT CONSTRAINT uppercase {
-        SET ATTRIBUTE title := "Upper case constraint";
+        SET ANNOTATION title := "Upper case constraint";
         SET expr := upper(__subject__) = __subject__;
         SET errmessage := "{__subject__} is not in upper case";
     };
@@ -133,8 +135,8 @@ Alter the definition of an
       RENAME TO <newname>
       SET expr := <constr-expression>
       SET errmessage := <error-message>
-      SET ATTRIBUTE <attribute> := <value>
-      DROP ATTRIBUTE <attribute>
+      SET ANNOTATION <annotation-name> := <value>
+      DROP ANNOTATION <annotation-name>
 
 
 Description
@@ -164,9 +166,9 @@ CONSTRAINT`` block:
     Change the name of the constraint to *newname*.  All concrete
     constraints inheriting from this constraint are also renamed.
 
-:eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-    Remove constraint :eql:synopsis:`<attribute>`.
-    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
+:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+    Remove constraint :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
 
 All the subcommands allowed in the ``CREATE ABSTRACT CONSTRAINT``
 block are also valid subcommands for ``ALTER ABSTRACT CONSTRAINT``
@@ -242,7 +244,7 @@ Define a concrete constraint on the specified schema item.
     # where <subcommand> is one of
 
       SET errmessage := <error-message>
-      SET ATTRIBUTE <attribute> := <value>
+      SET ANNOTATION <annotation-name> := <value>
 
 
 Description
@@ -305,9 +307,9 @@ The following subcommands are allowed in the ``CERATE CONSTRAINT`` block:
     paragraph in :eql:stmt:`CREATE ABSTRACT CONSTRAINT` for the rules
     of error message template syntax.
 
-:eql:synopsis:`SET <attr-name> := <attr-value>;`
-    An optional list of attribute values for the constraint.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+    An optional list of annotations for the constraint.
+    See :eql:stmt:`SET ANNOTATION` for details.
 
 
 Examples
@@ -345,8 +347,8 @@ Alter the definition of a concrete constraint on the specified schema item.
       DROP DELEGATED
       RENAME TO <newname>
       SET errmessage := <error-message>
-      SET ATTRIBUTE <attribute> := <value>
-      DROP ATTRIBUTE <attribute>
+      SET ANNOTATION <annotation-name> := <value>
+      DROP ANNOTATION <annotation-name>
 
 
 Description
@@ -381,9 +383,8 @@ The following subcommands are allowed in the ``ALTER CONSTRAINT`` block:
 :eql:synopsis:`RENAME TO <newname>`
     Change the name of the constraint to :eql:synopsis:`<newname>`.
 
-:eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-    Remove constraint *attribute*.
-    See :eql:stmt:`DROP ATTRIBUTE` for details.
+:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+    Remove an *annotation*. See :eql:stmt:`DROP ANNOTATION` for details.
 
 All the subcommands allowed in the ``CREATE CONSTRAINT`` block are also
 valid subcommands for ``ALTER CONSTRAINT`` block.

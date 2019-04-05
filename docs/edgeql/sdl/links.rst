@@ -17,7 +17,7 @@ Declare an *abstract* link "friends_base" with a helpful title:
 
     abstract link friends_base {
         # declare a specific title for the link
-        attribute title := 'Close contacts';
+        annotation title := 'Close contacts';
     }
 
 Declare a *concrete* link "friends" within a "User" type:
@@ -49,7 +49,7 @@ commands <ref_eql_ddl_links>`.
           [ default := <expression> ; ]
           [ readonly := {true | false} ; ]
           [ on target delete <action> ; ]
-          [ <attribute-declarations> ]
+          [ <annotation-declarations> ]
           [ <property-declarations> ]
           [ <constraint-declarations> ]
           ...
@@ -63,7 +63,7 @@ commands <ref_eql_ddl_links>`.
     abstract link <name> [extending <base> [, ...]]
     [ "{"
         [ readonly := {true | false} ; ]
-        [ <attribute-declarations> ]
+        [ <annotation-declarations> ]
         [ <property-declarations> ]
         [ <constraint-declarations> ]
         [ <index-declarations> ]
@@ -76,8 +76,8 @@ Description
 The core of the declaration is identical to :eql:stmt:`CREATE LINK`,
 while the valid SDL sub-declarations are listed below:
 
-:sdl:synopsis:`<attribute-declarations>`
-    Set link :ref:`attribute <ref_eql_sdl_schema_attributes>`
+:sdl:synopsis:`<annotation-declarations>`
+    Set link :ref:`annotation <ref_eql_sdl_schema_annotations>`
     to a given *value*.
 
 :sdl:synopsis:`<property-declarations>`

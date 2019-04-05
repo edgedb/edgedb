@@ -1,19 +1,19 @@
-.. _ref_datamodel_attributes:
+.. _ref_datamodel_annotations:
 
-==========
-Attributes
-==========
+===========
+Annotations
+===========
 
-*Attributes* are named values associated with schema items and
+*Annotations* are named values associated with schema items and
 are designed to hold arbitrary schema-level metadata represented as a
 :eql:type:`str`.
 
 
-Standard Attributes
-===================
+Standard Annotations
+====================
 
-There is a number of attributes defined in the standard library.  The following
-are the attributes which can be set on any schema item:
+There is a number of annotations defined in the standard library.
+The following are the annotations which can be set on any schema item:
 
 - ``title``
 - ``description``
@@ -23,15 +23,15 @@ For example, consider the following declaration:
 .. code-block:: sdl
 
     type Status {
-        attribute title := 'Activity status';
-        attribute description := 'All possible user activities';
+        annotation title := 'Activity status';
+        annotation description := 'All possible user activities';
 
         required property name -> str {
             constraint exclusive
         }
     }
 
-The above attributes can be extracted via schema introspection queries
+The above annotations can be extracted via schema introspection queries
 and used to create a descriptive UI for an admin tool:
 
 .. code-block:: edgeql-repl
@@ -39,7 +39,7 @@ and used to create a descriptive UI for an admin tool:
     db> WITH MODULE schema
     ... SELECT ObjectType {
     ...     name,
-    ...     attributes: {
+    ...     annotations: {
     ...         name,
     ...         @value
     ...     }
@@ -48,7 +48,7 @@ and used to create a descriptive UI for an admin tool:
     {
         Object {
             name: 'default::Status',
-            attributes: {
+            annotations: {
                 Object {
                     name: 'std::description',
                     @value: 'All possible user activities'

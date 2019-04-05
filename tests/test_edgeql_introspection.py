@@ -459,7 +459,7 @@ class TestIntrospection(tb.QueryTestCase):
                         constraints: {
                             name,
                             expr,
-                            attributes: { name, @value },
+                            annotations: { name, @value },
                             subject: { name },
                             args: { name, @value, type: { name } },
                             return_typemod,
@@ -479,7 +479,7 @@ class TestIntrospection(tb.QueryTestCase):
                             {
                                 'name': 'std::max_len_value',
                                 'expr': '(__subject__ <= max)',
-                                'attributes': {},
+                                'annotations': {},
                                 'subject': {'name': 'test::body'},
                                 'args': [
                                     {
@@ -502,7 +502,7 @@ class TestIntrospection(tb.QueryTestCase):
                             {
                                 'name': 'std::exclusive',
                                 'expr': 'std::_is_exclusive(__subject__)',
-                                'attributes': {},
+                                'annotations': {},
                                 'subject': {'name': 'std::id'},
                                 'args': {},
                                 'return_typemod': 'SINGLETON',
@@ -573,7 +573,7 @@ class TestIntrospection(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT `Function` {
                     name,
-                    attributes: { name, @value },
+                    annotations: { name, @value },
                     params: {
                         kind,
                         name,
@@ -599,7 +599,7 @@ class TestIntrospection(tb.QueryTestCase):
             [
                 {
                     "name": "std::count",
-                    "attributes": [],
+                    "annotations": [],
                     "params": [
                         {
                             "kind": "POSITIONAL",
@@ -615,7 +615,7 @@ class TestIntrospection(tb.QueryTestCase):
                 },
                 {
                     "name": "sys::get_version",
-                    "attributes": [],
+                    "annotations": [],
                     "params": [],
                     "return_typemod": "SINGLETON",
                     "return_type": {

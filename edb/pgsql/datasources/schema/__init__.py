@@ -17,7 +17,7 @@
 #
 
 
-from . import attributes  # NOQA
+from . import annotations  # NOQA
 from . import casts  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA

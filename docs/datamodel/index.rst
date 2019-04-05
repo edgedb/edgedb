@@ -46,7 +46,7 @@ There are several kinds of schema items:
 * :ref:`links <ref_datamodel_links>`
 * :ref:`properties <ref_datamodel_props>`
 * :ref:`constraints <ref_datamodel_constraints>`
-* :ref:`attributes <ref_datamodel_attributes>`
+* :ref:`annotations <ref_datamodel_annotations>`
 * :ref:`functions <ref_datamodel_functions>`
 
 

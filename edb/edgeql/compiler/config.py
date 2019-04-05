@@ -276,7 +276,7 @@ def _validate_op(
 
         name = ptr.get_shortname(ctx.env.schema).name
 
-    sys_attr = ptr.get_attributes(ctx.env.schema).get(
+    sys_attr = ptr.get_annotations(ctx.env.schema).get(
         ctx.env.schema, 'cfg::system', None)
 
     system = (
@@ -286,7 +286,7 @@ def _validate_op(
 
     cardinality = ptr.get_cardinality(ctx.env.schema)
 
-    restart_attr = ptr.get_attributes(ctx.env.schema).get(
+    restart_attr = ptr.get_annotations(ctx.env.schema).get(
         ctx.env.schema, 'cfg::requires_restart', None)
 
     requires_restart = (
@@ -294,7 +294,7 @@ def _validate_op(
         and restart_attr.get_value(ctx.env.schema) == 'true'
     )
 
-    backend_attr = ptr.get_attributes(ctx.env.schema).get(
+    backend_attr = ptr.get_annotations(ctx.env.schema).get(
         ctx.env.schema, 'cfg::backend_setting', None)
 
     if backend_attr is not None:

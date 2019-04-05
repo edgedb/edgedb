@@ -35,7 +35,7 @@ commands <ref_eql_ddl_object_types>`.
 
     [abstract] type <TypeName> [extending <supertype> [, ...] ]
     [ "{"
-        [ <attribute-declarations> ]
+        [ <annotation-declarations> ]
         [ <property-declarations> ]
         [ <link-declarations> ]
         [ <index-declarations> ]
@@ -48,8 +48,8 @@ Description
 The core of the declaration is identical to :eql:stmt:`CREATE TYPE`,
 while the valid SDL sub-declarations are listed below:
 
-:sdl:synopsis:`<attribute-declarations>`
-    Set object type :ref:`attribute <ref_eql_sdl_schema_attributes>`
+:sdl:synopsis:`<annotation-declarations>`
+    Set object type :ref:`annotation <ref_eql_sdl_schema_annotations>`
     to a given *value*.
 
 :sdl:synopsis:`<property-declarations>`

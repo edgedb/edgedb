@@ -47,7 +47,7 @@ CREATE PROPERTY
 
       SET default := <expression>
       SET readonly := {true | false}
-      SET ATTRIBUTE <attribute> := <value>
+      SET ANNOTATION <annotation-name> := <value>
       CREATE CONSTRAINT <constraint-name> ...
 
 
@@ -116,9 +116,11 @@ The following subcommands are allowed in the ``CREATE PROPERTY`` block:
     If ``true``, the property is considered *read-only*.  Modifications
     of this property are prohibited once an object is created.
 
-:eql:synopsis:`SET ATTRIBUTE <attribute> := <value>`
-    Set property *attribute* to *value*.
-    See :eql:stmt:`SET ATTRIBUTE` for details.
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+    Set property :eql:synopsis:`<annotation-name>` to
+    :eql:synopsis:`<value>`.
+
+    See :eql:stmt:`SET ANNOTATION` for details.
 
 :eql:synopsis:`CREATE CONSTRAINT`
     Define a concrete constraint on the property.
@@ -158,8 +160,8 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
       SET SINGLE
       SET MULTI
       ALTER TARGET <typename> [, ...]
-      SET ATTRIBUTE <attribute> := <value>
-      DROP ATTRIBUTE <attribute>
+      SET ANNOTATION <annotation-name> := <value>
+      DROP ANNOTATION <annotation-name>
       CREATE CONSTRAINT <constraint-name> ...
       ALTER CONSTRAINT <constraint-name> ...
       DROP CONSTRAINT <constraint-name> ...
@@ -231,9 +233,9 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Change the target type of the property to the specified type or
     a union of types.  Only valid for concrete properties.
 
-:eql:synopsis:`DROP ATTRIBUTE <attribute>;`
-    Remove property :eql:synopsis:`<attribute>`.
-    See :eql:stmt:`DROP ATTRIBUTE <DROP ATTRIBUTE>` for details.
+:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+    Remove property :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
 
 :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
     Alter the definition of a constraint for this property.  See

@@ -647,12 +647,12 @@ class DropRole(DropObject):
     pass
 
 
-class CreateAttribute(CreateExtendingObject):
+class CreateAnnotation(CreateExtendingObject):
     type: typing.Optional[TypeExpr]
     inheritable: bool
 
 
-class DropAttribute(DropObject):
+class DropAnnotation(DropObject):
     pass
 
 
@@ -803,11 +803,11 @@ class SetInternalField(BaseSetField):
     pass
 
 
-class CreateAttributeValue(CreateObject):
+class CreateAnnotationValue(CreateObject):
     value: Expr
 
 
-class DropAttributeValue(DropObject):
+class DropAnnotationValue(DropObject):
     pass
 
 
@@ -940,13 +940,13 @@ class Spec(SDL):
     fields: typing.List[Field]
 
 
-class Attribute(Spec):
+class Annotation(Spec):
     name: ObjectRef
     value: Base
 
 
 class Constraint(Spec):
-    attributes: typing.List[Attribute]
+    annotations: typing.List[Annotation]
     delegated: bool = False
     name: ObjectRef
     args: typing.List[FuncArg]
@@ -961,7 +961,7 @@ class Pointer(Spec):
     # Computable links don't have a target
     target: typing.Optional[typing.List[TypeName]]
 
-    attributes: typing.List[Attribute]
+    annotations: typing.List[Annotation]
     constraints: typing.List[Constraint]
 
     required: bool = False
@@ -992,7 +992,7 @@ class Link(Pointer):
 class Declaration(SDL):
     name: str
     extends: typing.List[TypeName]
-    attributes: typing.List[Attribute]
+    annotations: typing.List[Annotation]
     fields: typing.List[Field]
 
 
@@ -1002,7 +1002,7 @@ class ScalarTypeDeclaration(Declaration):
     constraints: typing.List[Constraint]
 
 
-class AttributeDeclaration(Declaration):
+class AnnotationDeclaration(Declaration):
     abstract: bool = False
     inheritable: bool = False
 

@@ -22,7 +22,7 @@ import typing
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
-from . import attributes
+from . import annotations
 from . import constraints
 from . import delta as sd
 from . import inheriting
@@ -40,7 +40,7 @@ class BaseObjectType(sources.Source, nodes.Node):
 
 
 class ObjectType(BaseObjectType, constraints.ConsistencySubject,
-                 attributes.AttributeSubject, s_abc.ObjectType):
+                 annotations.AnnotationSubject, s_abc.ObjectType):
 
     @classmethod
     def get_schema_class_displayname(cls):
@@ -108,7 +108,7 @@ class DerivedObjectType(BaseObjectType,
 
 class ObjectTypeCommandContext(sd.ObjectCommandContext,
                                constraints.ConsistencySubjectCommandContext,
-                               attributes.AttributeSubjectCommandContext,
+                               annotations.AnnotationSubjectCommandContext,
                                links.LinkSourceCommandContext,
                                lproperties.PropertySourceContext,
                                nodes.NodeCommandContext):

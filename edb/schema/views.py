@@ -20,14 +20,14 @@
 from edb.edgeql import ast as qlast
 
 from . import scalars as s_scalars
-from . import attributes
+from . import annotations
 from . import objtypes as s_objtypes
 from . import delta as sd
 from . import nodes
 
 
 class ViewCommandContext(sd.ObjectCommandContext,
-                         attributes.AttributeSubjectCommandContext,
+                         annotations.AnnotationSubjectCommandContext,
                          nodes.NodeCommandContext):
     pass
 

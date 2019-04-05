@@ -2811,22 +2811,22 @@ aa';
 
     def test_edgeql_syntax_ddl_attribute_01(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::paramtypes;
+        CREATE ABSTRACT ANNOTATION std::paramtypes;
         """
 
     def test_edgeql_syntax_ddl_attribute_02(self):
         """
-        CREATE ABSTRACT ATTRIBUTE std::paramtypes EXTENDING std::baseattr;
+        CREATE ABSTRACT ANNOTATION std::paramtypes EXTENDING std::baseattr;
         """
 
     def test_edgeql_syntax_ddl_attribute_03(self):
         """
-        CREATE ABSTRACT INHERITABLE ATTRIBUTE std::paramtypes;
+        CREATE ABSTRACT INHERITABLE ANNOTATION std::paramtypes;
         """
 
     def test_edgeql_syntax_ddl_attribute_04(self):
         """
-        CREATE ABSTRACT INHERITABLE ATTRIBUTE std::paramtypes
+        CREATE ABSTRACT INHERITABLE ANNOTATION std::paramtypes
             EXTENDING std::foo;
         """
 
@@ -2914,7 +2914,7 @@ aa';
                         baz := __source__.a + __source__.b
                     }.baz
                 ) {
-                    SET ATTRIBUTE title := 'special';
+                    SET ANNOTATION title := 'special';
                 };
             };
         };
@@ -2928,7 +2928,7 @@ aa';
                         baz := (__source__.a + __source__.b)
                     }).baz
                 ) {
-                    SET ATTRIBUTE title := 'special';
+                    SET ANNOTATION title := 'special';
                 };
             };
         };
@@ -3066,7 +3066,7 @@ aa';
     def test_edgeql_syntax_ddl_function_25(self):
         """
         CREATE FUNCTION foo() -> std::str {
-            SET ATTRIBUTE description := 'aaaa';
+            SET ANNOTATION description := 'aaaa';
             FROM SQL $a$SELECT $$foo$$$a$;
         };
         """
@@ -3075,7 +3075,7 @@ aa';
         """
         CREATE FUNCTION foo() -> std::str {
             SET volatility := 'volatile';
-            SET ATTRIBUTE description := 'aaaa';
+            SET ANNOTATION description := 'aaaa';
             FROM SQL $a$SELECT $$foo$$$a$;
         };
         """
@@ -3085,7 +3085,7 @@ aa';
     def test_edgeql_syntax_ddl_function_27(self):
         """
         CREATE FUNCTION foo() -> std::str {
-            SET ATTRIBUTE description := 'aaaa';
+            SET ANNOTATION description := 'aaaa';
         };
         """
 
@@ -3095,7 +3095,7 @@ aa';
         """
         CREATE FUNCTION foo() -> std::str {
             FROM SQL 'SELECT 1';
-            SET ATTRIBUTE description := 'aaaa';
+            SET ANNOTATION description := 'aaaa';
             FROM SQL 'SELECT 2';
         };
         """

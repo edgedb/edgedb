@@ -61,7 +61,7 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
 
             type Object2 extending Object {
                 inherited link foo -> Object {
-                    attribute title := "Foo"
+                    annotation title := "Foo"
                 }
             };
 

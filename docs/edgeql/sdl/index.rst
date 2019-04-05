@@ -60,4 +60,4 @@ specific schema state. For example:
     indexes
     constraints
     functions
-    attributes
+    annotations

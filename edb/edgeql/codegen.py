@@ -882,25 +882,25 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' := ')
         self.visit(node.value)
 
-    def visit_CreateAttribute(self, node):
+    def visit_CreateAnnotation(self, node):
         after_name = lambda: self._ddl_visit_bases(node)
         if node.inheritable:
-            tag = 'ABSTRACT INHERITABLE ATTRIBUTE'
+            tag = 'ABSTRACT INHERITABLE ANNOTATION'
         else:
-            tag = 'ABSTRACT ATTRIBUTE'
+            tag = 'ABSTRACT ANNOTATION'
         self._visit_CreateObject(node, tag, after_name=after_name)
 
-    def visit_DropAttribute(self, node):
-        self._visit_DropObject(node, 'ABSTRACT ATTRIBUTE')
+    def visit_DropAnnotation(self, node):
+        self._visit_DropObject(node, 'ABSTRACT ANNOTATION')
 
-    def visit_CreateAttributeValue(self, node):
-        self.write('SET ATTRIBUTE ')
+    def visit_CreateAnnotationValue(self, node):
+        self.write('SET ANNOTATION ')
         self.visit(node.name)
         self.write(' := ')
         self.visit(node.value)
 
-    def visit_DropAttributeValue(self, node):
-        self.write('DROP ATTRIBUTE ')
+    def visit_DropAnnotationValue(self, node):
+        self.write('DROP ANNOTATION ')
         self.visit(node.name)
 
     def visit_CreateConstraint(self, node):
@@ -1209,7 +1209,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(names, newlines=False)
 
     def _visit_specs(self, node):
-        if (getattr(node, 'attributes', None) or
+        if (getattr(node, 'annotations', None) or
                 getattr(node, 'fields', None) or
                 getattr(node, 'constraints', None) or
                 getattr(node, 'links', None) or
@@ -1222,8 +1222,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.links, terminator=';')
             if getattr(node, 'properties', None):
                 self.visit_list(node.properties, terminator=';')
-            if getattr(node, 'attributes', None):
-                self.visit_list(node.attributes, terminator=';')
+            if getattr(node, 'annotations', None):
+                self.visit_list(node.annotations, terminator=';')
             if getattr(node, 'constraints', None):
                 self.visit_list(node.constraints, terminator=';')
             if getattr(node, 'indexes', None):
@@ -1317,7 +1317,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_qualifier(node)
         self._visit_Declaration(node)
 
-    def visit_AttributeDeclaration(self, node):
+    def visit_AnnotationDeclaration(self, node):
         if node.abstract:
             self.write('abstract ')
         if node.inheritable:
@@ -1355,7 +1355,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_Declaration(node)
 
     def visit_ViewDeclaration(self, node):
-        if node.attributes:
+        if node.annotations:
             self._visit_Declaration(node)
         else:
             # there's only one field expected - expr
@@ -1375,7 +1375,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.returning)
         self.write(' {')
         self._block_ws(1)
-        self.visit_list(node.attributes, terminator=';')
+        self.visit_list(node.annotations, terminator=';')
         self.visit_list(node.fields, terminator=';')
 
         if node.function_code.from_function:
@@ -1439,10 +1439,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' on ')
             self.visit(node.subject)
 
-        if node.attributes or node.fields:
+        if node.annotations or node.fields:
             self.write(' {')
             self._block_ws(1)
-            self.visit_list(node.attributes, terminator=';')
+            self.visit_list(node.annotations, terminator=';')
             self.visit_list(node.fields, terminator=';')
             self._block_ws(-1)
             self.write('}')
@@ -1452,8 +1452,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' := ')
         self.visit(node.value)
 
-    def visit_Attribute(self, node):
-        self.write('attribute ')
+    def visit_Annotation(self, node):
+        self.write('annotation ')
         self.visit(node.name)
         self.write(' := ')
         self.visit(node.value)

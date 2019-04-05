@@ -34,7 +34,7 @@ from edb.edgeql import qltypes
 from edb.edgeql import utils as qlutils
 
 from edb.schema import abc as s_abc
-from edb.schema import attributes as s_attrs
+from edb.schema import annotations as s_anno
 from edb.schema import delta as s_delta
 from edb.schema import objtypes as s_objtypes
 from edb.schema import constraints as s_constr
@@ -61,7 +61,7 @@ _DECL_MAP = {
     qlast.ConstraintDeclaration: s_constr.Constraint,
     qlast.LinkDeclaration: s_links.Link,
     qlast.PropertyDeclaration: s_props.Property,
-    qlast.AttributeDeclaration: s_attrs.Attribute,
+    qlast.AnnotationDeclaration: s_anno.Annotation,
 }
 
 
@@ -133,8 +133,8 @@ class DeclarationLoader:
                 **objcls_kw,
             )
 
-            if decl.attributes:
-                self._parse_attr_setters(obj, decl.attributes)
+            if decl.annotations:
+                self._parse_attr_setters(obj, decl.annotations)
 
             objects[type(obj)][obj] = decl
 
@@ -150,7 +150,7 @@ class DeclarationLoader:
         # Now, with all objects in the declaration in the schema, we can
         # process them in the semantic dependency order.
 
-        self._init_attributes(objects[s_attrs.Attribute])
+        self._init_annotations(objects[s_anno.Annotation])
 
         # Constraints have no external dependencies, but need to
         # be fully initialized when we get to constraint users below.
@@ -161,12 +161,12 @@ class DeclarationLoader:
         for constraint in constraints:
             self._schema = constraint.finalize(self._schema)
 
-        # ScalarTypes depend only on constraints and attributes,
+        # ScalarTypes depend only on constraints and annotations,
         # can process them now.
         self._init_scalars(objects[s_scalars.ScalarType], enums)
 
         # Generic links depend on scalars (via props), constraints
-        # and attributes.
+        # and annotations.
         self._init_links(objects[s_links.Link])
 
         # Finally, we can do the first pass on types
@@ -364,7 +364,7 @@ class DeclarationLoader:
             self._schema = constraint.set_field_value(
                 self._schema, 'params', params)
 
-    def _init_attributes(self, attrs):
+    def _init_annotations(self, attrs):
         pass
 
     def _init_scalars(self, scalars, enums):
@@ -484,8 +484,8 @@ class DeclarationLoader:
 
             self._schema = source.add_pointer(self._schema, prop)
 
-            if propdecl.attributes:
-                self._parse_attr_setters(prop, propdecl.attributes)
+            if propdecl.annotations:
+                self._parse_attr_setters(prop, propdecl.annotations)
 
             if propdecl.fields:
                 self._parse_field_setters(prop, propdecl.fields)
@@ -494,18 +494,18 @@ class DeclarationLoader:
                 self._parse_subject_constraints(prop, propdecl)
 
     def _parse_attr_setters(
-            self, scls, attrdecls: typing.List[qlast.Attribute]):
+            self, scls, attrdecls: typing.List[qlast.Annotation]):
         for attrdecl in attrdecls:
-            attr = self._get_ref_obj(attrdecl.name, s_attrs.Attribute)
+            attr = self._get_ref_obj(attrdecl.name, s_anno.Annotation)
             value = qlcompiler.evaluate_ast_to_python_val(
                 attrdecl.value, self._schema, modaliases=self._mod_aliases)
 
             if not isinstance(value, str):
                 raise errors.SchemaDefinitionError(
-                    'attribute value is not a string',
+                    'annotation value is not a string',
                     context=attrdecl.value.context)
 
-            self._schema = scls.set_attribute(self._schema, attr, value)
+            self._schema = scls.set_annotation(self._schema, attr, value)
 
     def _parse_field_setters(
             self, scls, field_decls: typing.List[qlast.Field]):

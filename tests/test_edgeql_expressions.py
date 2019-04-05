@@ -2580,9 +2580,9 @@ class TestExpressions(tb.QueryTestCase):
                 ORDER BY _;
             """,
             [
+                'schema::Annotation',
+                'schema::AnnotationSubject',
                 'schema::Array',
-                'schema::Attribute',
-                'schema::AttributeSubject',
                 'schema::Delta',
                 'schema::DerivedLink',
                 'schema::DerivedObjectType',
@@ -3881,7 +3881,7 @@ class TestExpressions(tb.QueryTestCase):
             SELECT schema::ObjectType;
         """)
         attr = await self.con.fetchall(r"""
-            SELECT schema::Attribute;
+            SELECT schema::Annotation;
         """)
 
         union = [{'id': str(o.id)} for o in [*obj, *attr]]
@@ -3890,7 +3890,7 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(
             '''
                 WITH MODULE schema
-                SELECT ObjectType UNION Attribute;
+                SELECT ObjectType UNION Annotation;
             ''',
             union,
             sort=lambda x: x['id']
@@ -4179,7 +4179,7 @@ class TestExpressions(tb.QueryTestCase):
                         SELECT a
                     )
                 }
-                FILTER .name LIKE 'schema::%'
+                FILTER .name LIKE 'schema::Arr%'
                 ORDER BY .name LIMIT 1;
             """,
             [{'name': 'schema::Array', 'foo': {1, 2}}],
@@ -4197,7 +4197,7 @@ class TestExpressions(tb.QueryTestCase):
                         FILTER a < 2
                     )
                 }
-                FILTER .name LIKE 'schema::%'
+                FILTER .name LIKE  'schema::Arr%'
                 ORDER BY .name LIMIT 1;
             """,
             [{'name': 'schema::Array', 'foo': {1}}],

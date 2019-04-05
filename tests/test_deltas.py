@@ -81,7 +81,7 @@ class TestDeltas(tb.DDLTestCase):
 
             ALTER SCALAR TYPE test::a1 {
                 CREATE CONSTRAINT std::one_of('a', 'b') {
-                    SET ATTRIBUTE description :=
+                    SET ANNOTATION description :=
                         'test_delta_drop_01_constraint';
                 };
             };
@@ -92,8 +92,8 @@ class TestDeltas(tb.DDLTestCase):
                 WITH MODULE schema
                 SELECT Constraint {name}
                 FILTER
-                    .attributes.name = 'std::description'
-                    AND .attributes@value = 'test_delta_drop_01_constraint';
+                    .annotations.name = 'std::description'
+                    AND .annotations@value = 'test_delta_drop_01_constraint';
             """,
             [
                 {
@@ -111,8 +111,8 @@ class TestDeltas(tb.DDLTestCase):
                 WITH MODULE schema
                 SELECT Constraint {name}
                 FILTER
-                    .attributes.name = 'std::description'
-                    AND .attributes@value = 'test_delta_drop_01_constraint';
+                    .annotations.name = 'std::description'
+                    AND .annotations@value = 'test_delta_drop_01_constraint';
             """,
             []
         )
@@ -123,7 +123,7 @@ class TestDeltas(tb.DDLTestCase):
         await self.con.execute("""
             CREATE TYPE test::C1 {
                 CREATE PROPERTY l1 -> std::str {
-                    SET ATTRIBUTE description := 'test_delta_drop_02_link';
+                    SET ANNOTATION description := 'test_delta_drop_02_link';
                 };
             };
         """)
@@ -133,8 +133,8 @@ class TestDeltas(tb.DDLTestCase):
                 WITH MODULE schema
                 SELECT Property {name}
                 FILTER
-                    .attributes.name = 'std::description'
-                    AND .attributes@value = 'test_delta_drop_02_link';
+                    .annotations.name = 'std::description'
+                    AND .annotations@value = 'test_delta_drop_02_link';
             """,
             [
                 {
@@ -152,8 +152,8 @@ class TestDeltas(tb.DDLTestCase):
                 WITH MODULE schema
                 SELECT Property {name}
                 FILTER
-                    .attributes.name = 'std::description'
-                    AND .attributes@value = 'test_delta_drop_02_link';
+                    .annotations.name = 'std::description'
+                    AND .annotations@value = 'test_delta_drop_02_link';
             """,
             []
         )
@@ -162,11 +162,11 @@ class TestDeltas(tb.DDLTestCase):
         # Check that the schema refuses to drop objects with live references
         await self.con.execute("""
             CREATE TYPE test::DropA;
-            CREATE ABSTRACT ATTRIBUTE test::dropattr;
+            CREATE ABSTRACT ANNOTATION test::dropattr;
             CREATE ABSTRACT LINK test::l1_parent;
             CREATE TYPE test::DropB {
                 CREATE LINK l1 EXTENDING test::l1_parent -> test::DropA {
-                    SET ATTRIBUTE test::dropattr := 'foo';
+                    SET ANNOTATION test::dropattr := 'foo';
                 };
             };
             CREATE SCALAR TYPE test::dropint EXTENDING int64;
@@ -181,8 +181,8 @@ class TestDeltas(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
-                'cannot drop abstract attr.*test::dropattr.*other objects'):
-            await self.con.execute('DROP ABSTRACT ATTRIBUTE test::dropattr')
+                'cannot drop abstract anno.*test::dropattr.*other objects'):
+            await self.con.execute('DROP ABSTRACT ANNOTATION test::dropattr')
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
@@ -323,7 +323,7 @@ class TestDeltaDDLGeneration(tb.DDLTestCase):
                     required property name -> str;
                     required link related extending related -> NamedObject {
                         inherited property lang -> str {
-                            attribute title := 'Language';
+                            annotation title := 'Language';
                         };
                     };
                 };
@@ -353,7 +353,7 @@ ALTER TYPE test::NamedObject {
 -> test::NamedObject;
         CREATE SINGLE PROPERTY lang EXTENDING std::property -> std::str;
         ALTER PROPERTY lang {
-            SET ATTRIBUTE std::title := 'Language';
+            SET ANNOTATION std::title := 'Language';
         };
     };
 };

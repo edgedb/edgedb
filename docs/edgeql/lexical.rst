@@ -75,7 +75,7 @@ Every identifier that is not a *reserved* keyword is a valid *name*.
                       : of the following
                       : "ABSTRACT" | "ACTION" | "AFTER" |
                       : "ARRAY" | "AS" | "ASC" | "ATOM" |
-                      : "ATTRIBUTE" | "BEFORE" | "BY" |
+                      : "ANNOTATION" | "BEFORE" | "BY" |
                       : "CONCEPT" | "CONSTRAINT" |
                       : "DATABASE" | "DESC" | "EVENT" |
                       : "EXTENDING" | "FINAL" | "FIRST" |

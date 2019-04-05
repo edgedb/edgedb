@@ -29,7 +29,7 @@ from edb.edgeql import ast as ql_ast
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import qltypes as ql_ft
 
-from edb.schema import attributes as s_attrs
+from edb.schema import annotations as s_anno
 from edb.schema import casts as s_casts
 from edb.schema import scalars as s_scalars
 from edb.schema import objtypes as s_objtypes
@@ -822,48 +822,48 @@ class DeleteCast(
         return schema, cast
 
 
-class AttributeCommand:
-    _table = metaschema.get_metaclass_table(s_attrs.Attribute)
+class AnnotationCommand:
+    _table = metaschema.get_metaclass_table(s_anno.Annotation)
 
     def get_table(self, schema):
         return self._table
 
 
-class CreateAttribute(
-        AttributeCommand, CreateObject,
-        adapts=s_attrs.CreateAttribute):
+class CreateAnnotation(
+        AnnotationCommand, CreateObject,
+        adapts=s_anno.CreateAnnotation):
     op_priority = 1
 
 
-class AlterAttribute(
-        AttributeCommand, AlterObject, adapts=s_attrs.AlterAttribute):
+class AlterAnnotation(
+        AnnotationCommand, AlterObject, adapts=s_anno.AlterAnnotation):
     pass
 
 
-class DeleteAttribute(
-        AttributeCommand, DeleteObject,
-        adapts=s_attrs.DeleteAttribute):
+class DeleteAnnotation(
+        AnnotationCommand, DeleteObject,
+        adapts=s_anno.DeleteAnnotation):
     pass
 
 
-class AttributeValueCommand(sd.ObjectCommand,
-                            metaclass=ReferencedObjectCommandMeta):
-    _table = metaschema.get_metaclass_table(s_attrs.AttributeValue)
+class AnnotationValueCommand(sd.ObjectCommand,
+                             metaclass=ReferencedObjectCommandMeta):
+    _table = metaschema.get_metaclass_table(s_anno.AnnotationValue)
     op_priority = 4
 
     def get_table(self, schema):
         return self._table
 
 
-class CreateAttributeValue(
-        AttributeValueCommand, CreateOrAlterObject,
-        adapts=s_attrs.CreateAttributeValue):
+class CreateAnnotationValue(
+        AnnotationValueCommand, CreateOrAlterObject,
+        adapts=s_anno.CreateAnnotationValue):
     pass
 
 
-class DeleteAttributeValue(
-        AttributeValueCommand, DeleteObject,
-        adapts=s_attrs.DeleteAttributeValue):
+class DeleteAnnotationValue(
+        AnnotationValueCommand, DeleteObject,
+        adapts=s_anno.DeleteAnnotationValue):
     pass
 
 

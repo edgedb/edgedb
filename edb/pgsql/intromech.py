@@ -27,7 +27,7 @@ from edb.edgeql import qltypes
 
 from edb import schema as so
 from edb.schema import abc as s_abc
-from edb.schema import attributes as s_attrs
+from edb.schema import annotations as s_anno
 from edb.schema import casts as s_casts
 from edb.schema import scalars as s_scalars
 from edb.schema import objtypes as s_objtypes
@@ -76,7 +76,7 @@ class IntrospectionMech:
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_scalars(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_attributes(
+            schema = await self.read_annotations(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_objtypes(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
@@ -94,7 +94,7 @@ class IntrospectionMech:
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_indexes(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_attribute_values(
+            schema = await self.read_annotation_values(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
 
             schema = await self.order_scalars(schema)
@@ -801,14 +801,14 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_attributes(self, schema, only_modules, exclude_modules):
-        attributes = await datasources.schema.attributes.fetch(
+    async def read_annotations(self, schema, only_modules, exclude_modules):
+        annotations = await datasources.schema.annotations.fetch(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
 
-        for r in attributes:
+        for r in annotations:
             name = sn.Name(r['name'])
-            schema, attribute = s_attrs.Attribute.create_in_schema(
+            schema, _ = s_anno.Annotation.create_in_schema(
                 schema,
                 id=r['id'],
                 name=name,
@@ -817,29 +817,29 @@ class IntrospectionMech:
 
         return schema
 
-    async def read_attribute_values(
+    async def read_annotation_values(
             self, schema, only_modules, exclude_modules):
-        attributes = await datasources.schema.attributes.fetch_values(
+        annotations = await datasources.schema.annotations.fetch_values(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
 
-        for r in attributes:
+        for r in annotations:
             name = sn.Name(r['name'])
             subject = schema.get(r['subject_name'])
-            attribute = schema.get(r['attribute_name'])
+            anno = schema.get(r['annotation_name'])
             value = r['value']
 
-            schema, attribute = s_attrs.AttributeValue.create_in_schema(
+            schema, anno = s_anno.AnnotationValue.create_in_schema(
                 schema,
                 id=r['id'],
                 name=name,
                 subject=subject,
-                attribute=attribute,
+                annotation=anno,
                 value=value,
                 inheritable=r['inheritable'],
             )
 
-            schema = subject.add_attribute(schema, attribute)
+            schema = subject.add_annotation(schema, anno)
 
         return schema
 

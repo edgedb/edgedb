@@ -112,10 +112,10 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropScalarTypeStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CreateAttributeStmt(self, *kids):
+    def reduce_CreateAnnotationStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DropAttributeStmt(self, *kids):
+    def reduce_DropAnnotationStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_CreateObjectTypeStmt(self, *kids):
@@ -315,17 +315,17 @@ class SetFieldStmt(Nonterm):
         )
 
 
-class SetAttributeValueStmt(Nonterm):
-    def reduce_SETATTRIBUTE_NodeName_ASSIGN_Expr(self, *kids):
-        self.val = qlast.CreateAttributeValue(
+class SetAnnotationValueStmt(Nonterm):
+    def reduce_SETANNOTATION_NodeName_ASSIGN_Expr(self, *kids):
+        self.val = qlast.CreateAnnotationValue(
             name=kids[1].val,
             value=kids[3].val,
         )
 
 
-class DropAttributeValueStmt(Nonterm):
-    def reduce_DROP_ATTRIBUTE_NodeName(self, *kids):
-        self.val = qlast.DropAttributeValue(
+class DropAnnotationValueStmt(Nonterm):
+    def reduce_DROP_ANNOTATION_NodeName(self, *kids):
+        self.val = qlast.DropAnnotationValue(
             name=kids[2].val,
         )
 
@@ -338,15 +338,15 @@ class RenameStmt(Nonterm):
 commands_block(
     'Create',
     SetFieldStmt,
-    SetAttributeValueStmt)
+    SetAnnotationValueStmt)
 
 
 commands_block(
     'Alter',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     opt=False)
 
 
@@ -603,8 +603,8 @@ commands_block(
     'AlterRole',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     AlterRoleExtending,
     opt=False
 )
@@ -698,8 +698,8 @@ commands_block(
     'AlterConcreteConstraint',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     AlterAbstract,
     opt=False
 )
@@ -730,7 +730,7 @@ class DropConcreteConstraintStmt(Nonterm):
 commands_block(
     'CreateScalarType',
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     CreateConcreteConstraintStmt)
 
 
@@ -779,8 +779,8 @@ commands_block(
     'AlterScalarType',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     AlterExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
@@ -809,23 +809,23 @@ class DropScalarTypeStmt(Nonterm):
 
 
 #
-# CREATE ATTRIBUTE
+# CREATE ANNOTATION
 #
-class CreateAttributeStmt(Nonterm):
-    def reduce_CreateAttribute(self, *kids):
-        r"""%reduce CREATE ABSTRACT ATTRIBUTE NodeName OptExtendingSimple \
+class CreateAnnotationStmt(Nonterm):
+    def reduce_CreateAnnotation(self, *kids):
+        r"""%reduce CREATE ABSTRACT ANNOTATION NodeName OptExtendingSimple \
                     OptCreateCommandsBlock"""
-        self.val = qlast.CreateAttribute(
+        self.val = qlast.CreateAnnotation(
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val,
             inheritable=False,
         )
 
-    def reduce_CreateInheritableAttribute(self, *kids):
-        r"""%reduce CREATE ABSTRACT INHERITABLE ATTRIBUTE
+    def reduce_CreateInheritableAnnotation(self, *kids):
+        r"""%reduce CREATE ABSTRACT INHERITABLE ANNOTATION
                     NodeName OptExtendingSimple OptCreateCommandsBlock"""
-        self.val = qlast.CreateAttribute(
+        self.val = qlast.CreateAnnotation(
             name=kids[4].val,
             bases=kids[5].val,
             commands=kids[6].val,
@@ -834,12 +834,12 @@ class CreateAttributeStmt(Nonterm):
 
 
 #
-# DROP ATTRIBUTE
+# DROP ANNOTATION
 #
-class DropAttributeStmt(Nonterm):
-    def reduce_DropAttribute(self, *kids):
-        r"""%reduce DROP ABSTRACT ATTRIBUTE NodeName"""
-        self.val = qlast.DropAttribute(
+class DropAnnotationStmt(Nonterm):
+    def reduce_DropAnnotation(self, *kids):
+        r"""%reduce DROP ABSTRACT ANNOTATION NodeName"""
+        self.val = qlast.DropAnnotation(
             name=kids[3].val,
         )
 
@@ -893,8 +893,8 @@ commands_block(
     'AlterProperty',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     opt=False
 )
 
@@ -929,7 +929,7 @@ class DropPropertyStmt(Nonterm):
 commands_block(
     'CreateConcreteProperty',
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     CreateConcreteConstraintStmt
 )
 
@@ -1000,8 +1000,8 @@ commands_block(
     'AlterConcreteProperty',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     AlterTargetStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
@@ -1045,7 +1045,7 @@ class DropConcretePropertyStmt(Nonterm):
 commands_block(
     'CreateLink',
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
     CreateIndexStmt,
@@ -1073,8 +1073,8 @@ commands_block(
     'AlterLink',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     AlterSimpleExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
@@ -1153,7 +1153,7 @@ class OnTargetDeleteStmt(Nonterm):
 commands_block(
     'CreateConcreteLink',
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
     OnTargetDeleteStmt,
@@ -1191,8 +1191,8 @@ commands_block(
     'AlterConcreteLink',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
     AlterTargetStmt,
@@ -1244,7 +1244,7 @@ class DropConcreteLinkStmt(Nonterm):
 commands_block(
     'CreateObjectType',
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     CreateConcretePropertyStmt,
     CreateConcreteLinkStmt,
     CreateIndexStmt
@@ -1285,8 +1285,8 @@ commands_block(
     'AlterObjectType',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     AlterSimpleExtending,
     CreateConcretePropertyStmt,
     AlterConcretePropertyStmt,
@@ -1344,7 +1344,7 @@ class DropObjectTypeStmt(Nonterm):
 commands_block(
     'CreateView',
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     opt=False
 )
 
@@ -1383,8 +1383,8 @@ commands_block(
     'AlterView',
     RenameStmt,
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     opt=False
 )
 
@@ -1545,7 +1545,7 @@ commands_block(
     'CreateFunction',
     FromFunction,
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     opt=False
 )
 
@@ -1649,7 +1649,7 @@ class OperatorCode(Nonterm):
 commands_block(
     'CreateOperator',
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     OperatorCode,
     opt=False
 )
@@ -1744,8 +1744,8 @@ class CreateOperatorStmt(Nonterm):
 commands_block(
     'AlterOperator',
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     opt=False
 )
 
@@ -1843,7 +1843,7 @@ class CastCode(Nonterm):
 commands_block(
     'CreateCast',
     SetFieldStmt,
-    SetAttributeValueStmt,
+    SetAnnotationValueStmt,
     CastCode,
     CastAllowedUse,
     opt=False
@@ -1967,8 +1967,8 @@ class CreateCastStmt(Nonterm):
 commands_block(
     'AlterCast',
     SetFieldStmt,
-    SetAttributeValueStmt,
-    DropAttributeValueStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
     opt=False
 )
 

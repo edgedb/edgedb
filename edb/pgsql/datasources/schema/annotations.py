@@ -32,7 +32,7 @@ async def fetch(
                 a.name                  AS name,
                 a.inheritable           AS inheritable
             FROM
-                edgedb.attribute a
+                edgedb.annotation a
             WHERE
                 ($1::text IS NULL OR a.name LIKE $1::text)
                 AND ($2::text[] IS NULL
@@ -53,12 +53,12 @@ async def fetch_values(
                 a.name                      AS name,
                 edgedb._resolve_type_name(a.subject)
                                             AS subject_name,
-                edgedb._resolve_type_name(a.attribute)
-                                            AS attribute_name,
+                edgedb._resolve_type_name(a.annotation)
+                                            AS annotation_name,
                 a.value                     AS value,
                 a.inheritable               AS inheritable
             FROM
-                edgedb.AttributeValue a
+                edgedb.AnnotationValue a
             WHERE
                 ($1::text IS NULL OR a.name LIKE $1::text)
                 AND ($2::text[] IS NULL

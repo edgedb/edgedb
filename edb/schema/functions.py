@@ -27,7 +27,7 @@ from edb.edgeql import codegen
 from edb.edgeql import qltypes as ft
 
 from . import abc as s_abc
-from . import attributes
+from . import annotations
 from . import delta as sd
 from . import expr
 from . import name as sn
@@ -392,7 +392,7 @@ class FuncParameterList(so.ObjectList, type=Parameter):
         return schema, cls.create(schema, params)
 
 
-class CallableObject(attributes.AttributeSubject):
+class CallableObject(annotations.AnnotationSubject):
 
     params = so.SchemaField(
         FuncParameterList,
@@ -477,7 +477,7 @@ class CallableObject(attributes.AttributeSubject):
 
 
 class CallableCommandContext(sd.ObjectCommandContext,
-                             attributes.AttributeSubjectCommandContext):
+                             annotations.AnnotationSubjectCommandContext):
     pass
 
 

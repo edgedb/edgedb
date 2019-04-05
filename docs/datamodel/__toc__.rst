@@ -18,6 +18,6 @@ Data Model
     indexes
     constraints
     views
-    attributes
+    annotations
     modules
     databases

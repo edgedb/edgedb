@@ -1772,16 +1772,16 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         else:
             link_query = inh_link_query
 
-        if pn.name == 'attributes':
+        if pn.name == 'annotations':
             link_query = '''
                 SELECT
                     q.{src} AS {src},
-                    ((av.attribute).types[1]).maintype AS {tgt},
+                    ((av.annotation).types[1]).maintype AS {tgt},
                     av.value    AS {valprop}
                 FROM
                     ({query}
                     ) AS q
-                    INNER JOIN edgedb.AttributeValue av ON q.{tgt} = av.id
+                    INNER JOIN edgedb.AnnotationValue av ON q.{tgt} = av.id
             '''.format(
                 query=link_query,
                 src='source',

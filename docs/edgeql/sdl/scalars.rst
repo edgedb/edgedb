@@ -30,7 +30,7 @@ commands <ref_eql_ddl_scalars>`.
 
     [abstract] scalar type <TypeName> [extending <supertype> [, ...] ]
     [ "{"
-        [ <attribute-declarations> ]
+        [ <annotation-declarations> ]
         [ <constraint-declarations> ]
         ...
       "}" ]
@@ -43,8 +43,8 @@ The core of the declaration is identical to
 :eql:stmt:`CREATE SCALAR TYPE`, while the valid SDL sub-declarations
 are listed below:
 
-:sdl:synopsis:`<attribute-declarations>`
-    Set scalar type :ref:`attribute <ref_eql_sdl_schema_attributes>`
+:sdl:synopsis:`<annotation-declarations>`
+    Set scalar type :ref:`annotation <ref_eql_sdl_schema_annotations>`
     to a given *value*.
 
 :sdl:synopsis:`<constraint-declarations>`

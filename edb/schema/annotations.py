@@ -1,5 +1,4 @@
 #
-
 # This source file is part of the EdgeDB open source project.
 #
 # Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
@@ -31,8 +30,8 @@ from . import objects as so
 from . import utils
 
 
-class Attribute(inheriting.InheritingObject):
-    # Attributes cannot be renamed, so make sure the name
+class Annotation(inheriting.InheritingObject):
+    # Annotations cannot be renamed, so make sure the name
     # has low compcoef.
     name = so.SchemaField(
         sn.Name, inheritable=False, compcoef=0.2)
@@ -45,13 +44,13 @@ class Attribute(inheriting.InheritingObject):
         return f"abstract {vn}"
 
 
-class AttributeValue(inheriting.InheritingObject):
+class AnnotationValue(inheriting.InheritingObject):
 
     subject = so.SchemaField(
         so.Object, compcoef=1.0, default=None, inheritable=False)
 
-    attribute = so.SchemaField(
-        Attribute, compcoef=0.429)
+    annotation = so.SchemaField(
+        Annotation, compcoef=0.429)
 
     value = so.SchemaField(
         str, compcoef=0.909)
@@ -66,7 +65,7 @@ class AttributeValue(inheriting.InheritingObject):
 
     @classmethod
     def get_schema_class_displayname(cls):
-        return 'attribute'
+        return 'annotation'
 
     def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
         vn = super().get_verbosename(schema)
@@ -78,74 +77,74 @@ class AttributeValue(inheriting.InheritingObject):
             return vn
 
 
-class AttributeSubject(so.Object):
-    attributes_refs = so.RefDict(
-        attr='attributes',
-        local_attr='own_attributes',
-        non_inheritable_attr='non_inheritable_attributes',
-        ref_cls=AttributeValue)
+class AnnotationSubject(so.Object):
+    annotations_refs = so.RefDict(
+        attr='annotations',
+        local_attr='own_annotations',
+        non_inheritable_attr='non_inheritable_annotations',
+        ref_cls=AnnotationValue)
 
-    attributes = so.SchemaField(
+    annotations = so.SchemaField(
         so.ObjectIndexByShortname,
         inheritable=False, ephemeral=True, coerce=True,
         default=so.ObjectIndexByShortname, hashable=False)
 
-    own_attributes = so.SchemaField(
+    own_annotations = so.SchemaField(
         so.ObjectIndexByShortname, compcoef=0.909,
         inheritable=False, ephemeral=True, coerce=True,
         default=so.ObjectIndexByShortname)
 
-    non_inheritable_attributes = so.SchemaField(
+    non_inheritable_annotations = so.SchemaField(
         so.ObjectIndexByShortname, compcoef=0.909,
         inheritable=False, ephemeral=True, coerce=True,
         default=so.ObjectIndexByShortname)
 
-    def add_attribute(self, schema, attribute, replace=False):
+    def add_annotation(self, schema, annotation, replace=False):
         schema = self.add_classref(
-            schema, 'attributes', attribute, replace=replace)
+            schema, 'annotations', annotation, replace=replace)
         return schema
 
-    def del_attribute(self, schema, attribute_name):
-        shortname = sn.shortname_from_fullname(attribute_name)
-        return self.del_classref(schema, 'attributes', shortname)
+    def del_annotation(self, schema, annotation_name):
+        shortname = sn.shortname_from_fullname(annotation_name)
+        return self.del_classref(schema, 'annotations', shortname)
 
-    def get_attribute(self, schema, name: str) -> typing.Optional[str]:
-        attrval = self.get_attributes(schema).get(schema, name, None)
+    def get_annotation(self, schema, name: str) -> typing.Optional[str]:
+        attrval = self.get_annotations(schema).get(schema, name, None)
         return attrval.get_value(schema) if attrval is not None else None
 
-    def set_attribute(self, schema, attr: Attribute, value: str):
+    def set_annotation(self, schema, attr: Annotation, value: str):
         attrname = attr.get_name(schema)
-        existing = self.get_own_attributes(schema).get(schema, attrname, None)
+        existing = self.get_own_annotations(schema).get(schema, attrname, None)
         if existing is None:
-            existing = self.get_non_inheritable_attributes(schema).get(
+            existing = self.get_non_inheritable_annotations(schema).get(
                 schema, attrname, None)
         if existing is None:
             my_name = self.get_name(schema)
             ann = sn.get_specialized_name(attrname, my_name)
             an = sn.Name(name=ann, module=my_name.module)
-            schema, av = AttributeValue.create_in_schema(
+            schema, av = AnnotationValue.create_in_schema(
                 schema, name=an, value=value,
-                subject=self, attribute=attr,
+                subject=self, annotation=attr,
                 inheritable=attr.get_inheritable(schema))
-            schema = self.add_attribute(schema, av)
+            schema = self.add_annotation(schema, av)
         else:
             schema, updated = existing.set_field_value('value', value)
-            schema = self.add_attribute(schema, updated, replace=True)
+            schema = self.add_annotation(schema, updated, replace=True)
 
         return schema
 
 
-class AttributeCommandContext(sd.ObjectCommandContext):
+class AnnotationCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class AttributeCommand(sd.ObjectCommand, schema_metaclass=Attribute,
-                       context_class=AttributeCommandContext):
+class AnnotationCommand(sd.ObjectCommand, schema_metaclass=Annotation,
+                        context_class=AnnotationCommandContext):
     pass
 
 
-class CreateAttribute(AttributeCommand, sd.CreateObject):
-    astnode = qlast.CreateAttribute
+class CreateAnnotation(AnnotationCommand, sd.CreateObject):
+    astnode = qlast.CreateAnnotation
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -166,28 +165,29 @@ class CreateAttribute(AttributeCommand, sd.CreateObject):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class AlterAttribute(AttributeCommand, sd.AlterObject):
+class AlterAnnotation(AnnotationCommand, sd.AlterObject):
     pass
 
 
-class DeleteAttribute(AttributeCommand, sd.DeleteObject):
-    astnode = qlast.DropAttribute
+class DeleteAnnotation(AnnotationCommand, sd.DeleteObject):
+    astnode = qlast.DropAnnotation
 
 
-class AttributeSubjectCommandContext:
+class AnnotationSubjectCommandContext:
     pass
 
 
-class AttributeSubjectCommand(sd.ObjectCommand):
+class AnnotationSubjectCommand(sd.ObjectCommand):
     pass
 
 
-class AttributeValueCommandContext(sd.ObjectCommandContext):
+class AnnotationValueCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
-                            context_class=AttributeValueCommandContext):
+class AnnotationValueCommand(sd.ObjectCommand,
+                             schema_metaclass=AnnotationValue,
+                             context_class=AnnotationValueCommandContext):
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
         nqname = cls._get_ast_name(schema, astnode, context)
@@ -210,15 +210,15 @@ class AttributeValueCommand(sd.ObjectCommand, schema_metaclass=AttributeValue,
 
         return pn
 
-    def add_attribute(self, schema, attribute, parent):
-        return parent.add_attribute(schema, attribute, replace=True)
+    def add_annotation(self, schema, annotation, parent):
+        return parent.add_annotation(schema, annotation, replace=True)
 
-    def del_attribute(self, schema, attribute_class, parent):
-        return parent.del_attribute(schema, attribute_class)
+    def del_annotation(self, schema, annotation_class, parent):
+        return parent.del_annotation(schema, annotation_class)
 
 
-class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
-    astnode = qlast.CreateAttributeValue
+class CreateAnnotationValue(AnnotationValueCommand, sd.CreateObject):
+    astnode = qlast.CreateAnnotationValue
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -232,7 +232,7 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
 
         if not isinstance(value, str):
             raise ValueError(
-                f'unexpected value type in AttributeValue: {value!r}')
+                f'unexpected value type in AnnotationValue: {value!r}')
 
         parent_ctx = context.get(sd.CommandContextToken)
         subject_name = parent_ctx.op.classname
@@ -244,7 +244,7 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
                 new_value=so.ObjectRef(name=subject_name),
             ),
             sd.AlterObjectProperty(
-                property='attribute',
+                property='annotation',
                 new_value=utils.reduce_to_typeref(schema, attr)
             ),
             sd.AlterObjectProperty(
@@ -264,7 +264,7 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
             node.value = qlast.BaseConstant.from_python(op.new_value)
         elif op.property == 'is_derived':
             pass
-        elif op.property == 'attribute':
+        elif op.property == 'annotation':
             pass
         elif op.property == 'subject':
             pass
@@ -274,35 +274,37 @@ class CreateAttributeValue(AttributeValueCommand, sd.CreateObject):
             super()._apply_field_ast(schema, context, node, op)
 
     def apply(self, schema, context):
-        attrsubj = context.get(AttributeSubjectCommandContext)
-        assert attrsubj, "Attribute commands must be run in " + \
-                         "AttributeSubject context"
+        attrsubj = context.get(AnnotationSubjectCommandContext)
+        assert attrsubj, "Annotation commands must be run in " + \
+                         "AnnotationSubject context"
 
-        with context(AttributeValueCommandContext(schema, self, None)):
+        with context(AnnotationValueCommandContext(schema, self, None)):
             name = sn.shortname_from_fullname(self.classname)
-            attrs = attrsubj.scls.get_own_attributes(schema)
-            attribute = attrs.get(schema, name, None)
-            if attribute is None:
-                attrs = attrsubj.scls.get_non_inheritable_attributes(schema)
-                attribute = attrs.get(schema, name, None)
+            attrs = attrsubj.scls.get_own_annotations(schema)
+            annotation = attrs.get(schema, name, None)
+            if annotation is None:
+                attrs = attrsubj.scls.get_non_inheritable_annotations(schema)
+                annotation = attrs.get(schema, name, None)
 
-            if attribute is None:
-                schema, attribute = super().apply(schema, context)
-                schema = self.add_attribute(schema, attribute, attrsubj.scls)
+            if annotation is None:
+                schema, annotation = super().apply(schema, context)
+                schema = self.add_annotation(
+                    schema, annotation, attrsubj.scls)
             else:
-                schema, attribute = sd.AlterObject.apply(self, schema, context)
+                schema, annotation = sd.AlterObject.apply(
+                    self, schema, context)
 
-            return schema, attribute
+            return schema, annotation
 
 
-class DeleteAttributeValue(AttributeValueCommand, sd.DeleteObject):
-    astnode = qlast.DropAttributeValue
+class DeleteAnnotationValue(AnnotationValueCommand, sd.DeleteObject):
+    astnode = qlast.DropAnnotationValue
 
     def apply(self, schema, context):
-        attrsubj = context.get(AttributeSubjectCommandContext)
-        assert attrsubj, "Attribute commands must be run in " + \
-                         "AttributeSubject context"
+        attrsubj = context.get(AnnotationSubjectCommandContext)
+        assert attrsubj, "Annotation commands must be run in " + \
+                         "AnnotationSubject context"
 
-        schema = self.del_attribute(schema, self.classname, attrsubj.scls)
+        schema = self.del_annotation(schema, self.classname, attrsubj.scls)
 
         return super().apply(schema, context)

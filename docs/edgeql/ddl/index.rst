@@ -44,5 +44,5 @@ another, the other type has to be created first. For example:
     indexes
     constraints
     functions
-    attributes
+    annotations
     migrations
