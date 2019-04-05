@@ -38,7 +38,6 @@ unreserved_keywords = frozenset([
     "by",
     "cardinality",
     "cast",
-    "committed",
     "config",
     "constraint",
     "database",

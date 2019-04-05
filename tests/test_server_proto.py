@@ -422,7 +422,7 @@ class TestServerProto(tb.QueryTestCase):
                     'select (1,)'),
                 edgedb.Set([(1,)]))
 
-            async with self.con.transaction(isolation='repeatable_read'):
+            async with self.con.transaction():
                 self.assertEqual(
                     await self.con.fetchone(
                         'select <array<int64>>[]'),
@@ -1654,6 +1654,65 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(
             await self.con.fetchone('SELECT 1111;'),
             1111)
+
+    async def test_server_proto_tx_16(self):
+        try:
+            for isol in ['', 'SERIALIZABLE', 'REPEATABLE READ']:
+                stmt = 'START TRANSACTION'
+
+                if isol:
+                    stmt += f' ISOLATION {isol}'
+                    expected = isol.lower()
+                else:
+                    expected = 'serializable'
+
+                await self.con.execute(stmt)
+                self.assertEqual(
+                    await self.con.fetchone(
+                        'SELECT sys::get_transaction_isolation()'),
+                    expected,
+                )
+                await self.con.execute('ROLLBACK')
+        finally:
+            await self.con.execute('ROLLBACK')
+
+    async def test_server_proto_tx_17(self):
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+
+        tx1 = con1.transaction()
+        tx2 = con2.transaction()
+        await tx1.start()
+        await tx2.start()
+
+        try:
+            async def worker(con, tx, n):
+                await con.fetchone(f'''
+                    WITH MODULE test
+                    SELECT count(TransactionTest FILTER .name LIKE 'tx_17_{n}')
+                ''')
+
+                n2 = 1 if n == 2 else 2
+
+                await con.fetchall(f'''
+                    WITH MODULE test
+                    INSERT TransactionTest {{
+                        name := 'tx_17_{n2}'
+                    }}
+                ''')
+
+                await tx.commit()
+
+            with self.assertRaises(edgedb.TransactionSerializationError):
+                await asyncio.gather(
+                    worker(con1, tx1, 1), worker(con2, tx2, 2)
+                )
+        finally:
+            if tx1.is_active():
+                await tx1.rollback()
+            if tx2.is_active():
+                await tx2.rollback()
+            await con2.close()
 
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):

@@ -155,3 +155,12 @@ sys::get_version_as_str() -> std::str
         ) IF v.stage != <sys::version_stage>'final' ELSE ''
     $$;
 };
+
+
+CREATE FUNCTION
+sys::get_transaction_isolation() -> std::str
+{
+    FROM SQL $$
+        SELECT setting FROM pg_settings WHERE name = 'transaction_isolation'
+    $$;
+};

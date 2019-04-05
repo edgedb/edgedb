@@ -56,7 +56,6 @@ class OperatorKind(s_enum.StrEnum):
 
 
 class TransactionIsolationLevel(s_enum.StrEnum):
-    READ_COMMITTED = 'READ COMMITTED'
     REPEATABLE_READ = 'REPEATABLE READ'
     SERIALIZABLE = 'SERIALIZABLE'
 

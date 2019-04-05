@@ -52,6 +52,9 @@ class PGError(enum.Enum):
     InvalidDatetimeFormatError = '22007'
     DatetimeError = '22008'
 
+    TransactionSerializationFailure = '40001'
+    TransactionDeadlockDetected = '40P01'
+
 
 constraint_errors = frozenset({
     PGError.IntegrityConstraintViolationError,
@@ -241,5 +244,11 @@ def interpret_backend_error(schema, fields):
 
     elif code in {PGError.InvalidDatetimeFormatError, PGError.DatetimeError}:
         return errors.InvalidValueError(translate_pgtype(schema, message))
+
+    elif code == PGError.TransactionSerializationFailure:
+        return errors.TransactionSerializationError(message)
+
+    elif code == PGError.TransactionDeadlockDetected:
+        return errors.TransactionDeadlockError(message)
 
     return errors.InternalServerError(message)

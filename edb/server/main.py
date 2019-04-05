@@ -218,6 +218,7 @@ def run_server(args):
             # * timestamptz is stored in UTC anyways;
             # * this makes the DB server more predictable.
             'TimeZone': 'UTC',
+            'default_transaction_isolation': 'serializable',
         }
 
         cluster = edgedb_cluster.get_pg_cluster(args['data_dir'])

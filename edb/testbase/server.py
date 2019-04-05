@@ -90,7 +90,26 @@ class TestCaseMeta(type(unittest.TestCase)):
     def wrap(mcls, meth):
         @functools.wraps(meth)
         def wrapper(self, *args, __meth__=meth, **kwargs):
-            self.loop.run_until_complete(__meth__(self, *args, **kwargs))
+            try_no = 1
+
+            while True:
+                try:
+                    # There might be unobvious serializability
+                    # anomalies across the test suite, so, rather
+                    # than hunting them down every time, simply
+                    # retry the test.
+                    self.loop.run_until_complete(
+                        __meth__(self, *args, **kwargs))
+                except edgedb.TransactionSerializationError:
+                    if try_no == 3:
+                        raise
+                    else:
+                        self.loop.run_until_complete(self.con.execute(
+                            'ROLLBACK;'
+                        ))
+                        try_no += 1
+                else:
+                    break
 
         return wrapper
 

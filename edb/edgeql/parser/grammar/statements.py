@@ -44,10 +44,6 @@ class TransactionMode(Nonterm):
         self.val = (qltypes.TransactionIsolationLevel.SERIALIZABLE,
                     kids[0].context)
 
-    def reduce_ISOLATION_READ_COMMITTED(self, *kids):
-        self.val = (qltypes.TransactionIsolationLevel.READ_COMMITTED,
-                    kids[0].context)
-
     def reduce_ISOLATION_REPEATABLE_READ(self, *kids):
         self.val = (qltypes.TransactionIsolationLevel.REPEATABLE_READ,
                     kids[0].context)

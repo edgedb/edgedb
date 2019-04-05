@@ -1834,7 +1834,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             '[[[1, 2]], [[3, 4]]]')
 
     async def test_edgeql_casts_assignment_01(self):
-        async with self.con.transaction():
+        async with self._run_and_rollback():
             await self.con.execute(r"""
                 SET MODULE test;
 
@@ -1871,12 +1871,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 }],
             )
 
-            await self.con.execute(r"""
-                DELETE (SELECT ScalarTest FILTER EXISTS (.p_int16 + .p_int32));
-            """)
-
     async def test_edgeql_casts_assignment_02(self):
-        async with self.con.transaction():
+        async with self._run_and_rollback():
             await self.con.execute(r"""
                 SET MODULE test;
 
@@ -1897,35 +1893,32 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 }],
             )
 
-            await self.con.execute(r"""
-                DELETE (SELECT ScalarTest FILTER .p_float32 = 1.5);
-            """)
-
     async def test_edgeql_casts_assignment_03(self):
-        # in particular, decimal is not assignment-castable
-        # into any other numeric type
-        for typename in ['int16',
-                         'int32',
-                         'int64',
-                         'float32',
-                         'float64']:
+        async with self._run_and_rollback():
+            # in particular, decimal is not assignment-castable
+            # into any other numeric type
+            for typename in ['int16',
+                             'int32',
+                             'int64',
+                             'float32',
+                             'float64']:
 
-            query = f'''
-                INSERT test::ScalarTest {{
-                    p_{typename} := <decimal>3,
-                    p_decimal := 1001,
-                }};
-            '''
-            with self.assertRaisesRegex(
-                    edgedb.QueryError,
-                    r'invalid target for property',
-                    msg=query):
-                await self.con.execute(query + r'''
-                    # clean up, so other tests can proceed
-                    DELETE (
-                        SELECT test::ScalarTest FILTER .p_decimal = 1001
-                    );
-                ''')
+                query = f'''
+                    INSERT test::ScalarTest {{
+                        p_{typename} := <decimal>3,
+                        p_decimal := 1001,
+                    }};
+                '''
+                async with self.assertRaisesRegexTx(
+                        edgedb.QueryError,
+                        r'invalid target for property',
+                        msg=query):
+                    await self.con.execute(query + r'''
+                        # clean up, so other tests can proceed
+                        DELETE (
+                            SELECT test::ScalarTest FILTER .p_decimal = 1001
+                        );
+                    ''')
 
     async def test_edgeql_casts_custom_scalar_01(self):
         await self.assert_query_result(
