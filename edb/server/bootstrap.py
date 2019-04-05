@@ -375,12 +375,10 @@ async def _populate_data(std_schema, schema, conn):
 async def _configure(schema, conn, cluster, insecure=False):
     scripts = []
 
-    memory = psutil.virtual_memory()
-    # 8192 is the value of BLCKSZ in Postgres, which the
-    # shared_buffers and effective_cache_size settings are multiples of.
+    memory_kb = psutil.virtual_memory().total // 1024
     settings = {
-        'shared_buffers': f'"{int(memory.total * 0.25 / 8192)}kB"',
-        'effective_cache_size': f'"{int(memory.total * 0.5 / 8192)}kB"',
+        'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
+        'effective_cache_size': f'"{int(memory_kb * 0.5)}kB"',
         'query_work_mem': f'"{6 * (2 ** 10)}kB"',
     }
 
