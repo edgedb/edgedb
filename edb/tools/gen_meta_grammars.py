@@ -31,7 +31,7 @@ import edgedb
 
 
 BOOL_LITERALS = {'true', 'false'}
-CONTAINER_TYPES = {'array', 'tuple'}
+SPECIAL_TYPES = {'array', 'tuple', 'enum'}
 NAMES = {'edgeql'}
 NAVIGATION = ('.<', '.>', '@', '.')
 
@@ -67,7 +67,7 @@ def main(names, con):
         SELECT T.name[5:]
         FILTER T.name LIKE 'std::%';
     '''))
-    types |= CONTAINER_TYPES
+    types |= SPECIAL_TYPES
     types = sorted(types)
 
     constraints = sorted(set(con.fetchall(r'''
