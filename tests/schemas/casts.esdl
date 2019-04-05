@@ -28,7 +28,7 @@ type Test {
     property p_local_datetime -> local_datetime;
     property p_local_date -> local_date;
     property p_local_time -> local_time;
-    property p_timedelta -> timedelta;
+    property p_duration -> duration;
     property p_int16 -> int16;
     property p_int32 -> int32;
     property p_int64 -> int64;
@@ -44,7 +44,7 @@ type JSONTest {
     property j_local_datetime -> json;
     property j_local_date -> json;
     property j_local_time -> json;
-    property j_timedelta -> json;
+    property j_duration -> json;
     property j_int16 -> json;
     property j_int32 -> json;
     property j_int64 -> json;
@@ -61,7 +61,7 @@ type ScalarTest {
     property p_local_datetime -> local_datetime;
     property p_local_date -> local_date;
     property p_local_time -> local_time;
-    property p_timedelta -> timedelta;
+    property p_duration -> duration;
     property p_int16 -> int16;
     property p_int32 -> int32;
     property p_int64 -> int64;

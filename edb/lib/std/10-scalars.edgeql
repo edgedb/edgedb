@@ -37,7 +37,7 @@ CREATE SCALAR TYPE std::local_date EXTENDING std::anyscalar;
 
 CREATE SCALAR TYPE std::local_time EXTENDING std::anyscalar;
 
-CREATE SCALAR TYPE std::timedelta EXTENDING std::anyscalar;
+CREATE SCALAR TYPE std::duration EXTENDING std::anyscalar;
 
 CREATE ABSTRACT SCALAR TYPE std::anyreal EXTENDING std::anyscalar;
 

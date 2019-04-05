@@ -231,9 +231,9 @@ class BinaryRenderer:
         buf.write("<local_time>", style.code_comment)
         buf.write(repr(o.isoformat()), style.code_string)
 
-    @walk.register(datetime.timedelta)
-    def _timedelta(o: datetime.timedelta, repl_ctx: context.ReplContext, buf):
-        buf.write("<timedelta>", style.code_comment)
+    @walk.register(edgedb.Duration)
+    def _duration(o: edgedb.Duration, repl_ctx: context.ReplContext, buf):
+        buf.write("<duration>", style.code_comment)
         buf.write(repr(str(o)), style.code_string)
 
     @walk.register(edgedb.EnumValue)

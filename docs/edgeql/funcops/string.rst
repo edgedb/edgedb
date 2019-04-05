@@ -466,7 +466,7 @@ String
                   std::to_str(val: local_datetime, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: local_date, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: local_time, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: timedelta, fmt: OPTIONAL str={}) -> str
+                  std::to_str(val: duration, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: int64, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: float64, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: decimal, fmt: OPTIONAL str={}) -> str
@@ -484,10 +484,10 @@ String
 
     When converting :eql:type:`datetime`, :eql:type:`local_datetime`,
     :eql:type:`local_date`, :eql:type:`local_time`,
-    :eql:type:`timedelta` this function is the inverse of
+    :eql:type:`duration` this function is the inverse of
     :eql:func:`to_datetime`, :eql:func:`to_local_datetime`,
     :eql:func:`to_local_date`, :eql:func:`to_local_time`,
-    :eql:func:`to_timedelta`, correspondingly.
+    :eql:func:`to_duration`, correspondingly.
 
     .. code-block:: edgeql-repl
 

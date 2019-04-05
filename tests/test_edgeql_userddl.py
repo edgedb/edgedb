@@ -130,7 +130,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 edgedb.UnsupportedFeatureError,
                 r'user-defined casts are not supported'):
             await self.con.execute('''
-                CREATE CAST FROM std::int64 TO std::timedelta {
+                CREATE CAST FROM std::int64 TO std::duration {
                     FROM SQL CAST;
                     ALLOW ASSIGNMENT;
                 };

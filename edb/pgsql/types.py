@@ -53,7 +53,7 @@ base_type_name_map = {
     s_obj.get_known_type_id('std::local_datetime'): 'timestamp',
     s_obj.get_known_type_id('std::local_date'): 'date',
     s_obj.get_known_type_id('std::local_time'): 'time',
-    s_obj.get_known_type_id('std::timedelta'): 'interval',
+    s_obj.get_known_type_id('std::duration'): 'interval',
     s_obj.get_known_type_id('std::bytes'): 'bytea',
     s_obj.get_known_type_id('std::json'): 'jsonb',
 }
@@ -81,7 +81,7 @@ base_type_name_map_r = {
     'timestamp': sn.Name('std::local_datetime'),
     'date': sn.Name('std::local_date'),
     'time': sn.Name('std::local_time'),
-    'interval': sn.Name('std::timedelta'),
+    'interval': sn.Name('std::duration'),
     'bytea': sn.Name('std::bytes'),
     'jsonb': sn.Name('std::json'),
 }

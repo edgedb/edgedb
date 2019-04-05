@@ -34,14 +34,14 @@ System
 
 
 .. eql:function:: sys::sleep(duration: float64) -> bool
-                  sys::sleep(duration: timedelta) -> bool
+                  sys::sleep(duration: duration) -> bool
 
     :index: sleep delay
 
     Make the current session sleep for *duration* time.
 
     *duration* can either be a number of seconds specified
-    as a floating point number, or a :eql:type:`timedelta`.
+    as a floating point number, or a :eql:type:`duration`.
 
     The function always returns ``true``.
 
@@ -50,7 +50,7 @@ System
         db> SELECT sys::sleep(1);
         {true}
 
-        db> SELECT sys::sleep(<timedelta>'5 seconds');
+        db> SELECT sys::sleep(<duration>'5 seconds');
         {true}
 
 

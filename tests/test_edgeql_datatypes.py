@@ -44,38 +44,38 @@ class TestEdgeQLDT(tb.QueryTestCase):
     async def test_edgeql_dt_datetime_01(self):
         await self.assert_query_result(
             r'''SELECT <datetime>'2017-10-10T00:00:00+00' +
-                <timedelta>'1 day';''',
+                <duration>'1 day';''',
             ['2017-10-11T00:00:00+00:00'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <timedelta>'1 day' +
+            r'''SELECT <duration>'1 day' +
                 <datetime>'2017-10-10 00:00:00+00';''',
             ['2017-10-11T00:00:00+00:00'],
         )
 
         await self.assert_query_result(
             r'''SELECT <datetime>'2017-10-10T00:00:00+00' -
-                <timedelta>'1 day';''',
+                <duration>'1 day';''',
             ['2017-10-09T00:00:00+00:00'],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<timedelta>'1 day' + <timedelta>'1 day')''',
+            r'''SELECT to_str(<duration>'1 day' + <duration>'1 day')''',
             ['2 days'],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<timedelta>'4 days' - <timedelta>'1 day')''',
+            r'''SELECT to_str(<duration>'4 days' - <duration>'1 day')''',
             ['3 days'],
         )
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                "operator '-' cannot be applied.*timedelta.*datetime"):
+                "operator '-' cannot be applied.*duration.*datetime"):
 
             await self.con.fetchall("""
-                SELECT <timedelta>'1 day' - <datetime>'2017-10-10T00:00:00+00';
+                SELECT <duration>'1 day' - <datetime>'2017-10-10T00:00:00+00';
             """)
 
     async def test_edgeql_dt_datetime_02(self):
@@ -86,7 +86,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT <str>(<datetime>'2017-10-10T00:00:00+00' -
-                             <timedelta>'1 day');
+                             <duration>'1 day');
             ''',
             ['2017-10-09T00:00:00+00:00'],
         )
@@ -103,7 +103,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
             r'''
                 SELECT (<tuple<str,datetime>>(
                     'foo', '2017-10-10T00:00:00+00')).1 +
-                   <timedelta>'1 month';
+                   <duration>'1 month';
             ''',
             ['2017-11-10T00:00:00+00:00'],
         )
@@ -112,14 +112,14 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <local_datetime>'2017-10-10T13:11' +
-                    <timedelta>'1 day';
+                    <duration>'1 day';
             ''',
             ['2017-10-11T13:11:00'],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <timedelta>'1 day' +
+                SELECT <duration>'1 day' +
                     <local_datetime>'2017-10-10T13:11';
             ''',
             ['2017-10-11T13:11:00'],
@@ -128,40 +128,40 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <local_datetime>'2017-10-10T13:11' -
-                    <timedelta>'1 day';
+                    <duration>'1 day';
             ''',
             ['2017-10-09T13:11:00'],
         )
 
     async def test_edgeql_dt_local_date_01(self):
         await self.assert_query_result(
-            r'''SELECT <local_date>'2017-10-10' + <timedelta>'1 day';''',
+            r'''SELECT <local_date>'2017-10-10' + <duration>'1 day';''',
             ['2017-10-11'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <timedelta>'1 day' + <local_date>'2017-10-10';''',
+            r'''SELECT <duration>'1 day' + <local_date>'2017-10-10';''',
             ['2017-10-11'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <local_date>'2017-10-10' - <timedelta>'1 day';''',
+            r'''SELECT <local_date>'2017-10-10' - <duration>'1 day';''',
             ['2017-10-09'],
         )
 
     async def test_edgeql_dt_local_time_01(self):
         await self.assert_query_result(
-            r'''SELECT <local_time>'10:01:01' + <timedelta>'1 hour';''',
+            r'''SELECT <local_time>'10:01:01' + <duration>'1 hour';''',
             ['11:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <timedelta>'1 hour' + <local_time>'10:01:01';''',
+            r'''SELECT <duration>'1 hour' + <local_time>'10:01:01';''',
             ['11:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <local_time>'10:01:01' - <timedelta>'1 hour';''',
+            r'''SELECT <local_time>'10:01:01' - <duration>'1 hour';''',
             ['09:01:01'],
         )
 

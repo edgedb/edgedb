@@ -22,6 +22,11 @@
 -- Custom variants of date/time functions.
 --
 
+CREATE FUNCTION interval_out(interval)
+RETURNS text
+AS '$libdir/edbsys', 'edb_interval_out'
+LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
+
 CREATE FUNCTION to_timestamp(text, text)
 RETURNS timestamp
 AS '$libdir/edbsys', 'edb_to_timestamp'

@@ -53,7 +53,7 @@ sys::sleep(duration: std::float64) -> std::bool
 
 
 CREATE FUNCTION
-sys::sleep(duration: std::timedelta) -> std::bool
+sys::sleep(duration: std::duration) -> std::bool
 {
     FROM SQL $$
     SELECT pg_sleep_for("duration") IS NOT NULL;

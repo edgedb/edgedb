@@ -86,8 +86,8 @@ VALUES = {
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, decimal=False),
 
-    '<timedelta>"20:01:22.306916"':
-        value(typename='timedelta',
+    '<duration>"20:01:22.306916"':
+        value(typename='duration',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=True, decimal=False),
 
@@ -1109,7 +1109,7 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH A := to_str(
-                    <timedelta>{
+                    <duration>{
                         "20:01:22.306916",
                         "19:01:22.306916"
                     }
@@ -1140,7 +1140,7 @@ class TestExpressions(tb.QueryTestCase):
                 msg=query)
 
     async def test_edgeql_expr_valid_arithmetic_01(self):
-        # unary minus should work for numeric scalars and timedelta
+        # unary minus should work for numeric scalars and duration
         for right in get_test_values(signed=True):
             query = f"""SELECT count(-{right});"""
             await self.assert_query_result(query, [1])
@@ -1162,16 +1162,16 @@ class TestExpressions(tb.QueryTestCase):
     #    at all.
     #
     # 2) Date/time scalars support `+` if one of the operands is
-    #    `timedelta`. The result is always of the type of the other
+    #    `duration`. The result is always of the type of the other
     #    operand.
     #
     # 3) Date/time scalars support `-` when the right operand is
-    #    `timedelta`. The result is always of the type of the first
+    #    `duration`. The result is always of the type of the first
     #    operand. Technically this is dictated by the equivalence of
     #    A - B and A + (-B).
     #
     # 4) Date/time scalars support `-` when both operands are of the
-    #    same type. The result is always `timedelta`.
+    #    same type. The result is always `duration`.
     #
     # 5) Numeric scalars support `+` and `-` iff it is possible to
     #    implicitly cast one operand into the other. The result is
@@ -1230,9 +1230,9 @@ class TestExpressions(tb.QueryTestCase):
                 query = f"""SELECT count({left} + {right});"""
                 restype = None
 
-                if ldesc.signed:  # timedelta
+                if ldesc.signed:  # duration
                     restype = rdesc.typename
-                elif rdesc.signed:  # timedelta
+                elif rdesc.signed:  # duration
                     restype = ldesc.typename
 
                 if restype:
@@ -1256,10 +1256,10 @@ class TestExpressions(tb.QueryTestCase):
             for right, rdesc in get_test_items(datetime=True):
                 query = f"""SELECT count({left} - {right});"""
 
-                if rdesc.signed:  # timedelta
+                if rdesc.signed:  # duration
                     restype = ldesc.typename
                 elif rdesc.typename == ldesc.typename:
-                    restype = 'timedelta'
+                    restype = 'duration'
                 else:
                     restype = None
 

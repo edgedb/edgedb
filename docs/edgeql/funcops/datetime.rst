@@ -35,8 +35,8 @@ Date and Time
     * - :eql:func:`to_local_time`
       - :eql:func-desc:`to_local_time`
 
-    * - :eql:func:`to_timedelta`
-      - :eql:func-desc:`to_timedelta`
+    * - :eql:func:`to_duration`
+      - :eql:func-desc:`to_duration`
 
     * - :eql:func:`datetime_get`
       - :eql:func-desc:`datetime_get`
@@ -47,14 +47,14 @@ Date and Time
     * - :eql:func:`date_get`
       - :eql:func-desc:`date_get`
 
-    * - :eql:func:`timedelta_get`
-      - :eql:func-desc:`timedelta_get`
+    * - :eql:func:`duration_get`
+      - :eql:func-desc:`duration_get`
 
     * - :eql:func:`datetime_trunc`
       - :eql:func-desc:`datetime_trunc`
 
-    * - :eql:func:`timedelta_trunc`
-      - :eql:func-desc:`timedelta_trunc`
+    * - :eql:func:`duration_trunc`
+      - :eql:func-desc:`duration_trunc`
 
     * - :eql:func:`datetime_current`
       - :eql:func-desc:`datetime_current`
@@ -69,11 +69,11 @@ Date and Time
 ----------
 
 
-.. eql:operator:: DTPLUS: datetime + timedelta -> datetime
-                          local_datetime + timedelta -> local_datetime
-                          local_date + timedelta -> local_date
-                          local_time + timedelta -> local_time
-                          timedelta + timedelta -> timedelta
+.. eql:operator:: DTPLUS: datetime + duration -> datetime
+                          local_datetime + duration -> local_datetime
+                          local_date + duration -> local_date
+                          local_time + duration -> local_time
+                          duration + duration -> duration
 
     Time interval addition.
 
@@ -81,46 +81,46 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <local_time>'22:00' + <timedelta>'1 hour';
+        db> SELECT <local_time>'22:00' + <duration>'1 hour';
         {<local_time>'23:00:00'}
-        db> SELECT <timedelta>'1 hour' + <local_time>'22:00';
+        db> SELECT <duration>'1 hour' + <local_time>'22:00';
         {<local_time>'23:00:00'}
-        db> SELECT <timedelta>'1 hour' + <timedelta>'2 hours';
-        {<timedelta>'3:00:00'}
+        db> SELECT <duration>'1 hour' + <duration>'2 hours';
+        {<duration>'3:00:00'}
 
 
 ----------
 
 
-.. eql:operator:: DTMINUS: timedelta - timedelta -> timedelta
-                           datetime - datetime -> timedelta
-                           local_datetime - local_datetime -> timedelta
-                           local_time - local_time -> timedelta
-                           local_date - local_date -> timedelta
-                           datetime - timedelta -> datetime
-                           local_datetime - timedelta -> local_datetime
-                           local_time - timedelta -> local_time
-                           local_date - timedelta -> local_date
+.. eql:operator:: DTMINUS: duration - duration -> duration
+                           datetime - datetime -> duration
+                           local_datetime - local_datetime -> duration
+                           local_time - local_time -> duration
+                           local_date - local_date -> duration
+                           datetime - duration -> datetime
+                           local_datetime - duration -> local_datetime
+                           local_time - duration -> local_time
+                           local_date - duration -> local_date
 
     Time interval and date/time subtraction.
 
     .. code-block:: edgeql-repl
 
         db> SELECT <datetime>'January 01 2019 UTC' -
-        ...   <timedelta>'1 day';
+        ...   <duration>'1 day';
         {<datetime>'2018-12-31T00:00:00+00:00'}
         db> SELECT <datetime>'January 01 2019 UTC' -
         ...   <datetime>'January 02 2019 UTC';
-        {<timedelta>'-1 day, 0:00:00'}
-        db> SELECT <timedelta>'1 hour' -
-        ...   <timedelta>'2 hours';
-        {<timedelta>'-1 day, 23:00:00'}
+        {<duration>'-1 day, 0:00:00'}
+        db> SELECT <duration>'1 hour' -
+        ...   <duration>'2 hours';
+        {<duration>'-1 day, 23:00:00'}
 
     It is an error to subtract a date/time object from a time interval:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <timedelta>'1 day' -
+        db> SELECT <duration>'1 day' -
         ...   <datetime>'January 01 2019 UTC';
         QueryError: operator '-' cannot be applied to operands ...
 
@@ -296,17 +296,17 @@ Date and Time
 ----------
 
 
-.. eql:function:: std::timedelta_get(dt: timedelta, el: str) -> float64
+.. eql:function:: std::duration_get(dt: duration, el: str) -> float64
 
-    Extract a specific element of input timedelta by name.
+    Extract a specific element of input duration by name.
 
-    The :eql:type:`timedelta` scalar has the following elements
+    The :eql:type:`duration` scalar has the following elements
     available for extraction:
 
     - ``'century'`` - the number of centuries, rounded towards 0
     - ``'day'`` - the number of days
     - ``'decade'`` - the number of decades, rounded towards 0
-    - ``'epoch'`` - the total number of seconds in the timedelta
+    - ``'epoch'`` - the total number of seconds in the duration
     - ``'hour'`` - the hour (0-23)
     - ``'microseconds'`` - the seconds including fractional value expressed
       as microseconds
@@ -321,31 +321,31 @@ Date and Time
     - ``'year'`` - the number of years
 
     Due to inherent ambiguity of counting days, months, and years the
-    :eql:type:`timedelta` does not attempt to automatically convert
-    between them. So ``<timedelta>'24 hours'`` is not necessarily
-    the same as ``<timedelta>'1 day'``. So one must be careful
-    when adding or subtracting :eql:type:`timedelta` values.
+    :eql:type:`duration` does not attempt to automatically convert
+    between them. So ``<duration>'24 hours'`` is not necessarily
+    the same as ``<duration>'1 day'``. So one must be careful
+    when adding or subtracting :eql:type:`duration` values.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT timedelta_get(<timedelta>'24 hours', 'day');
+        db> SELECT duration_get(<duration>'24 hours', 'day');
         {0}
 
-        db> SELECT timedelta_get(<timedelta>'24 hours', 'hour');
+        db> SELECT duration_get(<duration>'24 hours', 'hour');
         {24}
 
-        db> SELECT timedelta_get(<timedelta>'1 day', 'day');
+        db> SELECT duration_get(<duration>'1 day', 'day');
         {1}
 
-        db> SELECT timedelta_get(<timedelta>'1 day', 'hour');
+        db> SELECT duration_get(<duration>'1 day', 'hour');
         {0}
 
-        db> SELECT timedelta_get(
-        ...     <timedelta>'24 hours' - <timedelta>'1 day', 'hour');
+        db> SELECT duration_get(
+        ...     <duration>'24 hours' - <duration>'1 day', 'hour');
         {24}
 
-        db> SELECT timedelta_get(
-        ...     <timedelta>'24 hours' - <timedelta>'1 day', 'day');
+        db> SELECT duration_get(
+        ...     <duration>'24 hours' - <duration>'1 day', 'day');
         {-1}
 
     However, ``'epoch'`` calculations assume that 1 day = 24 hours, 1
@@ -354,18 +354,18 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT timedelta_get(
-        ...     <timedelta>'24 hours' - <timedelta>'1d', 'epoch');
+        db> SELECT duration_get(
+        ...     <duration>'24 hours' - <duration>'1d', 'epoch');
         {0}
 
-        db> SELECT timedelta_get(<timedelta>'1 year', 'epoch');
+        db> SELECT duration_get(<duration>'1 year', 'epoch');
         {31557600}
 
-        db> SELECT timedelta_get(<timedelta>'365.25 days', 'epoch');
+        db> SELECT duration_get(<duration>'365.25 days', 'epoch');
         {31557600}
 
-        db> SELECT timedelta_get(
-        ...     <timedelta>'365 days 6 hours', 'epoch');
+        db> SELECT duration_get(
+        ...     <duration>'365 days 6 hours', 'epoch');
         {31557600}
 
 
@@ -414,23 +414,23 @@ Date and Time
 ----------
 
 
-.. eql:function:: std::timedelta_trunc(dt: timedelta, unit: str) -> timedelta
+.. eql:function:: std::duration_trunc(dt: duration, unit: str) -> duration
 
-    Truncate the input timedelta to a particular precision.
+    Truncate the input duration to a particular precision.
 
     The valid *unit* values are the same as for :eql:func:`datetime_trunc`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT timedelta_trunc(
-        ...     <timedelta>'3 days 15:01:22', 'day');
+        db> SELECT duration_trunc(
+        ...     <duration>'3 days 15:01:22', 'day');
         {'3 days'}
 
-        db> SELECT timedelta_trunc(
-        ...     <timedelta>'15:01:22.306916', 'minute');
+        db> SELECT duration_trunc(
+        ...     <duration>'15:01:22.306916', 'minute');
         {'15:01:00'}
 
-    The usual caveat that :eql:type:`timedelta` doesn't automatically
+    The usual caveat that :eql:type:`duration` doesn't automatically
     convert units applies to how truncation works.
 
 
@@ -617,7 +617,7 @@ Date and Time
 ------------
 
 
-.. eql:function:: std::to_timedelta( \
+.. eql:function:: std::to_duration( \
                     NAMED ONLY years: int64=0, \
                     NAMED ONLY months: int64=0, \
                     NAMED ONLY weeks: int64=0, \
@@ -625,24 +625,24 @@ Date and Time
                     NAMED ONLY hours: int64=0, \
                     NAMED ONLY mins: int64=0, \
                     NAMED ONLY secs: float64=0 \
-                  ) -> timedelta
+                  ) -> duration
 
-    :index: timedelta
+    :index: duration
 
-    Create a :eql:type:`timedelta` value.
+    Create a :eql:type:`duration` value.
 
     This function uses ``NAMED ONLY`` arguments  to create a
-    :eql:type:`timedelta` value. The available timedelta fields are:
+    :eql:type:`duration` value. The available duration fields are:
     *years*, *months*, *weeks*, *days*, *hours*, *mins*, *secs*.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_timedelta(hours := 1,
-        ...                     mins := 20,
-        ...                     secs := 45);
-        {<timedelta>'1:20:45'}
-        db> SELECT to_timedelta(secs := 4845);
-        {<timedelta>'1:20:45'}
+        db> SELECT to_duration(hours := 1,
+        ...                    mins := 20,
+        ...                    secs := 45);
+        {<duration>'1:20:45'}
+        db> SELECT to_duration(secs := 4845);
+        {<duration>'1:20:45'}
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_datetime_fmt>`.

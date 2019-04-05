@@ -371,7 +371,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_func_09(self):
         src = '''
-        .. eql:function:: sys::sleep(duration: timedelta) -> bool
+        .. eql:function:: sys::sleep(duration: duration) -> bool
                           sys::sleep(duration: float64) -> bool
 
             :index: sleep delay
@@ -384,7 +384,7 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
         self.assertEqual(
             x.xpath('//desc_signature/@eql-signature'),
-            ['sys::sleep(duration: timedelta) ->  bool',
+            ['sys::sleep(duration: duration) ->  bool',
              'sys::sleep(duration: float64) ->  bool'])
 
 

@@ -152,7 +152,7 @@ CREATE CAST FROM std::local_time TO std::json
     FROM SQL FUNCTION 'to_jsonb';
 
 
-CREATE CAST FROM std::timedelta TO std::json
+CREATE CAST FROM std::duration TO std::json
     FROM SQL FUNCTION 'to_jsonb';
 
 
@@ -222,7 +222,7 @@ CREATE CAST FROM std::json TO std::local_time
     $$;
 
 
-CREATE CAST FROM std::json TO std::timedelta
+CREATE CAST FROM std::json TO std::duration
     FROM SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::interval;
     $$;

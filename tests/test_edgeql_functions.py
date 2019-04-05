@@ -1151,35 +1151,35 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {22.306916},
         )
 
-    async def test_edgeql_functions_timedelta_get_01(self):
+    async def test_edgeql_functions_duration_get_01(self):
         await self.assert_query_result(
             r'''
-                SELECT timedelta_get(
-                    <timedelta>'15:01:22.306916', 'hour');
+                SELECT duration_get(
+                    <duration>'15:01:22.306916', 'hour');
             ''',
             {15},
         )
 
         await self.assert_query_result(
             r'''
-                SELECT timedelta_get(
-                    <timedelta>'15:01:22.306916', 'minute');
+                SELECT duration_get(
+                    <duration>'15:01:22.306916', 'minute');
             ''',
             {1},
         )
 
         await self.assert_query_result(
             r'''
-                SELECT timedelta_get(
-                    <timedelta>'15:01:22.306916', 'second');
+                SELECT duration_get(
+                    <duration>'15:01:22.306916', 'second');
             ''',
             {22.306916},
         )
 
         await self.assert_query_result(
             r'''
-                SELECT timedelta_get(
-                    <timedelta>'3 days 15:01:22', 'day');
+                SELECT duration_get(
+                    <duration>'3 days 15:01:22', 'day');
             ''',
             {3},
         )
@@ -1241,35 +1241,35 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'2018-05-07T20:01:22+00:00'},
         )
 
-    async def test_edgeql_functions_timedelta_trunc_01(self):
+    async def test_edgeql_functions_duration_trunc_01(self):
         await self.assert_query_result(
             r'''
-            SELECT <str>timedelta_trunc(
-                <timedelta>'3 days 15:01:22', 'day');
+            SELECT <str>duration_trunc(
+                <duration>'3 days 15:01:22', 'day');
             ''',
             {'3 days'},
         )
 
         await self.assert_query_result(
             r'''
-            SELECT <str>timedelta_trunc(
-                <timedelta>'15:01:22.306916', 'hour');
+            SELECT <str>duration_trunc(
+                <duration>'15:01:22.306916', 'hour');
             ''',
             {'15:00:00'},
         )
 
         await self.assert_query_result(
             r'''
-            SELECT <str>timedelta_trunc(
-                <timedelta>'15:01:22.306916', 'minute');
+            SELECT <str>duration_trunc(
+                <duration>'15:01:22.306916', 'minute');
             ''',
             {'15:01:00'},
         )
 
         await self.assert_query_result(
             r'''
-            SELECT <str>timedelta_trunc(
-                <timedelta>'15:01:22.306916', 'second');
+            SELECT <str>duration_trunc(
+                <duration>'15:01:22.306916', 'second');
             ''',
             {'15:01:22'},
         )
@@ -1371,70 +1371,80 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ['13:01:22.306916'],
         )
 
-    async def test_edgeql_functions_to_timedelta_01(self):
+    async def test_edgeql_functions_to_duration_01(self):
         await self.assert_query_result(
-            r'''SELECT <str>to_timedelta(years:=20);''',
+            r'''SELECT <str>to_duration(years:=20);''',
             ['20 years'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_timedelta(months:=20);''',
-            ['1 year 8 mons'],
+            r'''SELECT <str>to_duration(months:=20);''',
+            ['1 year 8 months'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_timedelta(weeks:=20);''',
+            r'''SELECT <str><duration>'1 year 8 months';''',
+            ['1 year 8 months'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str>to_duration(weeks:=20);''',
             ['140 days'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_timedelta(days:=20);''',
+            r'''SELECT <str>to_duration(days:=20);''',
             ['20 days'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_timedelta(hours:=20);''',
+            r'''SELECT <str>to_duration(hours:=20);''',
             ['20:00:00'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_timedelta(mins:=20);''',
+            r'''SELECT <str>to_duration(mins:=20);''',
             ['00:20:00'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_timedelta(secs:=20);''',
+            r'''SELECT <str>to_duration(secs:=20);''',
             ['00:00:20'],
         )
 
-    async def test_edgeql_functions_to_timedelta_02(self):
         await self.assert_query_result(
-            r'''SELECT to_timedelta(years:=20) > to_timedelta(months:=20);''',
+            r'''SELECT <str>to_duration(secs:=20.15);''',
+            ['00:00:20.15'],
+        )
+
+    async def test_edgeql_functions_to_duration_02(self):
+        await self.assert_query_result(
+            r'''SELECT to_duration(years:=20) > to_duration(months:=20);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_timedelta(months:=20) > to_timedelta(weeks:=20);''',
+            r'''SELECT to_duration(months:=20) > to_duration(weeks:=20);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_timedelta(weeks:=20) > to_timedelta(days:=20);''',
+            r'''SELECT to_duration(weeks:=20) > to_duration(days:=20);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_timedelta(days:=20) > to_timedelta(hours:=20);''',
+            r'''SELECT to_duration(days:=20) > to_duration(hours:=20);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_timedelta(hours:=20) > to_timedelta(mins:=20);''',
+            r'''SELECT to_duration(hours:=20) > to_duration(mins:=20);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_timedelta(mins:=20) > to_timedelta(secs:=20);''',
+            r'''SELECT to_duration(mins:=20) > to_duration(secs:=20);''',
             [True],
         )
 
@@ -1582,7 +1592,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(r'''
-                    WITH DT := to_timedelta(months:=20)
+                    WITH DT := to_duration(months:=20)
                     SELECT to_str(DT, '');
                 ''')
 
@@ -2303,7 +2313,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>min(<timedelta>{
+                SELECT <str>min(<duration>{
                     '15:01:22',
                     '16:01:22',
                     '11:01:22',
@@ -2439,7 +2449,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>max(<timedelta>{
+                SELECT <str>max(<duration>{
                     '15:01:22',
                     '16:01:22',
                     '11:01:22',

@@ -78,7 +78,7 @@ std::date_get(dt: std::local_date, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::timedelta_get(dt: std::timedelta, el: std::str) -> std::float64
+std::duration_get(dt: std::duration, el: std::str) -> std::float64
 {
     FROM SQL $$
     SELECT date_part("el", "dt")
@@ -96,7 +96,7 @@ std::datetime_trunc(dt: std::datetime, unit: std::str) -> std::datetime
 
 
 CREATE FUNCTION
-std::timedelta_trunc(dt: std::timedelta, unit: std::str) -> std::timedelta
+std::duration_trunc(dt: std::duration, unit: std::str) -> std::duration
 {
     FROM SQL $$
     SELECT date_trunc("unit", "dt")
@@ -150,22 +150,22 @@ std::`<=` (l: std::datetime, r: std::datetime) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::datetime, r: std::timedelta) -> std::datetime
+std::`+` (l: std::datetime, r: std::duration) -> std::datetime
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::timedelta, r: std::datetime) -> std::datetime
+std::`+` (l: std::duration, r: std::datetime) -> std::datetime
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::datetime, r: std::timedelta) -> std::datetime
+std::`-` (l: std::datetime, r: std::duration) -> std::datetime
     FROM SQL OPERATOR r'-';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::datetime, r: std::datetime) -> std::timedelta
+std::`-` (l: std::datetime, r: std::datetime) -> std::duration
     FROM SQL OPERATOR r'-';
 
 
@@ -214,22 +214,22 @@ std::`<=` (l: std::local_datetime, r: std::local_datetime) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::local_datetime, r: std::timedelta) -> std::local_datetime
+std::`+` (l: std::local_datetime, r: std::duration) -> std::local_datetime
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::timedelta, r: std::local_datetime) -> std::local_datetime
+std::`+` (l: std::duration, r: std::local_datetime) -> std::local_datetime
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::local_datetime, r: std::timedelta) -> std::local_datetime
+std::`-` (l: std::local_datetime, r: std::duration) -> std::local_datetime
     FROM SQL OPERATOR r'-';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::local_datetime, r: std::local_datetime) -> std::timedelta
+std::`-` (l: std::local_datetime, r: std::local_datetime) -> std::duration
     FROM SQL OPERATOR r'-';
 
 
@@ -278,7 +278,7 @@ std::`<=` (l: std::local_date, r: std::local_date) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::local_date, r: std::timedelta) -> std::local_date
+std::`+` (l: std::local_date, r: std::duration) -> std::local_date
 {
     FROM SQL OPERATOR '+';
     SET force_return_cast := true;
@@ -286,7 +286,7 @@ std::`+` (l: std::local_date, r: std::timedelta) -> std::local_date
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::timedelta, r: std::local_date) -> std::local_date
+std::`+` (l: std::duration, r: std::local_date) -> std::local_date
 {
     FROM SQL OPERATOR '+';
     SET force_return_cast := true;
@@ -294,7 +294,7 @@ std::`+` (l: std::timedelta, r: std::local_date) -> std::local_date
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::local_date, r: std::timedelta) -> std::local_date
+std::`-` (l: std::local_date, r: std::duration) -> std::local_date
 {
     FROM SQL OPERATOR '-';
     SET force_return_cast := true;
@@ -302,7 +302,7 @@ std::`-` (l: std::local_date, r: std::timedelta) -> std::local_date
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::local_date, r: std::local_date) -> std::timedelta
+std::`-` (l: std::local_date, r: std::local_date) -> std::duration
     FROM SQL $$
     SELECT make_interval(days => "l" - "r")
     $$;
@@ -353,82 +353,82 @@ std::`<=` (l: std::local_time, r: std::local_time) -> std::bool
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::local_time, r: std::timedelta) -> std::local_time
+std::`+` (l: std::local_time, r: std::duration) -> std::local_time
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::timedelta, r: std::local_time) -> std::local_time
+std::`+` (l: std::duration, r: std::local_time) -> std::local_time
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::local_time, r: std::timedelta) -> std::local_time
+std::`-` (l: std::local_time, r: std::duration) -> std::local_time
     FROM SQL OPERATOR r'-';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::local_time, r: std::local_time) -> std::timedelta
+std::`-` (l: std::local_time, r: std::local_time) -> std::duration
     FROM SQL OPERATOR r'-';
 
 
-# std::timedelta
+# std::duration
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::timedelta, r: std::timedelta) -> std::bool
+std::`=` (l: std::duration, r: std::duration) -> std::bool
     FROM SQL OPERATOR r'=';
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::timedelta, r: OPTIONAL std::timedelta) -> std::bool
+std::`?=` (l: OPTIONAL std::duration, r: OPTIONAL std::duration) -> std::bool
     FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::timedelta, r: std::timedelta) -> std::bool
+std::`!=` (l: std::duration, r: std::duration) -> std::bool
     FROM SQL OPERATOR r'<>';
 
 
 CREATE INFIX OPERATOR
 std::`?!=` (
-        l: OPTIONAL std::timedelta,
-        r: OPTIONAL std::timedelta
+        l: OPTIONAL std::duration,
+        r: OPTIONAL std::duration
 ) -> std::bool
     FROM SQL EXPRESSION;
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::timedelta, r: std::timedelta) -> std::bool
+std::`>` (l: std::duration, r: std::duration) -> std::bool
     FROM SQL OPERATOR r'>';
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::timedelta, r: std::timedelta) -> std::bool
+std::`>=` (l: std::duration, r: std::duration) -> std::bool
     FROM SQL OPERATOR r'>=';
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::timedelta, r: std::timedelta) -> std::bool
+std::`<` (l: std::duration, r: std::duration) -> std::bool
     FROM SQL OPERATOR r'<';
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::timedelta, r: std::timedelta) -> std::bool
+std::`<=` (l: std::duration, r: std::duration) -> std::bool
     FROM SQL OPERATOR r'<=';
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::timedelta, r: std::timedelta) -> std::timedelta
+std::`+` (l: std::duration, r: std::duration) -> std::duration
     FROM SQL OPERATOR r'+';
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::timedelta, r: std::timedelta) -> std::timedelta
+std::`-` (l: std::duration, r: std::duration) -> std::duration
     FROM SQL OPERATOR r'-';
 
 
 CREATE PREFIX OPERATOR
-std::`-` (v: std::timedelta) -> std::timedelta
+std::`-` (v: std::duration) -> std::duration
     FROM SQL OPERATOR r'-';
 
 
@@ -465,7 +465,7 @@ CREATE CAST FROM std::str TO std::local_time
     FROM SQL FUNCTION 'edgedb.time_in';
 
 
-CREATE CAST FROM std::str TO std::timedelta
+CREATE CAST FROM std::str TO std::duration
     FROM SQL CAST;
 
 
@@ -494,5 +494,5 @@ CREATE CAST FROM std::local_time TO std::str
     FROM SQL CAST;
 
 
-CREATE CAST FROM std::timedelta TO std::str
-    FROM SQL CAST;
+CREATE CAST FROM std::duration TO std::str
+    FROM SQL FUNCTION 'edgedb.interval_out';

@@ -121,7 +121,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot cast'):
             await self.con.execute("""
-                SELECT <bytes>to_timedelta(hours:=20);
+                SELECT <bytes>to_duration(hours:=20);
             """)
 
     async def test_edgeql_casts_bytes_10(self):
@@ -225,8 +225,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <timedelta><timedelta>to_timedelta(
-                    hours:=20) IS timedelta;
+                SELECT <duration><duration>to_duration(
+                    hours:=20) IS duration;
             ''',
             [True],
         )
@@ -329,8 +329,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <timedelta><timedelta>to_timedelta(hours:=20) =
-                    to_timedelta(hours:=20);
+                SELECT <duration><duration>to_duration(hours:=20) =
+                    to_duration(hours:=20);
             ''',
             [True],
         )
@@ -436,8 +436,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <timedelta><str>to_timedelta(hours:=20) =
-                    to_timedelta(hours:=20);
+                SELECT <duration><str>to_duration(hours:=20) =
+                    to_duration(hours:=20);
             ''',
             [True],
         )
@@ -737,11 +737,11 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             await self.con.fetchone("SELECT <local_time>'2018-05-07 20:01:22'")
 
     async def test_edgeql_casts_str_09(self):
-        # Canonical timedelta is a bit weird.
+        # Canonical duration is a bit weird.
         await self.assert_query_result(
             r'''
                 WITH x := '20:01:22.306916'
-                SELECT <str><timedelta>x = x;
+                SELECT <str><duration>x = x;
             ''',
             [True],
         )
@@ -752,24 +752,24 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 WITH x := {
                     '20h 1m 22.306916s',
                     '20 hours 1 minute 22.306916 seconds',
-                    '72082.306916',  # the timedelta in seconds
+                    '72082.306916',  # the duration in seconds
                     '0.834285959675926 days',
                 }
-                SELECT <str><timedelta>x = x;
+                SELECT <str><duration>x = x;
             ''',
             [False, False, False, False],
         )
 
         await self.assert_query_result(
-            # validating that these are all in fact the same timedelta
+            # validating that these are all in fact the same duration
             r'''
                 WITH x := {
                     '20h 1m 22.306916s',
                     '20 hours 1 minute 22.306916 seconds',
-                    '72082.306916',  # the timedelta in seconds
+                    '72082.306916',  # the duration in seconds
                     '0.834285959675926 days',
                 }
-                SELECT <timedelta>x = <timedelta>'20:01:22.306916';
+                SELECT <duration>x = <duration>'20:01:22.306916';
             ''',
             [True, True, True, True],
         )
@@ -987,7 +987,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <timedelta><str>T.p_timedelta = T.p_timedelta;
+                SELECT <duration><str>T.p_duration = T.p_duration;
             ''',
             [True],
         )
@@ -1466,8 +1466,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <timedelta><json>to_timedelta(hours:=20) =
-                    to_timedelta(hours:=20);
+                SELECT <duration><json>to_duration(hours:=20) =
+                    to_duration(hours:=20);
             ''',
             [True],
         )
@@ -1563,7 +1563,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <timedelta><json>T.p_timedelta = T.p_timedelta;
+                SELECT <duration><json>T.p_duration = T.p_duration;
             ''',
             [True],
         )
@@ -1689,7 +1689,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-                SELECT <timedelta>J.j_timedelta = T.p_timedelta;
+                SELECT <duration>J.j_duration = T.p_duration;
             ''',
             [True],
         )

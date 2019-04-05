@@ -124,7 +124,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 ----------
 
 
-.. eql:type:: std::timedelta
+.. eql:type:: std::duration
 
     A type representing a relative time interval.
 
@@ -134,9 +134,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     .. code-block:: edgeql
 
-        SELECT <timedelta>'15 minutes';
-        SELECT <timedelta>'45.6 seconds';
-        SELECT <timedelta>'2.3 millennia 3 weeks';
+        SELECT <duration>'15 minutes';
+        SELECT <duration>'45.6 seconds';
+        SELECT <duration>'2.3 millennia 3 weeks';
 
     It's worth noting that time intervals are inherently ambiguous
     when it comes to some units like *days*, *months* or *years*, but
@@ -163,7 +163,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <timedelta>
+        db> SELECT <duration>
         ...     '12 decades 2403 months 3987 days 12348943ms';
         {'320 years 3 mons 3987 days 03:25:48.943'}
 
@@ -172,11 +172,11 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     .. code-block:: edgeql-repl
 
-        db> select <datetime>'January 01 2019 UTC' - <timedelta>'1 day';
+        db> select <datetime>'January 01 2019 UTC' - <duration>'1 day';
         {<datetime>'2018-12-31T00:00:00+00:00'}
-        db> select <local_time>'22:00' + <timedelta>'1 hour';
+        db> select <local_time>'22:00' + <duration>'1 hour';
         {<local_time>'23:00:00'}
 
-    See functions :eql:func:`timedelta_get`, :eql:func:`to_timedelta`,
+    See functions :eql:func:`duration_get`, :eql:func:`to_duration`,
     and :eql:func:`to_str` and date/time :eql:op:`operators <DTMINUS>`
-    for more ways of working with :eql:type:`timedelta`.
+    for more ways of working with :eql:type:`duration`.

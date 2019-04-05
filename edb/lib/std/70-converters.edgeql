@@ -57,7 +57,7 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
-std::to_str(td: std::timedelta, fmt: OPTIONAL str={}) -> std::str
+std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
 {
     FROM SQL $$
     SELECT (
@@ -166,8 +166,8 @@ std::to_str(nt: std::local_time, fmt: OPTIONAL str={}) -> std::str
 };
 
 
-# FIXME: There's no good safe default for all possible timedeltas and some
-# timedeltas cannot be formatted without non-trivial conversions (e.g.
+# FIXME: There's no good safe default for all possible durations and some
+# durations cannot be formatted without non-trivial conversions (e.g.
 # 7,000 days).
 
 
@@ -494,7 +494,7 @@ std::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
 
 
 CREATE FUNCTION
-std::to_timedelta(
+std::to_duration(
         NAMED ONLY years: std::int64=0,
         NAMED ONLY months: std::int64=0,
         NAMED ONLY weeks: std::int64=0,
@@ -502,7 +502,7 @@ std::to_timedelta(
         NAMED ONLY hours: std::int64=0,
         NAMED ONLY mins: std::int64=0,
         NAMED ONLY secs: std::float64=0
-    ) -> std::timedelta
+    ) -> std::duration
 {
     FROM SQL $$
     SELECT make_interval(

@@ -24,6 +24,7 @@
 
 
 #include "postgres.h"
+#include "miscadmin.h"
 #include "fmgr.h"
 #include "utils/builtins.h"
 #include "utils/datetime.h"
@@ -32,6 +33,29 @@
 
 
 static int	tm2time(struct pg_tm *tm, fsec_t fsec, TimeADT *result);
+
+
+/* A version of interval_out() which spells months as "month", not "mon". */
+PG_FUNCTION_INFO_V1(edb_interval_out);
+
+Datum
+edb_interval_out(PG_FUNCTION_ARGS)
+{
+	Interval   *span = PG_GETARG_INTERVAL_P(0);
+	char	   *result;
+	struct pg_tm tt,
+			   *tm = &tt;
+	fsec_t		fsec;
+	char		buf[MAXDATELEN + 1];
+
+	if (interval2tm(*span, tm, &fsec) != 0)
+		elog(ERROR, "could not convert interval to tm");
+
+	EncodeInterval(tm, fsec, INTSTYLE_EDGEDB, buf);
+
+	result = pstrdup(buf);
+	PG_RETURN_TEXT_P(cstring_to_text(result));
+}
 
 
 /* A version of to_timestamp() which errors out if the provided

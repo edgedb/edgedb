@@ -24,6 +24,6 @@ TYPE_IDS = {
     'std::local_datetime': uuid.UUID('00000000-0000-0000-0000-00000000010b'),
     'std::local_date': uuid.UUID('00000000-0000-0000-0000-00000000010c'),
     'std::local_time': uuid.UUID('00000000-0000-0000-0000-00000000010d'),
-    'std::timedelta': uuid.UUID('00000000-0000-0000-0000-00000000010e'),
+    'std::duration': uuid.UUID('00000000-0000-0000-0000-00000000010e'),
     'std::json': uuid.UUID('00000000-0000-0000-0000-00000000010f'),
 }
