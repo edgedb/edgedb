@@ -165,7 +165,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
         db> SELECT <duration>
         ...     '12 decades 2403 months 3987 days 12348943ms';
-        {'320 years 3 mons 3987 days 03:25:48.943'}
+        {'320 years 3 months 3987 days 03:25:48.943'}
 
     All date/time types support the ``+`` and ``-`` arithmetic operations
     with time intervals:
