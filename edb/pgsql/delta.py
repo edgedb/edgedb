@@ -1598,9 +1598,7 @@ class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
 
     def apply(self, schema, context=None):
         orig_schema = schema
-        schema, index = s_indexes.DeleteIndex.apply(
-            self, schema, context)
-        schema, _ = DeleteObject.apply(self, schema, context)
+        schema, index = DeleteObject.apply(self, schema, context)
 
         source = context.get(s_links.LinkCommandContext)
         if not source:

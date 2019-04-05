@@ -26,7 +26,6 @@ from . import inheriting
 from . import name as sn
 from . import objects as so
 from . import referencing
-from . import utils as s_utils
 
 
 class Index(inheriting.InheritingObject):
@@ -93,31 +92,47 @@ class IndexCommand(referencing.ReferencedObjectCommand,
         return sn.Name(name=idx_name, module=subject_name.module)
 
 
-class CreateIndex(IndexCommand, sd.CreateObject):
+class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
     astnode = qlast.CreateIndex
+    referenced_astnode = qlast.CreateIndex
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        parent_ctx = context.get(sd.CommandContextToken)
-        subject = parent_ctx.scls
-
-        cmd.update((
-            sd.AlterObjectProperty(
-                property='subject',
-                new_value=s_utils.reduce_to_typeref(schema, subject)
+        cmd.set_attribute_value(
+            'expr',
+            s_expr.Expression(
+                text=edgeql.generate_source(astnode.expr, pretty=False)
             ),
-            sd.AlterObjectProperty(
-                property='expr',
-                new_value=s_expr.Expression(
-                    text=edgeql.generate_source(astnode.expr, pretty=False))
-            )
-        ))
+        )
 
         return cmd
 
     def _create_begin(self, schema, context):
+        from edb.edgeql import parser as edgeql_parser
+        from edb.edgeql import utils as edgeql_utils
+
+        parent_ctx = context.get(sd.CommandContextToken)
+        subject = schema.get(parent_ctx.op.classname)
+
+        expr = self.get_attribute_value('expr')
+
+        if expr.qlast is not None:
+            tree = expr.qlast
+        else:
+            tree = edgeql_parser.parse(expr.text, context.modaliases)
+
+        _, _, qlexpr = edgeql_utils.normalize_tree(
+            tree,
+            schema,
+            modaliases=context.modaliases,
+            anchors={qlast.Subject: subject},
+            inline_anchors=True,
+        )
+
+        self.set_attribute_value('expr', s_expr.Expression(text=qlexpr))
+
         return sd.CreateObject._create_begin(
             self, schema, context)
 
