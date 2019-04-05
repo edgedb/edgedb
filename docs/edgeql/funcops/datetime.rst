@@ -450,8 +450,9 @@ Date and Time
 
     The :eql:type:`datetime` value can be parsed from the input
     :eql:type:`str` *s*. By default, the input is expected to conform
-    to ISO 8601 format. However, the optional argument *fmt* can be
-    used to override the input format to other forms.
+    to ISO 8601 format. However, the optional argument *fmt* can
+    be used to override the :ref:`input format
+    <ref_eql_functions_converters_datetime_fmt>` to other forms.
 
     .. code-block:: edgeql-repl
 
@@ -482,9 +483,6 @@ Date and Time
         ...     2018, 5, 7, 15, 1, 22.306916, 'UTC');
         {<datetime>'2018-05-07T15:01:22.306916+00:00'}
 
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
-
 
 ------------
 
@@ -505,6 +503,9 @@ Date and Time
     value can be parsed from the input :eql:type:`str` *s* with an
     optional *fmt* argument or it can be given in terms of its
     component parts: *year*, *month*, *day*, *hour*, *min*, *sec*.
+
+    For more details on formatting see :ref:`here
+    <ref_eql_functions_converters_datetime_fmt>`.
 
     .. code-block:: edgeql-repl
 
@@ -527,9 +528,6 @@ Date and Time
         ...   'US/Central');
         {<local_datetime>'2019-01-01T00:00:00'}
 
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
-
 
 ------------
 
@@ -549,6 +547,9 @@ Date and Time
     optional *fmt* argument or it can be given in terms of its
     component parts: *year*, *month*, *day*.
 
+    For more details on formatting see :ref:`here
+    <ref_eql_functions_converters_datetime_fmt>`.
+
     .. code-block:: edgeql-repl
 
         db> SELECT to_local_date('2018-05-07');
@@ -567,9 +568,6 @@ Date and Time
         ...   <datetime>'December 31, 2018 10:00PM GMT+8',
         ...   'US/Central');
         {<local_date>'2019-01-01'}
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
 
 
 ------------
@@ -591,6 +589,9 @@ Date and Time
     optional *fmt* argument or it can be given in terms of its
     component parts: *hour*, *min*, *sec*.
 
+    For more details on formatting see :ref:`here
+    <ref_eql_functions_converters_datetime_fmt>`.
+
     .. code-block:: edgeql-repl
 
         db> SELECT to_local_time('15:01:22.306916');
@@ -609,9 +610,6 @@ Date and Time
         ...   <datetime>'December 31, 2018 10:00PM GMT+8',
         ...   'US/Pacific');
         {<local_date>'22:00:00'}
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
 
 
 ------------
@@ -643,6 +641,3 @@ Date and Time
         {<duration>'1:20:45'}
         db> SELECT to_duration(seconds := 4845);
         {<duration>'1:20:45'}
-
-    For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
