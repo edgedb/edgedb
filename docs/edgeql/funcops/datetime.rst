@@ -623,8 +623,8 @@ Date and Time
                     NAMED ONLY weeks: int64=0, \
                     NAMED ONLY days: int64=0, \
                     NAMED ONLY hours: int64=0, \
-                    NAMED ONLY mins: int64=0, \
-                    NAMED ONLY secs: float64=0 \
+                    NAMED ONLY minutes: int64=0, \
+                    NAMED ONLY seconds: float64=0 \
                   ) -> duration
 
     :index: duration
@@ -633,15 +633,15 @@ Date and Time
 
     This function uses ``NAMED ONLY`` arguments  to create a
     :eql:type:`duration` value. The available duration fields are:
-    *years*, *months*, *weeks*, *days*, *hours*, *mins*, *secs*.
+    *years*, *months*, *weeks*, *days*, *hours*, *minutes*, *seconds*.
 
     .. code-block:: edgeql-repl
 
         db> SELECT to_duration(hours := 1,
-        ...                    mins := 20,
-        ...                    secs := 45);
+        ...                    minutes := 20,
+        ...                    seconds := 45);
         {<duration>'1:20:45'}
-        db> SELECT to_duration(secs := 4845);
+        db> SELECT to_duration(seconds := 4845);
         {<duration>'1:20:45'}
 
     For more details on formatting see :ref:`here

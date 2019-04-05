@@ -500,8 +500,8 @@ std::to_duration(
         NAMED ONLY weeks: std::int64=0,
         NAMED ONLY days: std::int64=0,
         NAMED ONLY hours: std::int64=0,
-        NAMED ONLY mins: std::int64=0,
-        NAMED ONLY secs: std::float64=0
+        NAMED ONLY minutes: std::int64=0,
+        NAMED ONLY seconds: std::float64=0
     ) -> std::duration
 {
     FROM SQL $$
@@ -511,8 +511,8 @@ std::to_duration(
         "weeks"::int,
         "days"::int,
         "hours"::int,
-        "mins"::int,
-        "secs"
+        "minutes"::int,
+        "seconds"
     )
     $$;
 };

@@ -1403,17 +1403,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_duration(mins:=20);''',
+            r'''SELECT <str>to_duration(minutes:=20);''',
             ['00:20:00'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_duration(secs:=20);''',
+            r'''SELECT <str>to_duration(seconds:=20);''',
             ['00:00:20'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <str>to_duration(secs:=20.15);''',
+            r'''SELECT <str>to_duration(seconds:=20.15);''',
             ['00:00:20.15'],
         )
 
@@ -1439,12 +1439,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT to_duration(hours:=20) > to_duration(mins:=20);''',
+            r'''SELECT to_duration(hours:=20) > to_duration(minutes:=20);''',
             [True],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_duration(mins:=20) > to_duration(secs:=20);''',
+            r'''SELECT to_duration(minutes:=20) > to_duration(seconds:=20);''',
             [True],
         )
 
