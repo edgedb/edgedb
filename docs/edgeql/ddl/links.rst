@@ -242,15 +242,15 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     inheriting from this links are also renamed.
 
 :eql:synopsis:`EXTENDING ...`
-    Alter the link parent list.  The full syntax of this action is:
+    Alter the link parent list.  The full syntax of this subcommand is:
 
     .. eql:synopsis::
 
          EXTENDING <name> [, ...]
             [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
 
-    This action makes the link item a child of the specified list
-    of parent link items.  The requirements for the parent-child
+    This subcommand makes the link a child of the specified list
+    of parent links.  The requirements for the parent-child
     relationship are the same as when creating a link.
 
     It is possible to specify the position in the parent list
