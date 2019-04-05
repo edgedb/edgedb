@@ -68,8 +68,10 @@ EDB_TO_GQL_SCALARS_MAP = {
     'bool': GraphQLBoolean,
     'uuid': GraphQLID,
     'datetime': GraphQLString,
-    'date': GraphQLString,
-    'time': GraphQLString,
+    'duration': GraphQLString,
+    'local_datetime': GraphQLString,
+    'local_date': GraphQLString,
+    'local_time': GraphQLString,
 }
 
 
@@ -185,6 +187,12 @@ class GQLCoreSchema:
         else:
             target = EDB_TO_GQL_SCALARS_MAP.get(
                 edb_target.get_name(self.edb_schema).name)
+
+        if target is None:
+            edb_typename = edb_target.get_verbosename(self.edb_schema)
+            raise g_errors.GraphQLCoreError(
+                f"could not convert {edb_typename!r} type to"
+                f" a GraphQL type")
 
         return target
 
