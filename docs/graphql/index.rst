@@ -22,7 +22,7 @@ the database:
 
     tutorial> CONFIGURE SYSTEM INSERT Port {
     .........     protocol := "graphql+http",
-    .........     database := "edgedb",
+    .........     database := "your_database_name",
     .........     address := "127.0.0.1",
     .........     port := 8888,
     .........     user := "http",
@@ -30,10 +30,10 @@ the database:
     ......... };
     CONFIGURE SYSTEM
 
-This will expose GraphQL API on port 8888. Pointing your browser to
-``http://127.0.0.1:8888/explore`` will bring up a GraphiQL interface
-to EdgeDB. This interface can be used to try out queries and explore
-the GraphQL capabilities.
+This will expose GraphQL API on port 8888 (or any other port that was
+specified). Pointing your browser to ``http://127.0.0.1:8888/explore``
+will bring up a GraphiQL interface to EdgeDB. This interface can be
+used to try out queries and explore the GraphQL capabilities.
 
 .. toctree::
     :maxdepth: 3
