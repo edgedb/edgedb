@@ -432,6 +432,13 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
 
             cls._parse_default(cmd)
 
+        else:
+            # this is an abstract link then
+            if cmd.get_attribute_value('default') is not None:
+                raise errors.SchemaDefinitionError(
+                    f"'default' is not a valid field for an abstact link",
+                    context=astnode.context)
+
         return cmd
 
     def _get_ast_node(self, context):

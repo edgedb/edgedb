@@ -1020,6 +1020,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 """)
 
+    async def test_edgeql_ddl_link_bad_03(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                f"'default' is not a valid field for an abstact link"):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE ABSTRACT LINK test::bar {
+                        SET default := Object;
+                    };
+                """)
+
     async def test_edgeql_ddl_prop_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
@@ -1049,6 +1060,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 await self.con.execute("""
                     CREATE TYPE test::Foo {
                         CREATE PROPERTY foo::bar -> test::Foo;
+                    };
+                """)
+
+    async def test_edgeql_ddl_property_bad_03(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                f"'default' is not a valid field for an abstact property"):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE ABSTRACT PROPERTY test::bar {
+                        SET default := 'bad';
                     };
                 """)
 
