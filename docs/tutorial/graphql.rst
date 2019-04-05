@@ -18,10 +18,11 @@ configuration:
     ......... };
     CONFIGURE SYSTEM
 
-This will expose :ref:`GraphQL API <ref_graphql_index>` on port 8888.
-Pointing your browser to ``http://127.0.0.1:8888/explore`` will bring
-up a `GraphiQL`_ interface to EdgeDB. This interface can be used to try
-out queries and explore the GraphQL capabilities.
+This will expose :ref:`GraphQL API <ref_graphql_index>` on port 8888
+(you can also specify any other port that you want). Pointing your
+browser to ``http://127.0.0.1:8888/explore`` will bring up a
+`GraphiQL`_ interface to EdgeDB. This interface can be used to try out
+queries and explore the GraphQL capabilities.
 
 .. _`GraphiQL`:
                 https://github.com/graphql/graphiql
