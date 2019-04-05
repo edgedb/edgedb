@@ -1,8 +1,11 @@
 .. _ref_admin_databases:
 
-=========
-Databases
-=========
+========
+DATABASE
+========
+
+:edb-alt-title: Databases
+
 
 This section describes the administrative commands pertaining to
 :ref:`databases <ref_datamodel_databases>`.
