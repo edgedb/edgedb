@@ -1664,7 +1664,7 @@ class TestServerProto(tb.QueryTestCase):
                     stmt += f' ISOLATION {isol}'
                     expected = isol.lower()
                 else:
-                    expected = 'serializable'
+                    expected = 'repeatable read'
 
                 await self.con.execute(stmt)
                 self.assertEqual(
@@ -1680,8 +1680,8 @@ class TestServerProto(tb.QueryTestCase):
         con1 = self.con
         con2 = await self.connect(database=con1.dbname)
 
-        tx1 = con1.transaction()
-        tx2 = con2.transaction()
+        tx1 = con1.transaction(isolation='serializable')
+        tx2 = con2.transaction(isolation='serializable')
         await tx1.start()
         await tx2.start()
 
