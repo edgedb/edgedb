@@ -136,6 +136,8 @@ The standard library defines the following constraints:
             constraint regexp(r'[A-Za-z]*');
         }
 
+    See :ref:`here <string_regexp>` for more details on regexp patterns.
+
 .. eql:constraint:: std::exclusive
 
     Specifies that the link or property value must be exclusive (unique).

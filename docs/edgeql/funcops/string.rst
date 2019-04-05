@@ -382,10 +382,10 @@ String
 
     Find the first regular expression match in a string.
 
-    Given an input *string* and a regular expression *pattern* find
-    the first match for the regular expression within the *string*.
-    Return the match, each match represented by an
-    :eql:type:`array\<str\>` of matched groups.
+    Given an input *string* and a regular expression :ref:`pattern
+    <string_regexp>` find the first match for the regular expression
+    within the *string*. Return the match, each match represented by
+    an :eql:type:`array\<str\>` of matched groups.
 
     .. code-block:: edgeql-repl
 
@@ -403,10 +403,10 @@ String
 
     Find all regular expression matches in a string.
 
-    Given an input *string* and a regular expression *pattern*
-    repeatedly match the regular expression within the *string*.
-    Return the set of all matches, each match represented by an
-    :eql:type:`array\<str\>` of matched groups.
+    Given an input *string* and a regular expression :ref:`pattern
+    <string_regexp>` repeatedly match the regular expression within
+    the *string*. Return the set of all matches, each match
+    represented by an :eql:type:`array\<str\>` of matched groups.
 
     .. code-block:: edgeql-repl
 
@@ -426,11 +426,11 @@ String
 
     Replace matching substrings in a given string.
 
-    Given an input *string* and a regular expression *pattern* replace
-    matching substrings with the replacement string *sub*. Optional
-    :ref:`flag <string_regexp_flags>` argument can be used to specify
-    additional regular expression flags. Return the string resulting
-    from substring replacement.
+    Given an input *string* and a regular expression :ref:`pattern
+    <string_regexp>` replace matching substrings with the replacement
+    string *sub*. Optional :ref:`flag <string_regexp_flags>` argument
+    can be used to specify additional regular expression flags. Return
+    the string resulting from substring replacement.
 
     .. code-block:: edgeql-repl
 
@@ -448,10 +448,10 @@ String
 
     Test if a regular expression has a match in a string.
 
-    Given an input *string* and a regular expression *pattern* test
-    whether there is a match for the regular expression within the
-    *string*. Return ``true`` if there is a match, ``false``
-    otherwise.
+    Given an input *string* and a regular expression :ref:`pattern
+    <string_regexp>` test whether there is a match for the regular
+    expression within the *string*. Return ``true`` if there is a
+    match, ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 
@@ -489,6 +489,9 @@ String
     :eql:func:`to_local_date`, :eql:func:`to_local_time`,
     :eql:func:`to_duration`, correspondingly.
 
+    For valid date and time formatting patterns see
+    :ref:`here <ref_eql_functions_converters_datetime_fmt>`.
+
     .. code-block:: edgeql-repl
 
         db> SELECT to_str(<datetime>'2018-05-07 15:01:22.306916-05',
@@ -501,6 +504,9 @@ String
     reverse of: :eql:func:`to_decimal`, :eql:func:`to_int16`,
     :eql:func:`to_int32`, :eql:func:`to_int64`,
     :eql:func:`to_float32`, :eql:func:`to_float64`.
+
+    For valid number formatting patterns see
+    :ref:`here <ref_eql_functions_converters_number_fmt>`.
 
     See also :eql:func:`to_json`.
 
@@ -537,7 +543,6 @@ String
             "b": "hello"
         }'}
 
-
     When converting :eql:type:`arrays <array>`, a *delimiter* argument
     is required:
 
@@ -549,6 +554,8 @@ String
 
 ----------
 
+
+.. _string_regexp:
 
 Regular Expressions
 -------------------
