@@ -219,6 +219,7 @@ def run_server(args):
             # * this makes the DB server more predictable.
             'TimeZone': 'UTC',
             'default_transaction_isolation': 'serializable',
+            'max_pred_locks_per_transaction': '512',
         }
 
         cluster = edgedb_cluster.get_pg_cluster(args['data_dir'])
