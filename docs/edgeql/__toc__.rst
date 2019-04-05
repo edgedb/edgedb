@@ -7,7 +7,6 @@ EdgeQL
     :hidden:
 
     overview
-    admin/index
     expressions/__toc__
     statements/index
     funcops/index
@@ -15,4 +14,5 @@ EdgeQL
     sdl/index
     ddl/index
     introspection/index
+    admin/index
     lexical

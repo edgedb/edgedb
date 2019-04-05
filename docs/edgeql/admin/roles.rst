@@ -1,8 +1,11 @@
 .. _ref_admin_roles:
 
-=====
-Roles
-=====
+====
+ROLE
+====
+
+:edb-alt-title: Roles
+
 
 This section describes the administrative commands pertaining to *roles*.
 

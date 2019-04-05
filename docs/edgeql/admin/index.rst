@@ -3,8 +3,15 @@
 Administration
 ==============
 
-Commands for managing :ref:`databases <ref_admin_databases>` and
-:ref:`roles <ref_admin_roles>`.
+Administrative commands for managing EdgeDB:
+
+* :ref:`DATABASE <ref_admin_databases>`
+
+  Create or remove a database.
+
+* :ref:`ROLE <ref_admin_roles>`
+
+  Create, remove or alter a role.
 
 
 .. toctree::
