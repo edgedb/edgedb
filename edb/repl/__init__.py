@@ -515,22 +515,25 @@ def execute_script(conn_args, data):
         else:
             raise
 
-    queries = lexutils.split_edgeql(data)[0]
-    ctx = context.ReplContext()
-    for query in queries:
-        try:
-            ret = con.fetchall(query)
-        except Exception as ex:
-            render.render_exception(
-                ctx,
-                ex,
-                query=query)
-            return 1
-        else:
-            render.render_binary(
-                ctx,
-                ret,
-                max_width=80)
+    try:
+        queries = lexutils.split_edgeql(data)[0]
+        ctx = context.ReplContext()
+        for query in queries:
+            try:
+                ret = con.fetchall(query)
+            except Exception as ex:
+                render.render_exception(
+                    ctx,
+                    ex,
+                    query=query)
+                return 1
+            else:
+                render.render_binary(
+                    ctx,
+                    ret,
+                    max_width=80)
+    finally:
+        con.close()
 
 
 def _data_in_stdin():
