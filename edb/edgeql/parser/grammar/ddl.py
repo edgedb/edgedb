@@ -573,10 +573,16 @@ class OptShortExtending(Nonterm):
         self.val = []
 
 
+commands_block(
+    'CreateRole',
+    SetFieldStmt,
+)
+
+
 class CreateRoleStmt(Nonterm):
     def reduce_CreateRoleStmt(self, *kids):
         r"""%reduce CREATE ROLE ShortNodeName OptShortExtending \
-                                OptCreateCommandsBlock \
+                                OptCreateRoleCommandsBlock \
         """
         self.val = qlast.CreateRole(
             name=kids[2].val,
@@ -603,8 +609,6 @@ commands_block(
     'AlterRole',
     RenameStmt,
     SetFieldStmt,
-    SetAnnotationValueStmt,
-    DropAnnotationValueStmt,
     AlterRoleExtending,
     opt=False
 )

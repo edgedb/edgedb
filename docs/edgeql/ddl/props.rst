@@ -199,14 +199,14 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     also renamed.
 
 :eql:synopsis:`EXTENDING ...`
-    Alter the property parent list.  The full syntax of this action is:
+    Alter the property parent list.  The full syntax of this subcommand is:
 
     .. eql:synopsis::
 
          EXTENDING <name> [, ...]
             [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
 
-    This action makes the property item a child of the specified list
+    This subcommand makes the property a child of the specified list
     of parent property items.  The requirements for the parent-child
     relationship are the same as when creating a property.
 
