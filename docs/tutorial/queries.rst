@@ -1,7 +1,7 @@
 .. _ref_tutorial_queries:
 
-Data and Queries
-================
+3. Data and Queries
+===================
 
 After the database and schema are set up, we can add some actual data.
 For example, let's add "Blade Runner 2049" to the database. It's possible to

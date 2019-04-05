@@ -1,7 +1,7 @@
 .. _ref_tutorial_graphql:
 
-GraphQL
-=======
+4. GraphQL
+==========
 
 In order to set up GraphQL access to the database we need to update the
 configuration:

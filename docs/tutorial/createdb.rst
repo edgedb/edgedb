@@ -1,7 +1,7 @@
 .. _ref_tutorial_createdb:
 
-Database and Schema
-===================
+2. Database and Schema
+======================
 
 First step in a brand new project is to create the database for it:
 

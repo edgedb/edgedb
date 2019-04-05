@@ -1,7 +1,7 @@
 .. _ref_tutorial_install:
 
-Installation
-============
+1. Installation
+===============
 
 How to get EdgeDB?
 
