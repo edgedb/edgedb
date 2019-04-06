@@ -6,7 +6,10 @@ Annotations
 
 *Annotations* are named values associated with schema items and
 are designed to hold arbitrary schema-level metadata represented as a
-:eql:type:`str`.
+:eql:type:`str`.  Users can define custom annotations via
+:ref:`SDL <ref_eql_sdl_schema_annotations>` or
+:ref:`DDL <ref_eql_ddl_schema_annotations>`.
+
 
 
 Standard Annotations
