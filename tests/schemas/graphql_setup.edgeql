@@ -99,3 +99,22 @@ INSERT Foo {
     after := 'q',
     color := <color_enum_t>'BLUE',
 };
+
+INSERT ScalarTest {
+    p_bool := True,
+    p_str := 'Hello',
+    p_datetime := <datetime>'2018-05-07T20:01:22.306916+00:00',
+    p_local_datetime := <local_datetime>'2018-05-07T20:01:22.306916',
+    p_local_date := <local_date>'2018-05-07',
+    p_local_time := <local_time>'20:01:22.306916',
+    p_duration := <duration>'20 hrs',
+    p_int16 := 12345,
+    p_int32 := 1234567890,
+    p_int64 := 1234567890123,
+    p_float32 := 2.5,
+    p_float64 := 2.5,
+    p_decimal := <decimal>
+        '123456789123456789123456789.123456789123456789123456789',
+    p_json := to_json('{"foo": [1, null, "bar"]}'),
+    p_bytes := b'Hello World',
+};
