@@ -54,7 +54,15 @@ from edb.schema import schema as s_schema
 from . import errors as g_errors
 
 
+# A special marker for types that are valid, but must not be exposed.
+class GQLHIDE:
+    pass
+
+
 EDB_TO_GQL_SCALARS_MAP = {
+    # For compatibility with GraphQL we cast json into a String, since
+    # GraphQL doesn't have an equivalent type with arbitrary fields.
+    'json': GraphQLString,
     'str': GraphQLString,
     'anyint': GraphQLInt,
     'int16': GraphQLInt,
@@ -72,6 +80,7 @@ EDB_TO_GQL_SCALARS_MAP = {
     'local_datetime': GraphQLString,
     'local_date': GraphQLString,
     'local_time': GraphQLString,
+    'bytes': GQLHIDE,
 }
 
 
@@ -80,8 +89,6 @@ GQL_TO_EDB_SCALARS_MAP = {
     'Int': 'int64',
     'Float': 'float64',
     'Boolean': 'bool',
-    # for compatibility with GraphQL ID we cast uuid into a str in
-    # expressions
     'ID': 'uuid',
 }
 
@@ -171,7 +178,10 @@ class GQLCoreSchema:
         if isinstance(edb_target, s_abc.Array):
             el_type = self._convert_edb_type(
                 edb_target.get_subtypes(self.edb_schema)[0])
-            if el_type:
+            if el_type is GQLHIDE:
+                # we can't expose an array of unexposable type
+                return el_type
+            else:
                 target = GraphQLList(GraphQLNonNull(el_type))
         elif isinstance(edb_target, s_objtypes.ObjectType):
             target = self._gql_interfaces.get(
@@ -200,7 +210,7 @@ class GQLCoreSchema:
         edb_target = ptr.get_target(self.edb_schema)
         target = self._convert_edb_type(edb_target)
 
-        if target:
+        if target is not GQLHIDE:
             # figure out any additional wrappers due to cardinality
             # and required flags
             if not ptr.singular(self.edb_schema):
@@ -244,7 +254,7 @@ class GQLCoreSchema:
 
                 ptr = edb_type.getptr(self.edb_schema, name)
                 target = self._get_target(ptr)
-                if target is not None:
+                if target is not GQLHIDE:
                     if isinstance(ptr.get_target(self.edb_schema),
                                   s_objtypes.ObjectType):
                         args = self._get_args(
@@ -285,6 +295,10 @@ class GQLCoreSchema:
                 continue
 
             target = self._convert_edb_type(ptr.get_target(self.edb_schema))
+            if target is GQLHIDE:
+                # don't expose this
+                continue
+
             intype = self._gql_inobjtypes.get(f'Filter{target.name}')
             if intype:
                 fields[name] = GraphQLInputObjectField(intype)
@@ -380,6 +394,10 @@ class GQLCoreSchema:
                 continue
 
             target = self._convert_edb_type(ptr.get_target(self.edb_schema))
+            if target is GQLHIDE:
+                # don't expose this
+                continue
+
             # this makes sure that we can only order by properties
             # that can be reflected into GraphQL
             intype = self._gql_inobjtypes.get(f'Filter{target.name}')
@@ -544,6 +562,14 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         # expected to generate non-empty results, so messy EQL is not
         # needed.
         self.dummy = dummy
+        # JSON needs some special treatment so we want to know if
+        # we're dealing with it
+        self._is_json = edb_base.issubclass(
+            self.edb_schema, self.edb_schema.get('std::json'))
+
+    @property
+    def is_json(self):
+        return self._is_json
 
     def is_enum(self):
         return False
@@ -686,6 +712,12 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             filterable = eql
             shape = filterable.result
 
+        elif self.get_field_type(name).is_json:
+            eql = filterable = parse_fragment(
+                f'''SELECT to_str({codegen.generate_source(parent)}.
+                        {codegen.generate_source(qlast.ObjectRef(name=name))})
+                ''')
+
         else:
             eql = filterable = parse_fragment(
                 f'''SELECT {codegen.generate_source(parent)}.
@@ -707,7 +739,15 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
 class GQLShadowType(GQLBaseType):
     def is_field_shadowed(self, name):
-        return self.has_native_field(name)
+        if name == '__typename':
+            return False
+
+        ftype = self.get_field_type(name)
+        # JSON fields are not shadowed
+        if ftype is None or ftype.is_json:
+            return False
+
+        return True
 
     def is_enum(self):
         return self.edb_base.is_enum(self.edb_schema)

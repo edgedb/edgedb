@@ -46,3 +46,21 @@ type User extending NamedObject {
 }
 
 type Person extending User;
+
+type ScalarTest {
+    property p_bool -> bool;
+    property p_str -> str;
+    property p_datetime -> datetime;
+    property p_local_datetime -> local_datetime;
+    property p_local_date -> local_date;
+    property p_local_time -> local_time;
+    property p_duration -> duration;
+    property p_int16 -> int16;
+    property p_int32 -> int32;
+    property p_int64 -> int64;
+    property p_float32 -> float32;
+    property p_float64 -> float64;
+    property p_decimal -> decimal;
+    property p_json -> json;
+    property p_bytes -> bytes;
+}

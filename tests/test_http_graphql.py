@@ -1690,6 +1690,72 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
+    def test_graphql_functional_scalars_01(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_bool
+                    p_str
+                    p_datetime
+                    p_local_datetime
+                    p_local_date
+                    p_local_time
+                    p_duration
+                    p_int16
+                    p_int32
+                    p_int64
+                    p_float32
+                    p_float64
+                    p_decimal
+                }
+            }
+        """, {
+            "ScalarTest": [{
+                'p_bool': True,
+                'p_str': 'Hello',
+                'p_datetime': '2018-05-07T20:01:22.306916+00:00',
+                'p_local_datetime': '2018-05-07T20:01:22.306916',
+                'p_local_date': '2018-05-07',
+                'p_local_time': '20:01:22.306916',
+                'p_duration': '20:00:00',
+                'p_int16': 12345,
+                'p_int32': 1234567890,
+                'p_int64': 1234567890123,
+                'p_float32': 2.5,
+                'p_float64': 2.5,
+                'p_decimal':
+                    123456789123456789123456789.123456789123456789123456789,
+            }]
+        })
+
+    def test_graphql_functional_scalars_02(self):
+        # JSON is special since it has to be serialized into its
+        # string representation
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_json
+                }
+            }
+        """, {
+            "ScalarTest": [{
+                'p_json': '{"foo": [1, null, "bar"]}',
+            }]
+        })
+
+    def test_graphql_functional_scalars_03(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'Cannot query field "p_bytes" on type "ScalarTest"',
+                _line=4, _col=25):
+            self.graphql_query(r"""
+                query {
+                    ScalarTest {
+                        p_bytes
+                    }
+                }
+            """)
+
     def test_graphql_functional_schema_01(self):
         self.assert_graphql_query_result(r"""
             query {
