@@ -219,6 +219,11 @@ def run_server(args):
             # * this makes the DB server more predictable.
             'TimeZone': 'UTC',
             'default_transaction_isolation': 'repeatable read',
+
+            # TODO: EdgeDB must manage/monitor all client connections and
+            # have its own "max_connections".  We'll set this setting even
+            # higher when we have that fully implemented.
+            'max_connections': '500',
         }
 
         cluster = edgedb_cluster.get_pg_cluster(args['data_dir'])
