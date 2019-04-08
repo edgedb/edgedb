@@ -849,8 +849,8 @@ class GraphQLTranslator:
         name = qlast.Path(steps=name)
 
         ftype = target.get_field_type(fname)
-        typename = ftype.short_name
-        if typename not in {'str', 'uuid'}:
+        typename = ftype.name
+        if typename not in {'std::str', 'std::uuid'}:
             gql_type = gt.EDB_TO_GQL_SCALARS_MAP.get(typename)
             if gql_type == graphql.GraphQLString:
                 # potentially need to cast the 'name' side into a
@@ -864,7 +864,8 @@ class GraphQLTranslator:
 
         value = self.visit(node.value)
         # we need to cast a target string into <uuid> or enum
-        if typename == 'uuid' and not isinstance(value.right, qlast.TypeCast):
+        if typename == 'std::uuid' and not isinstance(
+                value.right, qlast.TypeCast):
             value.right = qlast.TypeCast(
                 expr=value.right,
                 type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),

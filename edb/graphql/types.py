@@ -54,36 +54,32 @@ from edb.schema import schema as s_schema
 from . import errors as g_errors
 
 
-# A special marker for types that are valid, but must not be exposed.
-class GQLHIDE:
-    pass
-
-
 EDB_TO_GQL_SCALARS_MAP = {
     # For compatibility with GraphQL we cast json into a String, since
     # GraphQL doesn't have an equivalent type with arbitrary fields.
-    'json': GraphQLString,
-    'str': GraphQLString,
-    'anyint': GraphQLInt,
-    'int16': GraphQLInt,
-    'int32': GraphQLInt,
-    'int64': GraphQLInt,
-    'anyfloat': GraphQLFloat,
-    'float32': GraphQLFloat,
-    'float64': GraphQLFloat,
-    'anyreal': GraphQLFloat,
-    'decimal': GraphQLFloat,
-    'bool': GraphQLBoolean,
-    'uuid': GraphQLID,
-    'datetime': GraphQLString,
-    'duration': GraphQLString,
-    'local_datetime': GraphQLString,
-    'local_date': GraphQLString,
-    'local_time': GraphQLString,
-    'bytes': GQLHIDE,
+    'std::json': GraphQLString,
+    'std::str': GraphQLString,
+    'std::anyint': GraphQLInt,
+    'std::int16': GraphQLInt,
+    'std::int32': GraphQLInt,
+    'std::int64': GraphQLInt,
+    'std::anyfloat': GraphQLFloat,
+    'std::float32': GraphQLFloat,
+    'std::float64': GraphQLFloat,
+    'std::anyreal': GraphQLFloat,
+    'std::decimal': GraphQLFloat,
+    'std::bool': GraphQLBoolean,
+    'std::uuid': GraphQLID,
+    'std::datetime': GraphQLString,
+    'std::duration': GraphQLString,
+    'std::local_datetime': GraphQLString,
+    'std::local_date': GraphQLString,
+    'std::local_time': GraphQLString,
+    'std::bytes': None,
 }
 
 
+# used for casting input values from GraphQL to EdgeQL
 GQL_TO_EDB_SCALARS_MAP = {
     'String': 'str',
     'Int': 'int64',
@@ -176,18 +172,24 @@ class GQLCoreSchema:
         # only arrays can be validly wrapped, other containers don't
         # produce a valid graphql type
         if isinstance(edb_target, s_abc.Array):
-            el_type = self._convert_edb_type(
-                edb_target.get_subtypes(self.edb_schema)[0])
-            if el_type is GQLHIDE:
+            subtype = edb_target.get_subtypes(self.edb_schema)[0]
+            if subtype.get_name(self.edb_schema) == 'std::json':
+                # cannot expose arrays of JSON
+                return None
+
+            el_type = self._convert_edb_type(subtype)
+            if el_type is None:
                 # we can't expose an array of unexposable type
                 return el_type
             else:
                 target = GraphQLList(GraphQLNonNull(el_type))
+
         elif isinstance(edb_target, s_objtypes.ObjectType):
             target = self._gql_interfaces.get(
                 edb_target.get_name(self.edb_schema),
                 self._gql_objtypes.get(edb_target.get_name(self.edb_schema))
             )
+
         elif edb_target.is_scalar() and edb_target.is_enum(self.edb_schema):
             name = self.get_gql_name(edb_target.get_name(self.edb_schema))
 
@@ -195,14 +197,17 @@ class GQLCoreSchema:
                 target = self._gql_enums.get(name)
 
         else:
-            target = EDB_TO_GQL_SCALARS_MAP.get(
-                edb_target.get_name(self.edb_schema).name)
-
-        if target is None:
-            edb_typename = edb_target.get_verbosename(self.edb_schema)
-            raise g_errors.GraphQLCoreError(
-                f"could not convert {edb_typename!r} type to"
-                f" a GraphQL type")
+            base_target = edb_target.get_topmost_concrete_base(self.edb_schema)
+            bt_name = base_target.get_name(self.edb_schema)
+            try:
+                target = EDB_TO_GQL_SCALARS_MAP[bt_name]
+            except KeyError:
+                # this is the scalar base case, where all potentially
+                # unrecognized scalars should end up
+                edb_typename = edb_target.get_verbosename(self.edb_schema)
+                raise g_errors.GraphQLCoreError(
+                    f"could not convert {edb_typename!r} type to"
+                    f" a GraphQL type")
 
         return target
 
@@ -210,7 +215,7 @@ class GQLCoreSchema:
         edb_target = ptr.get_target(self.edb_schema)
         target = self._convert_edb_type(edb_target)
 
-        if target is not GQLHIDE:
+        if target is not None:
             # figure out any additional wrappers due to cardinality
             # and required flags
             if not ptr.singular(self.edb_schema):
@@ -254,7 +259,7 @@ class GQLCoreSchema:
 
                 ptr = edb_type.getptr(self.edb_schema, name)
                 target = self._get_target(ptr)
-                if target is not GQLHIDE:
+                if target is not None:
                     if isinstance(ptr.get_target(self.edb_schema),
                                   s_objtypes.ObjectType):
                         args = self._get_args(
@@ -295,7 +300,7 @@ class GQLCoreSchema:
                 continue
 
             target = self._convert_edb_type(ptr.get_target(self.edb_schema))
-            if target is GQLHIDE:
+            if target is None:
                 # don't expose this
                 continue
 
@@ -394,7 +399,7 @@ class GQLCoreSchema:
                 continue
 
             target = self._convert_edb_type(ptr.get_target(self.edb_schema))
-            if target is GQLHIDE:
+            if target is None:
                 # don't expose this
                 continue
 
@@ -564,8 +569,11 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         self.dummy = dummy
         # JSON needs some special treatment so we want to know if
         # we're dealing with it
-        self._is_json = edb_base.issubclass(
-            self.edb_schema, self.edb_schema.get('std::json'))
+        if edb_base.is_scalar():
+            bt = edb_base.get_topmost_concrete_base(self.edb_schema)
+            self._is_json = bt.get_name(self.edb_schema) == 'std::json'
+        else:
+            self._is_json = False
 
     @property
     def is_json(self):

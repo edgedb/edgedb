@@ -47,6 +47,10 @@ type User extending NamedObject {
 
 type Person extending User;
 
+scalar type positive_int_t extending int64 {
+    constraint min_value(0);
+}
+
 type ScalarTest {
     property p_bool -> bool;
     property p_str -> str;
@@ -63,4 +67,9 @@ type ScalarTest {
     property p_decimal -> decimal;
     property p_json -> json;
     property p_bytes -> bytes;
+
+    property p_posint -> positive_int_t;
+    property p_array_str -> array<str>;
+    property p_array_json -> array<json>;
+    property p_array_bytes -> array<bytes>;
 }

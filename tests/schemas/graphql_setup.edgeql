@@ -117,4 +117,9 @@ INSERT ScalarTest {
         '123456789123456789123456789.123456789123456789123456789',
     p_json := to_json('{"foo": [1, null, "bar"]}'),
     p_bytes := b'Hello World',
+
+    p_posint := 42,
+    p_array_str := ['hello', 'world'],
+    p_array_json := [<json>'hello', <json>'world'],
+    p_array_bytes := [b'hello', b'world'],
 };

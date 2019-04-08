@@ -1756,6 +1756,47 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_functional_scalars_04(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'Cannot query field "p_array_json" on type "ScalarTest"',
+                _line=4, _col=25):
+            self.graphql_query(r"""
+                query {
+                    ScalarTest {
+                        p_array_json
+                    }
+                }
+            """)
+
+    def test_graphql_functional_scalars_05(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'Cannot query field "p_array_bytes" on type "ScalarTest"',
+                _line=4, _col=25):
+            self.graphql_query(r"""
+                query {
+                    ScalarTest {
+                        p_array_bytes
+                    }
+                }
+            """)
+
+    def test_graphql_functional_scalars_06(self):
+        # JSON is special since it has to be serialized into its
+        # string representation
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_posint
+                }
+            }
+        """, {
+            "ScalarTest": [{
+                'p_posint': 42,
+            }]
+        })
+
     def test_graphql_functional_schema_01(self):
         self.assert_graphql_query_result(r"""
             query {
