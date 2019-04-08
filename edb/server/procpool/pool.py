@@ -34,7 +34,7 @@ from . import amsg
 
 
 BUFFER_POOL_SIZE = 4
-PROCESS_INITIAL_RESPONSE_TIMEOUT = 10.0
+PROCESS_INITIAL_RESPONSE_TIMEOUT = 60.0
 KILL_TIMEOUT = 10.0
 WORKER_MOD = __name__.rpartition('.')[0] + '.worker'
 
