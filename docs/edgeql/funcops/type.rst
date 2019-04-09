@@ -144,3 +144,150 @@ Types
             # computable 'friends' is supposed to be a set of
             # Users
         };
+
+
+-----------
+
+
+.. eql:operator:: TYPEOF: TYPEOF anytype -> type
+
+    :index: type introspect introspection
+
+    Static type inference operator.
+
+    This operator converts an expression into a type, which can be
+    used with :eql:op:`IS`, :eql:op:`IS NOT<IS>`, and
+    :eql:op:`INTROSPECT`.
+
+    Currently, ``TYPEOF`` operator only supports :ref:`scalars
+    <ref_datamodel_scalar_types>` and :ref:`objects
+    <ref_datamodel_object_types>`, but **not** the :ref:`collections
+    <ref_datamodel_collection_types>` as a valid operand.
+
+    Consider the following types using links and properties with names
+    that don't indicate their respective target types:
+
+    .. code-block:: sdl
+
+        type Foo {
+            property bar -> int16;
+            link baz -> Bar;
+        }
+
+        type Bar extending Foo;
+
+    We can use ``TYPEOF`` to determine if certain expression has the
+    same type as the property ``bar``:
+
+    .. code-block:: edgeql-repl
+
+        db> INSERT Foo { bar := 1 };
+        {Object { id: <uuid>'...' }}
+        db> SELECT (Foo.bar / 2) IS TYPEOF Foo.bar;
+        {false}
+
+    To determine what is the actual resulting type of an expression we
+    can use :eql:op:`INTROSPECT`:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT INTROSPECT (TYPEOF Foo.bar).name;
+        {'std::int16'}
+        db> SELECT INTROSPECT (TYPEOF (Foo.bar / 2)).name;
+        {'std::float64'}
+
+    Similarly, we can use ``TYPEOF`` to discriminate between the
+    different ``Foo`` objects that can and cannot be targets of link
+    ``baz``:
+
+    .. code-block:: edgeql-repl
+
+        db> INSERT Bar { bar := 2 };
+        {Object { id: <uuid>'...' }}
+        db> SELECT Foo {
+        ...     bar,
+        ...     can_be_baz := Foo IS TYPEOF Foo.baz
+        ... };
+        {
+            Object { bar: 1, can_be_baz: false },
+            Object { bar: 2, can_be_baz: true }
+        }
+
+
+-----------
+
+
+.. eql:operator:: INTROSPECT: INTROSPECT type -> Type
+
+    :index: type typeof introspection
+
+    Static type introspection operator.
+
+    This operator returns the :ref:`introspection type
+    <ref_eql_introspection>` corresponding to type provided as
+    operand. It works well in combination with :eql:op:`TYPEOF`.
+
+    Currently, ``INTROSPECT`` operator only supports :ref:`scalar
+    types <ref_datamodel_scalar_types>` and :ref:`object types
+    <ref_datamodel_object_types>`, but **not** the :ref:`collection
+    types <ref_datamodel_collection_types>` as a valid operand.
+
+    Consider the following types using links and properties with names
+    that don't indicate their respective target types:
+
+    .. code-block:: sdl
+
+        type Foo {
+            property bar -> int16;
+            link baz -> Bar;
+        }
+
+        type Bar extending Foo;
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT (INTROSPECT int16).name;
+        {'std::int16'}
+        db> SELECT (INTROSPECT Foo).name;
+        {'default::Foo'}
+        db> SELECT (INTROSPECT TYPEOF Foo.bar).name;
+        {'std::int16'}
+
+    .. note::
+
+        For any :ref:`object type <ref_datamodel_object_types>`
+        ``SomeType`` the expressions ``INTROSPECT SomeType`` and
+        ``INTROSPECT TYPEOF SomeType`` are equivalent as the object
+        type name is syntactically identical to the *expression*
+        denoting the set of those objects.
+
+    There's an important difference between the combination of
+    ``INTROSPECT TYPEOF SomeType`` and ``SomeType.__type__``
+    expressions when used with objects. ``INTROSPECT TYPEOF SomeType``
+    is statically evaluated and does not take in consideration the
+    actual objects contained in the ``SomeType`` set. Conversely,
+    ``SomeType.__type__`` is the actual set of all the types reachable
+    from all the ``SomeType`` objects. Due to inheritance statically
+    inferred types and actual types may not be the same (although the
+    actual types will always be a subtype of the statically inferred
+    types):
+
+    .. code-block:: edgeql-repl
+
+        db> # first let's make sure we don't have any Foo objects
+        ... DELETE Foo;
+        { there may be some deleted objects here }
+        db> SELECT (INTROSPECT TYPEOF Foo).name;
+        {'default::Foo'}
+        db> SELECT Foo.__type__.name;
+        {}
+        db> # let's add an object of type Foo
+        ... INSERT Foo;
+        {Object { id: <uuid>'...' }}
+        db> # Bar is also of type Foo
+        ... INSERT Bar;
+        {Object { id: <uuid>'...' }}
+        db> SELECT (INTROSPECT TYPEOF Foo).name;
+        {'default::Foo'}
+        db> SELECT Foo.__type__.name;
+        {'default::Bar', 'default::Foo'}

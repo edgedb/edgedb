@@ -17,6 +17,12 @@ query will give a list of all the types used in introspection:
     SELECT name := schema::ObjectType.name
     FILTER name LIKE 'schema::%';
 
+There's also a couple of ways of getting the introspection type of a
+particular expression. Any :eql:type:`Object` has a ``__type__`` link
+to the ``schema::ObjectType``. For scalars there's the
+:eql:op:`INTROSPECT` and :eql:op:`TYPEOF` operators that can be used
+to get the type of an expression.
+
 .. toctree::
     :maxdepth: 3
     :hidden:
@@ -27,3 +33,5 @@ query will give a list of all the types used in introspection:
     functions
     indexes
     constraints
+    operators
+    casts
