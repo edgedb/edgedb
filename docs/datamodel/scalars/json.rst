@@ -75,6 +75,15 @@ Anything in EdgeDB can be cast into :eql:type:`json`:
     {'2019'}
     db> SELECT <json>to_local_date(datetime_current(), 'UTC');
     {'"2019-04-02"'}
+
+Any :eql:type:`Object` can be cast into :eql:type:`json`. This
+produces the same JSON value as the JSON serialization of that object.
+That is, the result is the same as the output of :ref:`SELECT
+expression<ref_eql_statements_select>` in *JSON mode*, including the
+type shape.
+
+.. code-block:: edgeql-repl
+
     db> SELECT <json>(
     ...     SELECT schema::Object {
     ...         name,
@@ -107,23 +116,3 @@ particular JSON type can be cast back into that scalar:
 into :eql:type:`json`. Whereas *named* :eql:type:`tuple` is converted
 into a JSON *object*. These casts are not reversible, i.e. it is not
 possible to cast a JSON value directly into a :eql:type:`tuple`.
-
-
-Casting Objects into JSON
-=========================
-
-Any :eql:type:`Object` can be cast into :eql:type:`json`. This
-produces the same JSON value as the JSON serialization of that object.
-That is, the result is the same as the output of :ref:`SELECT
-expression<ref_eql_statements_select>` in *JSON mode*, including the
-type shape.
-
-.. code-block:: edgeql-repl
-
-    db> WITH MODULE schema
-    ... SELECT <json>(Type {
-    ...     name,
-    ...     timestamp := to_local_date(datetime_current(), 'UTC')
-    ... })
-    ... FILTER Type.name = 'std::bool';
-    {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
