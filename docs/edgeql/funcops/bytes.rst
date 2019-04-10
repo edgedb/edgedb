@@ -63,10 +63,6 @@ Bytes
 
 .. eql:operator:: BYTEPLUS: bytes ++ bytes -> bytes
 
-    :optype A: bytes
-    :optype B: bytes
-    :resulttype: bytes
-
     Bytes concatenation.
 
     .. code-block:: edgeql-repl
