@@ -62,8 +62,8 @@ Parameters
     view definition.
 
 
-Examples
---------
+Example
+-------
 
 Create a new view:
 
@@ -103,8 +103,8 @@ Parameters
     view.
 
 
-Examples
---------
+Example
+-------
 
 Remove a view:
 

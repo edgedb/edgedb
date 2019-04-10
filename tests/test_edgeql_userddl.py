@@ -284,3 +284,23 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                     SET force_return_cast := true;
                 };
             ''')
+
+    async def test_edgeql_userddl_22(self):
+        await self.con.execute('''
+            CREATE ABSTRACT CONSTRAINT test::uppercase {
+                SET ANNOTATION title := "Upper case constraint";
+                SET expr := str_upper(__subject__) = __subject__;
+                SET errmessage := "{__subject__} is not in upper case";
+            };
+
+            CREATE SCALAR TYPE test::upper_str EXTENDING str {
+                CREATE CONSTRAINT test::uppercase
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT <test::upper_str>'123_HELLO';
+            ''',
+            {'123_HELLO'},
+        )

@@ -43,7 +43,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
 
     expr = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.909,
-        coerce=True)
+        coerce=True, allow_ddl_set=True)
 
     subjectexpr = so.SchemaField(
         s_expr.Expression,

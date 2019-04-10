@@ -129,8 +129,8 @@ Parameters
     The name of the migration to commit.
 
 
-Examples
---------
+Example
+-------
 
 Commit the "alter_tx" migration:
 
@@ -165,8 +165,8 @@ Parameters
     The name of the migration to discard.
 
 
-Examples
---------
+Example
+-------
 
 Remove the "init" migration:
 

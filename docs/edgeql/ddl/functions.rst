@@ -219,8 +219,8 @@ Parameters
     (optionally module-qualified), if any.
 
 
-Examples
---------
+Example
+-------
 
 Remove the ``mysum`` function:
 

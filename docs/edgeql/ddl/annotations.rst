@@ -51,8 +51,8 @@ The following subcommands are allowed in the
     See :eql:stmt:`SET ANNOTATION` for details.
 
 
-Examples
---------
+Example
+-------
 
 Set the annotation ``title`` of object type ``User`` to ``"User"``:
 
@@ -80,8 +80,8 @@ Description
 the database schema.  Note that the ``INHERITABLE`` qualifier is not
 necessary in this statement.
 
-Examples
---------
+Example
+-------
 
 Drop the annotation ``extrainfo``:
 
@@ -114,8 +114,8 @@ This statement can only be used as a subcommand in another
 DDL statement.
 
 
-Examples
---------
+Example
+-------
 
 Create an object type ``User`` and set its ``title`` annotation to
 ``"User type"``.
@@ -152,8 +152,8 @@ This statement can only be used as a subcommand in another
 DDL statement.
 
 
-Examples
---------
+Example
+-------
 
 Drop the ``title`` annotation from the ``User`` object type:
 

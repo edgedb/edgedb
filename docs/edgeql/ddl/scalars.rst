@@ -154,8 +154,8 @@ All the subcommands allowed in the ``CREATE SCALAR TYPE`` block are also
 valid subcommands for ``ALTER SCALAR TYPE`` block.
 
 
-Examples
---------
+Exampls
+-------
 
 Define a new constraint on a scalar type:
 
@@ -195,8 +195,8 @@ Parameters
     scalar type.
 
 
-Examples
---------
+Example
+-------
 
 Remove a scalar type:
 

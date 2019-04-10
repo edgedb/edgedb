@@ -60,10 +60,11 @@ concrete property for a given object type or link.
 There are three forms of ``CREATE PROPERTY``, as shown in the syntax synopsis
 above.  The first form is the canonical definition form, the second
 form is a syntax shorthand for defining a
-:ref:`computable property <ref_datamodel_computables>`, and the third is a
-form to define an abstract property item.  The abstract form allows creating
-the property in the specified :eql:synopsis:`<module>`.  Concrete link forms
-are always created in the same module as the containing object or link.
+:ref:`computable property <ref_datamodel_computables>`, and the third
+is a form to define an abstract property item.  The abstract form
+allows creating the property in the specified
+:eql:synopsis:`<module>`.  Concrete property forms are always
+created in the same module as the containing object or property.
 
 .. _ref_eql_ddl_props_syntax:
 
@@ -71,35 +72,29 @@ Parameters
 ----------
 
 :eql:synopsis:`REQUIRED`
-    If specified, the link is considered *required* for the parent
+    If specified, the property is considered *required* for the parent
     object type.  It is an error for an object to have a required
-    link resolve to an empty value.  Child links **always** inherit
-    the *required* attribute, i.e it is not possible to make a
-    required link non-required by extending it.
+    property resolve to an empty value.  Child properties **always**
+    inherit the *required* attribute, i.e it is not possible to make a
+    required property non-required by extending it.
 
 :eql:synopsis:`MULTI`
-    Specifies that there may be more than one instance of this link
-    in an object, in other words, ``Object.link`` may resolve to a set
+    Specifies that there may be more than one instance of this property
+    in an object, in other words, ``Object.property`` may resolve to a set
     of a size greater than one.
 
 :eql:synopsis:`SINGLE`
-    Specifies that there may be at most *one* instance of this link
-    in an object, in other words, ``Object.link`` may resolve to a set
+    Specifies that there may be at most *one* instance of this property
+    in an object, in other words, ``Object.property`` may resolve to a set
     of a size not greater than one.  ``SINGLE`` is assumed if nether
     ``MULTI`` nor ``SINGLE`` qualifier is specified.
 
 :eql:synopsis:`EXTENDING <base> [, ...]`
-    Optional clause specifying the *parents* of the new link item.
+    Optional clause specifying the *parents* of the new property item.
 
     Use of ``EXTENDING`` creates a persistent schema relationship
-    between the new link and its parents.  Schema modifications
+    between the new property and its parents.  Schema modifications
     to the parent(s) propagate to the child.
-
-    If the same *property* name exists in more than one parent, or
-    is explicitly defined in the new link and at least one parent,
-    then the data types of the property targets must be *compatible*.
-    If there is no conflict, the link properties are merged to form a
-    single property in the new link item.
 
 :eql:synopsis:`<type>`
     The type must be a valid :ref:`type expression <ref_eql_types>`
@@ -125,6 +120,36 @@ The following subcommands are allowed in the ``CREATE PROPERTY`` block:
 :eql:synopsis:`CREATE CONSTRAINT`
     Define a concrete constraint on the property.
     See :eql:stmt:`CREATE CONSTRAINT` for details.
+
+
+Examples
+--------
+
+Define a new link ``address`` on the ``User`` object type:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        CREATE PROPERTY address -> str
+    };
+
+Define a new property ``number_of_friends`` as a computable on the
+``User`` object type:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        CREATE PROPERTY number_of_friends :=
+            count(__source__.friends)
+    };
+
+Define a new abstract link ``orderable`` with ``weight`` property:
+
+.. code-block:: edgeql
+
+    CREATE ABSTRACT LINK orderable {
+        CREATE PROPERTY weight -> std::int64
+    };
 
 
 ALTER PROPERTY
@@ -157,6 +182,8 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
       SET readonly := {true | false}
       RENAME TO <newname>
       EXTENDING ...
+      SET REQUIRED
+      DROP REQUIRED
       SET SINGLE
       SET MULTI
       ALTER TARGET <typename> [, ...]
@@ -221,6 +248,12 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     * ``AFTER <parent>`` -- insert parent(s) after an existing
       *parent*.
 
+:eql:synopsis:`SET REQUIRED`
+    Make the property *required*.
+
+:eql:synopsis:`DROP REQUIRED`
+    Make the property no longer *required*.
+
 :eql:synopsis:`SET SINGLE`
     Change the maximum cardinality of the property set to *one*.  Only
     valid for concrete properties.
@@ -247,6 +280,39 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 
 All the subcommands allowed in the ``CREATE PROPERTY`` block are also
 valid subcommands for ``ALTER PROPERTY`` block.
+
+
+Examples
+--------
+
+Set the ``title`` annotation of property ``address`` of object type
+``User`` to ``"Home address"``:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        ALTER PROPERTY address
+            SET ANNOTATION title := "Home address";
+    };
+
+Add a maximum-length constraint to property ``address`` of object type
+``User``:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        ALTER PROPERTY address {
+            CREATE CONSTRAINT max_len_value(500);
+        };
+    };
+
+Rename the property ``weight`` of link ``orderable`` to ``sort_by``:
+
+.. code-block:: edgeql
+
+    ALTER ABSTRACT LINK orderable {
+        ALTER PROPERTY weight RENAME TO sort_by;
+    };
 
 
 DROP PROPERTY
@@ -281,13 +347,13 @@ property are also removed.
 :eql:synopsis:`DROP ABSTRACT PROPERTY` removes the specified abstract
 property item the schema.
 
-Examples
---------
+Example
+-------
 
-Remove property ``rank`` from abstract link ``favorites``:
+Remove property ``address`` from type ``User``:
 
 .. code-block:: edgeql
 
-    ALTER ABSTRACT LINK favorites {
-        DROP PROPERTY rank;
+    ALTER TYPE User {
+        DROP PROPERTY address;
     };
