@@ -14,3 +14,10 @@ instance:
 .. code-block:: edgeql
 
     SELECT sys::Database.name;
+
+
+See Also
+--------
+
+:eql:stmt:`CREATE DATABASE`,
+:eql:stmt:`DROP DATABASE`.

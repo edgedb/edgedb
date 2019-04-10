@@ -29,5 +29,11 @@ Enum
         db> SELECT <color_enum_t>'red' IS color_enum_t;
         {true}
 
-    For details about enum introspection see :ref:`this section
-    <ref_eql_introspection_scalar_types>`.
+
+See Also
+--------
+
+Enum scalar type
+:ref:`SDL <ref_eql_sdl_scalars>`,
+:ref:`DDL <ref_eql_ddl_scalars>`,
+and :ref:`introspection <ref_eql_introspection_scalar_types>`.

@@ -1,10 +1,10 @@
-.. _ref_eql_functions_uuid:
+.. _ref_eql_funcops_uuid:
 
 ====
 UUID
 ====
 
-:edb-alt-title: UUID Functions
+:edb-alt-title: UUID Functions and Operators
 
 
 .. list-table::

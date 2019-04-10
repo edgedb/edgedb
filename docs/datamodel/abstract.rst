@@ -87,4 +87,3 @@ There are a number of abstract numeric types extending ``anyscalar``:
 
     Abstract base scalar type for
     :eql:type:`anyint`, :eql:type:`anyfloat`, and :eql:type:`decimal`.
-

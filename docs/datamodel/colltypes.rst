@@ -7,9 +7,6 @@ Collection Types
 *Collection types* are special generic types used to group homogeneous or
 heterogeneous data.
 
-For details about collection types introspection see :ref:`this section
-<ref_eql_introspection_collection_types>`.
-
 
 ----------
 
@@ -76,3 +73,10 @@ For details about collection types introspection see :ref:`this section
 
     The syntax of a tuple type declaration can be found in :ref:`this
     section <ref_eql_types_tuple>`.
+
+
+See Also
+--------
+
+Collection type
+:ref:`introspection <ref_eql_introspection_collection_types>`.

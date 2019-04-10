@@ -36,8 +36,11 @@ The standard EdgeDB scalar types are:
 
 - :ref:`Enum types <ref_datamodel_scalars_enum>`
 
-For details about scalar types introspection see :ref:`this section
-<ref_eql_introspection_scalar_types>`.
+See also scalar type
+:ref:`SDL <ref_eql_sdl_scalars>`,
+:ref:`DDL <ref_eql_ddl_scalars>`,
+:ref:`introspection <ref_eql_introspection_scalar_types>`,
+and :ref:`functions and operators <ref_eql_funcops>`.
 
 .. toctree::
     :maxdepth: 3

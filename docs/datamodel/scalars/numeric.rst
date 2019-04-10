@@ -9,11 +9,6 @@ It's possible to explicitly :eql:op:`cast <CAST>`
 between all numeric types. All numeric types can also be cast to and
 from :eql:type:`str` and :eql:type:`json`.
 
-See also the list of standard
-:ref:`mathematical functions <ref_eql_functions_math>` and
-generic functions such as :eql:func:`min`.
-
-
 ----------
 
 
@@ -116,3 +111,20 @@ generic functions such as :eql:func:`min`.
 .. eql:type:: std::sequence
 
     Auto-incrementing sequence of :eql:type:`int64`.
+
+
+See Also
+--------
+
+Scalar type
+:ref:`SDL <ref_eql_sdl_scalars>`,
+:ref:`DDL <ref_eql_ddl_scalars>`,
+:ref:`introspection <ref_eql_introspection_scalar_types>`,
+:ref:`arithmetic operators and numeric converter functions
+<ref_eql_funcops_numeric>`,
+:ref:`mathematical functions <ref_eql_functions_math>`,
+:eql:func:`max`,
+:eql:func:`min`,
+:eql:func:`random`,
+:eql:func:`round`,
+:eql:func:`sum`.

@@ -17,9 +17,6 @@ restricting what objects or values those links and properties may
 reference.  The *subject* of a constraint can be referred to in
 the constraint expression as ``__subject__``.
 
-For details about constraint introspection see :ref:`this section
-<ref_eql_introspection_constraints>`.
-
 Standard Constraints
 ====================
 
@@ -147,9 +144,8 @@ The standard library defines the following constraints:
     property does not intersect with any other such set in any other object
     of this type.
 
-    .. note::
-
-        ``exclusive`` constraints cannot be defined on scalar types.
+    This constraint is only valid for concrete links and properties.
+    Scalar type definitions cannot include this constraint.
 
     Example:
 
@@ -167,3 +163,13 @@ The standard library defines the following constraints:
                 constraint exclusive;
             }
         }
+
+
+
+See Also
+--------
+
+Constraint
+:ref:`SDL <ref_eql_sdl_constraints>`,
+:ref:`DDL <ref_eql_ddl_constraints>`,
+and :ref:`introspection <ref_eql_introspection_constraints>`.

@@ -64,5 +64,12 @@ expression must not be set-returning.
     the database size and make insertion and updates slower, and creating
     too many indexes may be detrimental.
 
-For details about index introspection see :ref:`this section
-<ref_eql_introspection_indexes>`.
+
+
+See Also
+--------
+
+Index
+:ref:`SDL <ref_eql_sdl_indexes>`,
+:ref:`DDL <ref_eql_ddl_indexes>`,
+and :ref:`introspection <ref_eql_introspection_indexes>`.

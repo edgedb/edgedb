@@ -50,3 +50,13 @@ Boolean
 
         SELECT User
         FILTER .name ILIKE 'alice';
+
+
+See Also
+--------
+
+Scalar type
+:ref:`SDL <ref_eql_sdl_scalars>`,
+:ref:`DDL <ref_eql_ddl_scalars>`,
+:ref:`introspection <ref_eql_introspection_scalar_types>`,
+and :ref:`boolean operators <ref_eql_operators_logical>`.

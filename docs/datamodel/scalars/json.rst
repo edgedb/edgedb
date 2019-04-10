@@ -49,9 +49,6 @@ JSON
         db> SELECT to_str(<json>[1, 2]);
         {'[1, 2]'}
 
-    See also the list of standard
-    :ref:`JSON functions and operators <ref_eql_funcops_json>`.
-
 
 Constructing JSON Values
 ========================
@@ -116,3 +113,13 @@ particular JSON type can be cast back into that scalar:
 into :eql:type:`json`. Whereas *named* :eql:type:`tuple` is converted
 into a JSON *object*. These casts are not reversible, i.e. it is not
 possible to cast a JSON value directly into a :eql:type:`tuple`.
+
+
+See Also
+--------
+
+Scalar type
+:ref:`SDL <ref_eql_sdl_scalars>`,
+:ref:`DDL <ref_eql_ddl_scalars>`,
+:ref:`introspection <ref_eql_introspection_scalar_types>`,
+and :ref:`JSON functions and operators <ref_eql_funcops_json>`.

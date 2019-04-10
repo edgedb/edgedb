@@ -44,7 +44,7 @@ The core of the declaration is identical to
 are listed below:
 
 :sdl:synopsis:`<annotation-declarations>`
-    Set scalar type :ref:`annotation <ref_eql_sdl_schema_annotations>`
+    Set scalar type :ref:`annotation <ref_eql_sdl_annotations>`
     to a given *value*.
 
 :sdl:synopsis:`<constraint-declarations>`

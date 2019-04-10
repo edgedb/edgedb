@@ -14,7 +14,7 @@ EdgeDB has two classes of date/time types:
   timezone: :eql:type:`std::local_datetime`, :eql:type:`std::local_date`,
   and :eql:type:`std::local_time`.
 
-All date/time :ref:`functions/operators<ref_eql_funcops_datetime>`
+All date/time :ref:`functions and operators <ref_eql_funcops_datetime>`
 and type casts are designed to maintain a strict separation between
 timezone-aware and "local" date/time values.
 
@@ -180,3 +180,13 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     See functions :eql:func:`duration_get`, :eql:func:`to_duration`,
     and :eql:func:`to_str` and date/time :eql:op:`operators <DTMINUS>`
     for more ways of working with :eql:type:`duration`.
+
+
+See Also
+--------
+
+Scalar type
+:ref:`SDL <ref_eql_sdl_scalars>`,
+:ref:`DDL <ref_eql_ddl_scalars>`,
+:ref:`introspection <ref_eql_introspection_scalar_types>`,
+and :ref:`date/time functions and operators <ref_eql_funcops_datetime>`.

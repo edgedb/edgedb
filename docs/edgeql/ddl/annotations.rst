@@ -1,4 +1,4 @@
-.. _ref_eql_ddl_schema_annotations:
+.. _ref_eql_ddl_annotations:
 
 ===========
 Annotations
@@ -13,7 +13,7 @@ CREATE ABSTRACT ANNOTATION
 
 :eql-statement:
 
-:ref:`Define <ref_eql_sdl_schema_annotations>` a new annotation.
+:ref:`Define <ref_eql_sdl_annotations>` a new annotation.
 
 .. eql:synopsis::
 

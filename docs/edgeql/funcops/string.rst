@@ -1,4 +1,4 @@
-.. _ref_eql_functions_string:
+.. _ref_eql_funcops_string:
 
 ======
 String
