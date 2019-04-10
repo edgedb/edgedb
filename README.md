@@ -5,51 +5,117 @@
 [![Build Status](https://travis-ci.com/edgedb/edgedb.svg?token=74UsunYVsEQ4qRAHz4Ny&branch=master)](https://travis-ci.com/edgedb/edgedb)
 
 
-Disclaimer
-==========
-
-This is a very early technology preview.  It is not yet intended to be used
-for mission-critical applications.  Things may not work, or not work as
-expected.  Comments and bug reports are welcome.
-
-
 What is EdgeDB?
 ===============
 
-EdgeDB is an **open-source** object-relational database that helps you write
-better software with less effort.  EdgeDB organizes data as a graph of
-strongly-typed objects and provides an expressive query language which allows
-to manipulate complex data hierarchies with ease.
+EdgeDB is an **open-source** object-relational database built on top of
+PostgreSQL.  The goal of EdgeDB is to *empower* its users to build safe
+and efficient software with less effort.
 
 EdgeDB features:
 
 - strict, strongly typed schema;
 - powerful and expressive query language;
+- rich standard library;
 - built-in support for schema migrations;
-- native GraphQL support;
-- PostgreSQL as the foundation.
+- native GraphQL support.
+
+Check out the [blog](https://edgedb.com/blog/edgedb-a-new-beginning)
+[posts](https://edgedb.com/blog/edgedb-1-0-alpha-1) for more examples and
+the philosophy behind EdgeDB.
 
 
-What EdgeDB is not
-------------------
+Modern Type-safe Schema
+-----------------------
 
-EdgeDB is not a graph database: the data is stored and queried using
-relational database techniques.  Unlike most graph databases, EdgeDB
-maintains a strict schema.
+The data schema in EdgeDB is a clean high-level representation of a conceptual
+data model:
 
-EdgeDB is not a document database, but inserting and querying hierarchical
-document-like data is trivial.
+```
+type User {
+    required property name -> str;
+}
 
-EdgeDB is not a traditional object database, despite the classification,
-it is not an implementation of OOP persistence.
+type Person {
+    required property first_name -> str;
+    required property last_name -> str;
+}
+
+type Review {
+    required property body -> str;
+    required property rating -> int64 {
+        constraint min_value(0);
+        constraint max_value(5);
+    }
+
+    required link author -> User;
+    required link movie -> Movie;
+
+    required property creation_time -> local_datetime;
+}
+
+type Movie {
+    required property title -> str;
+    required property year -> int64;
+    required property description -> str;
+
+    multi link directors -> Person;
+    multi link cast -> Person;
+
+    property avg_rating := math::mean(.<movie[IS Review].rating);
+}
+```
+
+EdgeDB has a rich library of datatypes and functions.
+
+
+EdgeQL
+------
+
+EdgeQL is the query language of EdgeDB. It is efficient, intuitive, and easy
+to learn.
+
+EdgeQL supports fetching object hierarchies with arbitrary level of nesting,
+filtering, sorting and aggregation:
+
+```
+SELECT User {
+    id,
+    name,
+    image,
+    latest_reviews := (
+        WITH UserReviews := User.<author
+        SELECT UserReviews {
+            id,
+            body,
+            rating,
+            movie: {
+                id,
+                title,
+                avg_rating,
+            }
+        }
+        ORDER BY .creation_time DESC
+        LIMIT 10
+    )
+}
+FILTER .id = <uuid>$id
+```
+
+
+Status
+======
+
+EdgeDB is currently in alpha. See our
+[Issues](https://github.com/edegedb/edgedb/issues) for a list of features
+planned or in development.
 
 
 Getting Started
 ===============
 
-If you are interested in trying EdgeDB, please refer to the
-[Quickstart](https://edgedb.com/docs/quickstart) section of
-the documentation.
+Please refer to the [Quickstart](https://edgedb.com/docs/quickstart) section
+of the documentation on how to install and run EdgeDB.
 
 
 Documentation
