@@ -2386,6 +2386,85 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
         """)
 
+    @test.xfail('''
+        The error is:
+
+        SchemaError: cannot derive <Link ...>(
+            std::std|link@@std|
+            Virtual_71a37e2cf26c98e5dad84176a6ffa910@test|Owner
+        )
+        from itself
+    ''')
+    async def test_edgeql_ddl_inheritance_alter_03(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::Owner;
+
+            CREATE TYPE test::Stuff1 {
+                # same link name, but NOT related via explicit inheritance
+                CREATE LINK owner -> test::Owner
+            };
+
+            CREATE TYPE test::Stuff2 {
+                # same link name, but NOT related via explicit inheritance
+                CREATE LINK owner -> test::Owner
+            };
+        """)
+
+        await self.assert_query_result("""
+            SELECT test::Owner.<owner;
+        """, [{}])
+
+    @test.xfail('''
+        The error is:
+
+        InvalidReferenceError: reference to a non-existent schema
+        item: test::std|min_value@@test|test|con_test@@test|ConTest01
+
+        Altering the constraint instead of dropping it also produces
+        the same error.
+
+        The current docs for DDL have a *very* similar example to this
+        one, but which works fine. The difference is in the
+        CREATE/ALTER sequence of the PROPERTY and CONSTRAINT.
+
+    ''')
+    async def test_edgeql_ddl_constraint_alter_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::ConTest01 {
+                CREATE PROPERTY con_test -> int64;
+            };
+
+            ALTER TYPE test::ConTest01
+                ALTER PROPERTY con_test
+                    CREATE CONSTRAINT min_value(0);
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE test::ConTest01
+                ALTER PROPERTY con_test
+                    DROP CONSTRAINT min_value;
+        """)
+
+        await self.assert_query_result("""
+            WITH MODULE schema
+            SELECT ObjectType {
+                name,
+                properties: {
+                    name,
+                    constraints: { name }
+                } FILTER .name = 'con_test'
+            }
+            FILTER .name = 'test::ConTest01';
+        """, [[
+            {
+                'name': 'test::ConTest01',
+                'properties': [{
+                    'name': 'con_test',
+                    'constraints': {},
+                }]
+            }
+        ]])
+
     async def test_edgeql_ddl_tuple_properties(self):
         await self.con.execute(r"""
             CREATE TYPE test::TupProp01 {
