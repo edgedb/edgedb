@@ -212,18 +212,18 @@ def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings={}):
     return cluster
 
 
-def _set_default_cluster(cluster):
-    global _default_cluster
-    _default_cluster = cluster
-
-
 def _start_cluster(*, cleanup_atexit=True):
     global _default_cluster
 
     if _default_cluster is None:
-        data_dir = os.environ.get('EDGEDB_TEST_DATA_DIR')
-        _default_cluster = _init_cluster(
-            data_dir=data_dir, cleanup_atexit=cleanup_atexit)
+        cluster_addr = os.environ.get('EDGEDB_TEST_CLUSTER_ADDR')
+        if cluster_addr:
+            conn_spec = json.loads(cluster_addr)
+            _default_cluster = edgedb_cluster.RunningCluster(**conn_spec)
+        else:
+            data_dir = os.environ.get('EDGEDB_TEST_DATA_DIR')
+            _default_cluster = _init_cluster(
+                data_dir=data_dir, cleanup_atexit=cleanup_atexit)
 
     return _default_cluster
 

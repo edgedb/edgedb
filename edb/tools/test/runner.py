@@ -23,6 +23,7 @@ import collections.abc
 import enum
 import io
 import itertools
+import json
 import multiprocessing
 import multiprocessing.reduction
 import multiprocessing.util
@@ -49,7 +50,6 @@ import edgedb
 
 from edb.common import devmode
 from edb.testbase import server as tb
-from edb.server import cluster as edgedb_cluster
 
 from . import styles
 
@@ -75,8 +75,7 @@ def init_worker(param_queue, result_queue):
         server_addr = param_queue.get()
 
         if server_addr is not None:
-            cluster = edgedb_cluster.RunningCluster(**server_addr)
-            tb._set_default_cluster(cluster)
+            os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
 
     multiprocessing.util.Finalize(suite_cache, finalize_result_testcases,
                                   exitpriority=100)
@@ -282,8 +281,8 @@ class SequentialTestSuite(unittest.TestSuite):
         result = result_
 
         if self.server_conn:
-            cluster = edgedb_cluster.RunningCluster(**self.server_conn)
-            tb._set_default_cluster(cluster)
+            os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = \
+                json.dumps(self.server_conn)
 
         for test in self.tests:
             _run_test(test)
