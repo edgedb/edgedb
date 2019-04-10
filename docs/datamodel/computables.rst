@@ -69,3 +69,13 @@ Computables can be used in :ref:`shapes <ref_eql_expr_shapes>`, too:
         lastname_first := (
             .lastname ++ ', ' ++ .firstname)
     };
+
+
+See Also
+--------
+
+Computable
+:ref:`link SDL <ref_eql_sdl_links>`,
+:ref:`link DDL <ref_eql_ddl_links>`,
+:ref:`property SDL <ref_eql_sdl_links>`,
+and :ref:`property DDL <ref_eql_ddl_links>`.

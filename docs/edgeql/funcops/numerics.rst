@@ -1,10 +1,10 @@
-
+.. _ref_eql_funcops_numeric:
 
 ========
 Numerics
 ========
 
-:edb-alt-title: Arithmetic Operators and Numeric Functions
+:edb-alt-title: Arithmetic Operators and Numeric Converter Functions
 
 
 .. list-table::

@@ -15,8 +15,7 @@ not tied to any particular object type. Typically this is done to set
 some :ref:`annotations <ref_datamodel_annotations>`, define
 :ref:`link properties <ref_datamodel_props>`, or setup :ref:`constraints
 <ref_datamodel_constraints>`.  Concrete links are defined on specific object
-types.  For more information and examples refer to
-:ref:`this section <ref_eql_sdl_links>`.
+types.
 
 Links are directional and have a *source* and one or more *targets*.
 The number of targets as specified by keywords :ref:`required
@@ -40,3 +39,13 @@ Links also have a policy of handling link target *deletion*. There are
 
 This :ref:`section <ref_eql_ddl_links_syntax>` covers the syntax of
 how to set these policies in more detail.
+
+
+See Also
+--------
+
+Link
+:ref:`SDL <ref_eql_sdl_links>`,
+:ref:`DDL <ref_eql_ddl_links>`,
+and :ref:`introspection <ref_eql_introspection_object_types>`
+(as part of overall object introspection).

@@ -57,3 +57,12 @@ link ``friend_of``, that would otherwise be inexpressible in GrapQL:
             }
         }
     }
+
+
+
+See Also
+--------
+
+View
+:ref:`SDL <ref_eql_sdl_views>`,
+and :ref:`DDL <ref_eql_ddl_views>`.

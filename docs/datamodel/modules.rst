@@ -24,3 +24,10 @@ Every EdgeDB schema contains the following standard modules:
 - ``stdgraphql``: GraphQL-related types
 - ``math``: algebraic and statistical functions
 - ``default``: the default module for user-defined types, functions, etc.
+
+
+See Also
+--------
+
+:eql:stmt:`CREATE MODULE`,
+:eql:stmt:`DROP MODULE`.

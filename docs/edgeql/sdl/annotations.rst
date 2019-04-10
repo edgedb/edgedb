@@ -1,4 +1,4 @@
-.. _ref_eql_sdl_schema_annotations:
+.. _ref_eql_sdl_annotations:
 
 ===========
 Annotations
@@ -33,7 +33,7 @@ Syntax
 ------
 
 Define a new annotation corresponding to the :ref:`more explicit DDL
-commands <ref_eql_ddl_schema_annotations>`.
+commands <ref_eql_ddl_annotations>`.
 
 .. sdl:synopsis::
 

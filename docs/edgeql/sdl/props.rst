@@ -72,7 +72,7 @@ The core of the declaration is identical to :eql:stmt:`CREATE PROPERTY`,
 while the valid SDL sub-declarations are listed below:
 
 :sdl:synopsis:`<annotation-declarations>`
-    Set property :ref:`annotation <ref_eql_sdl_schema_annotations>`
+    Set property :ref:`annotation <ref_eql_sdl_annotations>`
     to a given *value*.
 
 :sdl:synopsis:`<constraint-declarations>`
