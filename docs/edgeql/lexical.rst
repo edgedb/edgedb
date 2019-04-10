@@ -318,8 +318,8 @@ EdgeQL operators listed in order of precedence from lowest to highest:
     * - :eql:op:`DISTINCT`, unary :eql:op:`-<UMINUS>`
     * - :eql:op:`^<POW>`
     * - :eql:op:`type cast <CAST>`
-    * - :eql:op:`array indexing operator <ARRAYIDX>`,
-        :eql:op:`string indexing operator <STRIDX>`,
-        :eql:op:`JSON indexing operator <JSONIDX>`,
-        :eql:op:`bytes indexing operator <BYTESIDX>`.
+    * - :eql:op:`array[] <ARRAYIDX>`,
+        :eql:op:`str[] <STRIDX>`,
+        :eql:op:`json[] <JSONIDX>`,
+        :eql:op:`bytes[] <BYTESIDX>`
     * - :ref:`DETACHED <ref_eql_with_detached>`
