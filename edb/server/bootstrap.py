@@ -472,7 +472,7 @@ async def _populate_misc_instance_data(schema, cluster):
             'minor': ver.minor,
             'stage': ver.stage.name.lower(),
             'stage_no': ver.stage_no,
-            'local': tuple(ver.local),
+            'local': tuple(ver.local) if ver.local else (),
         }
     }
 

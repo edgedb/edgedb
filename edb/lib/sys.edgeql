@@ -115,7 +115,7 @@ sys::__version_internal() -> tuple<major: std::int64,
         (v ->> 'minor')::int8,
         (v ->> 'stage')::text,
         (v ->> 'stage_no')::int8,
-        (SELECT array_agg(el)
+        (SELECT coalesce(array_agg(el), ARRAY[]::text[])
          FROM jsonb_array_elements_text(v -> 'local') AS el)
     FROM
         edgedb._read_sys_metadata('version') AS v

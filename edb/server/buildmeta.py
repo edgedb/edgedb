@@ -138,7 +138,7 @@ def parse_version(ver: object) -> Version:
         minor=v.release[1],
         stage=stage,
         stage_no=stage_no,
-        local=v.local,
+        local=v.local if v.local else (),
     )
 
 
