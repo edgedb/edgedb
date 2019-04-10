@@ -1,6 +1,5 @@
 .. _ref_graphql_index:
 
-
 =======
 GraphQL
 =======
@@ -35,11 +34,12 @@ specified). Pointing your browser to ``http://127.0.0.1:8888/explore``
 will bring up a GraphiQL interface to EdgeDB. This interface can be
 used to try out queries and explore the GraphQL capabilities.
 
+.. __: http://graphql.org/docs/queries/
+
+
 .. toctree::
-    :maxdepth: 3
+    :maxdepth: 2
+    :hidden:
 
     graphql
     introspection
-
-
-.. __: http://graphql.org/docs/queries/

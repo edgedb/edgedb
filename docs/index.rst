@@ -17,4 +17,4 @@ Welcome to the EdgeDB |version| documentation.
     tutorial/index
     datamodel/__toc__
     edgeql/__toc__
-    graphql/index
+    clients/__toc__

@@ -14,6 +14,7 @@ it. This is a good starting point if you're new to EdgeDB.
 
 .. toctree::
     :maxdepth: 3
+    :hidden:
 
     install
     createdb

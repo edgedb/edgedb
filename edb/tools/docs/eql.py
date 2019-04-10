@@ -198,9 +198,10 @@ To reference a keyword use a ":eql:kw:" role.  For instance:
 """
 
 
-import lxml.etree
+import io
 import re
 
+import lxml.etree
 import pygments.lexers.special
 
 from edb.edgeql.pygments import EdgeQLLexer
@@ -946,7 +947,8 @@ class StatementTransform(s_transforms.SphinxTransform):
 
     def apply(self):
         for section in self.document.traverse(d_nodes.section):
-            x = lxml.etree.XML(section.asdom().toxml())
+            parser = lxml.etree.XMLParser(recover=True)
+            x = lxml.etree.parse(io.StringIO(section.asdom().toxml()), parser)
 
             fields = set(x.xpath('field_list/field/field_name/text()'))
             title = x.xpath('title/text()')[0]

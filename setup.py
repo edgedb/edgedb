@@ -69,6 +69,7 @@ EXTRA_DEPS = {
 
     'docs': [
         SPHINX_DEPENDENCY,
+        'sphinxcontrib-asyncio~=0.2.0',
         'lxml',
     ],
 }
