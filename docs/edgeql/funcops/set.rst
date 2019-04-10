@@ -167,6 +167,62 @@ Set
 ----------
 
 
+.. eql:operator:: ISFILTER: anytype [IS type] -> anytype
+
+    :index: is type filter
+
+    Filter the set based on type.
+
+    The type filter operator removes all elements from the input set
+    that aren't of the specified type. Additionally, since it
+    guarantees the type of the result set all the links and properties
+    associated with the specified type can now be used on the
+    resulting expression. This is especially useful in combination
+    with :ref:`backward links <ref_eql_expr_paths>`.
+
+    Consider the following types:
+
+    .. code-block:: sdl
+
+        type User {
+            required property name -> str;
+        }
+
+        abstract type Owned {
+            required link owner -> User;
+        }
+
+        type Issue extending Owned {
+            required property title -> str;
+        }
+
+        type Comment extending Owned {
+            required property body -> str;
+        }
+
+    The following expression will get all :eql:type:`Objects <Object>`
+    owned by all users (if there are any):
+
+    .. code-block:: edgeql
+
+        SELECT User.<owner;
+
+    By default backward links don't infer any type information beyond the
+    fact that it's an :eql:type:`Object`. To ensure that this path
+    specifically reaches ``Issue`` the type filter operator must be used:
+
+    .. code-block:: edgeql
+
+        SELECT User.<owner[IS Issue];
+
+        # With the use of type filter it's possible to refer to
+        # specific property of Issue now:
+        SELECT User.<owner[IS Issue].title;
+
+
+----------
+
+
 .. eql:function:: std::count(s: SET OF anytype) -> int64
 
     :index: aggregate
