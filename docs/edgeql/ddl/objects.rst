@@ -93,7 +93,16 @@ The following subcommands are allowed in the ``CREATE TYPE`` block:
     *index-name* using *index-expr* for this object type.  See
     :eql:stmt:`CREATE INDEX` for details.
 
-.. TODO: write examples
+Examples
+--------
+
+Create an object type ``User``:
+
+.. code-block:: edgeql
+
+    CREATE TYPE User {
+        CREATE PROPERTY name -> str;
+    };
 
 
 .. _ref_eql_ddl_object_types_alter:
@@ -205,8 +214,18 @@ The following subcommands are allowed in the ``ALTER TYPE`` block:
 All the subcommands allowed in the ``CREATE TYPE`` block are also
 valid subcommands for ``ALTER TYPE`` block.
 
+Examples
+--------
 
-.. TODO: write examples
+Alter the ``User`` object type to make ``name`` required:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        ALTER PROPERTY name {
+            SET REQUIRED;
+        }
+    };
 
 
 DROP TYPE

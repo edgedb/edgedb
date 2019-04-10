@@ -42,8 +42,8 @@ Parameters
     that ``<index-expr>`` itself has to be parenthesized.
 
 
-Examples
---------
+Example
+-------
 
 Create an object type ``User`` with an indexed ``title`` property:
 
@@ -81,8 +81,8 @@ This statement can only be used as a subdefinition in another
 DDL statement.
 
 
-Examples
---------
+Example
+-------
 
 Drop the ``title`` index from the ``User`` object type:
 

@@ -100,8 +100,8 @@ CONSTRAINT`` block:
     See :eql:stmt:`SET ANNOTATION` for details.
 
 
-Examples
---------
+Example
+-------
 
 Create an abstract constraint "uppercase" which checks if the subject
 is a string in upper case.
@@ -110,7 +110,7 @@ is a string in upper case.
 
     CREATE ABSTRACT CONSTRAINT uppercase {
         SET ANNOTATION title := "Upper case constraint";
-        SET expr := upper(__subject__) = __subject__;
+        SET expr := str_upper(__subject__) = __subject__;
         SET errmessage := "{__subject__} is not in upper case";
     };
 
@@ -143,7 +143,7 @@ Description
 -----------
 
 ``ALTER ABSTRACT CONSTRAINT`` changes the definition of an abstract constraint
-item.  *name* must ve a name of an existing abstract constraint, optionally
+item.  *name* must be a name of an existing abstract constraint, optionally
 qualified with a module name.
 
 
@@ -173,6 +173,16 @@ CONSTRAINT`` block:
 All the subcommands allowed in the ``CREATE ABSTRACT CONSTRAINT``
 block are also valid subcommands for ``ALTER ABSTRACT CONSTRAINT``
 block.
+
+
+Example
+-------
+
+Rename the abstract constraint "uppercase"  to "upper_case":
+
+.. code-block:: edgeql
+
+    ALTER ABSTRACT CONSTRAINT uppercase RENAME TO upper_case;
 
 
 DROP ABSTRACT CONSTRAINT
@@ -212,14 +222,14 @@ Parameters
     The name (optionally module-qualified) of the constraint to remove.
 
 
-Examples
---------
+Example
+-------
 
-Drop abstract constraint ``uppercase``:
+Drop abstract constraint ``upper_case``:
 
 .. code-block:: edgeql
 
-    DROP ABSTRACT CONSTRAINT uppercase;
+    DROP ABSTRACT CONSTRAINT upper_case;
 
 
 CREATE CONSTRAINT
@@ -312,15 +322,17 @@ The following subcommands are allowed in the ``CERATE CONSTRAINT`` block:
     See :eql:stmt:`SET ANNOTATION` for details.
 
 
-Examples
---------
+Example
+-------
 
-Create a maximum length constraint on the property "name" of the "User" type:
+Create a "score" property on the "User" type with a minimum value
+constraint:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User ALTER PROPERTY name
-    CREATE CONSTRAINT max_len_value(100);
+    ALTER TYPE User CREATE PROPERTY score -> int64 {
+        CREATE CONSTRAINT min_value(0)
+    };
 
 
 ALTER CONSTRAINT
@@ -389,17 +401,17 @@ The following subcommands are allowed in the ``ALTER CONSTRAINT`` block:
 All the subcommands allowed in the ``CREATE CONSTRAINT`` block are also
 valid subcommands for ``ALTER CONSTRAINT`` block.
 
-Examples
---------
+Example
+-------
 
-Change the error message on a maximum length constraint on the property
-"name" of the "User" type:
+Change the error message on the minimum value constraint on the property
+"score" of the "User" type:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User ALTER PROPERTY name
-    ALTER CONSTRAINT max_len_value
-    SET errmessage := 'User name too long';
+    ALTER TYPE User ALTER PROPERTY score
+    ALTER CONSTRAINT min_value
+    SET errmessage := 'Score cannot be negative';
 
 
 DROP CONSTRAINT
@@ -437,13 +449,13 @@ Parameters
     to remove.
 
 
-Examples
---------
+Example
+-------
 
-Remove constraint "max_len_value" from the property "name" of the
+Remove constraint "min_value" from the property "score" of the
 "User" type:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User ALTER PROPERTY name
-    DROP CONSTRAINT max_len_value;
+    ALTER TYPE User ALTER PROPERTY score
+    DROP CONSTRAINT min_value;

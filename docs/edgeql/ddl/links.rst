@@ -205,6 +205,8 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       SET readonly := {true | false}
       RENAME TO <newname>
       EXTENDING ...
+      SET REQUIRED
+      DROP REQUIRED
       SET SINGLE
       SET MULTI
       ALTER TARGET <typename> [, ...]
@@ -263,6 +265,12 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
       existing *parent*,
     * ``AFTER <parent>`` -- insert parent(s) after an existing
       *parent*.
+
+:eql:synopsis:`SET REQUIRED`
+    Make the link *required*.
+
+:eql:synopsis:`DROP REQUIRED`
+    Make the link no longer *required*.
 
 :eql:synopsis:`SET SINGLE`
     Change the maximum cardinality of the link set to *one*.  Only
