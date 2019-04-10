@@ -402,7 +402,9 @@ class Cli:
 
     def show_banner(self):
         version = self.connection.fetchone('SELECT sys::get_version_as_str()')
-        render.render_status(self.context, f'EdgeDB {version}\n')
+        render.render_status(self.context, f'EdgeDB {version}')
+        render.render_status(self.context, R'Type "\?" for help.')
+        print()
 
     def run(self):
         self.prompt = self.build_propmpt()
@@ -434,6 +436,9 @@ class Cli:
                         if is_devonly:
                             continue
                         print(f'  {title:<20} {desc}')
+                    _q = r'\q or "exit"'
+                    print(f'  {_q:<20} quit')
+                    print()
                     continue
 
                 elif command.startswith('\\'):
