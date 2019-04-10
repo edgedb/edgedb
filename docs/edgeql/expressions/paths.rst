@@ -23,31 +23,42 @@ The syntactic form of a path is:
 
     <expression> <path-step> [ <path-step> ... ]
 
-Here :eql:synopsis:`<expression>` is any expression and
-:eql:synopsis:`<path-step>` is:
+    # where <path-step> is:
+      <step-direction> <pointer-name>
 
-.. eql:synopsis::
+The individual path components are:
 
-    <step-direction> <pointer-name> [ <step-target-filter> ]
+:eql:synopsis:`<expression>`
+    Any valid expression.
 
-:eql:synopsis:`<step-direction>` is one of the following:
+:eql:synopsis:`<step-direction>`
+    It can be one of the following:
 
-- ``.`` or ``.>`` for an outgoing link reference
-- ``.<`` for an incoming link reference
-- ``@`` for a link property reference
+    - ``.`` or ``.>`` for an outgoing or "forward" link reference
+    - ``.<`` for an incoming or "backward" link reference
+    - ``@`` for a link property reference
 
-:eql:synopsis:`<pointer-name>` must be a valid link or link
-property name.
+:eql:synopsis:`<pointer-name>`
+    This must be a valid link or link property name.
 
-:eql:synopsis:`<step-target-filter>` is an optional filter that
-narrows which :eql:synopsis:`<type>` of objects should be
-included in the result.  It has the following syntax:
+Consider the following schema:
 
-.. eql:synopsis::
+.. code-block:: sdl
 
-   "[" IS type "]"
+    type User {
+        required property name -> str;
+        multi link friends -> User {
+            property since -> local_date;
+        }
+    }
 
-.. _ref_eql_expr_paths_is:
+    abstract type Owned {
+        required link owner -> User;
+    }
+
+    type Issue extending Owned {
+        required property title -> str;
+    }
 
 The example below shows a path that represents the names of all friends
 of all ``User`` objects in the database.
@@ -56,14 +67,25 @@ of all ``User`` objects in the database.
 
     SELECT User.friends.name;
 
-And this represents all users who are owners of at least one ``Issue``:
+And this represents all sources of the ``owner`` links that have a
+``User`` as target:
 
 .. code-block:: edgeql
 
-    SELECT Issue.<owners[IS User];
+    SELECT User.<owner;
 
-And this represents a set of all dates on which users became friends,
-if ``since`` is defined as a link property on the ``User.friends`` link:
+By default backward links don't infer any type information beyond the
+fact that it's an :eql:type:`Object`. To ensure that this path
+specifically reaches ``Issue`` a :eql:op:`type filter <ISFILTER>`
+operator must be used:
+
+.. code-block:: edgeql
+
+    SELECT User.<owner[IS Issue];
+
+The following represents a set of all dates on which users became
+friends, if ``since`` is defined as a link property on the
+``User.friends`` link:
 
 .. code-block:: edgeql
 

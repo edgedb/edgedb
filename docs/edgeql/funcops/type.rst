@@ -71,11 +71,11 @@ Types
     satisfies the requirements of a target type. EdgeDB allows casting any
     scalar.
 
-    It is illegal to cast one :eql:type:`Object` into another. The only
-    way to construct a new :eql:type:`Object` is by using :ref:`INSERT
-    <ref_eql_statements_insert>`. However, the :ref:`target filter
-    <ref_eql_expr_paths_is>` can be used to achieve an effect similar to
-    casting for Objects.
+    It is illegal to cast one :eql:type:`Object` into another. The
+    only way to construct a new :eql:type:`Object` is by using
+    :ref:`INSERT <ref_eql_statements_insert>`. However, the
+    :eql:op:`type filter <ISFILTER>` can be used to achieve an
+    effect similar to casting for Objects.
 
     When a cast is applied to an expression of a known type, it represents a
     run-time type conversion. The cast will succeed only if a suitable type
