@@ -229,7 +229,7 @@ the ``first_name`` and ``last_name`` properties. This time we will use
     .........         # the year of release
     .........         property year -> int64;
     .........         required link director -> Person;
-    .........         required multi link cast -> Person;
+    .........         multi link cast -> Person;
     .........     }
     .........     type Person {
     .........         property first_name -> str;
