@@ -65,7 +65,7 @@ Migrations have to be done inside a :ref:`transaction
     .........         # the year of release
     .........         property year -> int64;
     .........         required link director -> Person;
-    .........         required multi link cast -> Person;
+    .........         multi link cast -> Person;
     .........     }
     .........     type Person {
     .........         required property first_name -> str;
