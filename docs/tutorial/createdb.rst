@@ -3,6 +3,15 @@
 2. Database and Schema
 ======================
 
+.. note::
+
+    Syntax-highlighter packages are available for
+    `Atom <https://atom.io/packages/edgedb>`_,
+    `Visual Studio Code <https://marketplace.visualstudio.com/itemdetails?itemName=magicstack.edgedb>`_,
+    `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
+    and `Vim <https://github.com/edgedb/edgedb-vim>`_.
+
+
 First step in a brand new project is to create the database for it:
 
 .. code-block:: edgeql-repl
