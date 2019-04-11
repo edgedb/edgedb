@@ -31,11 +31,12 @@ the database:
 
 This will expose GraphQL API on port 8888 (or any other port that was
 specified). Pointing your browser to ``http://127.0.0.1:8888/explore``
-will bring up a GraphiQL interface to EdgeDB. This interface can be
+will bring up a `GraphiQL`_ interface to EdgeDB. This interface can be
 used to try out queries and explore the GraphQL capabilities.
 
 .. __: http://graphql.org/docs/queries/
 
+.. _`GraphiQL`: https://github.com/graphql/graphiql
 
 .. toctree::
     :maxdepth: 2

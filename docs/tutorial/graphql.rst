@@ -24,8 +24,7 @@ browser to ``http://127.0.0.1:8888/explore`` will bring up a
 `GraphiQL`_ interface to EdgeDB. This interface can be used to try out
 queries and explore the GraphQL capabilities.
 
-.. _`GraphiQL`:
-                https://github.com/graphql/graphiql
+.. _`GraphiQL`: https://github.com/graphql/graphiql
 
 Let's look at a basic ``Movie`` query:
 
