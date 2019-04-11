@@ -114,7 +114,7 @@ planned or in development.
 Getting Started
 ===============
 
-Please refer to the [Quickstart](https://edgedb.com/docs/quickstart) section
+Please refer to the [Tutorial](https://edgedb.com/docs/tutorial/index) section
 of the documentation on how to install and run EdgeDB.
 
 
