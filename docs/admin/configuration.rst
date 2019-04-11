@@ -12,8 +12,8 @@ configuration, as well as detail each available configuration parameter.
 Setting Parameters with EdgeQL
 ==============================
 
-The :eql:stmt:`CONFIGURE` can be used to set the configuration parameters
-using EdgeQL.  For example:
+The :eql:stmt:`CONFIGURE` command can be used to set the configuration
+parameters using EdgeQL.  For example:
 
 .. code-block:: edgeql
 

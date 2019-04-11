@@ -6,8 +6,8 @@ Overview
 
 :edgedb-alt-title: EdgeDB Commands
 
-This section describes the EdgeDB CLI commands for configuring, starting,
-managing and using an EdgeDB.
+This section describes the CLI commands for configuring, starting,
+managing and using an EdgeDB instance.
 
 .. table::
 
