@@ -11,8 +11,23 @@ from the `download page`_.  Please follow the installation instructions
 appropriate for your OS.
 
 In most cases, after a successful installation, EdgeDB would automatically
-start a local system-wide server instance.  Once the installation is complete,
-we need to set the password for the database superuser:
+start a local system-wide server instance.  If it didn't, and you see
+connection errors, run:
+
+On Linux:
+
+.. code-block:: bash
+
+    $ sudo systemctl start edgedb-1-alpha1
+
+On macOS:
+
+.. code-block:: bash
+
+    $ sudo launchctl enable system/com.edgedb.edgedb-1-alpha1
+
+Once the installation is complete, we need to set the password for the
+database superuser:
 
 .. code-block:: bash
 
