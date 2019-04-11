@@ -20,3 +20,4 @@ Welcome to the EdgeDB |version| documentation.
     clients/__toc__
     admin/index
     cli/__toc__
+    internals/__toc__
