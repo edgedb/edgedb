@@ -6,8 +6,9 @@ Links
 
 :index: link
 
-Link items define a specific relationship between two object types.  Link
-instances relate one *object* to one or more different objects.
+Link items define a specific relationship between two :ref:`object
+types <ref_datamodel_object_types>`.  Link instances relate one
+*object* to one or more different objects.
 
 There are two kinds of link item declarations: *abstract links*, and
 *concrete links*.  Abstract links are defined on module level and are

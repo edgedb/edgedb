@@ -92,8 +92,9 @@ from :eql:type:`str` and :eql:type:`json`.
     between decimal values and the rest of the numeric types.
 
     All of the following types can be explicitly cast into decimal:
-    :eql:type:`str`, :eql:type:`int16`, :eql:type:`int32`,
-    :eql:type:`int64`, :eql:type:`float32`, and :eql:type:`float64`.
+    :eql:type:`str`, :eql:type:`json`, :eql:type:`int16`,
+    :eql:type:`int32`, :eql:type:`int64`, :eql:type:`float32`, and
+    :eql:type:`float64`.
 
     A decimal type has it's own literal:
 

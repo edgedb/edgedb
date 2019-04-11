@@ -99,7 +99,7 @@ Here's a few examples of using tuple types in EdgeQL queries:
 Enum
 ----
 
-An enumeration type can be declared in a schema declaration using
+An enumerated type can be declared in a schema declaration using
 the following syntax:
 
 .. eql:synopsis::

@@ -30,8 +30,8 @@ JSON
         db> SELECT <str>to_json('"something"');
         {'something'}
 
-    while the below operation (casting a JSON array of string
-    ``["a", "b", "c"]`` to a *str*) will result in an error:
+    On the other hand, the below operation (casting a JSON array of
+    string ``["a", "b", "c"]`` to a *str*) will result in an error:
 
     .. code-block:: edgeql-repl
 

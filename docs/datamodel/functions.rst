@@ -10,8 +10,8 @@ are defined in :ref:`modules <ref_datamodel_modules>` and are part of
 the database schema.
 
 For example, consider the :ref:`function <ref_eql_funcops>`
-:eql:func:`len` used to transform a set of :eql:type:`strings <str>` into a set
-of :eql:type:`integers <int64>`:
+:eql:func:`len` used to transform a set of :eql:type:`str` into a set
+of :eql:type:`int64`:
 
 .. code-block:: edgeql-repl
 
@@ -19,8 +19,8 @@ of :eql:type:`integers <int64>`:
     {5, 5}
 
 Compare that with the :ref:`aggregate <ref_eql_fundamentals_aggregates>`
-function :eql:func:`count` that transforms a set of :eql:type:`strings
-<str>` into a single :eql:type:`int64` value, representing the set
+function :eql:func:`count` that transforms a set of :eql:type:`str`
+into a single :eql:type:`int64` value, representing the set
 cardinality:
 
 .. code-block:: edgeql-repl

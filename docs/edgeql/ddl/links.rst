@@ -68,6 +68,8 @@ the link in the specified :eql:synopsis:`<module>`.  Concrete link forms
 are always created in the same module as the containing object type.
 
 
+.. _ref_eql_ddl_links_syntax:
+
 Parameters
 ----------
 
@@ -234,8 +236,6 @@ with a module name.
 
 Parameters
 ----------
-
-.. _ref_eql_ddl_links_syntax:
 
 The following subcommands are allowed in the ``ALTER LINK`` block:
 

@@ -28,7 +28,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A timezone-aware type representing date and time.
 
-    :eql:op:`Casting <CAST>` is required to obtain a
+    :eql:op:`Casting <CAST>` is a simple way to obtain a
     :eql:type:`datetime` value in an expression:
 
     .. code-block:: edgeql
@@ -58,7 +58,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing date and time without time zone.
 
-    :eql:op:`Casting <CAST>` is required to obtain a
+    :eql:op:`Casting <CAST>` is a simple way to obtain a
     :eql:type:`local_datetime` value in an expression:
 
     .. code-block:: edgeql
@@ -89,7 +89,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing date without time zone.
 
-    :eql:op:`Casting <CAST>` is required to obtain a
+    :eql:op:`Casting <CAST>` is a simple way to obtain a
     :eql:type:`local_date` value in an expression:
 
     .. code-block:: edgeql
@@ -108,7 +108,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing time without time zone.
 
-    :eql:op:`Casting <CAST>` is required to obtain a
+    :eql:op:`Casting <CAST>` is a simple way to obtain a
     :eql:type:`local_time` value in an expression:
 
     .. code-block:: edgeql

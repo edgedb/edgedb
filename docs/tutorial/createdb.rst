@@ -79,7 +79,7 @@ Migrations have to be done inside a :ref:`transaction
     COMMIT TRANSACTION
 
 The name of a migration doesn't matter much beyond providing a way to
-specify the particular migration must be committed. Once the
+specify the particular migration which must be committed. Once the
 transaction is committed the schema is updated and we're ready to
 :ref:`populate the database with data <ref_tutorial_queries>`.
 

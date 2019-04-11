@@ -9,8 +9,10 @@ behavior.  In this section we review the ways to change the server
 configuration, as well as detail each available configuration parameter.
 
 
-Setting Parameters with EdgeQL
-==============================
+EdgeQL
+======
+
+:edb-alt-title: Setting Parameters with EdgeQL
 
 The :eql:stmt:`CONFIGURE` command can be used to set the configuration
 parameters using EdgeQL.  For example:
@@ -20,8 +22,10 @@ parameters using EdgeQL.  For example:
     CONFIGURE SYSTEM SET listen_addresses := {'127.0.0.1', '::1'};
 
 
-Setting Parameters with "edgedb configure"
-==========================================
+edgedb configure
+================
+
+:edb-alt-title: Setting Parameters with "edgedb configure"
 
 The :ref:`ref_cli_edgedb_configure` command allows modifying the system
 configuration from a terminal:
@@ -31,8 +35,10 @@ configuration from a terminal:
     $ edgedb configure set listen_addresses 127.0.0.1 ::1
 
 
-Available Configuration Parameters
-==================================
+Configuration Parameters
+========================
+
+:edb-alt-title: Available Configuration Parameters
 
 Connection Settings
 -------------------

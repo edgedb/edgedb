@@ -22,9 +22,8 @@ heterogeneous data.
     With the exception of other array types, any type can be used as an
     array element type.
 
-    An :ref:`array type <ref_eql_types_array>` is created implicitly
-    when an :ref:`array constructor <ref_eql_expr_array_ctor>` is
-    used:
+    An array type is created implicitly when an :ref:`array
+    constructor <ref_eql_expr_array_ctor>` is used:
 
     .. code-block:: edgeql-repl
 
@@ -53,9 +52,8 @@ heterogeneous data.
 
     Any type can be used as a tuple element type.
 
-    A :ref:`tuple type <ref_eql_types_tuple>` is created implicitly
-    when a :ref:`tuple constructor <ref_eql_expr_tuple_ctor>` is
-    used:
+    A tuple type is created implicitly when a :ref:`tuple constructor
+    <ref_eql_expr_tuple_ctor>` is used:
 
     .. code-block:: edgeql-repl
 

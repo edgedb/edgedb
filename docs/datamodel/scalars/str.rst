@@ -45,10 +45,10 @@ String
         {'a raw \\\ string'}
         db> SELECT $$something$$;
         {'something'}
-        db> SELECT $marker$something
-        ... complex \!$marker$;
-        {'something
-        complex \!'}
+        db> SELECT $marker$something $$
+        ... nested \!$$$marker$;
+        {'something $$
+        nested \!$$'}
 
 
 See Also
