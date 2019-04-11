@@ -17,6 +17,12 @@ Types
     * - :eql:op:`<type> val <CAST>`
       - :eql:op-desc:`CAST`
 
+    * - :eql:op:`TYPEOF anytype <TYPEOF>`
+      - :eql:op-desc:`TYPEOF`
+
+    * - :eql:op:`INTROSPECT type <INTROSPECT>`
+      - :eql:op-desc:`INTROSPECT`
+
 
 ----------
 
@@ -217,7 +223,7 @@ Types
 -----------
 
 
-.. eql:operator:: INTROSPECT: INTROSPECT type -> Type
+.. eql:operator:: INTROSPECT: INTROSPECT type -> schema::Type
 
     :index: type typeof introspection
 

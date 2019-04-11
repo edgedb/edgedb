@@ -74,7 +74,7 @@ Connection Settings
 
 :eql:synopsis:`Auth`
     A parameter class that specifies the rules of client authentication.
-    Below are the properties of the ``Port`` class.
+    Below are the properties of the ``Auth`` class.
 
     :eql:synopsis:`priority (int64)`
         The priority of the authentication rule.  The lower this number,

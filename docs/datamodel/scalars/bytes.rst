@@ -37,4 +37,5 @@ Scalar type
 :ref:`SDL <ref_eql_sdl_scalars>`,
 :ref:`DDL <ref_eql_ddl_scalars>`,
 :ref:`introspection <ref_eql_introspection_scalar_types>`,
-and :ref:`bytes functions and operators <ref_eql_funcops_bytes>`.
+:ref:`bytes functions and operators <ref_eql_funcops_bytes>`,
+and :ref:`bytes literal lexical structure <ref_eql_lexical_bytes>`.

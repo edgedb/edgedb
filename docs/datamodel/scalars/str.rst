@@ -32,6 +32,24 @@ String
         db> SELECT <json>'Hello, world';
         {'"Hello, world"'}
 
+    There are two kinds of string literals in EdgeQL: regular and *raw*.
+    Raw strings literals do not evaluate ``\``, so ``\n`` in in a raw string
+    is two characters ``\`` and ``n``.
+
+    The regular string literal syntax is ``'a string'`` or a ``"a string"``.
+    Two *raw* string syntaxes are illustrated below:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT r'a raw \\\ string';
+        {'a raw \\\ string'}
+        db> SELECT $$something$$;
+        {'something'}
+        db> SELECT $marker$something
+        ... complex \!$marker$;
+        {'something
+        complex \!'}
+
 
 See Also
 --------
@@ -40,4 +58,5 @@ Scalar type
 :ref:`SDL <ref_eql_sdl_scalars>`,
 :ref:`DDL <ref_eql_ddl_scalars>`,
 :ref:`introspection <ref_eql_introspection_scalar_types>`,
-and :ref:`string functions and operators <ref_eql_funcops_string>`.
+:ref:`string functions and operators <ref_eql_funcops_string>`,
+and :ref:`string literal lexical structure <ref_eql_lexical_str>`.

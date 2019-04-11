@@ -166,7 +166,7 @@ some of the cast members, like Jason Momoa, Zendaya and Oscar Isaac:
     .........     last_name := 'Momoa'
     ......... };
     Object { id: <uuid>'618d4cd6-54db-11e9-8c54-67c38dbbba18' },
-    ......... INSERT Person {
+    tutorial> INSERT Person {
     .........     first_name := 'Oscar',
     .........     last_name := 'Isaac'
     ......... };

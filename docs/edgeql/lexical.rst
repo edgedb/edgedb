@@ -105,6 +105,8 @@ Constants
 A number of scalar types have literal constant expressions.
 
 
+.. _ref_eql_lexical_str:
+
 Strings
 ^^^^^^^
 
@@ -232,6 +234,8 @@ content with *dollar-quotes* in an unambiguous manner:
     db> SELECT $a$hello$$world$$$a$;
     {'hello$$world$$'}
 
+
+.. _ref_eql_lexical_bytes:
 
 Bytes
 ^^^^^
