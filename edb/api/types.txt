@@ -17,6 +17,9 @@
 #
 
 
+# IMPORTANT: synchronize any changes with docs/internal/protocol/types.rst.
+
+
 # Types encoding in EdgeDB binary protocol:
 #
 #    set:           <type=0> <uuid> <pos>
