@@ -55,6 +55,83 @@ Types
         {true, ..., true}  # one for every user instance
 
 
+----------
+
+
+.. eql:operator:: TYPEOR: type | type -> type
+
+    Type union operator
+
+    This operator is only valid in contexts where type checking is
+    done. The most obvious use case is with the :eql:op:`IS` and
+    :eql:op:`IS NOT<IS>`. The operator allows to refer to a union of
+    types in order to check whether a value is of any of these
+    types.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT User IS (Text | Named);
+        {true, ..., true}  # one for every user instance
+
+    It can similarly be used when specifying a link target type. The
+    same logic then applies: in order to be a valid link target the
+    object must satisfy ``object IS (A | B | C)``.
+
+    .. code-block:: sdl
+
+        abstract type Named {
+            required property name -> str;
+        }
+
+        abstract type Text {
+            required property body -> str;
+        }
+
+        type Item extending Named;
+
+        type Note extending Text;
+
+        type User extending Named {
+            multi link stuff -> Named | Text;
+        }
+
+    With the above schema, the following would be valid:
+
+    .. code-block:: edgeql-repl
+
+        db> INSERT Item {name := 'cube'};
+        {Object { id: <uuid>'...' }}
+        db> INSERT Note {body := 'some reminder'};
+        {Object { id: <uuid>'...' }}
+        db> INSERT User {
+        ...     name := 'Alice',
+        ...     stuff := Note,  # all the notes
+        ... };
+        {Object { id: <uuid>'...' }}
+        db> INSERT User {
+        ...     name := 'Bob',
+        ...     stuff := Item,  # all the items
+        ... };
+        {Object { id: <uuid>'...' }}
+        db> SELECT User {
+        ...     name,
+        ...     stuff: {
+        ...         [IS Named].name,
+        ...         [IS Text].body
+        ...     }
+        ... };
+        {
+            Object {
+                name: 'Alice',
+                stuff: {Object { name: {}, body: 'some reminder' }}
+            },
+            Object {
+                name: 'Bob',
+                stuff: {Object { name: 'cube', body: {} }}
+            }
+        }
+
+
 -----------
 
 
