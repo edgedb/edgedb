@@ -363,7 +363,6 @@ def render_exception(repl_ctx: context.ReplContext, exc, *, query=None):
     if isinstance(exc, edgedb.EdgeDBError):
         exc_hint = read_str_field(base_errors.FIELD_HINT)
         if exc_hint:
-            exc_hint = exc_hint.decode()
             print(f'Hint: {exc_hint}')
 
         if query:
