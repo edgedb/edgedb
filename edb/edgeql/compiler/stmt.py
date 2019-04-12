@@ -107,6 +107,8 @@ def compile_SelectQuery(
 
             stmt.limit = clauses.compile_limit_offset_clause(
                 expr.limit, ctx=sctx)
+
+            metadata.ignore_offset_limit = False
         else:
             stmt.result = compile_result_clause(
                 expr.result,

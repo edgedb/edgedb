@@ -60,32 +60,31 @@ def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
             if current is None:
                 current = nextval
                 current_from = source
-            else:
-                if current is not nextval:
-                    current_from_source = current_from.get_source(schema)
-                    source_source = source.get_source(schema)
+            elif current is not nextval:
+                current_from_source = current_from.get_source(schema)
+                source_source = source.get_source(schema)
 
-                    tgt_repr = (
-                        f'{target_source.get_displayname(schema)}.'
-                        f'{target.get_displayname(schema)}'
-                    )
-                    cf_repr = (
-                        f'{current_from_source.get_displayname(schema)}.'
-                        f'{current_from.get_displayname(schema)}'
-                    )
-                    other_repr = (
-                        f'{source_source.get_displayname(schema)}.'
-                        f'{source.get_displayname(schema)}'
-                    )
+                tgt_repr = (
+                    f'{target_source.get_displayname(schema)}.'
+                    f'{target.get_displayname(schema)}'
+                )
+                cf_repr = (
+                    f'{current_from_source.get_displayname(schema)}.'
+                    f'{current_from.get_displayname(schema)}'
+                )
+                other_repr = (
+                    f'{source_source.get_displayname(schema)}.'
+                    f'{source.get_displayname(schema)}'
+                )
 
-                    raise errors.SchemaError(
-                        f'cannot redefine the target cardinality of '
-                        f'{tgt_repr!r}: it is defined '
-                        f'as {current.as_ptr_qual()!r} in {cf_repr!r} and '
-                        f'as {nextval.as_ptr_qual()!r} in {other_repr!r}.'
-                    )
+                raise errors.SchemaError(
+                    f'cannot redefine the target cardinality of '
+                    f'{tgt_repr!r}: it is defined '
+                    f'as {current.as_ptr_qual()!r} in {cf_repr!r} and '
+                    f'as {nextval.as_ptr_qual()!r} in {other_repr!r}.'
+                )
 
-        return current
+    return current
 
 
 class PointerLike:

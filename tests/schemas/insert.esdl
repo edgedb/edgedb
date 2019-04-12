@@ -33,7 +33,7 @@ type InsertTest {
     }
 }
 
-type Annotation {
+type Note {
     required property name -> str;
     property note -> str;
     link subject -> Object;

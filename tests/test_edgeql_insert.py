@@ -808,9 +808,9 @@ class TestInsert(tb.QueryTestCase):
                         })
                     ) ORDER BY _i.l2 DESC LIMIT 1
                 )}
-            UNION (INSERT Annotation {
+            UNION (INSERT Note {
                 name := 'insert expr 1',
-                note := 'largest ' + <str>x.l2,
+                note := 'largest ' ++ <str>x.l2,
                 subject := x
             });
         ''')
@@ -1175,3 +1175,21 @@ class TestInsert(tb.QueryTestCase):
                 'ref': [],
             }],
         )
+
+    async def test_edgeql_insert_cardinality_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'single'):
+            await self.con.execute(r'''
+                SET MODULE test;
+
+                INSERT Subordinate { name := 'sub1_cardinality_01'};
+                INSERT Subordinate { name := 'sub2_cardinality_01'};
+                INSERT Note {
+                    name := 'note_cardinality_01',
+                    subject := (
+                        SELECT Subordinate
+                        FILTER .name LIKE '%cardinality_01'
+                    )
+                };
+            ''')
