@@ -107,7 +107,7 @@ Status
 ======
 
 EdgeDB is currently in alpha. See our
-[Issues](https://github.com/edegedb/edgedb/issues) for a list of features
+[Issues](https://github.com/edgedb/edgedb/issues) for a list of features
 planned or in development.
 
 
