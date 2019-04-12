@@ -1543,3 +1543,16 @@ class TestUpdate(tb.QueryTestCase):
                     status := <Object>{}
                 };
             """)
+
+    async def test_edgeql_update_cardinality_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'single'):
+            await self.con.execute(r'''
+                SET MODULE test;
+
+                UPDATE UpdateTest
+                SET {
+                    status := Status
+                };
+            ''')

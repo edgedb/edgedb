@@ -1553,6 +1553,7 @@ class TestServerProto(tb.QueryTestCase):
                         tmp_tx_13_2 := DETACHED (
                             SELECT test::Tmp_tx_13
                             FILTER test::Tmp_tx_13.tmp_tx_13_1 = 1
+                            LIMIT 1
                         )
                     };
 

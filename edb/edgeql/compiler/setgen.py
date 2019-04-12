@@ -116,6 +116,7 @@ def new_set_from_set(
         stype=stype,
         expr=ir_set.expr,
         rptr=rptr,
+        context=ir_set.context,
         ctx=ctx
     )
 
@@ -799,20 +800,20 @@ def computable_ptr_set(
 
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
+    comp_ir_set_copy = new_set_from_set(comp_ir_set, ctx=ctx)
     pending_cardinality = ctx.pending_cardinality.get(ptrcls)
     if pending_cardinality is not None and not pending_cardinality.from_parent:
-        comp_ir_set_copy = new_set_from_set(comp_ir_set, ctx=ctx)
         stmtctx.get_pointer_cardinality_later(
             ptrcls=ptrcls, irexpr=comp_ir_set_copy,
             specified_card=pending_cardinality.specified_cardinality,
             source_ctx=pending_cardinality.source_ctx,
             ctx=ctx)
 
-        def _check_cardinality(ctx):
-            if ptrcls.singular(ctx.env.schema):
-                stmtctx.enforce_singleton_now(comp_ir_set_copy, ctx=ctx)
+    def _check_cardinality(ctx):
+        if ptrcls.singular(ctx.env.schema):
+            stmtctx.enforce_singleton_now(comp_ir_set_copy, ctx=ctx)
 
-        stmtctx.at_stmt_fini(_check_cardinality, ctx=ctx)
+    stmtctx.at_stmt_fini(_check_cardinality, ctx=ctx)
 
     comp_ir_set = new_set_from_set(
         comp_ir_set, path_id=result_path_id, rptr=rptr, ctx=ctx)

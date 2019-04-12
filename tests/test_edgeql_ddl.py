@@ -166,7 +166,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
 
             INSERT test::A6 { name := 'a6' };
-            INSERT test::Object6 { a := (SELECT test::A6), b := 'foo' };
+            INSERT test::Object6 {
+                a := (SELECT test::A6 LIMIT 1),
+                b := 'foo'
+            };
         """)
 
         await self.assert_query_result(

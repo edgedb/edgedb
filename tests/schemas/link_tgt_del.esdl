@@ -18,7 +18,9 @@
 
 
 abstract type Named {
-    required property name -> str;
+    required property name -> str {
+        delegated constraint exclusive;
+    }
 }
 
 type Target1 extending Named;
