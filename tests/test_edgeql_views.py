@@ -716,6 +716,40 @@ class TestEdgeQLViews(tb.QueryTestCase):
             res
         )
 
+    async def test_edgeql_views_ignore_alias(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE VIEW UserView2 := (
+                SELECT User {
+                    deck: {
+                        id
+                    } ORDER BY User.deck.cost DESC
+                    LIMIT 1,
+                }
+            );
+        ''')
+
+        # Explicitly reset the default module alias to test
+        # that views don't care.
+        await self.con.execute('''
+            SET MODULE std;
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::UserView2 {
+                    deck,
+                }
+                FILTER .name = 'Alice';
+            """,
+            [{
+                'deck': [
+                    {}
+                ]
+            }]
+        )
+
     async def test_edgeql_views_esdl_01(self):
         await self.assert_query_result(
             r"""

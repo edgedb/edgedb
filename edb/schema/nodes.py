@@ -22,8 +22,10 @@ import typing
 from edb import errors
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
 
 from . import delta as sd
+from . import expr as s_expr
 from . import inheriting
 from . import objects as so
 from . import schema as s_schema
@@ -115,6 +117,26 @@ class NodeCommand(sd.ObjectCommand):
     def _handle_view_op(cls, schema, cmd, astnode, context):
         view_expr = cls._maybe_get_view_expr(astnode)
         if view_expr is not None:
+            if not isinstance(view_expr, qlast.Statement):
+                view_expr = qlast.SelectQuery(result=view_expr)
+
+            existing_aliases = {}
+            for alias in view_expr.aliases:
+                if isinstance(alias, qlast.ModuleAliasDecl):
+                    existing_aliases[alias.alias] = alias.module
+
+            aliases_to_add = set(context.modaliases) - set(existing_aliases)
+            for alias in aliases_to_add:
+                view_expr.aliases.append(
+                    qlast.ModuleAliasDecl(
+                        alias=alias,
+                        module=context.modaliases[alias],
+                    )
+                )
+
+            expr_ql = qlcodegen.generate_source(view_expr, pretty=False)
+            cmd.set_attribute_value('expr', s_expr.Expression(text=expr_ql))
+
             ir = cls._compile_view_expr(view_expr, cmd.classname,
                                         schema, context)
 
