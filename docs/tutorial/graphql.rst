@@ -18,6 +18,12 @@ configuration:
     ......... };
     CONFIGURE SYSTEM
 
+.. note::
+
+    If you are using Docker to run the EdgeDB server, replace the
+    "address" value above with "0.0.0.0" to make sure the GraphQL port
+    is proxied to the host.
+
 This will expose :ref:`GraphQL API <ref_graphql_index>` on port 8888
 (you can also specify any other port that you want). Pointing your
 browser to ``http://127.0.0.1:8888/explore`` will bring up a
