@@ -60,6 +60,9 @@ finished, we can omit the ``year`` and ``cast``, populating only the
     .........             # the last name is sufficient
     .........             # to identify the right person
     .........             .last_name = 'Villeneuve'
+    .........         # the LIMIT is needed to satisfy the single
+    .........         # link requirement validation
+    .........         LIMIT 1
     .........     )
     ......... };
     {Object { id: <uuid>'64d024dc-54d5-11e9-8c54-a3f59e1d995e' }}
