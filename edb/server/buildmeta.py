@@ -114,10 +114,8 @@ class Version(typing.NamedTuple):
 
 def parse_version(ver: object) -> Version:
     v = ver._version
-    if v.dev:
-        stage = VersionStage.DEV
-        stage_no = v.dev[1]
-    elif v.pre:
+    local = []
+    if v.pre:
         if v.pre[0] == 'a':
             stage = VersionStage.ALPHA
         elif v.pre[0] == 'b':
@@ -129,16 +127,25 @@ def parse_version(ver: object) -> Version:
                 f'cannot determine release stage from {ver}')
 
         stage_no = v.pre[1]
+
+        if v.dev:
+            local.extend(['dev', str(v.dev[1])])
+    elif v.dev:
+        stage = VersionStage.DEV
+        stage_no = v.dev[1]
     else:
         stage = VersionStage.FINAL
         stage_no = 0
+
+    if v.local:
+        local.extend(v.local)
 
     return Version(
         major=v.release[0],
         minor=v.release[1],
         stage=stage,
         stage_no=stage_no,
-        local=v.local if v.local else (),
+        local=tuple(local),
     )
 
 
