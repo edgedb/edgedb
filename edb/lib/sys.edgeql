@@ -148,7 +148,7 @@ sys::get_version_as_str() -> std::str
     SELECT
         <str>v.major
         ++ '.' ++ <str>v.minor
-        ++ ('.' ++ <str>v.stage
+        ++ ('-' ++ <str>v.stage
             ++ '.' ++ <str>v.stage_no
             ++ ('+' ++ std::to_str(v.local, '.')
                 IF len(v.local) > 0 ELSE '')

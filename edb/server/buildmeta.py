@@ -105,7 +105,7 @@ class Version(typing.NamedTuple):
         ver = f'{self.major}.{self.minor}'
         if self.stage is not VersionStage.FINAL:
             ver += (
-                f'.{self.stage.name.lower()}.{self.stage_no}'
+                f'-{self.stage.name.lower()}.{self.stage_no}'
                 f'{("+" + ".".join(self.local)) if self.local else ""}'
             )
 
