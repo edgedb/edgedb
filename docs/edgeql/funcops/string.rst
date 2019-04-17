@@ -171,7 +171,7 @@ String
         {true}
         db> SELECT 'abc' LIKE 'c';
         {false}
-        db> SELECT 'a%%c' NOT LIKE 'a\%c';
+        db> SELECT 'a%%c' NOT LIKE r'a\%c';
         {true}
 
 
