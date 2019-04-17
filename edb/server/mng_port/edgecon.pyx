@@ -48,6 +48,7 @@ from edb.server.dbview cimport dbview
 from edb.server import config
 
 from edb.server import compiler
+from edb.server.compiler import errormech
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
@@ -1157,10 +1158,18 @@ cdef class EdgeConnection:
 
         if isinstance(exc, pgerror.BackendError):
             try:
-                exc = await self.backend.compiler.call(
-                    'interpret_backend_error',
-                    self.dbview.dbver,
+                static_exc = errormech.static_interpret_backend_error(
                     exc.fields)
+
+                # only use the backend if schema is required
+                if static_exc is errormech.SchemaRequired:
+                    exc = await self.backend.compiler.call(
+                        'interpret_backend_error',
+                        self.dbview.dbver,
+                        exc.fields)
+                else:
+                    exc = static_exc
+
             except Exception as ex:
                 exc = RuntimeError(
                     'unhandled error while calling interpret_backend_error()')
