@@ -20,6 +20,7 @@
 import enum
 import json
 import re
+import typing
 import uuid
 
 from edb import errors
@@ -31,7 +32,7 @@ from edb.pgsql import common
 from edb.pgsql import types
 
 
-class PGError(enum.Enum):
+class PGErrorCode(enum.Enum):
 
     IntegrityConstraintViolationError = '23000'
     RestrictViolationError = '23001'
@@ -56,14 +57,41 @@ class PGError(enum.Enum):
     TransactionDeadlockDetected = '40P01'
 
 
+class SchemaRequired:
+    '''A sentinel used to signal that a particular error requires a schema.'''
+
+
+# Error codes that always require the schema to be resolved. There are
+# other error codes that only require the schema under certain
+# circumstances.
+SCHEMA_CODES = frozenset({
+    PGErrorCode.InvalidTextRepresentation,
+    PGErrorCode.NumericValueOutOfRange,
+    PGErrorCode.InvalidDatetimeFormatError,
+    PGErrorCode.DatetimeError,
+})
+
+
+class ErrorDetails(typing.NamedTuple):
+    message: str
+    detail: str = None
+    detail_json: dict = None
+    code: PGErrorCode = None
+    schema_name: str = None
+    table_name: str = None
+    column_name: str = None
+    constraint_name: str = None
+    errcls: errors.EdgeDBError = None
+
+
 constraint_errors = frozenset({
-    PGError.IntegrityConstraintViolationError,
-    PGError.RestrictViolationError,
-    PGError.NotNullViolationError,
-    PGError.ForeignKeyViolationError,
-    PGError.UniqueViolationError,
-    PGError.CheckViolationError,
-    PGError.ExclusionViolationError,
+    PGErrorCode.IntegrityConstraintViolationError,
+    PGErrorCode.RestrictViolationError,
+    PGErrorCode.NotNullViolationError,
+    PGErrorCode.ForeignKeyViolationError,
+    PGErrorCode.UniqueViolationError,
+    PGErrorCode.CheckViolationError,
+    PGErrorCode.ExclusionViolationError,
 })
 
 
@@ -103,7 +131,7 @@ def translate_pgtype(schema, msg):
     return translated
 
 
-def interpret_backend_error(schema, fields):
+def get_error_details(fields):
     # See https://www.postgresql.org/docs/current/protocol-error-fields.html
     # for the full list of PostgreSQL error message fields.
     message = fields.get('M')
@@ -123,54 +151,61 @@ def interpret_backend_error(schema, fields):
             except LookupError:
                 pass
             else:
-                err = errcls(message)
-                err.set_linecol(
-                    detail_json.get('line', -1),
-                    detail_json.get('column', -1))
-                return err
+                return ErrorDetails(
+                    errcls=errcls, message=message, detail_json=detail_json)
 
     try:
-        code = PGError(fields['C'])
+        code = PGErrorCode(fields['C'])
     except ValueError:
-        return errors.InternalServerError(message)
+        return ErrorDetails(errcls=errors.InternalServerError, message=message)
 
     schema_name = fields.get('s')
     table_name = fields.get('t')
     column_name = fields.get('c')
     constraint_name = fields.get('n')
 
-    if code == PGError.NotNullViolationError:
-        source_name = pointer_name = None
+    return ErrorDetails(
+        message=message, detail=detail, detail_json=detail_json, code=code,
+        schema_name=schema_name, table_name=table_name,
+        column_name=column_name, constraint_name=constraint_name
+    )
 
-        if schema_name and table_name:
-            tabname = (schema_name, table_name)
 
-            source = common.get_object_from_backend_name(
-                schema, s_objtypes.ObjectType, tabname)
-            source_name = source.get_displayname(schema)
+def get_generic_exception_from_err_details(err_details):
+    err = None
+    if err_details.errcls is not None:
+        err = err_details.errcls(err_details.message)
+        if err_details.errcls is not errors.InternalServerError:
+            err.set_linecol(
+                err_details.detail_json.get('line', -1),
+                err_details.detail_json.get('column', -1))
+    return err
 
-            if column_name:
-                pointer_name = column_name
 
-        if pointer_name is not None:
-            pname = f'{source_name}.{pointer_name}'
+def static_interpret_backend_error(fields):
+    err_details = get_error_details(fields)
+    # handle some generic errors if possible
+    err = get_generic_exception_from_err_details(err_details)
+    if err is not None:
+        return err
 
-            return errors.MissingRequiredError(
-                f'missing value for required property {pname}')
+    if err_details.code == PGErrorCode.NotNullViolationError:
+        if err_details.schema_name and err_details.table_name:
+            return SchemaRequired
 
         else:
-            return errors.InternalServerError(message)
+            return errors.InternalServerError(err_details.message)
 
-    elif code in constraint_errors:
+    elif err_details.code in constraint_errors:
         source = pointer = None
 
         for errtype, ere in constraint_res.items():
-            m = ere.match(message)
+            m = ere.match(err_details.message)
             if m:
                 error_type = errtype
                 break
         else:
-            return errors.InternalServerError(message)
+            return errors.InternalServerError(err_details.message)
 
         if error_type == 'cardinality':
             return errors.CardinalityViolationError(
@@ -178,11 +213,11 @@ def interpret_backend_error(schema, fields):
                 source=source, pointer=pointer)
 
         elif error_type == 'link_target':
-            if detail_json:
-                srcname = detail_json.get('source')
-                ptrname = detail_json.get('pointer')
-                target = detail_json.get('target')
-                expected = detail_json.get('expected')
+            if err_details.detail_json:
+                srcname = err_details.detail_json.get('source')
+                ptrname = err_details.detail_json.get('pointer')
+                target = err_details.detail_json.get('target')
+                expected = err_details.detail_json.get('expected')
 
                 if srcname and ptrname:
                     srcname = sn.Name(srcname)
@@ -203,52 +238,110 @@ def interpret_backend_error(schema, fields):
 
         elif error_type == 'link_target_del':
             return errors.ConstraintViolationError(
-                message, details=detail)
+                err_details.message, details=err_details.detail)
 
         elif error_type == 'constraint':
-            if constraint_name is None:
-                return errors.InternalServerError(message)
+            if err_details.constraint_name is None:
+                return errors.InternalServerError(err_details.message)
 
-            constraint_id, _, _ = constraint_name.rpartition(';')
+            constraint_id, _, _ = err_details.constraint_name.rpartition(';')
 
             try:
                 constraint_id = uuid.UUID(constraint_id)
             except ValueError:
-                return errors.InternalServerError(message)
+                return errors.InternalServerError(err_details.message)
+
+            return SchemaRequired
+
+        elif error_type == 'id':
+            return errors.ConstraintViolationError(
+                'unique link constraint violation')
+
+    elif err_details.code in SCHEMA_CODES:
+        return SchemaRequired
+
+    elif err_details.code == PGErrorCode.InvalidParameterValue:
+        return errors.InvalidValueError(
+            err_details.message,
+            details=err_details.detail if err_details.detail else None
+        )
+
+    elif err_details.code == PGErrorCode.DivisionByZeroError:
+        return errors.DivisionByZeroError(err_details.message)
+
+    elif err_details.code == PGErrorCode.ReadOnlySQLTransactionError:
+        return errors.TransactionError(
+            'cannot execute query in a read-only transaction')
+
+    elif err_details.code == PGErrorCode.TransactionSerializationFailure:
+        return errors.TransactionSerializationError(err_details.message)
+
+    elif err_details.code == PGErrorCode.TransactionDeadlockDetected:
+        return errors.TransactionDeadlockError(err_details.message)
+
+    return errors.InternalServerError(err_details.message)
+
+
+def interpret_backend_error(schema, fields):
+    err_details = get_error_details(fields)
+    # all generic errors are static and have been handled by this point
+
+    if err_details.code == PGErrorCode.NotNullViolationError:
+        source_name = pointer_name = None
+
+        if err_details.schema_name and err_details.table_name:
+            tabname = (err_details.schema_name, err_details.table_name)
+
+            source = common.get_object_from_backend_name(
+                schema, s_objtypes.ObjectType, tabname)
+            source_name = source.get_displayname(schema)
+
+            if err_details.column_name:
+                pointer_name = err_details.column_name
+
+        if pointer_name is not None:
+            pname = f'{source_name}.{pointer_name}'
+
+            return errors.MissingRequiredError(
+                f'missing value for required property {pname}')
+
+        else:
+            return errors.InternalServerError(err_details.message)
+
+    elif err_details.code in constraint_errors:
+        error_type = None
+
+        for errtype, ere in constraint_res.items():
+            m = ere.match(err_details.message)
+            if m:
+                error_type = errtype
+                break
+        # no need for else clause since it would have been handled by
+        # the static version
+
+        # so far 'constraint' is the only expected error_type here,
+        # but in the future that might change, so we leave the if
+        if error_type == 'constraint':
+            # similarly, if we're here it's because we have a constraint_id
+            constraint_id, _, _ = err_details.constraint_name.rpartition(';')
+            constraint_id = uuid.UUID(constraint_id)
 
             constraint = schema.get_by_id(constraint_id)
 
             return errors.ConstraintViolationError(
                 constraint.format_error_message(schema))
 
-        elif error_type == 'id':
-            return errors.ConstraintViolationError(
-                'unique link constraint violation')
-
-    elif code == PGError.InvalidParameterValue:
+    elif err_details.code == PGErrorCode.InvalidTextRepresentation:
         return errors.InvalidValueError(
-            message, details=detail if detail else None)
+            translate_pgtype(schema, err_details.message))
 
-    elif code == PGError.InvalidTextRepresentation:
-        return errors.InvalidValueError(translate_pgtype(schema, message))
+    elif err_details.code == PGErrorCode.NumericValueOutOfRange:
+        return errors.NumericOutOfRangeError(
+            translate_pgtype(schema, err_details.message))
 
-    elif code == PGError.NumericValueOutOfRange:
-        return errors.NumericOutOfRangeError(translate_pgtype(schema, message))
+    elif err_details.code in {PGErrorCode.InvalidDatetimeFormatError,
+                              PGErrorCode.DatetimeError}:
+        return errors.InvalidValueError(
+            translate_pgtype(schema, err_details.message))
 
-    elif code == PGError.DivisionByZeroError:
-        return errors.DivisionByZeroError(message)
-
-    elif code == PGError.ReadOnlySQLTransactionError:
-        return errors.TransactionError(
-            'cannot execute query in a read-only transaction')
-
-    elif code in {PGError.InvalidDatetimeFormatError, PGError.DatetimeError}:
-        return errors.InvalidValueError(translate_pgtype(schema, message))
-
-    elif code == PGError.TransactionSerializationFailure:
-        return errors.TransactionSerializationError(message)
-
-    elif code == PGError.TransactionDeadlockDetected:
-        return errors.TransactionDeadlockError(message)
-
-    return errors.InternalServerError(message)
+    return errors.InternalServerError(err_details.message)
