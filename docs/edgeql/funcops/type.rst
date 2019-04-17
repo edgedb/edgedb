@@ -51,7 +51,7 @@ Types
         ... FILTER User.name = 'Alice';
         {true}
 
-        db> SELECT User IS (Text, Named);
+        db> SELECT User IS (Text | Named);
         {true, ..., true}  # one for every user instance
 
 

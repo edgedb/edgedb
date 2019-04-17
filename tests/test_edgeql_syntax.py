@@ -729,6 +729,13 @@ aa';
         SELECT (User IS (((SystemUser & Foo) | Bar) | (array<int>)));
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected ','", line=2, col=31)
+    def test_edgeql_syntax_ops_26(self):
+        """
+        SELECT (User IS (Named, Text));
+        """
+
     def test_edgeql_syntax_required_01(self):
         """
         SELECT REQUIRED (User.groups.description);

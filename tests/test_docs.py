@@ -130,9 +130,48 @@ class TestDocSnippets(unittest.TestCase):
                 '\n\nRestructuredText lint errors:\n' +
                 '\n'.join(reporter.lint_errors))
 
-        directives = document.traverse(
-            condition=lambda node: (node.tagname == 'literal_block' and
-                                    'code' in node.attributes['classes']))
+        directives = []
+        for node in document.traverse():
+            if node.tagname == 'literal_block':
+                if 'code' in node.attributes['classes']:
+                    directives.append(node)
+
+                else:
+                    block = node.astext()
+
+                    # certain literal blocks also contain code-blocks
+                    if re.match(r'^\.\. eql:(operator|function|constraint)::',
+                                block):
+
+                        # figure out the line offset of the start of the block
+                        node_parent = node
+                        while node_parent and node_parent.line is None:
+                            node_parent = node_parent.parent
+                        if node_parent:
+                            node_parent_line = \
+                                node_parent.line - block.count('\n')
+                        else:
+                            node_parent_line = 0
+
+                        subdoc = docutils.nodes.document(
+                            settings, reporter, source=filename)
+                        subdoc.note_source(filename, node_parent_line)
+
+                        # cut off the first chunk
+                        block = block.split('\n\n', maxsplit=1)[1]
+                        # dedent the rest
+                        block = textwrap.dedent(block)
+
+                        parser.parse(block, subdoc)
+
+                        subdirs = subdoc.traverse(
+                            condition=lambda node: (
+                                node.tagname == 'literal_block' and
+                                'code' in node.attributes['classes'])
+                        )
+                        for subdir in subdirs:
+                            subdir.line += node_parent_line
+                            directives.append(subdir)
 
         for directive in directives:
             classes = directive.attributes['classes']
@@ -255,7 +294,7 @@ class TestDocSnippets(unittest.TestCase):
                 self.run_block_test(block)
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
-    def test_doc_test_broken_code_block(self):
+    def test_doc_test_broken_code_block_01(self):
         source = '''
         In large applications, the schema will usually be split
         into several :ref:`modules<ref_schema_evolution_modules>`.
@@ -284,6 +323,32 @@ class TestDocSnippets(unittest.TestCase):
 
         with self.assertRaisesRegex(AssertionError, 'unable to parse edgeql'):
             self.run_block_test(blocks[1])
+
+    @unittest.skipIf(docutils is None, 'docutils is missing')
+    def test_doc_test_broken_code_block_02(self):
+        source = r'''
+        String operator with a buggy example.
+
+        .. eql:operator:: LIKE: str LIKE str -> bool
+                                str NOT LIKE str -> bool
+
+            Case-sensitive simple string matching.
+
+            Example:
+
+            .. code-block:: edgeql-repl
+
+                db> SELECT 'a%%c' NOT LIKE 'a\%c';
+                {true}
+        '''
+
+        blocks = self.extract_code_blocks(source, '<test>')
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0].code,
+                         "db> SELECT 'a%%c' NOT LIKE 'a\\%c';\n{true}")
+
+        with self.assertRaisesRegex(AssertionError, 'unable to parse edgeql'):
+            self.run_block_test(blocks[0])
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
     def test_doc_test_broken_long_lines(self):
