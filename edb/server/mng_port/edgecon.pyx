@@ -1163,10 +1163,7 @@ cdef class EdgeConnection:
 
                 # only use the backend if schema is required
                 if static_exc is errormech.SchemaRequired:
-                    exc = await self.backend.compiler.call(
-                        'interpret_backend_error',
-                        self.dbview.dbver,
-                        exc.fields)
+                    exc = await self._interpret_backend_error(exc)
                 else:
                     exc = static_exc
 
@@ -1213,6 +1210,18 @@ cdef class EdgeConnection:
         buf.end_message()
 
         self.write(buf)
+
+    async def _interpret_backend_error(self, exc):
+        if self.dbview.in_tx():
+            return await self.backend.compiler.call(
+                'interpret_backend_error_in_tx',
+                self.dbview.txid,
+                exc.fields)
+        else:
+            return await self.backend.compiler.call(
+                'interpret_backend_error',
+                self.dbview.dbver,
+                exc.fields)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message):
         cdef:
