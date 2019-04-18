@@ -128,7 +128,8 @@ def compile_ast_to_ir(tree,
                       implicit_tid_in_shapes=False,
                       schema_view_mode=False,
                       disable_constant_folding=False,
-                      json_parameters=False):
+                      json_parameters=False,
+                      session_mode=False):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -144,7 +145,8 @@ def compile_ast_to_ir(tree,
         implicit_tid_in_shapes=implicit_tid_in_shapes,
         schema_view_mode=schema_view_mode,
         disable_constant_folding=disable_constant_folding,
-        json_parameters=json_parameters)
+        json_parameters=json_parameters,
+        session_mode=session_mode)
 
     if path_prefix_anchor is not None:
         path_prefix = anchors[path_prefix_anchor]
@@ -252,7 +254,10 @@ def compile_func_to_ir(func, schema, *,
         tree, schema, anchors=anchors, func=func,
         security_context=security_context, modaliases=modaliases,
         implicit_id_in_shapes=implicit_id_in_shapes,
-        implicit_tid_in_shapes=implicit_tid_in_shapes)
+        implicit_tid_in_shapes=implicit_tid_in_shapes,
+        # the body of a session_only function can contain calls to
+        # other session_only functions
+        session_mode=func.get_session_only(schema))
 
     return ir
 

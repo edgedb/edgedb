@@ -87,6 +87,14 @@ def compile_FunctionCall(
     else:
         matched_call = matched[0]
 
+    func = matched_call.func
+    func_name = func.get_shortname(env.schema)
+
+    if not ctx.env.session_mode and func.get_session_only(env.schema):
+        raise errors.QueryError(
+            f'{func_name}() cannot be called in a non-session context',
+            context=expr.context)
+
     args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
     matched_func_params = matched_call.func.get_params(env.schema)
@@ -106,9 +114,6 @@ def compile_FunctionCall(
 
     matched_func_initial_value = matched_call.func.get_initial_value(
         env.schema)
-
-    func = matched_call.func
-    func_name = func.get_shortname(env.schema)
 
     if matched_func_initial_value is not None:
         iv_ql = qlast.TypeCast(
@@ -150,6 +155,7 @@ def compile_FunctionCall(
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
         force_return_cast=func.get_force_return_cast(env.schema),
+        session_only=func.get_session_only(env.schema),
         sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
         error_on_null_result=func.get_error_on_null_result(env.schema),
         params_typemods=params_typemods,

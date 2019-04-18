@@ -265,6 +265,10 @@ class Compiler(BaseCompiler):
             session_config,
             allow_unrecognized=True)
 
+        # the capability to execute transaction or session control
+        # commands indicates that session mode is available
+        session_mode = ctx.state.capability & (enums.Capability.TRANSACTION |
+                                               enums.Capability.SESSION)
         ir = ql_compiler.compile_ast_to_ir(
             ql,
             schema=current_tx.get_schema(),
@@ -272,7 +276,8 @@ class Compiler(BaseCompiler):
             implicit_tid_in_shapes=implicit_fields,
             implicit_id_in_shapes=implicit_fields,
             disable_constant_folding=disable_constant_folding,
-            json_parameters=ctx.json_parameters)
+            json_parameters=ctx.json_parameters,
+            session_mode=session_mode)
 
         if ir.cardinality is qltypes.Cardinality.ONE:
             result_cardinality = enums.ResultCardinality.ONE

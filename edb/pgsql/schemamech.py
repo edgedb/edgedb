@@ -404,8 +404,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
     if not ir_utils.is_const(ir):
         return None
 
-    sql_expr = compiler.compile_ir_to_sql_tree(
-        ir, singleton_mode=True)
+    sql_expr = compiler.compile_ir_to_sql_tree(ir, singleton_mode=True)
     sql_text = codegen.SQLSourceGenerator.to_source(sql_expr)
 
     return sql_text

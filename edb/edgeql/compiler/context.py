@@ -130,10 +130,14 @@ class Environment:
     json_parameters: bool
     """Force types of all parameters to std::json"""
 
+    session_mode: bool
+    """Whether there is a specific session."""
+
     def __init__(self, *, schema, path_scope,
                  schema_view_mode: bool=False,
                  constant_folding: bool=True,
-                 json_parameters: bool=False):
+                 json_parameters: bool=False,
+                 session_mode: bool=False):
         self.schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
@@ -148,6 +152,7 @@ class Environment:
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)
         self.json_parameters = json_parameters
+        self.session_mode = session_mode
 
 
 class ContextLevel(compiler.ContextLevel):

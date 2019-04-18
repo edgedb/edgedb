@@ -46,6 +46,7 @@ ALTER TYPE sys::Role {
 CREATE FUNCTION
 sys::sleep(duration: std::float64) -> std::bool
 {
+    SET session_only := True;
     FROM SQL $$
     SELECT pg_sleep("duration") IS NOT NULL;
     $$;
@@ -55,6 +56,7 @@ sys::sleep(duration: std::float64) -> std::bool
 CREATE FUNCTION
 sys::sleep(duration: std::duration) -> std::bool
 {
+    SET session_only := True;
     FROM SQL $$
     SELECT pg_sleep_for("duration") IS NOT NULL;
     $$;
@@ -64,6 +66,7 @@ sys::sleep(duration: std::duration) -> std::bool
 CREATE FUNCTION
 sys::advisory_lock(key: std::int64) -> std::bool
 {
+    SET session_only := True;
     FROM SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb._raise_exception('lock key cannot be negative', NULL::bool)
@@ -77,6 +80,7 @@ sys::advisory_lock(key: std::int64) -> std::bool
 CREATE FUNCTION
 sys::advisory_unlock(key: std::int64) -> std::bool
 {
+    SET session_only := True;
     FROM SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb._raise_exception('lock key cannot be negative', NULL::bool)
@@ -90,6 +94,7 @@ sys::advisory_unlock(key: std::int64) -> std::bool
 CREATE FUNCTION
 sys::advisory_unlock_all() -> std::bool
 {
+    SET session_only := True;
     FROM SQL $$
     SELECT pg_advisory_unlock_all() IS NOT NULL;
     $$;

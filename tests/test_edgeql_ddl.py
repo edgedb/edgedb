@@ -330,256 +330,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
-    async def test_edgeql_ddl_05(self):
-        await self.con.execute("""
-            CREATE FUNCTION test::my_lower(s: std::str) -> std::str
-                FROM SQL FUNCTION 'lower';
-        """)
-
-        with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
-                                    r'cannot create.*test::my_lower.*func'):
-
-            async with self.con.transaction():
-                await self.con.execute("""
-                    CREATE FUNCTION test::my_lower(s: SET OF std::str)
-                        -> std::str {
-                        SET initial_value := '';
-                        FROM SQL FUNCTION 'count';
-                    };
-                """)
-
-        await self.con.execute("""
-            DROP FUNCTION test::my_lower(s: std::str);
-        """)
-
-        await self.con.execute("""
-            CREATE FUNCTION test::my_lower(s: SET OF anytype)
-                -> std::str {
-                FROM SQL FUNCTION 'count';
-                SET initial_value := '';
-            };
-        """)
-
-        with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
-                                    r'cannot create.*test::my_lower.*func'):
-
-            async with self.con.transaction():
-                await self.con.execute("""
-                    CREATE FUNCTION test::my_lower(s: anytype) -> std::str
-                        FROM SQL FUNCTION 'lower';
-                """)
-
-        await self.con.execute("""
-            DROP FUNCTION test::my_lower(s: anytype);
-        """)
-
-    async def test_edgeql_ddl_06(self):
-        long_func_name = 'my_sql_func5_' + 'abc' * 50
-
-        await self.con.execute(f"""
-            CREATE FUNCTION test::my_sql_func1()
-                -> std::str
-                FROM SQL $$
-                    SELECT 'spam'::text
-                $$;
-
-            CREATE FUNCTION test::my_sql_func2(foo: std::str)
-                -> std::str
-                FROM SQL $$
-                    SELECT "foo"::text
-                $$;
-
-            CREATE FUNCTION test::my_sql_func4(VARIADIC s: std::str)
-                -> std::str
-                FROM SQL $$
-                    SELECT array_to_string(s, '-')
-                $$;
-
-            CREATE FUNCTION test::{long_func_name}()
-                -> std::str
-                FROM SQL $$
-                    SELECT '{long_func_name}'::text
-                $$;
-
-            CREATE FUNCTION test::my_sql_func6(a: std::str='a' ++ 'b')
-                -> std::str
-                FROM SQL $$
-                    SELECT $1 || 'c'
-                $$;
-
-            CREATE FUNCTION test::my_sql_func7(s: array<std::int64>)
-                -> std::int64
-                FROM SQL $$
-                    SELECT sum(s)::bigint FROM UNNEST($1) AS s
-                $$;
-        """)
-
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_sql_func1();
-            """,
-            ['spam'],
-        )
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_sql_func2('foo');
-            """,
-            ['foo'],
-        )
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_sql_func4('fizz', 'buzz');
-            """,
-            ['fizz-buzz'],
-        )
-        await self.assert_query_result(
-            fr"""
-                SELECT test::{long_func_name}();
-            """,
-            [long_func_name],
-        )
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_sql_func6();
-            """,
-            ['abc'],
-        )
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_sql_func6('xy');
-            """,
-            ['xyc'],
-        )
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_sql_func7([1, 2, 3, 10]);
-            """,
-            [16],
-        )
-
-        await self.con.execute(f"""
-            DROP FUNCTION test::my_sql_func1();
-            DROP FUNCTION test::my_sql_func2(foo: std::str);
-            DROP FUNCTION test::my_sql_func4(VARIADIC s: std::str);
-            DROP FUNCTION test::{long_func_name}();
-            DROP FUNCTION test::my_sql_func6(a: std::str='a' ++ 'b');
-            DROP FUNCTION test::my_sql_func7(s: array<std::int64>);
-        """)
-
-    async def test_edgeql_ddl_07(self):
-        with self.assertRaisesRegex(edgedb.InvalidFunctionDefinitionError,
-                                    r'invalid default value'):
-            await self.con.execute(f"""
-                CREATE FUNCTION test::broken_sql_func1(
-                    a: std::int64=(SELECT schema::ObjectType))
-                -> std::str
-                FROM SQL $$
-                    SELECT 'spam'::text
-                $$;
-            """)
-
-    async def test_edgeql_ddl_08(self):
-        await self.con.execute(f"""
-            CREATE FUNCTION test::my_edgeql_func1()
-                -> std::str
-                FROM EdgeQL $$
-                    SELECT 'sp' ++ 'am'
-                $$;
-
-            CREATE FUNCTION test::my_edgeql_func2(s: std::str)
-                -> schema::ObjectType
-                FROM EdgeQL $$
-                    SELECT
-                        schema::ObjectType
-                    FILTER schema::ObjectType.name = s
-                $$;
-
-            CREATE FUNCTION test::my_edgeql_func3(s: std::int64)
-                -> std::int64
-                FROM EdgeQL $$
-                    SELECT s + 10
-                $$;
-
-            CREATE FUNCTION test::my_edgeql_func4(i: std::int64)
-                -> array<std::int64>
-                FROM EdgeQL $$
-                    SELECT [i, 1, 2, 3]
-                $$;
-        """)
-
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_edgeql_func1();
-            """,
-            ['spam'],
-        )
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_edgeql_func2('schema::Object').name;
-            """,
-            ['schema::Object'],
-        )
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_edgeql_func3(1);
-            """,
-            [11],
-        )
-        await self.assert_query_result(
-            r"""
-                SELECT test::my_edgeql_func4(42);
-            """,
-            [[42, 1, 2, 3]]
-        )
-
-        await self.con.execute(f"""
-            DROP FUNCTION test::my_edgeql_func1();
-            DROP FUNCTION test::my_edgeql_func2(s: std::str);
-            DROP FUNCTION test::my_edgeql_func3(s: std::int64);
-            DROP FUNCTION test::my_edgeql_func4(i: std::int64);
-        """)
-
-    async def test_edgeql_ddl_09(self):
-        await self.con.execute("""
-            CREATE FUNCTION test::attr_func_1() -> std::str {
-                SET ANNOTATION description := 'hello';
-                FROM EdgeQL "SELECT '1'";
-            };
-        """)
-
-        await self.assert_query_result(
-            r"""
-                SELECT schema::Function {
-                    annotations: {
-                        @value
-                    } FILTER .name = 'std::description'
-                } FILTER .name = 'test::attr_func_1';
-            """,
-            [{
-                'annotations': [{
-                    '@value': 'hello'
-                }]
-            }],
-        )
-
-        await self.con.execute("""
-            DROP FUNCTION test::attr_func_1();
-        """)
-
-    async def test_edgeql_ddl_10(self):
-        await self.con.execute("""
-            CREATE FUNCTION test::int_func_1() -> std::int64 {
-                FROM EdgeQL "SELECT 1";
-            };
-        """)
-
-        await self.assert_query_result(
-            r"""
-                SELECT test::int_func_1();
-            """,
-            [{}],
-        )
-
     async def test_edgeql_ddl_11(self):
         await self.con.execute(r"""
             CREATE TYPE test::TestContainerLinkObjectType {
@@ -1077,7 +827,257 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 """)
 
-    async def test_edgeql_ddl_function_bad_01(self):
+    async def test_edgeql_ddl_function_01(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::my_lower(s: std::str) -> std::str
+                FROM SQL FUNCTION 'lower';
+        """)
+
+        with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
+                                    r'cannot create.*test::my_lower.*func'):
+
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE FUNCTION test::my_lower(s: SET OF std::str)
+                        -> std::str {
+                        SET initial_value := '';
+                        FROM SQL FUNCTION 'count';
+                    };
+                """)
+
+        await self.con.execute("""
+            DROP FUNCTION test::my_lower(s: std::str);
+        """)
+
+        await self.con.execute("""
+            CREATE FUNCTION test::my_lower(s: SET OF anytype)
+                -> std::str {
+                FROM SQL FUNCTION 'count';
+                SET initial_value := '';
+            };
+        """)
+
+        with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
+                                    r'cannot create.*test::my_lower.*func'):
+
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE FUNCTION test::my_lower(s: anytype) -> std::str
+                        FROM SQL FUNCTION 'lower';
+                """)
+
+        await self.con.execute("""
+            DROP FUNCTION test::my_lower(s: anytype);
+        """)
+
+    async def test_edgeql_ddl_function_02(self):
+        long_func_name = 'my_sql_func5_' + 'abc' * 50
+
+        await self.con.execute(f"""
+            CREATE FUNCTION test::my_sql_func1()
+                -> std::str
+                FROM SQL $$
+                    SELECT 'spam'::text
+                $$;
+
+            CREATE FUNCTION test::my_sql_func2(foo: std::str)
+                -> std::str
+                FROM SQL $$
+                    SELECT "foo"::text
+                $$;
+
+            CREATE FUNCTION test::my_sql_func4(VARIADIC s: std::str)
+                -> std::str
+                FROM SQL $$
+                    SELECT array_to_string(s, '-')
+                $$;
+
+            CREATE FUNCTION test::{long_func_name}()
+                -> std::str
+                FROM SQL $$
+                    SELECT '{long_func_name}'::text
+                $$;
+
+            CREATE FUNCTION test::my_sql_func6(a: std::str='a' ++ 'b')
+                -> std::str
+                FROM SQL $$
+                    SELECT $1 || 'c'
+                $$;
+
+            CREATE FUNCTION test::my_sql_func7(s: array<std::int64>)
+                -> std::int64
+                FROM SQL $$
+                    SELECT sum(s)::bigint FROM UNNEST($1) AS s
+                $$;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func1();
+            """,
+            ['spam'],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func2('foo');
+            """,
+            ['foo'],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func4('fizz', 'buzz');
+            """,
+            ['fizz-buzz'],
+        )
+        await self.assert_query_result(
+            fr"""
+                SELECT test::{long_func_name}();
+            """,
+            [long_func_name],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func6();
+            """,
+            ['abc'],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func6('xy');
+            """,
+            ['xyc'],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_sql_func7([1, 2, 3, 10]);
+            """,
+            [16],
+        )
+
+        await self.con.execute(f"""
+            DROP FUNCTION test::my_sql_func1();
+            DROP FUNCTION test::my_sql_func2(foo: std::str);
+            DROP FUNCTION test::my_sql_func4(VARIADIC s: std::str);
+            DROP FUNCTION test::{long_func_name}();
+            DROP FUNCTION test::my_sql_func6(a: std::str='a' ++ 'b');
+            DROP FUNCTION test::my_sql_func7(s: array<std::int64>);
+        """)
+
+    async def test_edgeql_ddl_function_03(self):
+        with self.assertRaisesRegex(edgedb.InvalidFunctionDefinitionError,
+                                    r'invalid default value'):
+            await self.con.execute(f"""
+                CREATE FUNCTION test::broken_sql_func1(
+                    a: std::int64=(SELECT schema::ObjectType))
+                -> std::str
+                FROM SQL $$
+                    SELECT 'spam'::text
+                $$;
+            """)
+
+    async def test_edgeql_ddl_function_04(self):
+        await self.con.execute(f"""
+            CREATE FUNCTION test::my_edgeql_func1()
+                -> std::str
+                FROM EdgeQL $$
+                    SELECT 'sp' ++ 'am'
+                $$;
+
+            CREATE FUNCTION test::my_edgeql_func2(s: std::str)
+                -> schema::ObjectType
+                FROM EdgeQL $$
+                    SELECT
+                        schema::ObjectType
+                    FILTER schema::ObjectType.name = s
+                $$;
+
+            CREATE FUNCTION test::my_edgeql_func3(s: std::int64)
+                -> std::int64
+                FROM EdgeQL $$
+                    SELECT s + 10
+                $$;
+
+            CREATE FUNCTION test::my_edgeql_func4(i: std::int64)
+                -> array<std::int64>
+                FROM EdgeQL $$
+                    SELECT [i, 1, 2, 3]
+                $$;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_edgeql_func1();
+            """,
+            ['spam'],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_edgeql_func2('schema::Object').name;
+            """,
+            ['schema::Object'],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_edgeql_func3(1);
+            """,
+            [11],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT test::my_edgeql_func4(42);
+            """,
+            [[42, 1, 2, 3]]
+        )
+
+        await self.con.execute(f"""
+            DROP FUNCTION test::my_edgeql_func1();
+            DROP FUNCTION test::my_edgeql_func2(s: std::str);
+            DROP FUNCTION test::my_edgeql_func3(s: std::int64);
+            DROP FUNCTION test::my_edgeql_func4(i: std::int64);
+        """)
+
+    async def test_edgeql_ddl_function_05(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::attr_func_1() -> std::str {
+                SET ANNOTATION description := 'hello';
+                FROM EdgeQL "SELECT '1'";
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Function {
+                    annotations: {
+                        @value
+                    } FILTER .name = 'std::description'
+                } FILTER .name = 'test::attr_func_1';
+            """,
+            [{
+                'annotations': [{
+                    '@value': 'hello'
+                }]
+            }],
+        )
+
+        await self.con.execute("""
+            DROP FUNCTION test::attr_func_1();
+        """)
+
+    async def test_edgeql_ddl_function_06(self):
+        await self.con.execute("""
+            CREATE FUNCTION test::int_func_1() -> std::int64 {
+                FROM EdgeQL "SELECT 1";
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::int_func_1();
+            """,
+            [{}],
+        )
+
+    async def test_edgeql_ddl_function_07(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::my_agg.*function:.+anytype.+cannot '
@@ -1088,19 +1088,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     FROM SQL FUNCTION "my_agg";
             """)
 
-    async def test_edgeql_ddl_function_bad_02(self):
+    async def test_edgeql_ddl_function_08(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
                 r'invalid declaration.*unexpected type of the default'):
 
             await self.con.execute("""
-                CREATE FUNCTION test::ddlf_1(s: std::str = 1) -> std::str
+                CREATE FUNCTION test::ddlf_08(s: std::str = 1) -> std::str
                     FROM EdgeQL $$ SELECT "1" $$;
             """)
 
-    async def test_edgeql_ddl_28(self):
+    async def test_edgeql_ddl_function_09(self):
         await self.con.execute("""
-            CREATE FUNCTION test::ddlf_2(
+            CREATE FUNCTION test::ddlf_09(
                 NAMED ONLY a: int64,
                 NAMED ONLY b: int64
             ) -> std::str
@@ -1113,7 +1113,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             async with self.con.transaction():
                 await self.con.execute("""
-                    CREATE FUNCTION test::ddlf_2(
+                    CREATE FUNCTION test::ddlf_09(
                         NAMED ONLY b: int64,
                         NAMED ONLY a: int64 = 1
                     ) -> std::str
@@ -1121,7 +1121,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 """)
 
         await self.con.execute("""
-            CREATE FUNCTION test::ddlf_2(
+            CREATE FUNCTION test::ddlf_09(
                 NAMED ONLY b: str,
                 NAMED ONLY a: int64
             ) -> std::str
@@ -1130,24 +1130,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT test::ddlf_2(a:=1, b:=1);
+                SELECT test::ddlf_09(a:=1, b:=1);
             ''',
             ['1'],
         )
         await self.assert_query_result(
             r'''
-                SELECT test::ddlf_2(a:=1, b:='a');
+                SELECT test::ddlf_09(a:=1, b:='a');
             ''',
             ['2'],
         )
 
-    async def test_edgeql_ddl_31(self):
+    async def test_edgeql_ddl_function_10(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'parameter `sum` is not callable'):
 
             await self.con.execute('''
-                CREATE FUNCTION test::ddlf_4(
+                CREATE FUNCTION test::ddlf_10(
                     sum: int64
                 ) -> int64
                     FROM EdgeQL $$
@@ -1155,19 +1155,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     $$;
             ''')
 
-    async def test_edgeql_ddl_32(self):
+    async def test_edgeql_ddl_function_11(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::ddlf_5_1() -> str
+            CREATE FUNCTION test::ddlf_11_1() -> str
                 FROM EdgeQL $$
                     SELECT '\u0062'
                 $$;
 
-            CREATE FUNCTION test::ddlf_5_2() -> str
+            CREATE FUNCTION test::ddlf_11_2() -> str
                 FROM EdgeQL $$
                     SELECT r'\u0062'
                 $$;
 
-            CREATE FUNCTION test::ddlf_5_3() -> str
+            CREATE FUNCTION test::ddlf_11_3() -> str
                 FROM EdgeQL $$
                     SELECT $a$\u0062$a$
                 $$;
@@ -1176,68 +1176,68 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         try:
             await self.assert_query_result(
                 r'''
-                    SELECT test::ddlf_5_1();
+                    SELECT test::ddlf_11_1();
                 ''',
                 ['b'],
             )
             await self.assert_query_result(
                 r'''
-                    SELECT test::ddlf_5_2();
+                    SELECT test::ddlf_11_2();
                 ''',
                 [r'\u0062'],
             )
             await self.assert_query_result(
                 r'''
-                    SELECT test::ddlf_5_3();
+                    SELECT test::ddlf_11_3();
                 ''',
                 [r'\u0062'],
             )
         finally:
             await self.con.execute("""
-                DROP FUNCTION test::ddlf_5_1();
-                DROP FUNCTION test::ddlf_5_2();
-                DROP FUNCTION test::ddlf_5_3();
+                DROP FUNCTION test::ddlf_11_1();
+                DROP FUNCTION test::ddlf_11_2();
+                DROP FUNCTION test::ddlf_11_3();
             """)
 
-    async def test_edgeql_ddl_33(self):
+    async def test_edgeql_ddl_function_12(self):
         with self.assertRaisesRegex(
                 edgedb.DuplicateFunctionDefinitionError,
-                r'cannot create.*test::ddlf_6\(a: std::int64\).*'
+                r'cannot create.*test::ddlf_12\(a: std::int64\).*'
                 r'function with the same signature is already defined'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_6(a: int64) -> int64
+                CREATE FUNCTION test::ddlf_12(a: int64) -> int64
                     FROM EdgeQL $$ SELECT 11 $$;
 
-                CREATE FUNCTION test::ddlf_6(a: int64) -> float64
+                CREATE FUNCTION test::ddlf_12(a: int64) -> float64
                     FROM EdgeQL $$ SELECT 11 $$;
             ''')
 
-    async def test_edgeql_ddl_34(self):
+    async def test_edgeql_ddl_function_13(self):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
-                r'cannot create.*test::ddlf_7\(a: SET OF std::int64\).*'
+                r'cannot create.*test::ddlf_13\(a: SET OF std::int64\).*'
                 r'SET OF parameters in user-defined EdgeQL functions are '
                 r'not supported'):
 
             async with self.con.transaction():
                 await self.con.execute(r'''
-                    CREATE FUNCTION test::ddlf_7(a: SET OF int64) -> int64
+                    CREATE FUNCTION test::ddlf_13(a: SET OF int64) -> int64
                         FROM EdgeQL $$ SELECT 11 $$;
                 ''')
 
         with self.assertRaises(edgedb.InvalidReferenceError):
             await self.con.execute("""
-                DROP FUNCTION test::ddlf_7(a: SET OF int64);
+                DROP FUNCTION test::ddlf_13(a: SET OF int64);
             """)
 
-    async def test_edgeql_ddl_35(self):
+    async def test_edgeql_ddl_function_14(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::ddlf_8(
+            CREATE FUNCTION test::ddlf_14(
                     a: int64, NAMED ONLY f: int64) -> int64
                 FROM EdgeQL $$ SELECT 11 $$;
 
-            CREATE FUNCTION test::ddlf_8(
+            CREATE FUNCTION test::ddlf_14(
                     a: int32, NAMED ONLY f: str) -> int64
                 FROM EdgeQL $$ SELECT 12 $$;
         ''')
@@ -1245,105 +1245,128 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         try:
             await self.assert_query_result(
                 r'''
-                    SELECT test::ddlf_8(<int64>10, f := 11);
+                    SELECT test::ddlf_14(<int64>10, f := 11);
                 ''',
                 [11],
             )
             await self.assert_query_result(
                 r'''
-                    SELECT test::ddlf_8(<int32>10, f := '11');
+                    SELECT test::ddlf_14(<int32>10, f := '11');
                 ''',
                 [12],
             )
         finally:
             await self.con.execute("""
-                DROP FUNCTION test::ddlf_8(a: int64, NAMED ONLY f: int64);
-                DROP FUNCTION test::ddlf_8(a: int32, NAMED ONLY f: str);
+                DROP FUNCTION test::ddlf_14(a: int64, NAMED ONLY f: int64);
+                DROP FUNCTION test::ddlf_14(a: int32, NAMED ONLY f: str);
             """)
 
-    async def test_edgeql_ddl_36(self):
+    async def test_edgeql_ddl_function_15(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::ddlf_9.*NAMED ONLY h:.*'
+                r'cannot create.*test::ddlf_15.*NAMED ONLY h:.*'
                 r'different named only parameters'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_9(
+                CREATE FUNCTION test::ddlf_15(
                         a: int64, NAMED ONLY f: int64) -> int64
                     FROM EdgeQL $$ SELECT 11 $$;
 
-                CREATE FUNCTION test::ddlf_9(
+                CREATE FUNCTION test::ddlf_15(
                         a: int32, NAMED ONLY h: str) -> int64
                     FROM EdgeQL $$ SELECT 12 $$;
             ''')
 
-    async def test_edgeql_ddl_37(self):
+    async def test_edgeql_ddl_function_16(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create the polymorphic.*test::ddlf_10.*'
+                r'cannot create the polymorphic.*test::ddlf_16.*'
                 r'function with different return type'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_10(
+                CREATE FUNCTION test::ddlf_16(
                         a: anytype, b: int64) -> OPTIONAL int64
                     FROM EdgeQL $$ SELECT 11 $$;
 
-                CREATE FUNCTION test::ddlf_10(a: anytype, b: float64) -> str
+                CREATE FUNCTION test::ddlf_16(a: anytype, b: float64) -> str
                     FROM EdgeQL $$ SELECT '12' $$;
             ''')
 
-    async def test_edgeql_ddl_38(self):
+    async def test_edgeql_ddl_function_17(self):
         await self.con.execute(r'''
-            CREATE FUNCTION test::ddlf_11(str: std::str) -> int64
+            CREATE FUNCTION test::ddlf_17(str: std::str) -> int64
                 FROM SQL FUNCTION 'whatever';
         ''')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::ddlf_11.*'
+                r'cannot create.*test::ddlf_17.*'
                 r'overloading "FROM SQL FUNCTION"'):
 
             async with self.con.transaction():
                 await self.con.execute(r'''
-                    CREATE FUNCTION test::ddlf_11(str: std::int64) -> int64
+                    CREATE FUNCTION test::ddlf_17(str: std::int64) -> int64
                         FROM SQL FUNCTION 'whatever2';
                 ''')
 
         await self.con.execute("""
-            DROP FUNCTION test::ddlf_11(str: std::str);
+            DROP FUNCTION test::ddlf_17(str: std::str);
         """)
 
-    async def test_edgeql_ddl_39(self):
+    async def test_edgeql_ddl_function_18(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::ddlf_12.*'
+                r'cannot create.*test::ddlf_18.*'
                 r'function returns a generic type but has no '
                 r'generic parameters'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_12(str: std::str) -> anytype
+                CREATE FUNCTION test::ddlf_18(str: std::str) -> anytype
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')
 
-    async def test_edgeql_ddl_40(self):
+    async def test_edgeql_ddl_function_19(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 r'reference to a non-existent schema item: std::anytype'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_13(f: std::anytype) -> int64
+                CREATE FUNCTION test::ddlf_19(f: std::anytype) -> int64
                     FROM EdgeQL $$ SELECT 1 $$;
             ''')
 
-    async def test_edgeql_ddl_41(self):
+    async def test_edgeql_ddl_function_20(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
                 r'functions can only contain one statement'):
 
             await self.con.execute(r'''
-                CREATE FUNCTION test::ddlf_14(f: int64) -> int64
+                CREATE FUNCTION test::ddlf_20(f: int64) -> int64
                     FROM EdgeQL $$ SELECT 1; SELECT f; $$;
             ''')
+
+    async def test_edgeql_ddl_function_21(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION test::ddlf_21(str: str) -> int64
+                FROM EdgeQL $$ SELECT 1$$;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidFunctionDefinitionError,
+                r'cannot create.*test::ddlf_21.*'
+                r'overloading.*different `session_only` flag'):
+
+            async with self.con.transaction():
+                await self.con.execute(r'''
+                    CREATE FUNCTION test::ddlf_21(str: int64) -> int64 {
+                        SET session_only := true;
+                        FROM EdgeQL $$ SELECT 1$$;
+                    };
+                ''')
+
+        await self.con.execute("""
+            DROP FUNCTION test::ddlf_21(str: std::str);
+        """)
 
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(

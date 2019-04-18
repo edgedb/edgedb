@@ -32,6 +32,10 @@ class TestSession(tb.QueryTestCase):
                 required property name -> str;
                 property name_len := len(User.name);
             };
+
+            type Flag {
+                required property value -> bool;
+            };
         };
 
         COMMIT MIGRATION default::m;
@@ -180,3 +184,125 @@ class TestSession(tb.QueryTestCase):
             )
         finally:
             await tx.rollback()
+
+    async def test_session_only_function_01(self):
+        # Check that a session only function can be called in a
+        # regular query.
+        await self.assert_query_result(
+            r"""
+                SELECT sys::sleep(0);
+            """,
+            [True],
+        )
+
+    async def test_session_only_function_02(self):
+        # Check that a session only function can be called in an
+        # INSERT and UPDATE.
+        async with self.con.transaction():
+            await self.con.execute(r"""
+                INSERT Flag {
+                    value := sys::sleep(0)
+                };
+            """)
+
+            await self.assert_query_result(
+                r"""
+                    SELECT Flag { value };
+                """,
+                [{
+                    'value': True,
+                }],
+            )
+
+            await self.con.execute(r"""
+                UPDATE Flag
+                SET {
+                    value := NOT sys::sleep(0)
+                };
+            """)
+
+            await self.assert_query_result(
+                r"""
+                    SELECT Flag { value };
+                """,
+                [{
+                    'value': False,
+                }],
+            )
+
+    async def test_session_only_function_03(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'sys::sleep\(\) cannot be '
+                                    r'called in a non-session context'):
+            await self.con.execute(r"""
+                CREATE VIEW BadView := User {
+                    sess := sys::sleep(0)
+                };
+            """)
+
+    async def test_session_only_function_04(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'sys::sleep\(\) cannot be '
+                                    r'called in a non-session context'):
+            await self.con.execute(r"""
+                CREATE TYPE BadType {
+                    CREATE PROPERTY bad -> bool {
+                        SET default := sys::sleep(0)
+                    }
+                };
+            """)
+
+    async def test_session_only_function_05(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'sys::sleep\(\) cannot be '
+                                    r'called in a non-session context'):
+            await self.con.execute(r"""
+                CREATE FUNCTION bad() -> bool
+                    FROM EdgeQL $$ SELECT sys::sleep(0) $$;
+            """)
+
+    async def test_session_only_function_06(self):
+        async with self.con.transaction():
+            await self.con.execute(r"""
+                CREATE FUNCTION ok() -> bool {
+                    SET session_only := true;
+                    FROM EdgeQL $$ SELECT sys::sleep(0) $$;
+                };
+            """)
+
+            await self.assert_query_result(
+                r"""
+                    SELECT ok();
+                """,
+                [True],
+            )
+
+    async def test_session_only_function_07(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'sys::sleep\(\) cannot be '
+                                    r'called in a non-session context'):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE MIGRATION bad TO {
+                        view BadView := Object {
+                            sess := sys::sleep(0)
+                        }
+                    };
+                    COMMIT MIGRATION bad;
+                """)
+
+    async def test_session_only_function_08(self):
+        with self.assertRaisesRegex(edgedb.QueryError,
+                                    r'sys::sleep\(\) cannot be '
+                                    r'called in a non-session context'):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    CREATE MIGRATION bad TO {
+                        type BadType {
+                            property bad -> bool {
+                                default := sys::sleep(0)
+                            }
+                        }
+                    };
+                    COMMIT MIGRATION bad;
+                """)

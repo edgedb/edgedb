@@ -64,7 +64,8 @@ def init_context(
         disable_constant_folding: bool=False,
         implicit_id_in_shapes: bool=False,
         implicit_tid_in_shapes: bool=False,
-        json_parameters: bool=False) -> \
+        json_parameters: bool=False,
+        session_mode: bool=False) -> \
         context.ContextLevel:
     stack = context.CompilerContext()
     ctx = stack.current
@@ -75,7 +76,8 @@ def init_context(
         path_scope=irast.new_scope_tree(),
         constant_folding=not disable_constant_folding,
         schema_view_mode=schema_view_mode,
-        json_parameters=json_parameters)
+        json_parameters=json_parameters,
+        session_mode=session_mode)
 
     if singletons:
         # The caller wants us to treat these type references

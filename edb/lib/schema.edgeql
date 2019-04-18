@@ -243,7 +243,11 @@ ALTER TYPE schema::ObjectType {
 };
 
 
-CREATE TYPE schema::Function EXTENDING schema::CallableObject;
+CREATE TYPE schema::Function EXTENDING schema::CallableObject {
+    CREATE REQUIRED PROPERTY session_only -> std::bool {
+        SET default := false;
+    }
+};
 
 
 CREATE TYPE schema::Operator EXTENDING schema::CallableObject {

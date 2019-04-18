@@ -517,6 +517,9 @@ class FunctionCall(Call):
     # (or None, if the function has no variadic parameters.)
     variadic_param_type: typing.Optional[TypeRef] = None
 
+    # True if function requires a session to be executed
+    session_only: bool = False
+
 
 class OperatorCall(Call):
 

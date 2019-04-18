@@ -633,6 +633,9 @@ class Function(CallableObject, s_abc.Function):
     initial_value = so.SchemaField(
         expr.Expression, default=None, compcoef=0.4, coerce=True)
 
+    session_only = so.SchemaField(
+        bool, default=False, compcoef=0.4, coerce=True, allow_ddl_set=True)
+
     def has_inlined_defaults(self, schema):
         # This can be relaxed to just `language is EdgeQL` when we
         # support non-constant defaults.
@@ -692,6 +695,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         has_polymorphic = params.has_polymorphic(schema)
         polymorphic_return_type = return_type.is_polymorphic(schema)
         named_only = params.find_named_only(schema)
+        session_only = self.scls.get_session_only(schema)
 
         # Certain syntax is only allowed in "EdgeDB developer" mode,
         # i.e. when populating std library, etc.
@@ -750,6 +754,13 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     f'function: overloading another function with different '
                     f'return type {func_return_typemod.to_edgeql()} '
                     f'{func.get_return_type(schema).get_displayname(schema)}',
+                    context=self.source_context)
+
+            if session_only != func.get_session_only(schema):
+                raise errors.InvalidFunctionDefinitionError(
+                    f'cannot create `{signature}` function: '
+                    f'overloading another function with different '
+                    f'`session_only` flag',
                     context=self.source_context)
 
             if func_from_function:

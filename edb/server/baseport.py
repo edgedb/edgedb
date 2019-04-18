@@ -75,7 +75,8 @@ class Port:
 
         self._compiler_manager = await procpool.create_manager(
             runstate_dir=self._internal_runstate_dir,
-            worker_args=(dict(host=self._pg_addr), self._pg_data_dir),
+            worker_args=(dict(host=self._pg_addr),
+                         self._pg_data_dir),
             worker_cls=self.get_compiler_worker_cls(),
             name=self.get_compiler_worker_name(),
         )

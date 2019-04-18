@@ -637,6 +637,33 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         )
 
+    @test.xfail('''
+        `session_only` is required and has a default, but still shows
+        up as `{}`.
+    ''')
+    async def test_edgeql_introspection_function_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT `Function` {
+                    name,
+                    session_only
+                }
+                FILTER .name IN {'std::count', 'sys::advisory_lock'}
+                ORDER BY .name;
+            """,
+            [
+                {
+                    "name": "std::count",
+                    "session_only": False,
+                },
+                {
+                    "name": "sys::advisory_lock",
+                    "session_only": True,
+                }
+            ]
+        )
+
     async def test_edgeql_introspection_meta_01(self):
         await self.assert_query_result(
             r'''
