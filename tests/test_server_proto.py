@@ -1715,6 +1715,29 @@ class TestServerProto(tb.QueryTestCase):
                 await tx2.rollback()
             await con2.close()
 
+    async def test_server_proto_tx_18(self):
+        # The schema altered within the transaction should be visible
+        # to the error handler in order to correctly map the
+        # ConstraintViolationError.
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    'upper_str is not in upper case'):
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    SET MODULE test;
+
+                    CREATE ABSTRACT CONSTRAINT uppercase {
+                        SET ANNOTATION title := "Upper case constraint";
+                        SET expr := str_upper(__subject__) = __subject__;
+                        SET errmessage := "{__subject__} is not in upper case";
+                    };
+
+                    CREATE SCALAR TYPE upper_str EXTENDING str {
+                        CREATE CONSTRAINT uppercase
+                    };
+
+                    SELECT <test::upper_str>'123_hello';
+                """)
+
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 

@@ -1088,3 +1088,8 @@ class Compiler(BaseCompiler):
     async def interpret_backend_error(self, dbver, fields):
         db = await self._get_database(dbver)
         return errormech.interpret_backend_error(db.schema, fields)
+
+    async def interpret_backend_error_in_tx(self, txid, fields):
+        state = self._load_state(txid)
+        return errormech.interpret_backend_error(
+            state.current_tx().get_schema(), fields)

@@ -2429,7 +2429,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         The current docs for DDL have a *very* similar example to this
         one, but which works fine. The difference is in the
         CREATE/ALTER sequence of the PROPERTY and CONSTRAINT.
-
     ''')
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
