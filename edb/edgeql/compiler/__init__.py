@@ -34,7 +34,6 @@ from edb.ir import ast as irast
 from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
 
-from .decompiler import decompile_ir  # NOQA
 from . import dispatch
 from . import inference
 from . import setgen
@@ -237,13 +236,11 @@ def compile_func_to_ir(func, schema, *,
                         left=qlast.FunctionCall(
                             func=('std', 'bytes_get_bit'),
                             args=[
-                                qlast.FuncArg(
-                                    arg=qlast.Path(steps=[
-                                        qlast.ObjectRef(
-                                            name='__defaults_mask__')
-                                    ])),
-                                qlast.FuncArg(
-                                    arg=qlast.IntegerConstant(value=str(pi)))
+                                qlast.Path(steps=[
+                                    qlast.ObjectRef(
+                                        name='__defaults_mask__')
+                                ]),
+                                qlast.IntegerConstant(value=str(pi)),
                             ]),
                         right=qlast.IntegerConstant(value='0'),
                         op='='),

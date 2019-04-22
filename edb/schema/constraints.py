@@ -140,21 +140,21 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
 
     @classmethod
     def _normalize_constraint_expr(
-            cls, schema, module_aliases, expr, subject, *,
-            inline_anchors=False):
-        from edb.edgeql import parser as edgeql_parser
-        from edb.edgeql import utils as edgeql_utils
+            cls, schema, module_aliases, expr, subject):
+        from edb.edgeql import compiler as qlcompiler
+        from edb.edgeql import parser as qlparser
 
         if isinstance(expr, str):
-            tree = edgeql_parser.parse(expr, module_aliases)
+            qltree = qlparser.parse(expr, module_aliases)
         else:
-            tree = expr
+            qltree = expr
 
-        ir, edgeql_tree, _ = edgeql_utils.normalize_tree(
-            tree, schema, modaliases=module_aliases,
-            anchors={qlast.Subject: subject}, inline_anchors=inline_anchors)
+        ir = qlcompiler.compile_ast_to_ir(
+            qltree, schema, modaliases=module_aliases,
+            anchors={qlast.Subject: subject},
+        )
 
-        return edgeql_tree.result, ir
+        return qltree, ir
 
     @classmethod
     def normalize_constraint_expr(
@@ -250,23 +250,19 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
 
         if subject is not orig_subject:
             # subject has been redefined
-            subject_anchor = qlast.SubExpr(
-                expr=subject,
-                anchors={
-                    qlast.Subject: orig_subject
-                }
-            )
-        else:
-            subject_anchor = subject
+            edgeql_utils.inline_anchors(
+                expr_ql, anchors={qlast.Subject: subject})
+            subject = orig_subject
 
         expr_text = cls.normalize_constraint_expr(
             schema, module_aliases, expr_ql,
-            subject=subject_anchor,
+            subject=subject,
             constraint_name=name,
             enforce_boolean=True,
             expr_context=expr_context)
 
-        attrs['finalexpr'] = s_expr.Expression(text=expr_text)
+        attrs['finalexpr'] = s_expr.Expression(
+            text=expr_text, origtext=expr_text)
 
         return constr_base, attrs
 
@@ -479,13 +475,13 @@ class CreateConstraint(ConstraintCommand,
         return schema
 
     @classmethod
-    def _constraint_args_from_ast(cls, schema, astnode):
+    def _constraint_args_from_ast(cls, schema, astnode, context):
         args = []
 
         if astnode.args:
             for arg in astnode.args:
-                arg_expr = s_expr.Expression(
-                    text=edgeql.generate_source(arg.arg, pretty=False))
+                arg_expr = s_expr.Expression.from_ast(
+                    arg, schema, context.modaliases)
                 args.append(arg_expr)
 
         return args
@@ -498,12 +494,12 @@ class CreateConstraint(ConstraintCommand,
             return ()
 
         props = {}
-        args = cls._constraint_args_from_ast(schema, astnode)
+        args = cls._constraint_args_from_ast(schema, astnode, context)
         if args:
             props['args'] = args
         if astnode.subjectexpr:
-            props['subjectexpr'] = s_expr.Expression(
-                text=edgeql.generate_source(astnode.subject, pretty=False))
+            props['subjectexpr'] = s_expr.Expression.from_ast(
+                astnode.subject, schema, context.modaliases)
 
         _, attrs = Constraint.get_concrete_constraint_attrs(
             schema, subject, name=base_name,
@@ -518,7 +514,7 @@ class CreateConstraint(ConstraintCommand,
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteConstraint):
-            args = cls._constraint_args_from_ast(schema, astnode)
+            args = cls._constraint_args_from_ast(schema, astnode, context)
             if args:
                 cmd.add(
                     sd.AlterObjectProperty(
@@ -560,8 +556,11 @@ class CreateConstraint(ConstraintCommand,
 
         # 'subjectexpr' can be present in either astnode type
         if astnode.subjectexpr:
-            subjectexpr = s_expr.Expression(
-                text=edgeql.generate_source(astnode.subjectexpr, pretty=False))
+            subjectexpr = s_expr.Expression.from_ast(
+                astnode.subjectexpr,
+                schema,
+                context.modaliases,
+            )
 
             cmd.add(sd.AlterObjectProperty(
                 property='subjectexpr',

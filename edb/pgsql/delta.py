@@ -1529,6 +1529,7 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
         ir = ql_compiler.compile_fragment_to_ir(
             index.get_field_value(schema, 'expr').text,
             schema,
+            anchors={ql_ast.Subject: source.scls},
             location='selector')
 
         sql_tree = compiler.compile_ir_to_sql_tree(

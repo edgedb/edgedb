@@ -19,7 +19,6 @@
 
 import typing
 
-from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 from edb.common import enum
@@ -477,13 +476,13 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 expr_t = qlast.SelectQuery(
                     result=qlast.BaseConstant.from_python(expr)
                 )
-                expr = edgeql.generate_source(expr_t, pretty=False)
-
-                op.new_value = s_expr.Expression(expr)
+                op.new_value = s_expr.Expression.from_ast(
+                    expr_t, schema, context.modaliases,
+                )
             super()._apply_field_ast(schema, context, node, op)
 
     def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
-        from edb.edgeql import utils as ql_utils
+        from edb.edgeql import compiler as qlcompiler
         from . import sources as s_sources
 
         # "source" attribute is set automatically as a refdict back-attr
@@ -499,19 +498,22 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 context=expr.context
             )
 
-        ir, _, target_expr = ql_utils.normalize_tree(
-            expr, schema,
+        expr = s_expr.Expression.from_ast(expr, schema, context.modaliases)
+
+        ir = qlcompiler.compile_ast_to_ir(
+            expr.qlast,
+            schema=schema,
             anchors={qlast.Source: source},
             path_prefix_anchor=qlast.Source,
             singletons=[source],
-            modaliases=context.modaliases)
+        )
 
         target = utils.reduce_to_typeref(schema, ir.stype)
 
         self.add(
             sd.AlterObjectProperty(
                 property='default',
-                new_value=s_expr.Expression(text=target_expr)
+                new_value=expr,
             )
         )
 

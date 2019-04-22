@@ -4744,25 +4744,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_partial_05(self):
+        await self.assert_query_result('''
+            WITH
+                MODULE test
+            SELECT
+                Issue{
+                    sub := (SELECT .number)
+                }
+            FILTER .number = '1';
+        ''', [
+            {'sub': '1'},
+        ])
+
+    async def test_edgeql_partial_06(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     'invalid property reference on a '
                                     'primitive type expression'):
             await self.con.execute('''
                 WITH MODULE test
                 SELECT Issue.number FILTER .number > '1';
-            ''')
-
-    async def test_edgeql_partial_06(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'could not resolve partial path'):
-            await self.con.execute('''
-                WITH
-                    MODULE test
-                SELECT
-                    Issue{
-                        sub := (SELECT .name)
-                    }
-                FILTER .number = '1';
             ''')
 
     async def test_edgeql_virtual_target_01(self):

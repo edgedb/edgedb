@@ -38,7 +38,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 
-from . import astutils
 from . import cast
 from . import context
 from . import dispatch
@@ -389,18 +388,8 @@ def validate_recursive_operator(
     return matched
 
 
-def compile_call_arg(arg: qlast.FuncArg, *,
+def compile_call_arg(arg_ql: qlast.Expr, *,
                      ctx: context.ContextLevel) -> irast.Base:
-    arg_ql = arg.arg
-
-    if arg.sort or arg.filter:
-        arg_ql = astutils.ensure_qlstmt(arg_ql)
-        if arg.filter:
-            arg_ql.where = astutils.extend_qlbinop(arg_ql.where, arg.filter)
-
-        if arg.sort:
-            arg_ql.orderby = arg.sort + arg_ql.orderby
-
     with ctx.newscope(fenced=True) as fencectx:
         # We put on a SET OF fence preemptively in case this is
         # a SET OF arg, which we don't know yet due to polymorphic

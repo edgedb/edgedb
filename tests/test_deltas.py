@@ -437,8 +437,10 @@ a EXTENDING std::property -> array<std::int64>;
                 CREATE SINGLE PROPERTY __typename EXTENDING std::property \
 -> std::str {
                     SET computable := true;
-                    SET default := SELECT
-                        __source__.__type__.name
+                    SET default := WITH
+                        MODULE test
+                    SELECT
+                        .__type__.name
                     ;
                 };
             };

@@ -390,25 +390,20 @@ def _cast_array(
             unpacked = qlast.FunctionCall(
                 func=('std', 'array_unpack'),
                 args=[
-                    qlast.FuncArg(
-                        arg=qlast.Path(
-                            steps=[qlast.ObjectRef(name=source_alias)]
-                        )
-                    )
-                ]
+                    qlast.Path(
+                        steps=[qlast.ObjectRef(name=source_alias)],
+                    ),
+                ],
             )
 
             elements = qlast.FunctionCall(
                 func=('std', 'array_agg'),
                 args=[
-                    qlast.FuncArg(
-                        arg=qlast.TypeCast(
-                            expr=unpacked,
-                            type=typegen.type_to_ql_typeref(
-                                el_type, ctx=subctx)
-                        )
-                    )
-                ]
+                    qlast.TypeCast(
+                        expr=unpacked,
+                        type=typegen.type_to_ql_typeref(el_type, ctx=subctx),
+                    ),
+                ],
             )
 
             array_ir = dispatch.compile(elements, ctx=subctx)

@@ -211,7 +211,7 @@ class GraphQLTranslator:
                         raise err
 
                 name = el.expr.steps[0].ptr.name
-                el.compexpr.args[0].arg = qlast.StringConstant.from_python(
+                el.compexpr.args[0] = qlast.StringConstant.from_python(
                     json.dumps(result.data[name]))
 
         return translated

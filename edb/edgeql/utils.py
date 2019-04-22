@@ -25,9 +25,6 @@ from edb import errors
 from edb.common import ast
 
 from . import ast as qlast
-from . import codegen
-from . import compiler
-from . import parser
 
 
 class ParameterInliner(ast.NodeTransformer):
@@ -86,28 +83,27 @@ def index_parameters(ql_args: typing.List[qlast.Base], *,
     return result
 
 
-def normalize_tree(expr, schema, *, modaliases=None, anchors=None,
-                   path_prefix_anchor=None, inline_anchors=False,
-                   singletons=None):
+class AnchorInliner(ast.NodeTransformer):
 
-    ir = compiler.compile_ast_to_ir(
-        expr, schema, modaliases=modaliases,
-        anchors=anchors, path_prefix_anchor=path_prefix_anchor,
-        singletons=singletons)
+    def __init__(self, anchors):
+        super().__init__()
+        self.anchors = anchors
 
-    edgeql_tree = compiler.decompile_ir(
-        ir, inline_anchors=inline_anchors, schema=ir.schema)
+    def visit_Path(self, node):
+        if not node.steps:
+            return node
 
-    source = codegen.generate_source(edgeql_tree, pretty=False)
+        step0 = node.steps[0]
 
-    return ir, edgeql_tree, source
+        if isinstance(step0, (qlast.Subject, qlast.Source)):
+            node.steps[0] = self.anchors[step0.__class__]
+        elif isinstance(step0, qlast.ObjectRef) and step0.name in self.anchors:
+            node.steps[0] = self.anchors[step0.name]
+
+        return node
 
 
-def normalize_expr(expr, schema, *, modaliases=None, anchors=None,
-                   inline_anchors=False):
-    tree = parser.parse(expr, modaliases)
-    _, _, expr = normalize_tree(
-        tree, schema, modaliases=modaliases, anchors=anchors,
-        inline_anchors=inline_anchors)
-
-    return expr
+def inline_anchors(ql_expr: qlast.Base,
+                   anchors: typing.Dict[object, qlast.Base]):
+    inliner = AnchorInliner(anchors)
+    inliner.visit(ql_expr)

@@ -27,11 +27,9 @@ from edb import errors
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
-from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import parser as ql_parser
 from edb.edgeql import qltypes
-from edb.edgeql import utils as qlutils
 
 from edb.schema import abc as s_abc
 from edb.schema import annotations as s_anno
@@ -334,14 +332,20 @@ class DeclarationLoader:
             expr = attrs.pop('expr', None)
             if expr is not None:
                 self._schema = constraint.set_field_value(
-                    self._schema, 'expr', s_expr.Expression(
-                        text=qlcodegen.generate_source(expr)))
+                    self._schema,
+                    'expr',
+                    s_expr.Expression.from_ast(expr, self._schema,
+                                               self._mod_aliases),
+                )
 
             subjexpr = decl.subject
             if subjexpr is not None:
                 self._schema = constraint.set_field_value(
-                    self._schema, 'subjectexpr', s_expr.Expression(
-                        text=qlcodegen.generate_source(subjexpr)))
+                    self._schema,
+                    'subjectexpr',
+                    s_expr.Expression.from_ast(subjexpr, self._schema,
+                                               self._mod_aliases),
+                )
 
             self._schema, params = s_func.FuncParameterList.from_ast(
                 self._schema, decl, self._mod_aliases,
@@ -522,8 +526,11 @@ class DeclarationLoader:
                     context=field_decl.context)
 
             if issubclass(attrfield.type, s_expr.Expression):
-                updates[fieldname] = s_expr.Expression(
-                    text=qlcodegen.generate_source(field_decl.value))
+                updates[fieldname] = s_expr.Expression.from_ast(
+                    field_decl.value,
+                    self._schema,
+                    self._mod_aliases,
+                )
 
             else:
                 updates[fieldname] = qlcompiler.evaluate_ast_to_python_val(
@@ -544,17 +551,19 @@ class DeclarationLoader:
             constr_name = self._get_ref_name(constrdecl.name)
             if constrdecl.args:
                 args = [
-                    s_expr.Expression(
-                        text=qlcodegen.generate_source(arg, pretty=False))
+                    s_expr.Expression.from_ast(
+                        arg, self._schema, self._mod_aliases)
                     for arg in constrdecl.args
                 ]
             else:
                 args = []
 
-            modaliases = {None: subject.get_name(self._schema).module}
             if constrdecl.subject is not None:
-                subjectexpr = s_expr.Expression(
-                    text=qlcodegen.generate_source(constrdecl.subject))
+                subjectexpr = s_expr.Expression.from_ast(
+                    constrdecl.subject,
+                    self._schema,
+                    self._mod_aliases,
+                )
             else:
                 subjectexpr = None
 
@@ -567,7 +576,7 @@ class DeclarationLoader:
                     sourcectx=constrdecl.context,
                     subjectexpr=subjectexpr,
                     args=args,
-                    modaliases=modaliases,
+                    modaliases=self._mod_aliases,
                 )
 
             self._schema = subject.add_constraint(self._schema, c)
@@ -584,17 +593,12 @@ class DeclarationLoader:
             der_name = s_name.Name(
                 name=local_name, module=subject.get_name(self._schema).module)
 
-            _, _, index_expr = qlutils.normalize_tree(
-                indexdecl.expression, self._schema,
-                modaliases=module_aliases,
-                anchors={qlast.Subject: subject},
-                inline_anchors=True)
-
             self._schema, index = s_indexes.Index.create_in_schema(
                 self._schema,
                 name=der_name,
-                expr=s_expr.Expression(text=index_expr),
-                subject=subject
+                expr=s_expr.Expression.from_ast(
+                    indexdecl.expression, self._schema, module_aliases),
+                subject=subject,
             )
 
             self._schema = subject.add_index(self._schema, index)
@@ -744,31 +748,25 @@ class DeclarationLoader:
             for attr in ptrdecl.fields:
                 name = attr.name.name
                 if name == 'default':
-                    if isinstance(attr.value, edgeql.ast.SelectQuery):
-                        self._normalize_ptr_default(
-                            attr.value, objtype, spec_link, ptrdecl)
-                    else:
-                        expr = attr.value
-                        _, _, default = qlutils.normalize_tree(
-                            expr, self._schema)
-                        self._schema = spec_link.set_field_value(
-                            self._schema, 'default',
-                            s_expr.Expression(text=default))
+                    self._normalize_ptr_default(
+                        attr.value, objtype, spec_link, ptrdecl)
 
-    def _normalize_ptr_default(self, expr, source, ptr, ptrdecl):
-        module_aliases = {None: source.get_name(self._schema).module}
+    def _normalize_ptr_default(self, qltree, source, ptr, ptrdecl):
+        expr = s_expr.Expression.from_ast(
+            qltree, self._schema, self._mod_aliases)
 
-        ir, _, expr_text = qlutils.normalize_tree(
-            expr, self._schema,
-            modaliases=module_aliases,
+        ir = qlcompiler.compile_ast_to_ir(
+            expr.qlast, schema=self._schema,
+            modaliases=self._mod_aliases,
             anchors={qlast.Source: source},
             path_prefix_anchor=qlast.Source,
-            singletons=[source])
+            singletons=[source],
+        )
 
         expr_type = ir.stype
 
         self._schema = ptr.set_field_value(
-            self._schema, 'default', s_expr.Expression(text=expr_text))
+            self._schema, 'default', expr)
 
         if ptr.is_pure_computable(self._schema):
             # Pure computable without explicit target.
@@ -807,7 +805,7 @@ class DeclarationLoader:
                         f'one value, but the '
                         f'{ptr.get_schema_class_displayname()} '
                         f'is declared as "single"',
-                        context=expr.context)
+                        context=qltree.context)
 
         if (not isinstance(expr_type, s_abc.Type) or
                 (ptr.get_target(self._schema) is not None and
@@ -817,7 +815,7 @@ class DeclarationLoader:
                 'default value query must yield a single result of '
                 'type {!r}'.format(
                     ptr.get_target(self._schema).get_name(self._schema)),
-                context=expr.context)
+                context=qltree.context)
 
     def _compile_view(self, viewdecl):
         view_ql = None
@@ -834,15 +832,15 @@ class DeclarationLoader:
                 context=viewdecl.context,
             )
 
-        if not isinstance(view_ql, qlast.Statement):
-            view_ql = qlast.SelectQuery(result=view_ql)
+        expr = s_expr.Expression.from_ast(
+            view_ql, self._schema, self._mod_aliases)
 
         viewname = s_name.Name(
             module=self._module.get_name(self._schema),
             name=viewdecl.name)
 
         ir = qlcompiler.compile_ast_to_ir(
-            view_ql,
+            expr.qlast,
             self._schema,
             derived_target_module=self._module.get_name(self._schema),
             modaliases=self._mod_aliases,
@@ -854,24 +852,8 @@ class DeclarationLoader:
         scls = self._schema.get(viewname)
         self._parse_field_setters(scls, viewdecl.fields)
 
-        existing_aliases = {}
-        for alias in view_ql.aliases:
-            if isinstance(alias, qlast.ModuleAliasDecl):
-                existing_aliases[alias.alias] = alias.module
-
-        aliases_to_add = set(self._mod_aliases) - set(existing_aliases)
-        for alias in aliases_to_add:
-            view_ql.aliases.append(
-                qlast.ModuleAliasDecl(
-                    alias=alias,
-                    module=self._mod_aliases[alias],
-                )
-            )
-
-        view_expr = qlcodegen.generate_source(view_ql, pretty=False)
-
         self._schema = scls.set_field_value(
-            self._schema, 'expr', s_expr.Expression(text=view_expr))
+            self._schema, 'expr', expr)
 
         self._schema = scls.set_field_value(
             self._schema, 'view_type', s_types.ViewType.Select)

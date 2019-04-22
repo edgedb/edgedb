@@ -340,6 +340,7 @@ class ContextLevel(compiler.ContextLevel):
             self.scope_id_ctr = prevlevel.scope_id_ctr
             self.view_scls = prevlevel.view_scls
             self.expr_exposed = prevlevel.expr_exposed
+            self.partial_path_prefix = prevlevel.partial_path_prefix
             self.toplevel_clause = prevlevel.toplevel_clause
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.implicit_id_in_shapes = prevlevel.implicit_id_in_shapes
@@ -363,8 +364,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_scls = None
                 self.clause = None
                 self.stmt = None
-
-                self.partial_path_prefix = None
 
                 self.view_rptr = None
                 self.toplevel_result_view_name = None
@@ -400,8 +399,6 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.clause = prevlevel.clause
                 self.stmt = prevlevel.stmt
-
-                self.partial_path_prefix = prevlevel.partial_path_prefix
 
                 self.view_rptr = prevlevel.view_rptr
                 self.toplevel_result_view_name = \

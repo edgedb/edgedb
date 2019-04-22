@@ -209,14 +209,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         # XXX: need to parenthesise when SELECT appears as an expression,
         # the actual passed value is ignored.
         parenthesise = self._needs_parentheses(node)
+        if node.implicit:
+            parenthesise = parenthesise and bool(node.aliases)
 
         if parenthesise:
             self.write('(')
 
-        self._visit_aliases(node)
+        if not node.implicit or node.aliases:
+            self._visit_aliases(node)
+            self.write('SELECT')
+            self._block_ws(1)
 
-        self.write('SELECT')
-        self._block_ws(1)
         if node.result_alias:
             self.write(node.result_alias, ' := ')
         self.visit(node.result)
@@ -596,17 +599,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             self._block_ws(-1)
             self.write(')')
-
-    def visit_FuncArg(self, node):
-        self.visit(node.arg)
-
-        if node.filter:
-            self.write(' FILTER ')
-            self.visit(node.filter)
-
-        if node.sort:
-            self.write(' ORDER BY ')
-            self.visit_list(node.sort, separator=' THEN')
 
     def visit_AnyType(self, node):
         self.write('anytype')

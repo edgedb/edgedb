@@ -190,16 +190,10 @@ class WindowSpec(Clause):
     partition: typing.List[Expr]
 
 
-class FuncArg(Base):
-    arg: Expr
-    sort: typing.List[SortExpr]
-    filter: Expr
-
-
 class FunctionCall(Expr):
     func: typing.Union[tuple, str]
-    args: typing.List[FuncArg]
-    kwargs: typing.Dict[str, FuncArg]
+    args: typing.List[Expr]
+    kwargs: typing.Dict[str, Expr]
     window: WindowSpec
 
 
@@ -770,7 +764,7 @@ class DropConstraint(DropObject):
 
 
 class CreateConcreteConstraint(CreateObject):
-    args: typing.List[FuncArg]
+    args: typing.List[Expr]
     is_abstract: bool = False
     subjectexpr: typing.Optional[Expr]
 
@@ -949,7 +943,7 @@ class Constraint(Spec):
     annotations: typing.List[Annotation]
     delegated: bool = False
     name: ObjectRef
-    args: typing.List[FuncArg]
+    args: typing.List[Expr]
     subject: typing.Optional[Expr]
 
 

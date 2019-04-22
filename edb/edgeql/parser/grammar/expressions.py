@@ -1153,13 +1153,14 @@ class FuncCallArgExpr(Nonterm):
         self.val = (
             None,
             None,
-            qlast.FuncArg(arg=kids[0].val, context=kids[0].context))
+            kids[0].val,
+        )
 
     def reduce_AnyIdentifier_ASSIGN_Expr(self, *kids):
         self.val = (
             kids[0].val,
             kids[0].context,
-            qlast.FuncArg(arg=kids[2].val, context=kids[2].context)
+            kids[2].val,
         )
 
     def reduce_DOLLAR_ICONST_ASSIGN_Expr(self, *kids):
@@ -1177,8 +1178,15 @@ class FuncCallArgExpr(Nonterm):
 class FuncCallArg(Nonterm):
     def reduce_FuncCallArgExpr_OptFilterClause_OptSortClause(self, *kids):
         self.val = kids[0].val
-        self.val[2].filter = kids[1].val
-        self.val[2].sort = kids[2].val
+
+        if kids[1].val or kids[2].val:
+            qry = qlast.SelectQuery(
+                result=self.val[2],
+                where=kids[1].val,
+                orderby=kids[2].val,
+                implicit=True,
+            )
+            self.val = (self.val[0], self.val[1], qry)
 
 
 class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA):
@@ -1193,16 +1201,16 @@ class OptFuncArgList(Nonterm):
         self.val = []
 
 
-class PosCallArgExpr(Nonterm):
-    def reduce_Expr(self, *kids):
-        self.val = qlast.FuncArg(arg=kids[0].val)
-
-
 class PosCallArg(Nonterm):
-    def reduce_PosCallArgExpr_OptFilterClause_OptSortClause(self, *kids):
+    def reduce_Expr_OptFilterClause_OptSortClause(self, *kids):
         self.val = kids[0].val
-        self.val.filter = kids[1].val
-        self.val.sort = kids[2].val
+        if kids[1].val or kids[2].val:
+            self.val = qlast.SelectQuery(
+                result=self.val,
+                where=kids[1].val,
+                orderby=kids[2].val,
+                implicit=True,
+            )
 
 
 class PosCallArgList(ListNonterm, element=PosCallArg,

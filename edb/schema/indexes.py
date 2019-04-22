@@ -17,7 +17,6 @@
 #
 
 
-from edb import edgeql
 from edb.edgeql import ast as qlast
 
 from . import delta as sd
@@ -102,39 +101,11 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
 
         cmd.set_attribute_value(
             'expr',
-            s_expr.Expression(
-                text=edgeql.generate_source(astnode.expr, pretty=False)
-            ),
+            s_expr.Expression.from_ast(
+                astnode.expr, schema, context.modaliases),
         )
 
         return cmd
-
-    def _create_begin(self, schema, context):
-        from edb.edgeql import parser as edgeql_parser
-        from edb.edgeql import utils as edgeql_utils
-
-        parent_ctx = context.get(sd.CommandContextToken)
-        subject = schema.get(parent_ctx.op.classname)
-
-        expr = self.get_attribute_value('expr')
-
-        if expr.qlast is not None:
-            tree = expr.qlast
-        else:
-            tree = edgeql_parser.parse(expr.text, context.modaliases)
-
-        _, _, qlexpr = edgeql_utils.normalize_tree(
-            tree,
-            schema,
-            modaliases=context.modaliases,
-            anchors={qlast.Subject: subject},
-            inline_anchors=True,
-        )
-
-        self.set_attribute_value('expr', s_expr.Expression(text=qlexpr))
-
-        return sd.CreateObject._create_begin(
-            self, schema, context)
 
     def _apply_fields_ast(self, schema, context, node):
         super()._apply_fields_ast(schema, context, node)

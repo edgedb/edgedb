@@ -52,8 +52,7 @@ class TestIndexes(tb.DDLTestCase):
             """,
             [{
                 'indexes': [{
-                    'expr': 'SELECT (test::Person.first_name, '
-                            'test::Person.last_name)'
+                    'expr': '(__subject__.first_name, __subject__.last_name)',
                 }]
             }],
         )
@@ -101,7 +100,7 @@ class TestIndexes(tb.DDLTestCase):
             """,
             [{
                 'indexes': [{
-                    'expr': 'SELECT test::User.title'
+                    'expr': '__subject__.title'
                 }]
             }],
         )

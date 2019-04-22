@@ -31,6 +31,7 @@ from . import scalars  # NOQA
 from . import annotations  # NOQA
 from . import casts  # NOQA
 from . import delta as sd
+from . import expr as s_expr
 from . import objtypes  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA
@@ -45,9 +46,7 @@ from . import views  # NOQA
 
 def cmd_from_ddl(stmt, *, context=None, schema, modaliases,
                  testmode: bool=False):
-    # expand module aliases (implicit and explicit)
-    ddl = edgeql.deoptimize(
-        stmt, modaliases=modaliases, strip_builtins=False, schema=schema)
+    ddl = s_expr.imprint_expr_context(stmt, modaliases)
 
     if context is None:
         context = s_delta.CommandContext()
@@ -135,8 +134,7 @@ def ddl_text_from_delta_command(schema, delta):
     for command in commands:
         delta_ast = ddl_from_delta(schema, command)
         if delta_ast:
-            stmt_text = edgeql.generate_source(edgeql.optimize(
-                delta_ast, schema=schema, strip_builtins=False))
+            stmt_text = edgeql.generate_source(delta_ast)
             text.append(stmt_text + ';')
 
     return '\n'.join(text)

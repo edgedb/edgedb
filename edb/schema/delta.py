@@ -1234,8 +1234,11 @@ class AlterObjectProperty(Command):
                 context=astnode.context)
 
         if field.type is s_expr.Expression:
-            new_value = s_expr.Expression(
-                text=edgeql.generate_source(astnode.value, pretty=False))
+            new_value = s_expr.Expression.from_ast(
+                astnode.value,
+                schema,
+                context.modaliases,
+            )
         else:
             if isinstance(astnode.value, qlast.Tuple):
                 new_value = tuple(

@@ -92,7 +92,7 @@ class ExpressionType(dbops.CompositeType):
 
         self.add_columns([
             dbops.Column(name='text', type='text'),
-            dbops.Column(name='qlast', type='bytea'),
+            dbops.Column(name='origtext', type='text'),
             dbops.Column(name='irast', type='bytea'),
             dbops.Column(name='refs', type='uuid[]'),
         ])
@@ -2597,10 +2597,10 @@ async def generate_views(conn, schema):
                         col_expr = (f'edgedb.shortname_from_fullname'
                                     f'(t.{qi(ptrstor.column_name)})')
                 elif field.type is s_expr.Expression:
-                    col_expr = f'(t.{qi(ptrstor.column_name)}).text'
+                    col_expr = f'(t.{qi(ptrstor.column_name)}).origtext'
                 elif field.type is s_expr.ExpressionList:
                     col_expr = f'''
-                        (SELECT array_agg(q.text)
+                        (SELECT array_agg(q.origtext)
                          FROM unnest(t.{qi(ptrstor.column_name)})
                                 AS qi(text, _, _, _))
                     '''
