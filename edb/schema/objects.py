@@ -378,7 +378,8 @@ class ObjectMeta(type):
         if cls._object_fields is None:
             cls._object_fields = frozenset(
                 f for f in cls._fields.values()
-                if issubclass(f.type, (Object, ObjectCollection)))
+                if issubclass(f.type, s_abc.ObjectContainer)
+            )
         return cls._object_fields
 
     def get_field(cls, name):
@@ -419,7 +420,7 @@ class FieldValueNotFoundError(Exception):
     pass
 
 
-class Object(s_abc.Object, metaclass=ObjectMeta):
+class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     """Base schema item class."""
 
     # Unique ID for this schema item.
@@ -1303,7 +1304,7 @@ class ObjectCollectionDuplicateNameError(Exception):
     pass
 
 
-class ObjectCollection:
+class ObjectCollection(s_abc.ObjectContainer):
 
     def __init_subclass__(cls, *, type=Object, container=None):
         cls._type = type

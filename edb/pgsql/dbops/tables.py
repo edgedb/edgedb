@@ -512,7 +512,7 @@ class AlterTableAlterColumnDefault(AlterTableFragment):
             return f'ALTER COLUMN {qi(self.column_name)} DROP DEFAULT'
         else:
             return (f'ALTER COLUMN {qi(self.column_name)} '
-                    f'SET DEFAULT {ql(str(self.default))}')
+                    f'SET DEFAULT {self.default}')
 
     def __repr__(self):
         return '<{}.{} "{}" {} DEFAULT{}>'.format(

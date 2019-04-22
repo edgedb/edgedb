@@ -87,6 +87,9 @@ class Environment:
     schema: s_schema.Schema
     """A Schema instance to use for class resolution."""
 
+    parent_object_type: typing.Optional[s_obj.ObjectMeta]
+    """The type of a schema object, if the expression is part of its def."""
+
     path_scope: irast.ScopeTreeNode
     """Overrall expression path scope tree."""
 
@@ -127,21 +130,33 @@ class Environment:
 
     view_shapes_metadata: typing.Dict[s_types.Type, irast.ViewShapeMetadata]
 
+    func_params: typing.Optional[s_func.FuncParameterList]
+    """If compiling a function body, a list of function parameters."""
+
     json_parameters: bool
     """Force types of all parameters to std::json"""
 
     session_mode: bool
     """Whether there is a specific session."""
 
-    allow_abstract_opers: bool
+    allow_abstract_operators: bool
     """Whether to allow the use of abstract operators."""
 
+    schema_refs: typing.Set[s_obj.Object]
+    """A set of all schema objects referenced by an expression."""
+
+    allow_generic_type_output: bool
+    """Whether to allow the expression to be of a generic type."""
+
     def __init__(self, *, schema, path_scope,
+                 parent_object_type: typing.Optional[s_obj.ObjectMeta]=None,
                  schema_view_mode: bool=False,
                  constant_folding: bool=True,
                  json_parameters: bool=False,
                  session_mode: bool=False,
-                 allow_abstract_opers: bool=True):
+                 allow_abstract_operators: bool=True,
+                 allow_generic_type_output: bool=False,
+                 func_params: typing.Optional[s_func.FuncParameterList]=None):
         self.schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
@@ -157,7 +172,19 @@ class Environment:
             irast.ViewShapeMetadata)
         self.json_parameters = json_parameters
         self.session_mode = session_mode
-        self.allow_abstract_opers = allow_abstract_opers
+        self.allow_abstract_operators = allow_abstract_operators
+        self.allow_generic_type_output = allow_generic_type_output
+        self.schema_refs = set()
+        self.func_params = func_params
+        self.parent_object_type = parent_object_type
+
+    def get_track_schema_object(self, name, *, modaliases=None, type=None,
+                                default=s_schema._void):
+        sobj = self.schema.get(name, module_aliases=modaliases, type=type,
+                               default=default)
+        if sobj is not default:
+            self.schema_refs.add(sobj)
+        return sobj
 
 
 class ContextLevel(compiler.ContextLevel):
@@ -290,7 +317,6 @@ class ContextLevel(compiler.ContextLevel):
             self.aliases = compiler.AliasGenerator()
             self.anchors = {}
             self.modaliases = {}
-            self.func = None
             self.stmt_metadata = {}
             self.completion_work = []
             self.pending_cardinality = {}
@@ -333,7 +359,6 @@ class ContextLevel(compiler.ContextLevel):
             self.env = prevlevel.env
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
-            self.func = prevlevel.func
             self.stmt_metadata = prevlevel.stmt_metadata
             self.completion_work = prevlevel.completion_work
             self.pending_cardinality = prevlevel.pending_cardinality

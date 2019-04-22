@@ -344,6 +344,7 @@ class Statement(Command):
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     view_shapes_metadata: typing.Dict[so.Object, ViewShapeMetadata]
     schema: s_schema.Schema
+    schema_refs: typing.FrozenSet[so.Object]
     scope_tree: ScopeTreeNode
     source_map: typing.Dict[s_pointers.Pointer,
                             typing.Tuple[qlast.Expr,

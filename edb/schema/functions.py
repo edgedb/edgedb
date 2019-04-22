@@ -115,10 +115,10 @@ class ParameterDesc(typing.NamedTuple):
         return param_as_str(schema, self)
 
     @classmethod
-    def from_create_delta(cls, schema, cmd):
+    def from_create_delta(cls, schema, context, cmd):
         props = cmd.get_struct_properties(schema)
         props['name'] = Parameter.paramname_from_fullname(props['name'])
-        return cls(
+        return schema, cls(
             num=props['num'],
             name=props['name'],
             type=props['type'],
@@ -362,13 +362,17 @@ class FuncParameterList(so.ObjectList, type=Parameter):
                 return param
 
     @classmethod
-    def from_ast(cls, schema, astnode, modaliases, *, func_fqname):
+    def from_ast(cls, schema, astnode, modaliases, *, func_fqname,
+                 prepend: typing.Optional[typing.List[qlast.FuncParam]]=None):
         if not getattr(astnode, 'params', None):
-            return cls([])
+            return cls.create(schema, [])
+
+        if prepend is None:
+            prepend = []
 
         params = []
 
-        for num, param in enumerate(astnode.params):
+        for num, param in enumerate(prepend + list(astnode.params)):
             param_desc = ParameterDesc.from_ast(
                 schema, modaliases, num, param)
 
@@ -486,21 +490,21 @@ class CallableCommandContext(sd.ObjectCommandContext,
 
 class CallableCommand(sd.ObjectCommand):
 
-    def _make_constructor_args(self, schema, context):
+    def _prepare_create_fields(self, schema, context):
         # Make sure the parameter objects exist first and foremost.
         for op in self.get_subcommands(metaclass=Parameter):
             schema, _ = op.apply(schema, context=context)
 
-        schema, props = super()._make_constructor_args(schema, context)
+        schema, props = super()._prepare_create_fields(schema, context)
+        props['params'] = self._get_params(schema, context)
+        return schema, props
 
+    def _get_params(self, schema, context):
         params = []
-
         for cr_param in self.get_subcommands(type=ParameterCommand):
             param = schema.get(cr_param.classname)
             params.append(param)
-
-        props['params'] = FuncParameterList.create(schema, params)
-        return schema, props
+        return FuncParameterList.create(schema, params)
 
     def _alter_innards(self, schema, context, scls):
         schema = super()._alter_innards(schema, context, scls)
@@ -519,14 +523,15 @@ class CallableCommand(sd.ObjectCommand):
         return schema
 
     @classmethod
-    def _get_param_desc_from_ast(cls, schema, modaliases, astnode):
+    def _get_param_desc_from_ast(cls, schema, modaliases, astnode, *,
+                                 param_offset: int=0):
         params = []
         if not hasattr(astnode, 'params'):
             # Some Callables, like the concrete constraints,
             # have no params in their AST.
             return []
 
-        for num, param in enumerate(astnode.params):
+        for num, param in enumerate(astnode.params, param_offset):
             param_desc = ParameterDesc.from_ast(
                 schema, modaliases, num, param)
             params.append(param_desc)
@@ -534,13 +539,14 @@ class CallableCommand(sd.ObjectCommand):
         return params
 
     @classmethod
-    def _get_param_desc_from_delta(cls, schema, cmd):
+    def _get_param_desc_from_delta(cls, schema, context, cmd):
         params = []
         for subcmd in cmd.get_subcommands(type=CreateParameter):
-            param = ParameterDesc.from_create_delta(schema, subcmd)
+            schema, param = ParameterDesc.from_create_delta(
+                schema, context, subcmd)
             params.append(param)
 
-        return params
+        return schema, params
 
 
 class CreateCallableObject(CallableCommand, sd.CreateObject):
@@ -668,6 +674,17 @@ class FunctionCommand(CallableCommand,
 
         return cls.get_schema_metaclass().get_fqname(schema, name, params)
 
+    def compile_expr_field(self, schema, context, field, value):
+        if field.name == 'initial_value':
+            return type(value).compiled(
+                value,
+                schema=schema,
+                allow_generic_type_output=True,
+                parent_object_type=self.get_schema_metaclass(),
+            )
+        else:
+            return super().compile_expr_field(schema, context, field, value)
+
 
 class CreateFunction(CreateCallableObject, FunctionCommand):
     astnode = qlast.CreateFunction
@@ -677,7 +694,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
         fullname = self.classname
         shortname = sn.shortname_from_fullname(fullname)
-        cp = self._get_param_desc_from_delta(schema, self)
+        schema, cp = self._get_param_desc_from_delta(schema, context, self)
         signature = f'{shortname}({", ".join(p.as_str(schema) for p in cp)})'
 
         func = schema.get(fullname, None)

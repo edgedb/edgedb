@@ -21,6 +21,10 @@ class Object:
     pass
 
 
+class ObjectContainer:
+    pass
+
+
 class Database(Object):
     pass
 

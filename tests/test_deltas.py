@@ -407,9 +407,14 @@ a EXTENDING std::property -> array<std::int64>;
 -> std::str {
                     SET computable := true;
                     SET default := SELECT
-                        'foo'
+                        <std::str>{}
                     ;
                 };
+            };
+            ALTER TYPE test::Foo ALTER PROPERTY __typename {
+                SET default := SELECT
+                    'foo'
+                ;
             };
             '''
         )
@@ -437,12 +442,17 @@ a EXTENDING std::property -> array<std::int64>;
                 CREATE SINGLE PROPERTY __typename EXTENDING std::property \
 -> std::str {
                     SET computable := true;
-                    SET default := WITH
-                        MODULE test
-                    SELECT
-                        .__type__.name
+                    SET default := SELECT
+                        <std::str>{}
                     ;
                 };
+            };
+            ALTER TYPE test::Foo ALTER PROPERTY __typename {
+                SET default := WITH
+                    MODULE test
+                SELECT
+                    .__type__.name
+                ;
             };
             '''
         )

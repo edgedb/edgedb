@@ -2679,7 +2679,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE SCALAR TYPE test::my_enum_3
                     EXTENDING enum<'foo', 'bar', 'baz'> {
-                    CREATE CONSTRAINT expression ON (__subject__ = 'bar')
+                    CREATE CONSTRAINT expression ON (EXISTS(__subject__))
                 };
             ''')
 

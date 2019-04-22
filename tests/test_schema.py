@@ -258,6 +258,48 @@ _123456789_123456789_123456789 -> str
             })
         )
 
+        schema = self.run_ddl(schema, '''
+            CREATE FUNCTION
+            test::my_contains(arr: array<anytype>, val: anytype) -> bool {
+                FROM edgeql $$
+                    SELECT contains(arr, val);
+                $$;
+            };
+
+            CREATE ABSTRACT CONSTRAINT
+            test::my_one_of(one_of: array<anytype>) {
+                SET expr := (
+                    WITH foo := test::Object1
+                    SELECT test::my_contains(one_of, __subject__)
+                );
+            };
+
+            CREATE SCALAR TYPE test::my_scalar_t extending str {
+                CREATE CONSTRAINT test::my_one_of(['foo', 'bar']);
+            };
+        ''')
+
+        my_scalar_t = schema.get('test::my_scalar_t')
+        abstr_constr = schema.get('test::my_one_of')
+        constr = my_scalar_t.get_constraints(schema).objects(schema)[0]
+        my_contains = schema.get_functions('test::my_contains')[0]
+        self.assertEqual(
+            schema.get_referrers(my_contains),
+            frozenset({
+                constr,
+            })
+        )
+
+        self.assertEqual(
+            schema.get_referrers(Obj1),
+            frozenset({
+                foo,           # Object 1 is a Object2.foo target
+                foo_target,    # and also a target of its @target property
+                abstr_constr,  # abstract constraint my_one_of
+                constr,        # concrete constraint in my_scalar_t
+            })
+        )
+
     def test_schema_annotation_inheritance(self):
         schema = self.load_schema("""
             abstract annotation noninh;

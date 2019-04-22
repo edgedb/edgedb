@@ -32,6 +32,7 @@ from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
+from edb.schema import constraints as s_constr
 from edb.schema import pointers as s_pointers
 
 from edb.edgeql import ast as qlast
@@ -93,10 +94,15 @@ def compile_IsOp(
 def compile_Parameter(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
 
-    if ctx.func is not None:
-        raise errors.QueryError(
-            f'"$parameters" cannot be used in functions',
-            context=expr.context)
+    if ctx.env.func_params is not None:
+        if ctx.env.parent_object_type is s_constr.Constraint:
+            raise errors.InvalidConstraintDefinitionError(
+                f'dollar-prefixed "$parameters" cannot be used here',
+                context=expr.context)
+        else:
+            raise errors.InvalidFunctionDefinitionError(
+                f'dollar-prefixed "$parameters" cannot be used here',
+                context=expr.context)
 
     raise errors.QueryError(
         f'missing a type cast before the parameter',
@@ -188,7 +194,9 @@ def compile_BaseConstant(
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
 
     ct = irtyputils.type_to_typeref(
-        ctx.env.schema, ctx.env.schema.get(std_type))
+        ctx.env.schema,
+        ctx.env.get_track_schema_object(std_type),
+    )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
 
 
@@ -407,7 +415,7 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
             json_typeref = irtyputils.type_to_typeref(
-                ctx.env.schema, ctx.env.schema.get('std::json'))
+                ctx.env.schema, ctx.env.get_track_schema_object('std::json'))
 
             param = irast.Parameter(
                 typeref=json_typeref,

@@ -85,8 +85,8 @@ class Insert(DMLOperation):
             rows = (', '.join('{}={!r}'.format(c, v) for c, v in row.items())
                     for row in self.records)
             vals = ', '.join('({})'.format(r) for r in rows)
-        return '<{} {} ({})>'.format(
-            self.__class__.__name__, self.table.name, vals)
+        return '<{} {} ({}) priority={}>'.format(
+            self.__class__.__name__, self.table.name, vals, self.priority)
 
 
 class Update(DMLOperation):
@@ -167,8 +167,9 @@ class Update(DMLOperation):
             '%s=%s' % (f, getattr(self.record, f)) for f in self.fields)
         where = ','.join('%s=%s' % (c[0], c[1])
                          for c in self.condition) if self.condition else ''
-        return '<%s %s %s (%s)>' % (
-            self.__class__.__name__, self.table.name, expr, where)
+        return '<%s %s %s (%s) priority=%s>' % (
+            self.__class__.__name__, self.table.name, expr, where,
+            self.priority)
 
 
 class Delete(DMLOperation):

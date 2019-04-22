@@ -24,6 +24,7 @@ from edb.common import topological
 def get_global_dep_order():
     from . import annotations as s_anno
     from . import constraints as s_constr
+    from . import functions as s_func
     from . import lproperties as s_lprops
     from . import links as s_links
     from . import objtypes as s_objtypes
@@ -31,6 +32,7 @@ def get_global_dep_order():
 
     return (
         s_anno.Annotation,
+        s_func.Function,
         s_constr.Constraint,
         s_scalars.ScalarType,
         s_lprops.Property,

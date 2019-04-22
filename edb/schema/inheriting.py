@@ -225,7 +225,7 @@ class RebaseInheritingObject(sd.ObjectCommand):
                         except KeyError:
                             schema, coll = coll.delete(schema, [ref_name])
 
-        props = self.get_struct_properties(schema)
+        schema, props = self._get_field_updates(schema, context)
         schema = scls.update(schema, props)
 
         for op in self.get_subcommands(type=sd.ObjectCommand):

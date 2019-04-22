@@ -28,6 +28,7 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
+from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
 from edb.schema import inheriting as s_inh
 from edb.schema import modules as s_mod
@@ -56,12 +57,11 @@ def compile_FunctionCall(
     env = ctx.env
 
     if isinstance(expr.func, str):
-        if ctx.func is not None:
-            ctx_func_params = ctx.func.get_params(env.schema)
-            if ctx_func_params.get_by_name(env.schema, expr.func):
-                raise errors.QueryError(
-                    f'parameter `{expr.func}` is not callable',
-                    context=expr.context)
+        if (ctx.env.func_params is not None
+                and ctx.env.func_params.get_by_name(env.schema, expr.func)):
+            raise errors.QueryError(
+                f'parameter `{expr.func}` is not callable',
+                context=expr.context)
 
         funcname = expr.func
     else:
@@ -74,6 +74,16 @@ def compile_FunctionCall(
             f'could not resolve function name {funcname}',
             context=expr.context)
 
+    in_polymorphic_func = (
+        ctx.env.func_params is not None and
+        ctx.env.func_params.has_polymorphic(env.schema)
+    )
+
+    in_abstract_constraint = (
+        in_polymorphic_func and
+        ctx.env.parent_object_type is s_constr.Constraint
+    )
+
     args, kwargs = compile_call_args(expr, funcname, ctx=ctx)
     matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
@@ -81,9 +91,12 @@ def compile_FunctionCall(
             f'could not find a function variant {funcname}',
             context=expr.context)
     elif len(matched) > 1:
-        raise errors.QueryError(
-            f'function {funcname} is not unique',
-            context=expr.context)
+        if in_abstract_constraint:
+            matched_call = matched[0]
+        else:
+            raise errors.QueryError(
+                f'function {funcname} is not unique',
+                context=expr.context)
     else:
         matched_call = matched[0]
 
@@ -114,6 +127,12 @@ def compile_FunctionCall(
 
     matched_func_initial_value = matched_call.func.get_initial_value(
         env.schema)
+
+    if not in_abstract_constraint:
+        # We cannot add strong references to functions from
+        # abstract constraints, since we cannot know which
+        # form of the function is actually used.
+        env.schema_refs.add(func)
 
     if matched_func_initial_value is not None:
         iv_ql = qlast.TypeCast(
@@ -267,7 +286,17 @@ def compile_operator(
     if matched is None:
         matched = polyres.find_callable(opers, args=args, kwargs={}, ctx=ctx)
 
-    if not env.allow_abstract_opers:
+    in_polymorphic_func = (
+        ctx.env.func_params is not None and
+        ctx.env.func_params.has_polymorphic(env.schema)
+    )
+
+    in_abstract_constraint = (
+        in_polymorphic_func and
+        ctx.env.parent_object_type is s_constr.Constraint
+    )
+
+    if not in_polymorphic_func:
         matched = [call for call in matched
                    if not call.func.get_is_abstract(env.schema)]
 
@@ -296,19 +325,23 @@ def compile_operator(
                      'function.',
                 context=qlexpr.context)
         elif len(matched) > 1:
-            detail = ', '.join(
-                f'`{m.func.get_display_signature(ctx.env.schema)}`'
-                for m in matched
-            )
-            raise errors.QueryError(
-                f'operator {str(op_name)!r} is ambiguous for '
-                f'operands of type {types}',
-                hint=f'Possible variants: {detail}.',
-                context=qlexpr.context)
+            if in_abstract_constraint:
+                matched_call = matched[0]
+            else:
+                detail = ', '.join(
+                    f'`{m.func.get_display_signature(ctx.env.schema)}`'
+                    for m in matched
+                )
+                raise errors.QueryError(
+                    f'operator {str(op_name)!r} is ambiguous for '
+                    f'operands of type {types}',
+                    hint=f'Possible variants: {detail}.',
+                    context=qlexpr.context)
 
     args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
     oper = matched_call.func
+    env.schema_refs.add(oper)
     oper_name = oper.get_shortname(env.schema)
 
     matched_params = oper.get_params(env.schema)
@@ -339,11 +372,6 @@ def compile_operator(
         any(p.get_type(env.schema).is_polymorphic(env.schema)
             for p in matched_params.objects(env.schema)) and
         oper.get_return_type(env.schema).is_polymorphic(env.schema)
-    )
-
-    in_polymorphic_func = (
-        ctx.func is not None and
-        ctx.func.get_params(env.schema).has_polymorphic(env.schema)
     )
 
     from_op = oper.get_from_operator(env.schema)

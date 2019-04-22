@@ -67,9 +67,8 @@ def get_schema_object(
             return result
 
     try:
-        stype = ctx.env.schema.get(
-            name=name, module_aliases=ctx.modaliases,
-            type=item_types)
+        stype = ctx.env.get_track_schema_object(
+            name=name, modaliases=ctx.modaliases, type=item_types)
 
     except errors.QueryError as e:
         s_utils.enrich_schema_lookup_error(

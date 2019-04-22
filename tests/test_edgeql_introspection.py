@@ -330,7 +330,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 name
                             }
                         }
-                    }
+                    } FILTER .type IS schema::Array
                 } FILTER
                     .name LIKE '%my_one_of%' AND
                     NOT EXISTS .<constraints;
@@ -339,7 +339,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::my_one_of',
                 'params': [
                     {
-                        'num': 0,
+                        'num': 1,
                         'type': {
                             'name': 'array',
                             'element_type': {
@@ -365,7 +365,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 name
                             }
                         }
-                    }
+                    } FILTER .name != '__subject__'
                 } FILTER
                     .name LIKE '%my_one_of%' AND
                     NOT EXISTS .<constraints;
@@ -374,7 +374,7 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::my_one_of',
                 'params': [
                     {
-                        'num': 0,
+                        'num': 1,
                         'type': {
                             'name': 'array',
                             'element_type': {
@@ -400,7 +400,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 name
                             }
                         }
-                    }
+                    } ORDER BY .num
                 } FILTER
                     .name LIKE '%std::one_of%' AND
                     NOT EXISTS .<constraints;
@@ -410,6 +410,13 @@ class TestIntrospection(tb.QueryTestCase):
                 'params': [
                     {
                         'num': 0,
+                        'kind': 'POSITIONAL',
+                        'type': {
+                            'name': 'anytype',
+                        }
+                    },
+                    {
+                        'num': 1,
                         'kind': 'VARIADIC',
                         'type': {
                             'name': 'array',
@@ -442,7 +449,7 @@ class TestIntrospection(tb.QueryTestCase):
                     'name': 'test::body'
                 },
                 'args': [{
-                    'num': 0,
+                    'num': 1,
                     '@value': '10000'
                 }]
             }]
@@ -517,12 +524,6 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
-    @test.xfail('''
-        The @value for the constraint variadic args only has 'ONE',
-        whereas the expectation is that it will be the full array of
-        options. Incidentally, the same array is mentioned in the
-        errmessage without any issues.
-    ''')
     async def test_edgeql_introspection_constraint_06(self):
         await self.assert_query_result(
             r"""
@@ -532,7 +533,7 @@ class TestIntrospection(tb.QueryTestCase):
                     constraints: {
                         name,
                         expr,
-                        attributes: { name, @value },
+                        annotations: { name, @value },
                         subject: { name },
                         args: { name, @value, type: { name } },
                         return_typemod,
@@ -549,7 +550,7 @@ class TestIntrospection(tb.QueryTestCase):
                     {
                         'name': 'std::one_of',
                         'expr': 'contains(vals, __subject__)',
-                        'attributes': {},
+                        'annotations': {},
                         'subject': {'name': 'schema::cardinality_t'},
                         'args': [
                             {

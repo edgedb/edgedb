@@ -26,6 +26,7 @@ import immutables as immu
 from edb import errors
 
 from . import casts as s_casts
+from . import expr as s_expr
 from . import functions as s_func
 from . import modules as s_mod
 from . import name as sn
@@ -289,6 +290,11 @@ class Schema:
                     else:
                         if isinstance(ref, so.ObjectCollection):
                             ids = frozenset(ref.ids(self))
+                        elif isinstance(ref, s_expr.Expression):
+                            if ref.refs:
+                                ids = frozenset(ref.refs.ids(self))
+                            else:
+                                ids = frozenset()
                         else:
                             ids = frozenset((ref.id,))
 
@@ -302,6 +308,11 @@ class Schema:
                     else:
                         if isinstance(ref, so.ObjectCollection):
                             orig_ids = frozenset(ref.ids(self))
+                        elif isinstance(ref, s_expr.Expression):
+                            if ref.refs:
+                                orig_ids = frozenset(ref.refs.ids(self))
+                            else:
+                                orig_ids = frozenset()
                         else:
                             orig_ids = frozenset((ref.id,))
 

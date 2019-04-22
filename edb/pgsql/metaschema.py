@@ -93,7 +93,6 @@ class ExpressionType(dbops.CompositeType):
         self.add_columns([
             dbops.Column(name='text', type='text'),
             dbops.Column(name='origtext', type='text'),
-            dbops.Column(name='irast', type='bytea'),
             dbops.Column(name='refs', type='uuid[]'),
         ])
 
@@ -1815,21 +1814,49 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                     q.param_id      AS target,
                     q.value         AS value
                 FROM
-                    (SELECT
-                        s.id        AS id,
-                        p.param_id  AS param_id,
-                        tv.value    AS value
-                     FROM
-                        edgedb.{mcls.__name__} AS s,
+                    edgedb.{mcls.__name__} AS s,
 
-                        LATERAL UNNEST(s.params)
-                            WITH ORDINALITY AS p(param_id, num)
+                    LATERAL (
+                        SELECT
+                            s.id        AS id,
+                            p.param_id  AS param_id,
+                            tv.value    AS value
+                        FROM
+                            UNNEST(s.params)
+                                WITH ORDINALITY AS p(param_id, num)
 
-                        LEFT JOIN
-                            LATERAL UNNEST(s.args)
-                                WITH ORDINALITY AS tv(value, _, _, _, num)
-                            ON (p.num = tv.num)
+                            INNER JOIN edgedb.Parameter AS param
+                                ON param.id = p.param_id
+
+                            INNER JOIN
+                                UNNEST(s.args)
+                                    WITH ORDINALITY AS tv(_, value, _, num)
+                                ON (p.num = tv.num + 1)
+                        WHERE
+                            param.kind != 'VARIADIC'
+
+                        UNION ALL
+
+                        SELECT
+                            s.id            AS id,
+                            p.param_id      AS param_id,
+                            (SELECT '[' || string_agg(tv.value, ', ') || ']'
+                             FROM
+                                UNNEST(s.args[p.num - 1:]) AS tv(_, value, _)
+                            ) AS value
+                        FROM
+                            UNNEST(s.params)
+                                WITH ORDINALITY AS p(param_id, num)
+
+                            INNER JOIN edgedb.Parameter AS param
+                                ON param.id = p.param_id
+
+                        WHERE
+                            param.kind = 'VARIADIC'
+
                     ) AS q
+                WHERE
+                    s.subject IS NOT NULL
             '''
 
         elif issubclass(ftype, (s_obj.Object, s_obj.ObjectCollection)):

@@ -115,6 +115,8 @@ def delta_module(schema1, schema2, modname):
         adds_mods, dels = so.Object._delta_sets(
             old, new, old_schema=schema2, new_schema=schema1)
 
+        adds_mods.sort_expression_fields(schema1)
+
         global_adds_mods.append(adds_mods)
         global_dels.append(dels)
 
@@ -236,8 +238,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                     f'got AlterObjectProperty command for '
                     f'invalid field: {metaclass.__name__}.{op.property}')
 
-            result[op.property] = self._resolve_attr_value(
+            val = self._resolve_attr_value(
                 op.new_value, op.property, field, schema)
+
+            result[op.property] = val
 
         return result
 
@@ -310,15 +314,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def discard(self, command):
         self.ops.discard(command)
 
-    def sort_subcommands_by_type(self):
-        def _key(c):
-            if isinstance(c, CreateObject):
-                return 0
-            else:
-                return 2
-
-        self.ops = ordered.OrderedSet(sorted(self.ops, key=_key))
-
     def apply(self, schema, context):
         return schema, None
 
@@ -328,6 +323,48 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
         with self.new_context(schema, context):
             return self._get_ast(schema, context)
+
+    def extract_ref_ops(self, schema, context):
+        metaclass = self.get_schema_metaclass()
+        with self.new_context(schema, context):
+            for op in list(self.get_subcommands()):
+                if isinstance(op, AlterObjectProperty):
+                    field = metaclass.get_field(op.property)
+
+                    if issubclass(field.type, s_expr.Expression):
+                        value = op.new_value
+                        if value is not None:
+                            self.extract_expr_op(schema, context, field, op)
+                else:
+                    op.extract_ref_ops(schema, context)
+
+    def extract_expr_op(self, schema, context, field, op):
+        orig_op = AlterObjectProperty(
+            property=op.property,
+            new_value=op.new_value,
+        )
+
+        needs_extraction = self.nullify_expr_field(schema, context, field, op)
+        if not needs_extraction:
+            return
+
+        parent_op = context.top().op
+
+        for ctx in context.stack[1:]:
+            stack_op = ctx.op
+
+            alter_class = ObjectCommandMeta.get_command_class(
+                AlterObject, stack_op.get_schema_metaclass())
+
+            alter_delta = alter_class(classname=stack_op.classname)
+            parent_op.add(alter_delta)
+            parent_op = alter_delta
+
+            if stack_op is self:
+                alter_delta.add(orig_op)
+
+    def nullify_expr_field(self, schema, context, field, op) -> bool:
+        return False
 
     @classmethod
     def command_for_ast_node(cls, astnode, schema, context):
@@ -473,12 +510,12 @@ class CommandContext:
             if isinstance(item, cls):
                 return item
 
-    def get_ancestor(self, cls):
+    def get_ancestor(self, cls, op):
         if issubclass(cls, Command):
             cls = cls.get_context_class()
 
-        for item in list(reversed(self.stack))[1:]:
-            if isinstance(item, cls):
+        for item in list(reversed(self.stack)):
+            if isinstance(item, cls) and item.op is not op:
                 return item
 
     def top(self):
@@ -556,6 +593,30 @@ class DeltaRoot(CommandGroup):
                 schema, _ = op.apply(schema, context)
 
         return schema, None
+
+    def sort_subcommands_by_type(self):
+        def _key(c):
+            if isinstance(c, CreateObject):
+                return 0
+            else:
+                return 2
+
+        self.ops = ordered.OrderedSet(sorted(self.ops, key=_key))
+
+    def sort_expression_fields(self, schema):
+        """Transform the subcommands to reduce changes of cycles."""
+        def _key(c):
+            if isinstance(c, CreateObject):
+                return 0
+            else:
+                return 2
+
+        self.ops = ordered.OrderedSet(sorted(self.ops, key=_key))
+
+        context = CommandContext()
+        with context(DeltaRootContext(self)):
+            for op in sorted(self.ops, key=_key):
+                op.extract_ref_ops(schema, context)
 
 
 class ObjectCommandMeta(type(Command)):
@@ -714,6 +775,45 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         metaclass = self.get_schema_metaclass()
         return schema.get(name, type=metaclass)
 
+    def _prepare_field_updates(self, schema, context):
+        result = {}
+        metaclass = self.get_schema_metaclass()
+
+        for op in self.get_subcommands(type=AlterObjectProperty):
+            field = metaclass.get_field(op.property)
+            if field is None:
+                raise errors.SchemaDefinitionError(
+                    f'got AlterObjectProperty command for '
+                    f'invalid field: {metaclass.__name__}.{op.property}')
+
+            val = self._resolve_attr_value(
+                op.new_value, op.property, field, schema)
+
+            if isinstance(val, s_expr.Expression) and not val.is_compiled():
+                val = self.compile_expr_field(schema, context, field, val)
+
+            result[op.property] = val
+
+        self._field_updates = result
+
+        return schema, result
+
+    def _get_field_updates(self, schema, context):
+        field_updates = context.get_cached((self, 'field_updates'))
+        if field_updates is None:
+            schema, field_updates = self._prepare_field_updates(
+                schema, context)
+            context.cache_value((self, 'field_updates'), field_updates)
+
+        return schema, field_updates
+
+    def compile_expr_field(self, schema, context, field, value):
+        cdn = self.get_schema_metaclass().get_schema_class_displayname()
+        raise errors.InternalServerError(
+            f'uncompiled expression in the field {field.name!r} of '
+            f'{cdn} {self.classname!r}'
+        )
+
 
 class ObjectCommandContext(CommandContextToken):
     def __init__(self, schema, op, scls):
@@ -770,7 +870,7 @@ class CreateObject(CreateOrAlterObject):
     def _create_begin(self, schema, context):
         self._validate_legal_command(schema, context)
 
-        schema, props = self._make_constructor_args(schema, context)
+        schema, props = self._get_create_fields(schema, context)
 
         metaclass = self.get_schema_metaclass()
         schema, self.scls = metaclass.create_in_schema(schema, **props)
@@ -782,8 +882,17 @@ class CreateObject(CreateOrAlterObject):
 
         return schema
 
-    def _make_constructor_args(self, schema, context):
-        return schema, self.get_struct_properties(schema)
+    def _prepare_create_fields(self, schema, context):
+        return self._prepare_field_updates(schema, context)
+
+    def _get_create_fields(self, schema, context):
+        field_updates = context.get_cached((self, 'create_fields'))
+        if field_updates is None:
+            schema, field_updates = self._prepare_create_fields(
+                schema, context)
+            context.cache_value((self, 'create_fields'), field_updates)
+
+        return schema, field_updates
 
     def _create_innards(self, schema, context):
         mcls = self.get_schema_metaclass()
@@ -1072,13 +1181,16 @@ class AlterObject(CreateOrAlterObject):
             node = None
         return node
 
+    def _get_alter_fields(self, schema, context):
+        return self._get_field_updates(schema, context)
+
     def _alter_begin(self, schema, context, scls):
         self._validate_legal_command(schema, context)
 
         for op in self.get_subcommands(type=RenameObject):
             schema, _ = op.apply(schema, context)
 
-        props = self.get_struct_properties(schema)
+        schema, props = self._get_alter_fields(schema, context)
         schema = scls.update(schema, props)
         return schema
 

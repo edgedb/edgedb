@@ -139,55 +139,11 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         return s_pseudo.Any.instance
 
     @classmethod
-    def _normalize_constraint_expr(
-            cls, schema, module_aliases, expr, subject):
-        from edb.edgeql import compiler as qlcompiler
-        from edb.edgeql import parser as qlparser
-
-        if isinstance(expr, str):
-            qltree = qlparser.parse(expr, module_aliases)
-        else:
-            qltree = expr
-
-        ir = qlcompiler.compile_ast_to_ir(
-            qltree, schema, modaliases=module_aliases,
-            anchors={qlast.Subject: subject},
-        )
-
-        return qltree, ir
-
-    @classmethod
-    def normalize_constraint_expr(
-            cls, schema, module_aliases, expr, *,
-            subject=None, constraint_name, expr_context=None,
-            enforce_boolean=False):
-
-        if subject is None:
-            subject = cls._dummy_subject(schema)
-
-        edgeql_tree, ir_result = cls._normalize_constraint_expr(
-            schema, module_aliases, expr, subject)
-
-        if enforce_boolean:
-            bool_t = schema.get('std::bool')
-            expr_type = ir_result.stype
-            if not expr_type.issubclass(schema, bool_t):
-                raise errors.InvalidConstraintDefinitionError(
-                    f'{constraint_name} constraint expression expected '
-                    f'to return a bool value, got '
-                    f'{expr_type.get_name(schema).name!r}',
-                    context=expr_context
-                )
-
-        expr = edgeql.generate_source(edgeql_tree, pretty=False)
-        return expr
-
-    @classmethod
     def get_concrete_constraint_attrs(
             cls, schema, subject, *, name, subjectexpr=None,
             sourcectx=None, args=[], modaliases=None, **kwargs):
-        from edb.edgeql import utils as edgeql_utils
-        from edb.edgeql import parser as edgeql_parser
+        from edb.edgeql import parser as qlparser
+        from edb.edgeql import utils as qlutils
 
         constr_base = schema.get(name, module_aliases=modaliases)
         module_aliases = {}
@@ -203,33 +159,47 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
                 f'{str(name)!r}')
 
         if subjectexpr is not None:
-            subject, _ = cls._normalize_constraint_expr(
-                schema, {}, subjectexpr.text, subject)
+            subject_ql = subjectexpr.qlast
+            if subject_ql is None:
+                subject_ql = qlparser.parse(subjectexpr.text, module_aliases)
+
+            subject = subject_ql
 
         expr: s_expr.Expression = constr_base.get_field_value(schema, 'expr')
         if not expr:
             raise errors.InvalidConstraintDefinitionError(
                 f'missing constraint expression in {name!r}')
 
-        expr_ql = edgeql_parser.parse(expr.text, module_aliases)
+        expr_ql = expr.qlast
+        if expr_ql is None:
+            expr_ql = qlparser.parse(expr.text, module_aliases)
 
         if not args:
             args = constr_base.get_field_value(schema, 'args')
 
         attrs = dict(kwargs)
 
+        if subject is not orig_subject:
+            # subject has been redefined
+            qlutils.inline_anchors(expr_ql, anchors={qlast.Subject: subject})
+            subject = orig_subject
+
         args_map = None
         if args:
             args_ql = [
-                edgeql_parser.parse(arg.text, module_aliases) for arg in args
+                qlast.Path(steps=[qlast.Subject()]),
             ]
 
-            args_map = edgeql_utils.index_parameters(
+            args_ql.extend(
+                qlparser.parse(arg.text, module_aliases) for arg in args
+            )
+
+            args_map = qlutils.index_parameters(
                 args_ql,
                 parameters=constr_base.get_params(schema),
                 schema=schema)
 
-            edgeql_utils.inline_parameters(expr_ql, args_map)
+            qlutils.inline_parameters(expr_ql, args_map)
 
             args_map = {name: edgeql.generate_source(val, pretty=False)
                         for name, val in args_map.items()}
@@ -238,8 +208,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
             if not errmessage:
                 errmessage = constr_base.get_errmessage(schema)
 
-            attrs['errmessage'] = errmessage.format(
-                __subject__='{__subject__}', **args_map)
+            args_map['__subject__'] = '{__subject__}'
+            attrs['errmessage'] = errmessage.format(**args_map)
 
         attrs['args'] = args
 
@@ -248,21 +218,24 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         else:
             expr_context = None
 
-        if subject is not orig_subject:
-            # subject has been redefined
-            edgeql_utils.inline_anchors(
-                expr_ql, anchors={qlast.Subject: subject})
-            subject = orig_subject
+        final_expr = s_expr.Expression.compiled(
+            s_expr.Expression.from_ast(expr_ql, schema, module_aliases),
+            schema=schema,
+            modaliases=module_aliases,
+            anchors={qlast.Subject: subject},
+        )
 
-        expr_text = cls.normalize_constraint_expr(
-            schema, module_aliases, expr_ql,
-            subject=subject,
-            constraint_name=name,
-            enforce_boolean=True,
-            expr_context=expr_context)
+        bool_t = schema.get('std::bool')
+        expr_type = final_expr.irast.stype
+        if not expr_type.issubclass(schema, bool_t):
+            raise errors.InvalidConstraintDefinitionError(
+                f'{name} constraint expression expected '
+                f'to return a bool value, got '
+                f'{expr_type.get_name(schema).name!r}',
+                context=expr_context
+            )
 
-        attrs['finalexpr'] = s_expr.Expression(
-            text=expr_text, origtext=expr_text)
+        attrs['finalexpr'] = final_expr
 
         return constr_base, attrs
 
@@ -434,14 +407,39 @@ class ConstraintCommand(
         return (astnode.name in {'subject', 'subjectexpr'} and
                 not astnode.module)
 
-    def _make_constructor_args(self, schema, context):
-        schema, props = super()._make_constructor_args(schema, context)
+    def _prepare_create_fields(self, schema, context):
+        schema, props = super()._prepare_create_fields(schema, context)
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is not None:
             # Concrete constraints never declare parameters.
             props.pop('params', None)
 
         return schema, props
+
+    def compile_expr_field(self, schema, context, field, value):
+        from edb.edgeql import compiler as qlcompiler
+
+        if field.name in ('expr', 'subjectexpr'):
+            params = self._get_params(schema, context)
+            anchors, _ = (
+                qlcompiler.get_param_anchors_for_callable(
+                    params, schema)
+            )
+            referrer_ctx = self.get_referrer_context(context)
+            if referrer_ctx is not None:
+                anchors['__subject__'] = referrer_ctx.op.scls
+
+            return s_expr.Expression.compiled(
+                value,
+                schema=schema,
+                modaliases=context.modaliases,
+                anchors=anchors,
+                func_params=params,
+                allow_generic_type_output=True,
+                parent_object_type=self.get_schema_metaclass(),
+            )
+        else:
+            return super().compile_expr_field(schema, context, field, value)
 
 
 class CreateConstraint(ConstraintCommand,
@@ -451,13 +449,34 @@ class CreateConstraint(ConstraintCommand,
     astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
     referenced_astnode = qlast.CreateConcreteConstraint
 
+    @classmethod
+    def _get_param_desc_from_ast(cls, schema, modaliases, astnode, *,
+                                 param_offset: int=0):
+
+        if not hasattr(astnode, 'params'):
+            # Concrete constraint.
+            return []
+
+        params = super()._get_param_desc_from_ast(
+            schema, modaliases, astnode, param_offset=param_offset + 1)
+
+        params.insert(0, s_func.ParameterDesc(
+            num=param_offset,
+            name='__subject__',
+            default=None,
+            type=s_pseudo.Any.instance,
+            typemod=ft.TypeModifier.SINGLETON,
+            kind=ft.ParameterKind.POSITIONAL,
+        ))
+
+        return params
+
     def _create_begin(self, schema, context):
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
-            # Abstract constraint
             return super()._create_begin(schema, context)
 
-        schema, props = self._make_constructor_args(schema, context)
+        schema, props = self._get_create_fields(schema, context)
 
         if props.get('finalexpr'):
             return super()._create_begin(schema, context)

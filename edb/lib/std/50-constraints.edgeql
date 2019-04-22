@@ -97,7 +97,7 @@ std::min_ex_value(min: anytype) EXTENDING std::min_value
 
 
 CREATE ABSTRACT CONSTRAINT
-std::regexp(pattern: anytype) EXTENDING std::constraint
+std::regexp(pattern: std::str) EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
     SET expr := re_test(pattern, __subject__);

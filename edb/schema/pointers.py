@@ -469,6 +469,58 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
     def _parse_default(cls, cmd):
         return
 
+    def nullify_expr_field(self, schema, context, field, op):
+        from edb.edgeql.compiler import astutils as qlastutils
+
+        if field.name == 'default':
+            metaclass = self.get_schema_metaclass()
+            target_ref = self.get_attribute_value('target')
+            target = self._resolve_attr_value(
+                target_ref, 'target',
+                metaclass.get_field('target'), schema)
+
+            target_ql = qlastutils.type_to_ql_typeref(target, schema=schema)
+
+            empty = qlast.TypeCast(
+                expr=qlast.Set(),
+                type=target_ql,
+            )
+
+            op.new_value = s_expr.Expression.from_ast(
+                empty, schema=schema, modaliases=context.modaliases,
+            )
+
+            return True
+        else:
+            super().nullify_expr_field(schema, context, field, op)
+
+    def compile_expr_field(self, schema, context, field, value):
+        from . import sources as s_sources
+
+        if field.name == 'default':
+            parent_ctx = context.get_ancestor(
+                s_sources.SourceCommandContext, self)
+            source_name = parent_ctx.op.classname
+            source = schema.get(source_name, default=None)
+            if not isinstance(source, Pointer):
+                singletons = [source]
+                path_prefix_anchor = qlast.Source
+            else:
+                singletons = []
+                path_prefix_anchor = None
+
+            return type(value).compiled(
+                value,
+                schema=schema,
+                modaliases=context.modaliases,
+                parent_object_type=self.get_schema_metaclass(),
+                anchors={qlast.Source: source},
+                path_prefix_anchor=path_prefix_anchor,
+                singletons=singletons,
+            )
+        else:
+            return super().compile_expr_field(schema, context, field, value)
+
     def _encode_default(self, schema, context, node, op):
         if op.new_value:
             expr = op.new_value
@@ -482,7 +534,6 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             super()._apply_field_ast(schema, context, node, op)
 
     def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
-        from edb.edgeql import compiler as qlcompiler
         from . import sources as s_sources
 
         # "source" attribute is set automatically as a refdict back-attr
@@ -498,17 +549,16 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 context=expr.context
             )
 
-        expr = s_expr.Expression.from_ast(expr, schema, context.modaliases)
-
-        ir = qlcompiler.compile_ast_to_ir(
-            expr.qlast,
+        expr = s_expr.Expression.compiled(
+            s_expr.Expression.from_ast(expr, schema, context.modaliases),
             schema=schema,
+            modaliases=context.modaliases,
             anchors={qlast.Source: source},
             path_prefix_anchor=qlast.Source,
             singletons=[source],
         )
 
-        target = utils.reduce_to_typeref(schema, ir.stype)
+        target = utils.reduce_to_typeref(schema, expr.irast.stype)
 
         self.add(
             sd.AlterObjectProperty(
@@ -527,7 +577,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         self.add(
             sd.AlterObjectProperty(
                 property='cardinality',
-                new_value=ir.cardinality
+                new_value=expr.irast.cardinality
             )
         )
 

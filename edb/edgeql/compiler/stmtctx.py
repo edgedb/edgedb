@@ -31,6 +31,7 @@ from edb.ir import ast as irast
 
 from edb.schema import abc as s_abc
 from edb.schema import functions as s_func
+from edb.schema import inheriting as s_inh
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
@@ -53,7 +54,8 @@ from . import setgen
 def init_context(
         *,
         schema: s_schema.Schema,
-        func: typing.Optional[s_func.Function]=None,
+        func_params: typing.Optional[s_func.FuncParameterList]=None,
+        parent_object_type: typing.Optional[s_obj.ObjectMeta]=None,
         modaliases: typing.Optional[typing.Dict[str, str]]=None,
         anchors: typing.Optional[typing.Dict[str, s_obj.Object]]=None,
         singletons: typing.Optional[typing.Iterable[s_types.Type]]=None,
@@ -62,7 +64,8 @@ def init_context(
         result_view_name: typing.Optional[str]=None,
         schema_view_mode: bool=False,
         disable_constant_folding: bool=False,
-        allow_abstract_opers: bool=False,
+        allow_generic_type_output: bool=False,
+        allow_abstract_operators: bool=False,
         implicit_id_in_shapes: bool=False,
         implicit_tid_in_shapes: bool=False,
         json_parameters: bool=False,
@@ -76,10 +79,13 @@ def init_context(
         schema=schema,
         path_scope=irast.new_scope_tree(),
         constant_folding=not disable_constant_folding,
+        func_params=func_params,
+        parent_object_type=parent_object_type,
         schema_view_mode=schema_view_mode,
         json_parameters=json_parameters,
         session_mode=session_mode,
-        allow_abstract_opers=allow_abstract_opers)
+        allow_abstract_operators=allow_abstract_operators,
+        allow_generic_type_output=allow_generic_type_output)
 
     if singletons:
         # The caller wants us to treat these type references
@@ -99,7 +105,6 @@ def init_context(
         with ctx.newscope(fenced=True) as subctx:
             populate_anchors(anchors, ctx=subctx)
 
-    ctx.func = func
     ctx.derived_target_module = derived_target_module
     ctx.toplevel_result_view_name = result_view_name
     ctx.implicit_id_in_shapes = implicit_id_in_shapes
@@ -139,6 +144,33 @@ def fini_expression(
 
     if ctx.env.schema_view_mode:
         for view in ctx.view_nodes.values():
+            derived_from = view.get_derived_from(ctx.env.schema)
+            if (derived_from is not None
+                    and derived_from.get_derived_from(ctx.env.schema)
+                    is not None):
+                ctx.env.schema = view.set_field_value(
+                    ctx.env.schema,
+                    'derived_from',
+                    derived_from.get_nearest_non_derived_parent(
+                        ctx.env.schema,
+                    )
+                )
+
+            base = view.get_bases(ctx.env.schema).first(ctx.env.schema)
+            if base.get_derived_from(ctx.env.schema) is not None:
+                base = base.get_nearest_non_derived_parent(ctx.env.schema)
+                ctx.env.schema = view.set_field_value(
+                    ctx.env.schema,
+                    'bases',
+                    s_obj.ObjectList.create(ctx.env.schema, [base]),
+                )
+
+                ctx.env.schema = view.set_field_value(
+                    ctx.env.schema,
+                    'ancestors',
+                    s_inh.compute_mro(ctx.env.schema, view)[1:]
+                )
+
             if not hasattr(view, 'get_own_pointers'):  # duck check
                 continue
 
@@ -175,7 +207,12 @@ def fini_expression(
 
     expr_type = inference.infer_type(ir, ctx.env)
 
-    if ctx.func is None:
+    in_polymorphic_func = (
+        ctx.env.func_params is not None and
+        ctx.env.func_params.has_polymorphic(ctx.env.schema)
+    )
+
+    if not in_polymorphic_func and not ctx.env.allow_generic_type_output:
         anytype = expr_type.find_any(ctx.env.schema)
         if anytype is not None:
             raise errors.QueryError(
@@ -194,6 +231,7 @@ def fini_expression(
         view_shapes=ctx.env.view_shapes,
         view_shapes_metadata=ctx.env.view_shapes_metadata,
         schema=ctx.env.schema,
+        schema_refs=frozenset(ctx.env.schema_refs),
     )
     return result
 
@@ -217,7 +255,7 @@ def compile_anchor(
                 anchor.get_target(ctx.env.schema),
                 ctx=ctx)
         else:
-            Object = ctx.env.schema.get('std::Object')
+            Object = ctx.env.get_track_schema_object('std::Object')
 
             ctx.env.schema, ptrcls = anchor.get_derived(
                 ctx.env.schema, Object, Object, mark_derived=True)
@@ -245,7 +283,7 @@ def compile_anchor(
                 anchor.get_source(ctx.env.schema).get_target(ctx.env.schema),
                 ctx=ctx)
         else:
-            Object = ctx.env.schema.get('std::Object')
+            Object = ctx.env.get_track_schema_object('std::Object')
             ctx.env.schema, ptrcls = anchor_source.get_derived(
                 ctx.env.schema, Object, Object, mark_derived=True)
             path = setgen.extend_path(

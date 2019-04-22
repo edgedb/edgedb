@@ -45,6 +45,7 @@ from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import operators as s_opers
+from edb.schema import pointers as s_pointers
 from edb.schema import referencing as s_referencing
 from edb.schema import roles as s_roles
 from edb.schema import sources as s_sources
@@ -1528,16 +1529,33 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
     def apply(self, schema, context):
         schema, index = CreateObject.apply(self, schema, context)
 
-        source = context.get(s_links.LinkCommandContext)
-        if not source:
-            source = context.get(s_objtypes.ObjectTypeCommandContext)
+        parent_ctx = context.get_ancestor(
+            s_indexes.IndexSourceCommandContext, self)
+        subject_name = parent_ctx.op.classname
+        subject = schema.get(subject_name, default=None)
+        if not isinstance(subject, s_pointers.Pointer):
+            singletons = [subject]
+            path_prefix_anchor = ql_ast.Subject
+        else:
+            singletons = []
+            path_prefix_anchor = None
+
+        index_expr = index.get_expr(schema)
+        ir = index_expr.irast
+        if ir is None:
+            index_expr = type(index_expr).compiled(
+                index_expr,
+                schema=schema,
+                modaliases=context.modaliases,
+                parent_object_type=self.get_schema_metaclass(),
+                anchors={ql_ast.Subject: subject},
+                path_prefix_anchor=path_prefix_anchor,
+                singletons=singletons,
+            )
+            ir = index_expr.irast
+
         table_name = common.get_backend_name(
-            schema, source.scls, catenate=False)
-        ir = ql_compiler.compile_fragment_to_ir(
-            index.get_field_value(schema, 'expr').text,
-            schema,
-            anchors={ql_ast.Subject: source.scls},
-            location='selector')
+            schema, subject, catenate=False)
 
         sql_tree = compiler.compile_ir_to_sql_tree(
             ir.expr, singleton_mode=True)
@@ -1656,25 +1674,19 @@ class ObjectTypeMetaCommand(ViewCapableObjectMetaCommand,
 class CreateObjectType(ObjectTypeMetaCommand,
                        adapts=s_objtypes.CreateObjectType):
     def apply(self, schema, context=None):
-        objtype_props = self.get_struct_properties(schema)
-        is_virtual = objtype_props.get('is_virtual')
-        is_derived = objtype_props.get('is_derived')
-        if is_virtual or is_derived:
-            schema, objtype = s_objtypes.CreateObjectType.apply(
-                self, schema, context)
+        schema, objtype = s_objtypes.CreateObjectType.apply(
+            self, schema, context)
+        if objtype.get_is_virtual(schema) or objtype.get_is_derived(schema):
             schema, _ = ObjectTypeMetaCommand.apply(self, schema, context)
             self.create_object(schema, objtype)
             return schema, objtype
-
-        schema, objtype = s_objtypes.CreateObjectType.apply(
-            self, schema, context)
 
         new_table_name = common.get_backend_name(
             schema, objtype, catenate=False)
         self.table_name = new_table_name
 
         columns = []
-        if objtype_props.get('name') == 'std::Object':
+        if objtype.get_name(schema) == 'std::Object':
             token_col = dbops.Column(
                 name='__edb_token', type='uuid', required=False)
             columns.append(token_col)
@@ -1937,30 +1949,18 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
     def alter_pointer_default(self, pointer, schema, context):
         default = self.updates.get('default')
         if default:
-            new_default = None
-            have_new_default = True
+            default_value = self.get_pointer_default(pointer, schema, context)
+            source_ctx = context.get_ancestor(
+                s_sources.SourceCommandContext, self)
+            alter_table = source_ctx.op.get_alter_table(
+                schema, context, contained=True, priority=3)
 
-            if not default:
-                new_default = None
-            else:
-                if not isinstance(default, s_expr.Expression):
-                    new_default = default
-                else:
-                    have_new_default = False
-
-            if have_new_default:
-                source_ctx, pointer_ctx = \
-                    CompositeObjectMetaCommand.get_source_and_pointer_ctx(
-                        schema, context)
-                alter_table = source_ctx.op.get_alter_table(
-                    schema, context, contained=True, priority=3)
-
-                ptr_stor_info = types.get_pointer_storage_info(
-                    pointer, schema=schema)
-                alter_table.add_operation(
-                    dbops.AlterTableAlterColumnDefault(
-                        column_name=ptr_stor_info.column_name,
-                        default=new_default))
+            ptr_stor_info = types.get_pointer_storage_info(
+                pointer, schema=schema)
+            alter_table.add_operation(
+                dbops.AlterTableAlterColumnDefault(
+                    column_name=ptr_stor_info.column_name,
+                    default=default_value))
 
     @classmethod
     def get_columns(cls, pointer, schema, default=None):
@@ -2082,7 +2082,8 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         old_target = pointer.get_target(orig_schema)
         new_target = pointer.get_target(schema)
 
-        source_ctx = context.get_ancestor(s_sources.SourceCommandContext)
+        source_ctx = context.get_ancestor(
+            s_sources.SourceCommandContext, self)
         source_op = source_ctx.op
 
         type_change_ok = False
@@ -2745,7 +2746,7 @@ class AlterProperty(
                 self.pgops.add(
                     dbops.Update(
                         table=table, record=rec,
-                        condition=[('id', prop.id)], priority=1))
+                        condition=[('id', prop.id)], priority=2))
 
             prop_target = prop.get_target(schema)
             old_prop_target = prop.get_target(orig_schema)

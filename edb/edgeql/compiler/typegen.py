@@ -34,6 +34,7 @@ from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 
+from . import astutils
 from . import context
 from . import dispatch
 from . import schemactx
@@ -43,42 +44,8 @@ from . import setgen
 def type_to_ql_typeref(t: s_obj.Object, *,
                        _name=None,
                        ctx: context.ContextLevel) -> qlast.TypeName:
-    if t.is_any():
-        result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
-    elif t.is_anytuple():
-        result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
-    elif not isinstance(t, s_abc.Collection):
-        result = qlast.TypeName(
-            name=_name,
-            maintype=qlast.ObjectRef(
-                module=t.get_name(ctx.env.schema).module,
-                name=t.get_name(ctx.env.schema).name
-            )
-        )
-    elif isinstance(t, s_abc.Tuple) and t.named:
-        result = qlast.TypeName(
-            name=_name,
-            maintype=qlast.ObjectRef(
-                name=t.schema_name
-            ),
-            subtypes=[
-                type_to_ql_typeref(st, _name=sn, ctx=ctx)
-                for sn, st in t.iter_subtypes(ctx.env.schema)
-            ]
-        )
-    else:
-        result = qlast.TypeName(
-            name=_name,
-            maintype=qlast.ObjectRef(
-                name=t.schema_name
-            ),
-            subtypes=[
-                type_to_ql_typeref(st, ctx=ctx)
-                for st in t.get_subtypes(ctx.env.schema)
-            ]
-        )
 
-    return result
+    return astutils.type_to_ql_typeref(t, schema=ctx.env.schema)
 
 
 def ql_typeref_to_ir_typeref(

@@ -22,6 +22,10 @@
 
 from edb.edgeql import ast as qlast
 
+from edb.schema import abc as s_abc
+from edb.schema import objects as s_obj
+from edb.schema import schema as s_schema
+
 
 def extend_qlbinop(binop, *exprs, op='AND'):
     exprs = list(exprs)
@@ -93,3 +97,44 @@ def is_degenerate_select(qlstmt):
         qlstmt.offset is None and
         qlstmt.limit is None
     )
+
+
+def type_to_ql_typeref(t: s_obj.Object, *,
+                       _name=None,
+                       schema: s_schema.Schema) -> qlast.TypeName:
+    if t.is_any():
+        result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
+    elif t.is_anytuple():
+        result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
+    elif not isinstance(t, s_abc.Collection):
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                module=t.get_name(schema).module,
+                name=t.get_name(schema).name
+            )
+        )
+    elif isinstance(t, s_abc.Tuple) and t.named:
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name=t.schema_name
+            ),
+            subtypes=[
+                type_to_ql_typeref(st, _name=sn, schema=schema)
+                for sn, st in t.iter_subtypes(schema)
+            ]
+        )
+    else:
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name=t.schema_name
+            ),
+            subtypes=[
+                type_to_ql_typeref(st, schema=schema)
+                for st in t.get_subtypes(schema)
+            ]
+        )
+
+    return result

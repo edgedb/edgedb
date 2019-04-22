@@ -21,7 +21,6 @@ import copy
 import itertools
 import typing
 
-from edb import errors
 from edb.common import ast
 
 from . import ast as qlast
@@ -46,10 +45,6 @@ class ParameterInliner(ast.NodeTransformer):
 
         arg = copy.deepcopy(arg)
         return arg
-
-    def visit_Parameter(self, node):
-        raise errors.InvalidConstraintDefinitionError(
-            f'dollar-prefixed "$parameters" are not supported in constraints')
 
 
 def inline_parameters(ql_expr: qlast.Base, args: typing.Dict[str, qlast.Base]):

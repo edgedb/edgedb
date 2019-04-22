@@ -17,28 +17,50 @@
 #
 
 
+from __future__ import annotations
+
+import copy
+
 from edb.common import struct
 from edb.common import typed
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import parser as qlparser
 
+from . import abc as s_abc
 from . import objects as so
 
 
-class Expression(struct.MixedStruct):
+class Expression(struct.MixedStruct, s_abc.ObjectContainer):
     text = struct.Field(str, frozen=True)
     origtext = struct.Field(str, default=None, frozen=True)
-    irast = struct.Field(object, default=None, frozen=True)
     refs = struct.Field(so.ObjectSet, coerce=True, default=None, frozen=True)
 
-    def __init__(self, *args, _qlast=None, **kwargs):
+    def __init__(self, *args, _qlast=None, _irast=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._qlast = _qlast
+        self._irast = _irast
+
+    def __getstate__(self):
+        return {
+            'text': self.text,
+            'origtext': self.origtext,
+            'refs': self.refs,
+            '_qlast': None,
+            '_irast': None,
+        }
 
     @property
     def qlast(self):
         return self._qlast
+
+    @property
+    def irast(self):
+        return self._irast
+
+    def is_compiled(self) -> bool:
+        return self.refs is not None
 
     @classmethod
     def compare_values(cls, ours, theirs, *,
@@ -54,13 +76,60 @@ class Expression(struct.MixedStruct):
 
     @classmethod
     def from_ast(cls, qltree, schema, modaliases):
+        orig_text = qlcodegen.generate_source(qltree, pretty=False)
         norm_tree = imprint_expr_context(qltree, modaliases)
         norm_text = qlcodegen.generate_source(norm_tree, pretty=False)
 
         return cls(
             text=norm_text,
-            origtext=qlcodegen.generate_source(qltree),
+            origtext=orig_text,
             _qlast=norm_tree,
+        )
+
+    @classmethod
+    def compiled(cls, expr, schema, *,
+                 modaliases=None,
+                 parent_object_type=None,
+                 anchors=None,
+                 path_prefix_anchor=None,
+                 allow_generic_type_output=False,
+                 func_params=None,
+                 singletons=None) -> Expression:
+
+        from edb.edgeql import compiler as qlcompiler
+
+        qltree = expr.qlast
+        if qltree is None:
+            qltree = qlparser.parse(expr.text)
+
+        ir = qlcompiler.compile_ast_to_ir(
+            qltree,
+            schema=schema,
+            modaliases=modaliases,
+            anchors=anchors,
+            path_prefix_anchor=path_prefix_anchor,
+            func_params=func_params,
+            parent_object_type=parent_object_type,
+            allow_generic_type_output=allow_generic_type_output,
+            singletons=singletons,
+        )
+
+        return cls(
+            text=expr.text,
+            origtext=expr.origtext,
+            refs=so.ObjectSet.create(schema, ir.schema_refs),
+            _qlast=qltree,
+            _irast=ir,
+        )
+
+    @classmethod
+    def from_ir(cls, expr, ir, schema) -> Expression:
+        return cls(
+            text=expr.text,
+            origtext=expr.origtext,
+            refs=so.ObjectSet.create(schema, ir.schema_refs),
+            _qlast=expr.qlast,
+            _irast=ir,
         )
 
 
@@ -94,6 +163,9 @@ def imprint_expr_context(qltree, modaliases):
 
     if not isinstance(qltree, qlast.Statement):
         qltree = qlast.SelectQuery(result=qltree, implicit=True)
+    else:
+        qltree = copy.copy(qltree)
+        qltree.aliases = list(qltree.aliases)
 
     existing_aliases = {}
     for alias in qltree.aliases:

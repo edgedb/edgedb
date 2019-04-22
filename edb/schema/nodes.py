@@ -119,10 +119,12 @@ class NodeCommand(sd.ObjectCommand):
             expr = s_expr.Expression.from_ast(
                 view_expr, schema, context.modaliases)
 
-            cmd.set_attribute_value('expr', expr)
-
             ir = cls._compile_view_expr(expr.qlast, cmd.classname,
                                         schema, context)
+
+            expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
+
+            cmd.set_attribute_value('expr', expr)
 
             view_types = ir.views.values()
 
@@ -163,3 +165,40 @@ class NodeCommand(sd.ObjectCommand):
                 property='view_type', new_value=s_types.ViewType.Select))
 
         return cmd
+
+    def nullify_expr_field(self, schema, context, field, op):
+        from edb.edgeql.compiler import astutils as qlastutils
+
+        if field.name == 'expr':
+            base = self.get_attribute_value('bases').first(schema)
+
+            if base.is_object_type():
+                base_name = base.get_name(schema)
+                ql = qlast.SelectQuery(
+                    result=qlast.Path(
+                        steps=[
+                            qlast.ObjectRef(
+                                name=base_name.name,
+                                module=base_name.module,
+                            ),
+                        ],
+                    ),
+                    where=qlast.BooleanConstant(
+                        value='false'
+                    ),
+                )
+            else:
+                ql = qlast.TypeCast(
+                    expr=qlast.Set(),
+                    type=qlastutils.type_to_ql_typeref(base, schema=schema),
+                )
+
+            op.new_value = s_expr.Expression.compiled(
+                s_expr.Expression.from_ast(
+                    ql, schema=schema, modaliases=context.modaliases),
+                schema=schema,
+            )
+
+            return True
+        else:
+            super().nullify_expr_field(schema, context, field, op)

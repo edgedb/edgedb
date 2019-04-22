@@ -156,7 +156,7 @@ class ReferencedInheritingObjectCommand(
 
     def _create_begin(self, schema, context):
         referrer_ctx = self.get_referrer_context(context)
-        attrs = self.get_struct_properties(schema)
+        schema, attrs = self._get_create_fields(schema, context)
 
         if referrer_ctx is not None and not attrs.get('is_derived'):
             if attrs.get('inherited'):

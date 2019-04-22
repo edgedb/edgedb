@@ -447,9 +447,9 @@ def _normalize_view_ptr_expr(
                 path_id_name = None
 
             if ptr_target.is_object_type():
-                base = ctx.env.schema.get('std::link')
+                base = ctx.env.get_track_schema_object('std::link')
             else:
-                base = ctx.env.schema.get('std::property')
+                base = ctx.env.get_track_schema_object('std::property')
 
             if ptrcls is not None:
                 derive_from = ptrcls
@@ -526,9 +526,11 @@ def derive_ptrcls(
     if view_rptr.ptrcls is None:
         if view_rptr.base_ptrcls is None:
             if target_scls.is_object_type():
-                view_rptr.base_ptrcls = ctx.env.schema.get('std::link')
+                view_rptr.base_ptrcls = (
+                    ctx.env.get_track_schema_object('std::link'))
             else:
-                view_rptr.base_ptrcls = ctx.env.schema.get('std::property')
+                view_rptr.base_ptrcls = (
+                    ctx.env.get_track_schema_object('std::property'))
 
         derived_name = schemactx.derive_view_name(
             view_rptr.base_ptrcls,

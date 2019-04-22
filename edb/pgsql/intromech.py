@@ -78,7 +78,7 @@ class IntrospectionMech:
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_annotations(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_objtypes(
+            schema, obj_exprmap = await self.read_objtypes(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_casts(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
@@ -101,7 +101,7 @@ class IntrospectionMech:
             schema = await self.order_operators(schema)
             schema = await self.order_link_properties(schema)
             schema = await self.order_links(schema)
-            schema = await self.order_objtypes(schema)
+            schema = await self.order_objtypes(schema, obj_exprmap)
 
         return schema
 
@@ -206,9 +206,9 @@ class IntrospectionMech:
                 'view_type': (s_types.ViewType(row['view_type'])
                               if row['view_type'] else None),
                 'bases': row['bases'],
-                'default': (s_expr.Expression(**row['default'])
+                'default': (self.unpack_expr(row['default'], schema)
                             if row['default'] else None),
-                'expr': (s_expr.Expression(**row['expr'])
+                'expr': (self.unpack_expr(row['expr'], schema)
                          if row['expr'] else None),
                 'enum_values': row['enum_values'],
             }
@@ -387,7 +387,7 @@ class IntrospectionMech:
                 schema, _ = r_type.as_schema_coll(schema)
 
             if row['initial_value']:
-                initial_value = s_expr.Expression(**row['initial_value'])
+                initial_value = self.unpack_expr(row['initial_value'], schema)
             else:
                 initial_value = None
 
@@ -452,13 +452,14 @@ class IntrospectionMech:
                 params=params,
                 is_abstract=r['is_abstract'],
                 is_final=r['is_final'],
-                expr=s_expr.Expression(**r['expr']) if r['expr'] else None,
-                subjectexpr=(s_expr.Expression(**r['subjectexpr'])
+                expr=(self.unpack_expr(r['expr'], schema)
+                      if r['expr'] else None),
+                subjectexpr=(self.unpack_expr(r['subjectexpr'], schema)
                              if r['subjectexpr'] else None),
-                finalexpr=(s_expr.Expression(**r['finalexpr'])
+                finalexpr=(self.unpack_expr(r['finalexpr'], schema)
                            if r['finalexpr'] else None),
                 errmessage=r['errmessage'],
-                args=([s_expr.Expression(**arg) for arg in r['args']]
+                args=([self.unpack_expr(arg, schema) for arg in r['args']]
                       if r['args'] is not None else None),
                 return_type=self.unpack_typeref(r['return_type'], schema),
                 return_typemod=r['return_typemod'],
@@ -541,6 +542,17 @@ class IntrospectionMech:
             if result:
                 return result[0][1]
 
+    def unpack_expr(self, expr, schema):
+        text, origtext, refs = expr
+
+        if refs is None:
+            refs = []
+
+        refs = s_obj.ObjectSet.create(
+            schema, [schema.get_by_id(ref) for ref in refs])
+
+        return s_expr.Expression(text=text, origtext=origtext, refs=refs)
+
     def interpret_indexes(self, table_name, indexes):
         for idx_data in indexes:
             yield dbops.Index.from_introspection(table_name, idx_data)
@@ -583,7 +595,7 @@ class IntrospectionMech:
                 id=index_data['id'],
                 name=index_name,
                 subject=subj,
-                expr=s_expr.Expression(**index_data['expr']))
+                expr=self.unpack_expr(index_data['expr'], schema))
 
             schema = subj.add_index(schema, index)
 
@@ -629,7 +641,7 @@ class IntrospectionMech:
                 target = self.unpack_typeref(r['target'], schema)
 
             if r['default']:
-                default = s_expr.Expression(**r['default'])
+                default = self.unpack_expr(r['default'], schema)
             else:
                 default = None
 
@@ -736,7 +748,7 @@ class IntrospectionMech:
                 derived_from = None
 
             if r['default']:
-                default = s_expr.Expression(**r['default'])
+                default = self.unpack_expr(r['default'], schema)
             else:
                 default = None
 
@@ -852,6 +864,7 @@ class IntrospectionMech:
         objtype_list = {sn.Name(row['name']): row for row in objtype_list}
 
         basemap = {}
+        exprmap = {}
 
         for name, row in objtype_list.items():
             objtype = {
@@ -861,10 +874,9 @@ class IntrospectionMech:
                 'is_final': row['is_final'],
                 'view_type': (s_types.ViewType(row['view_type'])
                               if row['view_type'] else None),
-                'expr': (s_expr.Expression(**row['expr'])
-                         if row['expr'] else None)
             }
 
+            exprmap[name] = row['expr']
             basemap[name] = row['bases'] or []
 
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
@@ -874,7 +886,7 @@ class IntrospectionMech:
                 is_abstract=objtype['is_abstract'],
                 is_final=objtype['is_final'],
                 view_type=objtype['view_type'],
-                expr=objtype['expr'])
+            )
 
         for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
             try:
@@ -885,6 +897,15 @@ class IntrospectionMech:
                 schema = objtype.set_field_value(
                     schema, 'bases', [schema.get(b) for b in bases])
 
+            try:
+                expr = exprmap[objtype.get_name(schema)]
+            except KeyError:
+                pass
+            else:
+                if expr is not None:
+                    schema = objtype.set_field_value(
+                        schema, 'expr', self.unpack_expr(expr, schema))
+
         derived = await datasources.schema.objtypes.fetch_derived(
             self.connection)
 
@@ -894,15 +915,14 @@ class IntrospectionMech:
             attrs['bases'] = [schema.get(b) for b in attrs['bases']]
             attrs['view_type'] = (s_types.ViewType(attrs['view_type'])
                                   if attrs['view_type'] else None)
-            attrs['expr'] = (s_expr.Expression(**row['expr'])
-                             if row['expr'] else None)
             attrs['is_derived'] = True
+            exprmap[attrs['name']] = attrs.pop('expr')
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
                 schema, **attrs)
 
-        return schema
+        return schema, exprmap
 
-    async def order_objtypes(self, schema):
+    async def order_objtypes(self, schema, exprmap):
         g = {}
         for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
             g[objtype.get_name(schema)] = {
@@ -912,6 +932,15 @@ class IntrospectionMech:
             if objtype_bases:
                 g[objtype.get_name(schema)]["merge"].extend(
                     b.get_name(schema) for b in objtype_bases)
+
+            try:
+                expr = exprmap[objtype.get_name(schema)]
+            except KeyError:
+                pass
+            else:
+                if expr is not None:
+                    schema = objtype.set_field_value(
+                        schema, 'expr', self.unpack_expr(expr, schema))
 
         objtypes = topological.sort(g)
         for objtype in objtypes:

@@ -19,6 +19,7 @@
 
 from edb.edgeql import ast as qlast
 
+from . import abc as s_abc
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -120,6 +121,30 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
             pass
         else:
             super()._apply_field_ast(schema, context, node, op)
+
+    def compile_expr_field(self, schema, context, field, value):
+        if field.name == 'expr':
+            parent_ctx = context.get_ancestor(IndexSourceCommandContext, self)
+            subject_name = parent_ctx.op.classname
+            subject = schema.get(subject_name, default=None)
+            if not isinstance(subject, s_abc.Pointer):
+                singletons = [subject]
+                path_prefix_anchor = qlast.Subject
+            else:
+                singletons = []
+                path_prefix_anchor = None
+
+            return type(value).compiled(
+                value,
+                schema=schema,
+                modaliases=context.modaliases,
+                parent_object_type=self.get_schema_metaclass(),
+                anchors={qlast.Subject: subject},
+                path_prefix_anchor=path_prefix_anchor,
+                singletons=singletons,
+            )
+        else:
+            return super().compile_expr_field(schema, context, field, value)
 
 
 class RenameIndex(IndexCommand, sd.RenameObject):

@@ -133,8 +133,8 @@ def compile_ConfigInsert(
         )
 
     level = 'SYSTEM' if expr.system else 'SESSION'
-    schema = ctx.env.schema
-    subject = schema.get(f'cfg::{expr.name.name}', None)
+    subject = ctx.env.get_track_schema_object(
+        f'cfg::{expr.name.name}', default=None)
     if subject is None:
         raise errors.ConfigurationError(
             f'{expr.name.name!r} is not a valid configuration item',
@@ -233,7 +233,7 @@ def _validate_op(
         )
 
     name = expr.name.name
-    cfg_host_type = ctx.env.schema.get('cfg::Config')
+    cfg_host_type = ctx.env.get_track_schema_object('cfg::Config')
     cfg_type = None
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
@@ -250,7 +250,8 @@ def _validate_op(
             )
 
         # expr.name is the name of the configuration type
-        cfg_type = ctx.env.schema.get(f'cfg::{name}', None)
+        cfg_type = ctx.env.get_track_schema_object(
+            f'cfg::{name}', default=None)
         if cfg_type is None:
             raise errors.ConfigurationError(
                 f'unrecognized configuration object {name!r}',

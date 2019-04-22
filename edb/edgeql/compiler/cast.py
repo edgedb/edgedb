@@ -110,7 +110,7 @@ def compile_cast(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     else:
-        json_t = ctx.env.schema.get('std::json')
+        json_t = ctx.env.get_track_schema_object('std::json')
 
         if (new_stype.issubclass(ctx.env.schema, json_t) and
                 ir_set.path_id.is_objtype_path()):

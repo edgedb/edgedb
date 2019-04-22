@@ -57,6 +57,7 @@ _DECL_MAP = {
     qlast.ScalarTypeDeclaration: s_scalars.ScalarType,
     qlast.ObjectTypeDeclaration: s_objtypes.ObjectType,
     qlast.ConstraintDeclaration: s_constr.Constraint,
+    qlast.FunctionDeclaration: s_func.Function,
     qlast.LinkDeclaration: s_links.Link,
     qlast.PropertyDeclaration: s_props.Property,
     qlast.AnnotationDeclaration: s_anno.Annotation,
@@ -117,6 +118,10 @@ class DeclarationLoader:
                 objcls_kw['return_type'] = self._schema.get('std::bool')
                 objcls_kw['return_typemod'] = qltypes.TypeModifier.SINGLETON
 
+            elif objcls is s_func.Function:
+                objcls_kw['return_type'] = self._get_ref_type(decl.returning)
+                objcls_kw['return_typemod'] = decl.returning_typemod
+
             if issubclass(objcls, s_pointers.Pointer):
                 if len(decl.name) > s_pointers.MAX_NAME_LENGTH:
                     raise errors.SchemaDefinitionError(
@@ -140,19 +145,24 @@ class DeclarationLoader:
         enums = {}
         chain = itertools.chain.from_iterable
         for obj, decl in chain(t.items() for t in objects.values()):
-            bases, enum_values = self._get_bases(obj, decl)
-            self._schema = obj.set_field_value(self._schema, 'bases', bases)
-            self._schema = obj.set_field_value(
-                self._schema, 'ancestors',
-                s_inh.compute_mro(self._schema, obj)[1:])
 
-            if enum_values:
-                enums[obj] = enum_values
+            if isinstance(obj, s_inh.InheritingObject):
+                bases, enum_values = self._get_bases(obj, decl)
+                self._schema = obj.set_field_value(
+                    self._schema, 'bases', bases)
+                self._schema = obj.set_field_value(
+                    self._schema, 'ancestors',
+                    s_inh.compute_mro(self._schema, obj)[1:])
+
+                if enum_values:
+                    enums[obj] = enum_values
 
         # Now, with all objects in the declaration in the schema, we can
         # process them in the semantic dependency order.
 
         self._init_annotations(objects[s_anno.Annotation])
+
+        self._init_functions(objects[s_func.Function])
 
         # Constraints have no external dependencies, but need to
         # be fully initialized when we get to constraint users below.
@@ -327,33 +337,51 @@ class DeclarationLoader:
 
         return s_obj.ObjectList.create(self._schema, bases), enum_values
 
+    def _init_functions(self, functions):
+        for func, decl in functions.items():
+            attrs = {a.name.name: a.value for a in decl.fields}
+
+            code = attrs.pop('function_code', None)
+            if code is not None:
+                self._schema = func.set_field_value(
+                    self._schema,
+                    'code',
+                    code.code.value,
+                )
+                self._schema = func.set_field_value(
+                    self._schema,
+                    'language',
+                    code.language,
+                )
+
+            self._schema, params = s_func.FuncParameterList.from_ast(
+                self._schema, decl, self._mod_aliases,
+                func_fqname=func.get_name(self._schema))
+
+            self._schema = func.set_field_value(
+                self._schema, 'params', params)
+
     def _init_constraints(self, constraints):
         for constraint, decl in constraints.items():
             attrs = {a.name.name: a.value for a in decl.fields}
             assert 'subject' not in attrs  # TODO: Add proper validation
             assert 'subjectexpr' not in attrs  # TODO: Add proper validation
 
-            expr = attrs.pop('expr', None)
-            if expr is not None:
-                self._schema = constraint.set_field_value(
-                    self._schema,
-                    'expr',
-                    s_expr.Expression.from_ast(expr, self._schema,
-                                               self._mod_aliases),
-                )
-
-            subjexpr = decl.subject
-            if subjexpr is not None:
-                self._schema = constraint.set_field_value(
-                    self._schema,
-                    'subjectexpr',
-                    s_expr.Expression.from_ast(subjexpr, self._schema,
-                                               self._mod_aliases),
-                )
-
             self._schema, params = s_func.FuncParameterList.from_ast(
                 self._schema, decl, self._mod_aliases,
-                func_fqname=constraint.get_name(self._schema))
+                func_fqname=constraint.get_name(self._schema),
+                prepend=[
+                    qlast.FuncParam(
+                        name='__subject__',
+                        type=qlast.TypeName(
+                            maintype=qlast.AnyType(),
+                        ),
+                        typemod=qltypes.TypeModifier.SINGLETON,
+                        kind=qltypes.ParameterKind.POSITIONAL,
+                        default=None,
+                    ),
+                ],
+            )
 
             for param in params.objects(self._schema):
                 p_kind = param.get_kind(self._schema)
@@ -368,6 +396,43 @@ class DeclarationLoader:
                         'constraints do not support parameters '
                         'with defaults',
                         context=decl.context)
+
+            anchors, _ = qlcompiler.get_param_anchors_for_callable(
+                params, self._schema)
+
+            expr = attrs.pop('expr', None)
+            if expr is not None:
+                self._schema = constraint.set_field_value(
+                    self._schema,
+                    'expr',
+                    s_expr.Expression.compiled(
+                        s_expr.Expression.from_ast(expr, self._schema,
+                                                   self._mod_aliases),
+                        schema=self._schema,
+                        modaliases=self._mod_aliases,
+                        anchors=anchors,
+                        func_params=params,
+                        allow_generic_type_output=True,
+                        parent_object_type=type(constraint),
+                    ),
+                )
+
+            subjexpr = decl.subject
+            if subjexpr is not None:
+                self._schema = constraint.set_field_value(
+                    self._schema,
+                    'subjectexpr',
+                    s_expr.Expression.compiled(
+                        s_expr.Expression.from_ast(subjexpr, self._schema,
+                                                   self._mod_aliases),
+                        schema=self._schema,
+                        modaliases=self._mod_aliases,
+                        anchors=anchors,
+                        func_params=params,
+                        allow_generic_type_output=True,
+                        parent_object_type=type(constraint),
+                    ),
+                )
 
             self._schema = constraint.set_field_value(
                 self._schema, 'params', params)
@@ -586,8 +651,6 @@ class DeclarationLoader:
             self._schema = subject.add_constraint(self._schema, c)
 
     def _parse_subject_indexes(self, subject, subjdecl):
-        module_aliases = {None: subject.get_name(self._schema).module}
-
         for indexdecl in subjdecl.indexes:
             index_name = self._get_ref_name(indexdecl.name)
             index_name = subject.get_name(self._schema) + '.' + index_name
@@ -597,11 +660,28 @@ class DeclarationLoader:
             der_name = s_name.Name(
                 name=local_name, module=subject.get_name(self._schema).module)
 
+            if not isinstance(subject, s_abc.Pointer):
+                singletons = [subject]
+                path_prefix_anchor = qlast.Subject
+            else:
+                singletons = []
+                path_prefix_anchor = None
+
+            index_expr = s_expr.Expression.compiled(
+                s_expr.Expression.from_ast(
+                    indexdecl.expression, self._schema, self._mod_aliases),
+                schema=self._schema,
+                modaliases=self._mod_aliases,
+                parent_object_type=type(subject),
+                anchors={qlast.Subject: subject},
+                path_prefix_anchor=path_prefix_anchor,
+                singletons=singletons,
+            )
+
             self._schema, index = s_indexes.Index.create_in_schema(
                 self._schema,
                 name=der_name,
-                expr=s_expr.Expression.from_ast(
-                    indexdecl.expression, self._schema, module_aliases),
+                expr=index_expr,
                 subject=subject,
             )
 
@@ -855,6 +935,9 @@ class DeclarationLoader:
 
         scls = self._schema.get(viewname)
         self._parse_field_setters(scls, viewdecl.fields)
+
+        expr = s_expr.Expression.from_ir(
+            expr, ir, self._schema)
 
         self._schema = scls.set_field_value(
             self._schema, 'expr', expr)

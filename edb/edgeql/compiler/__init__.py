@@ -116,10 +116,11 @@ def compile_to_ir(expr,
 def compile_ast_to_ir(tree,
                       schema,
                       *,
+                      parent_object_type=None,
                       anchors=None,
                       path_prefix_anchor=None,
                       singletons=None,
-                      func=None,
+                      func_params=None,
                       security_context=None,
                       derived_target_module=None,
                       result_view_name=None,
@@ -130,7 +131,8 @@ def compile_ast_to_ir(tree,
                       disable_constant_folding=False,
                       json_parameters=False,
                       session_mode=False,
-                      allow_abstract_opers=False):
+                      allow_abstract_operators=False,
+                      allow_generic_type_output=False):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -140,7 +142,7 @@ def compile_ast_to_ir(tree,
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, singletons=singletons,
         modaliases=modaliases, security_context=security_context,
-        func=func, derived_target_module=derived_target_module,
+        func_params=func_params, derived_target_module=derived_target_module,
         result_view_name=result_view_name,
         implicit_id_in_shapes=implicit_id_in_shapes,
         implicit_tid_in_shapes=implicit_tid_in_shapes,
@@ -148,7 +150,9 @@ def compile_ast_to_ir(tree,
         disable_constant_folding=disable_constant_folding,
         json_parameters=json_parameters,
         session_mode=session_mode,
-        allow_abstract_opers=allow_abstract_opers)
+        allow_abstract_operators=allow_abstract_operators,
+        allow_generic_type_output=allow_generic_type_output,
+        parent_object_type=parent_object_type)
 
     if path_prefix_anchor is not None:
         path_prefix = anchors[path_prefix_anchor]
@@ -193,6 +197,47 @@ def evaluate_ast_to_python_val(tree, schema, *, modaliases=None) -> object:
     return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)
 
 
+def get_param_anchors_for_callable(params, schema):
+    anchors = {}
+    aliases = []
+
+    anchors['__defaults_mask__'] = irast.Parameter(
+        name='__defaults_mask__',
+        typeref=irtyputils.type_to_typeref(schema, schema.get('std::bytes')))
+
+    pg_params = s_func.PgParams.from_params(schema, params)
+    for pi, p in enumerate(pg_params.params):
+        p_shortname = p.get_shortname(schema)
+        anchors[p_shortname] = irast.Parameter(
+            name=p_shortname,
+            typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
+
+        if p.get_default(schema) is None:
+            continue
+
+        aliases.append(
+            qlast.AliasedExpr(
+                alias=p_shortname,
+                expr=qlast.IfElse(
+                    condition=qlast.BinOp(
+                        left=qlast.FunctionCall(
+                            func=('std', 'bytes_get_bit'),
+                            args=[
+                                qlast.Path(steps=[
+                                    qlast.ObjectRef(
+                                        name='__defaults_mask__')
+                                ]),
+                                qlast.IntegerConstant(value=str(pi)),
+                            ]),
+                        right=qlast.IntegerConstant(value='0'),
+                        op='='),
+                    if_expr=qlast.Path(
+                        steps=[qlast.ObjectRef(name=p_shortname)]),
+                    else_expr=qlast._Optional(expr=p.get_ql_default(schema)))))
+
+    return anchors, aliases
+
+
 def compile_func_to_ir(func, schema, *,
                        anchors=None,
                        security_context=None,
@@ -214,46 +259,17 @@ def compile_func_to_ir(func, schema, *,
     if modaliases:
         ql_parser.append_module_aliases(tree, modaliases)
 
+    param_anchors, param_aliases = get_param_anchors_for_callable(
+        func.get_params(schema), schema)
+
     if anchors is None:
         anchors = {}
 
-    anchors['__defaults_mask__'] = irast.Parameter(
-        name='__defaults_mask__',
-        typeref=irtyputils.type_to_typeref(schema, schema.get('std::bytes')))
-
-    func_params = func.get_params(schema)
-    pg_params = s_func.PgParams.from_params(schema, func_params)
-    for pi, p in enumerate(pg_params.params):
-        p_shortname = p.get_shortname(schema)
-        anchors[p_shortname] = irast.Parameter(
-            name=p_shortname,
-            typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
-
-        if p.get_default(schema) is None:
-            continue
-
-        tree.aliases.append(
-            qlast.AliasedExpr(
-                alias=p_shortname,
-                expr=qlast.IfElse(
-                    condition=qlast.BinOp(
-                        left=qlast.FunctionCall(
-                            func=('std', 'bytes_get_bit'),
-                            args=[
-                                qlast.Path(steps=[
-                                    qlast.ObjectRef(
-                                        name='__defaults_mask__')
-                                ]),
-                                qlast.IntegerConstant(value=str(pi)),
-                            ]),
-                        right=qlast.IntegerConstant(value='0'),
-                        op='='),
-                    if_expr=qlast.Path(
-                        steps=[qlast.ObjectRef(name=p_shortname)]),
-                    else_expr=qlast._Optional(expr=p.get_ql_default(schema)))))
+    anchors.update(param_anchors)
+    tree.aliases.extend(param_aliases)
 
     ir = compile_ast_to_ir(
-        tree, schema, anchors=anchors, func=func,
+        tree, schema, anchors=anchors, func_params=func.get_params(schema),
         security_context=security_context, modaliases=modaliases,
         implicit_id_in_shapes=implicit_id_in_shapes,
         implicit_tid_in_shapes=implicit_tid_in_shapes,

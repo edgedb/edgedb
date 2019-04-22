@@ -372,20 +372,23 @@ async def _populate_data(std_schema, schema, conn):
     return schema
 
 
-async def _configure(schema, conn, cluster, insecure=False):
+async def _configure(schema, conn, cluster, *, insecure=False, testmode=False):
     scripts = []
 
-    memory_kb = psutil.virtual_memory().total // 1024
-    settings = {
-        'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
-        'effective_cache_size': f'"{int(memory_kb * 0.5)}kB"',
-        'query_work_mem': f'"{6 * (2 ** 10)}kB"',
-    }
+    if not testmode:
+        memory_kb = psutil.virtual_memory().total // 1024
+        settings = {
+            'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
+            'effective_cache_size': f'"{int(memory_kb * 0.5)}kB"',
+            'query_work_mem': f'"{6 * (2 ** 10)}kB"',
+        }
 
-    for setting, value in settings.items():
-        scripts.append(f'''
-            CONFIGURE SYSTEM SET {setting} := {value};
-        ''')
+        for setting, value in settings.items():
+            scripts.append(f'''
+                CONFIGURE SYSTEM SET {setting} := {value};
+            ''')
+    else:
+        settings = {}
 
     if insecure:
         scripts.append('''
@@ -561,7 +564,8 @@ async def bootstrap(cluster, args) -> bool:
                 schema = await _init_defaults(std_schema, std_schema, conn)
                 schema = await _populate_data(std_schema, schema, conn)
                 await _configure(std_schema, conn, cluster,
-                                 insecure=args['insecure'])
+                                 insecure=args['insecure'],
+                                 testmode=args['testmode'])
             finally:
                 await conn.close()
         else:

@@ -708,7 +708,9 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                         },
                         typemod,
                         @value
-                    } ORDER BY .num ASC
+                    }
+                    FILTER .num > 0
+                    ORDER BY .num ASC
                 } FILTER .name = 'test::mymax_ext1' AND exists(.subject);
             ''',
             [
@@ -716,7 +718,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     "name": 'test::mymax_ext1',
                     "args": [
                         {
-                            "num": 0,
+                            "num": 1,
                             "kind": 'POSITIONAL',
                             "name": 'max',
                             "type": {"name": 'std::int64'},
@@ -740,7 +742,9 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                             name
                         },
                         typemod
-                    } ORDER BY .num ASC
+                    }
+                    FILTER .num > 0
+                    ORDER BY .num ASC
                 } FILTER .name = 'test::mymax_ext1' AND NOT exists(.subject);
             ''',
             [
@@ -748,7 +752,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     "name": 'test::mymax_ext1',
                     "params": [
                         {
-                            "num": 0,
+                            "num": 1,
                             "kind": 'POSITIONAL',
                             "name": 'max',
                             "type": {"name": 'std::int64'},
@@ -1000,28 +1004,20 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             await self.con.execute(qry)
 
     async def test_constraints_ddl_error_06(self):
-        # testing the generalized constraint with 'ON (...)' clause
-        qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax_er_06(max: std::int64)
-                    ON (len(__subject__))
-            {
-                SET expr := __subject__ <= $max;
-            };
-
-            CREATE TYPE test::ConstraintOnTest_err_06 {
-                CREATE PROPERTY foo -> std::str {
-                    CREATE CONSTRAINT test::mymax_er_06(3);
-                };
-            };
-        """
-
-        try:
-            await self.con.execute('START TRANSACTION;')
-
+        async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.InvalidConstraintDefinitionError,
-                    r'dollar-prefixed.*not supported'):
-                await self.con.execute(qry)
+                    r'dollar-prefixed.*cannot be used'):
+                await self.con.execute(r"""
+                    CREATE ABSTRACT CONSTRAINT
+                    test::mymax_er_06(max: std::int64) ON (len(__subject__))
+                    {
+                        SET expr := __subject__ <= $max;
+                    };
 
-        finally:
-            await self.con.execute('ROLLBACK;')
+                    CREATE TYPE test::ConstraintOnTest_err_06 {
+                        CREATE PROPERTY foo -> std::str {
+                            CREATE CONSTRAINT test::mymax_er_06(3);
+                        };
+                    };
+                """)

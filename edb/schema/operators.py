@@ -151,7 +151,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
 
         fullname = self.classname
         shortname = sn.shortname_from_fullname(fullname)
-        cp = self._get_param_desc_from_delta(schema, self)
+        schema, cp = self._get_param_desc_from_delta(schema, context, self)
         signature = f'{shortname}({", ".join(p.as_str(schema) for p in cp)})'
 
         func = schema.get(fullname, None)

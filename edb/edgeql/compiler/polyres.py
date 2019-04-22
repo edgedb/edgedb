@@ -188,8 +188,8 @@ def try_bind_call_args(
     schema = ctx.env.schema
 
     in_polymorphic_func = (
-        ctx.func is not None and
-        ctx.func.get_params(schema).has_polymorphic(schema)
+        ctx.env.func_params is not None and
+        ctx.env.func_params.has_polymorphic(schema)
     )
 
     has_empty_variadic = False
@@ -205,7 +205,7 @@ def try_bind_call_args(
             # being called with no arguments.
             args = []
             if has_inlined_defaults:
-                bytes_t = schema.get('std::bytes')
+                bytes_t = ctx.env.get_track_schema_object('std::bytes')
                 argval = setgen.ensure_set(
                     irast.BytesConstant(
                         value=b'\x00',
@@ -417,7 +417,7 @@ def try_bind_call_args(
     if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
-        bytes_t = schema.get('std::bytes')
+        bytes_t = ctx.env.get_track_schema_object('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         bm_set = setgen.ensure_set(
             irast.BytesConstant(

@@ -232,7 +232,8 @@ def extract_filters(
                     if left_stype == result_stype:
                         ptr = left_stype.getptr(schema, 'id')
                     else:
-                        ptr = schema.get(left.rptr.ptrref.name)
+                        ptr = env.get_track_schema_object(
+                            left.rptr.ptrref.name)
 
                     ptr_filters.append((ptr, right))
 
@@ -242,7 +243,8 @@ def extract_filters(
                     if right_stype == result_stype:
                         ptr = right_stype.getptr(schema, 'id')
                     else:
-                        ptr = schema.get(right.rptr.ptrref.name)
+                        ptr = env.get_track_schema_object(
+                            right.rptr.ptrref.name)
 
                     ptr_filters.append((ptr, left))
 

@@ -258,6 +258,7 @@ class BaseSchemaTest(BaseDocTest):
                     f'unexpected {stmt!r} in compiler setup script')
 
             context = sd.CommandContext()
+            context.testmode = True
             current_schema, _ = ddl_plan.apply(current_schema, context)
 
         return current_schema
