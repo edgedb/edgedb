@@ -23,13 +23,16 @@ For example:
 
 
 An empty array can also be created, but it must be used together with
-a type case, since EdgeDB cannot determine the type of an array without
+a type cast, since EdgeDB cannot determine the type of an array without
 having elements in it:
 
 .. code-block:: edgeql-repl
 
     db> SELECT [];
-    EdgeQLError: could not determine the type of empty array
+    QueryError: expression returns value of indeterminate type
+    Hint: Consider using an explicit type cast.
+    ### SELECT [];
+    ###        ^
 
     db> SELECT <array<int64>>[];
     {[]}

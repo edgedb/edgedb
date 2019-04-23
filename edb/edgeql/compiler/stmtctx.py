@@ -171,6 +171,14 @@ def fini_expression(
 
     expr_type = inference.infer_type(ir, ctx.env)
 
+    if ctx.func is None:
+        anytype = expr_type.find_any(ctx.env.schema)
+        if anytype is not None:
+            raise errors.QueryError(
+                'expression returns value of indeterminate type',
+                hint='Consider using an explicit type cast.',
+                context=ctx.env.type_origins.get(anytype))
+
     result = irast.Statement(
         expr=ir,
         params=ctx.env.query_parameters,

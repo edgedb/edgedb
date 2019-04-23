@@ -86,6 +86,12 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
     def is_anytuple(self):
         return False
 
+    def find_any(self, schema):
+        if self.is_any():
+            return self
+        else:
+            return None
+
     def contains_any(self, schema):
         return self.is_any()
 
@@ -132,7 +138,7 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
             - `array<anytype>`.resolve_polymorphic(`array<int>`) -> `int`
             - `array<anytype>`.resolve_polymorphic(`tuple<int>`) -> None
         """
-        if not self.is_polymorphic(schema) or other.is_polymorphic(schema):
+        if not self.is_polymorphic(schema):
             return None
 
         return self._resolve_polymorphic(schema, other)
@@ -236,6 +242,12 @@ class Collection(Type, s_abc.Collection):
     def is_polymorphic(self, schema):
         return any(st.is_polymorphic(schema)
                    for st in self.get_subtypes(schema))
+
+    def find_any(self, schema):
+        for st in self.get_subtypes(schema):
+            any_t = st.find_any(schema)
+            if any_t is not None:
+                return any_t
 
     def contains_any(self, schema):
         return any(st.contains_any(schema) for st in self.get_subtypes(schema))

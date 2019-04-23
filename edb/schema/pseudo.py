@@ -60,15 +60,23 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
                 self.name == other.name)
 
 
-class Any(PseudoType):
+class AnyMeta(type(PseudoType)):
+
+    @property
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = cls.create()
+
+        return cls._instance
+
+
+class Any(PseudoType, metaclass=AnyMeta):
 
     _instance = None
 
     @classmethod
     def create(cls):
-        if cls._instance is None:
-            cls._instance = cls._create(None, name='anytype')
-        return cls._instance
+        return cls._create(None, name='anytype')
 
     def is_any(self):
         return True
@@ -111,18 +119,16 @@ class AnyObjectRef(so.ObjectRef):
         super().__init__(name=name)
 
     def _resolve_ref(self, schema):
-        return Any.create()
+        return Any.instance
 
 
-class AnyTuple(PseudoType):
+class AnyTuple(PseudoType, metaclass=AnyMeta):
 
     _instance = None
 
     @classmethod
     def create(cls):
-        if cls._instance is None:
-            cls._instance = cls._create(None, name='anytuple')
-        return cls._instance
+        return cls._create(None, name='anytuple')
 
     def is_anytuple(self):
         return True
@@ -153,4 +159,4 @@ class AnyTupleRef(so.ObjectRef):
         super().__init__(name=name)
 
     def _resolve_ref(self, schema):
-        return AnyTuple.create()
+        return AnyTuple.instance

@@ -103,6 +103,13 @@ class Environment:
     set_types: typing.Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
+    type_origins: typing.Dict[s_types.Type, parsing.ParserContext]
+    """A dictionary of notable types and their source origins.
+
+    This is used to trace where a particular type instance originated in
+    order to provide useful diagnostics for type errors.
+    """
+
     inferred_types: typing.Dict[irast.Base, s_types.Type]
     """A dictionary of all expressions and their inferred schema types."""
 
@@ -133,6 +140,7 @@ class Environment:
         self.query_parameters = {}
         self.schema_view_mode = schema_view_mode
         self.set_types = {}
+        self.type_origins = {}
         self.inferred_types = {}
         self.inferred_cardinality = {}
         self.constant_folding = constant_folding

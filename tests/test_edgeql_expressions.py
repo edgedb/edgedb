@@ -212,8 +212,9 @@ class TestExpressions(tb.QueryTestCase):
             [],
         )
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'could not determine expression type'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'expression returns value of indeterminate type'):
 
             await self.con.execute("""
                 SELECT {};
@@ -230,12 +231,10 @@ class TestExpressions(tb.QueryTestCase):
             [0],
         )
 
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'could not determine expression type'):
-
-            await self.con.execute("""
-                SELECT count({});
-            """)
+        await self.assert_query_result(
+            r'''SELECT count({});''',
+            [0],
+        )
 
     async def test_edgeql_expr_idempotent_01(self):
         await self.assert_query_result(
@@ -2693,7 +2692,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_array_04(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not determine type of empty array'):
+                r'expression returns value of indeterminate type'):
 
             await self.con.fetchall_json("""
                 SELECT [];
@@ -2862,7 +2861,7 @@ class TestExpressions(tb.QueryTestCase):
         # it should be technically possible to infer the type of the array
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not determine type of empty array'):
+                r"operator 'UNION' cannot be applied to operands.*anytype.*"):
 
             await self.con.execute("""
                 SELECT {[1, 2], []};

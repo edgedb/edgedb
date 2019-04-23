@@ -282,6 +282,8 @@ def compile_operator(
             raise errors.QueryError(
                 f'operator {str(op_name)!r} cannot be applied to '
                 f'operands of type {types}',
+                hint='Consider using an explicit type cast or a conversion '
+                     'function.',
                 context=qlexpr.context)
         elif len(matched) > 1:
             detail = ', '.join(

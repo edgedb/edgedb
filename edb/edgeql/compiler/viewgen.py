@@ -392,6 +392,13 @@ def _normalize_view_ptr_expr(
         ptr_cardinality = None
         ptr_target = inference.infer_type(irexpr, ctx.env)
 
+        anytype = ptr_target.find_any(ctx.env.schema)
+        if anytype is not None:
+            raise errors.QueryError(
+                'expression returns value of indeterminate type',
+                context=ctx.env.type_origins.get(anytype),
+            )
+
         if (is_mutation and base_ptrcls is not None
                 and not ptr_target.assignment_castable_to(
                     base_ptrcls.get_target(ctx.env.schema),

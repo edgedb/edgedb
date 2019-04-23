@@ -560,7 +560,9 @@ def compile_result_clause(
                 expr = setgen.new_empty_set(
                     stype=target_t,
                     alias=ctx.aliases.get('e'),
-                    ctx=sctx)
+                    ctx=sctx,
+                    srcctx=result_expr.context,
+                )
             else:
                 with sctx.new() as exprctx:
                     exprctx.empty_result_type_hint = target_t
@@ -572,7 +574,9 @@ def compile_result_clause(
                 expr = setgen.new_empty_set(
                     stype=sctx.empty_result_type_hint,
                     alias=ctx.aliases.get('e'),
-                    ctx=sctx)
+                    ctx=sctx,
+                    srcctx=result_expr.context,
+                )
             else:
                 expr = setgen.ensure_set(
                     dispatch.compile(result_expr, ctx=sctx), ctx=sctx)

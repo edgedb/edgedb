@@ -3244,8 +3244,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_empty_05(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    r'could not determine expression type'):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'expression returns value of indeterminate type'):
             await self.con.fetchall(r"""
                 WITH MODULE test
                 SELECT Issue {

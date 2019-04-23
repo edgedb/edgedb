@@ -405,19 +405,7 @@ def compile_TypeCheckOp(
 def compile_Array(
         expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
-    array = astutils.safe_array_expr(elements)
-
-    if irutils.is_empty_array_expr(expr):
-        serialized = output.in_serialization_ctx(ctx=ctx)
-        return pgast.TypeCast(
-            arg=array,
-            type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_ir_typeref(
-                    expr.typeref, serialized=serialized)
-            )
-        )
-    else:
-        return array
+    return relgen.build_array_expr(expr, elements, ctx=ctx)
 
 
 @dispatch.compile.register(irast.TupleIndirection)

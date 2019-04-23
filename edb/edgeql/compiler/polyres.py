@@ -133,6 +133,8 @@ def try_bind_call_args(
         func: s_func.CallableObject, *,
         ctx: context.ContextLevel) -> BoundCall:
 
+    return_type = func.get_return_type(ctx.env.schema)
+
     def _get_cast_distance(arg, arg_type, param_type) -> int:
         nonlocal resolved_poly_base_type
 
@@ -150,12 +152,6 @@ def try_bind_call_args(
                         return 0
                     else:
                         return -1
-
-        else:
-            if arg_type.is_polymorphic(schema):
-                raise errors.QueryError(
-                    f'a polymorphic argument in a non-polymorphic function',
-                    context=arg.context)
 
         if param_type.is_polymorphic(schema):
             if not arg_type.test_polymorphic(schema, param_type):
@@ -218,8 +214,7 @@ def try_bind_call_args(
                 args = [BoundArg(None, bytes_t, argval, bytes_t, 0)]
             return BoundCall(
                 func, args, set(),
-                func.get_return_type(schema),
-                False)
+                return_type, False)
         else:
             # No match: `func` is a function without parameters
             # being called with some arguments.
@@ -430,7 +425,6 @@ def try_bind_call_args(
             typehint=bytes_t, ctx=ctx)
         bound_param_args.insert(0, BoundArg(None, bytes_t, bm_set, bytes_t, 0))
 
-    return_type = func.get_return_type(schema)
     if return_type.is_polymorphic(schema):
         if resolved_poly_base_type is not None:
             return_type = return_type.to_nonpolymorphic(

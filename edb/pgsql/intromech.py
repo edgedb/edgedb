@@ -503,17 +503,17 @@ class IntrospectionMech:
             scls = coll_type.from_subtypes(schema, st, typemods=typemods)
 
         elif t['maintype'] == 'anytype':
-            scls = s_pseudo.Any.create()
+            scls = s_pseudo.Any.instance
 
         elif t['maintype'] == 'anytuple':
-            scls = s_pseudo.AnyTuple.create()
+            scls = s_pseudo.AnyTuple.instance
 
         else:
             type_id = t['maintype']
             if type_id == s_obj.get_known_type_id('anytype'):
-                scls = s_pseudo.Any.create()
+                scls = s_pseudo.Any.instance
             elif type_id == s_obj.get_known_type_id('anytuple'):
-                scls = s_pseudo.AnyTuple.create()
+                scls = s_pseudo.AnyTuple.instance
             else:
                 scls = schema.get_by_id(t['maintype'])
 

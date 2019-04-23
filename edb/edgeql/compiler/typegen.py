@@ -43,7 +43,11 @@ from . import setgen
 def type_to_ql_typeref(t: s_obj.Object, *,
                        _name=None,
                        ctx: context.ContextLevel) -> qlast.TypeName:
-    if not isinstance(t, s_abc.Collection):
+    if t.is_any():
+        result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
+    elif t.is_anytuple():
+        result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
+    elif not isinstance(t, s_abc.Collection):
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(

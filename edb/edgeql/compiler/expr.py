@@ -139,7 +139,11 @@ def compile_Set(
                 )
             return dispatch.compile(bigunion, ctx=ctx)
     else:
-        return setgen.new_empty_set(alias=ctx.aliases.get('e'), ctx=ctx)
+        return setgen.new_empty_set(
+            alias=ctx.aliases.get('e'),
+            ctx=ctx,
+            srcctx=expr.context,
+        )
 
 
 @dispatch.compile.register(qlast.BaseConstant)
@@ -330,7 +334,7 @@ def compile_Array(
                 f'nested arrays are not supported',
                 context=expr_el.context)
 
-    return setgen.new_array_set(elements, ctx=ctx)
+    return setgen.new_array_set(elements, ctx=ctx, srcctx=expr.context)
 
 
 @dispatch.compile.register(qlast.IfElse)

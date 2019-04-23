@@ -70,14 +70,16 @@ def new_set(*, stype: s_types.Type, ctx: context.ContextLevel,
 
 
 def new_empty_set(*, stype: typing.Optional[s_types.Type]=None, alias: str,
-                  ctx: context.ContextLevel) -> irast.Set:
+                  ctx: context.ContextLevel,
+                  srcctx: typing.Optional[
+                      parsing.ParserContext]=None) -> irast.Set:
     if stype is None:
-        path_id_scls = s_pseudo.Any.create()
-    else:
-        path_id_scls = stype
+        stype = s_pseudo.Any.create()
+        ctx.env.type_origins[stype] = srcctx
 
-    path_id = pathctx.get_expression_path_id(path_id_scls, alias, ctx=ctx)
-    ir_set = irast.EmptySet(path_id=path_id)
+    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    path_id = pathctx.get_expression_path_id(stype, alias, ctx=ctx)
+    ir_set = irast.EmptySet(path_id=path_id, typeref=typeref)
     ctx.env.set_types[ir_set] = stype
     return ir_set
 
@@ -149,14 +151,19 @@ def new_tuple_set(
 
 def new_array_set(
         elements: typing.List[irast.Base], *,
-        ctx: context.ContextLevel) -> irast.Set:
+        ctx: context.ContextLevel,
+        srcctx: typing.Optional[parsing.ParserContext]=None) -> irast.Set:
 
     arr = irast.Array(elements=elements)
     if elements:
         stype = inference.infer_type(arr, env=ctx.env)
-        typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
     else:
-        stype = typeref = None
+        anytype = s_pseudo.Any.create()
+        stype = s_types.Array.from_subtypes(ctx.env.schema, [anytype])
+        if srcctx is not None:
+            ctx.env.type_origins[anytype] = srcctx
+
+    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
     arr = irast.Array(elements=elements, typeref=typeref)
     return ensure_set(arr, type_override=stype, ctx=ctx)
 
@@ -674,7 +681,7 @@ def ensure_set(
         stype = type_override
 
     if (isinstance(ir_set, irast.EmptySet)
-            and stype is None
+            and (stype is None or stype.is_any())
             and typehint is not None):
         inference.amend_empty_set_type(ir_set, typehint, env=ctx.env)
         stype = get_set_type(ir_set, ctx=ctx)

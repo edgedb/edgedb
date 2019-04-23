@@ -2036,17 +2036,19 @@ def process_set_as_agg_expr(
             )
 
     if expr.func_initial_value is not None:
+        iv_ir = expr.func_initial_value.expr
+
         if newctx.expr_exposed and serialization_safe:
             # Serialization has changed the output type.
             with newctx.new() as ivctx:
                 ivctx.expr_exposed = True
-                iv = dispatch.compile(expr.func_initial_value.expr, ctx=ivctx)
+                iv = dispatch.compile(iv_ir, ctx=ivctx)
                 iv = output.serialize_expr_if_needed(
                     iv, path_id=ir_set.path_id, ctx=ctx)
                 set_expr = output.serialize_expr_if_needed(
                     set_expr, path_id=ir_set.path_id, ctx=ctx)
         else:
-            iv = dispatch.compile(expr.func_initial_value.expr, ctx=newctx)
+            iv = dispatch.compile(iv_ir, ctx=newctx)
 
         pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
         pathctx.get_path_value_output(stmt, ir_set.path_id, env=ctx.env)
@@ -2094,6 +2096,38 @@ def process_set_as_exists_expr(
     return new_simple_set_rvar(ir_set, rvar)
 
 
+def build_array_expr(
+        ir_expr: irast.Base,
+        elements: typing.List[pgast.BaseExpr], *,
+        ctx: context.CompilerContextLevel) -> pgast.Base:
+
+    array = astutils.safe_array_expr(elements)
+
+    if irutils.is_empty_array_expr(ir_expr):
+        typeref = ir_expr.typeref
+
+        if irtyputils.is_any(typeref.subtypes[0]):
+            # The type of the input is not determined, which means that
+            # the result of this expression is passed as an argument
+            # to a generic function, e.g. `count(array_agg({}))`.  In this
+            # case, amend the array type to a concrete type,
+            # since Postgres balks at `[]::anyarray`.
+            pg_type = ('text[]',)
+        else:
+            serialized = output.in_serialization_ctx(ctx=ctx)
+            pg_type = pg_types.pg_type_from_ir_typeref(
+                typeref, serialized=serialized)
+
+        return pgast.TypeCast(
+            arg=array,
+            type_name=pgast.TypeName(
+                name=pg_type,
+            ),
+        )
+    else:
+        return array
+
+
 def process_set_as_array_expr(
         ir_set: irast.Set, stmt: pgast.Query, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -2120,15 +2154,7 @@ def process_set_as_array_expr(
 
             s_elements.append(s_var)
 
-    set_expr = astutils.safe_array_expr(elements)
-
-    if irutils.is_empty_array_expr(ir_set.expr):
-        set_expr = pgast.TypeCast(
-            arg=set_expr,
-            type_name=pgast.TypeName(
-                name=pg_types.pg_type_from_ir_typeref(ir_set.expr.typeref)
-            )
-        )
+    set_expr = build_array_expr(ir_set.expr, elements, ctx=ctx)
 
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)

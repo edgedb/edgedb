@@ -59,7 +59,8 @@ def compile_cast(
         return setgen.new_empty_set(
             stype=new_stype,
             alias=ir_expr.path_id.target_name_hint.name,
-            ctx=ctx)
+            ctx=ctx,
+            srcctx=ir_expr.context)
 
     elif irutils.is_untyped_empty_array_expr(ir_expr):
         # Ditto for empty arrays.

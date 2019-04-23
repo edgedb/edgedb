@@ -160,7 +160,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'could not determine expression type'):
+                r'expression returns value of indeterminate type'):
 
             await self.con.execute("""
                 SELECT array_agg({});
@@ -357,6 +357,20 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 ]
             ]
         )
+
+    async def test_edgeql_functions_array_agg_17(self):
+        await self.assert_query_result(
+            '''SELECT count(array_agg({}))''',
+            [1],
+        )
+
+    async def test_edgeql_functions_array_agg_18(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'expression returns value of indeterminate type'):
+            await self.con.execute(
+                '''SELECT array_agg({})''',
+            )
 
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(
@@ -2189,6 +2203,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_len_03(self):
         await self.assert_query_result(
             r'''SELECT len(<array<str>>[]);''',
+            [0],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT len([]);''',
             [0],
         )
 

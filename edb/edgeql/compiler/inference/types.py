@@ -187,12 +187,12 @@ def __infer_typecheckop(ir, env):
 
 @_infer_type.register(irast.AnyTypeRef)
 def __infer_anytyperef(ir, env):
-    return s_pseudo.Any.create()
+    return s_pseudo.Any.instance
 
 
 @_infer_type.register(irast.AnyTupleRef)
 def __infer_anytupleref(ir, env):
-    return s_pseudo.AnyTuple.create()
+    return s_pseudo.AnyTuple.instance
 
 
 @_infer_type.register(irast.TypeRef)
@@ -349,7 +349,7 @@ def __infer_index(ir, env):
                 node_type.get_name(env.schema) == 'std::anyscalar') and
             (index_type.implicitly_castable_to(int_t, env.schema) or
                 index_type.implicitly_castable_to(str_t, env.schema))):
-        result = s_pseudo.Any.create()
+        result = s_pseudo.Any.instance
 
     else:
         raise errors.QueryError(
@@ -370,9 +370,7 @@ def __infer_array(ir, env):
             raise errors.QueryError('could not determine array type',
                                     context=ir.context)
     else:
-        raise errors.QueryError(
-            'could not determine type of empty array',
-            context=ir.context)
+        element_type = s_pseudo.Any.instance
 
     return s_types.Array.create(env.schema, element_type=element_type)
 

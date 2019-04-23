@@ -631,7 +631,7 @@ class DeclarationLoader:
                     # This is a computable, but we cannot interpret
                     # the expression yet, so set the target to `any`
                     # temporarily.
-                    _targets = [s_pseudo.Any.create()]
+                    _targets = [s_pseudo.Any.instance]
 
                 else:
                     _targets = [self._get_ref_type(t) for t in linkdecl.target]

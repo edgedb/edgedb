@@ -136,7 +136,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
     def _dummy_subject(cls, schema):
         # Point subject placeholder to a dummy pointer to make EdgeQL
         # pipeline happy.
-        return s_pseudo.Any.create()
+        return s_pseudo.Any.instance
 
     @classmethod
     def _normalize_constraint_expr(
