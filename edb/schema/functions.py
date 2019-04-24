@@ -405,6 +405,9 @@ class CallableObject(annotations.AnnotationSubject):
     return_typemod = so.SchemaField(
         ft.TypeModifier, compcoef=0.4, coerce=True)
 
+    is_abstract = so.SchemaField(
+        bool, default=False, compcoef=0.909)
+
     @classmethod
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
         context = context or so.ComparisonContext()

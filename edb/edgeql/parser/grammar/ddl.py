@@ -21,6 +21,7 @@ import collections
 import re
 import typing
 
+from edb import errors
 from edb.errors import EdgeQLSyntaxError
 
 from edb.edgeql import ast as qlast
@@ -1659,6 +1660,15 @@ commands_block(
 )
 
 
+class OptCreateOperatorCommandsBlock(Nonterm):
+
+    def reduce_CreateOperatorCommandsBlock(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = []
+
+
 class CreateOperatorStmt(Nonterm):
 
     def reduce_CreateOperatorStmt(self, *kids):
@@ -1676,7 +1686,23 @@ class CreateOperatorStmt(Nonterm):
             **self._process_operator_body(kids[8])
         )
 
-    def _process_operator_body(self, block):
+    def reduce_CreateAbstractOperatorStmt(self, *kids):
+        r"""%reduce
+            CREATE ABSTRACT OperatorKind OPERATOR NodeName CreateFunctionArgs
+            ARROW OptTypeQualifier FunctionType
+            OptCreateOperatorCommandsBlock
+        """
+        self.val = qlast.CreateOperator(
+            kind=qltypes.OperatorKind(kids[2].val.upper()),
+            name=kids[4].val,
+            params=kids[5].val,
+            returning_typemod=kids[7].val,
+            returning=kids[8].val,
+            is_abstract=True,
+            **self._process_operator_body(kids[9], abstract=True)
+        )
+
+    def _process_operator_body(self, block, abstract: bool=False):
         props = {}
 
         commands = []
@@ -1687,23 +1713,30 @@ class CreateOperatorStmt(Nonterm):
 
         for node in block.val:
             if isinstance(node, qlast.OperatorCode):
+                if abstract:
+                    raise errors.InvalidOperatorDefinitionError(
+                        'unexpected FROM clause in abstract '
+                        'operator definition',
+                        context=node.context,
+                    )
+
                 if node.from_function:
                     if from_function is not None:
-                        raise EdgeQLSyntaxError(
+                        raise errors.InvalidOperatorDefinitionError(
                             'more than one FROM FUNCTION clause',
                             context=node.context)
                     from_function = node.from_function
 
                 elif node.from_operator:
                     if from_operator is not None:
-                        raise EdgeQLSyntaxError(
+                        raise errors.InvalidOperatorDefinitionError(
                             'more than one FROM OPERATOR clause',
                             context=node.context)
                     from_operator = node.from_operator
 
                 elif node.code:
                     if code is not None:
-                        raise EdgeQLSyntaxError(
+                        raise errors.InvalidOperatorDefinitionError(
                             'more than one FROM <code> clause',
                             context=node.context)
                     code = node.code
@@ -1714,26 +1747,28 @@ class CreateOperatorStmt(Nonterm):
             else:
                 commands.append(node)
 
-        if (code is None and from_operator is None and from_function is None
-                and not from_expr):
-            raise EdgeQLSyntaxError(
-                'CREATE OPERATOR requires at least one FROM clause',
-                context=block.context)
-
-        else:
-            if from_expr and (from_operator or from_function or code):
-                raise EdgeQLSyntaxError(
-                    'FROM SQL EXPRESSION is mutually exclusive with other '
-                    'FROM variants',
+        if not abstract:
+            if (code is None and from_operator is None
+                    and from_function is None
+                    and not from_expr):
+                raise errors.InvalidOperatorDefinitionError(
+                    'CREATE OPERATOR requires at least one FROM clause',
                     context=block.context)
 
-            props['code'] = qlast.OperatorCode(
-                language=qlast.Language.SQL,
-                from_function=from_function,
-                from_operator=from_operator,
-                from_expr=from_expr,
-                code=code,
-            )
+            else:
+                if from_expr and (from_operator or from_function or code):
+                    raise errors.InvalidOperatorDefinitionError(
+                        'FROM SQL EXPRESSION is mutually exclusive with other '
+                        'FROM variants',
+                        context=block.context)
+
+                props['code'] = qlast.OperatorCode(
+                    language=qlast.Language.SQL,
+                    from_function=from_function,
+                    from_operator=from_operator,
+                    from_expr=from_expr,
+                    code=code,
+                )
 
         if commands:
             props['commands'] = commands

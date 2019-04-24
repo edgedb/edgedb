@@ -129,7 +129,8 @@ def compile_ast_to_ir(tree,
                       schema_view_mode=False,
                       disable_constant_folding=False,
                       json_parameters=False,
-                      session_mode=False):
+                      session_mode=False,
+                      allow_abstract_opers=False):
     """Compile given EdgeQL AST into EdgeDB IR."""
 
     if debug.flags.edgeql_compile:
@@ -146,7 +147,8 @@ def compile_ast_to_ir(tree,
         schema_view_mode=schema_view_mode,
         disable_constant_folding=disable_constant_folding,
         json_parameters=json_parameters,
-        session_mode=session_mode)
+        session_mode=session_mode,
+        allow_abstract_opers=allow_abstract_opers)
 
     if path_prefix_anchor is not None:
         path_prefix = anchors[path_prefix_anchor]

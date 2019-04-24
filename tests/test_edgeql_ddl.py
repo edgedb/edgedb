@@ -1599,6 +1599,48 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_operator_08(self):
+        try:
+            await self.con.execute('''
+                CREATE ABSTRACT INFIX OPERATOR test::`>`
+                    (left: anytype, right: anytype) -> bool;
+            ''')
+
+            await self.assert_query_result(
+                r'''
+                    WITH MODULE schema
+                    SELECT Operator {
+                        name,
+                        is_abstract,
+                    }
+                    FILTER
+                        .name = 'test::>'
+                ''',
+                [
+                    {
+                        'name': 'test::>',
+                        'is_abstract': True,
+                    },
+                ]
+            )
+
+        finally:
+            await self.con.execute('''
+                DROP INFIX OPERATOR test::`>`
+                    (left: anytype, right: anytype);
+            ''')
+
+    async def test_edgeql_ddl_operator_09(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidOperatorDefinitionError,
+                r'unexpected FROM clause in abstract operator definition'):
+            await self.con.execute('''
+                CREATE ABSTRACT INFIX OPERATOR
+                test::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+                    FROM SQL EXPRESSION;
+                };
+            ''')
+
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE test::type_a EXTENDING std::str;

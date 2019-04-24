@@ -550,7 +550,7 @@ class ObjectDDL(CompositeDDL):
 
 
 class CreateObject(ObjectDDL):
-    pass
+    is_abstract: bool = False
 
 
 class AlterObject(ObjectDDL):
@@ -563,7 +563,6 @@ class DropObject(ObjectDDL):
 
 class CreateExtendingObject(CreateObject):
     bases: typing.List[TypeName]
-    is_abstract: bool = False
     is_final: bool = False
 
 

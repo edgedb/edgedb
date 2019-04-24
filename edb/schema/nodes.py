@@ -56,7 +56,7 @@ class Node(inheriting.InheritingObject, s_types.Type):
 
     def get_common_parent_type_distance(
             self, other: s_types.Type, schema) -> int:
-        if other.is_any():
+        if other.is_any() or self.is_any():
             return s_types.MAX_TYPE_DISTANCE
 
         if not isinstance(other, type(self)):

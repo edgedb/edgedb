@@ -134,6 +134,7 @@ def try_bind_call_args(
         ctx: context.ContextLevel) -> BoundCall:
 
     return_type = func.get_return_type(ctx.env.schema)
+    is_abstract = func.get_is_abstract(ctx.env.schema)
 
     def _get_cast_distance(arg, arg_type, param_type) -> int:
         nonlocal resolved_poly_base_type
@@ -165,7 +166,7 @@ def try_bind_call_args(
                 resolved_poly_base_type = resolved
 
             if resolved_poly_base_type == resolved:
-                return 0
+                return s_types.MAX_TYPE_DISTANCE if is_abstract else 0
 
             ct = resolved_poly_base_type.find_common_implicitly_castable_type(
                 resolved, ctx.env.schema)
@@ -175,7 +176,7 @@ def try_bind_call_args(
                 # refine our resolved_poly_base_type to be that as the
                 # more general case.
                 resolved_poly_base_type = ct
-                return 0
+                return s_types.MAX_TYPE_DISTANCE if is_abstract else 0
             else:
                 return -1
 

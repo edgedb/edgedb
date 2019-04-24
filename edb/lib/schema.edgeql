@@ -253,6 +253,9 @@ CREATE TYPE schema::Function EXTENDING schema::CallableObject {
 CREATE TYPE schema::Operator EXTENDING schema::CallableObject {
     CREATE PROPERTY operator_kind -> schema::operator_kind_t;
     CREATE LINK commutator -> schema::Operator;
+    CREATE PROPERTY is_abstract -> std::bool {
+        SET default := false;
+    };
 };
 
 

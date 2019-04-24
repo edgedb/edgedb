@@ -231,6 +231,9 @@ class CastCallableWrapper:
     def get_return_type(self, schema):
         return self._cast.get_to_type(schema)
 
+    def get_is_abstract(self, schema):
+        return False
+
 
 def _find_cast(
         orig_stype: s_types.Type,

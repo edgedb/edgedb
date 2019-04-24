@@ -307,6 +307,7 @@ class IntrospectionMech:
             oper_data = {
                 'id': row['id'],
                 'name': name,
+                'is_abstract': row['is_abstract'],
                 'operator_kind': row['operator_kind'],
                 'language': row['language'],
                 'params': params,

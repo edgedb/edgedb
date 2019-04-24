@@ -89,6 +89,21 @@ class AlterInherit(sd.Command):
 
 
 class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
+    def _create_begin(self, schema, context):
+        schema = super()._create_begin(schema, context)
+        ancestors = self.scls.get_ancestors(schema)
+        if ancestors is None:
+            bases = self.scls.get_bases(schema)
+            if bases:
+                ancestors = compute_mro(schema, self.scls)[1:]
+                schema = self.scls.set_field_value(
+                    schema, 'ancestors', ancestors)
+
+                if not self.has_attribute_value('ancestors'):
+                    self.set_attribute_value('ancestors', ancestors)
+
+        return schema
+
     def _create_finalize(self, schema, context):
         schema = self.scls.acquire_ancestor_inheritance(schema, dctx=context)
         schema = self.scls.update_descendants(schema)
@@ -106,12 +121,6 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
                     new_value=bases
                 )
             )
-
-        if getattr(astnode, 'is_abstract', False):
-            cmd.add(sd.AlterObjectProperty(
-                property='is_abstract',
-                new_value=True
-            ))
 
         if getattr(astnode, 'is_final', False):
             cmd.add(sd.AlterObjectProperty(
@@ -769,8 +778,9 @@ class InheritingObject(derivable.DerivableObject):
         schema = super().finalize(
             schema, bases=bases, apply_defaults=apply_defaults,
             dctx=dctx)
-        schema = self.set_field_value(
-            schema, 'ancestors', compute_mro(schema, self)[1:])
+        if self.get_ancestors(schema) is None:
+            schema = self.set_field_value(
+                schema, 'ancestors', compute_mro(schema, self)[1:])
         schema = self.acquire_ancestor_inheritance(schema, dctx=dctx)
 
         if bases is None:

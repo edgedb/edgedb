@@ -62,6 +62,7 @@ def init_context(
         result_view_name: typing.Optional[str]=None,
         schema_view_mode: bool=False,
         disable_constant_folding: bool=False,
+        allow_abstract_opers: bool=False,
         implicit_id_in_shapes: bool=False,
         implicit_tid_in_shapes: bool=False,
         json_parameters: bool=False,
@@ -77,7 +78,8 @@ def init_context(
         constant_folding=not disable_constant_folding,
         schema_view_mode=schema_view_mode,
         json_parameters=json_parameters,
-        session_mode=session_mode)
+        session_mode=session_mode,
+        allow_abstract_opers=allow_abstract_opers)
 
     if singletons:
         # The caller wants us to treat these type references

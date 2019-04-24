@@ -133,11 +133,15 @@ class Environment:
     session_mode: bool
     """Whether there is a specific session."""
 
+    allow_abstract_opers: bool
+    """Whether to allow the use of abstract operators."""
+
     def __init__(self, *, schema, path_scope,
                  schema_view_mode: bool=False,
                  constant_folding: bool=True,
                  json_parameters: bool=False,
-                 session_mode: bool=False):
+                 session_mode: bool=False,
+                 allow_abstract_opers: bool=True):
         self.schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
@@ -153,6 +157,7 @@ class Environment:
             irast.ViewShapeMetadata)
         self.json_parameters = json_parameters
         self.session_mode = session_mode
+        self.allow_abstract_opers = allow_abstract_opers
 
 
 class ContextLevel(compiler.ContextLevel):

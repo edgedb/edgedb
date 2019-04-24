@@ -759,6 +759,12 @@ class CreateObject(CreateOrAlterObject):
             )
         )
 
+        if getattr(astnode, 'is_abstract', False):
+            cmd.add(AlterObjectProperty(
+                property='is_abstract',
+                new_value=True
+            ))
+
         return cmd
 
     def _create_begin(self, schema, context):

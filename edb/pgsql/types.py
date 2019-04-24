@@ -92,7 +92,7 @@ def get_scalar_base(schema, scalar):
     if base is not None:
         return base
 
-    for ancestor in scalar.compute_mro(schema)[1:]:
+    for ancestor in scalar.get_ancestors(schema).objects(schema):
         if not ancestor.get_is_abstract(schema):
             # Check if base is fundamental, if not, then it is
             # another domain.

@@ -624,6 +624,9 @@ class CreateOperator(OperatorCommand, CreateObject,
 
     def apply(self, schema, context):
         schema, oper = super().apply(schema, context)
+        if oper.get_is_abstract(schema):
+            return schema, oper
+
         oper_language = oper.get_language(schema)
         oper_fromop = oper.get_from_operator(schema)
         oper_fromfunc = oper.get_from_function(schema)
@@ -731,6 +734,10 @@ class DeleteOperator(
     def apply(self, schema, context):
         orig_schema = schema
         oper = schema.get(self.classname)
+
+        if oper.get_is_abstract(schema):
+            return super().apply(schema, context)
+
         name = self.get_pg_name(schema, oper)
         args = self.get_pg_operands(schema, oper)
 

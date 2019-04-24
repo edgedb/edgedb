@@ -142,6 +142,10 @@ class DeclarationLoader:
         for obj, decl in chain(t.items() for t in objects.values()):
             bases, enum_values = self._get_bases(obj, decl)
             self._schema = obj.set_field_value(self._schema, 'bases', bases)
+            self._schema = obj.set_field_value(
+                self._schema, 'ancestors',
+                s_inh.compute_mro(self._schema, obj)[1:])
+
             if enum_values:
                 enums[obj] = enum_values
 

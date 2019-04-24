@@ -267,6 +267,10 @@ def compile_operator(
     if matched is None:
         matched = polyres.find_callable(opers, args=args, kwargs={}, ctx=ctx)
 
+    if not env.allow_abstract_opers:
+        matched = [call for call in matched
+                   if not call.func.get_is_abstract(env.schema)]
+
     if len(matched) == 1:
         matched_call = matched[0]
     else:

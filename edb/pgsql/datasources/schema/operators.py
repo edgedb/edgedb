@@ -30,6 +30,7 @@ async def fetch(
         SELECT
                 o.id AS id,
                 o.name AS name,
+                o.is_abstract AS is_abstract,
                 o.return_typemod,
                 o.language,
                 o.from_operator,
