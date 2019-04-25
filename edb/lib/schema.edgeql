@@ -100,11 +100,11 @@ CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
     CREATE MULTI LINK bases -> schema::InheritingObject;
     CREATE MULTI LINK ancestors -> schema::InheritingObject;
 
-    CREATE PROPERTY is_abstract -> std::bool {
+    CREATE REQUIRED PROPERTY is_abstract -> std::bool {
         SET default := false;
     };
 
-    CREATE PROPERTY is_final -> std::bool {
+    CREATE REQUIRED PROPERTY is_final -> std::bool {
         SET default := false;
     };
 };
