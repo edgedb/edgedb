@@ -403,6 +403,7 @@ class IntrospectionMech:
                 'error_on_null_result': row['error_on_null_result'],
                 'code': row['code'],
                 'initial_value': initial_value,
+                'session_only': row['session_only'],
                 'return_type': r_type,
             }
 
