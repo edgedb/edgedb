@@ -318,12 +318,6 @@ cdef class PGProto:
                             f'received NULL for a JSON query {sql!r}')
                         self.buffer.discard_message()
                         continue
-                    if coll <= 2:
-                        error = RuntimeError(
-                            f'unable to unpack DataRow '
-                            f'for a JSON query {sql!r}')
-                        self.buffer.discard_message()
-                        continue
 
                     data = self.buffer.read_bytes(coll)
 
