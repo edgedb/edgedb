@@ -161,3 +161,15 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             with self.assertRaisesRegex(edgedb.ProtocolError,
                                         r'cannot execute.*connection'):
                 self.edgeql_query(query)
+
+    def test_http_edgeql_query_07(self):
+        self.assert_edgeql_query_result(
+            r"""
+                SELECT Setting {
+                    name,
+                    value
+                }
+                FILTER .name = "NON EXISTANT";
+            """,
+            [],
+        )
