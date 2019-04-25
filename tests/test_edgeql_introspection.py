@@ -939,6 +939,112 @@ class TestIntrospection(tb.QueryTestCase):
         self.assertIsNotNone(result[0].links[0].target.id)
         self.assertIsNotNone(result[0].properties[0].target.id)
 
+    async def test_edgeql_introspection_meta_default_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    is_abstract
+                }
+                FILTER .name IN {'test::Comment', 'test::Text'}
+                ORDER BY .name;
+            ''',
+            [
+                {'name': 'test::Comment', 'is_abstract': False},
+                {'name': 'test::Text', 'is_abstract': True},
+            ],
+        )
+
+    @test.xfail('''
+        `is_abstract` has a default value of False, which is not
+        respected by the schema types.
+    ''')
+    async def test_edgeql_introspection_meta_default_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    is_abstract
+                }
+                FILTER .name IN {'schema::Pointer', 'schema::Link'}
+                ORDER BY .name;
+            ''',
+            [
+                {'name': 'schema::Link', 'is_abstract': False},
+                {'name': 'schema::Pointer', 'is_abstract': True},
+            ],
+        )
+
+    @test.xfail('''
+        `required` is required and has a default value of False, which is not
+        respected by __type__.
+    ''')
+    async def test_edgeql_introspection_meta_default_03(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    links: {
+                        name,
+                        required,
+                    } ORDER BY .name
+                }
+                FILTER .name = 'test::Comment';
+            ''',
+            [
+                {
+                    'name': 'test::Comment',
+                    'links': {
+                        {'name': '__type__', 'required': False},
+                        {'name': 'issue', 'required': True},
+                        {'name': 'owner', 'required': True},
+                        {'name': 'parent', 'required': False},
+                    }
+                }
+            ],
+        )
+
+    @test.xfail('''
+        `required` is required and has a default value of False, which is not
+        respected by any of the schema pointers.
+    ''')
+    async def test_edgeql_introspection_meta_default_04(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    links: {
+                        name,
+                        required,
+                    } ORDER BY .name
+                }
+                FILTER .name IN {'schema::CallableObject', 'schema::Parameter'}
+                ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'schema::CallableObject',
+                    'links': [
+                        {'name': '__type__', 'required': False},
+                        {'name': 'annotations', 'required': False},
+                        {'name': 'params', 'required': False},
+                        {'name': 'return_type', 'required': False},
+                    ]
+                },
+                {
+                    'name': 'schema::Parameter',
+                    'links': [
+                        {'name': '__type__', 'required': False},
+                        {'name': 'type', 'required': True},
+                    ]
+                }
+            ],
+        )
+
     async def test_edgeql_introspection_count_01(self):
         await self.con.execute(r"""
             WITH MODULE test
