@@ -46,6 +46,8 @@ ALTER TYPE sys::Role {
 CREATE FUNCTION
 sys::sleep(duration: std::float64) -> std::bool
 {
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
     SET session_only := True;
     FROM SQL $$
     SELECT pg_sleep("duration") IS NOT NULL;
@@ -56,6 +58,8 @@ sys::sleep(duration: std::float64) -> std::bool
 CREATE FUNCTION
 sys::sleep(duration: std::duration) -> std::bool
 {
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
     SET session_only := True;
     FROM SQL $$
     SELECT pg_sleep_for("duration") IS NOT NULL;
@@ -66,6 +70,8 @@ sys::sleep(duration: std::duration) -> std::bool
 CREATE FUNCTION
 sys::advisory_lock(key: std::int64) -> std::bool
 {
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
     SET session_only := True;
     FROM SQL $$
     SELECT CASE WHEN "key" < 0 THEN
@@ -80,6 +86,8 @@ sys::advisory_lock(key: std::int64) -> std::bool
 CREATE FUNCTION
 sys::advisory_unlock(key: std::int64) -> std::bool
 {
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
     SET session_only := True;
     FROM SQL $$
     SELECT CASE WHEN "key" < 0 THEN
@@ -94,6 +102,8 @@ sys::advisory_unlock(key: std::int64) -> std::bool
 CREATE FUNCTION
 sys::advisory_unlock_all() -> std::bool
 {
+    # This function has side-effect.
+    SET volatility := 'VOLATILE';
     SET session_only := True;
     FROM SQL $$
     SELECT pg_advisory_unlock_all() IS NOT NULL;
@@ -114,6 +124,8 @@ sys::__version_internal() -> tuple<major: std::int64,
                                    stage_no: std::int64,
                                    local: array<std::str>>
 {
+    # This function reads external data.
+    SET volatility := 'VOLATILE';
     FROM SQL $$
     SELECT
         (v ->> 'major')::int8,
@@ -135,6 +147,8 @@ sys::get_version() -> tuple<major: std::int64,
                             stage_no: std::int64,
                             local: array<std::str>>
 {
+    # This function reads external data.
+    SET volatility := 'VOLATILE';
     FROM EdgeQL $$
     SELECT <tuple<major: std::int64,
                   minor: std::int64,
@@ -148,6 +162,8 @@ sys::get_version() -> tuple<major: std::int64,
 CREATE FUNCTION
 sys::get_version_as_str() -> std::str
 {
+    # This function reads external data.
+    SET volatility := 'VOLATILE';
     FROM EdgeQL $$
     WITH v := sys::get_version()
     SELECT
@@ -165,6 +181,8 @@ sys::get_version_as_str() -> std::str
 CREATE FUNCTION
 sys::get_transaction_isolation() -> std::str
 {
+    # This function only reads from a table.
+    SET volatility := 'STABLE';
     FROM SQL $$
         SELECT setting FROM pg_settings WHERE name = 'transaction_isolation'
     $$;

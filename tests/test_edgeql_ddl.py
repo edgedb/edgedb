@@ -684,8 +684,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     @test.xfail('''
         Currently default expressions are not validated, so they might
-        eventually fail in SQL, unless it so happens that the forces
-        assignment cast works (like in the below example).
+        eventually fail in SQL, unless it so happens that the forced
+        assignment cast works (like in the example below).
     ''')
     async def test_edgeql_ddl_default_01(self):
         # FIXME: need a specific error message

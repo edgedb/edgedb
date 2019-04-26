@@ -665,6 +665,109 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_introspection_volatility_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT `Function` {
+                    name,
+                    volatility
+                }
+                FILTER .name IN {
+                    'std::datetime_current',
+                    'std::datetime_of_transaction',
+                    'std::re_match'
+                }
+                ORDER BY .name;
+            """,
+            [
+                {
+                    'name': 'std::datetime_current',
+                    'volatility': 'VOLATILE'
+                },
+                {
+                    'name': 'std::datetime_of_transaction',
+                    'volatility': 'STABLE'
+                },
+                {
+                    'name': 'std::re_match',
+                    'volatility': 'IMMUTABLE'
+                }
+            ]
+        )
+
+    async def test_edgeql_introspection_volatility_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT `Operator` {
+                    name,
+                    params: {
+                        name, type: {name}
+                    } ORDER BY .name,
+                    volatility
+                }
+                FILTER
+                    .name = 'std::+'
+                    AND
+                    (
+                        SELECT .params FILTER .name = 'r'
+                    ).type.name = 'std::duration'
+                    AND
+                    (
+                        SELECT .params FILTER .name = 'l'
+                    ).type.name IN {'std::duration', 'std::datetime'}
+                ORDER BY .name;
+            """,
+            [
+                {
+                    'name': 'std::+',
+                    'params': [
+                        {'name': 'l', 'type': {'name': 'std::datetime'}},
+                        {'name': 'r', 'type': {'name': 'std::duration'}},
+                    ],
+                    'volatility': 'STABLE'
+                },
+                {
+                    'name': 'std::+',
+                    'params': [
+                        {'name': 'l', 'type': {'name': 'std::duration'}},
+                        {'name': 'r', 'type': {'name': 'std::duration'}},
+                    ],
+                    'volatility': 'IMMUTABLE'
+                }
+            ]
+        )
+
+    async def test_edgeql_introspection_volatility_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT `Cast` {
+                    from_type: {name},
+                    to_type: {name},
+                    volatility
+                }
+                FILTER
+                    .from_type.name IN {'std::duration', 'std::datetime'}
+                    AND
+                    .to_type.name = 'std::str'
+                ORDER BY .from_type.name;
+            """,
+            [
+                {
+                    'from_type': {'name': 'std::datetime'},
+                    'to_type': {'name': 'std::str'},
+                    'volatility': 'STABLE'
+                },
+                {
+                    'from_type': {'name': 'std::duration'},
+                    'to_type': {'name': 'std::str'},
+                    'volatility': 'IMMUTABLE'
+                }
+            ]
+        )
+
     async def test_edgeql_introspection_meta_01(self):
         await self.assert_query_result(
             r'''
@@ -939,6 +1042,31 @@ class TestIntrospection(tb.QueryTestCase):
         self.assertEqual(result[0].links[0].name, '__type__')
         self.assertIsNotNone(result[0].links[0].target.id)
         self.assertIsNotNone(result[0].properties[0].target.id)
+
+    async def test_edgeql_introspection_meta_18(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT DISTINCT (`Function` IS VolatilitySubject);
+            ''',
+            [True]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT DISTINCT (Cast IS VolatilitySubject);
+            ''',
+            [True]
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT DISTINCT (Operator IS VolatilitySubject);
+            ''',
+            [True]
+        )
 
     async def test_edgeql_introspection_meta_default_01(self):
         await self.assert_query_result(

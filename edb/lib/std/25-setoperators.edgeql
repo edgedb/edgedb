@@ -22,56 +22,78 @@
 
 
 CREATE INFIX OPERATOR
-std::`IN` (e: anytype, s: SET OF anytype) -> std::bool
+std::`IN` (e: anytype, s: SET OF anytype) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`IN` (e: decimal, s: SET OF float64) -> std::bool
+std::`IN` (e: decimal, s: SET OF float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`IN` (e: float64, s: SET OF decimal) -> std::bool
+std::`IN` (e: float64, s: SET OF decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool
+std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`NOT IN` (e: decimal, s: SET OF float64) -> std::bool
+std::`NOT IN` (e: decimal, s: SET OF float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`NOT IN` (e: float64, s: SET OF decimal) -> std::bool
+std::`NOT IN` (e: float64, s: SET OF decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE PREFIX OPERATOR
-std::`EXISTS` (s: SET OF anytype) -> bool
+std::`EXISTS` (s: SET OF anytype) -> bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE PREFIX OPERATOR
-std::`DISTINCT` (s: SET OF anytype) -> SET OF anytype
+std::`DISTINCT` (s: SET OF anytype) -> SET OF anytype {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`UNION` (s1: SET OF anytype, s2: SET OF anytype) -> SET OF anytype
+std::`UNION` (s1: SET OF anytype, s2: SET OF anytype) -> SET OF anytype {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype
+std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE TERNARY OPERATOR
 std::`IF` (condition: bool, if_true: SET OF anytype,
-           if_false: SET OF anytype) -> SET OF anytype
+           if_false: SET OF anytype) -> SET OF anytype {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};

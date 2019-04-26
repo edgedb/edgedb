@@ -35,6 +35,9 @@ CREATE SCALAR TYPE schema::operator_kind_t EXTENDING std::str {
     CREATE CONSTRAINT std::one_of ('INFIX', 'POSTFIX', 'PREFIX', 'TERNARY');
 };
 
+CREATE SCALAR TYPE schema::volatility_t
+    EXTENDING enum<'IMMUTABLE', 'STABLE', 'VOLATILE'>;
+
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object {
     CREATE REQUIRED PROPERTY name -> std::str;
@@ -123,13 +126,21 @@ CREATE TYPE schema::Parameter {
 CREATE ABSTRACT TYPE schema::CallableObject
     EXTENDING schema::AnnotationSubject
 {
-
     CREATE MULTI LINK params -> schema::Parameter {
         CREATE CONSTRAINT std::exclusive;
     };
 
     CREATE LINK return_type -> schema::Type;
     CREATE PROPERTY return_typemod -> std::str;
+};
+
+
+CREATE ABSTRACT TYPE schema::VolatilitySubject {
+    CREATE REQUIRED PROPERTY volatility -> schema::volatility_t {
+        # NOTE: this default indicates the default value in the python
+        # implementation, but is not itself a source of truth
+        SET default := 'VOLATILE';
+    };
 };
 
 
@@ -244,14 +255,18 @@ ALTER TYPE schema::ObjectType {
 };
 
 
-CREATE TYPE schema::Function EXTENDING schema::CallableObject {
+CREATE TYPE schema::Function
+    EXTENDING schema::CallableObject, schema::VolatilitySubject
+{
     CREATE REQUIRED PROPERTY session_only -> std::bool {
         SET default := false;
-    }
+    };
 };
 
 
-CREATE TYPE schema::Operator EXTENDING schema::CallableObject {
+CREATE TYPE schema::Operator
+    EXTENDING schema::CallableObject, schema::VolatilitySubject
+{
     CREATE PROPERTY operator_kind -> schema::operator_kind_t;
     CREATE LINK commutator -> schema::Operator;
     CREATE PROPERTY is_abstract -> std::bool {
@@ -260,7 +275,9 @@ CREATE TYPE schema::Operator EXTENDING schema::CallableObject {
 };
 
 
-CREATE TYPE schema::Cast EXTENDING schema::Object {
+CREATE TYPE schema::Cast
+    EXTENDING schema::AnnotationSubject, schema::VolatilitySubject
+{
     CREATE LINK from_type -> schema::Type;
     CREATE LINK to_type -> schema::Type;
     CREATE PROPERTY allow_implicit -> std::bool;

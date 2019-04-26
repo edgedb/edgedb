@@ -486,6 +486,7 @@ class CreateFunction(FunctionCommand, CreateObject,
             args=self.compile_args(func, schema),
             has_variadic=func_params.find_variadic(schema) is not None,
             set_returning=func_return_typemod is ql_ft.TypeModifier.SET_OF,
+            volatility=func.get_volatility(schema),
             returns=self.get_pgtype(
                 func, func.get_return_type(schema), schema),
             text=code)
@@ -615,6 +616,7 @@ class OperatorCommand(FunctionCommand):
             name=common.get_backend_name(
                 schema, oper, catenate=False, aspect='function'),
             args=self.compile_args(oper, schema),
+            volatility=oper.get_volatility(schema),
             returns=self.get_pgtype(
                 oper, oper.get_return_type(schema), schema),
             text=oper.get_code(schema))
@@ -669,6 +671,7 @@ class CreateOperator(OperatorCommand, CreateObject,
                     name=common.get_backend_name(
                         schema, oper, catenate=False, aspect='function'),
                     args=[a for a in args if a],
+                    volatility=oper.get_volatility(schema),
                     returns=self.get_pgtype(
                         oper, oper.get_return_type(schema), schema),
                     text=f'SELECT {op}',

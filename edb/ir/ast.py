@@ -497,6 +497,9 @@ class Call(Expr):
     # of tuple element path ids relative to the call set.
     tuple_path_ids: typing.Optional[typing.List[PathId]]
 
+    # Volatility of the funciton or operator.
+    volatility: qltypes.Volatility
+
 
 class FunctionCall(Call):
 

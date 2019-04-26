@@ -609,6 +609,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # Always create the test module.
         script = 'CREATE MODULE test;'
 
+        # allow the setup script to also run in test mode
+        if cls.INTERNAL_TESTMODE:
+            script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
+
         # look at all SCHEMA entries and potentially create multiple modules
         #
         for name, val in cls.__dict__.items():
@@ -642,6 +646,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     setup = scr
 
                 script += '\n' + setup
+
+        # allow the setup script to also run in test mode
+        if cls.INTERNAL_TESTMODE:
+            script += '\nCONFIGURE SESSION SET __internal_testmode := false;'
 
         return script.strip(' \n')
 

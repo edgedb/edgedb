@@ -79,3 +79,9 @@ class Cardinality(s_enum.StrEnum):
             return 'single'
         else:
             return 'multi'
+
+
+class Volatility(s_enum.StrEnum):
+    IMMUTABLE = 'IMMUTABLE'
+    STABLE = 'STABLE'
+    VOLATILE = 'VOLATILE'

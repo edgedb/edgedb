@@ -34,70 +34,96 @@
 # when inside a WHERE clause, so we must use the original
 # boolean expression in conjunction.
 CREATE INFIX OPERATOR
-std::`OR` (a: std::bool, b: std::bool) -> std::bool
+std::`OR` (a: std::bool, b: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL $$
     SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
     $$;
+};
 
 
 # `FROM SQL EXPRESSION` means that the operator is translated
 # by the compiler into some SQL expression.
 CREATE INFIX OPERATOR
-std::`AND` (a: std::bool, b: std::bool) -> std::bool
+std::`AND` (a: std::bool, b: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE PREFIX OPERATOR
-std::`NOT` (v: std::bool) -> std::bool
+std::`NOT` (v: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::bool, r: std::bool) -> std::bool
+std::`=` (l: std::bool, r: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool
+std::`?=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::bool, r: std::bool) -> std::bool
+std::`!=` (l: std::bool, r: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool
+std::`?!=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::bool, r: std::bool) -> std::bool
+std::`>=` (l: std::bool, r: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::bool, r: std::bool) -> std::bool
+std::`>` (l: std::bool, r: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::bool, r: std::bool) -> std::bool
+std::`<=` (l: std::bool, r: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::bool, r: std::bool) -> std::bool
+std::`<` (l: std::bool, r: std::bool) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<';
+};
 
 
 ## Boolean casts
 ## -------------
 
-CREATE CAST FROM std::str TO std::bool
+CREATE CAST FROM std::str TO std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL FUNCTION 'edgedb.bool_in';
+};
 
 
-CREATE CAST FROM std::bool TO std::str
+CREATE CAST FROM std::bool TO std::str {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
+};

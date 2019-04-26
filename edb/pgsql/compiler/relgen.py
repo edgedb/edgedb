@@ -884,7 +884,7 @@ def process_set_as_subquery(
         if is_scalar_path:
             source_is_visible = True
         else:
-            # Non-scalar computable pointer.  Theck if path source is
+            # Non-scalar computable pointer.  Check if path source is
             # visible in the outer scope.
             outer_fence = ctx.scope_tree.parent_fence
             source_is_visible = outer_fence.is_visible(ir_source.path_id)
@@ -1739,10 +1739,10 @@ def _compile_func_epilogue(
         ctx: context.CompilerContextLevel) -> None:
 
     if (ctx.volatility_ref is not None and
-            ctx.volatility_ref is not context.NO_VOLATILITY):
+            ctx.volatility_ref is not context.NO_VOLATILITY and
+            ir_set.expr.volatility is qltypes.Volatility.VOLATILE):
         # Apply the volatility reference.
         # See the comment in process_set_as_subquery().
-        # XXX: check if the function is actually volatile.
         volatility_source = pgast.SelectStmt(
             values=[pgast.ImplicitRowExpr(args=[ctx.volatility_ref])]
         )

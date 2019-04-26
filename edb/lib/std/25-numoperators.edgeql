@@ -50,895 +50,1243 @@
 # EQUALITY
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int16, r: std::int16) -> std::bool
+std::`=` (l: std::int16, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool
+std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int16, r: std::int32) -> std::bool
+std::`=` (l: std::int16, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool
+std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int16, r: std::int64) -> std::bool
+std::`=` (l: std::int16, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool
+std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int32, r: std::int16) -> std::bool
+std::`=` (l: std::int32, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool
+std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int32, r: std::int32) -> std::bool
+std::`=` (l: std::int32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool
+std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int32, r: std::int64) -> std::bool
+std::`=` (l: std::int32, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool
+std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int64, r: std::int16) -> std::bool
+std::`=` (l: std::int64, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool
+std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int64, r: std::int32) -> std::bool
+std::`=` (l: std::int64, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool
+std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::int64, r: std::int64) -> std::bool
+std::`=` (l: std::int64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool
+std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::float32, r: std::float32) -> std::bool
+std::`=` (l: std::float32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool
+std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::float32, r: std::float64) -> std::bool
+std::`=` (l: std::float32, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool
+std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::float64, r: std::float32) -> std::bool
+std::`=` (l: std::float64, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool
+std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::float64, r: std::float64) -> std::bool
+std::`=` (l: std::float64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool
+std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::decimal, r: std::decimal) -> std::bool
+std::`=` (l: std::decimal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`=` (l: std::decimal, r: std::anyreal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool
+std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyreal) -> std::bool
+std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyreal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`=` (l: std::anyreal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::anyreal, r: OPTIONAL std::decimal) -> std::bool
+std::`?=` (l: OPTIONAL std::anyreal, r: OPTIONAL std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 # INEQUALITY
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int16, r: std::int16) -> std::bool
+std::`!=` (l: std::int16, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool
+std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int16, r: std::int32) -> std::bool
+std::`!=` (l: std::int16, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool
+std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int16, r: std::int64) -> std::bool
+std::`!=` (l: std::int16, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool
+std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int32, r: std::int16) -> std::bool
+std::`!=` (l: std::int32, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool
+std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int32, r: std::int32) -> std::bool
+std::`!=` (l: std::int32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool
+std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int32, r: std::int64) -> std::bool
+std::`!=` (l: std::int32, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool
+std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int64, r: std::int16) -> std::bool
+std::`!=` (l: std::int64, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool
+std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int64, r: std::int32) -> std::bool
+std::`!=` (l: std::int64, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool
+std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::int64, r: std::int64) -> std::bool
+std::`!=` (l: std::int64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool
+std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::float32, r: std::float32) -> std::bool
+std::`!=` (l: std::float32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool
+std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::float32, r: std::float64) -> std::bool
+std::`!=` (l: std::float32, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool
+std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::float64, r: std::float32) -> std::bool
+std::`!=` (l: std::float64, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool
+std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::float64, r: std::float64) -> std::bool
+std::`!=` (l: std::float64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool
+std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::decimal, r: std::decimal) -> std::bool
+std::`!=` (l: std::decimal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`!=` (l: std::decimal, r: std::anyreal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool
+std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyreal) -> std::bool
+std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyreal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`!=` (l: std::anyreal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::anyreal, r: OPTIONAL std::decimal) -> std::bool
+std::`?!=` (l: OPTIONAL std::anyreal, r: OPTIONAL std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 
 # GREATER THAN
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int16, r: std::int16) -> std::bool
+std::`>` (l: std::int16, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int16, r: std::int32) -> std::bool
+std::`>` (l: std::int16, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int16, r: std::int64) -> std::bool
+std::`>` (l: std::int16, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int32, r: std::int16) -> std::bool
+std::`>` (l: std::int32, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int32, r: std::int32) -> std::bool
+std::`>` (l: std::int32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int32, r: std::int64) -> std::bool
+std::`>` (l: std::int32, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int32, r: std::float32) -> std::bool
+std::`>` (l: std::int32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '>(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int64, r: std::int16) -> std::bool
+std::`>` (l: std::int64, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int64, r: std::int32) -> std::bool
+std::`>` (l: std::int64, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int64, r: std::int64) -> std::bool
+std::`>` (l: std::int64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::int64, r: std::float64) -> std::bool
+std::`>` (l: std::int64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::float32, r: std::float32) -> std::bool
+std::`>` (l: std::float32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::float32, r: std::float64) -> std::bool
+std::`>` (l: std::float32, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::float32, r: std::int32) -> std::bool
+std::`>` (l: std::float32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '>(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::float64, r: std::float32) -> std::bool
+std::`>` (l: std::float64, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::float64, r: std::float64) -> std::bool
+std::`>` (l: std::float64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::float64, r: std::int64) -> std::bool
+std::`>` (l: std::float64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::decimal) -> std::bool
+std::`>` (l: std::decimal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`>` (l: std::anyreal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`>` (l: std::decimal, r: std::anyreal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 # GREATER OR EQUAL
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int16, r: std::int16) -> std::bool
+std::`>=` (l: std::int16, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int16, r: std::int32) -> std::bool
+std::`>=` (l: std::int16, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int16, r: std::int64) -> std::bool
+std::`>=` (l: std::int16, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int32, r: std::int16) -> std::bool
+std::`>=` (l: std::int32, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int32, r: std::int32) -> std::bool
+std::`>=` (l: std::int32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int32, r: std::int64) -> std::bool
+std::`>=` (l: std::int32, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int32, r: std::float32) -> std::bool
+std::`>=` (l: std::int32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '>=(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int64, r: std::int16) -> std::bool
+std::`>=` (l: std::int64, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int64, r: std::int32) -> std::bool
+std::`>=` (l: std::int64, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int64, r: std::int64) -> std::bool
+std::`>=` (l: std::int64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::int64, r: std::float64) -> std::bool
+std::`>=` (l: std::int64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::float32, r: std::float32) -> std::bool
+std::`>=` (l: std::float32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::float32, r: std::float64) -> std::bool
+std::`>=` (l: std::float32, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::float32, r: std::int32) -> std::bool
+std::`>=` (l: std::float32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '>=(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::float64, r: std::float32) -> std::bool
+std::`>=` (l: std::float64, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::float64, r: std::float64) -> std::bool
+std::`>=` (l: std::float64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::float64, r: std::int64) -> std::bool
+std::`>=` (l: std::float64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::decimal) -> std::bool
+std::`>=` (l: std::decimal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`>=` (l: std::anyreal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`>=` (l: std::decimal, r: std::anyreal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 # LESS THAN
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int16, r: std::int16) -> std::bool
+std::`<` (l: std::int16, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int16, r: std::int32) -> std::bool
+std::`<` (l: std::int16, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int16, r: std::int64) -> std::bool
+std::`<` (l: std::int16, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int32, r: std::int16) -> std::bool
+std::`<` (l: std::int32, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int32, r: std::int32) -> std::bool
+std::`<` (l: std::int32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int32, r: std::int64) -> std::bool
+std::`<` (l: std::int32, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int32, r: std::float32) -> std::bool
+std::`<` (l: std::int32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int64, r: std::int16) -> std::bool
+std::`<` (l: std::int64, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int64, r: std::int32) -> std::bool
+std::`<` (l: std::int64, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int64, r: std::int64) -> std::bool
+std::`<` (l: std::int64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::int64, r: std::float64) -> std::bool
+std::`<` (l: std::int64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::float32, r: std::float32) -> std::bool
+std::`<` (l: std::float32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::float32, r: std::float64) -> std::bool
+std::`<` (l: std::float32, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::float32, r: std::int32) -> std::bool
+std::`<` (l: std::float32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::float64, r: std::float32) -> std::bool
+std::`<` (l: std::float64, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::float64, r: std::float64) -> std::bool
+std::`<` (l: std::float64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::float64, r: std::int64) -> std::bool
+std::`<` (l: std::float64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::decimal) -> std::bool
+std::`<` (l: std::decimal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`<` (l: std::anyreal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`<` (l: std::decimal, r: std::anyreal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 # LESS THAN OR EQUAL
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int16, r: std::int16) -> std::bool
+std::`<=` (l: std::int16, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int16, r: std::int32) -> std::bool
+std::`<=` (l: std::int16, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int16, r: std::int64) -> std::bool
+std::`<=` (l: std::int16, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int32, r: std::int16) -> std::bool
+std::`<=` (l: std::int32, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int32, r: std::int32) -> std::bool
+std::`<=` (l: std::int32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int32, r: std::int64) -> std::bool
+std::`<=` (l: std::int32, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int32, r: std::float32) -> std::bool
+std::`<=` (l: std::int32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<=(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int64, r: std::int16) -> std::bool
+std::`<=` (l: std::int64, r: std::int16) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int64, r: std::int32) -> std::bool
+std::`<=` (l: std::int64, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int64, r: std::int64) -> std::bool
+std::`<=` (l: std::int64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::int64, r: std::float64) -> std::bool
+std::`<=` (l: std::int64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::float32, r: std::float32) -> std::bool
+std::`<=` (l: std::float32, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::float32, r: std::float64) -> std::bool
+std::`<=` (l: std::float32, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::float32, r: std::int32) -> std::bool
+std::`<=` (l: std::float32, r: std::int32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<=(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::float64, r: std::float32) -> std::bool
+std::`<=` (l: std::float64, r: std::float32) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::float64, r: std::float64) -> std::bool
+std::`<=` (l: std::float64, r: std::float64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::float64, r: std::int64) -> std::bool
+std::`<=` (l: std::float64, r: std::int64) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=(float8,float8)';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::decimal) -> std::bool
+std::`<=` (l: std::decimal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::anyreal, r: std::decimal) -> std::bool
+std::`<=` (l: std::anyreal, r: std::decimal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::decimal, r: std::anyreal) -> std::bool
+std::`<=` (l: std::decimal, r: std::anyreal) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 # INFIX PLUS
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::int16, r: std::int16) -> std::int16
+std::`+` (l: std::int16, r: std::int16) -> std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::int32, r: std::int32) -> std::int32
+std::`+` (l: std::int32, r: std::int32) -> std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::int64, r: std::int64) -> std::int64
+std::`+` (l: std::int64, r: std::int64) -> std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::float32, r: std::float32) -> std::float32
+std::`+` (l: std::float32, r: std::float32) -> std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::float64, r: std::float64) -> std::float64
+std::`+` (l: std::float64, r: std::float64) -> std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE INFIX OPERATOR
-std::`+` (l: std::decimal, r: std::decimal) -> std::decimal
+std::`+` (l: std::decimal, r: std::decimal) -> std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 # PREFIX PLUS
 
 CREATE PREFIX OPERATOR
-std::`+` (l: std::int16) -> std::int16
+std::`+` (l: std::int16) -> std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`+` (l: std::int32) -> std::int32
+std::`+` (l: std::int32) -> std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`+` (l: std::int64) -> std::int64
+std::`+` (l: std::int64) -> std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`+` (l: std::float32) -> std::float32
+std::`+` (l: std::float32) -> std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`+` (l: std::float64) -> std::float64
+std::`+` (l: std::float64) -> std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`+` (l: std::decimal) -> std::decimal
+std::`+` (l: std::decimal) -> std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'+';
+};
 
 
 
 # INFIX MINUS
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::int16, r: std::int16) -> std::int16
+std::`-` (l: std::int16, r: std::int16) -> std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::int32, r: std::int32) -> std::int32
+std::`-` (l: std::int32, r: std::int32) -> std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::int64, r: std::int64) -> std::int64
+std::`-` (l: std::int64, r: std::int64) -> std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::float32, r: std::float32) -> std::float32
+std::`-` (l: std::float32, r: std::float32) -> std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::float64, r: std::float64) -> std::float64
+std::`-` (l: std::float64, r: std::float64) -> std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE INFIX OPERATOR
-std::`-` (l: std::decimal, r: std::decimal) -> std::decimal
+std::`-` (l: std::decimal, r: std::decimal) -> std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 # PREFIX MINUS
 
 CREATE PREFIX OPERATOR
-std::`-` (l: std::int16) -> std::int16
+std::`-` (l: std::int16) -> std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`-` (l: std::int32) -> std::int32
+std::`-` (l: std::int32) -> std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`-` (l: std::int64) -> std::int64
+std::`-` (l: std::int64) -> std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`-` (l: std::float32) -> std::float32
+std::`-` (l: std::float32) -> std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`-` (l: std::float64) -> std::float64
+std::`-` (l: std::float64) -> std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 CREATE PREFIX OPERATOR
-std::`-` (l: std::decimal) -> std::decimal
+std::`-` (l: std::decimal) -> std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'-';
+};
 
 
 # MUL
 
 CREATE INFIX OPERATOR
-std::`*` (l: std::int16, r: std::int16) -> std::int16
+std::`*` (l: std::int16, r: std::int16) -> std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'*';
+};
 
 
 CREATE INFIX OPERATOR
-std::`*` (l: std::int32, r: std::int32) -> std::int32
+std::`*` (l: std::int32, r: std::int32) -> std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'*';
+};
 
 
 CREATE INFIX OPERATOR
-std::`*` (l: std::int64, r: std::int64) -> std::int64
+std::`*` (l: std::int64, r: std::int64) -> std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'*';
+};
 
 
 CREATE INFIX OPERATOR
-std::`*` (l: std::float32, r: std::float32) -> std::float32
+std::`*` (l: std::float32, r: std::float32) -> std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'*';
+};
 
 
 CREATE INFIX OPERATOR
-std::`*` (l: std::float64, r: std::float64) -> std::float64
+std::`*` (l: std::float64, r: std::float64) -> std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'*';
+};
 
 
 CREATE INFIX OPERATOR
-std::`*` (l: std::decimal, r: std::decimal) -> std::decimal
+std::`*` (l: std::decimal, r: std::decimal) -> std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'*';
+};
 
 
 # DIV
@@ -946,6 +1294,7 @@ std::`*` (l: std::decimal, r: std::decimal) -> std::decimal
 CREATE INFIX OPERATOR
 std::`/` (l: std::int64, r: std::int64) -> std::float64
 {
+    SET volatility := 'IMMUTABLE';
     # We need both FROM SQL OPERATOR and FROM SQL to copy
     # the common attributes of the SQL division operator while
     # overriding the main operator function.
@@ -955,18 +1304,24 @@ std::`/` (l: std::int64, r: std::int64) -> std::float64
 
 
 CREATE INFIX OPERATOR
-std::`/` (l: std::float32, r: std::float32) -> std::float32
+std::`/` (l: std::float32, r: std::float32) -> std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
+};
 
 
 CREATE INFIX OPERATOR
-std::`/` (l: std::float64, r: std::float64) -> std::float64
+std::`/` (l: std::float64, r: std::float64) -> std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
+};
 
 
 CREATE INFIX OPERATOR
-std::`/` (l: std::decimal, r: std::decimal) -> std::decimal
+std::`/` (l: std::decimal, r: std::decimal) -> std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
+};
 
 
 # FLOORDIV
@@ -980,6 +1335,7 @@ std::`/` (l: std::decimal, r: std::decimal) -> std::decimal
 CREATE INFIX OPERATOR
 std::`//` (n: std::int16, d: std::int16) -> std::int16
 {
+    SET volatility := 'IMMUTABLE';
     # We need both FROM SQL OPERATOR and FROM SQL FUNCTION to copy
     # the common attributes of the SQL division operator while
     # overriding the main operator function.
@@ -991,6 +1347,7 @@ std::`//` (n: std::int16, d: std::int16) -> std::int16
 CREATE INFIX OPERATOR
 std::`//` (n: std::int32, d: std::int32) -> std::int32
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
     FROM SQL FUNCTION 'edgedb.int4floordiv';
 };
@@ -999,6 +1356,7 @@ std::`//` (n: std::int32, d: std::int32) -> std::int32
 CREATE INFIX OPERATOR
 std::`//` (n: std::int64, d: std::int64) -> std::int64
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
     FROM SQL FUNCTION 'edgedb.int8floordiv';
 };
@@ -1007,6 +1365,7 @@ std::`//` (n: std::int64, d: std::int64) -> std::int64
 CREATE INFIX OPERATOR
 std::`//` (n: std::float32, d: std::float32) -> std::float32
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
     FROM SQL FUNCTION 'edgedb.float4floordiv';
 };
@@ -1015,6 +1374,7 @@ std::`//` (n: std::float32, d: std::float32) -> std::float32
 CREATE INFIX OPERATOR
 std::`//` (n: std::float64, d: std::float64) -> std::float64
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
     FROM SQL FUNCTION 'edgedb.float8floordiv';
 };
@@ -1023,6 +1383,7 @@ std::`//` (n: std::float64, d: std::float64) -> std::float64
 CREATE INFIX OPERATOR
 std::`//` (n: std::decimal, d: std::decimal) -> std::decimal
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
     FROM SQL 'SELECT floor("n" / "d")';
 };
@@ -1033,6 +1394,7 @@ std::`//` (n: std::decimal, d: std::decimal) -> std::decimal
 CREATE INFIX OPERATOR
 std::`%` (n: std::int16, d: std::int16) -> std::int16
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'%';
     FROM SQL FUNCTION 'edgedb.int2floormod';
 };
@@ -1041,6 +1403,7 @@ std::`%` (n: std::int16, d: std::int16) -> std::int16
 CREATE INFIX OPERATOR
 std::`%` (n: std::int32, d: std::int32) -> std::int32
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'%';
     FROM SQL FUNCTION 'edgedb.int4floormod';
 };
@@ -1049,6 +1412,7 @@ std::`%` (n: std::int32, d: std::int32) -> std::int32
 CREATE INFIX OPERATOR
 std::`%` (n: std::int64, d: std::int64) -> std::int64
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'%';
     FROM SQL FUNCTION 'edgedb.int8floormod';
 };
@@ -1057,6 +1421,7 @@ std::`%` (n: std::int64, d: std::int64) -> std::int64
 CREATE INFIX OPERATOR
 std::`%` (n: std::float32, d: std::float32) -> std::float32
 {
+    SET volatility := 'IMMUTABLE';
     # We cheat here a bit by copying most of SQL operator metadata
     # from the `/` operator, since there is no float % in Postgres.
     FROM SQL OPERATOR r'/';
@@ -1067,6 +1432,7 @@ std::`%` (n: std::float32, d: std::float32) -> std::float32
 CREATE INFIX OPERATOR
 std::`%` (n: std::float64, d: std::float64) -> std::float64
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
     FROM SQL FUNCTION 'edgedb.float8floormod';
 };
@@ -1075,6 +1441,7 @@ std::`%` (n: std::float64, d: std::float64) -> std::float64
 CREATE INFIX OPERATOR
 std::`%` (n: std::decimal, d: std::decimal) -> std::decimal
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'%';
     FROM SQL 'SELECT n - floor("n" / "d") * "d"';
 };
@@ -1085,6 +1452,7 @@ std::`%` (n: std::decimal, d: std::decimal) -> std::decimal
 CREATE INFIX OPERATOR
 std::`^` (n: std::int64, p: std::int64) -> std::float64
 {
+    SET volatility := 'IMMUTABLE';
     # We cheat here a bit by copying most of SQL operator metadata
     # from the `/` operator, since there is no int ^ in Postgres. The
     # power operator can behave like a division (negative power),
@@ -1099,6 +1467,7 @@ std::`^` (n: std::int64, p: std::int64) -> std::float64
 CREATE INFIX OPERATOR
 std::`^` (n: std::float32, p: std::float32) -> std::float32
 {
+    SET volatility := 'IMMUTABLE';
     # We cheat here a bit by copying most of SQL operator metadata
     # from the `/` operator, since there is no float4 ^ in Postgres.
     # The power operator can behave like a division (negative power),
@@ -1110,13 +1479,17 @@ std::`^` (n: std::float32, p: std::float32) -> std::float32
 
 
 CREATE INFIX OPERATOR
-std::`^` (n: std::float64, p: std::float64) -> std::float64
+std::`^` (n: std::float64, p: std::float64) -> std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '^';
+};
 
 
 CREATE INFIX OPERATOR
-std::`^` (n: std::decimal, p: std::decimal) -> std::decimal
+std::`^` (n: std::decimal, p: std::decimal) -> std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '^';
+};
 
 
 ## Standard numerice casts
@@ -1126,36 +1499,42 @@ std::`^` (n: std::decimal, p: std::decimal) -> std::decimal
 ## Implicit casts between numerics.
 
 CREATE CAST FROM std::int16 TO std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW IMPLICIT;
 };
 
 
 CREATE CAST FROM std::int32 TO std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW IMPLICIT;
 };
 
 
 CREATE CAST FROM std::int16 TO std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW IMPLICIT;
 };
 
 
 CREATE CAST FROM std::int64 TO std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW IMPLICIT;
 };
 
 
 CREATE CAST FROM std::int64 TO std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW IMPLICIT;
 };
 
 
 CREATE CAST FROM std::float32 TO std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW IMPLICIT;
 };
@@ -1164,95 +1543,113 @@ CREATE CAST FROM std::float32 TO std::float64 {
 ## Explicit and assignment casts.
 
 CREATE CAST FROM std::int32 TO std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::int64 TO std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::int64 TO std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::int64 TO std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::float64 TO std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
     ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::decimal TO std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::decimal TO std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::decimal TO std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::decimal TO std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::decimal TO std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float32 TO std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float32 TO std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float32 TO std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float32 TO std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float64 TO std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float64 TO std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float64 TO std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float64 TO std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
@@ -1260,60 +1657,72 @@ CREATE CAST FROM std::float64 TO std::decimal {
 ## String casts.
 
 CREATE CAST FROM std::str TO std::int16 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::str TO std::int32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::str TO std::int64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::str TO std::float32 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::str TO std::float64 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::str TO std::decimal {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::int16 TO std::str {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::int32 TO std::str {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::int64 TO std::str {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float32 TO std::str {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::float64 TO std::str {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
 
 
 CREATE CAST FROM std::decimal TO std::str {
+    SET volatility := 'IMMUTABLE';
     FROM SQL CAST;
 };
