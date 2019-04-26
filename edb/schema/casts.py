@@ -27,6 +27,7 @@ from edb.edgeql import ast as qlast
 from . import abc as s_abc
 from . import annotations
 from . import delta as sd
+from . import functions as s_func
 from . import name as sn
 from . import objects as so
 from . import types as s_types
@@ -140,7 +141,8 @@ def get_cast_fullname(
         name=sn.get_specialized_name(shortname, *quals))
 
 
-class Cast(annotations.AnnotationSubject, s_abc.Cast):
+class Cast(annotations.AnnotationSubject, s_func.VolatilitySubject,
+           s_abc.Cast):
 
     from_type = so.SchemaField(
         s_types.Type, compcoef=0.5)

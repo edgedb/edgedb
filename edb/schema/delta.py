@@ -1322,7 +1322,7 @@ class AlterSpecialObjectProperty(Command):
 
 
 class AlterObjectProperty(Command):
-    astnode = (qlast.SetField, qlast.SetInternalField)
+    astnode = qlast.SetField
 
     property = struct.Field(str)
     old_value = struct.Field(object, None)
@@ -1343,8 +1343,7 @@ class AlterObjectProperty(Command):
                 f'{propname!r} is not a valid field',
                 context=astnode.context)
 
-        if not (isinstance(astnode, qlast.SetInternalField)
-                or field.allow_ddl_set
+        if not (field.allow_ddl_set
                 or context.stdmode
                 or context.testmode):
             raise errors.SchemaDefinitionError(

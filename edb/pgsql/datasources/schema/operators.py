@@ -40,6 +40,7 @@ async def fetch(
                 o.code,
                 o.recursive,
                 o.operator_kind,
+                o.volatility,
                 o.return_type,
                 edgedb._resolve_type_name(o.commutator) AS commutator,
                 edgedb._resolve_type_name(o.params) AS params

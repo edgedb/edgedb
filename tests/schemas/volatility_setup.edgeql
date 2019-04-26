@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,48 +17,49 @@
 #
 
 
-## Regular expression functions.
-
-
-CREATE FUNCTION
-std::re_match(pattern: std::str, str: std::str) -> array<std::str>
-{
+CREATE FUNCTION test::vol_immutable() -> float64 {
     SET volatility := 'IMMUTABLE';
     FROM SQL $$
-    SELECT regexp_matches("str", "pattern");
+        SELECT random();
+    $$;
+};
+
+CREATE FUNCTION test::vol_stable() -> float64 {
+    SET volatility := 'STABLE';
+    FROM SQL $$
+        SELECT random();
+    $$;
+};
+
+CREATE FUNCTION test::vol_volatile() -> float64 {
+    SET volatility := 'VOLATILE';
+    FROM SQL $$
+        SELECT random();
+    $$;
+};
+
+CREATE FUNCTION test::err_immutable() -> float64 {
+    SET volatility := 'IMMUTABLE';
+    FROM SQL $$
+        SELECT random()/0;
+    $$;
+};
+
+CREATE FUNCTION test::err_stable() -> float64 {
+    SET volatility := 'STABLE';
+    FROM SQL $$
+        SELECT random()/0;
+    $$;
+};
+
+CREATE FUNCTION test::err_volatile() -> float64 {
+    SET volatility := 'VOLATILE';
+    FROM SQL $$
+        SELECT random()/0;
     $$;
 };
 
 
-CREATE FUNCTION
-std::re_match_all(pattern: std::str, str: std::str) -> SET OF array<std::str>
-{
-    SET volatility := 'IMMUTABLE';
-    FROM SQL $$
-    SELECT regexp_matches("str", "pattern", 'g');
-    $$;
-};
-
-
-CREATE FUNCTION
-std::re_test(pattern: std::str, str: std::str) -> std::bool
-{
-    SET volatility := 'IMMUTABLE';
-    FROM SQL $$
-    SELECT "str" ~ "pattern";
-    $$;
-};
-
-
-CREATE FUNCTION
-std::re_replace(
-    pattern: std::str,
-    sub: std::str,
-    str: std::str,
-    NAMED ONLY flags: std::str = '') -> std::str
-{
-    SET volatility := 'IMMUTABLE';
-    FROM SQL $$
-    SELECT regexp_replace("str", "pattern", "sub", "flags");
-    $$;
-};
+INSERT test::Obj { n := 1 };
+INSERT test::Obj { n := 2 };
+INSERT test::Obj { n := 3 };

@@ -3081,7 +3081,7 @@ aa';
     def test_edgeql_syntax_ddl_function_26(self):
         """
         CREATE FUNCTION foo() -> std::str {
-            SET volatility := 'volatile';
+            SET volatility := 'VOLATILE';
             SET ANNOTATION description := 'aaaa';
             FROM SQL $a$SELECT $$foo$$$a$;
         };

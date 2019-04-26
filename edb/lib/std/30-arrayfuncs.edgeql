@@ -23,6 +23,7 @@
 CREATE FUNCTION
 std::array_agg(s: SET OF anytype) -> array<anytype>
 {
+    SET volatility := 'IMMUTABLE';
     SET initial_value := [];
     FROM SQL FUNCTION 'array_agg';
 };
@@ -31,6 +32,7 @@ std::array_agg(s: SET OF anytype) -> array<anytype>
 CREATE FUNCTION
 std::array_unpack(array: array<anytype>) -> SET OF anytype
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL FUNCTION 'unnest';
 };
 
@@ -42,6 +44,7 @@ std::array_get(
     NAMED ONLY default: OPTIONAL anytype={}
 ) -> OPTIONAL anytype
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL $$
     SELECT COALESCE(
         "array"[
@@ -59,6 +62,7 @@ std::array_get(
 
 CREATE INFIX OPERATOR
 std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '=';
     SET recursive := true;
 };
@@ -67,6 +71,7 @@ std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL array<anytype>,
            r: OPTIONAL array<anytype>) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
     SET recursive := true;
 };
@@ -74,6 +79,7 @@ std::`?=` (l: OPTIONAL array<anytype>,
 
 CREATE INFIX OPERATOR
 std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<>';
     SET recursive := true;
 };
@@ -82,35 +88,42 @@ std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL array<anytype>,
             r: OPTIONAL array<anytype>) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
     SET recursive := true;
 };
 
 CREATE INFIX OPERATOR
 std::`>=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '>=';
     SET recursive := true;
 };
 
 CREATE INFIX OPERATOR
 std::`>` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '>';
     SET recursive := true;
 };
 
 CREATE INFIX OPERATOR
 std::`<=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<=';
     SET recursive := true;
 };
 
 CREATE INFIX OPERATOR
 std::`<` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '<';
     SET recursive := true;
 };
 
 # Concatenation
 CREATE INFIX OPERATOR
-std::`++` (l: array<anytype>, r: array<anytype>) -> array<anytype>
+std::`++` (l: array<anytype>, r: array<anytype>) -> array<anytype> {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '||';
+};

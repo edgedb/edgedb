@@ -792,10 +792,6 @@ class SetField(BaseSetField):
     pass
 
 
-class SetInternalField(BaseSetField):
-    pass
-
-
 class CreateAnnotationValue(CreateObject):
     value: Expr
 

@@ -318,6 +318,7 @@ class IntrospectionMech:
                 'force_return_cast': row['force_return_cast'],
                 'code': row['code'],
                 'recursive': row['recursive'],
+                'volatility': row['volatility'],
                 'return_type': r_type,
             }
 
@@ -360,6 +361,7 @@ class IntrospectionMech:
                 'allow_implicit': row['allow_implicit'],
                 'allow_assignment': row['allow_assignment'],
                 'code': row['code'],
+                'volatility': row['volatility'],
             }
 
             schema, oper = s_casts.Cast.create_in_schema(
@@ -405,6 +407,7 @@ class IntrospectionMech:
                 'code': row['code'],
                 'initial_value': initial_value,
                 'session_only': row['session_only'],
+                'volatility': row['volatility'],
                 'return_type': r_type,
             }
 

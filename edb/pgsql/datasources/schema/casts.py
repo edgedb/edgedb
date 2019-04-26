@@ -37,6 +37,7 @@ async def fetch(
                 o.code,
                 o.allow_implicit,
                 o.allow_assignment,
+                o.volatility,
                 o.from_type AS from_type,
                 o.to_type AS to_type
             FROM

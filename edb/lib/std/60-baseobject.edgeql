@@ -52,45 +52,63 @@ CREATE ABSTRACT TYPE std::Object {
 # On the other hand, if we use "FROM SQL OPERATOR", we will end up
 # clashing with the operators for uuid in Postgres.
 CREATE INFIX OPERATOR
-std::`=` (l: std::Object, r: std::Object) -> std::bool
+std::`=` (l: std::Object, r: std::Object) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::Object, r: OPTIONAL std::Object) -> std::bool
+std::`?=` (l: OPTIONAL std::Object, r: OPTIONAL std::Object) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::Object, r: std::Object) -> std::bool
+std::`!=` (l: std::Object, r: std::Object) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::Object, r: OPTIONAL std::Object) -> std::bool
+std::`?!=` (l: OPTIONAL std::Object, r: OPTIONAL std::Object) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::Object, r: std::Object) -> std::bool
+std::`>=` (l: std::Object, r: std::Object) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::Object, r: std::Object) -> std::bool
+std::`>` (l: std::Object, r: std::Object) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::Object, r: std::Object) -> std::bool
+std::`<=` (l: std::Object, r: std::Object) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::Object, r: std::Object) -> std::bool
+std::`<` (l: std::Object, r: std::Object) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 # The only possible Object cast is into json.
-CREATE CAST FROM std::Object TO std::json
+CREATE CAST FROM std::Object TO std::json {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};

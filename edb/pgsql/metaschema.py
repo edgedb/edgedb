@@ -152,7 +152,14 @@ class RaiseExceptionFunction(dbops.Function):
             name=('edgedb', '_raise_exception'),
             args=[('msg', ('text',)), ('rtype', ('anyelement',))],
             returns=('anyelement',),
-            volatility='volatile',
+            # NOTE: The main reason why we don't want this function to be
+            # immutable is that immutable functions can be
+            # pre-evaluated by the query planner once if they have
+            # constant arguments. This means that using this function
+            # as the second argument in a COALESCE will raise an
+            # exception regardless of whether the first argument is
+            # NULL or not.
+            volatility='stable',
             language='plpgsql',
             text=self.text)
 
@@ -174,7 +181,9 @@ class RaiseSpecificExceptionFunction(dbops.Function):
             args=[('exc', ('text',)), ('msg', ('text',)), ('det', ('text',)),
                   ('rtype', ('anyelement',))],
             returns=('anyelement',),
-            volatility='volatile',
+            # See NOTE for the _raise_exception for reason why this is
+            # stable and not immutable.
+            volatility='stable',
             language='plpgsql',
             text=self.text)
 
@@ -192,7 +201,8 @@ class RaiseExceptionOnNullFunction(dbops.Function):
             args=[('val', ('anyelement',)), ('exc', ('text',)),
                   ('msg', ('text',)), ('det', ('text',))],
             returns=('anyelement',),
-            volatility='volatile',
+            # Same volatility as _raise_specific_exception
+            volatility='stable',
             text=self.text)
 
 
@@ -213,7 +223,8 @@ class RaiseExceptionOnEmptyStringFunction(dbops.Function):
             args=[('val', ('anyelement',)), ('exc', ('text',)),
                   ('msg', ('text',)), ('det', ('text',))],
             returns=('anyelement',),
-            volatility='volatile',
+            # Same volatility as _raise_specific_exception
+            volatility='stable',
             text=self.text)
 
 
@@ -243,7 +254,9 @@ class AssertJSONTypeFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('typenames', ('text[]',)),
                   ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
             returns=('jsonb',),
-            volatility='volatile',
+            # Max volatility of _raise_specific_exception and
+            # array_to_string (stable)
+            volatility='stable',
             text=self.text)
 
 
@@ -263,7 +276,8 @@ class ExtractJSONScalarFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('json_typename', ('text',)),
                   ('msg', ('text',), 'NULL'), ('det', ('text',), "''")],
             returns=('text',),
-            volatility='volatile',
+            # Same volatility as jsonb_assert_type
+            volatility='stable',
             text=self.text)
 
 
@@ -308,6 +322,7 @@ class ResolveTypeNameFunction(dbops.Function):
             name=('edgedb', '_resolve_type_name'),
             args=[('type', ('edgedb', 'typedesc_t'))],
             returns=('text',),
+            # Same volatility as _resolve_type_name(uuid)
             volatility='stable',
             text=self.text,
             strict=True)
@@ -330,7 +345,9 @@ class ResolveSimpleTypeNameFunction(dbops.Function):
             name=('edgedb', '_resolve_type_name'),
             args=[('type', ('uuid',))],
             returns=('text',),
-            volatility='volatile',
+            # Max volatility of _raise_exception and a SELECT from a
+            # table (stable).
+            volatility='stable',
             text=self.text,
             strict=True)
 
@@ -348,7 +365,8 @@ class ResolveSimpleTypeNameListFunction(dbops.Function):
             name=('edgedb', '_resolve_type_name'),
             args=[('type_data', ('uuid[]',))],
             returns=('text[]',),
-            volatility='volatile',
+            # Same volatility as _resolve_type_name(uuid)
+            volatility='stable',
             text=self.text,
             strict=True)
 
@@ -962,7 +980,8 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
             args=[('val', ('anyarray',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('anyelement',),
-            volatility='volatile',
+            # Same volatility as _raise_exception_on_null
+            volatility='stable',
             strict=True,
             text=self.text)
 
@@ -1016,7 +1035,8 @@ class StringIndexWithBoundsFunction(dbops.Function):
             args=[('val', ('text',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('text',),
-            volatility='volatile',
+            # Same volatility as _raise_exception_on_empty
+            volatility='stable',
             strict=True,
             text=self.text)
 
@@ -1041,7 +1061,8 @@ class BytesIndexWithBoundsFunction(dbops.Function):
             args=[('val', ('bytea',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('bytea',),
-            volatility='volatile',
+            # Same volatility as _raise_exception_on_empty
+            volatility='stable',
             strict=True,
             text=self.text)
 
@@ -1218,7 +1239,8 @@ class JSONIndexByTextFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('index', ('text',)),
                   ('det', ('text',))],
             returns=('jsonb',),
-            volatility='volatile',
+            # Same volatility as exception helpers
+            volatility='stable',
             strict=True,
             text=self.text)
 
@@ -1262,7 +1284,8 @@ class JSONIndexByIntFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('index', ('bigint',)),
                   ('det', ('text',))],
             returns=('jsonb',),
-            volatility='volatile',
+            # Min volatility of exception helpers and pg_typeof (stable).
+            volatility='stable',
             strict=True,
             text=self.text)
 
@@ -1286,7 +1309,8 @@ class JSONSliceFunction(dbops.Function):
             args=[('val', ('jsonb',)), ('start', ('bigint',)),
                   ('stop', ('bigint',))],
             returns=('jsonb',),
-            volatility='volatile',
+            # Same volatility as to_jsonb (stable)
+            volatility='stable',
             text=self.text)
 
 

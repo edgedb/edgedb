@@ -20,69 +20,95 @@
 ## String operators
 
 CREATE INFIX OPERATOR
-std::`=` (l: std::str, r: std::str) -> std::bool
+std::`=` (l: std::str, r: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool
+std::`?=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`!=` (l: std::str, r: std::str) -> std::bool
+std::`!=` (l: std::str, r: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`?!=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool
+std::`?!=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 # Concatenation.
 CREATE INFIX OPERATOR
-std::`++` (l: std::str, r: std::str) -> std::str
+std::`++` (l: std::str, r: std::str) -> std::str {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR '||';
+};
 
 
 CREATE INFIX OPERATOR
-std::`LIKE` (string: std::str, pattern: std::str) -> std::bool
+std::`LIKE` (string: std::str, pattern: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`ILIKE` (string: std::str, pattern: std::str) -> std::bool
+std::`ILIKE` (string: std::str, pattern: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`NOT LIKE` (string: std::str, pattern: std::str) -> std::bool
+std::`NOT LIKE` (string: std::str, pattern: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`NOT ILIKE` (string: std::str, pattern: std::str) -> std::bool
+std::`NOT ILIKE` (string: std::str, pattern: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;
+};
 
 
 CREATE INFIX OPERATOR
-std::`<` (l: std::str, r: std::str) -> std::bool
+std::`<` (l: std::str, r: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<';
+};
 
 
 CREATE INFIX OPERATOR
-std::`<=` (l: std::str, r: std::str) -> std::bool
+std::`<=` (l: std::str, r: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'<=';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>` (l: std::str, r: std::str) -> std::bool
+std::`>` (l: std::str, r: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>';
+};
 
 
 CREATE INFIX OPERATOR
-std::`>=` (l: std::str, r: std::str) -> std::bool
+std::`>=` (l: std::str, r: std::str) -> std::bool {
+    SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'>=';
+};
 
 
 ## String functions
@@ -91,6 +117,7 @@ std::`>=` (l: std::str, r: std::str) -> std::bool
 CREATE FUNCTION
 std::str_repeat(s: std::str, n: std::int64) -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL $$
     SELECT repeat("s", "n"::int4)
     $$;
@@ -100,6 +127,7 @@ std::str_repeat(s: std::str, n: std::int64) -> std::str
 CREATE FUNCTION
 std::str_lower(s: std::str) -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL FUNCTION 'lower';
 };
 
@@ -107,6 +135,7 @@ std::str_lower(s: std::str) -> std::str
 CREATE FUNCTION
 std::str_upper(s: std::str) -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL FUNCTION 'upper';
 };
 
@@ -114,6 +143,7 @@ std::str_upper(s: std::str) -> std::str
 CREATE FUNCTION
 std::str_title(s: std::str) -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL FUNCTION 'initcap';
 };
 
@@ -121,6 +151,7 @@ std::str_title(s: std::str) -> std::str
 CREATE FUNCTION
 std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL $$
     SELECT lpad("s", "n"::int4, "fill")
     $$;
@@ -130,6 +161,7 @@ std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL $$
     SELECT rpad("s", "n"::int4, "fill")
     $$;
@@ -139,6 +171,7 @@ std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_ltrim(s: std::str, tr: std::str=' ') -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL FUNCTION 'ltrim';
 };
 
@@ -146,6 +179,7 @@ std::str_ltrim(s: std::str, tr: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_rtrim(s: std::str, tr: std::str=' ') -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL FUNCTION 'rtrim';
 };
 
@@ -153,5 +187,6 @@ std::str_rtrim(s: std::str, tr: std::str=' ') -> std::str
 CREATE FUNCTION
 std::str_trim(s: std::str, tr: std::str=' ') -> std::str
 {
+    SET volatility := 'IMMUTABLE';
     FROM SQL FUNCTION 'btrim';
 };
