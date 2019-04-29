@@ -73,7 +73,7 @@ def change_working_directory(path: str):
 def change_process_gid(gid: int):
     """Change the GID of this process.
 
-    Requires appropriate OS priveleges for this process.
+    Requires appropriate OS privileges for this process.
     """
     try:
         os.setgid(gid)
@@ -85,7 +85,7 @@ def change_process_gid(gid: int):
 def change_process_uid(uid: int):
     """Change the UID of this process.
 
-    Requires appropriate OS priveleges for this process.
+    Requires appropriate OS privileges for this process.
     """
     try:
         os.setuid(uid)

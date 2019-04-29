@@ -53,7 +53,7 @@ def ast_objref_to_objref(
 
     if module is None:
         raise errors.InvalidReferenceError(
-            f'reference to a non-existant schema name {nqname!r}',
+            f'reference to a non-existent schema name {nqname!r}',
             context=node.context
         )
 

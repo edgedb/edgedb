@@ -334,7 +334,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r"""
             CREATE TYPE test::TestContainerLinkObjectType {
                 CREATE PROPERTY test_array_link -> array<std::str>;
-                # FIXME: for now dimention specs on the array are
+                # FIXME: for now dimension specs on the array are
                 # disabled pending a syntax change
                 # CREATE PROPERTY test_array_link_2 ->
                 #     array<std::str[10]>;
@@ -683,7 +683,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"reference to a non-existant schema name 'array'"):
+                r"reference to a non-existent schema name 'array'"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> array;
@@ -693,7 +693,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"reference to a non-existant schema name 'tuple'"):
+                r"reference to a non-existent schema name 'tuple'"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> tuple;

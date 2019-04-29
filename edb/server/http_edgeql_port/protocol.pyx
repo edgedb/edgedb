@@ -137,7 +137,7 @@ cdef class Protocol(http.HttpProtocol):
                 False, # expected cardinality is MANY
                 compiler.CompileStatementMode.SINGLE,
                 compiler.Capability.QUERY,
-                True,  # json paramaters
+                True,  # json parameters
             )
             return units[0]
         finally:

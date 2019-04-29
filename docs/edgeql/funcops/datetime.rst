@@ -187,7 +187,7 @@ Date and Time
       See the ``'week'`` element for more details.
     - ``'microseconds'`` - the seconds including fractional value expressed
       as microseconds
-    - ``'millennium'`` - the millenium. The third millenium started
+    - ``'millennium'`` - the millennium. The third millennium started
       on Jan 1, 2001.
     - ``'milliseconds'`` - the seconds including fractional value expressed
       as milliseconds

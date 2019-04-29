@@ -106,8 +106,8 @@ def init_dml_stmt(
         relctx.pull_path_namespace(
             target=dml_stmt, source=range_rvar, ctx=ctx)
 
-        # Auxillary relations are always joined via the WHERE
-        # clause due to the structure of the UPDATE/DELETE SQL statments.
+        # Auxiliary relations are always joined via the WHERE
+        # clause due to the structure of the UPDATE/DELETE SQL statements.
         dml_stmt.where_clause = astutils.new_binop(
             lexpr=pgast.ColumnRef(name=[
                 dml_stmt.relation.alias.aliasname,

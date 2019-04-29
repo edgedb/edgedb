@@ -74,7 +74,7 @@ class BaseExpr(ImmutableBase):
     __ast_meta__ = {'nullable'}
 
     nullable: bool              # Whether the result can be NULL.
-    ser_safe: bool = False      # Whether ther expr is serialization-safe.
+    ser_safe: bool = False      # Whether there expr is serialization-safe.
 
     def __init__(self, *, nullable: typing.Optional[bool]=None,
                  **kwargs) -> None:
