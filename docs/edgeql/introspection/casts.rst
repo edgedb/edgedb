@@ -119,7 +119,7 @@ The scalar types :eql:type:`int64` and :eql:type:`float32` cannot be
 implicitly cast into each other, but they both can be implicitly cast
 into :eql:type:`float64`.
 
-The ``allow_assignemnt`` property tells whether this is an implicit
+The ``allow_assignment`` property tells whether this is an implicit
 cast during assignment if a more general *implicit cast* is not
 allowed. For example, consider the following type:
 

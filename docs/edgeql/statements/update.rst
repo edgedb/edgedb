@@ -19,7 +19,7 @@ UPDATE
     SET <shape> ;
 
 ``UPDATE`` changes the values of the specified links in all objects
-selected by *update-selector-expr* and, optinally, filtered by
+selected by *update-selector-expr* and, optionally, filtered by
 *filter-expr*.
 
 :eql:synopsis:`WITH`

@@ -169,7 +169,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                     name,
                     value
                 }
-                FILTER .name = "NON EXISTANT";
+                FILTER .name = "NON EXISTENT";
             """,
             [],
         )
