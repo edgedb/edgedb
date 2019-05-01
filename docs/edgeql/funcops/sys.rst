@@ -133,3 +133,16 @@ System
 
         db> SELECT sys::get_version_as_str();
         {'1.0-alpha.1'}
+
+
+.. eql:function:: sys::get_transaction_isolation() -> str
+
+    Return the isolation level of the current transaction.
+
+    Possible return values: ``"repeatable read"``,
+    ``"serialized"``.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT sys::get_transaction_isolation();
+        {'repeatable read'}
