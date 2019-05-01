@@ -2151,3 +2151,49 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
             async with tg.TaskGroup() as g:
                 for con in cons:
                     g.create_task(con.close())
+
+    async def test_server_proto_query_cache_invalidate_09(self):
+        typename = 'CacheInv_09'
+
+        await self.con.execute('START TRANSACTION')
+        try:
+            await self.con.execute(f'''
+                CREATE TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::str;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := 'aaa'
+                }};
+            ''')
+
+            query = f'SELECT test::{typename}.prop1'
+
+            for _ in range(5):
+                self.assertEqual(
+                    await self.con.fetchall(query),
+                    edgedb.Set(['aaa']))
+
+            await self.con.execute(f'''
+                DELETE (SELECT test::{typename});
+
+                ALTER TYPE test::{typename} {{
+                    DROP PROPERTY prop1;
+                }};
+
+                ALTER TYPE test::{typename} {{
+                    CREATE REQUIRED PROPERTY prop1 -> std::int64;
+                }};
+
+                INSERT test::{typename} {{
+                    prop1 := 123
+                }};
+            ''')
+
+            for _ in range(5):
+                self.assertEqual(
+                    await self.con.fetchall(query),
+                    edgedb.Set([123]))
+
+        finally:
+            await self.con.execute('ROLLBACK')
