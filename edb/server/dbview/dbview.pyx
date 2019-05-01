@@ -174,7 +174,9 @@ cdef class DatabaseConnectionView:
 
     cdef lookup_compiled_query(self, bytes eql, bint json_mode,
                                bint expect_one):
-        if self._tx_error or not self._query_cache_enabled:
+        if (self._tx_error or
+                not self._query_cache_enabled or
+                self._in_tx_with_ddl):
             return None
 
         key = (eql, json_mode, expect_one, self._modaliases, self._config)

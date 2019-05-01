@@ -336,7 +336,10 @@ class Compiler(BaseCompiler):
                     in_type_args[argpos - 1] = argname
 
             sql_hash = self._hash_sql(
-                sql_bytes, mode=str(ctx.output_format).encode())
+                sql_bytes,
+                mode=str(ctx.output_format).encode(),
+                intype=in_type_id.bytes,
+                outtype=out_type_id.bytes)
 
             return dbstate.Query(
                 sql=(sql_bytes,),
