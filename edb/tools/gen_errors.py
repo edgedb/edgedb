@@ -18,11 +18,14 @@
 
 
 import builtins
+import json
 import pathlib
 import re
 import sys
 
 import click
+
+import edb
 
 from edb.tools.edb import edbcommands
 from edb.errors import base as edb_base_errors
@@ -164,8 +167,48 @@ class ErrorsTree:
             .setdefault(b3, SparseArray) \
             .setdefault(b4, lambda: name)
 
-    def generate_pycode(self, *, message_base_class, base_class,
-                        base_import, extra_all, client):
+    def load(self, ep):
+        with open(ep, 'rt') as f:
+            self._load(f)
+
+    def _load(self, f):
+        lines = []
+        for line in f.readlines():
+            if re.match(r'(?x)^ (\s*\#[^\n]*) | (\s*) $', line):
+                continue
+            else:
+                lines.append(line)
+
+        for line in lines:
+            # For consistency we require a very particular format
+            # for error codes (hex numbers) and error names
+            # (camel case, only words, ends with "Error").
+            m = re.match(
+                r'''(?x)^
+                    0x_(?P<b1>[0-9A-F]{2})_
+                       (?P<b2>[0-9A-F]{2})_
+                       (?P<b3>[0-9A-F]{2})_
+                       (?P<b4>[0-9A-F]{2})
+
+                    \s+
+                    (?P<name>[A-Z][a-zA-Z]+(?:Error|Message))
+                    \s*
+                $''',
+                line
+            )
+
+            if not m:
+                die(f'Unable to parse {line!r} line')
+
+            b1 = int(m.group('b1'), 16)
+            b2 = int(m.group('b2'), 16)
+            b3 = int(m.group('b3'), 16)
+            b4 = int(m.group('b4'), 16)
+            name = m.group('name')
+
+            self.add(b1, b2, b3, b4, name)
+
+    def generate_classes(self, *, message_base_class, base_class, client):
         classes = []
 
         for i1 in self._tree.indices():
@@ -210,6 +253,15 @@ class ErrorsTree:
 
                         classes.append((b4, base, i1, i2, i3, i4))
 
+        return classes
+
+    def generate_pycode(self, *, message_base_class, base_class,
+                        base_import, extra_all, client):
+        classes = self.generate_classes(
+            message_base_class=message_base_class,
+            base_class=base_class,
+            client=client)
+
         lines = []
         all_lines = []
         for name, base, i1, i2, i3, i4 in classes:
@@ -241,8 +293,9 @@ def die(msg):
 
 
 def main(*, base_class, message_base_class,
-         base_import, stdout, extra_all, client):
-    import edb
+         base_import, stdout, extra_all, client,
+         language):
+
     for p in edb.__path__:
         ep = pathlib.Path(p) / 'api' / 'errors.txt'
         if ep.exists():
@@ -251,43 +304,8 @@ def main(*, base_class, message_base_class,
     else:
         die('Unable to find the "edb/api/errors.txt" file')
 
-    lines = []
-    with open(ep, 'rt') as f:
-        for line in f.readlines():
-            if re.match(r'(?x)^ (\s*\#[^\n]*) | (\s*) $', line):
-                continue
-            else:
-                lines.append(line)
-
     tree = ErrorsTree()
-    for line in lines:
-        # For consistency we require a very particular format
-        # for error codes (hex numbers) and error names
-        # (camel case, only words, ends with "Error").
-        m = re.match(
-            r'''(?x)^
-                0x_(?P<b1>[0-9A-F]{2})_
-                   (?P<b2>[0-9A-F]{2})_
-                   (?P<b3>[0-9A-F]{2})_
-                   (?P<b4>[0-9A-F]{2})
-
-                \s+
-                (?P<name>[A-Z][a-zA-Z]+(?:Error|Message))
-                \s*
-            $''',
-            line
-        )
-
-        if not m:
-            die(f'Unable to parse {line!r} line')
-
-        b1 = int(m.group('b1'), 16)
-        b2 = int(m.group('b2'), 16)
-        b3 = int(m.group('b3'), 16)
-        b4 = int(m.group('b4'), 16)
-        name = m.group('name')
-
-        tree.add(b1, b2, b3, b4, name)
+    tree.load(ep)
 
     code = tree.generate_pycode(base_class=base_class,
                                 message_base_class=message_base_class,
@@ -351,6 +369,30 @@ def gen_errors(*, base_class, message_base_class, base_import,
              base_import=base_import,
              stdout=stdout,
              extra_all=extra_all,
-             client=client)
+             client=client,
+             language='python')
+    except Exception as ex:
+        die(str(ex))
+
+
+@edbcommands.command('gen-errors-json')
+@click.option(
+    '--client', type=bool, default=False, is_flag=True)
+def gen_errors_json(*, client):
+    """Generate JSON from edb/api/errors.txt"""
+    for p in edb.__path__:
+        ep = pathlib.Path(p) / 'api' / 'errors.txt'
+        if ep.exists():
+            break
+    else:
+        die('Unable to find the "edb/api/errors.txt" file')
+
+    try:
+        tree = ErrorsTree()
+        tree.load(ep)
+
+        clss = tree.generate_classes(
+            message_base_class=None, base_class=None, client=client)
+        print(json.dumps(clss))
     except Exception as ex:
         die(str(ex))
