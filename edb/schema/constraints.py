@@ -170,9 +170,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
             raise errors.InvalidConstraintDefinitionError(
                 f'missing constraint expression in {name!r}')
 
-        expr_ql = expr.qlast
-        if expr_ql is None:
-            expr_ql = qlparser.parse(expr.text, module_aliases)
+        expr_ql = qlparser.parse(expr.text, module_aliases)
 
         if not args:
             args = constr_base.get_field_value(schema, 'args')

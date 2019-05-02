@@ -893,8 +893,10 @@ class DeclarationLoader:
 
         if (not isinstance(expr_type, s_abc.Type) or
                 (ptr.get_target(self._schema) is not None and
-                 not expr_type.issubclass(
-                    self._schema, ptr.get_target(self._schema)))):
+                    # the default must be assignment-castable to the
+                    # target type
+                    not expr_type.assignment_castable_to(
+                        ptr.get_target(self._schema), self._schema))):
             raise errors.SchemaError(
                 'default value query must yield a single result of '
                 'type {!r}'.format(

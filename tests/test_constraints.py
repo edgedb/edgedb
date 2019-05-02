@@ -124,9 +124,9 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
     async def test_constraints_scalar_enum_02(self):
         data = {
-            ('foobar', 'invalid'),
-            ('bar', 'good'),
-            ('foo', 'good'),
+            ('foo', 'invalid'),
+            ('fuz', 'good'),
+            ('buz', 'good'),
         }
 
         await self._run_link_tests(data, 'test::Object', 'c_my_enum')

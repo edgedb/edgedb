@@ -55,8 +55,12 @@ scalar type constraint_enum extending str {
    constraint one_of('foo', 'bar');
 }
 
+scalar type constraint_enum2 extending str {
+   constraint one_of('notfoo', 'notbar');
+}
+
 scalar type constraint_my_enum extending str {
-   constraint my_one_of(['foo', 'bar']);
+   constraint my_one_of(['fuz', 'buz']);
 }
 
 
@@ -99,6 +103,9 @@ type Object {
     property c_minmax -> constraint_minmax;
     property c_strvalue -> constraint_strvalue;
     property c_enum -> constraint_enum;
+    property c_enum2 -> constraint_enum2 {
+        default := 'notfoo';
+    }
     property c_my_enum -> constraint_my_enum;
 }
 
