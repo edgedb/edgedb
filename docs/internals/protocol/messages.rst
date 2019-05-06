@@ -225,7 +225,7 @@ Format:
         // A set of message headers.
         Map     headers;
 
-        // Transaction state
+        // Command status.
         bytes   status_data;
     };
 
@@ -252,7 +252,7 @@ Format:
         // A set of message headers.
         Headers headers;
 
-        // Transaction state
+        // Script text.
         string  script_text;
     };
 
