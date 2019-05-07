@@ -74,7 +74,7 @@ Python "venv" with all dependencies and commands installed into it.
 
       $ edb test
 
-The new virtual environment is now ready for development and can now be
+The new virtual environment is now ready for development and can be
 activated at any time.
 
 
