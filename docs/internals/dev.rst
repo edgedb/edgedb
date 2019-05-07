@@ -1,0 +1,116 @@
+=================
+Developing EdgeDB
+=================
+
+This section describes how to build EdgeDB locally, how to use its
+internal tools, and how to contribute to it.
+
+
+Building Locally
+================
+
+The following instructions should be used to create a "dev" build on
+Linux or macOS.  Windows is not currently supported.
+
+.. rubric:: Build Requirements
+
+* GNU make version 3.80 or newer;
+* C compiler (GCC or clang);
+* autotools;
+* Python 3.7 dev package;
+* Bison 1.875 or later;
+* Flex 2.5.31 or later;
+* Perl 5.8.3 or later.
+
+.. rubric:: Instructions
+
+#. Make a new directory that will contain checkouts of `edgedb <edgedb_>`_
+   and `edgedb-python <edgedbpy_>`_.  The name of the directory is
+   arbitrary, we will use "dev" in this guide:
+
+   .. code-block:: bash
+
+      $ mkdir ~/dev
+      $ cd ~/dev
+
+#. Clone edgedb and edgedb-python repositories:
+
+   .. code-block:: bash
+
+      $ git clone --recursive git@github.com:edgedb/edgedb.git
+      $ git clone --recursive git@github.com:edgedb/edgedb-python.git
+
+#. Create a Python 3.7 virtual environment and activate it:
+
+   .. code-block:: bash
+
+      $ python3.7 -m venv edgedb-dev
+      $ source edgedb-dev/bin/activate
+
+#. Build edgedb-python:
+
+   .. code-block:: bash
+
+      $ cd edgedb-python
+      $ pip install -v -e .
+
+#. Build edgedb (the build will take a while):
+
+   .. code-block:: bash
+
+      $ cd ../edgedb
+      $ pip install -v -e .
+
+#. Run tests:
+
+   .. code-block:: bash
+
+      $ edb test
+
+
+Running Tests
+=============
+
+To run all EdgeDB tests simply use the ``edb test`` command without
+arguments.
+
+The command also supports running a few selected tests.  To run all
+tests in a test case file:
+
+.. code-block:: bash
+
+   $ edb test tests/test_edgeql_calls.py
+
+   # or run two files:
+   $ edb test tests/test_edgeql_calls.py tests/test_edgeql_for.py
+
+To pattern-match a test bu its name:
+
+.. code-block:: bash
+
+   $ edb test -k test_edgeql_calls_01
+
+   # or run all tests that contain "test_edgeql_calls":
+   $ edb test -k test_edgeql_calls
+
+See ``edb test --help`` for more options.
+
+
+Dev Server
+==========
+
+Use the ``$ edb server`` command to start the development server.
+
+You can then use another terminal to open a REPL to the server using the
+``$ edgedb`` command, or connect to it using one of the language bindings.
+
+
+Test Databases
+==============
+
+Use the ``$ edb inittestdb`` command to create and populate databases
+that are used by unit tests.
+
+
+.. _edgedbpy: https://github.com/edgedb/edgedb-python
+.. _edgedb: https://github.com/edgedb/edgedb

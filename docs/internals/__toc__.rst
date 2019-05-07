@@ -7,3 +7,4 @@ Internals
     :hidden:
 
     protocol/__toc__
+    dev
