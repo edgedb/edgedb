@@ -24,6 +24,9 @@ Linux or macOS.  Windows is not currently supported.
 
 .. rubric:: Instructions
 
+The easiest way to set up a development environment is to create a
+Python "venv" with all dependencies and commands installed into it.
+
 #. Make a new directory that will contain checkouts of `edgedb <edgedb_>`_
    and `edgedb-python <edgedbpy_>`_.  The name of the directory is
    arbitrary, we will use "dev" in this guide:
@@ -61,17 +64,24 @@ Linux or macOS.  Windows is not currently supported.
       $ cd ../edgedb
       $ pip install -v -e .
 
+   In addition to compiling EdgeDB and all dependencies, this will also
+   install ``edb`` and ``edgedb`` command line tools into the current
+   Python virtual environment.
+
 #. Run tests:
 
    .. code-block:: bash
 
       $ edb test
 
+The new virtual environment is now ready for development and can now be
+activated at any time.
+
 
 Running Tests
 =============
 
-To run all EdgeDB tests simply use the ``edb test`` command without
+To run all EdgeDB tests simply use the ``$ edb test`` command without
 arguments.
 
 The command also supports running a few selected tests.  To run all
@@ -93,7 +103,7 @@ To pattern-match a test bu its name:
    # or run all tests that contain "test_edgeql_calls":
    $ edb test -k test_edgeql_calls
 
-See ``edb test --help`` for more options.
+See ``$ edb test --help`` for more options.
 
 
 Dev Server
