@@ -2483,6 +2483,29 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """, [{}])
 
     @test.xfail('''
+        The error is: reference to a non-existent schema item
+
+        This is unintuitive, as the test::InhTest04_child should have
+        the inherited property 'testp'.
+    ''')
+    async def test_edgeql_ddl_inheritance_alter_04(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::InhTest04 {
+                CREATE PROPERTY testp -> int64;
+            };
+
+            CREATE TYPE test::InhTest04_child EXTENDING test::InhTest04;
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE test::InhTest04_child {
+                ALTER PROPERTY testp {
+                    SET default := 42;
+                };
+            };
+        """)
+
+    @test.xfail('''
         The error is:
 
         InvalidReferenceError: reference to a non-existent schema
