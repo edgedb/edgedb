@@ -119,16 +119,19 @@ def compile_DetachedExpr(
 @dispatch.compile.register(qlast.Set)
 def compile_Set(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    if expr.elements:
-        if len(expr.elements) == 1:
+    # after flattening the set may still end up with 0 or 1 element,
+    # which are treated as a special case
+    elements = flatten_set(expr)
+
+    if elements:
+        if len(elements) == 1:
             # From the scope perspective, single-element set
             # literals are equivalent to a binary UNION with
             # an empty set, not to the element.
             with ctx.newscope(fenced=True) as scopectx:
-                ir_set = dispatch.compile(expr.elements[0], ctx=scopectx)
+                ir_set = dispatch.compile(elements[0], ctx=scopectx)
                 return setgen.scoped_set(ir_set, ctx=scopectx)
         else:
-            elements = flatten_set(expr)
             # a set literal is just sugar for a UNION
             op = 'UNION'
 

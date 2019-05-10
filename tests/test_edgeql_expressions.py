@@ -236,6 +236,18 @@ class TestExpressions(tb.QueryTestCase):
             [0],
         )
 
+    async def test_edgeql_expr_emptyset_03(self):
+        await self.assert_query_result(
+            r'''SELECT {1, {}};''',
+            [1],
+        )
+
+    async def test_edgeql_expr_emptyset_04(self):
+        await self.assert_query_result(
+            r'''SELECT sum({1, 1, {}});''',
+            [2],
+        )
+
     async def test_edgeql_expr_idempotent_01(self):
         await self.assert_query_result(
             r"""
