@@ -174,6 +174,15 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             [],
         )
 
+    def test_http_edgeql_query_08(self):
+        with self.assertRaisesRegex(edgedb.ProtocolError,
+                                    r'expected one statement, got 2'):
+            self.edgeql_query(
+                r"""
+                    SELECT 1;
+                    SELECT 2;
+                """)
+
     def test_http_edgeql_session_func_01(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'sys::advisory_lock\(\) cannot be '
