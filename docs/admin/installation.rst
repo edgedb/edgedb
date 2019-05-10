@@ -89,3 +89,43 @@ It is also possible to install the package from the command line:
 
 .. _`macOS EdgeDB package`:
         https://packages.edgedb.com/macos/edgedb-1-alpha1.pkg
+
+
+.. _ref_admin_install_docker:
+
+------
+Docker
+------
+
+Step 1. Pull the EdgeDB server Docker image:
+
+.. code-block:: bash
+
+    docker pull edgedb/edgedb
+
+Step 2.  Run the container (replace ``<datadir>`` with the directory you
+want to persist the data in):
+
+.. code-block:: bash
+
+    docker run -it --rm -p 5656:5656 -p 8888:8888 \
+                --name=edgedb-server \
+                -v <datadir>:/var/lib/edgedb/data \
+                edgedb/edgedb
+
+When configuring extra :ref:`ports <ref_admin_config_connection>`, make
+sure to expose them on the host by adding a corresponding ``-p`` argument to
+the ``docker run`` command.
+
+
+Running EdgeDB shell in a linked container
+------------------------------------------
+
+To run the EdgeDB shell using Docker, start it another container, linking
+to the server container:
+
+.. code-block:: bash
+
+    docker run --link=edgedb-server --rm -it \
+        edgedb/edgedb:latest \
+        edgedb -u edgedb -h edgedb-server

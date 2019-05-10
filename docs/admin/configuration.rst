@@ -40,6 +40,8 @@ Configuration Parameters
 
 :edb-alt-title: Available Configuration Parameters
 
+.. _ref_admin_config_connection:
+
 Connection Settings
 -------------------
 
