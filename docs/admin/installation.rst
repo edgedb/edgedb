@@ -109,13 +109,16 @@ want to persist the data in):
 .. code-block:: bash
 
     docker run -it --rm -p 5656:5656 -p 8888:8888 \
-                --name=edgedb-server \
+                -p 8889:8889 --name=edgedb-server \
                 -v <datadir>:/var/lib/edgedb/data \
                 edgedb/edgedb
 
 When configuring extra :ref:`ports <ref_admin_config_connection>`, make
 sure to expose them on the host by adding a corresponding ``-p`` argument to
-the ``docker run`` command.
+the ``docker run`` command. The command above exposes the default ports used by
+:ref:`EdgeQL over binary protocol <ref_protocol_overview>` (5656),
+:ref:`EdgeQL over HTTP <ref_edgeql_index>` (8889), and
+:ref:`GraphQL over HTTP <ref_graphql_index>` (8888).
 
 
 Running EdgeDB shell in a linked container
