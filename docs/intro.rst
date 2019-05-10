@@ -6,14 +6,15 @@ as strongly typed objects and relationships between them.
 
 .. eql:react-element:: DocsNavTable
 
+EdgeDB is built on top of PostgreSQL, inheriting all its core strengths:
+ACID compliance, performance, and reliability.
+
 EdgeDB features:
 
 - strict, strongly typed schema;
 - powerful and clean query language;
 - ability to easily work with complex hierarchical data;
-- built-in support for schema migrations;
-- EdgeDB is built on top of PostgreSQL, inheriting all its core strengths:
-  ACID compliance, performance, and reliability.
+- built-in support for schema migrations.
 
 EdgeDB is not a graph database: the data is stored and queried using
 relational database techniques.  Unlike most graph databases, EdgeDB
