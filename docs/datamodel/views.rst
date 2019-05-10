@@ -44,7 +44,7 @@ more legible:
 
 Another benefit is that this ``UserView`` can now be exposed via
 :ref:`GraphQL <ref_graphql_index>` providing access to the computable
-link ``friend_of``, that would otherwise be inexpressible in GrapQL:
+link ``friend_of``, that would otherwise be inexpressible in GraphQL:
 
 .. code-block:: graphql
 
