@@ -186,7 +186,7 @@ an intuitive manner.
         FILTER .name = x.name
         SET {
             friends := (
-                FOR f in {unnest(x.friends)}
+                FOR f in {array_unpack(x.friends)}
                 UNION (
                     SELECT U2 {@nickname := f.1}
                     FILTER U2.name = f.0
