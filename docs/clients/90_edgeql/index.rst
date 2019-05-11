@@ -7,8 +7,9 @@ EdgeQL over HTTP
 EdgeDB can expose an HTTP endpoint for EdgeQL queries. Since HTTP is a
 stateless protocol, no :ref:`DDL <ref_eql_ddl>`,
 :ref:`transaction commands <ref_eql_statements_start_tx>`,
-or functions that require a session (such as :eql:func:`sys::advisory_lock`) can be
-executed using this endpoint.  Only one query per request can be executed.
+or functions that require a session (such as :eql:func:`sys::advisory_lock`)
+can be executed using this endpoint.  Only one query per request can be
+executed.
 
 Here's an example of configuration that will set up EdgeQL over HTTP
 access to the database:
