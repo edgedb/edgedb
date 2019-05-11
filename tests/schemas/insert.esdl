@@ -72,6 +72,42 @@ type DefaultTest4 {
     }
 }
 
+type DefaultTest5 {
+    required property name -> str;
+    link other -> Subordinate {
+        # statically defined value
+        default := (
+            SELECT Subordinate
+            FILTER .name = 'DefaultTest5/Sub'
+            LIMIT 1
+        );
+    }
+}
+
+type DefaultTest6 {
+    required property name -> str;
+    link other -> DefaultTest5 {
+        # staticly defined insert
+        default := (
+            INSERT DefaultTest5 {
+                name := 'DefaultTest6/5'
+            }
+        );
+    }
+}
+
+type DefaultTest7 {
+    required property name -> str;
+    link other -> DefaultTest6 {
+        # staticly defined insert that creates an implicit insert chain
+        default := (
+            INSERT DefaultTest6 {
+                name := 'DefaultTest7/6'
+            }
+        );
+    }
+}
+
 # types to test some inheritance issues
 type InputValue {
     property val -> str;

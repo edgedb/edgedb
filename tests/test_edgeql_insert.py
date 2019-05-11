@@ -507,12 +507,12 @@ class TestInsert(tb.QueryTestCase):
             r'''
                 WITH MODULE test
                 SELECT (INSERT DefaultTest1 {
-                    foo := 'DT returning 5',
+                    foo := 'DT returning 4',
                     num := 33,
                 }) {foo, num};
             ''',
             [{
-                'foo': 'DT returning 5',
+                'foo': 'DT returning 4',
                 'num': 33,
             }],
         )
@@ -522,7 +522,7 @@ class TestInsert(tb.QueryTestCase):
                 WITH
                     MODULE test,
                     I := (INSERT _ := InsertTest {
-                        name := 'IT returning 5',
+                        name := 'IT returning 4',
                         l2 := 9999,
                     })
                 SELECT
@@ -537,7 +537,7 @@ class TestInsert(tb.QueryTestCase):
                 WITH
                     MODULE test,
                     I := (INSERT _ := InsertTest {
-                        name := 'IT returning 5',
+                        name := 'IT returning 4',
                         l2 := 9,
                     })
                 SELECT
@@ -545,8 +545,131 @@ class TestInsert(tb.QueryTestCase):
                     FILTER DefaultTest1.num > I.l2;
             ''',
             [{
-                'foo': 'DT returning 5',
+                'foo': 'DT returning 4',
                 'num': 33,
+            }],
+        )
+
+    async def test_edgeql_insert_returning_05(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (INSERT DefaultTest1 {
+                    foo := 'DT returning 5',
+                }) {
+                    foo,
+                    # test that num will show up with the default value
+                    num,
+                };
+            ''',
+            [{
+                'foo': 'DT returning 5',
+                'num': 42,
+            }],
+        )
+
+    async def test_edgeql_insert_returning_06(self):
+        await self.con.execute('''
+            INSERT test::Subordinate {
+                name := 'DefaultTest5/Sub'
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (INSERT DefaultTest5 {
+                    name := 'ret6/DT5',
+                }) {
+                    name,
+                    # test that other will show up with the default value
+                    other: {
+                        name
+                    },
+                };
+            ''',
+            [{
+                'name': 'ret6/DT5',
+                'other': {
+                    'name': 'DefaultTest5/Sub',
+                }
+            }],
+        )
+
+    @test.xfail('''
+        The default INSERT works, but it is not visible in the query.
+    ''')
+    async def test_edgeql_insert_returning_07(self):
+        await self.con.execute('''
+            INSERT test::Subordinate {
+                name := 'DefaultTest5/Sub'
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (INSERT DefaultTest6 {
+                    name := 'ret7/DT6',
+                }) {
+                    name,
+                    # test that other will show up with the default value
+                    other: {
+                        name,
+                        other: {
+                            name
+                        },
+                    },
+                };
+            ''',
+            [{
+                'name': 'ret7/DT6',
+                'other': {
+                    'name': 'DefaultTest6/5',
+                    'other': {
+                        'name': 'DefaultTest5/Sub',
+                    }
+                }
+            }],
+        )
+
+    @test.xfail('''
+        The default INSERT works, but it is not visible in the query.
+    ''')
+    async def test_edgeql_insert_returning_08(self):
+        await self.con.execute('''
+            INSERT test::Subordinate {
+                name := 'DefaultTest5/Sub'
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT (INSERT DefaultTest7 {
+                    name := 'ret8/DT7',
+                }) {
+                    name,
+                    # test that other will show up with the default value
+                    other: {
+                        name,
+                        other: {
+                            name
+                        },
+                    },
+                };
+            ''',
+            [{
+                'name': 'ret8/DT7',
+                'other': {
+                    'name': 'DefaultTest7/6',
+                    'other': {
+                        'name': 'DefaultTest6/5',
+                        'other': {
+                            'name': 'DefaultTest5/Sub',
+                        }
+                    }
+                }
             }],
         )
 
