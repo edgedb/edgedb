@@ -125,6 +125,13 @@ The EdgeDB documentation can be found at
 [edgedb.com/docs](https://edgedb.com/docs).
 
 
+Building From Source
+====================
+
+Please follow the instructions outlined
+[in the documentation](https://edgedb.com/docs/internals/dev).
+
+
 License
 =======
 

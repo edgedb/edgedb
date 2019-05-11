@@ -12,11 +12,13 @@ protocol. Both GET and POST methods use the following fields:
   correspond to the variable names and values. It is required if the
   EdgeQL query has variables, otherwise it is optional.
 
+The protocol supports HTTP Keep-Alive.
+
 GET request
 -----------
 
 The HTTP GET request passes the fields as query parameters: ``query``
-and ``variables``.
+string and JSON-encoded ``variables`` mapping.
 
 
 POST request
