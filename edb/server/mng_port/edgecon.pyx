@@ -169,91 +169,104 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected initial message: {mtype}, expected "V"')
 
-        await self.negotiate_protocol()
+        params = await self.do_handshake()
 
         self._con_status = EDGECON_STARTED
 
-        await self.wait_for_message()
-        mtype = self.buffer.get_message_type()
-        if mtype == b'0':
-            user = self.buffer.read_len_prefixed_utf8()
-            database = self.buffer.read_len_prefixed_utf8()
-            self.buffer.finish_message()
+        user = params.get('user')
+        if not user:
+            raise errors.BinaryProtocolError(
+                f'missing required connection parameter in ClientHandshake '
+                f'message: "user"'
+            )
 
-            logger.debug('received connection request by %s to database %s',
-                         user, database)
+        database = params.get('database')
+        if not user:
+            raise errors.BinaryProtocolError(
+                f'missing required connection parameter in ClientHandshake '
+                f'message: "database"'
+            )
 
-            dbv = self.port.new_view(
-                dbname=database, user=user,
-                query_cache=self.query_cache_enabled)
-            assert type(dbv) is dbview.DatabaseConnectionView
-            self.dbview = <dbview.DatabaseConnectionView>dbv
+        logger.debug('received connection request by %s to database %s',
+                     user, database)
 
-            self.backend = await self.port.new_backend(
-                dbname=database, dbver=self.dbview.dbver)
+        dbv = self.port.new_view(
+            dbname=database, user=user,
+            query_cache=self.query_cache_enabled)
+        assert type(dbv) is dbview.DatabaseConnectionView
+        self.dbview = <dbview.DatabaseConnectionView>dbv
 
-            # The user has already been authenticated by other means
-            # (such as the ability to write to a protected socket).
-            if self._external_auth:
-                authmethod_name = 'Trust'
-            else:
-                authmethod = await self.port.get_server().get_auth_method(
-                    user, database, self._transport)
-                authmethod_name = type(authmethod).__name__
+        self.backend = await self.port.new_backend(
+            dbname=database, dbver=self.dbview.dbver)
 
-            if authmethod_name == 'SCRAM':
-                await self._auth_scram(user)
-            elif authmethod_name == 'Trust':
-                await self._auth_trust(user)
-            else:
-                raise errors.InternalServerError(
-                    f'unimplemented auth method: {authmethod_name}')
-
-            logger.debug('successfully authenticated %s in database %s',
-                         user, database)
-
-            buf = WriteBuffer()
-
-            msg_buf = WriteBuffer.new_message(b'R')
-            msg_buf.write_int32(0)
-            msg_buf.end_message()
-            buf.write_buffer(msg_buf)
-
-            msg_buf = WriteBuffer.new_message(b'K')
-            msg_buf.write_int32(0)  # TODO: should send ID of this connection
-            msg_buf.end_message()
-            buf.write_buffer(msg_buf)
-
-            if self.port.in_dev_mode():
-                msg_buf = WriteBuffer.new_message(b'S')
-                msg_buf.write_len_prefixed_bytes(b'pgaddr')
-                msg_buf.write_len_prefixed_utf8(
-                    str(self.backend.pgcon.get_pgaddr()))
-                msg_buf.end_message()
-                buf.write_buffer(msg_buf)
-
-            msg_buf = WriteBuffer.new_message(b'Z')
-            msg_buf.write_int16(0)  # no headers
-            msg_buf.write_byte(b'I')
-            msg_buf.end_message()
-            buf.write_buffer(msg_buf)
-
-            self.write(buf)
-            self.flush()
-
+        # The user has already been authenticated by other means
+        # (such as the ability to write to a protected socket).
+        if self._external_auth:
+            authmethod_name = 'Trust'
         else:
-            self.fallthrough(False)
+            authmethod = await self.port.get_server().get_auth_method(
+                user, database, self._transport)
+            authmethod_name = type(authmethod).__name__
 
-    async def negotiate_protocol(self):
+        if authmethod_name == 'SCRAM':
+            await self._auth_scram(user)
+        elif authmethod_name == 'Trust':
+            await self._auth_trust(user)
+        else:
+            raise errors.InternalServerError(
+                f'unimplemented auth method: {authmethod_name}')
+
+        logger.debug('successfully authenticated %s in database %s',
+                     user, database)
+
+        buf = WriteBuffer()
+
+        msg_buf = WriteBuffer.new_message(b'R')
+        msg_buf.write_int32(0)
+        msg_buf.end_message()
+        buf.write_buffer(msg_buf)
+
+        msg_buf = WriteBuffer.new_message(b'K')
+        # TODO: should send ID of this connection
+        msg_buf.write_bytes(b'\x00' * 32)
+        msg_buf.end_message()
+        buf.write_buffer(msg_buf)
+
+        if self.port.in_dev_mode():
+            msg_buf = WriteBuffer.new_message(b'S')
+            msg_buf.write_len_prefixed_bytes(b'pgaddr')
+            msg_buf.write_len_prefixed_utf8(
+                str(self.backend.pgcon.get_pgaddr()))
+            msg_buf.end_message()
+            buf.write_buffer(msg_buf)
+
+        msg_buf = WriteBuffer.new_message(b'Z')
+        msg_buf.write_int16(0)  # no headers
+        msg_buf.write_byte(b'I')
+        msg_buf.end_message()
+        buf.write_buffer(msg_buf)
+
+        self.write(buf)
+        self.flush()
+
+    async def do_handshake(self):
         cdef:
             uint16_t hi
             uint16_t lo
             int i
             uint16_t nexts
             dict exts = {}
+            dict params = {}
 
         hi = <uint16_t>self.buffer.read_int16()
         lo = <uint16_t>self.buffer.read_int16()
+
+        nparams = <uint16_t>self.buffer.read_int16()
+        for i in range(nparams):
+            k = self.buffer.read_len_prefixed_utf8()
+            v = self.buffer.read_len_prefixed_utf8()
+            params[k] = v
+
         nexts = <uint16_t>self.buffer.read_int16()
 
         for i in range(nexts):
@@ -275,6 +288,8 @@ cdef class EdgeConnection:
 
             self.write(buf)
             self.flush()
+
+        return params
 
     async def _get_role_record(self, user):
         role_query = self.port.get_server().get_sys_query('role')
