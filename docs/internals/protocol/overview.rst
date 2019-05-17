@@ -273,3 +273,17 @@ ends if:
 * a :eql:stmt:`COMMIT` command is executed,
 * a :eql:stmt:`ROLLBACK` command is executed,
 * a :ref:`ref_protocol_msg_sync` message is received.
+
+
+Termination
+===========
+
+The normal termination procedure is that the client sends a
+:ref:`ref_protocol_msg_terminate` message and immediately closes the
+connection.  On receipt of this message, the server cleans up the
+connection resources and closes the connection.
+
+In some cases the server might disconnect without a client request to do so.
+In such cases the server will attempt to send an :ref:`ref_protocol_msg_error`
+or a :ref:`ref_protocol_msg_log` message to indicate the reason for the
+disconnection.

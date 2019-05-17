@@ -1072,6 +1072,10 @@ cdef class EdgeConnection:
                     elif mtype == b'S':
                         await self.sync()
 
+                    elif mtype == b'X':
+                        self.abort()
+                        break
+
                     else:
                         self.fallthrough(False)
 

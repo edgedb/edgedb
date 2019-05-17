@@ -84,6 +84,9 @@ Messages
     * - :ref:`ref_protocol_msg_sync`
       - Provide an explicit synchronization point.
 
+    * - :ref:`ref_protocol_msg_terminate`
+      - Terminate the connection.
+
 
 .. _ref_protocol_msg_error:
 
@@ -927,4 +930,25 @@ Format:
 
         // Mechanism-specific response data.
         bytes     sasl_data;
+    };
+
+
+.. _ref_protocol_msg_terminate:
+
+Terminate
+=========
+
+Sent by: client.
+
+Format:
+
+.. code-block:: c
+
+    struct Terminate {
+        // Message type ('X')
+        int8      mtype = 0x58;
+
+        // Length of message contents in bytes,
+        // including self.
+        int32     message_length;
     };
