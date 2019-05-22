@@ -2482,12 +2482,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SELECT test::Owner.<owner;
         """, [{}])
 
-    @test.xfail('''
-        The error is: reference to a non-existent schema item
-
-        This is unintuitive, as the test::InhTest04_child should have
-        the inherited property 'testp'.
-    ''')
     async def test_edgeql_ddl_inheritance_alter_04(self):
         await self.con.execute(r"""
             CREATE TYPE test::InhTest04 {
@@ -2504,6 +2498,25 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             };
         """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::ObjectType {
+                    properties: {
+                        name,
+                        default,
+                    }
+                    FILTER .name = 'testp',
+                }
+                FILTER .name = 'test::InhTest04_child';
+            """,
+            [{
+                'properties': [{
+                    'name': 'testp',
+                    'default': '42',
+                }],
+            }],
+        )
 
     @test.xfail('''
         The error is:

@@ -271,7 +271,8 @@ class RebaseProperty(PropertyCommand, inheriting.RebaseInheritingObject):
     pass
 
 
-class AlterProperty(PropertyCommand, inheriting.AlterInheritingObject):
+class AlterProperty(PropertyCommand,
+                    referencing.AlterReferencedInheritingObject):
     astnode = [qlast.AlterConcreteProperty,
                qlast.AlterProperty]
 

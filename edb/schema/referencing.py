@@ -213,3 +213,49 @@ class CreateReferencedInheritingObject(inheriting.CreateInheritingObject):
                 )
 
         return cmd
+
+
+class AlterReferencedInheritingObject(
+        ReferencedInheritingObjectCommand,
+        inheriting.AlterInheritingObject):
+
+    def apply(self, schema, context):
+
+        metaclass = self.get_schema_metaclass()
+        obj = schema.get(self.classname, type=metaclass, default=None)
+        if obj is None:
+            # Many referenced schema items, such as links and properties, are
+            # inherited by reference, i.e. no actual item copy is created in a
+            # descendant object type. However, when an attempt is made to
+            # `ALTER` such property, we must materialize the inherited
+            # reference.
+            schema, obj = self.materialize_inherited(schema, context)
+
+        return super().apply(schema, context)
+
+    def materialize_inherited(self, schema, context):
+
+        objcls = self.get_schema_metaclass()
+        referrer_ctx = self.get_referrer_context(context)
+        referrer_class = referrer_ctx.op.get_schema_metaclass()
+        referrer = referrer_ctx.scls
+        refdict = referrer_class.get_refdict_for_class(objcls)
+        refs = referrer.get_field_value(schema, refdict.attr)
+        key = refs.get_key_for_name(schema, self.classname)
+        inherited_obj = refs.get(schema, key)
+        old_schema = schema
+        schema, obj = inherited_obj.derive_copy(
+            schema,
+            referrer,
+            dctx=context,
+            attrs=dict(
+                inherited=True,
+            )
+        )
+
+        create_delta = objcls.delta(
+            None, obj, old_schema=old_schema, new_schema=schema)
+
+        referrer_ctx.op.prepend(create_delta)
+
+        return schema, obj

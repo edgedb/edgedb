@@ -1435,6 +1435,10 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
         return cls._key(schema, obj)
 
     @classmethod
+    def get_key_for_name(cls, schema, name):
+        return name
+
+    @classmethod
     def create(cls, schema, data: typing.Iterable[Object]):
         coll = super().create(schema, data)
         coll._check_duplicates(schema)
@@ -1547,13 +1551,19 @@ class ObjectIndexByFullname(
 class ObjectIndexByShortname(
         ObjectIndexBase,
         key=lambda schema, o: o.get_shortname(schema)):
-    pass
+
+    @classmethod
+    def get_key_for_name(cls, schema, name):
+        return sn.shortname_from_fullname(name)
 
 
 class ObjectIndexByUnqualifiedName(
         ObjectIndexBase,
         key=lambda schema, o: o.get_shortname(schema).name):
-    pass
+
+    @classmethod
+    def get_key_for_name(cls, schema, name):
+        return sn.shortname_from_fullname(name).name
 
 
 class ObjectDict(ObjectCollection, container=tuple):
