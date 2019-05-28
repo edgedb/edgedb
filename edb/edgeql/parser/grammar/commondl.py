@@ -275,3 +275,108 @@ class OptTypeQualifier(Nonterm):
 class FunctionType(Nonterm):
     def reduce_FullTypeExpr(self, *kids):
         self.val = kids[0].val
+
+
+class FromFunction(Nonterm):
+    def reduce_FROM_Identifier_BaseStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        code = kids[2].val.value
+        self.val = qlast.FunctionCode(language=lang, code=code)
+
+    def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM FUNCTION clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.FunctionCode(language=lang,
+                                      from_function=kids[3].val.value)
+
+    def reduce_FROM_Identifier_EXPRESSION(self, *kids):
+        lang = _parse_language(kids[1])
+        if lang != qlast.Language.SQL:
+            raise EdgeQLSyntaxError(
+                f'{lang} language is not supported in FROM clause',
+                context=kids[1].context) from None
+
+        self.val = qlast.FunctionCode(language=lang)
+
+
+class ProcessFunctionBlockMixin:
+    def _process_function_body(self, block):
+        props = {}
+
+        commands = []
+        code = None
+        language = qlast.Language.SQL
+        from_expr = False
+        from_function = None
+
+        for node in block.val:
+            if isinstance(node, qlast.FunctionCode):
+                if node.from_function:
+                    if from_function is not None:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM FUNCTION clause',
+                            context=node.context)
+                    from_function = node.from_function
+
+                elif node.code:
+                    if code is not None:
+                        raise EdgeQLSyntaxError(
+                            'more than one FROM <code> clause',
+                            context=node.context)
+                    code = node.code
+                    language = node.language
+
+                else:
+                    # FROM SQL EXPRESSION
+                    from_expr = True
+            else:
+                commands.append(node)
+
+        if (code is None and from_function is None and not from_expr):
+            raise EdgeQLSyntaxError(
+                'CREATE FUNCTION requires at least one FROM clause',
+                context=block.context)
+
+        else:
+            if from_expr and (from_function or code):
+                raise EdgeQLSyntaxError(
+                    'FROM SQL EXPRESSION is mutually exclusive with other '
+                    'FROM variants',
+                    context=block.context)
+
+            props['code'] = qlast.FunctionCode(
+                language=language,
+                from_function=from_function,
+                from_expr=from_expr,
+                code=code,
+            )
+
+        if commands:
+            props['commands'] = commands
+
+        return props
+
+
+#
+# CREATE TYPE ... { CREATE LINK ... { ON TARGET DELETE ...
+#
+class OnTargetDeleteStmt(Nonterm):
+    def reduce_ON_TARGET_DELETE_RESTRICT(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.RESTRICT)
+
+    def reduce_ON_TARGET_DELETE_DELETE_SOURCE(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.DELETE_SOURCE)
+
+    def reduce_ON_TARGET_DELETE_ALLOW(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.ALLOW)
+
+    def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT(self, *kids):
+        self.val = qlast.OnTargetDelete(
+            cascade=qlast.LinkTargetDeleteAction.DEFERRED_RESTRICT)

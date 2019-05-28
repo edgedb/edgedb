@@ -535,14 +535,10 @@ def process_update_body(
 
     # Process necessary updates to the link tables.
     for expr, props_only in external_updates:
-        if props_only:
-            process_linkprop_update(
-                ir_stmt, expr, wrapper, update_cte, ctx=ctx)
-        else:
-            process_link_update(
-                ir_stmt=ir_stmt, ir_set=expr, props_only=False,
-                wrapper=wrapper, dml_cte=update_cte, iterator_cte=None,
-                is_insert=False, ctx=ctx)
+        process_link_update(
+            ir_stmt=ir_stmt, ir_set=expr, props_only=False,
+            wrapper=wrapper, dml_cte=update_cte, iterator_cte=None,
+            is_insert=False, ctx=ctx)
 
 
 def is_props_only_update(shape_el: irast.Set, *,

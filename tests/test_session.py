@@ -91,7 +91,7 @@ class TestSession(tb.QueryTestCase):
         await self.con.fetchall('SET MODULE foo;')
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                'reference to a non-existent schema item: User'):
+                'reference to a non-existent schema item User'):
             await self.con.fetchall('SELECT User {name};')
 
     async def test_session_set_command_03(self):

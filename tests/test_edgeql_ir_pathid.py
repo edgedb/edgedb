@@ -51,18 +51,18 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         pid_2 = pid_1.extend(ptrcls=deck_ptr, schema=self.schema)
         self.assertEqual(
             str(pid_2),
-            '(test::User).>(test::deck)[IS test::Card]')
+            '(test::User).>deck[IS test::Card]')
 
         self.assertEqual(pid_2.rptr().name, deck_ptr.get_name(self.schema))
         self.assertEqual(pid_2.rptr_dir(),
                          s_pointers.PointerDirection.Outbound)
-        self.assertEqual(pid_2.rptr_name(), 'test::deck')
+        self.assertEqual(pid_2.rptr_name().name, 'deck')
         self.assertEqual(pid_2.src_path(), pid_1)
 
         ptr_pid = pid_2.ptr_path()
         self.assertEqual(
             str(ptr_pid),
-            '(test::User).>(test::deck)[IS test::Card]@')
+            '(test::User).>deck[IS test::Card]@')
 
         self.assertTrue(ptr_pid.is_ptr_path())
         self.assertFalse(ptr_pid.is_objtype_path())
@@ -73,8 +73,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         prop_pid = ptr_pid.extend(ptrcls=count_prop, schema=self.schema)
         self.assertEqual(
             str(prop_pid),
-            '(test::User).>(test::deck)[IS test::Card]@'
-            '(test::count)[IS std::int64]')
+            '(test::User).>deck[IS test::Card]@count[IS std::int64]')
 
         self.assertFalse(prop_pid.is_ptr_path())
         self.assertFalse(prop_pid.is_objtype_path())
@@ -155,8 +154,8 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
             prefixes,
             [
                 '(test::Card)',
-                'foo@@(test::Card).>(test::owners)[IS test::User]',
-                'bar@foo@@(test::Card).>(test::owners)[IS test::User]'
-                '.>(test::deck)[IS test::Card]',
+                'foo@@(test::Card).>owners[IS test::User]',
+                'bar@foo@@(test::Card).>owners[IS test::User]'
+                '.>deck[IS test::Card]',
             ]
         )

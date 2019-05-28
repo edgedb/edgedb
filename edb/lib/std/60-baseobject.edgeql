@@ -22,6 +22,8 @@
 
 CREATE ABSTRACT PROPERTY std::property;
 
+CREATE ABSTRACT PROPERTY std::id;
+
 CREATE ABSTRACT PROPERTY std::source;
 
 CREATE ABSTRACT PROPERTY std::target;
@@ -29,7 +31,7 @@ CREATE ABSTRACT PROPERTY std::target;
 CREATE ABSTRACT LINK std::link;
 
 CREATE ABSTRACT TYPE std::Object {
-    CREATE REQUIRED PROPERTY id -> std::uuid {
+    CREATE REQUIRED PROPERTY id EXTENDING std::id -> std::uuid {
         SET default := (SELECT std::uuid_generate_v1mc());
         SET readonly := True;
         CREATE CONSTRAINT std::exclusive;

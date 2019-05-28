@@ -82,9 +82,8 @@ def load_std_module(
 
     modtext = get_std_module_text(modname)
     for statement in edgeql.parse_block(modtext):
-        cmd = s_ddl.delta_from_ddl(
+        schema = s_ddl.apply_ddl(
             statement, schema=schema, modaliases=modaliases, stdmode=True)
-        schema, _ = cmd.apply(schema, context)
 
     return schema
 

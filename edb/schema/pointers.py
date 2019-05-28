@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
 
 import typing
 
@@ -85,6 +86,32 @@ def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
     return current
 
 
+def merge_target(ptr: Pointer, bases: typing.List[so.Pointer],
+                 field_name: str, *, schema) -> Pointer:
+
+    target = None
+
+    for base in bases:
+        base_target = base.get_target(schema)
+        if base_target is None:
+            continue
+
+        if target is None:
+            target = base_target
+        else:
+            schema, target = Pointer.merge_targets(
+                schema, ptr, target, base_target)
+
+    local_target = ptr.get_target(schema)
+    if target is None:
+        target = local_target
+    elif local_target is not None:
+        schema, target = Pointer.merge_targets(
+            schema, ptr, target, local_target)
+
+    return target
+
+
 class PointerLike:
     # An abstract base class for pointer-like objects, which
     # include actual schema properties and links, as well as
@@ -97,16 +124,20 @@ class PointerLike:
         return False
 
 
-class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
+class Pointer(referencing.ReferencedInheritingObject,
+              constraints.ConsistencySubject,
+              annotations.AnnotationSubject,
               PointerLike, s_abc.Pointer):
 
     source = so.SchemaField(
         so.Object,
-        default=None, compcoef=None)
+        default=None, compcoef=None,
+        inheritable=False)
 
     target = so.SchemaField(
         s_types.Type,
-        default=None, compcoef=0.833)
+        merge_fn=merge_target,
+        default=None, compcoef=0.85)
 
     required = so.SchemaField(
         bool,
@@ -176,6 +207,18 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
             else:
                 return self
 
+    def as_locally_defined(self, schema):
+        if self.get_is_local(schema) or self.generic(schema):
+            return [self]
+
+        ancestors = []
+
+        for a in self.get_ancestors(schema).objects(schema):
+            if not a.generic(schema) and a.get_is_local(schema):
+                ancestors.append(a)
+
+        return utils.minimize_class_set_by_least_generic(schema, ancestors)
+
     def get_near_endpoint(self, schema, direction):
         if direction == PointerDirection.Outbound:
             return self.get_source(schema)
@@ -188,30 +231,15 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
         else:
             return self.get_source(schema)
 
-    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        schema = super().finalize(
-            schema, bases=bases, apply_defaults=apply_defaults,
-            dctx=dctx)
-
-        if not self.generic(schema) and apply_defaults:
-            if self.get_cardinality(schema) is None:
-                schema = self.set_field_value(
-                    schema, 'cardinality', qltypes.Cardinality.ONE)
-
-                if dctx is not None:
-                    from . import delta as sd
-
-                    dctx.current().op.add(sd.AlterObjectProperty(
-                        property='cardinality',
-                        new_value=self.get_cardinality(schema),
-                        source='default'
-                    ))
-
-        return schema
+    def set_target(self, schema, target):
+        return self.set_field_value(schema, 'target', target)
 
     @classmethod
     def merge_targets(cls, schema, ptr, t1, t2):
         from . import objtypes as s_objtypes
+
+        if t1 is t2:
+            return schema, t1
 
         # When two pointers are merged, check target compatibility
         # and return a target that satisfies both specified targets.
@@ -243,7 +271,7 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
             if t1 != t2:
                 vn = ptr.get_verbosename(schema, with_parent=True)
                 raise errors.SchemaError(
-                    f'could not merge {pn!r} pointer: targets conflict',
+                    f'could not merge {vn!r}: targets conflict',
                     details=f'{vn} targets scalar type '
                             f'{t1.get_displayname(schema)!r} while it also '
                             f'targets incompatible scalar type '
@@ -267,36 +295,27 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
 
             new_targets = []
 
-            for tgt2 in tt2:
-                if all(tgt2.issubclass(schema, tgt1) for tgt1 in tt1):
-                    # This target is a subclass of the current target, so
-                    # it is a more specific requirement.
-                    new_targets.append(tgt2)
-                elif all(tgt1.issubclass(schema, tgt2) for tgt1 in tt1):
-                    # Current target is a subclass of this target, no need to
-                    # do anything here.
-                    pass
-                else:
-                    # The link is neither a subclass, nor a superclass
-                    # of the previously seen targets, which creates an
-                    # unresolvable target requirement conflict.
-                    vn = ptr.get_verbosename(schema, with_parent=True)
-                    raise errors.SchemaError(
-                        f'could not merge {vn} pointer: targets conflict',
-                        details=(
-                            f'{vn} targets '
-                            f'object {t2.get_verbosename(schema)!r} which '
-                            f'is not related to any of targets found in '
-                            f'other sources being merged: '
-                            f'{t1.get_displayname(schema)!r}.'))
-
-            for tgt1 in tt1:
-                if not any(tgt2.issubclass(schema, tgt1) for tgt2 in tt2):
-                    new_targets.append(tgt1)
+            if all(tgt2.issubclass(schema, tt1) for tgt2 in tt2):
+                # The new target is a subclass of the current target, so
+                # it is a more specific requirement.
+                new_targets = tt2
+            else:
+                # The link is neither a subclass, nor a superclass
+                # of the previously seen targets, which creates an
+                # unresolvable target requirement conflict.
+                vn = ptr.get_verbosename(schema, with_parent=True)
+                raise errors.SchemaError(
+                    f'could not merge {vn} pointer: targets conflict',
+                    details=(
+                        f'{vn} targets '
+                        f'object {t2.get_verbosename(schema)!r} which '
+                        f'is not related to any of targets found in '
+                        f'other sources being merged: '
+                        f'{t1.get_displayname(schema)!r}.'))
 
             if len(new_targets) > 1:
                 schema, current_target = s_objtypes.get_or_create_union_type(
-                    schema, new_targets)
+                    schema, new_targets, module=source.get_name(schema).module)
             else:
                 current_target = new_targets[0]
 
@@ -314,37 +333,22 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
                 derived_name_base=derived_name_base)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
-                if self.generic(schema):
-                    schema, ptr = self.derive(
-                        schema, source, target,
-                        derived_name_base=derived_name_base, **kwargs)
-                else:
-                    schema, ptr = self.derive_copy(
-                        schema, source, target,
-                        derived_name_base=derived_name_base, **kwargs)
+                schema, ptr = self.derive(
+                    schema, source, target,
+                    derived_name_base=derived_name_base, **kwargs)
 
         return schema, ptr
 
-    def get_derived_name(self, schema, source, target, *qualifiers,
-                         derived_name_base=None, mark_derived=False):
-        if mark_derived:
-            fqname = self.derive_name(schema, source, target.get_name(schema),
-                                      derived_name_base=derived_name_base)
-        else:
-            fqname = self.derive_name(schema, source,
-                                      derived_name_base=derived_name_base)
+    def get_derived_name_base(self, schema):
+        shortname = self.get_shortname(schema)
+        return sn.Name(module='__', name=shortname.name)
 
-        return fqname
-
-    def init_derived(self, schema, source, *qualifiers,
-                     as_copy, mark_derived=False,
-                     merge_bases=None, attrs=None,
-                     dctx=None, **kwargs):
-
-        if qualifiers:
-            target = qualifiers[0]
-        else:
-            target = None
+    def derive(self, schema, source,
+               target=None,
+               *qualifiers,
+               mark_derived=False,
+               attrs=None,
+               dctx=None, **kwargs):
 
         if target is None:
             if attrs and 'target' in attrs:
@@ -352,32 +356,28 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
             else:
                 target = self.get_target(schema)
 
-            if merge_bases:
-                for base in merge_bases:
-                    if target is None:
-                        target = base.get_target(schema)
-                    else:
-                        schema, target = self.merge_targets(
-                            schema, self, target, base.get_target(schema))
-
         if attrs is None:
             attrs = {}
 
         attrs['source'] = source
         attrs['target'] = target
 
-        return super().init_derived(
-            schema, source, target, as_copy=as_copy, mark_derived=mark_derived,
-            dctx=dctx, merge_bases=merge_bases, attrs=attrs, **kwargs)
+        return super().derive(
+            schema, source, mark_derived=mark_derived,
+            dctx=dctx, attrs=attrs, **kwargs)
 
     def is_pure_computable(self, schema):
         return self.get_computable(schema) and bool(self.get_default(schema))
 
     def is_id_pointer(self, schema):
-        return self.get_shortname(schema) in {'std::target', 'std::id'}
+        std_id = schema.get('std::Object').getptr(schema, 'id')
+        std_target = schema.get('std::target')
+        return self.issubclass(schema, (std_id, std_target))
 
     def is_endpoint_pointer(self, schema):
-        return self.get_shortname(schema) in {'std::source', 'std::target'}
+        std_source = schema.get('std::source')
+        std_target = schema.get('std::target')
+        return self.issubclass(schema, (std_source, std_target))
 
     def is_special_pointer(self, schema):
         return self.get_shortname(schema).name in {
@@ -392,6 +392,9 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
 
     def generic(self, schema):
         return self.get_source(schema) is None
+
+    def get_referrer(self, schema):
+        return self.get_source(schema)
 
     def is_exclusive(self, schema) -> bool:
         if self.generic(schema):
@@ -431,7 +434,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             referrer_name = referrer_ctx.op.classname
 
             shortname = sn.Name(
-                module=referrer_name.module,
+                module='__',
                 name=astnode.name.name,
             )
 
@@ -452,6 +455,15 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 f'{MAX_NAME_LENGTH} characters',
                 context=astnode.context)
         return name
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        referrer_ctx = cls.get_referrer_context(context)
+        if referrer_ctx is not None:
+            if getattr(astnode, 'declared_inherited', False):
+                cmd.set_attribute_value('declared_inherited', True)
+        return cmd
 
     @classmethod
     def _extract_union_operands(cls, expr, operands):
@@ -530,21 +542,15 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             super()._apply_field_ast(schema, context, node, op)
 
     def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
+        from edb.ir import ast as irast
+        from edb.ir import typeutils as irtyputils
         from . import sources as s_sources
 
         # "source" attribute is set automatically as a refdict back-attr
-        parent_ctx = context.get(s_sources.SourceCommandContext)
+        parent_ctx = context.get_ancestor(s_sources.SourceCommandContext, self)
         source_name = parent_ctx.op.classname
 
-        source = schema.get(source_name, default=None)
-        if source is None:
-            raise errors.SchemaDefinitionError(
-                f'cannot define link/property computables in CREATE TYPE',
-                hint='Perform a CREATE TYPE without the link '
-                     'followed by ALTER TYPE defining the computable',
-                context=expr.context
-            )
-
+        source = schema.get(source_name)
         expr = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr, schema, context.modaliases),
             schema=schema,
@@ -554,7 +560,25 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             singletons=[source],
         )
 
+        base = None
         target = utils.reduce_to_typeref(schema, expr.irast.stype)
+
+        result_expr = expr.irast.expr.expr
+
+        if (isinstance(result_expr, irast.SelectStmt)
+                and result_expr.result.rptr is not None):
+            expr_rptr = result_expr.result.rptr
+            while isinstance(expr_rptr, irast.TypeIndirectionPointer):
+                expr_rptr = expr_rptr.source.rptr
+
+            is_ptr_alias = (
+                expr_rptr.direction is PointerDirection.Outbound
+            )
+
+            if is_ptr_alias:
+                base = irtyputils.ptrcls_from_ptrref(
+                    expr_rptr.ptrref, schema=schema
+                )
 
         self.add(
             sd.AlterObjectProperty(
@@ -577,7 +601,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             )
         )
 
-        return target
+        return target, base
 
 
 def get_or_create_union_pointer(
@@ -610,7 +634,7 @@ def get_or_create_union_pointer(
         source,
         target,
         derived_name_base=sn.Name(
-            module=modname or '__derived__',
+            module='__',
             name=ptrname),
         attrs={
             'union_of': so.ObjectSet.create(schema, components),

@@ -18,6 +18,7 @@
 
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from edb import errors
 
@@ -30,6 +31,7 @@ from . import objects as so
 from . import pointers
 from . import referencing
 from . import sources
+from . import types as s_types
 from . import utils
 
 
@@ -66,8 +68,10 @@ class Property(pointers.Pointer, s_abc.Property):
 
         if (not self.generic(our_schema) and
                 not other.generic(their_schema) and
-                self.get_shortname(our_schema) == 'std::source' and
-                other.get_shortname(their_schema) == 'std::source'):
+                self.issubclass(
+                    our_schema, our_schema.get('std::source')) and
+                other.issubclass(
+                    their_schema, their_schema.get('std::source'))):
             # Make std::source link property ignore differences in its target.
             # This is consistent with skipping the comparison on Pointer.source
             # in general.
@@ -115,6 +119,9 @@ class Property(pointers.Pointer, s_abc.Property):
     def get_default_base_name(self):
         return sn.Name('std::property')
 
+    def is_blocking_ref(self, schema, context, reference):
+        return not self.is_endpoint_pointer(schema)
+
 
 class PropertySourceContext(sources.SourceCommandContext):
     pass
@@ -155,14 +162,14 @@ class CreateProperty(PropertyCommand,
             cmd.add(
                 sd.AlterObjectProperty(
                     property='required',
-                    new_value=astnode.is_required
+                    new_value=astnode.is_required or False
                 )
             )
 
             cmd.add(
                 sd.AlterObjectProperty(
                     property='cardinality',
-                    new_value=astnode.cardinality
+                    new_value=astnode.cardinality or qltypes.Cardinality.ONE
                 )
             )
 
@@ -180,11 +187,30 @@ class CreateProperty(PropertyCommand,
 
             if isinstance(target, qlast.TypeName):
                 target_ref = utils.ast_to_typeref(
-                    target, modaliases=modaliases, schema=schema)
+                    target, modaliases=modaliases, schema=schema,
+                    metaclass=s_types.Type)
             else:
                 # computable
-                target_ref = cmd._parse_computable(
+                target_ref, base = cmd._parse_computable(
                     target, schema, context)
+
+                if base is not None:
+                    cmd.set_attribute_value(
+                        'bases', so.ObjectList.create(schema, [base]),
+                    )
+
+                    cmd.set_attribute_value(
+                        'derived_from', base
+                    )
+
+                    cmd.set_attribute_value(
+                        'is_derived', True
+                    )
+
+                    if context.declarative:
+                        cmd.set_attribute_value(
+                            'declared_inherited', True
+                        )
 
             target_type = utils.resolve_typeref(target_ref, schema=schema)
 
@@ -249,6 +275,8 @@ class CreateProperty(PropertyCommand,
 
         if op.property == 'is_derived':
             pass
+        elif op.property == 'derived_from':
+            pass
         elif op.property == 'default':
             self._encode_default(schema, context, node, op)
         elif op.property == 'required':
@@ -275,6 +303,8 @@ class AlterProperty(PropertyCommand,
                     referencing.AlterReferencedInheritingObject):
     astnode = [qlast.AlterConcreteProperty,
                qlast.AlterProperty]
+
+    referenced_astnode = qlast.AlterConcreteProperty
 
     def _get_ast_node(self, context):
         objtype = context.get(PropertySourceContext)
@@ -309,6 +339,8 @@ class AlterProperty(PropertyCommand,
 class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
     astnode = [qlast.DropConcreteProperty,
                qlast.DropProperty]
+
+    referenced_astnode = qlast.DropConcreteProperty
 
     def _get_ast_node(self, context):
         objtype = context.get(PropertySourceContext)

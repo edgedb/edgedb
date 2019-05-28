@@ -51,6 +51,10 @@ async def fetch_values(
         SELECT
                 a.id                        AS id,
                 a.name                      AS name,
+                edgedb._resolve_type_name(a.bases)
+                                            AS bases,
+                edgedb._resolve_type_name(a.ancestors)
+                                            AS ancestors,
                 edgedb._resolve_type_name(a.subject)
                                             AS subject_name,
                 edgedb._resolve_type_name(a.annotation)

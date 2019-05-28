@@ -27,6 +27,7 @@ from edb import errors
 from edb.common import parsing
 
 from edb.schema import abc as s_abc
+from edb.schema import derivable as s_der
 from edb.schema import name as sn
 from edb.schema import nodes as s_nodes
 from edb.schema import objects as s_obj
@@ -123,10 +124,11 @@ def derive_view(
         derived_name: typing.Optional[sn.SchemaName]=None,
         derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
         derived_name_base: typing.Optional[str]=None,
-        merge_bases=None,
         preserve_shape: bool=False,
+        preserve_path_id: bool=False,
         is_insert: bool=False,
         is_update: bool=False,
+        inheritance_merge: bool=True,
         attrs: typing.Optional[dict]=None,
         ctx: context.ContextLevel) -> s_obj.Object:
     if source is None:
@@ -162,13 +164,17 @@ def derive_view(
 
         ctx.env.schema, derived = stype.derive(
             ctx.env.schema, source, target, *qualifiers,
-            merge_bases=merge_bases,
-            name=derived_name, mark_derived=True, attrs=attrs)
+            name=derived_name,
+            inheritance_merge=inheritance_merge,
+            refdict_whitelist={'pointers'},
+            mark_derived=True,
+            preserve_path_id=preserve_path_id,
+            attrs=attrs)
 
         if not stype.generic(ctx.env.schema):
             if isinstance(derived, s_sources.Source):
                 scls_pointers = stype.get_pointers(ctx.env.schema)
-                derived_own_pointers = derived.get_own_pointers(ctx.env.schema)
+                derived_own_pointers = derived.get_pointers(ctx.env.schema)
 
                 for pn, ptr in derived_own_pointers.items(ctx.env.schema):
                     # This is a view of a view.  Make sure query-level
@@ -196,15 +202,14 @@ def derive_view_name(
     if not derived_name_quals:
         derived_name_quals = (ctx.aliases.get('view'),)
 
-    if not derived_name_base:
-        derived_name_base = stype.get_shortname(ctx.env.schema)
-
     if ctx.derived_target_module:
         derived_name_module = ctx.derived_target_module
     else:
         derived_name_module = '__derived__'
 
-    derived_sname = sn.get_specialized_name(
-        derived_name_base, *derived_name_quals)
-
-    return sn.SchemaName(module=derived_name_module, name=derived_sname)
+    return s_der.derive_name(
+        ctx.env.schema, *derived_name_quals,
+        module=derived_name_module,
+        derived_name_base=derived_name_base,
+        parent=stype,
+    )

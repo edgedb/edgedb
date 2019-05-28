@@ -18,6 +18,7 @@
 
 
 import collections
+import itertools
 import typing
 
 from edb import errors
@@ -51,10 +52,14 @@ def ast_objref_to_objref(
         return obj
 
     if module is None:
-        raise errors.InvalidReferenceError(
-            f'reference to a non-existent schema name {nqname!r}',
+        err = errors.InvalidReferenceError(
+            f'reference to a non-existent schema item {nqname!r}',
             context=node.context
         )
+        enrich_schema_lookup_error(
+            err, lname, modaliases=modaliases, schema=schema,
+            item_types=(metaclass,) if metaclass is not None else None)
+        raise err
 
     return so.ObjectRef(name=sn.Name(module=module, name=nqname))
 
@@ -178,19 +183,38 @@ def is_nontrivial_container(value):
 
 
 def get_class_nearest_common_ancestor(schema, classes):
-    from . import inheriting as s_inh
-
     # First, find the intersection of parents
     classes = list(classes)
-    first = s_inh.compute_lineage(schema, classes[0])
+    first = [classes[0]]
+    first.extend(classes[0].get_ancestors(schema).objects(schema))
     common = set(first).intersection(
-        *[set(s_inh.compute_lineage(schema, c)) for c in classes[1:]]
-    )
+        *[set(c.get_ancestors(schema).objects(schema)) | {c}
+          for c in classes[1:]])
     common = sorted(common, key=lambda i: first.index(i))
     if common:
         return common[0]
     else:
         return None
+
+
+def minimize_class_set_by_least_generic(schema, classes):
+    """Minimize the given Object set by filtering out all superclasses."""
+
+    classes = list(classes)
+    mros = [set(p.get_ancestors(schema).objects(schema)) | {p}
+            for p in classes]
+    count = len(classes)
+    smap = itertools.starmap
+
+    # Return only those entries that are not present in other entries' mro
+    result = [
+        scls for i, scls in enumerate(classes)
+        if not any(smap(set.__contains__,
+                        ((mros[j], classes[i])
+                         for j in range(count) if j != i)))
+    ]
+
+    return result
 
 
 def merge_reduce(target, sources, field_name, *, schema, f):
@@ -215,6 +239,14 @@ def merge_sticky_bool(target, sources, field_name, *, schema):
 
 def merge_weak_bool(target, sources, field_name, *, schema):
     return merge_reduce(target, sources, field_name, schema=schema, f=min)
+
+
+def get_nq_name(schema, item) -> str:
+    shortname = item.get_shortname(schema)
+    if isinstance(shortname, sn.Name):
+        return shortname.name
+    else:
+        return shortname
 
 
 def find_item_suggestions(
@@ -250,7 +282,7 @@ def find_item_suggestions(
 
     # Compute Levenshtein distance for each suggestion.
     with_distance = [
-        (s, levenshtein.distance(short_name, s.get_shortname(schema).name))
+        (s, levenshtein.distance(short_name, get_nq_name(schema, s)))
         for s in suggestions
     ]
 
@@ -263,7 +295,7 @@ def find_item_suggestions(
     closest.sort(
         key=lambda s: (
             s[1],
-            not s[0].get_shortname(schema).name.startswith(short_name),
+            not get_nq_name(schema, s[0]).startswith(short_name),
             s[0].get_displayname(schema)
         )
     )
@@ -286,7 +318,7 @@ def enrich_schema_lookup_error(
         for suggestion in suggestions:
             if (suggestion.get_name(schema).module == 'std' or
                     suggestion.get_name(schema).module == current_module_name):
-                names.append(suggestion.get_shortname(schema).name)
+                names.append(get_nq_name(schema, suggestion))
             else:
                 names.append(str(suggestion.get_displayname(schema)))
 

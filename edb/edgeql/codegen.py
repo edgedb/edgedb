@@ -59,6 +59,10 @@ class EdgeSchemaSourceGeneratorError(errors.EdgeDBError):
 
 
 class EdgeQLSourceGenerator(codegen.SourceGenerator):
+    def __init__(self, *args, sdlmode=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sdlmode = sdlmode
+
     def visit(self, node, **kwargs):
         method = 'visit_' + node.__class__.__name__
         if method == 'visit_list':
@@ -66,6 +70,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             visitor = getattr(self, method, self.generic_visit)
             return visitor(node, **kwargs)
+
+    def _write_keywords(self, *kws):
+        kwstring = ' '.join(kws)
+        if self.sdlmode:
+            kwstring = kwstring.lower()
+        self.write(kwstring)
 
     def _needs_parentheses(self, node):
         return (
@@ -697,13 +707,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _ddl_visit_bases(self, node):
         if getattr(node, 'bases', None):
-            self.write(' EXTENDING ')
+            self._write_keywords(' EXTENDING ')
             self.visit_list(node.bases, newlines=False)
 
     def _visit_CreateObject(self, node, *object_keywords, after_name=None,
                             render_commands=True, unqualified=False):
         self._visit_aliases(node)
-        self.write('CREATE', *object_keywords, delimiter=' ')
+        if self.sdlmode:
+            self.write(*[kw.lower() for kw in object_keywords], delimiter=' ')
+        else:
+            self.write('CREATE', *object_keywords, delimiter=' ')
         self.write(' ')
         if unqualified:
             self.write(ident_to_str(node.name.name))
@@ -860,7 +873,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'MODULE')
 
     def visit_CreateView(self, node):
-        self._visit_CreateObject(node, 'VIEW')
+        if (len(node.commands) == 1
+                and isinstance(node.commands[0], qlast.SetField)
+                and node.commands[0].name.name == 'expr'):
+
+            self._visit_CreateObject(node, 'VIEW', render_commands=False)
+            self.write(' := (')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.commands[0].value)
+            self.indentation -= 1
+            self.new_lines = 1
+            self.write(')')
+        else:
+            self._visit_CreateObject(node, 'VIEW')
 
     def visit_AlterView(self, node):
         self._visit_AlterObject(node, 'VIEW')
@@ -869,7 +895,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'VIEW')
 
     def visit_SetField(self, node):
-        self.write('SET ')
+        if not self.sdlmode:
+            self.write('SET ')
         self.visit(node.name)
         self.write(' := ')
         self.visit(node.value)
@@ -886,7 +913,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'ABSTRACT ANNOTATION')
 
     def visit_CreateAnnotationValue(self, node):
-        self.write('SET ANNOTATION ')
+        if self.sdlmode:
+            self.write('annotation')
+        else:
+            self.write('SET ANNOTATION ')
         self.visit(node.name)
         self.write(' := ')
         self.visit(node.value)
@@ -902,7 +932,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.params, newlines=False)
                 self.write(')')
             if node.subjectexpr:
-                self.write(' ON (')
+                self._write_keywords(' ON ')
+                self.write('(')
                 self.visit(node.subjectexpr)
                 self.write(')')
 
@@ -924,13 +955,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.args, newlines=False)
                 self.write(')')
             if node.subjectexpr:
-                self.write(' ON (')
+                self._write_keywords(' ON ')
+                self.write('(')
                 self.visit(node.subjectexpr)
                 self.write(')')
 
         keywords = []
         if node.is_abstract:
-            keywords.append('ABSTRACT')
+            keywords.append('DELEGATED')
         keywords.append('CONSTRAINT')
         self._visit_CreateObject(node, *keywords, after_name=after_name)
 
@@ -959,7 +991,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'SCALAR TYPE')
 
     def visit_CreateProperty(self, node):
-        self._visit_CreateObject(node, 'ABSTRACT PROPERTY')
+        after_name = lambda: self._ddl_visit_bases(node)
+        self._visit_CreateObject(node, 'ABSTRACT PROPERTY',
+                                 after_name=after_name)
 
     def visit_AlterProperty(self, node):
         self._visit_AlterObject(node, 'ABSTRACT PROPERTY')
@@ -969,7 +1003,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateConcreteProperty(self, node):
         keywords = []
-
+        if self.sdlmode and node.declared_inherited:
+            keywords.append('INHERITED')
         if node.is_required:
             keywords.append('REQUIRED')
         if node.cardinality is qltypes.Cardinality.ONE:
@@ -1005,6 +1040,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_CreateConcreteLink(self, node):
         keywords = []
 
+        if self.sdlmode and node.declared_inherited:
+            keywords.append('INHERITED')
         if node.is_required:
             keywords.append('REQUIRED')
         if node.cardinality is qltypes.Cardinality.ONE:
@@ -1015,8 +1052,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         def after_name():
             self._ddl_visit_bases(node)
-            self.write(' -> ')
-            self.visit(node.target)
+            if isinstance(node.target, qlast.TypeExpr):
+                self.write(' -> ')
+                self.visit(node.target)
+            else:
+                # computable
+                self.write(' := (')
+                self.visit(node.target)
+                self.write(')')
         self._visit_CreateObject(
             node, *keywords, after_name=after_name, unqualified=True)
 
@@ -1072,22 +1115,28 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.returning)
 
             if node.commands:
-                self.write('{')
+                self.write(' {')
                 self._block_ws(1)
                 self.visit_list(node.commands, terminator=';')
                 self.new_lines = 1
 
             if node.code.from_function:
-                self.write(f' FROM {node.code.language} FUNCTION ')
+                from_clause = f' FROM {node.code.language} FUNCTION '
+                if self.sdlmode:
+                    from_clause = from_clause.lower()
+                self.write(from_clause)
                 self.write(f'{node.code.from_function!r}')
             else:
-                self.write(f' FROM {node.code.language} ')
+                from_clause = f' FROM {node.code.language} '
+                if self.sdlmode:
+                    from_clause = from_clause.lower()
+                self.write(from_clause)
                 self.write(edgeql_quote.dollar_quote_literal(
                     node.code.code))
 
+            self._block_ws(-1)
             if node.commands:
                 self.write(';')
-                self._block_ws(-1)
                 self.write('}')
 
         self._visit_CreateObject(node, 'FUNCTION', after_name=after_name,
@@ -1236,7 +1285,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('final ')
 
     def visit_Schema(self, node):
-        self.visit_list(node.declarations, terminator=';')
+        sdl_codegen = self.__class__(
+            indent_with=self.indent_with,
+            add_line_information=self.add_line_information,
+            pretty=self.pretty,
+            sdlmode=True)
+        sdl_codegen.indentation = self.indentation
+        sdl_codegen.current_line = self.current_line
+        sdl_codegen.visit_list(node.declarations, terminator=';')
+        self.result.extend(sdl_codegen.result)
 
     def visit_Import(self, node):
         self.write('import ')

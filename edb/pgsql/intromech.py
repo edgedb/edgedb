@@ -21,8 +21,6 @@
 
 from edb import errors
 
-from edb.common import topological
-
 from edb.edgeql import qltypes
 
 from edb import schema as so
@@ -44,7 +42,6 @@ from edb.schema import operators as s_opers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import roles as s_roles
 from edb.schema import types as s_types
-from edb.schema import utils as s_utils
 
 from edb.pgsql import common
 from edb.pgsql import dbops
@@ -83,9 +80,9 @@ class IntrospectionMech:
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_casts(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_links(
+            schema, link_exprmap = await self.read_links(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_link_properties(
+            schema, prop_exprmap = await self.read_link_properties(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_operators(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
@@ -100,8 +97,8 @@ class IntrospectionMech:
 
             schema = await self.order_scalars(schema)
             schema = await self.order_operators(schema)
-            schema = await self.order_link_properties(schema)
-            schema = await self.order_links(schema)
+            schema = await self.order_link_properties(schema, prop_exprmap)
+            schema = await self.order_links(schema, link_exprmap)
             schema = await self.order_objtypes(schema, obj_exprmap)
 
         return schema
@@ -132,9 +129,6 @@ class IntrospectionMech:
                     schema,
                     'bases',
                     [schema.get_by_id(b) for b in bases])
-
-        for role in schema.get_objects(type=s_roles.Role):
-            schema = role.acquire_ancestor_inheritance(schema)
 
         return schema
 
@@ -206,7 +200,6 @@ class IntrospectionMech:
                 'is_final': row['is_final'],
                 'view_type': (s_types.ViewType(row['view_type'])
                               if row['view_type'] else None),
-                'bases': row['bases'],
                 'default': (self.unpack_expr(row['default'], schema)
                             if row['default'] else None),
                 'expr': (self.unpack_expr(row['expr'], schema)
@@ -214,22 +207,16 @@ class IntrospectionMech:
                 'enum_values': row['enum_values'],
             }
 
-            if scalar_data['bases']:
-                basemap[name] = scalar_data.pop('bases')
-
             schema, scalar = s_scalars.ScalarType.create_in_schema(
                 schema,
                 **scalar_data
             )
 
-        for scalar in schema.get_objects(type=s_scalars.ScalarType):
-            try:
-                basename = basemap[scalar.get_name(schema)]
-            except KeyError:
-                pass
-            else:
-                schema = scalar.set_field_value(
-                    schema, 'bases', [schema.get(sn.Name(basename[0]))])
+            basemap[scalar] = (row['bases'], row['ancestors'])
+
+        for scls, (basenames, ancestors) in basemap.items():
+            schema = self._set_reflist(schema, scls, 'bases', basenames)
+            schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
 
         sequence = schema.get('std::sequence', None)
         for scalar in schema.get_objects(type=s_scalars.ScalarType):
@@ -255,9 +242,14 @@ class IntrospectionMech:
         return schema
 
     async def order_scalars(self, schema):
-        for scalar in schema.get_objects(type=s_scalars.ScalarType):
-            schema = scalar.finalize(schema)
         return schema
+
+    def _set_reflist(self, schema, scls, field, namelist):
+        if namelist is None:
+            objs = []
+        else:
+            objs = [schema.get(sn.Name(name)) for name in namelist]
+        return scls.set_field_value(schema, field, objs)
 
     def _decode_func_params(self, schema, row, param_map):
         if row['params']:
@@ -265,15 +257,17 @@ class IntrospectionMech:
 
             for r in row['params']:
                 param_data = param_map.get(r)
-                schema, param = s_funcs.Parameter.create_in_schema(
-                    schema,
-                    id=param_data['id'],
-                    num=param_data['num'],
-                    name=sn.Name(param_data['name']),
-                    default=param_data['default'],
-                    type=self.unpack_typeref(param_data['type'], schema),
-                    typemod=param_data['typemod'],
-                    kind=param_data['kind'])
+                param = schema.get(r, None)
+                if param is None:
+                    schema, param = s_funcs.Parameter.create_in_schema(
+                        schema,
+                        id=param_data['id'],
+                        num=param_data['num'],
+                        name=sn.Name(param_data['name']),
+                        default=param_data['default'],
+                        type=self.unpack_typeref(param_data['type'], schema),
+                        typemod=param_data['typemod'],
+                        kind=param_data['kind'])
                 params.append(param)
 
                 p_type = param.get_type(schema)
@@ -430,23 +424,9 @@ class IntrospectionMech:
         basemap = {}
 
         for name, r in constraints_list.items():
-            bases = tuple()
-
-            if r['subject']:
-                bases = (sn.shortname_from_fullname(name), )
-            elif r['bases']:
-                bases = tuple(sn.Name(b) for b in r['bases'])
-            elif name != 'std::constraint':
-                bases = (sn.Name('std::constraint'), )
-
             subject = schema.get(r['subject']) if r['subject'] else None
 
-            basemap[name] = r['bases'] or []
-
-            if not r['subject']:
-                schema, params = self._decode_func_params(schema, r, param_map)
-            else:
-                params = None
+            schema, params = self._decode_func_params(schema, r, param_map)
 
             schema, constraint = s_constr.Constraint.create_in_schema(
                 schema,
@@ -456,6 +436,7 @@ class IntrospectionMech:
                 params=params,
                 is_abstract=r['is_abstract'],
                 is_final=r['is_final'],
+                is_local=r['is_local'],
                 expr=(self.unpack_expr(r['expr'], schema)
                       if r['expr'] else None),
                 subjectexpr=(self.unpack_expr(r['subjectexpr'], schema)
@@ -469,20 +450,14 @@ class IntrospectionMech:
                 return_typemod=r['return_typemod'],
             )
 
+            basemap[constraint] = (r['bases'], r['ancestors'])
+
             if subject:
                 schema = subject.add_constraint(schema, constraint)
 
-        for constraint in schema.get_objects(type=s_constr.Constraint):
-            try:
-                bases = basemap[constraint.get_name(schema)]
-            except KeyError:
-                pass
-            else:
-                schema = constraint.set_field_value(
-                    schema, 'bases', [schema.get(b) for b in bases])
-
-        for constraint in schema.get_objects(type=s_constr.Constraint):
-            schema = constraint.acquire_ancestor_inheritance(schema)
+        for scls, (basenames, ancestors) in basemap.items():
+            schema = self._set_reflist(schema, scls, 'bases', basenames)
+            schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
 
         return schema
 
@@ -624,6 +599,7 @@ class IntrospectionMech:
 
         basemap = {}
         dermap = {}
+        exprmap = {}
 
         for name, r in links_list.items():
             bases = tuple()
@@ -639,15 +615,10 @@ class IntrospectionMech:
             source = schema.get(r['source']) if r['source'] else None
             if r['spectargets']:
                 spectargets = [schema.get(t) for t in r['spectargets']]
-                target = None
             else:
                 spectargets = None
-                target = self.unpack_typeref(r['target'], schema)
 
-            if r['default']:
-                default = self.unpack_expr(r['default'], schema)
-            else:
-                default = None
+            target = self.unpack_typeref(r['target'], schema)
 
             required = r['required']
 
@@ -655,8 +626,6 @@ class IntrospectionMech:
                 cardinality = qltypes.Cardinality(r['cardinality'])
             else:
                 cardinality = None
-
-            basemap[name] = bases
 
             schema, link = s_links.Link.create_in_schema(
                 schema,
@@ -670,61 +639,41 @@ class IntrospectionMech:
                 is_derived=r['is_derived'],
                 is_abstract=r['is_abstract'],
                 is_final=r['is_final'],
+                is_local=r['is_local'],
                 readonly=r['readonly'],
                 computable=r['computable'],
-                default=default)
+            )
 
-            if spectargets:
-                # Multiple specified targets,
-                # target is a virtual derived object
-                schema, target = s_utils.get_union_type(
-                    schema, spectargets)
+            if r['default']:
+                exprmap[link] = r['default']
+
+            basemap[link] = (bases, r['ancestors'])
 
             schema = link.set_field_value(schema, 'target', target)
 
             if source:
                 schema = source.add_pointer(schema, link)
 
-        for link in schema.get_objects(type=s_links.Link):
-            try:
-                bases = basemap[link.get_name(schema)]
-            except KeyError:
-                pass
-            else:
-                schema = link.set_field_value(
-                    schema,
-                    'bases',
-                    [schema.get(b) for b in bases])
+        for scls, (basenames, ancestors) in basemap.items():
+            schema = self._set_reflist(schema, scls, 'bases', basenames)
+            schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
 
             try:
-                derived_from = dermap[link.get_name(schema)]
+                derived_from = dermap[scls.get_name(schema)]
             except KeyError:
                 pass
             else:
-                schema = link.set_field_value(
+                schema = scls.set_field_value(
                     schema,
                     'derived_from',
                     schema.get(derived_from))
 
-        for link in schema.get_objects(type=s_links.Link):
-            schema = link.acquire_ancestor_inheritance(schema)
+        return schema, exprmap
 
-        return schema
-
-    async def order_links(self, schema):
-        g = {}
-
-        for link in schema.get_objects(type=s_links.Link):
-            g[link.get_name(schema)] = {"item": link, "merge": [], "deps": []}
-            link_bases = link.get_bases(schema).objects(schema)
-            if link_bases:
-                g[link.get_name(schema)]['merge'].extend(
-                    b.get_name(schema) for b in link_bases)
-
-        links = topological.sort(g)
-
-        for link in links:
-            schema = link.finalize(schema)
+    async def order_links(self, schema, exprmap):
+        for link, deflt in exprmap.items():
+            default = self.unpack_expr(deflt, schema)
+            schema = link.set_field_value(schema, 'default', default)
 
         return schema
 
@@ -735,6 +684,7 @@ class IntrospectionMech:
             exclude_modules=exclude_modules)
         link_props = {sn.Name(r['name']): r for r in link_props}
         basemap = {}
+        exprmap = {}
 
         for name, r in link_props.items():
 
@@ -747,21 +697,10 @@ class IntrospectionMech:
 
             source = schema.get(r['source']) if r['source'] else None
 
-            if r['derived_from']:
-                derived_from = schema.get(r['derived_from'])
-            else:
-                derived_from = None
-
-            if r['default']:
-                default = self.unpack_expr(r['default'], schema)
-            else:
-                default = None
-
             required = r['required']
             target = self.unpack_typeref(r['target'], schema)
-            basemap[name] = bases
 
-            if target.is_collection():
+            if target is not None and target.is_collection():
                 schema, _ = target.as_schema_coll(schema)
 
             if r['cardinality']:
@@ -774,9 +713,15 @@ class IntrospectionMech:
                 id=r['id'],
                 name=name, source=source, target=target, required=required,
                 readonly=r['readonly'], computable=r['computable'],
-                default=default, cardinality=cardinality,
-                derived_from=derived_from, is_derived=r['is_derived'],
+                cardinality=cardinality,
+                is_derived=r['is_derived'],
+                is_local=r['is_local'],
                 is_abstract=r['is_abstract'], is_final=r['is_final'])
+
+            basemap[prop] = (bases, r['ancestors'], r['derived_from'])
+
+            if r['default']:
+                exprmap[prop] = r['default']
 
             if bases and bases[0] in {'std::target', 'std::source'}:
                 if bases[0] == 'std::target' and source is not None:
@@ -787,36 +732,21 @@ class IntrospectionMech:
             schema = prop.set_field_value(schema, 'target', target)
 
             if source:
-                schema = prop.acquire_ancestor_inheritance(schema)
                 schema = source.add_pointer(schema, prop)
 
-        for prop in schema.get_objects(type=s_props.Property):
-            try:
-                bases = basemap[prop.get_name(schema)]
-            except KeyError:
-                pass
-            else:
-                schema = prop.set_field_value(
-                    schema,
-                    'bases',
-                    [schema.get(b, type=s_props.Property) for b in bases])
+        for scls, (basenames, ancestors, derived) in basemap.items():
+            schema = self._set_reflist(schema, scls, 'bases', basenames)
+            schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
+            if derived is not None:
+                schema = scls.set_field_value(
+                    schema, 'derived_from', schema.get(derived))
 
-        return schema
+        return schema, exprmap
 
-    async def order_link_properties(self, schema):
-        g = {}
-
-        for prop in schema.get_objects(type=s_props.Property):
-            g[prop.get_name(schema)] = {"item": prop, "merge": [], "deps": []}
-            prop_bases = prop.get_bases(schema).objects(schema)
-            if prop_bases:
-                g[prop.get_name(schema)]['merge'].extend(
-                    b.get_name(schema) for b in prop_bases)
-
-        props = topological.sort(g)
-
-        for prop in props:
-            schema = prop.finalize(schema)
+    async def order_link_properties(self, schema, exprmap):
+        for prop, deflt in exprmap.items():
+            default = self.unpack_expr(deflt, schema)
+            schema = prop.set_field_value(schema, 'default', default)
 
         return schema
 
@@ -842,6 +772,8 @@ class IntrospectionMech:
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
 
+        basemap = {}
+
         for r in annotations:
             name = sn.Name(r['name'])
             subject = schema.get(r['subject_name'])
@@ -858,7 +790,13 @@ class IntrospectionMech:
                 inheritable=r['inheritable'],
             )
 
+            basemap[anno] = (r['bases'], r['ancestors'])
+
             schema = subject.add_annotation(schema, anno)
+
+        for scls, (basenames, ancestors) in basemap.items():
+            schema = self._set_reflist(schema, scls, 'bases', basenames)
+            schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
 
         return schema
 
@@ -882,7 +820,6 @@ class IntrospectionMech:
             }
 
             exprmap[name] = row['expr']
-            basemap[name] = row['bases'] or []
 
             if row['union_of']:
                 union_of = [schema.get(t) for t in row['union_of']]
@@ -899,28 +836,16 @@ class IntrospectionMech:
                 view_type=objtype['view_type'],
             )
 
-        for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
-            try:
-                bases = basemap[objtype.get_name(schema)]
-            except KeyError:
-                pass
-            else:
-                schema = objtype.set_field_value(
-                    schema, 'bases', [schema.get(b) for b in bases])
+            basemap[objtype] = (row['bases'], row['ancestors'])
+
+        for scls, (basenames, ancestors) in basemap.items():
+            schema = self._set_reflist(schema, scls, 'bases', basenames)
+            schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
 
         return schema, exprmap
 
     async def order_objtypes(self, schema, exprmap):
-        g = {}
         for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
-            g[objtype.get_name(schema)] = {
-                "item": objtype, "merge": [], "deps": []
-            }
-            objtype_bases = objtype.get_bases(schema).objects(schema)
-            if objtype_bases:
-                g[objtype.get_name(schema)]["merge"].extend(
-                    b.get_name(schema) for b in objtype_bases)
-
             try:
                 expr = exprmap[objtype.get_name(schema)]
             except KeyError:
@@ -929,10 +854,6 @@ class IntrospectionMech:
                 if expr is not None:
                     schema = objtype.set_field_value(
                         schema, 'expr', self.unpack_expr(expr, schema))
-
-        objtypes = topological.sort(g)
-        for objtype in objtypes:
-            schema = objtype.finalize(schema)
 
         return schema
 

@@ -171,10 +171,10 @@ def fini_expression(
                     s_inh.compute_ancestors(ctx.env.schema, view)
                 )
 
-            if not hasattr(view, 'get_own_pointers'):  # duck check
+            if not hasattr(view, 'get_pointers'):  # duck check
                 continue
 
-            view_own_pointers = view.get_own_pointers(ctx.env.schema)
+            view_own_pointers = view.get_pointers(ctx.env.schema)
             for vptr in view_own_pointers.objects(ctx.env.schema):
                 ctx.env.schema = vptr.set_field_value(
                     ctx.env.schema,
@@ -200,10 +200,10 @@ def fini_expression(
                             None,
                         )
 
-                if not hasattr(vptr, 'get_own_pointers'):
+                if not hasattr(vptr, 'get_pointers'):
                     continue
 
-                vptr_own_pointers = vptr.get_own_pointers(ctx.env.schema)
+                vptr_own_pointers = vptr.get_pointers(ctx.env.schema)
                 for vlprop in vptr_own_pointers.objects(ctx.env.schema):
                     vlprop_target = vlprop.get_target(ctx.env.schema)
                     ctx.env.schema = vlprop.set_field_value(
@@ -242,6 +242,33 @@ def fini_expression(
     return result
 
 
+def _derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
+    stdobj = ctx.env.schema.get('std::Object')
+    derived_obj_name = stdobj.get_derived_name(
+        ctx.env.schema, stdobj, module='__derived__')
+    derived_obj = ctx.env.schema.get(derived_obj_name, None)
+    if derived_obj is None:
+        ctx.env.schema, derived_obj = stdobj.derive(
+            ctx.env.schema, stdobj, name=derived_obj_name)
+
+    derived_name = ptr.get_derived_name(
+        ctx.env.schema, derived_obj)
+
+    derived = ctx.env.schema.get(derived_name, None)
+    if derived is None:
+        ctx.env.schema, derived = ptr.derive(
+            ctx.env.schema,
+            derived_obj,
+            derived_obj,
+            attrs={
+                'cardinality': qltypes.Cardinality.MANY,
+            },
+            name=derived_name,
+            mark_derived=True)
+
+    return derived
+
+
 def compile_anchor(
         name: str, anchor: typing.Union[qlast.Expr, s_obj.Object], *,
         ctx: context.ContextLevel) -> qlast.Expr:
@@ -261,13 +288,9 @@ def compile_anchor(
                 anchor.get_target(ctx.env.schema),
                 ctx=ctx)
         else:
-            Object = ctx.env.get_track_schema_object('std::Object')
-
-            ctx.env.schema, ptrcls = anchor.get_derived(
-                ctx.env.schema, Object, Object, mark_derived=True)
-
+            ptrcls = _derive_dummy_ptr(anchor, ctx=ctx)
             path = setgen.extend_path(
-                setgen.class_set(Object, ctx=ctx),
+                setgen.class_set(ptrcls.get_source(ctx.env.schema), ctx=ctx),
                 ptrcls,
                 s_pointers.PointerDirection.Outbound,
                 ptrcls.get_target(ctx.env.schema),
@@ -289,11 +312,9 @@ def compile_anchor(
                 anchor.get_source(ctx.env.schema).get_target(ctx.env.schema),
                 ctx=ctx)
         else:
-            Object = ctx.env.get_track_schema_object('std::Object')
-            ctx.env.schema, ptrcls = anchor_source.get_derived(
-                ctx.env.schema, Object, Object, mark_derived=True)
+            ptrcls = _derive_dummy_ptr(anchor_source, ctx=ctx)
             path = setgen.extend_path(
-                setgen.class_set(Object, ctx=ctx),
+                setgen.class_set(ptrcls.get_source(ctx.env.schema), ctx=ctx),
                 ptrcls,
                 s_pointers.PointerDirection.Outbound,
                 ptrcls.get_target(ctx.env.schema),

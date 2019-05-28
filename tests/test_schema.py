@@ -43,7 +43,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
-                  'test::name must be declared using the `inherited` keyword',
+                  "'name'.*must be declared using the `inherited` keyword",
                   position=214)
     def test_schema_inherited_02(self):
         """
@@ -61,7 +61,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
-                  'test::name cannot be declared `inherited`',
+                  "'name'.*cannot be declared `inherited`",
                   position=47)
     def test_schema_inherited_03(self):
         """
@@ -102,8 +102,8 @@ _123456789_123456789_123456789 -> Object
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
-                  'invalid property type: expected primitive type, '
-                  'got ObjectType',
+                  "invalid property type: expected a scalar type, "
+                  "or a scalar collection, got 'test::Object'",
                   position=59)
     def test_schema_bad_prop_01(self):
         """
@@ -113,8 +113,8 @@ _123456789_123456789_123456789 -> Object
         """
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
-                  'invalid property type: expected primitive type, '
-                  'got ObjectType',
+                  "invalid property type: expected a scalar type, "
+                  "or a scalar collection, got 'test::Object'",
                   position=59)
     def test_schema_bad_prop_02(self):
         """
@@ -135,7 +135,7 @@ _123456789_123456789_123456789 -> str
         """
 
     @tb.must_fail(errors.InvalidReferenceError,
-                  'reference to a non-existent schema item: int',
+                  "reference to a non-existent schema item 'int'",
                   position=59,
                   hint='did you mean one of these: int16, int32, int64?')
     def test_schema_bad_type_01(self):
@@ -193,6 +193,10 @@ _123456789_123456789_123456789 -> str
         Obj4 = schema.get('test::Object4')
         Obj5 = schema.get('test::Object5')
         Obj6 = schema.get('test::Object6')
+        obj1_id = Obj1.getptr(schema, 'id')
+        obj1_type = Obj1.getptr(schema, '__type__')
+        obj1_type_source = obj1_type.getptr(schema, 'source')
+        obj2_type = Obj2.getptr(schema, '__type__')
         foo = Obj2.getptr(schema, 'foo')
         foo_target = foo.getptr(schema, 'target')
         bar = Obj5.getptr(schema, 'bar')
@@ -205,6 +209,9 @@ _123456789_123456789_123456789 -> str
                 Obj3,        # It is also in Object3's bases and ancestors
                 Obj4,        # Likewise for Object4
                 Obj6,        # Object6 through its ancestors
+                obj1_id,     # Inherited id property
+                obj1_type,   # Inherited __type__ link
+                obj1_type_source,  # and its @source property
             })
         )
 
@@ -222,6 +229,7 @@ _123456789_123456789_123456789 -> str
             {
                 foo,        # Obj2 is foo's source
                 bar,        # Obj2 is bar's target
+                obj2_type,  # Iherited Obj2.__type__ link
             }
         )
 
@@ -243,6 +251,9 @@ _123456789_123456789_123456789 -> str
                 foo,         # Object 1 is a Object2.foo target
                 foo_target,  # and also a target of its @target property
                 Obj3,        # It is also in Object3's bases and ancestors
+                obj1_id,     # Inherited id property
+                obj1_type,   # Inherited __type__ link
+                obj1_type_source,  # and its @source property
             })
         )
 
@@ -255,6 +266,9 @@ _123456789_123456789_123456789 -> str
             frozenset({
                 foo,         # Object 1 is a Object2.foo target
                 foo_target,  # and also a target of its @target property
+                obj1_id,     # Inherited id property
+                obj1_type,   # Inherited __type__ link
+                obj1_type_source,  # and its @source property
             })
         )
 
@@ -297,6 +311,69 @@ _123456789_123456789_123456789 -> str
                 foo_target,    # and also a target of its @target property
                 abstr_constr,  # abstract constraint my_one_of
                 constr,        # concrete constraint in my_scalar_t
+                obj1_id,       # Inherited id property
+                obj1_type,     # Inherited __type__ link
+                obj1_type_source,  # and its @source property
+            })
+        )
+
+    def test_schema_refs_02(self):
+        schema = self.load_schema("""
+            type Object1 {
+                property num -> int64;
+            };
+            type Object2 {
+                required property num -> int64 {
+                    default := (
+                        SELECT Object1.num + 1
+                        ORDER BY Object1.num DESC
+                        LIMIT 1
+                    )
+                }
+            };
+        """)
+
+        Obj1 = schema.get('test::Object1')
+        obj1_num = Obj1.getptr(schema, 'num')
+
+        Obj2 = schema.get('test::Object2')
+        obj2_num = Obj2.getptr(schema, 'num')
+
+        self.assertEqual(
+            schema.get_referrers(obj1_num),
+            frozenset({
+                Obj1,
+                obj2_num,
+            })
+        )
+
+    def test_schema_refs_03(self):
+        schema = self.load_schema("""
+            type Object1 {
+                property num -> int64;
+            };
+            type Object2 {
+                required property num -> int64 {
+                    default := (
+                        INSERT Object1 {
+                            num := 1
+                        }
+                    )
+                }
+            };
+        """)
+
+        Obj1 = schema.get('test::Object1')
+        obj1_num = Obj1.getptr(schema, 'num')
+
+        Obj2 = schema.get('test::Object2')
+        obj2_num = Obj2.getptr(schema, 'num')
+
+        self.assertEqual(
+            schema.get_referrers(obj1_num),
+            frozenset({
+                Obj1,
+                obj2_num,
             })
         )
 

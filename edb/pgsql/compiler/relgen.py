@@ -621,7 +621,7 @@ def process_set_as_link_property_ref(
         lpropref, resolve_type=False, link_bias=False)
 
     if (ptr_info.table_type == 'ObjectType' or
-            lpropref.shortname == 'std::target'):
+            lpropref.std_parent_name == 'std::target'):
         # This is a singleton link property stored in source rel,
         # e.g. @target
         val = pathctx.get_rvar_path_var(

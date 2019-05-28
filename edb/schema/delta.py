@@ -18,6 +18,7 @@
 
 
 import base64
+import collections
 import collections.abc
 
 from edb import errors
@@ -31,102 +32,9 @@ from edb.common import markup, ordered, struct, typed
 from . import expr as s_expr
 from . import name as sn
 from . import objects as so
-from . import ordering as s_ordering
 from . import schema as s_schema
 from . import types
 from . import utils
-
-
-def delta_schemas(schema1, schema2):
-    from . import derivable
-    from . import modules
-
-    result = DeltaRoot()
-
-    my_modules = set(schema1.modules)
-    other_modules = set(schema2.modules)
-
-    added_modules = my_modules - other_modules
-    dropped_modules = other_modules - my_modules
-
-    for added_module in added_modules:
-        create = modules.CreateModule(classname=added_module)
-        create.add(AlterObjectProperty(property='name', old_value=None,
-                                       new_value=added_module))
-        result.add(create)
-
-    global_adds_mods = []
-    global_dels = []
-
-    for type in s_ordering.get_global_dep_order():
-        new = s_ordering.sort_objects(
-            schema1, schema1.get_objects(type=type))
-
-        old = s_ordering.sort_objects(
-            schema2, schema2.get_objects(type=type))
-
-        if issubclass(type, derivable.DerivableObject):
-            new = filter(lambda i: i.generic(schema1), new)
-            old = filter(lambda i: i.generic(schema2), old)
-
-        adds_mods, dels = so.Object._delta_sets(
-            old, new, old_schema=schema2, new_schema=schema1)
-
-        global_adds_mods.append(adds_mods)
-        global_dels.append(dels)
-
-    for add_mod in global_adds_mods:
-        result.update(add_mod)
-
-    for dels in reversed(global_dels):
-        result.update(dels)
-
-    for dropped_module in dropped_modules:
-        result.add(modules.DeleteModule(classname=dropped_module))
-
-    return result
-
-
-def delta_module(schema1, schema2, modname):
-    from . import derivable
-    from . import modules as s_mod
-
-    result = DeltaRoot()
-
-    module2 = schema2.get_global(s_mod.Module, modname, None)
-
-    global_adds_mods = []
-    global_dels = []
-
-    for type in s_ordering.get_global_dep_order():
-        new = s_ordering.sort_objects(
-            schema1, schema1.get_objects(modules=[modname], type=type))
-
-        if module2 is not None:
-            old = s_ordering.sort_objects(
-                schema2, schema2.get_objects(modules=[modname], type=type))
-        else:
-            old = set()
-
-        if issubclass(type, derivable.DerivableObject):
-            new = filter(lambda i: i.generic(schema1), new)
-            old = filter(lambda i: i.generic(schema2), old)
-
-        adds_mods, dels = so.Object._delta_sets(
-            old, new, old_schema=schema2, new_schema=schema1)
-
-        adds_mods.sort_expression_fields(schema1)
-
-        global_adds_mods.append(adds_mods)
-        global_dels.append(dels)
-
-    for add_mod in global_adds_mods:
-        result.update(add_mod)
-
-    for dels in reversed(global_dels):
-        result.update(dels)
-
-    return result
 
 
 class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
@@ -171,6 +79,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     """Abstract base class for all delta commands."""
 
     source_context = struct.Field(object, default=None)
+    canonical = struct.Field(bool, default=False)
 
     _context_class = None
 
@@ -211,6 +120,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                     vals[k] = self._resolve_type_ref(val, schema)
 
                 value = ftype(vals)
+            else:
+                value = field.coerce_value(schema, value)
 
         elif issubclass(ftype, (typed.AbstractTypedSequence,
                                 typed.AbstractTypedSet)):
@@ -221,6 +132,17 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                     vals.append(self._resolve_type_ref(val, schema))
 
                 value = ftype(vals)
+            else:
+                value = field.coerce_value(schema, value)
+
+        elif issubclass(ftype, so.ObjectDict):
+            value = ftype.create(schema, dict(value.items(schema)))
+
+        elif issubclass(ftype, so.ObjectCollection):
+            value = ftype.create(schema, value.objects(schema))
+
+        elif issubclass(ftype, s_expr.Expression):
+            value = ftype.from_expr(value, schema)
 
         else:
             value = field.coerce_value(schema, value)
@@ -296,7 +218,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     def prepend(self, command):
         if isinstance(command, CommandGroup):
-            for op in reversed(command):
+            for op in reversed(command.get_subcommands()):
                 self.ops.add(op, last=False)
         else:
             self.ops.add(command, last=False)
@@ -311,6 +233,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         for command in commands:
             self.add(command)
 
+    def replace(self, commands):
+        self.ops.clear()
+        self.ops.update(commands)
+
     def discard(self, command):
         self.ops.discard(command)
 
@@ -323,48 +249,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
         with self.new_context(schema, context):
             return self._get_ast(schema, context)
-
-    def extract_ref_ops(self, schema, context):
-        metaclass = self.get_schema_metaclass()
-        with self.new_context(schema, context):
-            for op in list(self.get_subcommands()):
-                if isinstance(op, AlterObjectProperty):
-                    field = metaclass.get_field(op.property)
-
-                    if issubclass(field.type, s_expr.Expression):
-                        value = op.new_value
-                        if value is not None:
-                            self.extract_expr_op(schema, context, field, op)
-                else:
-                    op.extract_ref_ops(schema, context)
-
-    def extract_expr_op(self, schema, context, field, op):
-        orig_op = AlterObjectProperty(
-            property=op.property,
-            new_value=op.new_value,
-        )
-
-        needs_extraction = self.nullify_expr_field(schema, context, field, op)
-        if not needs_extraction:
-            return
-
-        parent_op = context.top().op
-
-        for ctx in context.stack[1:]:
-            stack_op = ctx.op
-
-            alter_class = ObjectCommandMeta.get_command_class(
-                AlterObject, stack_op.get_schema_metaclass())
-
-            alter_delta = alter_class(classname=stack_op.classname)
-            parent_op.add(alter_delta)
-            parent_op = alter_delta
-
-            if stack_op is self:
-                alter_delta.add(orig_op)
-
-    def nullify_expr_field(self, schema, context, field, op) -> bool:
-        return False
 
     @classmethod
     def command_for_ast_node(cls, astnode, schema, context):
@@ -387,29 +271,39 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             msg = 'cannot find command for ast node {!r}'.format(astnode)
             raise TypeError(msg)
 
-        return cmdcls._cmd_tree_from_ast(schema, astnode, context)
+        context_class = cmdcls.get_context_class()
+        if context_class is not None:
+            modaliases = cmdcls._modaliases_from_ast(schema, astnode, context)
+            with context(context_class(schema, op=None,
+                                       modaliases=modaliases)):
+                cmd = cmdcls._cmd_tree_from_ast(schema, astnode, context)
+        else:
+            cmd = cmdcls._cmd_tree_from_ast(schema, astnode, context)
+
+        return cmd
+
+    @classmethod
+    def _modaliases_from_ast(cls, schema, astnode, context):
+        modaliases = {}
+        for alias in astnode.aliases:
+            if isinstance(alias, qlast.ModuleAliasDecl):
+                modaliases[alias.alias] = alias.module
+
+        return modaliases
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = cls._cmd_from_ast(schema, astnode, context)
         cmd.source_context = astnode.context
+        ctx = context.current()
+        if ctx is not None and type(ctx) is cls.get_context_class():
+            ctx.op = cmd
 
         if getattr(astnode, 'commands', None):
-            context_class = cls.get_context_class()
-
-            if context_class is not None:
-                with context(context_class(schema, cmd, scls=None)):
-                    for subastnode in astnode.commands:
-                        subcmd = Command.from_ast(
-                            schema, subastnode, context=context)
-                        if subcmd is not None:
-                            cmd.add(subcmd)
-            else:
-                for subastnode in astnode.commands:
-                    subcmd = Command.from_ast(
-                        schema, subastnode, context=context)
-                    if subcmd is not None:
-                        cmd.add(subcmd)
+            for subastnode in astnode.commands:
+                subcmd = Command.from_ast(schema, subastnode, context=context)
+                if subcmd is not None:
+                    cmd.add(subcmd)
 
         return cmd
 
@@ -425,6 +319,9 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             if isinstance(dd, AlterObjectProperty):
                 diff = markup.elements.doc.ValueDiff(
                     before=repr(dd.old_value), after=repr(dd.new_value))
+
+                if dd.source == 'inheritance':
+                    diff.comment = 'inherited'
 
                 node.add_child(label=dd.property, node=diff)
             else:
@@ -468,9 +365,15 @@ class CommandGroup(Command):
 
 
 class CommandContextToken:
-    def __init__(self, op):
+    def __init__(self, schema, op=None, *, modaliases=None):
+        self.original_schema = schema
         self.op = op
         self.unresolved_refs = {}
+        self.modaliases = modaliases if modaliases is not None else {}
+        self.inheritance_merge = None
+        self.inheritance_refdicts = None
+        self.mark_derived = None
+        self.preserve_path_id = None
 
 
 class CommandContextWrapper:
@@ -487,14 +390,52 @@ class CommandContextWrapper:
 
 
 class CommandContext:
-    def __init__(self, *, declarative=False):
+    def __init__(self, *, declarative=False, modaliases=None,
+                 schema=None, stdmode=False, testmode=False,
+                 disable_dep_verification=False):
         self.stack = []
         self._cache = {}
         self.declarative = declarative
-        self.schema = None
-        self.modaliases = {}
-        self.stdmode = False
-        self.testmode = False
+        self.schema = schema
+        self._modaliases = modaliases if modaliases is not None else {}
+        self.stdmode = stdmode
+        self.testmode = testmode
+        self.disable_dep_verification = disable_dep_verification
+        self.renames = {}
+
+    @property
+    def modaliases(self):
+        maps = [t.modaliases for t in reversed(self.stack)]
+        maps.append(self._modaliases)
+        return collections.ChainMap(*maps)
+
+    @property
+    def inheritance_merge(self):
+        for ctx in reversed(self.stack):
+            if ctx.inheritance_merge is not None:
+                return ctx.inheritance_merge
+
+    @property
+    def mark_derived(self):
+        for ctx in reversed(self.stack):
+            if ctx.mark_derived is not None:
+                return ctx.mark_derived
+
+    @property
+    def preserve_path_id(self):
+        for ctx in reversed(self.stack):
+            if ctx.preserve_path_id is not None:
+                return ctx.preserve_path_id
+
+    @property
+    def inheritance_refdicts(self):
+        for ctx in reversed(self.stack):
+            if ctx.inheritance_refdicts is not None:
+                return ctx.inheritance_refdicts
+
+    @property
+    def canonical(self):
+        return any(ctx.op.canonical for ctx in self.stack)
 
     def push(self, token):
         self.stack.append(token)
@@ -510,13 +451,18 @@ class CommandContext:
             if isinstance(item, cls):
                 return item
 
-    def get_ancestor(self, cls, op):
+    def get_ancestor(self, cls, op=None):
         if issubclass(cls, Command):
             cls = cls.get_context_class()
 
-        for item in list(reversed(self.stack)):
-            if isinstance(item, cls) and item.op is not op:
-                return item
+        if op is not None:
+            for item in list(reversed(self.stack)):
+                if isinstance(item, cls) and item.op is not op:
+                    return item
+        else:
+            for item in list(reversed(self.stack))[1:]:
+                if isinstance(item, cls):
+                    return item
 
     def top(self):
         if self.stack:
@@ -552,6 +498,9 @@ class CommandContext:
     def get_cached(self, key):
         return self._cache.get(key)
 
+    def drop_cache(self, key):
+        self._cache.pop(key, None)
+
     def __call__(self, token):
         return CommandContextWrapper(self, token)
 
@@ -572,7 +521,7 @@ class DeltaRoot(CommandGroup):
 
         context = context or CommandContext()
 
-        with context(DeltaRootContext(self)):
+        with context(DeltaRootContext(schema=schema, op=self)):
             mods = []
 
             for op in self.get_subcommands(type=modules.CreateModule):
@@ -593,30 +542,6 @@ class DeltaRoot(CommandGroup):
                 schema, _ = op.apply(schema, context)
 
         return schema, None
-
-    def sort_subcommands_by_type(self):
-        def _key(c):
-            if isinstance(c, CreateObject):
-                return 0
-            else:
-                return 2
-
-        self.ops = ordered.OrderedSet(sorted(self.ops, key=_key))
-
-    def sort_expression_fields(self, schema):
-        """Transform the subcommands to reduce changes of cycles."""
-        def _key(c):
-            if isinstance(c, CreateObject):
-                return 0
-            else:
-                return 2
-
-        self.ops = ordered.OrderedSet(sorted(self.ops, key=_key))
-
-        context = CommandContext()
-        with context(DeltaRootContext(self)):
-            for op in sorted(self.ops, key=_key):
-                op.extract_ref_ops(schema, context)
 
 
 class ObjectCommandMeta(type(Command)):
@@ -716,10 +641,11 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         for op in self.get_subcommands(type=RenameObject):
             self._append_subcmd_ast(schema, node, op, context)
 
+        mcls = self.get_schema_metaclass()
+
         for op in self.get_subcommands(type=AlterObjectProperty):
             self._apply_field_ast(schema, context, node, op)
 
-        mcls = self.get_schema_metaclass()
         for refdict in mcls.get_refdicts():
             self._apply_refs_fields_ast(schema, context, node, refdict)
 
@@ -769,9 +695,12 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
                     f'module {modname} is read-only',
                     context=self.source_context)
 
-    def get_object(self, schema, *, name=None):
+    def get_object(self, schema, context, *, name=None):
         if name is None:
             name = self.classname
+            rename = context.renames.get(name)
+            if rename is not None:
+                name = rename
         metaclass = self.get_schema_metaclass()
         return schema.get(name, type=metaclass)
 
@@ -794,13 +723,11 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
 
             result[op.property] = val
 
-        self._field_updates = result
-
         return schema, result
 
     def _get_field_updates(self, schema, context):
         field_updates = context.get_cached((self, 'field_updates'))
-        if field_updates is None:
+        if field_updates is None or True:
             schema, field_updates = self._prepare_field_updates(
                 schema, context)
             context.cache_value((self, 'field_updates'), field_updates)
@@ -816,10 +743,9 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
 
 
 class ObjectCommandContext(CommandContextToken):
-    def __init__(self, schema, op, scls):
-        super().__init__(op)
+    def __init__(self, schema, op, scls=None, *, modaliases=None):
+        super().__init__(schema, op, modaliases=modaliases)
         self.scls = scls
-        self.original_schema = schema
 
 
 class UnqualifiedObjectCommand(ObjectCommand):
@@ -830,10 +756,13 @@ class UnqualifiedObjectCommand(ObjectCommand):
     def _classname_from_ast(cls, schema, astnode, context):
         return astnode.name.name
 
-    def get_object(self, schema, *, name=None):
+    def get_object(self, schema, context, *, name=None):
         metaclass = self.get_schema_metaclass()
         if name is None:
             name = self.classname
+            rename = context.renames.get(name)
+            if rename is not None:
+                name = rename
         return schema.get_global(metaclass, name)
 
 
@@ -842,11 +771,24 @@ class GlobalObjectCommand(UnqualifiedObjectCommand):
 
 
 class CreateOrAlterObject(ObjectCommand):
-    pass
+
+    astnode = qlast.CreateOrAlterObject
 
 
-class CreateObject(CreateOrAlterObject):
+class CreateObject(ObjectCommand):
     _delta_action = 'create'
+
+    @classmethod
+    def _command_for_ast_node(cls, astnode, schema, context):
+        if astnode.alter_if_exists:
+            modaliases = cls._modaliases_from_ast(schema, astnode, context)
+            with context(CommandContextToken(schema, modaliases=modaliases)):
+                classname = cls._classname_from_ast(schema, astnode, context)
+            mcls = cls.get_schema_metaclass()
+            if schema.get(classname, default=None) is not None:
+                return ObjectCommandMeta.get_command_class(AlterObject, mcls)
+
+        return cls
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -875,6 +817,8 @@ class CreateObject(CreateOrAlterObject):
         metaclass = self.get_schema_metaclass()
         schema, self.scls = metaclass.create_in_schema(schema, **props)
 
+        context.current().scls = self.scls
+
         if not props.get('id'):
             # Record the generated ID.
             self.add(AlterObjectProperty(
@@ -887,7 +831,7 @@ class CreateObject(CreateOrAlterObject):
 
     def _get_create_fields(self, schema, context):
         field_updates = context.get_cached((self, 'create_fields'))
-        if field_updates is None:
+        if field_updates is None or True:
             schema, field_updates = self._prepare_create_fields(
                 schema, context)
             context.cache_value((self, 'create_fields'), field_updates)
@@ -906,7 +850,7 @@ class CreateObject(CreateOrAlterObject):
         return schema
 
     def _create_finalize(self, schema, context):
-        return self.scls.finalize(schema, dctx=context)
+        return schema
 
     def _create_refs(self, schema, context, scls, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
@@ -914,8 +858,9 @@ class CreateObject(CreateOrAlterObject):
         return schema
 
     def apply(self, schema, context):
-        schema = self._create_begin(schema, context)
-        with self.new_context(schema, context, self.scls):
+        with self.new_context(schema, context, None):
+            schema = self._create_begin(schema, context)
+            context.current().scls = self.scls
             schema = self._create_innards(schema, context)
             schema = self._create_finalize(schema, context)
         return schema, self.scls
@@ -923,29 +868,6 @@ class CreateObject(CreateOrAlterObject):
     def _apply_field_ast(self, schema, context, node, op):
         if op.property in ('id', 'name'):
             pass
-        elif op.property == 'bases':
-            if not isinstance(op.new_value, so.ObjectList):
-                bases = so.ObjectList.create(schema, op.new_value)
-            else:
-                bases = op.new_value
-
-            base_names = bases.names(schema, allow_unresolved=True)
-
-            node.bases = [
-                qlast.TypeName(
-                    maintype=qlast.ObjectRef(
-                        name=b.name,
-                        module=b.module
-                    )
-                )
-                for b in base_names
-            ]
-        elif op.property == 'ancestors':
-            pass
-        elif op.property == 'is_abstract':
-            node.is_abstract = op.new_value
-        elif op.property == 'is_final':
-            node.is_final = op.new_value
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -973,11 +895,6 @@ class RenameObject(ObjectCommand):
         self.old_name = self.classname
         schema = scls.set_field_value(schema, 'name', self.new_name)
 
-        parent_ctx = context.get(CommandContextToken)
-        for subop in parent_ctx.op.get_subcommands(type=ObjectCommand):
-            if subop is not self and subop.classname == self.old_name:
-                subop.classname = self.new_name
-
         return schema
 
     def _rename_innards(self, schema, context, scls):
@@ -987,12 +904,14 @@ class RenameObject(ObjectCommand):
         return schema
 
     def apply(self, schema, context):
-        parent_ctx = context.get(CommandContextToken)
+        parent_ctx = context.current()
         scls = self.scls = parent_ctx.op.scls
 
         schema = self._rename_begin(schema, context, scls)
         schema = self._rename_innards(schema, context, scls)
         schema = self._rename_finalize(schema, context, scls)
+
+        context.renames[self.classname] = self.new_name
 
         return schema, scls
 
@@ -1016,7 +935,7 @@ class RenameObject(ObjectCommand):
 
     @classmethod
     def _cmd_from_ast(cls, schema, astnode, context):
-        parent_ctx = context.get(CommandContextToken)
+        parent_ctx = context.current()
         parent_class = parent_ctx.op.get_schema_metaclass()
         rename_class = ObjectCommandMeta.get_command_class(
             RenameObject, parent_class)
@@ -1024,7 +943,7 @@ class RenameObject(ObjectCommand):
 
     @classmethod
     def _rename_cmd_from_ast(cls, schema, astnode, context):
-        parent_ctx = context.get(CommandContextToken)
+        parent_ctx = context.current()
         parent_class = parent_ctx.op.get_schema_metaclass()
         rename_class = ObjectCommandMeta.get_command_class(
             RenameObject, parent_class)
@@ -1047,12 +966,18 @@ class RenameObject(ObjectCommand):
         )
 
 
-class AlterObject(CreateOrAlterObject):
+class AlterObject(ObjectCommand):
     _delta_action = 'alter'
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        if getattr(astnode, 'is_abstract', False):
+            cmd.add(AlterObjectProperty(
+                property='is_abstract',
+                new_value=True
+            ))
 
         added_bases = []
         dropped_bases = []
@@ -1114,7 +1039,7 @@ class AlterObject(CreateOrAlterObject):
     def _apply_rebase_ast(self, context, node, op):
         from . import inheriting
 
-        parent_ctx = context.get(CommandContextToken)
+        parent_ctx = context.parent()
         parent_op = parent_ctx.op
         rebase = next(iter(parent_op.get_subcommands(
             type=inheriting.RebaseInheritingObject)))
@@ -1181,16 +1106,13 @@ class AlterObject(CreateOrAlterObject):
             node = None
         return node
 
-    def _get_alter_fields(self, schema, context):
-        return self._get_field_updates(schema, context)
-
     def _alter_begin(self, schema, context, scls):
         self._validate_legal_command(schema, context)
 
         for op in self.get_subcommands(type=RenameObject):
             schema, _ = op.apply(schema, context)
 
-        schema, props = self._get_alter_fields(schema, context)
+        schema, props = self._get_field_updates(schema, context)
         schema = scls.update(schema, props)
         return schema
 
@@ -1214,10 +1136,10 @@ class AlterObject(CreateOrAlterObject):
         return schema
 
     def apply(self, schema, context):
-        scls = self.get_object(schema)
+        scls = self.get_object(schema, context)
         self.scls = scls
 
-        with self.new_context(schema, context):
+        with self.new_context(schema, context, scls):
             schema = self._alter_begin(schema, context, scls)
             schema = self._alter_innards(schema, context, scls)
             schema = self._alter_finalize(schema, context, scls)
@@ -1229,33 +1151,65 @@ class DeleteObject(ObjectCommand):
     _delta_action = 'delete'
 
     def _delete_begin(self, schema, context, scls):
+        from . import ordering
+
         self._validate_legal_command(schema, context)
+
+        if not context.canonical and self._is_top_deletion(schema, context):
+            self._canonicalize(schema, context, scls)
+            ordering.linearize_delta(self, schema, schema)
 
         return schema
 
-    def _delete_innards(self, schema, context, scls):
+    def _is_top_deletion(self, schema, context):
+        for ctx in context.stack:
+            if isinstance(ctx.op, DeleteObject):
+                del_op = ctx.op
+                break
+
+        return del_op is self
+
+    def _canonicalize(self, schema, context, scls):
         mcls = self.get_schema_metaclass()
 
         for refdict in mcls.get_refdicts():
-            schema = self._delete_refs(schema, context, scls, refdict)
+            deleted_refs = set()
 
-        for op in self.get_subcommands(type=CollectionTypeCommand):
-            schema, _ = op.apply(schema, context)
+            all_refs = set(
+                scls.get_field_value(schema, refdict.attr).objects(schema)
+            )
+
+            for op in self.get_subcommands(metaclass=refdict.ref_cls):
+                deleted_ref = schema.get(op.classname)
+                deleted_refs.add(deleted_ref)
+
+            # Add implicit Delete commands for any local refs not
+            # deleted explicitly.
+            for ref in all_refs - deleted_refs:
+                del_cmd = ObjectCommandMeta.get_command_class(
+                    DeleteObject, type(ref))
+
+                op = del_cmd(classname=ref.get_name(schema))
+                op._canonicalize(schema, context, ref)
+                self.add(op)
+
+    def _delete_innards(self, schema, context, scls):
+        for op in self.get_subcommands(metaclass=so.Object):
+            schema, _ = op.apply(schema, context=context)
 
         return schema
 
     def _delete_finalize(self, schema, context, scls):
+        ref_strs = []
+
         refs = schema.get_referrers(self.scls)
         if refs:
-            ref_strs = []
-
             for ref in refs:
-                if (ref.get_shortname(schema) == 'std::target'
-                        or ref.get_shortname(schema) == 'std::source'):
-                    continue
+                if ref.is_blocking_ref(schema, context, scls):
+                    ref_strs.append(
+                        ref.get_verbosename(schema, with_parent=True))
 
-                ref_strs.append(ref.get_verbosename(schema, with_parent=True))
-
+        if ref_strs:
             vn = self.scls.get_verbosename(schema, with_parent=True)
             dn = self.scls.get_displayname(schema)
             detail = '; '.join(f'{ref_str} depends on {dn}'
@@ -1269,37 +1223,8 @@ class DeleteObject(ObjectCommand):
         schema = schema.delete(scls)
         return schema
 
-    def _delete_refs(self, schema, context, scls, refdict):
-        deleted_refs = set()
-
-        all_refs = set(
-            scls.get_field_value(schema, refdict.local_attr).objects(schema)
-        )
-
-        if refdict.non_inheritable_attr:
-            all_refs.update(
-                scls.get_field_value(
-                    schema, refdict.non_inheritable_attr).objects(schema)
-            )
-
-        for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            schema, deleted_ref = op.apply(schema, context=context)
-            deleted_refs.add(deleted_ref)
-
-        # Add implicit Delete commands for any local refs not
-        # deleted explicitly.
-        for ref in all_refs - deleted_refs:
-            del_cmd = ObjectCommandMeta.get_command_class(
-                DeleteObject, type(ref))
-
-            op = del_cmd(classname=ref.get_name(schema))
-            schema, _ = op.apply(schema, context=context)
-            self.add(op)
-
-        return schema
-
     def apply(self, schema, context=None):
-        scls = self.get_object(schema)
+        scls = self.get_object(schema, context)
         self.scls = scls
 
         with self.new_context(schema, context):
@@ -1335,7 +1260,7 @@ class AlterObjectProperty(Command):
 
         propname = astnode.name.name
 
-        parent_ctx = context.get(CommandContextToken)
+        parent_ctx = context.current()
         parent_op = parent_ctx.op
         field = parent_op.get_schema_metaclass().get_field(propname)
         if field is None:

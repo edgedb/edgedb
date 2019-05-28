@@ -17,7 +17,7 @@
 #
 
 
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 
 from edb.common.ordered import OrderedSet
 
@@ -27,20 +27,21 @@ class UnresolvedReferenceError(Exception):
 
 
 class CycleError(Exception):
-    pass
+    def __init__(self, msg, path=None):
+        super().__init__(msg)
+        self.path = path
 
 
-def sort(graph, return_record=False, root_only=False):
+def sort(graph, *, return_record=False, allow_unresolved=False):
     adj = defaultdict(OrderedSet)
-    radj = defaultdict(OrderedSet)
+    loop_control = defaultdict(OrderedSet)
 
     for item_name, item in graph.items():
         if "merge" in item:
             for merge in item["merge"]:
                 if merge in graph:
                     adj[item_name].add(merge)
-                    radj[merge].add(item_name)
-                else:
+                elif not allow_unresolved:
                     raise UnresolvedReferenceError(
                         'reference to an undefined item {} in {}'.format(
                             merge, item_name))
@@ -49,33 +50,43 @@ def sort(graph, return_record=False, root_only=False):
             for dep in item["deps"]:
                 if dep in graph:
                     adj[item_name].add(dep)
-                    radj[dep].add(item_name)
-                else:
+                elif not allow_unresolved:
                     raise UnresolvedReferenceError(
                         'reference to an undefined item {} in {}'.format(
                             dep, item_name))
 
-    visiting = set()
+        if "loop-control" in item:
+            for ctrl in item["loop-control"]:
+                if ctrl in graph:
+                    loop_control[item_name].add(ctrl)
+                elif not allow_unresolved:
+                    raise UnresolvedReferenceError(
+                        'reference to an undefined item {} in {}'.format(
+                            ctrl, item_name))
+
+    visiting = OrderedSet()
     visited = set()
     sorted = []
 
-    def visit(item):
+    def visit(item, for_control=False):
         if item in visiting:
-            raise CycleError("detected cycle on vertex {!r}".format(item))
+            raise CycleError(
+                f"dependency cycle between {list(visiting)[1]!r} "
+                f"and {item!r}",
+                path=list(visiting)[1:],
+            )
         if item not in visited:
             visiting.add(item)
             for n in adj[item]:
                 visit(n)
-            sorted.append(item)
+            for n in loop_control[item]:
+                visit(n, for_control=True)
+            if not for_control:
+                sorted.append(item)
+                visited.add(item)
             visiting.remove(item)
-            visited.add(item)
 
-    if root_only:
-        items = set(graph) - set(radj)
-    else:
-        items = graph
-
-    for item in items:
+    for item in graph:
         visit(item)
 
     if return_record:
@@ -85,7 +96,7 @@ def sort(graph, return_record=False, root_only=False):
 
 
 def normalize(graph, merger, **merger_kwargs):
-    merged = OrderedDict()
+    merged = {}
 
     for name, item in sort(graph, return_record=True):
         merge = item.get("merge")

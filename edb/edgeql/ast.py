@@ -551,9 +551,14 @@ class ObjectDDL(CompositeDDL):
 
 class CreateObject(ObjectDDL):
     is_abstract: bool = False
+    alter_if_exists: bool = False
 
 
 class AlterObject(ObjectDDL):
+    pass
+
+
+class CreateOrAlterObject(ObjectDDL):
     pass
 
 
@@ -677,6 +682,7 @@ class CreateConcretePointer(CreateObject):
 
     bases: typing.List[TypeName]
     is_required: bool = False
+    declared_inherited: bool = False
     target: typing.Union[Expr, TypeExpr]
     cardinality: qltypes.Cardinality
 
@@ -752,6 +758,7 @@ class CallableObject(ObjectDDL):
 
 class CreateConstraint(CreateExtendingObject, CallableObject):
     subjectexpr: typing.Optional[Expr]
+    is_abstract: bool = True
 
 
 class AlterConstraint(AlterObject):
@@ -784,7 +791,8 @@ class DropIndex(DropObject):
     pass
 
 
-class BaseSetField(ObjectDDL):
+class BaseSetField(DDL):
+    name: ObjectRef
     value: Expr
 
 
@@ -1053,8 +1061,7 @@ class ImportModule(SDL):
 
 
 class Schema(SDL):
-    # TODO: Remove union type
-    declarations: typing.List[typing.Union[Declaration, Import]]
+    declarations: typing.List[DDL]
 
 
 #

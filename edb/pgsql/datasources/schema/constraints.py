@@ -33,8 +33,11 @@ async def fetch(
                 a.name                  AS name,
                 a.is_abstract           AS is_abstract,
                 a.is_final              AS is_final,
+                a.is_local              AS is_local,
                 edgedb._resolve_type_name(a.bases)
                                         AS bases,
+                edgedb._resolve_type_name(a.ancestors)
+                                        AS ancestors,
                 a.expr                  AS expr,
                 a.subjectexpr           AS subjectexpr,
                 a.finalexpr             AS finalexpr,

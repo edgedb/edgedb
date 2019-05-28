@@ -335,6 +335,18 @@ def new_root_rvar(
                 set_rvar, ir_set.path_id.src_path(),
                 aspect='identity', var=rref, env=ctx.env)
 
+            if astutils.is_set_op_query(set_rvar.query):
+                astutils.for_each_query_in_set(
+                    set_rvar.query,
+                    lambda qry:
+                        qry.target_list.append(
+                            pgast.ResTarget(
+                                val=rref,
+                                name=ptr_info.column_name,
+                            )
+                        )
+                )
+
     return set_rvar
 
 

@@ -233,7 +233,6 @@ class RefDict(struct.Struct):
 
     local_attr = struct.Field(str, frozen=True)
     attr = struct.Field(str, frozen=True)
-    non_inheritable_attr = struct.Field(str, default=None, frozen=True)
     backref_attr = struct.Field(str, default='subject', frozen=True)
     requires_explicit_inherit = struct.Field(bool, default=False, frozen=True)
     ref_cls = struct.Field(type, frozen=True)
@@ -316,28 +315,16 @@ class ObjectMeta(type):
             if dct.attr not in cls._fields:
                 raise RuntimeError(
                     f'object {name} has no refdict field {dct.attr}')
-            if dct.local_attr not in cls._fields:
-                raise RuntimeError(
-                    f'object {name} has no refdict field {dct.local_attr}')
 
             if cls._fields[dct.attr].inheritable:
                 raise RuntimeError(
                     f'{name}.{dct.attr} field must not be inheritable')
-            if cls._fields[dct.local_attr].inheritable:
-                raise RuntimeError(
-                    f'{name}.{dct.local_attr} field must not be inheritable')
             if not cls._fields[dct.attr].ephemeral:
                 raise RuntimeError(
                     f'{name}.{dct.attr} field must be ephemeral')
-            if not cls._fields[dct.local_attr].ephemeral:
-                raise RuntimeError(
-                    f'{name}.{dct.local_attr} field must be ephemeral')
             if not cls._fields[dct.attr].coerce:
                 raise RuntimeError(
                     f'{name}.{dct.attr} field must be coerced')
-            if not cls._fields[dct.local_attr].coerce:
-                raise RuntimeError(
-                    f'{name}.{dct.local_attr} field must be coerced')
 
             if isinstance(dct.ref_cls, str):
                 ref_cls_getter = getattr(cls, dct.ref_cls)
@@ -693,71 +680,58 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return schema
 
-    def inheritable_fields(self):
-        for fn, f in self.__class__.get_fields().items():
-            if f.inheritable:
-                yield fn
-
-    def merge(self, *objs, schema, dctx=None):
-        """Merge properties of another object into this object.
-
-        Most often use of this method is to implement property
-        acquisition through inheritance.
-        """
-        for obj in objs:
-            if (not isinstance(obj, self.__class__) and
-                    not isinstance(self, obj.__class__)):
-                msg = "cannot merge instances of %s and %s" % \
-                    (obj.__class__.__name__, self.__class__.__name__)
-                raise errors.SchemaError(msg)
-
-        for field_name in self.inheritable_fields():
-            field = self.__class__.get_field(field_name)
-            result = field.merge_fn(self, objs, field_name, schema=schema)
-            ours = self.get_explicit_field_value(schema, field_name, None)
-            if result is not None or ours is not None:
-                schema = self.set_field_value_with_delta(
-                    schema, field_name, result, dctx=dctx,
-                    source='inheritance')
-
-        return schema
-
     def compare(self, other, *, our_schema, their_schema, context=None):
         if (not isinstance(other, self.__class__) and
                 not isinstance(self, other.__class__)):
             return NotImplemented
 
         context = context or ComparisonContext()
+        cls = type(self)
 
         with context(self, other):
             similarity = 1.0
 
-            fields = self.__class__.get_fields(sorted=True)
+            fields = cls.get_fields(sorted=True)
 
             for field_name, field in fields.items():
                 if field.compcoef is None:
                     continue
 
-                FieldType = field.type
+                our_value = self.get_field_value(our_schema, field_name)
+                their_value = other.get_field_value(their_schema, field_name)
 
-                ours = self.get_field_value(our_schema, field_name)
-                theirs = other.get_field_value(their_schema, field_name)
-
-                comparator = getattr(FieldType, 'compare_values', None)
-                if callable(comparator):
-                    fcoef = comparator(ours, theirs, context=context,
-                                       our_schema=our_schema,
-                                       their_schema=their_schema,
-                                       compcoef=field.compcoef)
-                elif ours != theirs:
-                    fcoef = field.compcoef
-
-                else:
-                    fcoef = 1.0
+                fcoef = cls.compare_field_value(
+                    field,
+                    our_value,
+                    their_value,
+                    our_schema=our_schema,
+                    their_schema=their_schema,
+                    context=context)
 
                 similarity *= fcoef
 
         return similarity
+
+    def is_blocking_ref(self, schema, context, reference):
+        return True
+
+    @classmethod
+    def compare_field_value(cls, field, our_value, their_value, *,
+                            our_schema, their_schema, context):
+
+        comparator = getattr(field.type, 'compare_values', None)
+        if callable(comparator):
+            fcoef = comparator(our_value, their_value, context=context,
+                               our_schema=our_schema,
+                               their_schema=their_schema,
+                               compcoef=field.compcoef or 0.5)
+        elif our_value != their_value:
+            fcoef = field.compcoef
+
+        else:
+            fcoef = 1.0
+
+        return fcoef
 
     @classmethod
     def compare_values(cls, ours, theirs, *,
@@ -772,7 +746,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             elif ours.get_name(our_schema) != theirs.get_name(their_schema):
                 similarity /= 1.2
 
-        return similarity
+        if similarity < 1.0:
+            return compcoef
+        else:
+            return 1.0
 
     @classmethod
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
@@ -880,46 +857,22 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             else:
                 newcoll_idx = {}
 
-            cls.delta_sets(oldcoll_idx, newcoll_idx, delta, context,
-                           old_schema=old_schema, new_schema=new_schema)
+            delta.update(cls.delta_sets(
+                oldcoll_idx, newcoll_idx, context,
+                old_schema=old_schema, new_schema=new_schema))
 
-        _delta_subdict(refdict.local_attr)
-        if refdict.non_inheritable_attr:
-            _delta_subdict(refdict.non_inheritable_attr)
+        _delta_subdict(refdict.attr)
 
     def add_classref(self, schema, collection, obj, replace=False):
         refdict = type(self).get_refdict(collection)
         attr = refdict.attr
 
-        if (refdict.non_inheritable_attr
-                and type(obj).get_field('inheritable') is not None
-                and not obj.get_inheritable(schema)):
-            local_attr = refdict.non_inheritable_attr
-        else:
-            local_attr = refdict.local_attr
+        colltype = type(self).get_field(attr).type
 
-        colltype = type(self).get_field(local_attr).type
+        coll = self.get_explicit_field_value(schema, attr, None)
 
-        local_coll = self.get_explicit_field_value(schema, local_attr, None)
-        all_coll = self.get_explicit_field_value(schema, attr, None)
-
-        refname = colltype.get_key_for(schema, obj)
-
-        if local_coll is not None:
-            if obj.get_inherited(schema) and local_coll.has(schema, refname):
-                pass
-            else:
-                if not replace:
-                    schema, local_coll = local_coll.add(schema, obj)
-                else:
-                    schema, local_coll = local_coll.update(schema, [obj])
-        else:
-            local_coll = colltype.create(schema, [obj])
-
-        schema = self.set_field_value(schema, local_attr, local_coll)
-
-        if all_coll is not None:
-            schema, all_coll = all_coll.update(schema, [obj])
+        if coll is not None:
+            schema, all_coll = coll.update(schema, [obj])
         else:
             all_coll = colltype.create(schema, [obj])
 
@@ -930,28 +883,11 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     def del_classref(self, schema, collection, key):
         refdict = type(self).get_refdict(collection)
         attr = refdict.attr
-        local_attr = refdict.local_attr
-        non_inh_attr = refdict.non_inheritable_attr
+        coll = self.get_field_value(schema, attr)
 
-        if non_inh_attr is not None:
-            non_inh_coll = self.get_field_value(schema, non_inh_attr)
-        else:
-            non_inh_coll = None
-
-        local_coll = self.get_field_value(schema, local_attr)
-        all_coll = self.get_field_value(schema, attr)
-
-        if local_coll and local_coll.has(schema, key):
-            schema, local_coll = local_coll.delete(schema, [key])
-            schema = self.set_field_value(schema, local_attr, local_coll)
-
-        if non_inh_coll and non_inh_coll.has(schema, key):
-            schema, non_inh_coll = non_inh_coll.delete(schema, [key])
-            schema = self.set_field_value(schema, non_inh_attr, non_inh_coll)
-
-        if all_coll and all_coll.has(schema, key):
-            schema, all_coll = all_coll.delete(schema, [key])
-            schema = self.set_field_value(schema, attr, all_coll)
+        if coll and coll.has(schema, key):
+            schema, coll = coll.delete(schema, [key])
+            schema = self.set_field_value(schema, attr, coll)
 
         return schema
 
@@ -991,6 +927,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         elif isinstance(value, ObjectCollection):
             raise TypeError(f'reduce_refs: cannot handle {type(value)} type')
 
+        elif isinstance(value, s_abc.ObjectContainer):
+            ref, val = value._reduce_to_ref(schema)
+
         else:
             ref, val = value, value
 
@@ -1002,8 +941,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         from edb.schema import delta as sd
 
         ff = type(new).get_fields(sorted=True).items()
-        fields = [fn for fn, f in ff
-                  if f.simpledelta and not f.ephemeral and f.introspectable]
+        fields = {fn: f for fn, f in ff
+                  if f.simpledelta and not f.ephemeral and f.introspectable}
 
         if old and new:
             if old.get_name(old_schema) != new.get_name(new_schema):
@@ -1011,16 +950,24 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                                            old_schema=old_schema,
                                            new_schema=new_schema))
 
-            for f in fields:
-                oldattr_v = old.get_explicit_field_value(old_schema, f, None)
-                newattr_v = new.get_explicit_field_value(new_schema, f, None)
+            for fn, f in fields.items():
+                oldattr_v = old.get_explicit_field_value(old_schema, fn, None)
+                newattr_v = new.get_explicit_field_value(new_schema, fn, None)
 
                 oldattr_v, oldattr_v1 = old._reduce_refs(old_schema, oldattr_v)
                 newattr_v, newattr_v1 = new._reduce_refs(new_schema, newattr_v)
 
-                if oldattr_v1 != newattr_v1:
+                fcoef = cls.compare_field_value(
+                    f,
+                    oldattr_v,
+                    newattr_v,
+                    our_schema=old_schema,
+                    their_schema=new_schema,
+                    context=context)
+
+                if fcoef != 1.0:
                     delta.add(sd.AlterObjectProperty(
-                        property=f, old_value=oldattr_v, new_value=newattr_v))
+                        property=fn, old_value=oldattr_v, new_value=newattr_v))
         elif not old:
             # IDs are assigned once when the object is created and
             # never changed.
@@ -1028,12 +975,18 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             delta.add(sd.AlterObjectProperty(
                 property='id', old_value=None, new_value=id_value))
 
-            for f in fields:
-                value = new.get_explicit_field_value(new_schema, f, None)
+            for fn in fields:
+                value = new.get_explicit_field_value(new_schema, fn, None)
                 if value is not None:
                     value, _ = new._reduce_refs(new_schema, value)
-                    delta.add(sd.AlterObjectProperty(
-                        property=f, old_value=None, new_value=value))
+                    cls.delta_property(new_schema, new, delta, fn, value)
+
+    @classmethod
+    def delta_property(cls, schema, scls, delta, fname, value):
+        from edb.schema import delta as sd
+
+        delta.add(sd.AlterObjectProperty(
+            property=fname, old_value=None, new_value=value))
 
     @classmethod
     def delta_rename(cls, obj, new_name, *, old_schema, new_schema):
@@ -1071,18 +1024,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 for b in self.get_bases(schema).objects(schema)}
 
     @classmethod
-    def delta_sets(cls, old, new, result, context=None, *,
-                   old_schema, new_schema):
-        adds_mods, dels = cls._delta_sets(old, new, context=context,
-                                          old_schema=old_schema,
-                                          new_schema=new_schema)
-
-        result.update(adds_mods)
-        result.update(dels)
-
-    @classmethod
-    def _delta_sets(cls, old, new, context=None, *,
-                    old_schema, new_schema):
+    def delta_sets(cls, old, new, context=None, *, old_schema, new_schema):
         from edb.schema import delta as sd
         from edb.schema import inheriting as s_inh
 
@@ -1094,7 +1036,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 adds_mods.add(n.delta(None, n, context=context,
                                       old_schema=old_schema,
                                       new_schema=new_schema))
-            adds_mods.sort_subcommands_by_type()
             return adds_mods, dels
         elif new is None:
             for o in old:
@@ -1215,11 +1156,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                                  old_schema=old_schema,
                                  new_schema=new_schema))
 
-        adds_mods.sort_subcommands_by_type()
-        return adds_mods, dels
-
-    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        return schema
+        adds_mods.update(dels)
+        return adds_mods
 
     def dump(self, schema):
         return (
@@ -1563,6 +1501,10 @@ class ObjectDict(ObjectCollection, container=tuple):
         objs = ", ".join(f"{self._keys[i]}: {o.dump(schema)}"
                          for i, o in enumerate(self.objects(schema)))
         return f'<{type(self).__name__} objects={objs} at {id(self):#x}>'
+
+    def __repr__(self):
+        items = [f"{self._keys[i]}: {id}" for i, id in enumerate(self._ids)]
+        return f'{{{", ".join(items)}}}'
 
     def keys(self, schema):
         return self._keys

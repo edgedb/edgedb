@@ -298,6 +298,9 @@ class DocRenderer(BaseRenderer):
         self.buffer.write(element.before, style=self.styles.diff_before)
         self.buffer.write(' | ')
         self.buffer.write(element.after, style=self.styles.diff_after)
+        if element.comment:
+            self.buffer.write(
+                f' # {element.comment}', style=self.styles.code_comment)
 
     def _render_doc_Diff(self, element):
         total_lines = len(element.lines)

@@ -567,7 +567,9 @@ class BaseArray(Collection, s_abc.Array):
     def as_create_delta(self, schema):
         from . import delta as sd
 
-        cmd = sd.CreateArray(
+        cmd = sd.CommandGroup()
+
+        ca = sd.CreateArray(
             classname=str(self.id),
         )
 
@@ -575,10 +577,12 @@ class BaseArray(Collection, s_abc.Array):
         if el.is_collection() and schema.get_by_id(el.id, None) is None:
             cmd.add(el.as_create_delta(schema))
 
-        cmd.set_attribute_value('id', self.id)
-        cmd.set_attribute_value('name', str(self.id))
-        cmd.set_attribute_value('element_type', el)
-        cmd.set_attribute_value('dimensions', self.get_dimensions(schema))
+        ca.set_attribute_value('id', self.id)
+        ca.set_attribute_value('name', str(self.id))
+        ca.set_attribute_value('element_type', el)
+        ca.set_attribute_value('dimensions', self.get_dimensions(schema))
+
+        cmd.add(ca)
 
         return cmd
 
@@ -967,7 +971,9 @@ class BaseTuple(Collection, s_abc.Tuple):
     def as_create_delta(self, schema):
         from . import delta as sd
 
-        cmd = sd.CreateTuple(
+        cmd = sd.CommandGroup()
+
+        ct = sd.CreateTuple(
             classname=str(self.id),
         )
 
@@ -975,15 +981,17 @@ class BaseTuple(Collection, s_abc.Tuple):
             if el.is_collection() and schema.get_by_id(el.id, None) is None:
                 cmd.add(el.as_create_delta(schema))
 
-        cmd.set_attribute_value('id', self.id)
-        cmd.set_attribute_value('name', str(self.id))
-        cmd.set_attribute_value('named', self.is_named(schema))
-        cmd.set_attribute_value(
+        ct.set_attribute_value('id', self.id)
+        ct.set_attribute_value('name', str(self.id))
+        ct.set_attribute_value('named', self.is_named(schema))
+        ct.set_attribute_value(
             'element_types',
             so.ObjectDict.create(
                 schema,
                 dict(self.iter_subtypes(schema)),
             ))
+
+        cmd.add(ct)
 
         return cmd
 

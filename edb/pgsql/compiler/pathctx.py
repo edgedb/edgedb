@@ -225,10 +225,7 @@ def get_path_var(
 
     if rel_rvar is None:
         if src_path_id.is_objtype_path():
-            if aspect == 'identity':
-                src_aspect = 'value'
-            else:
-                src_aspect = 'source'
+            src_aspect = 'source'
         else:
             src_aspect = aspect
 

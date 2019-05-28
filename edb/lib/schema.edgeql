@@ -56,6 +56,11 @@ ALTER TYPE std::Object {
 };
 
 
+CREATE ABSTRACT LINK schema::reference {
+    CREATE PROPERTY is_local -> std::bool;
+};
+
+
 CREATE TYPE schema::Module EXTENDING schema::Object;
 
 
@@ -93,7 +98,8 @@ CREATE TYPE schema::Annotation EXTENDING schema::Object {
 
 
 CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
-    CREATE MULTI LINK annotations -> schema::Annotation {
+    CREATE MULTI LINK annotations EXTENDING schema::reference
+    -> schema::Annotation {
         CREATE PROPERTY value -> std::str;
     };
 };
@@ -159,7 +165,8 @@ CREATE TYPE schema::Constraint
 
 
 CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
-    CREATE MULTI LINK constraints -> schema::Constraint {
+    CREATE MULTI LINK constraints EXTENDING schema::reference
+    -> schema::Constraint {
         CREATE CONSTRAINT std::exclusive;
     };
 };
@@ -194,7 +201,7 @@ CREATE ABSTRACT TYPE schema::Pointer
 
 
 ALTER TYPE schema::Source {
-    CREATE MULTI LINK pointers -> schema::Pointer {
+    CREATE MULTI LINK pointers EXTENDING schema::reference -> schema::Pointer {
         CREATE CONSTRAINT std::exclusive;
     };
 };

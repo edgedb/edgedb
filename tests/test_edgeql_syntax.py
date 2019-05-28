@@ -3520,12 +3520,6 @@ aa';
     def test_edgeql_syntax_ddl_view_01(self):
         """
         CREATE VIEW Foo := (SELECT User);
-
-% OK %
-
-        CREATE VIEW Foo {
-            SET expr := SELECT User;
-        };
         """
 
     def test_edgeql_syntax_ddl_view_02(self):
@@ -3541,9 +3535,7 @@ aa';
 
 % OK %
 
-        CREATE VIEW Foo {
-            SET expr := SELECT User;
-        };
+        CREATE VIEW Foo := (SELECT User);
 
         ALTER VIEW Foo
             SET expr := SELECT Person;

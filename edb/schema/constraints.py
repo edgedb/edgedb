@@ -38,8 +38,8 @@ from . import referencing
 from . import utils
 
 
-class Constraint(inheriting.InheritingObject, s_func.CallableObject,
-                 s_abc.Constraint):
+class Constraint(referencing.ReferencedInheritingObject,
+                 s_func.CallableObject, s_abc.Constraint):
 
     expr = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.909,
@@ -80,44 +80,6 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
     def generic(self, schema):
         return self.get_subject(schema) is None
 
-    def init_derived(self, schema, source, *qualifiers,
-                     as_copy, mark_derived=False,
-                     merge_bases=None, attrs=None,
-                     dctx=None, **kwargs):
-
-        if attrs is None:
-            attrs = {}
-
-        attrs['subject'] = source
-
-        qualifiers = list(qualifiers)
-        qualifiers.extend(self.get_derived_quals(schema, source, attrs))
-
-        return super().init_derived(
-            schema, source, *qualifiers, as_copy=as_copy,
-            mark_derived=mark_derived, merge_bases=merge_bases,
-            attrs=attrs, dctx=dctx, **kwargs)
-
-    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        schema = super().finalize(
-            schema, bases=bases,
-            apply_defaults=apply_defaults, dctx=dctx)
-
-        self_params = self.get_explicit_field_value(schema, 'params', None)
-        if not self.generic(schema) and self_params is None:
-            schema = self.set_field_value(schema, 'params', [])
-
-            if dctx is not None:
-                from . import delta as sd
-
-                dctx.current().op.add(sd.AlterObjectProperty(
-                    property='params',
-                    new_value=self.get_params(schema),
-                    source='default'
-                ))
-
-        return schema
-
     def get_derived_quals(self, schema, source, attrs=None):
         if attrs and attrs.get('finalexpr'):
             finalexpr = attrs['finalexpr']
@@ -148,6 +110,7 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         constr_base = schema.get(name, module_aliases=modaliases)
         module_aliases = {}
 
+        orig_subjectexpr = subjectexpr
         orig_subject = subject
         base_subjectexpr = constr_base.get_field_value(schema, 'subjectexpr')
         if subjectexpr is None:
@@ -176,6 +139,18 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
             args = constr_base.get_field_value(schema, 'args')
 
         attrs = dict(kwargs)
+        if orig_subjectexpr is not None:
+            attrs['subjectexpr'] = orig_subjectexpr
+        else:
+            base_subjectexpr = constr_base.get_subjectexpr(schema)
+            if base_subjectexpr is not None:
+                attrs['subjectexpr'] = base_subjectexpr
+
+        errmessage = attrs.get('errmessage')
+        if not errmessage:
+            errmessage = constr_base.get_errmessage(schema)
+
+        attrs['errmessage'] = errmessage
 
         if subject is not orig_subject:
             # subject has been redefined
@@ -202,12 +177,8 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
             args_map = {name: edgeql.generate_source(val, pretty=False)
                         for name, val in args_map.items()}
 
-            errmessage = attrs.get('errmessage')
-            if not errmessage:
-                errmessage = constr_base.get_errmessage(schema)
-
             args_map['__subject__'] = '{__subject__}'
-            attrs['errmessage'] = errmessage.format(**args_map)
+            attrs['errmessage'] = attrs['errmessage'].format(**args_map)
 
         attrs['args'] = args
 
@@ -233,32 +204,12 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
                 context=expr_context
             )
 
+        attrs['return_type'] = constr_base.get_return_type(schema)
+        attrs['return_typemod'] = constr_base.get_return_typemod(schema)
         attrs['finalexpr'] = final_expr
+        attrs['params'] = constr_base.get_params(schema)
 
         return constr_base, attrs
-
-    @classmethod
-    def create_concrete_constraint(
-            cls, schema, subject, *, name, subjectexpr=None,
-            sourcectx=None, args=[], modaliases=None, **kwargs):
-
-        if subject.is_scalar() and subject.is_enum(schema):
-            raise errors.UnsupportedFeatureError(
-                f'constraints cannot be defined on an enumerated type',
-                context=sourcectx,
-            )
-
-        constr_base, attrs = cls.get_concrete_constraint_attrs(
-            schema, subject, name=name, subjectexpr=subjectexpr,
-            sourcectx=sourcectx, args=args, modaliases=modaliases, **kwargs)
-
-        schema, constraint = constr_base.derive(
-            schema,
-            subject,
-            merge_bases=[constr_base],
-            attrs=attrs)
-
-        return schema, constraint, attrs
 
     def format_error_message(self, schema):
         errmsg = self.get_errmessage(schema)
@@ -274,6 +225,24 @@ class Constraint(inheriting.InheritingObject, s_func.CallableObject,
         formatted = errmsg.format(__subject__=subjtitle)
 
         return formatted
+
+    @classmethod
+    def delta_properties(cls, delta, old, new, *, context=None,
+                         old_schema, new_schema):
+        super().delta_properties(
+            delta, old, new, context=context,
+            old_schema=old_schema, new_schema=new_schema)
+
+        if new is not None and new.get_subject(new_schema) is not None:
+            new_params = new.get_params(new_schema)
+            if old is None or new_params != old.get_params(old_schema):
+                delta.add(
+                    sd.AlterObjectProperty(
+                        property='params',
+                        new_value=new_params,
+                        source='inheritance',
+                    )
+                )
 
     @classmethod
     def get_root_classes(cls):
@@ -294,75 +263,8 @@ class ConsistencySubject(inheriting.InheritingObject):
 
     constraints = so.SchemaField(
         so.ObjectIndexByFullname,
-        inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectIndexByFullname, hashable=False)
-
-    own_constraints = so.SchemaField(
-        so.ObjectIndexByFullname, compcoef=0.887,
-        inheritable=False, ephemeral=True,
-        coerce=True,
+        inheritable=False, ephemeral=True, coerce=True, compcoef=0.887,
         default=so.ObjectIndexByFullname)
-
-    @classmethod
-    def inherit_pure(cls, schema, item, source, *, dctx=None):
-        schema, item = super().inherit_pure(schema, item, source, dctx=dctx)
-
-        item_constraints = item.get_own_constraints(schema)
-        if any(c.get_is_abstract(schema)
-               for c in item_constraints.objects(schema)):
-            # Have abstract constraints, cannot go pure inheritance,
-            # must create a derived Object with materialized
-            # constraints.
-            schema, item = type(item).derive_from_root(
-                schema,
-                source=source,
-                merge_bases=[item],
-                unqualified_name=item.get_shortname(schema).name,
-                dctx=dctx,
-            )
-
-        return schema, item
-
-    def finish_classref_dict_merge(self, schema, bases, attr):
-        schema = super().finish_classref_dict_merge(schema, bases, attr)
-
-        if attr == 'constraints':
-            # Materialize unmerged abstract constraints
-            all_constraints = self.get_constraints(schema)
-
-            for cn, constraint in all_constraints.items(schema):
-                if not constraint.get_is_abstract(schema):
-                    # Constraint is not delegated, nothing to do.
-                    continue
-
-                if self.get_own_constraints(schema).has(schema, cn):
-                    # The constraint is declared locally, nothing to do.
-                    continue
-
-                quals = constraint.get_derived_quals(schema, self)
-                der_name = constraint.get_derived_name(
-                    schema, self, *quals)
-
-                if self.get_own_constraints(schema).has(schema, der_name):
-                    # The constraint is declared locally, nothing to do.
-                    continue
-
-                for base in bases:
-                    quals = constraint.get_derived_quals(schema, base)
-                    der_name = constraint.get_derived_name(
-                        schema, base, *quals)
-                    constr = all_constraints.get(schema, der_name, None)
-                    if (constr is not None and
-                            not constr.get_is_abstract(schema)):
-                        break
-                else:
-                    schema, constraint = constraint.derive_copy(
-                        schema, self,
-                        attrs={'is_abstract': False, 'inherited': True})
-
-                    schema = self.add_constraint(schema, constraint)
-
-        return schema
 
     def add_constraint(self, schema, constraint, replace=False):
         return self.add_classref(
@@ -405,20 +307,49 @@ class ConstraintCommand(
         return (astnode.name in {'subject', 'subjectexpr'} and
                 not astnode.module)
 
-    def _prepare_create_fields(self, schema, context):
-        schema, props = super()._prepare_create_fields(schema, context)
-        referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is not None:
-            # Concrete constraints never declare parameters.
-            props.pop('params', None)
+    @classmethod
+    def _classname_quals_from_ast(cls, schema, astnode, base_name,
+                                  referrer_name, context):
+        subject = schema.get(referrer_name, None)
+        if subject is None:
+            return ()
 
-        return schema, props
+        props = {}
+        args = cls._constraint_args_from_ast(schema, astnode, context)
+        if args:
+            props['args'] = args
+        if astnode.subjectexpr:
+            props['subjectexpr'] = s_expr.Expression.from_ast(
+                astnode.subjectexpr, schema, context.modaliases)
+
+        _, attrs = Constraint.get_concrete_constraint_attrs(
+            schema, subject, name=base_name,
+            sourcectx=astnode.context,
+            modaliases=context.modaliases, **props)
+
+        return (Constraint._name_qual_from_expr(
+            schema, attrs['finalexpr'].text),)
+
+    @classmethod
+    def _constraint_args_from_ast(cls, schema, astnode, context):
+        args = []
+
+        if astnode.args:
+            for arg in astnode.args:
+                arg_expr = s_expr.Expression.from_ast(
+                    arg, schema, context.modaliases)
+                args.append(arg_expr)
+
+        return args
 
     def compile_expr_field(self, schema, context, field, value):
         from edb.edgeql import compiler as qlcompiler
 
         if field.name in ('expr', 'subjectexpr'):
-            params = self._get_params(schema, context)
+            if isinstance(self, CreateConstraint):
+                params = self._get_params(schema, context)
+            else:
+                params = self.scls.get_params(schema)
             anchors, _ = (
                 qlcompiler.get_param_anchors_for_callable(
                     params, schema)
@@ -474,57 +405,103 @@ class CreateConstraint(ConstraintCommand,
         if referrer_ctx is None:
             return super()._create_begin(schema, context)
 
-        schema, props = self._get_create_fields(schema, context)
+        subject = referrer_ctx.scls
+        if subject.is_scalar() and subject.is_enum(schema):
+            raise errors.UnsupportedFeatureError(
+                f'constraints cannot be defined on an enumerated type',
+                context=self.source_context,
+            )
 
-        if props.get('finalexpr'):
-            return super()._create_begin(schema, context)
+        if not context.canonical:
+            schema, props = self._get_create_fields(schema, context)
+            props.pop('name')
+            props.pop('subject', None)
+            fullname = self.classname
+            shortname = sn.shortname_from_fullname(fullname)
 
-        props.pop('name')
-        subject = props.pop('subject')
-        fullname = self.classname
-        shortname = sn.shortname_from_fullname(fullname)
-        schema, self.scls, attrs = Constraint.create_concrete_constraint(
-            schema, subject, name=shortname, **props)
+            constr_base, attrs = Constraint.get_concrete_constraint_attrs(
+                schema,
+                subject,
+                name=shortname,
+                sourcectx=self.source_context,
+                **props)
 
-        for attr, value in attrs.items():
-            self.set_attribute_value(attr, value)
+            for k, v in attrs.items():
+                self.set_attribute_value(k, v)
 
-        return schema
+            quals = constr_base.get_derived_quals(schema, subject, attrs)
+
+            derived_name = constr_base.derive_name(
+                schema, subject, *quals)
+
+            self.set_attribute_value('name', derived_name)
+            self.set_attribute_value('subject', subject)
+            self.classname = derived_name
+
+            self.set_attribute_value(
+                'bases', so.ObjectList.create(schema, [constr_base])
+            )
+
+        return super()._create_begin(schema, context)
 
     @classmethod
-    def _constraint_args_from_ast(cls, schema, astnode, context):
-        args = []
+    def as_inherited_ref_cmd(cls, schema, context, astnode, parents):
+        cmd = cls(
+            classname=cls._classname_from_ast(
+                schema, astnode, context),
+        )
 
-        if astnode.args:
-            for arg in astnode.args:
-                arg_expr = s_expr.Expression.from_ast(
-                    arg, schema, context.modaliases)
-                args.append(arg_expr)
-
-        return args
-
-    @classmethod
-    def _classname_quals_from_ast(cls, schema, astnode, base_name,
-                                  referrer_name, context):
-        subject = schema.get(referrer_name, None)
-        if subject is None:
-            return ()
-
-        props = {}
+        cmd.set_attribute_value('name', cmd.classname)
         args = cls._constraint_args_from_ast(schema, astnode, context)
         if args:
-            props['args'] = args
-        if astnode.subjectexpr:
-            props['subjectexpr'] = s_expr.Expression.from_ast(
-                astnode.subject, schema, context.modaliases)
+            cmd.set_attribute_value('args', args)
 
-        _, attrs = Constraint.get_concrete_constraint_attrs(
-            schema, subject, name=base_name,
-            sourcectx=astnode.context,
-            modaliases=context.modaliases, **props)
+        subj_expr = parents[0].get_subjectexpr(schema)
+        if subj_expr is not None:
+            cmd.set_attribute_value('subjectexpr', subj_expr)
 
-        return (Constraint._name_qual_from_expr(
-            schema, attrs['finalexpr'].text),)
+        cmd.set_attribute_value(
+            'bases', so.ObjectList.create(schema, parents))
+
+        if any(parent.get_is_abstract(schema) for parent in parents):
+            # Constraint delegation.
+            cmd.set_attribute_value('is_local', True)
+
+        return cmd
+
+    @classmethod
+    def as_inherited_ref_ast(cls, schema, context, name, parent):
+        refctx = cls.get_referrer_context(context)
+        astnode_cls = cls.referenced_astnode
+
+        if sn.Name.is_qualified(name):
+            nref = qlast.ObjectRef(
+                name=name.name,
+                module=name.module,
+            )
+        else:
+            nref = qlast.ObjectRef(
+                name=name,
+                module=refctx.op.classname.module,
+            )
+
+        args = []
+
+        parent_args = parent.get_args(schema)
+        if parent_args:
+            for arg_expr in parent.get_args(schema):
+                arg = edgeql.parse_fragment(arg_expr.text)
+                args.append(arg)
+
+        subj_expr = parent.get_subjectexpr(schema)
+        if subj_expr is not None:
+            subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
+        else:
+            subj_expr_ql = None
+
+        astnode = astnode_cls(name=nref, args=args, subjectexpr=subj_expr_ql)
+
+        return astnode
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -593,7 +570,7 @@ class CreateConstraint(ConstraintCommand,
             pass
         elif op.property == 'is_abstract':
             node.is_abstract = op.new_value
-        elif op.property == 'subjectexpr':
+        elif op.property in {'subjectexpr', 'subject', 'return_type'}:
             pass
         else:
             super()._apply_field_ast(schema, context, node, op)
@@ -614,7 +591,8 @@ class RenameConstraint(ConstraintCommand, sd.RenameObject):
     pass
 
 
-class AlterConstraint(ConstraintCommand, sd.AlterObject):
+class AlterConstraint(ConstraintCommand,
+                      referencing.AlterReferencedInheritingObject):
     astnode = [qlast.AlterConcreteConstraint, qlast.AlterConstraint]
     referenced_astnode = qlast.AlterConcreteConstraint
 

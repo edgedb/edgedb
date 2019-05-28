@@ -17,6 +17,10 @@
 #
 
 
+import contextlib
+
+import immutables as immu
+
 from edb.common import struct
 from edb.edgeql import ast as qlast
 
@@ -24,12 +28,68 @@ from edb import errors
 
 from . import delta as sd
 from . import derivable
+from . import name as sn
 from . import objects as so
 from . import utils
 
 
 class InheritingObjectCommand(sd.ObjectCommand):
-    pass
+
+    def _apply_field_ast(self, schema, context, node, op):
+        if op.source == 'inheritance':
+            pass
+        else:
+            return super()._apply_field_ast(schema, context, node, op)
+
+    def _create_begin(self, schema, context):
+        schema = super()._create_begin(schema, context)
+        inh_map = self._get_inh_map(schema, context)
+        schema = self.scls.set_field_value(schema, 'field_inh_map', inh_map)
+        return schema
+
+    def _get_inh_map(self, schema, context):
+        result = {}
+
+        for op in self.get_subcommands(type=sd.AlterObjectProperty):
+            result[op.property] = op.source == 'inheritance'
+
+        return immu.Map(result)
+
+    def inherit_fields(self, schema, context, bases, *, fields=None):
+        mcls = self.get_schema_metaclass()
+        scls = self.scls
+
+        if fields is not None:
+            field_names = set(scls.inheritable_fields()) & set(fields)
+        else:
+            field_names = scls.inheritable_fields()
+
+        field_inh_map = scls.get_field_inh_map(schema)
+        inh_map_update = {}
+
+        for field_name in field_names:
+            field = mcls.get_field(field_name)
+            result = field.merge_fn(scls, bases, field_name, schema=schema)
+
+            if not field_inh_map.get(field_name):
+                ours = scls.get_explicit_field_value(schema, field_name, None)
+            else:
+                ours = None
+
+            inh_map_update[field_name] = result is not None and ours is None
+
+            if result is not None or ours is not None:
+                schema = scls.set_field_value_with_delta(
+                    schema, field_name, result, dctx=context,
+                    source='inheritance')
+
+        schema = scls.set_field_value(
+            schema,
+            'field_inh_map',
+            field_inh_map.update(inh_map_update),
+        )
+
+        return schema
 
 
 def delta_bases(old_bases, new_bases):
@@ -87,23 +147,51 @@ class AlterInherit(sd.Command):
 class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
     def _create_begin(self, schema, context):
         schema = super()._create_begin(schema, context)
-        ancestors = self.scls.get_ancestors(schema)
-        if ancestors is None:
-            bases = self.scls.get_bases(schema)
-            if bases:
-                ancestors = compute_ancestors(schema, self.scls)
-                schema = self.scls.set_field_value(
-                    schema, 'ancestors', ancestors)
 
-                if not self.has_attribute_value('ancestors'):
-                    self.set_attribute_value('ancestors', ancestors)
+        if not context.canonical:
+            ancestors = so.ObjectList.create(
+                schema, compute_ancestors(schema, self.scls))
+            schema = self.scls.set_field_value(
+                schema, 'ancestors', ancestors)
+            self.set_attribute_value('ancestors', ancestors)
+
+            bases = self.get_attribute_value('bases').objects(schema)
+
+            if context.mark_derived and len(bases) == 1:
+                schema = self.scls.update(schema, {
+                    'is_derived': True,
+                    'derived_from': bases[0],
+                })
+
+                self.set_attribute_value('is_derived', True)
+                self.set_attribute_value('derived_from', bases[0])
+
+            if context.preserve_path_id and len(bases) == 1:
+                base_name = bases[0].get_name(schema)
+                schema = self.scls.set_field_value(
+                    schema, 'path_id_name', base_name)
+                self.set_attribute_value(
+                    'path_id_name', base_name)
+
+            if context.inheritance_merge is None or context.inheritance_merge:
+                schema = self.inherit_fields(schema, context, bases)
 
         return schema
 
-    def _create_finalize(self, schema, context):
-        schema = self.scls.acquire_ancestor_inheritance(schema, dctx=context)
-        schema = self.scls.update_descendants(schema)
-        return super()._create_finalize(schema, context)
+    def _create_refs(self, schema, context, scls, refdict):
+        if not context.canonical:
+            local_refs = list(self.get_subcommands(metaclass=refdict.ref_cls))
+            refdict_whitelist = context.inheritance_refdicts
+            if ((refdict_whitelist is None
+                    or refdict.attr in refdict_whitelist)
+                    and (context.inheritance_merge is None
+                         or context.inheritance_merge)):
+                schema = self.inherit_classref_dict(schema, context, refdict)
+            for op in local_refs:
+                schema, _ = op.apply(schema, context=context)
+            return schema
+        else:
+            return super()._create_refs(schema, context, scls, refdict)
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -111,18 +199,10 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
 
         bases = cls._classbases_from_ast(schema, astnode, context)
         if bases is not None:
-            cmd.add(
-                sd.AlterObjectProperty(
-                    property='bases',
-                    new_value=bases
-                )
-            )
+            cmd.set_attribute_value('bases', bases)
 
         if getattr(astnode, 'is_final', False):
-            cmd.add(sd.AlterObjectProperty(
-                property='is_final',
-                new_value=True
-            ))
+            cmd.set_attribute_value('is_final', True)
 
         return cmd
 
@@ -161,6 +241,85 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
 
         return bases
 
+    def _apply_field_ast(self, schema, context, node, op):
+        if op.property == 'bases':
+            if not isinstance(op.new_value, so.ObjectList):
+                bases = so.ObjectList.create(schema, op.new_value)
+            else:
+                bases = op.new_value
+
+            base_names = bases.names(schema, allow_unresolved=True)
+
+            node.bases = [
+                qlast.TypeName(
+                    maintype=qlast.ObjectRef(
+                        name=b.name,
+                        module=b.module
+                    )
+                )
+                for b in base_names
+            ]
+        elif op.property == 'ancestors':
+            pass
+        elif op.property == 'is_abstract':
+            node.is_abstract = op.new_value
+        elif op.property == 'is_final':
+            node.is_final = op.new_value
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
+    def inherit_classref_dict(self, schema, context, refdict):
+        attr = refdict.attr
+
+        scls = self.scls
+        bases = scls.get_bases(schema)
+
+        refs = {}
+
+        group = sd.CommandGroup()
+
+        for base in bases.objects(schema):
+            base_refs = base.get_field_value(schema, attr)
+            for k, v in base_refs.items(schema):
+                if v.get_is_final(schema):
+                    continue
+
+                mcls = type(v)
+                create_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
+                    sd.CreateObject, mcls)
+
+                if sn.Name.is_qualified(k):
+                    shortname = sn.shortname_from_fullname(sn.Name(k))
+                else:
+                    shortname = k
+
+                astnode = create_cmd.as_inherited_ref_ast(
+                    schema, context, shortname, v)
+
+                fqname = create_cmd._classname_from_ast(
+                    schema, astnode, context)
+
+                if fqname not in refs:
+                    refs[fqname] = (create_cmd, astnode, [v])
+                else:
+                    refs[fqname][2].append(v)
+
+        for fqname, (create_cmd, astnode, parents) in refs.items():
+            cmd = create_cmd.as_inherited_ref_cmd(
+                schema, context, astnode, parents)
+
+            cmd.set_attribute_value(
+                refdict.backref_attr,
+                so.ObjectRef(name=scls.get_name(schema)),
+            )
+
+            group.add(cmd)
+            schema, _ = cmd.apply(schema, context)
+
+        self.prepend(group)
+
+        return schema
+
 
 class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
     def _alter_begin(self, schema, context, scls):
@@ -169,21 +328,22 @@ class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
         for op in self.get_subcommands(type=RebaseInheritingObject):
             schema, _ = op.apply(schema, context)
 
-        schema = scls.acquire_ancestor_inheritance(schema)
+        if not context.canonical:
+            schema, props = self._get_field_updates(schema, context)
+            if props:
+                for child in scls.children(schema):
+                    schema = self._propagate_field_alter(
+                        schema, context, child, props)
 
         return schema
 
-    def _alter_finalize(self, schema, context, scls):
-        schema = self.scls.acquire_ancestor_inheritance(schema, dctx=context)
-        schema = self.scls.update_descendants(schema)
-        return super()._alter_finalize(schema, context, scls)
+    def _propagate_field_alter(self, schema, context, scls, props):
+        return schema
 
 
 class DeleteInheritingObject(InheritingObjectCommand, sd.DeleteObject):
 
-    def _delete_finalize(self, schema, context, scls):
-        schema = self.scls.update_descendants(schema)
-        return super()._delete_finalize(schema, context, scls)
+    pass
 
 
 class RebaseInheritingObject(sd.ObjectCommand):
@@ -200,26 +360,8 @@ class RebaseInheritingObject(sd.ObjectCommand):
 
     def apply(self, schema, context):
         metaclass = self.get_schema_metaclass()
-        scls = self.get_object(schema)
+        scls = self.get_object(schema, context)
         self.scls = scls
-
-        objects = [scls] + list(scls.descendants(schema))
-        for obj in objects:
-            for refdict in scls.__class__.get_refdicts():
-                attr = refdict.attr
-                local_attr = refdict.local_attr
-                backref = refdict.backref_attr
-
-                coll = obj.get_field_value(schema, attr)
-                local_coll = obj.get_field_value(schema, local_attr)
-
-                for ref_name in tuple(coll.keys(schema)):
-                    if not local_coll.has(schema, ref_name):
-                        try:
-                            obj.get_classref_origin(
-                                schema, ref_name, attr, local_attr, backref)
-                        except KeyError:
-                            schema, coll = coll.delete(schema, [ref_name])
 
         schema, props = self._get_field_updates(schema, context)
         schema = scls.update(schema, props)
@@ -254,9 +396,10 @@ class RebaseInheritingObject(sd.ObjectCommand):
             elif pos == 'FIRST':
                 idx = 0
             else:
-                idx = index[ref]
+                idx = index[ref.get_name(schema)]
 
-            bases[idx:idx] = [self.get_object(schema, name=b.get_name(schema))
+            bases[idx:idx] = [self.get_object(schema, context,
+                                              name=b.get_name(schema))
                               for b in new_bases
                               if b.get_name(schema) not in existing_bases]
             index = {b.get_name(schema): i for i, b in enumerate(bases)}
@@ -264,12 +407,14 @@ class RebaseInheritingObject(sd.ObjectCommand):
         if not bases:
             default = metaclass.get_default_base_name()
             if default:
-                bases = [self.get_object(schema, name=default)]
+                bases = [self.get_object(schema, context, name=default)]
             else:
                 bases = []
 
+        bases = so.ObjectList.create(schema, bases)
         schema = scls.set_field_value(schema, 'bases', bases)
         new_ancestors = compute_ancestors(schema, scls)
+        new_ancestors = so.ObjectList.create(schema, new_ancestors)
         schema = scls.set_field_value(schema, 'ancestors', new_ancestors)
 
         if not self.has_attribute_value('bases'):
@@ -285,6 +430,7 @@ class RebaseInheritingObject(sd.ObjectCommand):
         if descendants and not list(self.get_subcommands(type=alter_cmd)):
             for descendant in descendants:
                 new_ancestors = compute_ancestors(schema, descendant)
+                new_ancestors = so.ObjectList.create(schema, new_ancestors)
                 schema = descendant.set_field_value(
                     schema, 'ancestors', new_ancestors)
                 alter = alter_cmd(classname=descendant.get_name(schema))
@@ -293,6 +439,8 @@ class RebaseInheritingObject(sd.ObjectCommand):
                     new_value=new_ancestors,
                 ))
                 self.add(alter)
+
+        schema = scls.acquire_ancestor_inheritance(schema)
 
         return schema, scls
 
@@ -312,9 +460,9 @@ def _merge_lineage(schema, obj, lineage):
             if not tails:
                 break
         else:
+            name = obj.get_verbosename(schema)
             raise errors.SchemaError(
-                f"Could not find consistent ancestor order for "
-                f"{obj.get_verbosename(schema)}"
+                f"Could not find consistent ancestor order for {name}"
             )
 
         result.append(candidate)
@@ -367,6 +515,20 @@ class InheritingObject(derivable.DerivableObject):
         bool,
         default=False, compcoef=0.909)
 
+    is_local = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.909)
+
+    field_inh_map = so.SchemaField(
+        immu.Map,
+        default=immu.Map(),
+        inheritable=False,
+        introspectable=False,
+        hashable=False,
+    )
+
     @classmethod
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
         if context is None:
@@ -397,195 +559,17 @@ class InheritingObject(derivable.DerivableObject):
 
         return delta
 
-    def merge(self, *objs, schema, dctx=None):
-        schema = super().merge(*objs, schema=schema, dctx=None)
+    @classmethod
+    def delta_property(cls, schema, scls, delta, fname, value):
+        inh_map = scls.get_field_inh_map(schema)
+        delta.add(sd.AlterObjectProperty(
+            property=fname, old_value=None, new_value=value,
+            source='inheritance' if inh_map.get(fname) else None))
 
-        for obj in objs:
-            for refdict in self.__class__.get_refdicts():
-                # Merge Object references in each registered collection.
-                #
-                this_coll = self.get_explicit_field_value(
-                    schema, refdict.attr, None)
-
-                other_coll = obj.get_explicit_field_value(
-                    schema, refdict.attr, None)
-
-                if other_coll is None:
-                    continue
-
-                if refdict.non_inheritable_attr:
-                    non_inh_coll = obj.get_explicit_field_value(
-                        schema, refdict.non_inheritable_attr, None)
-
-                    if non_inh_coll:
-                        other_coll = type(other_coll).create(schema, {
-                            v for k, v in other_coll.items(schema)
-                            if not non_inh_coll.has(schema, k)
-                        })
-
-                if not other_coll:
-                    continue
-
-                if this_coll is None:
-                    schema = self.set_field_value(
-                        schema, refdict.attr, other_coll)
-                else:
-                    updates = {v for k, v in other_coll.items(schema)
-                               if not this_coll.has(schema, k)}
-
-                    schema, this_coll = this_coll.update(schema, updates)
-                    schema = self.set_field_value(
-                        schema, refdict.attr, this_coll)
-
-        return schema
-
-    def begin_classref_dict_merge(self, schema, bases, attr):
-        return schema, None
-
-    def finish_classref_dict_merge(self, schema, bases, attr):
-        return schema
-
-    def merge_classref_dict(self, schema, *,
-                            bases, attr, local_attr,
-                            backref_attr, classrefcls,
-                            classref_keys, requires_explicit_inherit,
-                            dctx=None):
-        """Merge reference collections from bases.
-
-        :param schema:         The schema.
-
-        :param bases:          An iterable containing base objects.
-
-        :param str attr:       Name of the attribute containing the full
-                               reference collection.
-
-        :param str local_attr: Name of the attribute containing the collection
-                               of references defined locally (not inherited).
-
-        :param str backref_attr: Name of the attribute on a referenced
-                                 object containing the reference back to
-                                 this object.
-
-        :param classrefcls:    Referenced object class.
-
-        :param classrefkeys:   An optional list of reference keys to consider
-                               for merging.  If not specified, all keys
-                               in the collection will be used.
-        """
-        classrefs = self.get_explicit_field_value(schema, attr, None)
-        colltype = type(self).get_field(local_attr).type
-        if classrefs is None:
-            classrefs = colltype.create_empty()
-
-        local_classrefs = self.get_explicit_field_value(
-            schema, local_attr, None)
-        if local_classrefs is None:
-            local_classrefs = colltype.create_empty()
-
-        if classref_keys is None:
-            classref_keys = classrefs.keys(schema)
-
-        for classref_key in classref_keys:
-            local = local_classrefs.get(schema, classref_key, None)
-            local_schema = schema
-
-            inherited = []
-            for b in bases:
-                attrval = b.get_explicit_field_value(schema, attr, None)
-                if not attrval:
-                    continue
-                bref = attrval.get(schema, classref_key, None)
-                if bref is not None:
-                    inherited.append(bref)
-
-            ancestry = {pref.get_field_value(schema, backref_attr): pref
-                        for pref in inherited}
-
-            inherited = list(ancestry.values())
-
-            if not inherited and local is None:
-                continue
-
-            pure_inheritance = False
-
-            if local and inherited:
-                schema = local.acquire_ancestor_inheritance(schema, inherited)
-                schema = local.finalize(schema, bases=inherited)
-                merged = local
-
-            elif len(inherited) > 1:
-                attrs = {'inherited': True}
-                schema, merged = type(inherited[0]).derive_from_root(
-                    schema,
-                    source=self,
-                    unqualified_name=classref_key,
-                    merge_bases=inherited,
-                    attrs=attrs,
-                    dctx=dctx,
-                )
-
-            elif len(inherited) == 1:
-                # Pure inheritance
-                item = inherited[0]
-                # In some cases pure inheritance is not possible, such
-                # as when a pointer has delegated constraints that must
-                # be materialized on inheritance.  We delegate the
-                # decision to the referenced class here.
-                schema, merged = classrefcls.inherit_pure(
-                    schema, item, source=self, dctx=dctx)
-                pure_inheritance = schema is local_schema
-
-            else:
-                # Not inherited
-                merged = local
-
-            if (local is not None and inherited and not pure_inheritance and
-                    requires_explicit_inherit and
-                    not local.get_declared_inherited(local_schema) and
-                    dctx is not None and dctx.declarative):
-                # locally defined references *must* use
-                # the `inherited` keyword if ancestors have
-                # a reference under the same name.
-                raise errors.SchemaDefinitionError(
-                    f'{self.get_shortname(schema)}: '
-                    f'{local.get_shortname(local_schema)} must be '
-                    f'declared using the `inherited` keyword because '
-                    f'it is defined in the following ancestor(s): '
-                    f'{", ".join(a.get_shortname(schema) for a in ancestry)}',
-                    context=local.get_sourcectx(local_schema)
-                )
-
-            if not inherited and local.get_declared_inherited(local_schema):
-                raise errors.SchemaDefinitionError(
-                    f'{self.get_shortname(schema)}: '
-                    f'{local.get_shortname(local_schema)} cannot '
-                    f'be declared `inherited` as there are no ancestors '
-                    f'defining it.',
-                    context=local.get_sourcectx(local_schema)
-                )
-
-            if inherited:
-                if not pure_inheritance:
-                    if dctx is not None:
-                        delta = merged.delta(local, merged,
-                                             context=None,
-                                             old_schema=local_schema,
-                                             new_schema=schema)
-                        if delta.has_subcommands():
-                            dctx.current().op.add(delta)
-
-                    schema, local_classrefs = local_classrefs.update(
-                        schema, [merged])
-
-                schema, classrefs = classrefs.update(
-                    schema, [merged])
-
-        schema = self.update(schema, {
-            attr: classrefs,
-            local_attr: local_classrefs
-        })
-
-        return schema
+    def inheritable_fields(self):
+        for fn, f in self.__class__.get_fields().items():
+            if f.inheritable:
+                yield fn
 
     def get_classref_origin(self, schema, name, attr, local_attr, classname,
                             farthest=False):
@@ -611,11 +595,15 @@ class InheritingObject(derivable.DerivableObject):
 
         return result
 
-    def init_derived(self, schema, source, *qualifiers, as_copy,
-                     merge_bases=None, mark_derived=False,
-                     replace_original=None, attrs=None, dctx=None,
-                     derived_name_base=None,
-                     name=None, **kwargs):
+    def derive(self, schema, source,
+               *qualifiers,
+               mark_derived=False,
+               attrs=None, dctx=None,
+               derived_name_base=None,
+               inheritance_merge=True,
+               preserve_path_id=None,
+               refdict_whitelist=None,
+               name=None, **kwargs):
         if name is None:
             derived_name = self.get_derived_name(
                 schema, source, *qualifiers,
@@ -624,33 +612,125 @@ class InheritingObject(derivable.DerivableObject):
         else:
             derived_name = name
 
-        if as_copy:
-            schema, derived = super().init_derived(
-                schema, source, *qualifiers, as_copy=True,
-                merge_bases=merge_bases, mark_derived=mark_derived,
-                attrs=attrs, dctx=dctx, name=name,
-                replace_original=replace_original,
-                derived_name_base=derived_name_base, **kwargs)
+        if self.get_name(schema) == derived_name:
+            raise errors.SchemaError(
+                f'cannot derive {self!r}({derived_name}) from itself')
 
+        derived_attrs = {}
+
+        if attrs is not None:
+            derived_attrs.update(attrs)
+
+        derived_attrs['name'] = derived_name
+        derived_attrs['bases'] = so.ObjectList.create(schema, [self])
+
+        mcls = type(self)
+        referrer_class = type(source)
+
+        if referrer_class != mcls:
+            refdict = referrer_class.get_refdict_for_class(mcls)
+            reftype = referrer_class.get_field(refdict.attr).type
+            refname = reftype.get_key_for_name(schema, derived_name)
+            refcoll = source.get_field_value(schema, refdict.attr)
+            is_alter = refcoll.has(schema, refname)
         else:
-            if self.get_name(schema) == derived_name:
-                raise errors.SchemaError(
-                    f'cannot derive {self!r}({derived_name}) from itself')
+            is_alter = False
 
-            derived_attrs = {}
+        if is_alter:
+            cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.AlterObject, type(self))
+        else:
+            cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.CreateObject, type(self))
 
-            if attrs is not None:
-                derived_attrs.update(attrs)
+        cmd = cmdcls(classname=derived_name)
 
-            if not derived_attrs.get('bases'):
-                derived_attrs['bases'] = [self]
+        for k, v in derived_attrs.items():
+            cmd.set_attribute_value(k, v)
 
-            derived_attrs.pop('name', None)
+        context = sd.CommandContext(
+            modaliases={},
+            schema=schema,
+        )
 
-            schema, derived = type(self).create_in_schema(
-                schema, name=derived_name, **derived_attrs)
+        with contextlib.ExitStack() as cstack:
+            delta, parent_cmd = self._build_derive_context_stack(
+                schema, context, cstack, source)
+
+            if not inheritance_merge:
+                context.current().inheritance_merge = False
+
+            if refdict_whitelist is not None:
+                context.current().inheritance_refdicts = refdict_whitelist
+
+            if mark_derived:
+                context.current().mark_derived = True
+
+            if preserve_path_id:
+                context.current().preserve_path_id = True
+
+            parent_cmd.add(cmd)
+            schema, _ = delta.apply(schema, context)
+
+        derived = schema.get(derived_name)
 
         return schema, derived
+
+    def delete(self, schema):
+        source = self.get_referrer(schema)
+
+        cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.DeleteObject, type(self))
+
+        cmd = cmdcls(classname=self.get_name(schema))
+
+        context = sd.CommandContext(
+            modaliases={},
+            schema=schema,
+            disable_dep_verification=True,
+        )
+
+        with contextlib.ExitStack() as cstack:
+            delta, parent_cmd = self._build_derive_context_stack(
+                schema, context, cstack, source)
+
+            parent_cmd.add(cmd)
+            schema, _ = delta.apply(schema, context)
+
+        return schema
+
+    def _build_derive_context_stack(self, schema, context, cstack, source):
+        from . import referencing
+
+        delta = sd.DeltaRoot()
+
+        obj = source
+        object_stack = []
+
+        if type(self) != type(source):
+            object_stack.append(source)
+
+        while obj is not None:
+            if isinstance(obj, referencing.ReferencedObject):
+                obj = obj.get_referrer(schema)
+                object_stack.append(obj)
+            else:
+                obj = None
+
+        cstack.enter_context(
+            context(sd.DeltaRootContext(schema=schema, op=delta))
+        )
+
+        cmd = delta
+        for obj in reversed(object_stack):
+            alter_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.AlterObject, type(obj))
+
+            alter_cmd = alter_cmd_cls(classname=obj.get_name(schema))
+            cmd.add(alter_cmd)
+            cmd = alter_cmd
+
+        return delta, cmd
 
     def get_base_names(self, schema):
         return self.get_bases(schema).names(schema)
@@ -660,6 +740,9 @@ class InheritingObject(derivable.DerivableObject):
         for ancestor in reversed(compute_lineage(schema, self)):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
+
+        if not self.get_is_abstract(schema):
+            return self
 
         raise errors.SchemaError(
             f'{self.get_verbosename(schema)} has no non-abstract ancestors')
@@ -694,78 +777,52 @@ class InheritingObject(derivable.DerivableObject):
         if bases is None:
             bases = self.get_bases(schema).objects(schema)
 
-        schema = self.merge(*bases, schema=schema, dctx=dctx)
-        return schema
+        schema = self.set_field_value(
+            schema, 'ancestors', compute_ancestors(schema, self))
 
-    def update_descendants(self, schema, dctx=None):
-        for child in self.children(schema):
-            schema = child.acquire_ancestor_inheritance(schema, dctx=dctx)
-            schema = child.update_descendants(schema, dctx=dctx)
-        return schema
-
-    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        schema = super().finalize(
-            schema, bases=bases, apply_defaults=apply_defaults,
-            dctx=dctx)
-        if self.get_ancestors(schema) is None:
+        for field_name in self.inheritable_fields():
+            field = self.__class__.get_field(field_name)
+            result = field.merge_fn(self, bases, field_name, schema=schema)
+            ours = self.get_explicit_field_value(schema, field_name, None)
+            field_inh_map = self.get_field_inh_map(schema)
             schema = self.set_field_value(
-                schema, 'ancestors', compute_ancestors(schema, self))
-        schema = self.acquire_ancestor_inheritance(schema, dctx=dctx)
+                schema,
+                'field_inh_map',
+                field_inh_map.set(
+                    field_name, result is not None and ours is None),
+            )
 
-        if bases is None:
-            bases = self.get_bases(schema).objects(schema)
+            if result is not None or ours is not None:
+                schema = self.set_field_value_with_delta(
+                    schema, field_name, result, dctx=dctx,
+                    source='inheritance')
 
-        for refdict in self.__class__.get_refdicts():
-            attr = refdict.attr
-            local_attr = refdict.local_attr
-            backref_attr = refdict.backref_attr
-            ref_cls = refdict.ref_cls
-            exp_inh = refdict.requires_explicit_inherit
+        for obj in bases:
+            for refdict in self.__class__.get_refdicts():
+                # Merge Object references in each registered collection.
+                #
+                this_coll = self.get_explicit_field_value(
+                    schema, refdict.attr, None)
 
-            schema, ref_keys = self.begin_classref_dict_merge(
-                schema, bases=bases, attr=attr)
+                other_coll = obj.get_explicit_field_value(
+                    schema, refdict.attr, None)
 
-            schema = self.merge_classref_dict(
-                schema, bases=bases, attr=attr,
-                local_attr=local_attr,
-                backref_attr=backref_attr,
-                classrefcls=ref_cls,
-                classref_keys=ref_keys,
-                requires_explicit_inherit=exp_inh,
-                dctx=dctx)
+                if other_coll is None:
+                    continue
 
-            schema = self.finish_classref_dict_merge(
-                schema, bases=bases, attr=attr)
+                if not other_coll:
+                    continue
 
-        return schema
+                if this_coll is None:
+                    schema = self.set_field_value(
+                        schema, refdict.attr, other_coll)
+                else:
+                    updates = {v for k, v in other_coll.items(schema)
+                               if not this_coll.has(schema, k)}
 
-    def del_classref(self, schema, collection, key):
-        refdict = type(self).get_refdict(collection)
-        attr = refdict.attr
-        local_attr = refdict.local_attr
-
-        for base in self.get_bases(schema).objects(schema):
-            base_coll = base.get_field_value(schema, attr)
-            inherited = base_coll.get(schema, key, default=None)
-            if inherited is not None:
-                break
-
-        if inherited is not None:
-            for descendant in self.descendants(schema):
-                descendant_local_coll = descendant.get_field_value(
-                    schema, local_attr)
-                if not descendant_local_coll.has(schema, key):
-                    descendant_coll = descendant.get_field_value(schema, attr)
-                    schema, descendant_coll = descendant_coll.delete(
-                        schema, [key])
-                    schema = descendant.set_field_value(
-                        schema, attr, descendant_coll)
-
-        schema = super().del_classref(schema, collection, key)
-        if inherited is not None:
-            all_coll = self.get_field_value(schema, attr)
-            schema, all_coll = all_coll.add(schema, inherited)
-            schema = self.set_field_value(schema, attr, all_coll)
+                    schema, this_coll = this_coll.update(schema, updates)
+                    schema = self.set_field_value(
+                        schema, refdict.attr, this_coll)
 
         return schema
 
@@ -782,9 +839,3 @@ class InheritingObject(derivable.DerivableObject):
     @classmethod
     def get_default_base_name(self):
         return None
-
-    @classmethod
-    def create_in_schema_with_inheritance(cls, schema, **kwargs):
-        schema, o = cls.create_in_schema(schema, **kwargs)
-        schema = o.acquire_ancestor_inheritance(schema)
-        return schema, o

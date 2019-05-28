@@ -39,7 +39,6 @@ from edb.schema import inheriting as s_inheriting
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
-from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 
 from . import common
@@ -50,6 +49,7 @@ from . import types
 q = common.qname
 qi = common.quote_ident
 ql = common.quote_literal
+qt = common.quote_type
 
 
 DATABASE_ID_NAMESPACE = uuid.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
@@ -1713,87 +1713,30 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
     pn = ptr.get_shortname(schema)
 
     if refdict:
-        if issubclass(mcls, s_inheriting.InheritingObject):
-            schematab = 'edgedb.{}'.format(mcls.__name__)
+        props = []
 
-            non_inh_link_query = None
+        if ptr.issubclass(schema, schema.get('schema::reference')):
+            props.append('is_local')
+
+        if props:
+            props_q = ',' + ',\n'.join(props)
         else:
-            schematab = 'edgedb.InheritingObject'
+            props_q = ''
 
-            non_inh_link_query = '''
-                SELECT
-                    (({refattr}).types[1]).maintype AS {src},
-                    id                              AS {tgt}
-                FROM
-                    {reftab}
-            '''.format(
-                reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
-                refattr=qi(refdict.backref_attr),
-                src='source',
-                tgt='target',
-            )
-
-        ftype = field.type
-        if issubclass(ftype, s_obj.ObjectIndexByShortname):
-            distinct_field = 'edgedb.shortname_from_fullname(r.name)'
-        elif issubclass(ftype, s_obj.ObjectIndexByUnqualifiedName):
-            distinct_field = ('split_part(edgedb.shortname_from_fullname('
-                              'r.name), \'::\', 2)')
-        else:
-            distinct_field = 'r.name'
-
-        if refdict.ref_cls.get_field('inheritable') is not None:
-            filters = '(cls.depth = 0 OR r.inheritable)'
-        else:
-            filters = 'True'
-
-        inh_link_query = '''
-            SELECT DISTINCT ON ((cls.id, {distinct_field}))
-                cls.id  AS {src},
-                r.id    AS {tgt}
+        link_query = '''
+            SELECT
+                (({refattr}).types[1]).maintype AS {src},
+                id                              AS {tgt}
+                {props_q}
             FROM
-                (SELECT
-                    s.id                AS id,
-                    ancestry.ancestor   AS ancestor,
-                    ancestry.depth      AS depth
-                    FROM
-                    {schematab} s
-                    LEFT JOIN LATERAL
-                        UNNEST(s.ancestors) WITH ORDINALITY
-                                    AS ancestry(ancestor, depth) ON true
-
-                    UNION ALL
-                    SELECT
-                    s.id                AS id,
-                    s.id                AS ancestor,
-                    0                   AS depth
-                    FROM
-                    {schematab} s
-                ) AS cls
-
-                INNER JOIN {reftab} r
-                    ON (((r.{refattr}).types[1]).maintype = cls.ancestor)
-            WHERE
-                {filters}
-            ORDER BY
-                (cls.id, {distinct_field}), cls.depth
+                {reftab}
         '''.format(
-            schematab=schematab,
             reftab='edgedb.{}'.format(refdict.ref_cls.__name__),
             refattr=qi(refdict.backref_attr),
-            distinct_field=distinct_field,
-            filters=filters,
             src='source',
             tgt='target',
+            props_q=props_q,
         )
-
-        if non_inh_link_query:
-            link_query = (
-                f'({inh_link_query})\nUNION\n'
-                f'({non_inh_link_query})'
-            )
-        else:
-            link_query = inh_link_query
 
         if pn.name == 'annotations':
             link_query = '''
@@ -2634,19 +2577,27 @@ async def generate_views(conn, schema):
 
             if ptrstor.table_type == 'ObjectType':
                 if pn == 'name':
-                    if issubclass(mcls, s_pointers.Pointer):
-                        shortname_expr = (
-                            f'edgedb.shortname_from_fullname'
-                            f'(t.{qi(ptrstor.column_name)})'
+                    name_expr = f't.{qi(ptrstor.column_name)}'
+
+                    shortname_expr = (
+                        f'edgedb.shortname_from_fullname({name_expr})'
+                    )
+
+                    if issubclass(mcls, s_inheriting.InheritingObject):
+                        ptr = (
+                            "(SELECT ARRAY[id] FROM edgedb.Object "
+                            " WHERE name = 'schema::Pointer')"
                         )
+
                         col_expr = (
-                            f'(CASE WHEN t.source IS NOT NULL '
+                            f'(CASE WHEN no.ancestors @> {ptr} '
+                            f'AND strpos({name_expr}, \'@@\') > 0'
                             f'THEN split_part({shortname_expr}, \'::\', 2) '
                             f'ELSE {shortname_expr} END)'
                         )
-                    elif issubclass(mcls, s_obj.Object):
-                        col_expr = (f'edgedb.shortname_from_fullname'
-                                    f'(t.{qi(ptrstor.column_name)})')
+                    else:
+                        col_expr = shortname_expr
+
                 elif field.type is s_expr.Expression:
                     col_expr = f'(t.{qi(ptrstor.column_name)}).origtext'
                 elif field.type is s_expr.ExpressionList:
@@ -2662,6 +2613,14 @@ async def generate_views(conn, schema):
                 else:
                     col_expr = f't.{qi(ptrstor.column_name)}'
 
+                coltype = ptrstor.column_type
+                col_expr = f'({col_expr})::{qt(coltype)}'
+
+                if (getattr(field, 'default', None) is not None
+                        and not field.required):
+                    col_default = f'{ql(str(field.default))}::{qt(coltype)}'
+                    col_expr = f'COALESCE({col_expr}, {col_default})'
+
                 cols.append((col_expr, pn))
 
             if ptrstor_link is not None:
@@ -2673,6 +2632,11 @@ async def generate_views(conn, schema):
         coltext = textwrap.indent(
             ',\n'.join(('{} AS {}'.format(*c) for c in cols)), ' ' * 16)
 
+        if issubclass(mcls, s_inheriting.InheritingObject):
+            objtab = 'edgedb.InheritingObject'
+        else:
+            objtab = 'edgedb.Object'
+
         view_query = f'''
             SELECT
                 {coltext.strip()},
@@ -2683,7 +2647,7 @@ async def generate_views(conn, schema):
                     ON (t.tableoid = c.oid)
                 INNER JOIN pg_description AS cmt
                     ON (c.oid = cmt.objoid AND c.tableoid = cmt.classoid)
-                INNER JOIN edgedb.Object AS no
+                INNER JOIN {objtab} AS no
                     ON (no.name = cmt.description)
         '''
 
@@ -2711,8 +2675,8 @@ async def generate_views(conn, schema):
     types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
         (
             SELECT
-                "name",
                 "id",
+                "name",
                 "__type__"
             FROM
                 {common.qname(*view.name)}

@@ -222,9 +222,9 @@ class PathId:
 
         for i in range(1, len(path) - 1, 2):
             if debug:
-                ptr = path[i][0].name
+                ptr = f'({path[i][0].name})'
             else:
-                ptr = path[i][0].shortname
+                ptr = path[i][0].shortname.name
             ptrdir = path[i][1]
             is_lprop = path[i][0].parent_ptr is not None
 
@@ -235,9 +235,9 @@ class PathId:
             tgt = mat_tgt.name_hint
 
             if tgt:
-                lexpr = f'({ptr})[IS {tgt}]'
+                lexpr = f'{ptr}[IS {tgt}]'
             else:
-                lexpr = f'({ptr})'
+                lexpr = f'{ptr}'
 
             if is_lprop:
                 step = '@'

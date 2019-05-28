@@ -68,7 +68,7 @@ class CreateDelta(DeltaCommand, sd.CreateObject):
         return cmd
 
 
-class AlterDelta(DeltaCommand, sd.CreateOrAlterObject):
+class AlterDelta(DeltaCommand):
     astnode = qlast.AlterDelta
 
 

@@ -48,21 +48,26 @@ class ViewCommand(nodes.NodeCommand, context_class=ViewCommandContext):
 
     @classmethod
     def _command_for_ast_node(cls, astnode, schema, context):
-        classname = cls._classname_from_ast(schema, astnode, context)
+        modaliases = cls._modaliases_from_ast(schema, astnode, context)
 
-        if isinstance(astnode, qlast.CreateView):
-            expr = cls._get_view_expr(astnode)
-            ir = cls._compile_view_expr(expr, classname, schema, context)
-            scls = ir.stype
-        else:
-            scls = schema.get(classname)
+        with context(ViewCommandContext(schema,
+                                        op=None, modaliases=modaliases)):
 
-        if isinstance(scls, s_scalars.ScalarType):
-            mapping = cls._scalar_cmd_map
-        else:
-            mapping = cls._objtype_cmd_map
+            classname = cls._classname_from_ast(schema, astnode, context)
 
-        return mapping[type(astnode)]
+            if isinstance(astnode, qlast.CreateView):
+                expr = cls._get_view_expr(astnode)
+                ir = cls._compile_view_expr(expr, classname, schema, context)
+                scls = ir.stype
+            else:
+                scls = schema.get(classname)
+
+            if isinstance(scls, s_scalars.ScalarType):
+                mapping = cls._scalar_cmd_map
+            else:
+                mapping = cls._objtype_cmd_map
+
+            return mapping[type(astnode)]
 
 
 class CreateView(ViewCommand):

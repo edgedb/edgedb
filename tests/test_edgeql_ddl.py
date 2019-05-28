@@ -357,7 +357,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_13(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'reference to a non-existent schema item: self'):
+                'reference to a non-existent schema item self'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY foo -> std::str {
@@ -702,7 +702,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"reference to a non-existent schema name 'array'"):
+                r"reference to a non-existent schema item 'array'"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> array;
@@ -712,7 +712,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"reference to a non-existent schema name 'tuple'"):
+                r"reference to a non-existent schema item 'tuple'"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> tuple;
@@ -1347,7 +1347,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_19(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r'reference to a non-existent schema item: std::anytype'):
+                r'reference to a non-existent schema item std::anytype'):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_19(f: std::anytype) -> int64
@@ -2082,7 +2082,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE ABSTRACT TYPE test_other::UniquelyNamed
                 EXTENDING test_other::Named
             {
-                CREATE REQUIRED PROPERTY name -> str {
+                ALTER PROPERTY name {
                     CREATE DELEGATED CONSTRAINT exclusive;
                 }
             };
@@ -2452,12 +2452,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
         """)
 
-    @test.xfail('''
-        The error is: reference to a non-existent schema item
-
-        A proper error should be something along the following lines:
-        "Cannot drop property inherited property 'testp' from InhTest01_child"
-    ''')
     async def test_edgeql_ddl_inheritance_alter_02(self):
         await self.con.execute(r"""
             CREATE TYPE test::InhTest01 {
@@ -2467,11 +2461,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::InhTest01_child EXTENDING test::InhTest01;
         """)
 
-        await self.con.execute("""
-            ALTER TYPE test::InhTest01_child {
-                DROP PROPERTY testp;
-            }
-        """)
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot drop inherited property 'testp'"):
+
+            await self.con.execute("""
+                ALTER TYPE test::InhTest01_child {
+                    DROP PROPERTY testp;
+                }
+            """)
 
     @test.xfail('''
         The error is:

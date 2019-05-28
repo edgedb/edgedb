@@ -116,6 +116,7 @@ class BasePointerRef(ImmutableBase):
 
     name: sn.Name
     shortname: sn.Name
+    std_parent_name: sn.Name
     dir_source: TypeRef
     dir_target: TypeRef
     out_source: TypeRef
@@ -156,6 +157,12 @@ class TupleIndirectionLink(s_pointers.PointerLike):
 
         return self._name == other._name
 
+    def get_bases(self, schema):
+        return so.ObjectList.create(schema, [])
+
+    def get_ancestors(self, schema):
+        return so.ObjectList.create(schema, [])
+
     def get_shortname(self, schema):
         return self._name
 
@@ -179,6 +186,9 @@ class TupleIndirectionLink(s_pointers.PointerLike):
 
     def get_derived_from(self, schema):
         return None
+
+    def get_is_local(self, schema):
+        return True
 
     def get_union_of(self, schema):
         return None
@@ -225,6 +235,12 @@ class TypeIndirectionLink(s_pointers.PointerLike):
         self._optional = optional
         self._ancestral = ancestral
 
+    def get_bases(self, schema):
+        return so.ObjectList.create(schema, [])
+
+    def get_ancestors(self, schema):
+        return so.ObjectList.create(schema, [])
+
     def get_name(self, schema):
         return self._name
 
@@ -248,6 +264,9 @@ class TypeIndirectionLink(s_pointers.PointerLike):
 
     def get_derived_from(self, schema):
         return None
+
+    def get_is_local(self, schema):
+        return True
 
     def get_union_of(self, schema):
         return None

@@ -19,13 +19,12 @@
 
 import typing
 
-from edb import errors
-
 from edb.edgeql import ast as qlast
 
 from . import delta as sd
 from . import inheriting
 from . import name as sn
+from . import referencing
 from . import objects as so
 from . import utils
 
@@ -44,7 +43,7 @@ class Annotation(inheriting.InheritingObject):
         return f"abstract {vn}"
 
 
-class AnnotationValue(inheriting.InheritingObject):
+class AnnotationValue(referencing.ReferencedInheritingObject):
 
     subject = so.SchemaField(
         so.Object, compcoef=1.0, default=None, inheritable=False)
@@ -81,22 +80,11 @@ class AnnotationSubject(so.Object):
     annotations_refs = so.RefDict(
         attr='annotations',
         local_attr='own_annotations',
-        non_inheritable_attr='non_inheritable_annotations',
         ref_cls=AnnotationValue)
 
     annotations = so.SchemaField(
         so.ObjectIndexByShortname,
-        inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectIndexByShortname, hashable=False)
-
-    own_annotations = so.SchemaField(
-        so.ObjectIndexByShortname, compcoef=0.909,
-        inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectIndexByShortname)
-
-    non_inheritable_annotations = so.SchemaField(
-        so.ObjectIndexByShortname, compcoef=0.909,
-        inheritable=False, ephemeral=True, coerce=True,
+        inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
         default=so.ObjectIndexByShortname)
 
     def add_annotation(self, schema, annotation, replace=False):
@@ -114,10 +102,7 @@ class AnnotationSubject(so.Object):
 
     def set_annotation(self, schema, attr: Annotation, value: str):
         attrname = attr.get_name(schema)
-        existing = self.get_own_annotations(schema).get(schema, attrname, None)
-        if existing is None:
-            existing = self.get_non_inheritable_annotations(schema).get(
-                schema, attrname, None)
+        existing = self.get_annotations(schema).get(schema, attrname, None)
         if existing is None:
             my_name = self.get_name(schema)
             ann = sn.get_specialized_name(attrname, my_name)
@@ -185,30 +170,11 @@ class AnnotationValueCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class AnnotationValueCommand(sd.ObjectCommand,
-                             schema_metaclass=AnnotationValue,
-                             context_class=AnnotationValueCommandContext):
-    @classmethod
-    def _classname_from_ast(cls, schema, astnode, context):
-        nqname = cls._get_ast_name(schema, astnode, context)
-        if astnode.name.module:
-            propname = sn.Name(module=astnode.name.module, name=nqname)
-        else:
-            propname = nqname
-
-        try:
-            attr = schema.get(propname, module_aliases=context.modaliases)
-        except errors.InvalidReferenceError as e:
-            raise errors.InvalidReferenceError(
-                str(e), context=astnode.context) from None
-
-        parent_ctx = context.get(sd.CommandContextToken)
-        subject_name = parent_ctx.op.classname
-
-        pnn = sn.get_specialized_name(attr.get_name(schema), subject_name)
-        pn = sn.Name(name=pnn, module=subject_name.module)
-
-        return pn
+class AnnotationValueCommand(
+        referencing.ReferencedInheritingObjectCommand,
+        schema_metaclass=AnnotationValue,
+        context_class=AnnotationValueCommandContext,
+        referrer_context_class=AnnotationSubjectCommandContext):
 
     def add_annotation(self, schema, annotation, parent):
         return parent.add_annotation(schema, annotation, replace=True)
@@ -217,8 +183,10 @@ class AnnotationValueCommand(sd.ObjectCommand,
         return parent.del_annotation(schema, annotation_class)
 
 
-class CreateAnnotationValue(AnnotationValueCommand, sd.CreateObject):
+class CreateAnnotationValue(AnnotationValueCommand,
+                            referencing.CreateReferencedInheritingObject):
     astnode = qlast.CreateAnnotationValue
+    referenced_astnode = qlast.CreateAnnotationValue
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -234,7 +202,7 @@ class CreateAnnotationValue(AnnotationValueCommand, sd.CreateObject):
             raise ValueError(
                 f'unexpected value type in AnnotationValue: {value!r}')
 
-        parent_ctx = context.get(sd.CommandContextToken)
+        parent_ctx = context.get(AnnotationSubjectCommandContext)
         subject_name = parent_ctx.op.classname
         attr = schema.get(propname)
 
@@ -254,7 +222,11 @@ class CreateAnnotationValue(AnnotationValueCommand, sd.CreateObject):
             sd.AlterObjectProperty(
                 property='inheritable',
                 new_value=attr.get_inheritable(schema),
-            )
+            ),
+            sd.AlterObjectProperty(
+                property='is_final',
+                new_value=not attr.get_inheritable(schema),
+            ),
         ))
 
         return cmd
@@ -280,12 +252,8 @@ class CreateAnnotationValue(AnnotationValueCommand, sd.CreateObject):
 
         with context(AnnotationValueCommandContext(schema, self, None)):
             name = sn.shortname_from_fullname(self.classname)
-            attrs = attrsubj.scls.get_own_annotations(schema)
+            attrs = attrsubj.scls.get_annotations(schema)
             annotation = attrs.get(schema, name, None)
-            if annotation is None:
-                attrs = attrsubj.scls.get_non_inheritable_annotations(schema)
-                annotation = attrs.get(schema, name, None)
-
             if annotation is None:
                 schema, annotation = super().apply(schema, context)
                 schema = self.add_annotation(

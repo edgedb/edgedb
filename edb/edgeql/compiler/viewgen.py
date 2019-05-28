@@ -100,6 +100,11 @@ def _process_view(
     is_mutation = is_insert or is_update
     is_defining_shape = ctx.expr_exposed or is_mutation
 
+    if view_rptr is not None and view_rptr.ptrcls is None:
+        derive_ptrcls(
+            view_rptr, target_scls=view_scls,
+            transparent=True, ctx=ctx)
+
     pointers = []
 
     for shape_el in elements:
@@ -146,42 +151,19 @@ def _process_view(
                     is_insert=is_insert, is_update=is_update,
                     view_rptr=view_rptr, ctx=scopectx))
 
-    implicit_tid = has_implicit_tid(
-        view_scls,
-        is_mutation=is_insert or is_update,
-        ctx=ctx,
-    )
-
-    if ((pointers or implicit_tid)
-            and is_defining_shape
-            and view_rptr is not None
-            and view_rptr.derived_ptrcls is None):
-        # For the purposes of shape tracking, we must derive the
-        # pointer.  The derived pointer must be treated the same
-        # as the original, as this is not a new computable,
-        # and both `Foo.ptr` and `Foo { ptr }` are the same path,
-        # hence the `transparent` modifier.
-        derive_ptrcls(
-            view_rptr, target_scls=view_scls,
-            transparent=True, ctx=ctx)
-
     for ptrcls in pointers:
         if ptrcls.is_link_property(ctx.env.schema):
-            source = view_rptr.derived_ptrcls
+            source = view_rptr.ptrcls
         else:
             source = view_scls
-
-        if ptrcls.get_source(ctx.env.schema) is source:
-            ctx.env.schema = source.add_pointer(
-                ctx.env.schema, ptrcls, replace=True)
 
         if is_defining_shape:
             ctx.env.view_shapes[source].append(ptrcls)
 
-    if (view_rptr is not None and view_rptr.derived_ptrcls is not None and
+    if (view_rptr is not None and view_rptr.ptrcls is not None and
             view_scls is not stype):
         ctx.env.schema = view_scls.set_field_value(
-            ctx.env.schema, 'rptr', view_rptr.derived_ptrcls)
+            ctx.env.schema, 'rptr', view_rptr.ptrcls)
 
     return view_scls
 
@@ -202,8 +184,7 @@ def _normalize_view_ptr_expr(
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
     plen = len(steps)
-    stype = view_scls.peel_view(ctx.env.schema)
-    ptrsource = stype
+    ptrsource = view_scls
     qlexpr = None
 
     if plen >= 2 and isinstance(steps[-1], qlast.TypeIndirection):
@@ -223,9 +204,7 @@ def _normalize_view_ptr_expr(
                 raise errors.QueryError(
                     'invalid reference to link property '
                     'in top level shape', context=lexpr.context)
-            if view_rptr.ptrcls is None:
-                derive_ptrcls(view_rptr, target_scls=view_scls, ctx=ctx)
-            ptrsource = stype = view_rptr.ptrcls
+            ptrsource = view_rptr.ptrcls
         source = qlast.Source()
     elif plen == 2 and isinstance(steps[0], qlast.TypeIndirection):
         # Source type indirection: [IS Type].foo
@@ -242,7 +221,6 @@ def _normalize_view_ptr_expr(
             f'unexpected path length in view shape: {len(steps)}')
 
     ptrname = lexpr.ptr.name
-    ptrcls_is_derived = False
 
     compexpr = shape_el.compexpr
     if compexpr is None and is_insert and shape_el.elements:
@@ -253,9 +231,41 @@ def _normalize_view_ptr_expr(
             "unexpected ':'", context=steps[-1].context)
 
     if compexpr is None:
-        base_ptrcls = ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
-        base_ptr_is_computable = ptrcls in ctx.source_map
-        ptr_name = ptrcls.get_shortname(ctx.env.schema)
+        ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
+        if is_polymorphic:
+            ptrcls = schemactx.derive_view(
+                ptrcls, view_scls,
+                is_insert=is_insert,
+                is_update=is_update,
+                ctx=ctx)
+
+        base_ptrcls = ptrcls.get_bases(ctx.env.schema).first(ctx.env.schema)
+        base_ptr_is_computable = base_ptrcls in ctx.source_map
+        ptr_name = sn.Name(
+            module='__',
+            name=ptrcls.get_shortname(ctx.env.schema).name,
+        )
+
+        if (shape_el.where or shape_el.orderby or
+                shape_el.offset or shape_el.limit or
+                base_ptr_is_computable or
+                is_polymorphic or
+                target_typexpr is not None):
+
+            if target_typexpr is None:
+                qlexpr = qlast.Path(steps=[source, lexpr])
+            else:
+                qlexpr = qlast.Path(steps=[
+                    source,
+                    lexpr,
+                    qlast.TypeIndirection(type=target_typexpr),
+                ])
+
+            qlexpr = astutils.ensure_qlstmt(qlexpr)
+            qlexpr.where = shape_el.where
+            qlexpr.orderby = shape_el.orderby
+            qlexpr.offset = shape_el.offset
+            qlexpr.limit = shape_el.limit
 
         if target_typexpr is not None:
             ptr_target = schemactx.get_schema_type(
@@ -263,11 +273,18 @@ def _normalize_view_ptr_expr(
         else:
             ptr_target = ptrcls.get_target(ctx.env.schema)
 
-        if ptrcls in ctx.pending_cardinality:
+        if base_ptrcls in ctx.pending_cardinality:
             # We do not know the parent's pointer cardinality yet.
             ptr_cardinality = None
+            ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
+            stmtctx.pend_pointer_cardinality_inference(
+                ptrcls=ptrcls,
+                specified_card=shape_el.cardinality,
+                from_parent=True,
+                source_ctx=shape_el.context,
+                ctx=ctx)
         else:
-            ptr_cardinality = ptrcls.get_cardinality(ctx.env.schema)
+            ptr_cardinality = base_ptrcls.get_cardinality(ctx.env.schema)
 
         implicit_tid = has_implicit_tid(
             ptr_target,
@@ -277,12 +294,14 @@ def _normalize_view_ptr_expr(
 
         if shape_el.elements or implicit_tid:
             sub_view_rptr = context.ViewRPtr(
-                ptrsource if is_linkprop else view_scls, ptrcls=ptrcls,
-                is_insert=is_insert, is_update=is_update)
+                ptrsource if is_linkprop else view_scls,
+                ptrcls=ptrcls,
+                is_insert=is_insert,
+                is_update=is_update)
 
             sub_path_id = pathctx.extend_path_id(
                 path_id,
-                ptrcls=ptrcls,
+                ptrcls=base_ptrcls,
                 target=ptrcls.get_target(ctx.env.schema),
                 ns=ctx.path_id_namespace,
                 ctx=ctx)
@@ -312,41 +331,20 @@ def _normalize_view_ptr_expr(
                     view_rptr=sub_view_rptr,
                     elements=shape_el.elements, ctx=ctx)
 
-            ptrcls = sub_view_rptr.derived_ptrcls
-            if ptrcls is None:
-                ptrcls_is_derived = False
-                ptrcls = sub_view_rptr.ptrcls
-            else:
-                ptrcls_is_derived = True
-
-        if (shape_el.where or shape_el.orderby or
-                shape_el.offset or shape_el.limit or
-                base_ptr_is_computable or
-                is_polymorphic or
-                target_typexpr is not None):
-
-            if target_typexpr is None:
-                qlexpr = qlast.Path(steps=[source, lexpr])
-            else:
-                qlexpr = qlast.Path(steps=[
-                    source,
-                    lexpr,
-                    qlast.TypeIndirection(type=target_typexpr),
-                ])
-
-            qlexpr = astutils.ensure_qlstmt(qlexpr)
-            qlexpr.where = shape_el.where
-            qlexpr.orderby = shape_el.orderby
-            qlexpr.offset = shape_el.offset
-            qlexpr.limit = shape_el.limit
     else:
         if (is_mutation
                 and ptrname not in ctx.special_computables_in_mutation_shape):
             # If this is a mutation, the pointer must exist.
-            base_ptrcls = ptrcls = setgen.resolve_ptr(
+            ptrcls = setgen.resolve_ptr(
                 ptrsource, ptrname, ctx=ctx)
 
-            ptr_name = ptrcls.get_shortname(ctx.env.schema)
+            base_ptrcls = ptrcls.get_bases(
+                ctx.env.schema).first(ctx.env.schema)
+
+            ptr_name = sn.Name(
+                module='__',
+                name=ptrcls.get_shortname(ctx.env.schema).name,
+            )
 
         else:
             # Otherwise, assume no pointer inheritance.
@@ -357,12 +355,10 @@ def _normalize_view_ptr_expr(
             # in compile_query_subject() by populating the base_ptrcls.
             base_ptrcls = ptrcls = None
 
-            ptr_module = (
-                ctx.derived_target_module or
-                stype.get_name(ctx.env.schema).module
+            ptr_name = sn.Name(
+                module='__',
+                name=ptrname,
             )
-
-            ptr_name = sn.SchemaName(module=ptr_module, name=ptrname)
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
 
@@ -394,14 +390,6 @@ def _normalize_view_ptr_expr(
             if base_ptrcls is None:
                 base_ptrcls = shape_expr_ctx.view_rptr.base_ptrcls
 
-            if ptrcls is None:
-                ptrcls = shape_expr_ctx.view_rptr.ptrcls
-
-            derived_ptrcls = shape_expr_ctx.view_rptr.derived_ptrcls
-            if derived_ptrcls is not None:
-                ptrcls_is_derived = True
-                ptrcls = derived_ptrcls
-
         ptr_cardinality = None
         ptr_target = inference.infer_type(irexpr, ctx.env)
 
@@ -414,8 +402,8 @@ def _normalize_view_ptr_expr(
 
         # Validate that the insert/update expression is
         # of the correct class.
-        if is_mutation and base_ptrcls is not None:
-            base_target = base_ptrcls.get_target(ctx.env.schema)
+        if is_mutation and ptrcls is not None:
+            base_target = ptrcls.get_target(ctx.env.schema)
             if ptr_target.assignment_castable_to(
                     base_target,
                     schema=ctx.env.schema):
@@ -432,10 +420,8 @@ def _normalize_view_ptr_expr(
                     ptr_target = base_target
 
             else:
-                ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
                 expected = [
-                    repr(str(base_ptrcls.get_target(
-                        ctx.env.schema).get_displayname(ctx.env.schema)))
+                    repr(str(base_target.get_displayname(ctx.env.schema)))
                 ]
 
                 if ptrcls.is_property(ctx.env.schema):
@@ -452,80 +438,108 @@ def _normalize_view_ptr_expr(
                     f'(expecting {" or ".join(expected)})'
                 )
 
-    if (qlexpr is not None or
-            ptr_target is not ptrcls.get_target(ctx.env.schema)):
-        if not ptrcls_is_derived:
-            if is_linkprop:
-                rptrcls = view_rptr.derived_ptrcls
-                if rptrcls is None:
-                    rptrcls = derive_ptrcls(
-                        view_rptr, target_scls=view_scls, ctx=ctx)
+    if qlexpr is not None or ptrcls is None:
+        if is_linkprop:
+            src_scls = view_rptr.ptrcls
+        else:
+            src_scls = view_scls
 
-                src_scls = rptrcls
-            else:
-                src_scls = view_scls
+        if ptr_target.is_object_type():
+            base = ctx.env.get_track_schema_object('std::link')
+        else:
+            base = ctx.env.get_track_schema_object('std::property')
 
-            if qlexpr is None:
-                # This is not a computable, just a pointer
-                # to a nested shape.  Have it reuse the original
-                # pointer name so that in `Foo.ptr.name` and
-                # `Foo { ptr: {name}}` are the same path.
-                path_id_name = ptrcls.get_name(ctx.env.schema)
-            else:
-                path_id_name = None
+        if base_ptrcls is not None:
+            derive_from = base_ptrcls
+        else:
+            derive_from = base
 
-            if ptr_target.is_object_type():
-                base = ctx.env.get_track_schema_object('std::link')
-            else:
-                base = ctx.env.get_track_schema_object('std::property')
+        derived_name = schemactx.derive_view_name(
+            base_ptrcls,
+            derived_name_base=ptr_name,
+            derived_name_quals=[src_scls.get_name(ctx.env.schema)],
+            ctx=ctx)
 
-            if ptrcls is not None:
-                derive_from = ptrcls
-            elif base_ptrcls is not None:
-                derive_from = base_ptrcls
-            else:
-                derive_from = base
-
-            derived_name = schemactx.derive_view_name(
-                ptrcls,
-                derived_name_base=ptr_name,
-                derived_name_quals=[view_scls.get_name(ctx.env.schema)],
-                ctx=ctx)
-
-            existing = ctx.env.schema.get(derived_name, None)
-            if existing is not None:
+        existing = ctx.env.schema.get(derived_name, None)
+        if existing is not None:
+            existing_target = existing.get_target(ctx.env.schema)
+            if ptr_target == existing_target:
+                ptrcls = existing
+            elif ptr_target.implicitly_castable_to(
+                    existing_target, ctx.env.schema):
+                ctx.env.schema = existing.set_target(
+                    ctx.env.schema, ptr_target)
                 ptrcls = existing
             else:
-                attrs = dict(path_id_name=path_id_name, bases=[base])
+                target_rptr_set = (
+                    ptr_target.get_rptr(ctx.env.schema) is not None
+                )
 
+                if target_rptr_set:
+                    ctx.env.schema = ptr_target.set_field_value(
+                        ctx.env.schema,
+                        'rptr',
+                        None,
+                    )
+
+                ctx.env.schema = existing.delete(ctx.env.schema)
                 ptrcls = schemactx.derive_view(
                     derive_from, src_scls, ptr_target,
                     is_insert=is_insert,
                     is_update=is_update,
                     derived_name=derived_name,
-                    merge_bases=[derive_from],
-                    attrs=attrs,
+                    inheritance_merge=False,
                     ctx=ctx)
 
-        if qlexpr is not None:
-            ctx.source_map[ptrcls] = (qlexpr, ctx, path_id, path_id_namespace)
-            ctx.env.schema = ptrcls.set_field_value(
-                ctx.env.schema, 'computable', True)
+                if target_rptr_set:
+                    ctx.env.schema = ptr_target.set_field_value(
+                        ctx.env.schema,
+                        'rptr',
+                        ptrcls,
+                    )
+        else:
+            ptrcls = schemactx.derive_view(
+                derive_from, src_scls, ptr_target,
+                is_insert=is_insert,
+                is_update=is_update,
+                derived_name=derived_name,
+                ctx=ctx)
+
+    elif ptrcls.get_target(ctx.env.schema) != ptr_target:
+        ctx.env.schema = ptrcls.set_target(ctx.env.schema, ptr_target)
+
+    if qlexpr is None:
+        # This is not a computable, just a pointer
+        # to a nested shape.  Have it reuse the original
+        # pointer name so that in `Foo.ptr.name` and
+        # `Foo { ptr: {name}}` are the same path.
+        path_id_name = base_ptrcls.get_name(ctx.env.schema)
+        ctx.env.schema = ptrcls.set_field_value(
+            ctx.env.schema, 'path_id_name', path_id_name
+        )
+
+    if qlexpr is not None:
+        ctx.source_map[ptrcls] = (qlexpr, ctx, path_id, path_id_namespace)
+        ctx.env.schema = ptrcls.set_field_value(
+            ctx.env.schema, 'computable', True)
 
     if not is_mutation:
         if ptr_cardinality is None:
-            if compexpr is not None:
-                from_parent = False
-            elif ptrcls is not base_ptrcls:
-                ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
-                from_parent = True
+            if ptrcls not in ctx.pending_cardinality:
+                if qlexpr is not None:
+                    from_parent = False
+                elif ptrcls is not base_ptrcls:
+                    ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
+                    from_parent = True
+                else:
+                    from_parent = False
 
-            stmtctx.pend_pointer_cardinality_inference(
-                ptrcls=ptrcls,
-                specified_card=shape_el.cardinality,
-                from_parent=from_parent,
-                source_ctx=shape_el.context,
-                ctx=ctx)
+                stmtctx.pend_pointer_cardinality_inference(
+                    ptrcls=ptrcls,
+                    specified_card=shape_el.cardinality,
+                    from_parent=from_parent,
+                    source_ctx=shape_el.context,
+                    ctx=ctx)
 
             ctx.env.schema = ptrcls.set_field_value(
                 ctx.env.schema, 'cardinality', None)
@@ -575,30 +589,21 @@ def derive_ptrcls(
             attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
                 ctx.env.schema)
 
-        existing_ptrcls = ctx.env.schema.get(derived_name, default=None)
-        if existing_ptrcls is not None:
-            # The derived pointer class may already exist if
-            # the shape element is implicit (i.e. a type id),
-            # and the target type is not a view.
-            view_rptr.ptrcls = existing_ptrcls
-        else:
-            view_rptr.ptrcls = schemactx.derive_view(
-                view_rptr.base_ptrcls, view_rptr.source, target_scls,
-                derived_name=derived_name,
-                is_insert=view_rptr.is_insert,
-                is_update=view_rptr.is_update,
-                attrs=attrs,
-                ctx=ctx
-            )
-
-        view_rptr.derived_ptrcls = view_rptr.ptrcls
+        view_rptr.ptrcls = schemactx.derive_view(
+            view_rptr.base_ptrcls, view_rptr.source, target_scls,
+            derived_name=derived_name,
+            is_insert=view_rptr.is_insert,
+            is_update=view_rptr.is_update,
+            attrs=attrs,
+            ctx=ctx
+        )
 
     else:
         attrs = {}
         if transparent and not view_rptr.ptrcls_is_alias:
             attrs['path_id_name'] = view_rptr.ptrcls.get_name(ctx.env.schema)
 
-        view_rptr.derived_ptrcls = schemactx.derive_view(
+        view_rptr.ptrcls = schemactx.derive_view(
             view_rptr.ptrcls, view_rptr.source, target_scls,
             derived_name_quals=(
                 view_rptr.source.get_name(ctx.env.schema),
@@ -609,7 +614,7 @@ def derive_ptrcls(
             ctx=ctx
         )
 
-    return view_rptr.derived_ptrcls
+    return view_rptr.ptrcls
 
 
 def _link_has_shape(

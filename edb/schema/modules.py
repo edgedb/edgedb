@@ -41,7 +41,7 @@ class CreateModule(ModuleCommand, sd.CreateObject):
     astnode = qlast.CreateModule
 
 
-class AlterModule(ModuleCommand, sd.CreateOrAlterObject):
+class AlterModule(ModuleCommand, sd.AlterObject):
     astnode = qlast.AlterModule
 
 

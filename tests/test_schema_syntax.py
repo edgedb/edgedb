@@ -910,78 +910,10 @@ abstract property foo {
         }
         """
 
-    def test_eschema_syntax_import_01(self):
-        """
-        import foo;
-
-        type Bar extending foo::Foo {
-            property text -> str;
-        };
-        """
-
-    def test_eschema_syntax_import_02(self):
-        """
-        import mylib.util.foo;
-
-        type Bar extending `mylib.util.foo`::Foo {
-            property text -> str;
-        };
-        """
-
-    def test_eschema_syntax_import_03(self):
-        """
-        import foo as bar;
-
-        type Bar extending bar::Foo {
-            property text -> str;
-        };
-        """
-
-    def test_eschema_syntax_import_04(self):
-        """
-        import mylib.util.foo as bar;
-
-        type Bar extending bar::Foo {
-            property text -> str;
-        };
-        """
-
-    def test_eschema_syntax_import_06(self):
-        """
-        import action.event.foo;
-
-        type Bar extending `action.event.foo`::Foo {
-            property text -> str;
-        };
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\.'", line=4, col=33)
-    def test_eschema_syntax_import_07(self):
-        """
-        import mylib.util.foo;
-
-        type Bar extending mylib.util.foo::Foo {
-            property text -> str;
-        };
-        """
-
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\.'", line=4, col=34)
-    def test_eschema_syntax_import_08(self):
-        """
-        import action.event.foo;
-
-        type Bar extending action.event.foo::Foo {
-            property text -> str;
-        };
-        """
-
     def test_eschema_syntax_function_01(self):
         """
-        function len() -> std::int64 {
+        function len() -> std::int64
             from sql function 'length';
-        };
         """
 
     def test_eschema_syntax_function_02(self):
@@ -993,20 +925,18 @@ abstract property foo {
 
 % OK %
 
-        function some_func(foo: std::int64 = 42) -> std::str {
+        function some_func(foo: std::int64 = 42) -> std::str
             from sql $$
                 SELECT 'life';
             $$;
-        };
         """
 
     def test_eschema_syntax_function_03(self):
         r"""
-        function some_func(foo: std::int64 = 42) -> std::str {
+        function some_func(foo: std::int64 = 42) -> std::str
             from edgeql $$
                 SELECT 'life';
             $$;
-        };
         """
 
     def test_eschema_syntax_function_04(self):
@@ -1025,11 +955,10 @@ abstract property foo {
                         arg2: str = 'DEFAULT',
                         variadic arg3: std::int64,
                         named only arg4: std::int64,
-                        named only arg5: std::int64) -> set of int {
+                        named only arg5: std::int64) -> set of int
             from edgeql $$
                 SELECT blarg
             $$;
-        };
         """
 
     def test_eschema_syntax_function_06(self):
@@ -1044,37 +973,32 @@ abstract property foo {
 
     def test_eschema_syntax_function_07(self):
         """
-        function some_func(foo: std::int64 = bar(42)) -> std::str {
+        function some_func(foo: std::int64 = bar(42)) -> std::str
             from sql function 'some_other_func';
-        };
         """
 
     def test_eschema_syntax_function_08(self):
         """
-        function some_func(foo: str = ')') -> std::str {
+        function some_func(foo: str = ')') -> std::str
             from sql function 'some_other_func';
-        };
         """
 
     def test_eschema_syntax_function_09(self):
         """
-        function some_func(foo: str = $$)$$) -> std::str {
+        function some_func(foo: str = $$)$$) -> std::str
             from sql function 'some_other_func';
-        };
         """
 
     def test_eschema_syntax_function_10(self):
         """
-        function some_func(foo: str = $a1$)$a1$) -> std::str {
+        function some_func(foo: str = $a1$)$a1$) -> std::str
             from sql function 'some_other_func';
-        };
         """
 
     def test_eschema_syntax_function_11(self):
         """
-        function some_func(`(`: str = ')') -> std::str {
+        function some_func(`(`: str = ')') -> std::str
             from sql function 'some_other_func';
-        };
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -1091,9 +1015,8 @@ abstract property foo {
         r"""
         function some_func(`(`:
                 str = ')',
-                bar: int = bar()) -> std::str {
+                bar: int = bar()) -> std::str
             from sql function 'some_other_func';
-        };
         """
 
     def test_eschema_syntax_function_15(self):
@@ -1101,9 +1024,8 @@ abstract property foo {
         function foo() -> tuple<
                     str,
                     array<tuple<int, str>>
-                > {
+                >
             from sql function 'some_other_func';
-        };
         """
 
     def test_eschema_syntax_function_16(self):
@@ -1111,9 +1033,8 @@ abstract property foo {
         function foo() -> tuple<
                     str,
                     array<tuple<int, `Foo:>`>>
-                > {
+                >
             from sql function 'some_other_func';
-        };
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '>'",
@@ -1144,18 +1065,14 @@ abstract property foo {
 
 % OK %
 
-        function len1() ->  std::int64 {
+        function len1() ->  std::int64
             from SQL function 'length1';
-        };
-        function len2() ->  std::int64 {
+        function len2() ->  std::int64
             from SQL function 'length2';
-        };
-        function len3() ->  std::int64 {
+        function len3() ->  std::int64
             from SQL function 'length3';
-        };
-        function len4() ->  std::int64 {
+        function len4() ->  std::int64
             from SQL function 'length4';
-        };
         """
 
     def test_eschema_syntax_function_19(self):
@@ -1176,18 +1093,14 @@ abstract property foo {
 
 % OK %
 
-        function len1() ->  std::int64 {
+        function len1() ->  std::int64
             from SQL function 'length1';
-        };
-        function len2() ->  std::int64 {
+        function len2() ->  std::int64
             from SQL function 'length2';
-        };
-        function len3() ->  std::int64 {
+        function len3() ->  std::int64
             from SQL function 'length3';
-        };
-        function len4() ->  std::int64 {
+        function len4() ->  std::int64
             from SQL function 'length4';
-        };
         """
 
     def test_eschema_syntax_function_20(self):
@@ -1207,18 +1120,14 @@ abstract property foo {
 
 % OK %
 
-        function len1() ->  std::int64 {
+        function len1() ->  std::int64
             from SQL function 'length1';
-        };
-        function len2() ->  std::int64 {
+        function len2() ->  std::int64
             from SQL function 'length2';
-        };
-        function len3() ->  std::int64 {
+        function len3() ->  std::int64
             from SQL function 'length3';
-        };
-        function len4() ->  std::int64 {
+        function len4() ->  std::int64
             from SQL function 'length4';
-        };
         """
 
     def test_eschema_syntax_view_01(self):

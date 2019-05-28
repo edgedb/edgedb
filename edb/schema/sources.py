@@ -42,12 +42,7 @@ class Source(indexes.IndexableSubject):
 
     pointers = so.SchemaField(
         so.ObjectIndexByUnqualifiedName,
-        inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectIndexByUnqualifiedName, hashable=False)
-
-    own_pointers = so.SchemaField(
-        so.ObjectIndexByUnqualifiedName, compcoef=0.857,
-        inheritable=False, ephemeral=True, coerce=True,
+        inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
         default=so.ObjectIndexByUnqualifiedName)
 
     def getptr(self, schema, name):

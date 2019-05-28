@@ -31,8 +31,6 @@ async def fetch(
                 i.id            AS id,
                 i.name          AS name,
                 i.expr          AS expr,
-                edgedb._resolve_type_name(i.bases)
-                                AS bases,
                 edgedb._resolve_type_name(i.subject)
                                 AS subject_name
             FROM

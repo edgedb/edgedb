@@ -40,6 +40,9 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
     def get_bases(self, schema):
         return so.ObjectList.create_empty()
 
+    def get_ancestors(self, schema):
+        return so.ObjectList.create_empty()
+
     def get_is_abstract(self, schema):
         return True
 

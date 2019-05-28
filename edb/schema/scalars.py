@@ -243,7 +243,7 @@ class RenameScalarType(ScalarTypeCommand, sd.RenameObject):
 class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
 
     def apply(self, schema, context):
-        scls = self.get_object(schema)
+        scls = self.get_object(schema, context)
         self.scls = scls
 
         enum_values = scls.get_enum_values(schema)

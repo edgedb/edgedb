@@ -4960,7 +4960,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_bad_reference_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'reference to a non-existent schema item: Usr.*',
+                r'reference to a non-existent schema item Usr.*',
                 _hint="did you mean one of these: User, URL?"):
 
             await self.con.fetchall("""

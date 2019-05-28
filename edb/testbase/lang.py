@@ -26,10 +26,9 @@ from edb.common import markup, context
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
+from edb.edgeql import parser as qlparser
 
 from edb.server import defines
-
-from edb.edgeql import declarative as s_decl
 
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
@@ -236,22 +235,28 @@ class BaseSchemaTest(BaseDocTest):
 
                 ddl_plan = s_ddl.cmd_from_ddl(
                     stmt, schema=current_schema,
-                    modaliases={None: defines.DEFAULT_MODULE_ALIAS})
+                    modaliases={None: defines.DEFAULT_MODULE_ALIAS},
+                    testmode=True)
 
                 ddl_plan = s_ddl.compile_migration(
                     ddl_plan, target_schema, current_schema)
 
             elif isinstance(stmt, qlast.Delta):
                 # APPLY MIGRATION
-                ddl_plan = s_ddl.cmd_from_ddl(
+                delta_cmd = s_ddl.cmd_from_ddl(
                     stmt, schema=current_schema,
-                    modaliases={None: defines.DEFAULT_MODULE_ALIAS})
+                    modaliases={None: defines.DEFAULT_MODULE_ALIAS},
+                    testmode=True)
+                delta = current_schema.get(delta_cmd.classname)
+                ddl_plan = sd.DeltaRoot(canonical=True)
+                ddl_plan.update(delta.get_commands(current_schema))
 
             elif isinstance(stmt, qlast.DDL):
                 # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
                 ddl_plan = s_ddl.delta_from_ddl(
                     stmt, schema=current_schema,
-                    modaliases={None: defines.DEFAULT_MODULE_ALIAS})
+                    modaliases={None: defines.DEFAULT_MODULE_ALIAS},
+                    testmode=True)
 
             else:
                 raise ValueError(
@@ -265,8 +270,13 @@ class BaseSchemaTest(BaseDocTest):
 
     @classmethod
     def load_schema(cls, source):
+        decls = [
+            ('test', qlparser.parse_sdl(source))
+        ]
+
         schema = _load_std_schema()
-        return s_decl.parse_module_declarations(schema, [('test', source)])
+        return s_ddl.apply_sdl(
+            decls, target_schema=schema, current_schema=schema)
 
     @classmethod
     def get_schema_script(cls):

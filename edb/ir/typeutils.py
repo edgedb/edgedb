@@ -212,6 +212,7 @@ def ptrref_from_ptrcls(
         ptrcls: s_pointers.PointerLike,
         direction: s_pointers.PointerDirection,
         parent_ptr: typing.Optional[irast.PointerRef]=None,
+        include_descendants: bool=True,
         schema) -> irast.BasePointerRef:
 
     kwargs = {}
@@ -284,29 +285,53 @@ def ptrref_from_ptrcls(
                     schema=schema,
                 )
             )
+    elif (derived_from_ptr is None
+            and not ptrcls.generic(schema)
+            and not ptrcls.get_is_local(schema)):
+        for base in ptrcls.as_locally_defined(schema):
+            union_components.add(
+                ptrref_from_ptrcls(
+                    source_ref=source_ref,
+                    target_ref=target_ref,
+                    ptrcls=base,
+                    direction=direction,
+                    parent_ptr=parent_ptr,
+                    schema=schema,
+                    include_descendants=False,
+                )
+            )
 
     descendants = set()
 
-    source = ptrcls.get_source(schema)
-    if isinstance(source, s_abc.ObjectType):
-        ptrs = {material_ptrcls}
-        ptrname = ptrcls.get_shortname(schema).name
-        for descendant in source.descendants(schema):
-            ptr = descendant.getptr(schema, ptrname)
-            if ptr is not None:
-                desc_material_ptr = ptr.material_type(schema)
-                if desc_material_ptr not in ptrs:
-                    ptrs.add(desc_material_ptr)
-                    descendants.add(
-                        ptrref_from_ptrcls(
-                            source_ref=source_ref,
-                            target_ref=target_ref,
-                            ptrcls=desc_material_ptr,
-                            direction=direction,
-                            parent_ptr=parent_ptr,
-                            schema=schema,
+    if not union_components:
+        source = ptrcls.get_source(schema)
+        if isinstance(source, s_abc.ObjectType) and include_descendants:
+            ptrs = {material_ptrcls}
+            ptrname = ptrcls.get_shortname(schema).name
+            for descendant in source.descendants(schema):
+                ptr = descendant.getptr(schema, ptrname)
+                if ptr is not None:
+                    desc_material_ptr = ptr.material_type(schema)
+                    if (desc_material_ptr not in ptrs
+                            and desc_material_ptr.get_is_local(schema)):
+                        ptrs.add(desc_material_ptr)
+                        descendants.add(
+                            ptrref_from_ptrcls(
+                                source_ref=source_ref,
+                                target_ref=target_ref,
+                                ptrcls=desc_material_ptr,
+                                direction=direction,
+                                parent_ptr=parent_ptr,
+                                schema=schema,
+                            )
                         )
-                    )
+
+    std_parent_name = None
+    for ancestor in ptrcls.get_ancestors(schema).objects(schema):
+        ancestor_name = ancestor.get_name(schema)
+        if ancestor_name.module == 'std' and ancestor.generic(schema):
+            std_parent_name = ancestor_name
+            break
 
     kwargs.update(dict(
         dir_source=source_ref,
@@ -315,6 +340,7 @@ def ptrref_from_ptrcls(
         out_target=out_target,
         name=ptrcls.get_name(schema),
         shortname=ptrcls.get_shortname(schema),
+        std_parent_name=std_parent_name,
         direction=direction,
         parent_ptr=parent_ptr,
         material_ptr=material_ptr,
@@ -354,7 +380,9 @@ def ptrcls_from_ptrref(
 
 def is_id_ptrref(
         ptrref: irast.BasePointerRef):
-    return ptrref.shortname == 'std::id'
+    return (
+        ptrref.std_parent_name == 'std::id'
+    )
 
 
 def is_inbound_ptrref(

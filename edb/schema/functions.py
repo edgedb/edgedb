@@ -446,8 +446,9 @@ class CallableObject(annotations.AnnotationSubject):
             else:
                 newcoll = []
 
-            cls.delta_sets(oldcoll, newcoll, delta, context,
-                           old_schema=old_schema, new_schema=new_schema)
+            delta.update(cls.delta_sets(
+                oldcoll, newcoll, context,
+                old_schema=old_schema, new_schema=new_schema))
 
         return delta
 
@@ -489,6 +490,12 @@ class CallableObject(annotations.AnnotationSubject):
     def has_inlined_defaults(self, schema):
         return False
 
+    def is_blocking_ref(self, schema, context, reference):
+        # Paramters cannot be deleted via DDL syntax,
+        # so the only possible scenario is the deletion of
+        # the host function.
+        return not isinstance(reference, Parameter)
+
 
 class CallableCommandContext(sd.ObjectCommandContext,
                              annotations.AnnotationSubjectCommandContext):
@@ -498,12 +505,20 @@ class CallableCommandContext(sd.ObjectCommandContext,
 class CallableCommand(sd.ObjectCommand):
 
     def _prepare_create_fields(self, schema, context):
-        # Make sure the parameter objects exist first and foremost.
-        for op in self.get_subcommands(metaclass=Parameter):
-            schema, _ = op.apply(schema, context=context)
+        params = self.get_attribute_value('params')
+
+        if params is None:
+            try:
+                params = self._get_params(schema, context)
+            except errors.InvalidReferenceError:
+                # Make sure the parameter objects exist.
+                for op in self.get_subcommands(metaclass=Parameter):
+                    schema, _ = op.apply(schema, context=context)
+
+                params = self._get_params(schema, context)
 
         schema, props = super()._prepare_create_fields(schema, context)
-        props['params'] = self._get_params(schema, context)
+        props['params'] = params
         return schema, props
 
     def _get_params(self, schema, context):
@@ -515,14 +530,6 @@ class CallableCommand(sd.ObjectCommand):
 
     def _alter_innards(self, schema, context, scls):
         schema = super()._alter_innards(schema, context, scls)
-
-        for op in self.get_subcommands(metaclass=Parameter):
-            schema, _ = op.apply(schema, context=context)
-
-        return schema
-
-    def _delete_finalize(self, schema, context, scls):
-        schema = super()._delete_finalize(schema, context, scls)
 
         for op in self.get_subcommands(metaclass=Parameter):
             schema, _ = op.apply(schema, context=context)

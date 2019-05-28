@@ -383,7 +383,7 @@ class Compiler(BaseCompiler):
 
         with context(s_deltas.DeltaCommandContext(schema, cmd, delta)):
             if isinstance(cmd, s_deltas.CommitDelta):
-                ddl_plan = s_delta.DeltaRoot()
+                ddl_plan = s_delta.DeltaRoot(canonical=True)
                 ddl_plan.update(delta.get_commands(schema))
                 return self._compile_and_apply_ddl_command(ctx, ddl_plan)
 
@@ -419,6 +419,7 @@ class Compiler(BaseCompiler):
         test_schema = schema
         context = self._new_delta_context(ctx)
         cmd.apply(test_schema, context=context)
+        cmd.canonical = True
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.

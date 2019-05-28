@@ -152,7 +152,7 @@ class TestIntrospection(tb.QueryTestCase):
                     pointers: {
                         name,
                         cardinality,
-                    } FILTER .source.name LIKE 'test::%'
+                    } FILTER @is_local
                       ORDER BY .name
                 }
                 FILTER ObjectType.name = 'test::User';
@@ -161,9 +161,6 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'test::User',
                 'is_abstract': False,
                 'pointers': [{
-                    'name': 'name',
-                    'cardinality': 'ONE',
-                }, {
                     'name': 'todo',
                     'cardinality': 'MANY',
                 }]
@@ -441,12 +438,16 @@ class TestIntrospection(tb.QueryTestCase):
                         num,
                         @value
                     } ORDER BY .num
-                } FILTER .subject.name = 'test::body';
+                }
+                FILTER
+                    .subject.name = 'body'
+                    AND .subject[IS schema::Property].source.name
+                        = 'test::Text';
             """,
             [{
                 'name': 'std::max_len_value',
                 'subject': {
-                    'name': 'test::body'
+                    'name': 'body'
                 },
                 'args': [{
                     'num': 1,
@@ -473,7 +474,7 @@ class TestIntrospection(tb.QueryTestCase):
                             return_type: { name },
                             errmessage,
                         },
-                    },
+                    } ORDER BY .name,
                 }
                 FILTER .name = 'test::Text';
             """,
@@ -487,7 +488,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 'name': 'std::max_len_value',
                                 'expr': '(__subject__ <= max)',
                                 'annotations': {},
-                                'subject': {'name': 'test::body'},
+                                'subject': {'name': 'body'},
                                 'args': [
                                     {
                                         'name': 'max',
@@ -510,7 +511,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 'name': 'std::exclusive',
                                 'expr': 'std::_is_exclusive(__subject__)',
                                 'annotations': {},
-                                'subject': {'name': 'std::id'},
+                                'subject': {'name': 'id'},
                                 'args': {},
                                 'return_typemod': 'SINGLETON',
                                 'return_type': {'name': 'std::bool'},
@@ -638,10 +639,6 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        `session_only` is required and has a default, but still shows
-        up as `{}`.
-    ''')
     async def test_edgeql_introspection_function_02(self):
         await self.assert_query_result(
             r"""
@@ -1085,10 +1082,6 @@ class TestIntrospection(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        `is_abstract` has a default value of False, which is not
-        respected by the schema types.
-    ''')
     async def test_edgeql_introspection_meta_default_02(self):
         await self.assert_query_result(
             r'''
@@ -1106,10 +1099,6 @@ class TestIntrospection(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        `required` is required and has a default value of False, which is not
-        respected by __type__.
-    ''')
     async def test_edgeql_introspection_meta_default_03(self):
         await self.assert_query_result(
             r'''
@@ -1126,20 +1115,16 @@ class TestIntrospection(tb.QueryTestCase):
             [
                 {
                     'name': 'test::Comment',
-                    'links': {
+                    'links': [
                         {'name': '__type__', 'required': False},
                         {'name': 'issue', 'required': True},
                         {'name': 'owner', 'required': True},
                         {'name': 'parent', 'required': False},
-                    }
+                    ]
                 }
             ],
         )
 
-    @test.xfail('''
-        `required` is required and has a default value of False, which is not
-        respected by any of the schema pointers.
-    ''')
     async def test_edgeql_introspection_meta_default_04(self):
         await self.assert_query_result(
             r'''

@@ -20,7 +20,6 @@
 import os.path
 import unittest  # NOQA
 
-import edgedb
 from edb.testbase import server as tb
 
 
@@ -928,24 +927,27 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         )
 
     async def test_edgeql_props_link_shadow_02(self):
-        # Check that the shadowed `deck` link does NOT inherit the
-        # @count property.
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                "'deck' has no property 'count'"):
-            await self.con.execute(
-                r'''
-                    WITH
-                        MODULE test,
-                        AliasedUser := User {
-                            name,
-                            deck := (SELECT User.deck ORDER BY .name LIMIT 2)
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    AliasedUser := User {
+                        name,
+                        deck := (SELECT User.deck ORDER BY .name LIMIT 2)
+                    }
+                SELECT
+                    AliasedUser {
+                        name,
+                        deck: {
+                            @count
                         }
-                    SELECT
-                        AliasedUser {
-                            deck: {
-                                @count
-                            }
-                        };
-                ''',
-            )
+                    }
+                ORDER BY .name;
+            ''',
+            [
+                {"deck": [{"@count": 3}, {"@count": 2}], "name": "Alice"},
+                {"deck": [{"@count": 3}, {"@count": 3}], "name": "Bob"},
+                {"deck": [{"@count": 3}, {"@count": 1}], "name": "Carol"},
+                {"deck": [{"@count": 1}, {"@count": 1}], "name": "Dave"},
+            ]
+        )

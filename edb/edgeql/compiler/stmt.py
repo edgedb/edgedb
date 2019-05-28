@@ -611,6 +611,9 @@ def compile_query_subject(
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
     expr_rptr = expr.rptr
 
+    while isinstance(expr_rptr, irast.TypeIndirectionPointer):
+        expr_rptr = expr_rptr.source.rptr
+
     is_ptr_alias = (
         view_rptr is not None
         and view_rptr.ptrcls is None
@@ -628,12 +631,8 @@ def compile_query_subject(
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
         # its properties.
-        rptr = expr_rptr
-        # Unwind type indirections first.
-        while isinstance(rptr, irast.TypeIndirectionPointer):
-            rptr = rptr.source.rptr
         view_rptr.base_ptrcls = irtyputils.ptrcls_from_ptrref(
-            rptr.ptrref, schema=ctx.env.schema)
+            expr_rptr.ptrref, schema=ctx.env.schema)
         view_rptr.ptrcls_is_alias = True
 
     if (ctx.expr_exposed

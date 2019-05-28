@@ -89,7 +89,7 @@ class SQLBlock:
                  for cmd in self.commands)
         body = '\n\n'.join(stmt + ';' if stmt[-1] != ';' else stmt
                            for stmt in stmts).rstrip()
-        if body[-1] != ';':
+        if body and body[-1] != ';':
             body += ';'
 
         return body
@@ -115,7 +115,7 @@ class PLBlock(SQLBlock):
         if top_block is not None:
             self.disable_ddl_triggers = self.top_block.disable_ddl_triggers
         else:
-            self.disable_ddl_triggers = False
+            self.disable_ddl_triggers = True
 
     def has_declarations(self) -> bool:
         return bool(self.declarations)
@@ -204,7 +204,7 @@ class PLBlock(SQLBlock):
 
 
 class PLTopBlock(PLBlock):
-    def __init__(self, *, disable_ddl_triggers: bool=False):
+    def __init__(self, *, disable_ddl_triggers: bool=True):
         super().__init__(top_block=None, level=0)
         self.disable_ddl_triggers = disable_ddl_triggers
 

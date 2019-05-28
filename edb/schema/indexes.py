@@ -28,12 +28,21 @@ from . import objects as so
 from . import referencing
 
 
-class Index(inheriting.InheritingObject):
+class Index(referencing.ReferencedObject):
 
     subject = so.SchemaField(so.Object)
 
     expr = so.SchemaField(
         s_expr.Expression, coerce=True, compcoef=0.909)
+
+    is_local = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.909)
+
+    def get_is_final(self, schema):
+        return False
 
     def __repr__(self):
         cls = self.__class__
@@ -51,12 +60,7 @@ class IndexableSubject(inheriting.InheritingObject):
 
     indexes = so.SchemaField(
         so.ObjectIndexByShortname,
-        inheritable=False, ephemeral=True, coerce=True,
-        default=so.ObjectIndexByShortname, hashable=False)
-
-    own_indexes = so.SchemaField(
-        so.ObjectIndexByShortname, compcoef=0.909,
-        inheritable=False, ephemeral=True, coerce=True,
+        inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
         default=so.ObjectIndexByShortname)
 
     def add_index(self, schema, index):
@@ -81,7 +85,7 @@ class IndexCommand(referencing.ReferencedObjectCommand,
                    referrer_context_class=IndexSourceCommandContext):
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
-        parent_ctx = context.get(sd.CommandContextToken)
+        parent_ctx = context.get(IndexSourceCommandContext)
         subject_name = parent_ctx.op.classname
 
         idx_name = sn.get_specialized_name(
@@ -92,7 +96,7 @@ class IndexCommand(referencing.ReferencedObjectCommand,
         return sn.Name(name=idx_name, module=subject_name.module)
 
 
-class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
+class CreateIndex(IndexCommand, referencing.CreateReferencedObject):
     astnode = qlast.CreateIndex
     referenced_astnode = qlast.CreateIndex
 

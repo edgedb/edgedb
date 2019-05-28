@@ -260,6 +260,27 @@ class ColumnExists(base.Condition):
         ''')
 
 
+class ColumnIsInherited(base.Condition):
+    def __init__(self, table_name, column_name):
+        self.table_name = table_name
+        self.column_name = column_name
+
+    def code(self, block: base.PLBlock) -> str:
+        return textwrap.dedent(f'''\
+            SELECT
+                True
+            FROM
+                pg_class c
+                INNER JOIN pg_namespace ns ON ns.oid = c.relnamespace
+                INNER JOIN pg_attribute a ON a.attrelid = c.oid
+            WHERE
+                ns.nspname = {ql(self.table_name[0])}
+                AND c.relname = {ql(self.table_name[1])}
+                AND a.attname = {ql(self.column_name)}
+                AND a.attinhcount > 0
+        ''')
+
+
 class CreateTable(ddl.SchemaObjectOperation):
     def __init__(
             self, table, temporary=False, *, conditions=None,

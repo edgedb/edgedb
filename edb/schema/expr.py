@@ -132,6 +132,30 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
             _irast=ir,
         )
 
+    @classmethod
+    def from_expr(cls, expr, schema) -> Expression:
+        return cls(
+            text=expr.text,
+            origtext=expr.origtext,
+            refs=(
+                so.ObjectSet.create(schema, expr.refs.objects(schema))
+                if expr.refs is not None else None
+            ),
+            _qlast=expr._qlast,
+            _irast=expr._irast,
+        )
+
+    def _reduce_to_ref(self, schema):
+        return type(self)(
+            text=self.text,
+            origtext=self.origtext,
+            refs=so.ObjectSet.create(
+                schema,
+                (scls._reduce_to_ref(schema)[0]
+                 for scls in self.refs.objects(schema))
+            ) if self.refs is not None else None
+        ), self
+
 
 class ExpressionList(typed.FrozenTypedList, type=Expression):
 

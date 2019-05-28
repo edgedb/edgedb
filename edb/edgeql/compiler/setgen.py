@@ -442,6 +442,10 @@ def resolve_ptr(
             if len(ptrs) == 1:
                 ptr = next(iter(ptrs))
             else:
+                ctx.env.schema_refs.update(
+                    p.get_nearest_non_derived_parent(ctx.env.schema)
+                    for p in ptrs
+                )
                 ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
                     ctx.env.schema,
                     ptrname=pointer_name,
@@ -477,6 +481,9 @@ def resolve_ptr(
             )
 
         raise err
+
+    ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
+    ctx.env.schema_refs.add(ref)
 
     return ptr
 
@@ -752,22 +759,29 @@ def computable_ptr_set(
             source_rptrref = source_set.rptr.ptrref
             source_rptrcls = irtyputils.ptrcls_from_ptrref(
                 source_rptrref, schema=schema)
-            derived_from = source_rptrcls.get_derived_from(schema)
-            if (derived_from is not None and
-                    not derived_from.generic(schema) and
-                    derived_from.get_derived_from(schema) is not None and
-                    ptrcls.is_link_property(schema)):
-                source_set.rptr.ptrref = irtyputils.ptrref_from_ptrcls(
-                    source_ref=source_rptrref.dir_source,
-                    target_ref=source_rptrref.dir_target,
-                    direction=source_rptrref.direction,
-                    parent_ptr=source_rptrref.parent_ptr,
-                    ptrcls=derived_from,
-                    schema=schema,
-                )
+            bases = source_rptrcls.get_bases(schema)
+            if bases:
+                base = bases.first(schema)
+                if (not base.generic(schema)
+                        and ptrcls.is_link_property(schema)):
+                    source_rptrref = irtyputils.ptrref_from_ptrcls(
+                        source_ref=source_rptrref.dir_source,
+                        target_ref=source_rptrref.dir_target,
+                        direction=source_rptrref.direction,
+                        parent_ptr=source_rptrref.parent_ptr,
+                        ptrcls=base,
+                        schema=schema,
+                    )
 
-                stmtctx.ensure_ptrref_cardinality(
-                    derived_from, source_set.rptr.ptrref, ctx=ctx)
+                    source_set.rptr = irast.Pointer(
+                        source=source_set.rptr.source,
+                        target=source_set,
+                        ptrref=source_rptrref,
+                        direction=source_set.rptr.direction,
+                    )
+
+                    stmtctx.ensure_ptrref_cardinality(
+                        base, source_set.rptr.ptrref, ctx=ctx)
 
     try:
         qlexpr, qlctx, inner_source_path_id, path_id_ns = \

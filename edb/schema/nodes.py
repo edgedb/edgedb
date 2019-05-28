@@ -17,8 +17,6 @@
 #
 
 
-import typing
-
 from edb import errors
 
 from edb.edgeql import ast as qlast
@@ -27,7 +25,6 @@ from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
 from . import objects as so
-from . import schema as s_schema
 from . import types as s_types
 from . import utils
 
@@ -38,15 +35,6 @@ class Node(inheriting.InheritingObject, s_types.Type):
         while t.is_view(schema):
             t = t.get_bases(schema).first(schema)
         return t
-
-    def derive_subtype(
-            self, schema, *,
-            name: str,
-            attrs: typing.Optional[typing.Mapping]=None
-    ) -> typing.Tuple[s_schema.Schema, s_types.Type]:
-
-        return type(self).create_in_schema_with_inheritance(
-            schema, name=name, bases=[self], **attrs)
 
     def peel_view(self, schema):
         if self.is_view(schema):
@@ -142,12 +130,9 @@ class NodeCommand(sd.ObjectCommand):
             new_schema = ir.schema
             old_schema = prev_ir.schema if prev_ir is not None else None
 
-            adds_mods, dels = so.Object._delta_sets(
+            derived_delta.update(so.Object.delta_sets(
                 prev_view_types, view_types,
-                old_schema=old_schema, new_schema=new_schema)
-
-            derived_delta.update(adds_mods)
-            derived_delta.update(dels)
+                old_schema=old_schema, new_schema=new_schema))
 
             if ir.stype.is_view(ir.schema):
                 for op in list(derived_delta.get_subcommands()):
@@ -163,6 +148,8 @@ class NodeCommand(sd.ObjectCommand):
             cmd.discard_attribute('view_type')
             cmd.add(sd.AlterObjectProperty(
                 property='view_type', new_value=s_types.ViewType.Select))
+
+            cmd.canonical = True
 
         return cmd
 

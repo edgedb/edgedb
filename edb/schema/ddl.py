@@ -18,10 +18,13 @@
 
 
 from edb import edgeql
-from edb.schema import delta as s_delta
 
 from edb.edgeql import declarative as s_decl
 
+from . import delta as sd
+from . import derivable
+from . import objects as so
+from . import ordering as s_ordering
 from . import schema as s_schema
 
 # The below must be imported here to make sure we have all
@@ -30,7 +33,6 @@ from . import schema as s_schema
 from . import scalars  # NOQA
 from . import annotations  # NOQA
 from . import casts  # NOQA
-from . import delta as sd
 from . import expr as s_expr
 from . import objtypes  # NOQA
 from . import constraints  # NOQA
@@ -44,18 +46,81 @@ from . import std  # NOQA
 from . import views  # NOQA
 
 
+def get_global_dep_order():
+    return (
+        annotations.Annotation,
+        functions.Function,
+        constraints.Constraint,
+        scalars.ScalarType,
+        lproperties.Property,
+        links.Link,
+        objtypes.BaseObjectType,
+    )
+
+
+def delta_schemas(schema1, schema2):
+    result = sd.DeltaRoot(canonical=True)
+
+    my_modules = set(schema1.modules)
+    other_modules = set(schema2.modules)
+
+    added_modules = my_modules - other_modules
+    dropped_modules = other_modules - my_modules
+
+    for added_module in added_modules:
+        create = modules.CreateModule(classname=added_module)
+        create.add(sd.AlterObjectProperty(property='name', old_value=None,
+                                          new_value=added_module))
+        result.add(create)
+
+    for type in get_global_dep_order():
+        new = schema1.get_objects(type=type)
+        old = schema2.get_objects(type=type)
+
+        if issubclass(type, derivable.DerivableObject):
+            new = filter(lambda i: i.generic(schema1), new)
+            old = filter(lambda i: i.generic(schema2), old)
+
+        result.update(so.Object.delta_sets(
+            old, new, old_schema=schema2, new_schema=schema1))
+
+    for dropped_module in dropped_modules:
+        result.add(modules.DeleteModule(classname=dropped_module))
+
+    return result
+
+
+def delta_modules(schema1, schema2, modnames):
+    from . import derivable
+
+    result = sd.DeltaRoot(canonical=True)
+
+    for type in get_global_dep_order():
+        new = schema1.get_objects(modules=modnames, type=type)
+        old = schema2.get_objects(modules=modnames, type=type)
+
+        if issubclass(type, derivable.DerivableObject):
+            new = filter(lambda i: i.generic(schema1), new)
+            old = filter(lambda i: i.generic(schema2), old)
+
+        result.update(so.Object.delta_sets(
+            old, new, old_schema=schema2, new_schema=schema1))
+
+    result = s_ordering.linearize_delta(
+        result, old_schema=schema2, new_schema=schema1)
+
+    return result
+
+
 def cmd_from_ddl(stmt, *, context=None, schema, modaliases,
                  testmode: bool=False):
     ddl = s_expr.imprint_expr_context(stmt, modaliases)
 
     if context is None:
-        context = s_delta.CommandContext()
+        context = sd.CommandContext(
+            schema=schema, modaliases=modaliases, testmode=testmode)
 
-    context.modaliases = modaliases
-    context.schema = schema
-    context.testmode = testmode
-
-    cmd = s_delta.Command.from_ast(schema, ddl, context=context)
+    cmd = sd.Command.from_ast(schema, ddl, context=context)
     return cmd
 
 
@@ -65,23 +130,22 @@ def compile_migration(cmd, target_schema, current_schema):
     if not declarations:
         return cmd
 
-    target_schema = s_decl.load_module_declarations(target_schema, [
-        (cmd.classname.module, declarations)
-    ])
+    target_schema = apply_sdl(
+        [(cmd.classname.module, declarations)],
+        target_schema=target_schema,
+        current_schema=current_schema)
 
     stdmodules = s_schema.STD_MODULES
     moditems = target_schema.get_objects(type=modules.Module)
     modnames = (
         {m.get_name(target_schema) for m in moditems}
         - stdmodules
-        - {'__derived__'}
     )
-    if len(modnames) != 1:
+
+    if len(modnames - {'__derived__'}) > 1:
         raise RuntimeError('unexpected delta module structure')
 
-    modname = next(iter(modnames))
-
-    diff = sd.delta_module(target_schema, current_schema, modname)
+    diff = delta_modules(target_schema, current_schema, modnames)
     migration = list(diff.get_subcommands())
 
     for op in cmd.get_subcommands(type=sd.AlterObjectProperty):
@@ -97,25 +161,63 @@ def compile_migration(cmd, target_schema, current_schema):
     return cmd
 
 
-def delta_from_ddl(stmts, *, schema, modaliases,
+def apply_sdl(documents, *, target_schema, current_schema,
+              stdmode: bool=False, testmode: bool=False):
+    ddl_stmts = s_decl.sdl_to_ddl(current_schema, documents)
+    context = sd.CommandContext(
+        modaliases={},
+        schema=target_schema,
+        stdmode=stdmode,
+        testmode=testmode,
+        declarative=True,
+    )
+
+    for ddl_stmt in ddl_stmts:
+        delta = sd.DeltaRoot()
+        with context(sd.DeltaRootContext(schema=target_schema, op=delta)):
+            cmd = cmd_from_ddl(
+                ddl_stmt, schema=target_schema, modaliases={},
+                context=context, testmode=testmode)
+            delta.add(cmd)
+            target_schema, _ = delta.apply(target_schema, context)
+            context.schema = target_schema
+
+    return target_schema
+
+
+def apply_ddl(ddl_stmt, *, schema, modaliases,
+              stdmode: bool=False, testmode: bool=False):
+    schema, _ = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
+                                stdmode=stdmode, testmode=testmode)
+    return schema
+
+
+def delta_from_ddl(ddl_stmt, *, schema, modaliases,
                    stdmode: bool=False, testmode: bool=False):
-    alter_db = s_delta.DeltaRoot()
-    context = s_delta.CommandContext()
-    context.modaliases = modaliases
-    context.schema = schema
-    context.stdmode = stdmode
-    context.testmode = testmode
+    _, cmd = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
+                             stdmode=stdmode, testmode=testmode)
+    return cmd
 
-    if isinstance(stmts, edgeql.ast.Base):
-        stmts = [stmts]
 
-    for stmt in stmts:
-        with context(s_delta.DeltaRootContext(alter_db)):
-            alter_db.add(cmd_from_ddl(
-                stmt, context=context, schema=schema, modaliases=modaliases,
-                testmode=testmode))
+def _delta_from_ddl(ddl_stmt, *, schema, modaliases,
+                    stdmode: bool=False, testmode: bool=False):
+    delta = sd.DeltaRoot()
+    context = sd.CommandContext(
+        modaliases=modaliases,
+        schema=schema,
+        stdmode=stdmode,
+        testmode=testmode,
+    )
 
-    return alter_db
+    with context(sd.DeltaRootContext(schema=schema, op=delta)):
+        cmd = cmd_from_ddl(
+            ddl_stmt, schema=schema, modaliases={},
+            context=context, testmode=testmode)
+        schema, _ = cmd.apply(schema, context)
+        delta.add(cmd)
+
+    delta.canonical = True
+    return schema, delta
 
 
 def ddl_from_delta(schema, delta):
@@ -125,7 +227,7 @@ def ddl_from_delta(schema, delta):
 
 def ddl_text_from_delta_command(schema, delta):
     """Return DDL text for a delta command tree."""
-    if isinstance(delta, s_delta.DeltaRoot):
+    if isinstance(delta, sd.DeltaRoot):
         commands = delta
     else:
         commands = [delta]

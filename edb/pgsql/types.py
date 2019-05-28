@@ -287,7 +287,7 @@ class _PointerStorageInfo:
             msg = 'PointerStorageInfo needs a schema to resolve column_type'
             raise ValueError(msg)
 
-        if is_lprop and pointer.get_shortname(schema) == 'std::target':
+        if is_lprop and pointer.issubclass(schema, schema.get('std::target')):
             # Normalize link@target to link
             pointer = source
             is_lprop = False
@@ -388,7 +388,7 @@ def get_ptrref_storage_info(
 
         target = ptrref.out_target
 
-    if is_lprop and ptrref.shortname == 'std::target':
+    if is_lprop and ptrref.std_parent_name == 'std::target':
         # Normalize link@target to link
         ptrref = source
         is_lprop = False

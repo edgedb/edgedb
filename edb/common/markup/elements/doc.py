@@ -67,3 +67,4 @@ class Diff(DocMarkup):
 class ValueDiff(DocMarkup):
     before = Field(str)
     after = Field(str)
+    comment = Field(str, default=None)

@@ -219,15 +219,6 @@ async def _make_stdlib(testmode: bool):
             debug.header('Delta Plan Input')
             debug.dump(delta_command)
 
-        # Do a dry-run on test_schema to canonicalize
-        # the schema delta-commands.
-        test_schema = schema
-
-        context = sd.CommandContext()
-        context.stdmode = True
-
-        delta_command.apply(test_schema, context=context)
-
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
         schema, plan = _process_delta(delta_command, schema)

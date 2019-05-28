@@ -164,7 +164,7 @@ def table_from_ptrref(
     table_schema_name, table_name = common.get_pointer_backend_name(
         ptrref.id, ptrref.module_id, catenate=False)
 
-    if ptrref.shortname.module in {'schema', 'cfg', 'sys'}:
+    if ptrref.name.module in {'schema', 'cfg', 'sys'}:
         # Redirect all queries to schema tables to edgedbss
         table_schema_name = 'edgedbss'
 

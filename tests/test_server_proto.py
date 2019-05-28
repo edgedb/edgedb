@@ -338,7 +338,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent schema item: Tmp'):
+                'non-existent schema item Tmp'):
             await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
@@ -364,7 +364,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent schema item: Tmp'):
+                'non-existent schema item Tmp'):
             await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
@@ -2053,7 +2053,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
     @test.xfail('''
         The error is:
-        reference to a non-existent schema item:
+        reference to a non-existent schema item
         3c6145d4-192f-11e9-83b3-edb414a0f9bf in schema
         <Schema gen:4594 at 0x7f5dbfd68198>
     ''')

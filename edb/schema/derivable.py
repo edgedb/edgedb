@@ -17,8 +17,6 @@
 #
 
 
-from edb.common import uuidgen
-
 from . import abc as s_abc
 from . import name as sn
 from . import objects as so
@@ -38,126 +36,35 @@ class DerivableObjectBase(s_abc.Object):
 
         return similarity
 
-    def derive_name(self, schema, source, *qualifiers, derived_name_base=None):
-        if derived_name_base is None:
-            derived_name_base = self.get_shortname(schema)
-        name = sn.get_specialized_name(
-            derived_name_base, source.get_name(schema), *qualifiers)
-        return sn.Name(name=name, module=source.get_name(schema).module)
+    def derive_name(self, schema, source, *qualifiers,
+                    derived_name_base=None, module=None):
+        if module is None:
+            module = source.get_name(schema).module
+        source_name = source.get_name(schema)
+        qualifiers = (source_name,) + qualifiers
+
+        return derive_name(
+            schema,
+            *qualifiers,
+            module=module,
+            parent=self,
+            derived_name_base=derived_name_base)
 
     def generic(self, schema):
         return self.get_shortname(schema) == self.get_name(schema)
 
+    def get_derived_name_base(self, schema):
+        return self.get_shortname(schema)
+
     def get_derived_name(self, schema, source,
                          *qualifiers,
                          mark_derived=False,
-                         derived_name_base=None):
+                         derived_name_base=None,
+                         module=None):
         return self.derive_name(
-            schema, source, *qualifiers, derived_name_base=derived_name_base)
-
-    def init_derived(self, schema, source, *qualifiers, as_copy,
-                     merge_bases=None, replace_original=None,
-                     mark_derived=False, attrs=None, dctx=None,
-                     name=None, derived_name_base=None, **kwargs):
-
-        if name is None:
-            derived_name = self.get_derived_name(
-                schema, source, *qualifiers,
-                mark_derived=mark_derived,
-                derived_name_base=derived_name_base)
-        else:
-            derived_name = name
-
-        if attrs is None:
-            attrs = {}
-
-        existing = schema.get(derived_name, None)
-
-        if existing is not None and replace_original:
-            derived = existing
-            schema = derived.update(schema, attrs)
-        else:
-            attrs['name'] = derived_name
-            if not attrs.get('id'):
-                attrs['id'] = uuidgen.uuid1mc()
-
-            fvals = dict(self.get_fields_values(schema))
-            fvals.update(attrs)
-
-            schema, derived = type(self).create_in_schema(schema, **fvals)
-
-        return schema, derived
-
-    def finalize_derived(self, schema, derived, *, merge_bases=None,
-                         replace_original=None, mark_derived=False,
-                         apply_defaults=True, attrs=None, dctx=None,
-                         **kwargs):
-
-        if merge_bases:
-            schema = derived.acquire_ancestor_inheritance(
-                schema, bases=merge_bases)
-
-        schema = derived.finalize(schema, bases=merge_bases,
-                                  apply_defaults=apply_defaults)
-
-        if mark_derived:
-            schema = derived.update(schema, {
-                'is_derived': True,
-                'derived_from': self,
-            })
-
-        return schema, derived
-
-    def derive_copy(self, schema, *qualifiers, merge_bases=None,
-                    replace_original=None, mark_derived=False, attrs=None,
-                    dctx=None, name=None, **kwargs):
-        schema, derived = self.init_derived(
-            schema, *qualifiers, name=name,
-            as_copy=True, merge_bases=merge_bases,
-            attrs=attrs, mark_derived=mark_derived,
-            dctx=dctx, replace_original=replace_original,
-            **kwargs)
-
-        schema, derived = self.finalize_derived(
-            schema, derived, merge_bases=merge_bases,
-            mark_derived=mark_derived, dctx=dctx)
-
-        return schema, derived
-
-    def derive(self, schema, source, *qualifiers, merge_bases=None,
-               replace_original=None, mark_derived=False, attrs=None,
-               dctx=None, name=None, apply_defaults=True, **kwargs):
-
-        schema, derived = self.init_derived(
-            schema, source, *qualifiers, name=name,
-            as_copy=False, merge_bases=merge_bases,
-            attrs=attrs, mark_derived=mark_derived,
-            replace_original=replace_original,
-            dctx=dctx, **kwargs)
-
-        schema, derived = self.finalize_derived(
-            schema, derived, merge_bases=merge_bases,
-            mark_derived=mark_derived, apply_defaults=apply_defaults,
-            dctx=dctx)
-
-        return schema, derived
-
-    @classmethod
-    def derive_from_root(cls, schema, source, unqualified_name, *qualifiers,
-                         merge_bases=None, attrs=None, dctx=None):
-        root = schema.get(cls.get_default_base_name())
-        source_name = source.get_name(schema)
-        shortname = sn.Name(
-            module=source_name.module,
-            name=unqualified_name
-        )
-        name = sn.Name(
-            module=source_name.module,
-            name=sn.get_specialized_name(shortname, source_name, *qualifiers),
-        )
-
-        return root.derive(schema, source, *qualifiers, name=name,
-                           merge_bases=merge_bases, attrs=attrs, dctx=dctx)
+            schema, source, *qualifiers,
+            derived_name_base=derived_name_base,
+            module=module)
 
 
 class DerivableObject(so.Object, DerivableObjectBase):
@@ -176,8 +83,12 @@ class DerivableObject(so.Object, DerivableObjectBase):
         default=False, compcoef=None,
         inheritable=False)
 
-    @classmethod
-    def inherit_pure(cls, schema, item, source, *, dctx=None):
-        # This method is used by InheritingObject and must be
-        # defined for all Derivables, not just Inheriting ones.
-        return schema, item
+
+def derive_name(schema, *qualifiers,
+                module, parent=None, derived_name_base=None):
+    if derived_name_base is None:
+        derived_name_base = parent.get_derived_name_base(schema)
+
+    name = sn.get_specialized_name(derived_name_base, *qualifiers)
+
+    return sn.Name(name=name, module=module)

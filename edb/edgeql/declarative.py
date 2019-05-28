@@ -17,952 +17,503 @@
 #
 
 
-"""Facility for loading EdgeDB module declarations into a schema."""
+"""SDL loader.
 
-import collections
-import itertools
-import typing
+The purpose of this module is to take a set of SDL documents and
+transform them into schema modules.  The crux of the task is to
+break the SDL declarations into a correct sequence of DDL commands,
+considering all possible cyclic references.  The dependency tracking
+is complicated by the presence of expressions in schema definitions.
+In those cases we make a best-effort tracing using a rudimentary
+EdgeQL AST visitor.
+"""
+
+import copy
+import hashlib
+import functools
 
 from edb import errors
 
-from edb import edgeql
+from edb.common import topological
+
 from edb.edgeql import ast as qlast
-from edb.edgeql import compiler as qlcompiler
-from edb.edgeql import parser as ql_parser
-from edb.edgeql import qltypes
+from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import tracer as qltracer
 
-from edb.schema import abc as s_abc
-from edb.schema import annotations as s_anno
-from edb.schema import delta as s_delta
-from edb.schema import objtypes as s_objtypes
-from edb.schema import constraints as s_constr
-from edb.schema import expr as s_expr
-from edb.schema import functions as s_func
-from edb.schema import indexes as s_indexes
-from edb.schema import inheriting as s_inh
-from edb.schema import links as s_links
-from edb.schema import lproperties as s_props
-from edb.schema import modules as s_mod
 from edb.schema import name as s_name
-from edb.schema import objects as s_obj
-from edb.schema import ordering as s_ordering
-from edb.schema import pointers as s_pointers
-from edb.schema import pseudo as s_pseudo
-from edb.schema import scalars as s_scalars
-from edb.schema import types as s_types
-from edb.schema import utils as s_utils
 
 
-_DECL_MAP = {
-    qlast.ScalarTypeDeclaration: s_scalars.ScalarType,
-    qlast.ObjectTypeDeclaration: s_objtypes.ObjectType,
-    qlast.ConstraintDeclaration: s_constr.Constraint,
-    qlast.FunctionDeclaration: s_func.Function,
-    qlast.LinkDeclaration: s_links.Link,
-    qlast.PropertyDeclaration: s_props.Property,
-    qlast.AnnotationDeclaration: s_anno.Annotation,
-}
-
-
-class DeclarationLoader:
+class TraceContextBase:
     def __init__(self, schema):
-        self._schema = schema
-        self._mod_aliases = {}
+        self.schema = schema
+        self.module = None
+        self.modaliases = {}
+        self.objects = {}
 
-    def load_module(self, module_name, decl_ast):
-        decls = decl_ast.declarations
+    def set_module(self, module):
+        self.module = module
+        self.modaliases = {None: module}
 
-        self._schema, self._module = s_mod.Module.create_in_schema(
-            self._schema, name=module_name)
-        self._mod_aliases[None] = module_name
-
-        self._process_imports(decl_ast)
-
-        order = s_ordering.get_global_dep_order()
-
-        objects = collections.OrderedDict(
-            (s_objtypes.ObjectType if t is s_objtypes.BaseObjectType else t,
-             collections.OrderedDict()) for t in order)
-
-        views = []
-
-        # First, iterate over all top-level declarations
-        # to get a sense of what's in the schema so that
-        # forward references work.
-        for decl in decls:
-            try:
-                objcls = _DECL_MAP[type(decl)]
-            except KeyError:
-                if isinstance(decl, qlast.Import):
-                    continue
-                elif isinstance(decl, qlast.ViewDeclaration):
-                    views.append(decl)
-                    continue
-                msg = 'unexpected declaration type: {!r}'.format(decl)
-                raise TypeError(msg) from None
-
-            name = s_name.Name(module=module_name, name=decl.name)
-
-            # TODO: refactor this
-            objcls_kw = {}
-            if hasattr(decl, 'abstract'):
-                objcls_kw['is_abstract'] = decl.abstract
-            if hasattr(decl, 'delegated'):
-                objcls_kw['is_abstract'] = decl.delegated
-            if hasattr(decl, 'final'):
-                objcls_kw['is_final'] = decl.final
-            if hasattr(decl, 'inheritable'):
-                objcls_kw['inheritable'] = decl.inheritable
-
-            if objcls is s_constr.Constraint:
-                objcls_kw['return_type'] = self._schema.get('std::bool')
-                objcls_kw['return_typemod'] = qltypes.TypeModifier.SINGLETON
-
-            elif objcls is s_func.Function:
-                objcls_kw['return_type'] = self._get_ref_type(decl.returning)
-                objcls_kw['return_typemod'] = decl.returning_typemod
-
-            if issubclass(objcls, s_pointers.Pointer):
-                if len(decl.name) > s_pointers.MAX_NAME_LENGTH:
-                    raise errors.SchemaDefinitionError(
-                        f'link or property name length exceeds the maximum of '
-                        f'{s_pointers.MAX_NAME_LENGTH} characters',
-                        context=decl.context)
-
-            self._schema, obj = objcls.create_in_schema(
-                self._schema,
-                name=name,
-                sourcectx=decl.context,
-                **objcls_kw,
-            )
-
-            if decl.annotations:
-                self._parse_attr_setters(obj, decl.annotations)
-
-            objects[type(obj)][obj] = decl
-
-        # Second, process inheritance references.
-        enums = {}
-        chain = itertools.chain.from_iterable
-        for obj, decl in chain(t.items() for t in objects.values()):
-
-            if isinstance(obj, s_inh.InheritingObject):
-                bases, enum_values = self._get_bases(obj, decl)
-                self._schema = obj.set_field_value(
-                    self._schema, 'bases', bases)
-                self._schema = obj.set_field_value(
-                    self._schema, 'ancestors',
-                    s_inh.compute_ancestors(self._schema, obj))
-
-                if enum_values:
-                    enums[obj] = enum_values
-
-        # Now, with all objects in the declaration in the schema, we can
-        # process them in the semantic dependency order.
-
-        self._init_annotations(objects[s_anno.Annotation])
-
-        self._init_functions(objects[s_func.Function])
-
-        # Constraints have no external dependencies, but need to
-        # be fully initialized when we get to constraint users below.
-        self._init_constraints(objects[s_constr.Constraint])
-        constraints = self._schema.get_objects(
-            modules=[module_name], type=s_constr.Constraint)
-        constraints = s_ordering.sort_objects(self._schema, constraints)
-        for constraint in constraints:
-            self._schema = constraint.finalize(self._schema)
-
-        # ScalarTypes depend only on constraints and annotations,
-        # can process them now.
-        self._init_scalars(objects[s_scalars.ScalarType], enums)
-
-        # Generic links depend on scalars (via props), constraints
-        # and annotations.
-        self._init_links(objects[s_links.Link])
-
-        # Finally, we can do the first pass on types
-        self._init_objtypes(objects[s_objtypes.ObjectType])
-
-        constraints.update(c for c in self._schema.get_objects(
-            modules=[module_name], type=s_constr.Constraint)
-            if c.get_subject(self._schema) is not None)
-
-        # Final pass, set empty fields to default values and do
-        # other object finalization.
-
-        for link, linkdecl in objects[s_links.Link].items():
-            self._normalize_link_constraints(link, linkdecl)
-
-        for objtype, objtypedecl in objects[s_objtypes.ObjectType].items():
-            self._normalize_objtype_constraints(objtype, objtypedecl)
-
-        dctx = s_delta.CommandContext(declarative=True)
-
-        everything = s_ordering.sort_objects(
-            self._schema, self._schema.get_objects(modules=[module_name]))
-
-        for obj in everything:
-            cmdcls = s_delta.ObjectCommandMeta.get_command_class_or_die(
-                s_delta.CreateObject, type(obj))
-            ctxcls = cmdcls.get_context_class()
-            cmd = cmdcls(classname=obj.get_name(self._schema))
-            ctx = ctxcls(self._schema, cmd, obj)
-            with dctx(ctx):
-                self._schema = obj.finalize(self._schema, dctx=dctx)
-
-        # Normalization for defaults and other expressions must be
-        # *after* finalize() so that all pointers have been inherited.
-        for link, linkdecl in objects[s_links.Link].items():
-            self._normalize_link_expressions(link, linkdecl)
-
-        for objtype, objtypedecl in objects[s_objtypes.ObjectType].items():
-            self._normalize_objtype_expressions(objtype, objtypedecl)
-
-        for viewdecl in views:
-            self._compile_view(viewdecl)
-
-        return self._schema
-
-    def _process_imports(self, tree):
-        for decl in tree.declarations:
-            if isinstance(decl, qlast.Import):
-                for mod in decl.modules:
-                    if not self._schema.has_module(mod.module):
-                        raise errors.SchemaError(
-                            'cannot find module {!r}'.format(mod.module),
-                            context=mod.context)
-                    if mod.alias is not None:
-                        self._mod_aliases[mod.alias] = mod.module
-
-    def _get_ref_name(self, ref):
-        if isinstance(ref, edgeql.ast.ObjectRef):
+    def get_local_name(self, ref: qlast.ObjectRef) -> s_name.Name:
+        if isinstance(ref, qlast.ObjectRef):
             if ref.module:
                 return s_name.Name(module=ref.module, name=ref.name)
             else:
-                return ref.name
+                return s_name.Name(module=self.module, name=ref.name)
         else:
-            raise TypeError('ObjectRef expected '
-                            '(got type {!r})'.format(type(ref).__name__))
+            raise TypeError(
+                "ObjectRef expected "
+                "(got type {!r})".format(type(ref).__name__)
+            )
 
-    def _get_ref_obj(self, ref, item_type):
-        clsname = self._get_ref_name(ref)
-        try:
-            obj = self._schema.get(
-                clsname, type=item_type, module_aliases=self._mod_aliases)
-        except errors.InvalidReferenceError as e:
-            s_utils.enrich_schema_lookup_error(
-                e, clsname, modaliases=self._mod_aliases,
-                schema=self._schema, item_types=(item_type,))
-            e.set_source_context(ref.context)
-            raise e
-
-        return obj
-
-    def _get_ref_type(self, ref):
-        clsname = self._get_ref_name(ref.maintype)
-        if ref.subtypes:
-            subtypes = [self._get_ref_type(s) for s in ref.subtypes]
-            ccls = s_types.Collection.get_class(clsname)
-            typ = ccls.from_subtypes(self._schema, subtypes)
+    def get_ref_name(self, ref: qlast.ObjectRef) -> s_name.Name:
+        if isinstance(ref, qlast.ObjectRef):
+            if ref.module:
+                return s_name.Name(module=ref.module, name=ref.name)
+            elif f'{self.module}::{ref.name}' in self.objects:
+                return s_name.Name(module=self.module, name=ref.name)
+            else:
+                return s_name.Name(module="std", name=ref.name)
         else:
-            try:
-                typ = self._schema.get(
-                    clsname, module_aliases=self._mod_aliases)
-            except errors.InvalidReferenceError as e:
-                s_utils.enrich_schema_lookup_error(
-                    e, clsname, modaliases=self._mod_aliases,
-                    schema=self._schema, item_types=(s_types.Type,))
-                e.set_source_context(ref.context)
-                raise e
-
-        return typ
-
-    def _get_literal_value(self, node):
-        if not isinstance(node, edgeql.ast.BaseConstant):
-            raise TypeError('Literal expected '
-                            '(got type {!r})'.format(type(node).__name__))
-
-        return node.value
-
-    def _get_bases(self, obj, decl):
-        """Resolve object bases from the "extends" declaration."""
-        bases = []
-        enum_values = None
-
-        if decl.extends:
-            # Explicit inheritance
-            has_enums = any(br.maintype.name == 'enum' and br.subtypes
-                            for br in decl.extends)
-
-            if has_enums:
-                if not obj.is_scalar():
-                    raise errors.SchemaError(
-                        f'{obj.get_displayname(self._schema)} '
-                        f'cannot be an enumerated type',
-                        context=decl.context,
-                    )
-
-                if len(decl.extends) > 1:
-                    raise errors.SchemaError(
-                        f'invalid scalar type definition, enumeration must '
-                        f'be the only supertype specified',
-                        context=decl.extends[0].context,
-                    )
-
-                enum_values = [st.val.value for st in decl.extends[0].subtypes]
-
-                bases = [self._schema.get('std::anyenum')]
-
-            else:
-                for base_ref in decl.extends:
-                    base_name = self._get_ref_name(base_ref.maintype)
-
-                    base = self._schema.get(base_name, type=obj.__class__,
-                                            module_aliases=self._mod_aliases)
-                    if base.get_is_final(self._schema):
-                        msg = '{!r} is final and cannot be inherited ' \
-                            'from'.format(base.get_name(self._schema))
-                        raise errors.SchemaError(msg, context=decl)
-
-                    bases.append(base)
-
-        elif obj.get_name(self._schema) not in type(obj).get_root_classes():
-            # Implicit inheritance from the default base class
-            default_base_name = type(obj).get_default_base_name()
-            if default_base_name is not None:
-                default_base = self._schema.get(
-                    default_base_name, module_aliases=self._mod_aliases)
-                bases.append(default_base)
-
-        return s_obj.ObjectList.create(self._schema, bases), enum_values
-
-    def _init_functions(self, functions):
-        for func, decl in functions.items():
-            attrs = {a.name.name: a.value for a in decl.fields}
-
-            code = attrs.pop('function_code', None)
-            if code is not None:
-                self._schema = func.set_field_value(
-                    self._schema,
-                    'code',
-                    code.code.value,
-                )
-                self._schema = func.set_field_value(
-                    self._schema,
-                    'language',
-                    code.language,
-                )
-
-            self._schema, params = s_func.FuncParameterList.from_ast(
-                self._schema, decl, self._mod_aliases,
-                func_fqname=func.get_name(self._schema))
-
-            self._schema = func.set_field_value(
-                self._schema, 'params', params)
-
-    def _init_constraints(self, constraints):
-        for constraint, decl in constraints.items():
-            attrs = {a.name.name: a.value for a in decl.fields}
-            assert 'subject' not in attrs  # TODO: Add proper validation
-            assert 'subjectexpr' not in attrs  # TODO: Add proper validation
-
-            self._schema, params = s_func.FuncParameterList.from_ast(
-                self._schema, decl, self._mod_aliases,
-                func_fqname=constraint.get_name(self._schema),
-                prepend=[
-                    qlast.FuncParam(
-                        name='__subject__',
-                        type=qlast.TypeName(
-                            maintype=qlast.AnyType(),
-                        ),
-                        typemod=qltypes.TypeModifier.SINGLETON,
-                        kind=qltypes.ParameterKind.POSITIONAL,
-                        default=None,
-                    ),
-                ],
+            raise TypeError(
+                "ObjectRef expected "
+                "(got type {!r})".format(type(ref).__name__)
             )
 
-            for param in params.objects(self._schema):
-                p_kind = param.get_kind(self._schema)
-                if p_kind is qltypes.ParameterKind.NAMED_ONLY:
-                    raise errors.InvalidConstraintDefinitionError(
-                        'named only parameters are not allowed '
-                        'in this context',
-                        context=decl.context)
 
-                if param.get_default(self._schema) is not None:
-                    raise errors.InvalidConstraintDefinitionError(
-                        'constraints do not support parameters '
-                        'with defaults',
-                        context=decl.context)
-
-            anchors, _ = qlcompiler.get_param_anchors_for_callable(
-                params, self._schema)
-
-            expr = attrs.pop('expr', None)
-            if expr is not None:
-                self._schema = constraint.set_field_value(
-                    self._schema,
-                    'expr',
-                    s_expr.Expression.compiled(
-                        s_expr.Expression.from_ast(expr, self._schema,
-                                                   self._mod_aliases),
-                        schema=self._schema,
-                        modaliases=self._mod_aliases,
-                        anchors=anchors,
-                        func_params=params,
-                        allow_generic_type_output=True,
-                        parent_object_type=type(constraint),
-                    ),
-                )
-
-            subjexpr = decl.subject
-            if subjexpr is not None:
-                self._schema = constraint.set_field_value(
-                    self._schema,
-                    'subjectexpr',
-                    s_expr.Expression.compiled(
-                        s_expr.Expression.from_ast(subjexpr, self._schema,
-                                                   self._mod_aliases),
-                        schema=self._schema,
-                        modaliases=self._mod_aliases,
-                        anchors=anchors,
-                        func_params=params,
-                        allow_generic_type_output=True,
-                        parent_object_type=type(constraint),
-                    ),
-                )
-
-            self._schema = constraint.set_field_value(
-                self._schema, 'params', params)
-
-    def _init_annotations(self, attrs):
-        pass
-
-    def _init_scalars(self, scalars, enums):
-        for scalar, scalardecl in scalars.items():
-            enum_values = enums.get(scalar)
-            if enum_values:
-                self._schema = scalar.update(self._schema, {
-                    'enum_values': enum_values,
-                    'is_final': True,
-                })
-
-            if scalardecl.fields:
-                self._parse_field_setters(scalar, scalardecl.fields)
-
-            if scalardecl.constraints:
-                if enum_values:
-                    raise errors.UnsupportedFeatureError(
-                        f'constraints cannot be defined on an enumerated type',
-                        context=scalardecl.constraints[0].context,
-                    )
-                self._parse_subject_constraints(scalar, scalardecl)
-
-    def _get_scalar_deps(self, scalar):
-        deps = set()
-
-        consts = scalar.get_constraints(self._schema)
-        if not consts:
-            return deps
-
-        for constraint in consts.objects(self._schema):
-            constraint_params = constraint.get_params(self._schema)
-            if constraint_params:
-                deps.update([p.get_type(self._schema)
-                             for p in constraint_params.objects(self._schema)])
-
-        for dep in list(deps):
-            if isinstance(dep, s_abc.Collection):
-                deps.update(dep.get_subtypes(self._schema))
-                deps.discard(dep)
-
-        # Add dependency on all builtin scalars unconditionally
-        deps.update(self._schema.get_objects(
-            modules=['std'], type=s_scalars.ScalarType))
-
-        return deps
-
-    def _init_links(self, links):
-        for link, decl in links.items():
-            self._parse_source_props(link, decl)
-
-    def _get_derived_ptr_name(self, ptr_name, source):
-        source_name = source.get_name(self._schema)
-        shortname = s_name.Name(
-            module=source_name.module,
-            name=ptr_name,
-        )
-        return s_name.Name(
-            module=source.get_name(self._schema).module,
-            name=s_name.get_specialized_name(shortname, source_name),
-        )
-
-    def _parse_source_props(self, source, sourcedecl):
-        for propdecl in sourcedecl.properties:
-            prop_name = propdecl.name
-            if len(prop_name) > s_pointers.MAX_NAME_LENGTH:
-                raise errors.SchemaDefinitionError(
-                    f'link or property name length exceeds the maximum of '
-                    f'{s_pointers.MAX_NAME_LENGTH} characters',
-                    context=propdecl.context)
-
-            if propdecl.extends:
-                prop_bases = [self._get_ref_type(b) for b in propdecl.extends]
-            else:
-                prop_bases = [
-                    self._schema.get(s_props.Property.get_default_base_name())
-                ]
-
-            prop_target = None
-
-            if propdecl.target is not None:
-                prop_target = self._get_ref_type(propdecl.target[0])
-                if not isinstance(prop_target, (s_scalars.ScalarType,
-                                                s_types.Collection)):
-                    raise errors.InvalidPropertyTargetError(
-                        f'invalid property type: expected primitive type, '
-                        f'got {prop_target.__class__.__name__}',
-                        context=propdecl.target[0].context
-                    )
-
-            new_props = {
-                'sourcectx': propdecl.context,
-            }
-
-            name = self._get_derived_ptr_name(prop_name, source)
-            self._schema, prop = prop_bases[0].derive(
-                self._schema, source, prop_target,
-                merge_bases=prop_bases, attrs=new_props,
-                name=name)
-
-            if propdecl.cardinality is None:
-                if propdecl.expr is None:
-                    cardinality = qltypes.Cardinality.ONE
-                else:
-                    cardinality = None
-            else:
-                cardinality = propdecl.cardinality
-
-            self._schema = prop.update(self._schema, {
-                'declared_inherited': propdecl.inherited,
-                'required': bool(propdecl.required),
-                'cardinality': cardinality,
-            })
-
-            if propdecl.expr is not None:
-                self._schema = prop.set_field_value(
-                    self._schema, 'computable', True)
-
-            self._schema = source.add_pointer(self._schema, prop)
-
-            if propdecl.annotations:
-                self._parse_attr_setters(prop, propdecl.annotations)
-
-            if propdecl.fields:
-                self._parse_field_setters(prop, propdecl.fields)
-
-            if propdecl.constraints:
-                self._parse_subject_constraints(prop, propdecl)
-
-    def _parse_attr_setters(
-            self, scls, attrdecls: typing.List[qlast.Annotation]):
-        for attrdecl in attrdecls:
-            attr = self._get_ref_obj(attrdecl.name, s_anno.Annotation)
-            value = qlcompiler.evaluate_ast_to_python_val(
-                attrdecl.value, self._schema, modaliases=self._mod_aliases)
-
-            if not isinstance(value, str):
-                raise errors.SchemaDefinitionError(
-                    'annotation value is not a string',
-                    context=attrdecl.value.context)
-
-            self._schema = scls.set_annotation(self._schema, attr, value)
-
-    def _parse_field_setters(
-            self, scls, field_decls: typing.List[qlast.Field]):
-        fields = type(scls).get_fields()
-        updates = {}
-
-        for field_decl in field_decls:
-            fieldname = field_decl.name.name
-
-            attrfield = fields.get(fieldname)
-            if attrfield is None or not attrfield.allow_ddl_set:
-                raise errors.SchemaError(
-                    f'unexpected field {fieldname}',
-                    context=field_decl.context)
-
-            if issubclass(attrfield.type, s_expr.Expression):
-                updates[fieldname] = s_expr.Expression.from_ast(
-                    field_decl.value,
-                    self._schema,
-                    self._mod_aliases,
-                )
-
-            else:
-                updates[fieldname] = qlcompiler.evaluate_ast_to_python_val(
-                    field_decl.value, self._schema,
-                    modaliases=self._mod_aliases)
-
-        if updates:
-            self._schema = scls.update(self._schema, updates)
-
-    def _parse_subject_constraints(self, subject, subjdecl):
-        # Perform initial collection of constraints defined in subject context.
-        # At this point all referenced constraints should be fully initialized.
-
-        for constrdecl in subjdecl.constraints:
-            attrs = {a.name.name: a.value for a in constrdecl.fields}
-            assert 'subject' not in attrs  # TODO: Add proper validation
-
-            constr_name = self._get_ref_name(constrdecl.name)
-            if constrdecl.args:
-                args = [
-                    s_expr.Expression.from_ast(
-                        arg, self._schema, self._mod_aliases)
-                    for arg in constrdecl.args
-                ]
-            else:
-                args = []
-
-            if constrdecl.subject is not None:
-                subjectexpr = s_expr.Expression.from_ast(
-                    constrdecl.subject,
-                    self._schema,
-                    self._mod_aliases,
-                )
-            else:
-                subjectexpr = None
-
-            self._schema, c, _ = \
-                s_constr.Constraint.create_concrete_constraint(
-                    self._schema,
-                    subject,
-                    name=constr_name,
-                    is_abstract=constrdecl.delegated,
-                    sourcectx=constrdecl.context,
-                    subjectexpr=subjectexpr,
-                    args=args,
-                    modaliases=self._mod_aliases,
-                )
-
-            self._schema = subject.add_constraint(self._schema, c)
-
-    def _parse_subject_indexes(self, subject, subjdecl):
-        for indexdecl in subjdecl.indexes:
-            index_name = self._get_ref_name(indexdecl.name)
-            index_name = subject.get_name(self._schema) + '.' + index_name
-            local_name = s_name.get_specialized_name(
-                index_name, subject.get_name(self._schema))
-
-            der_name = s_name.Name(
-                name=local_name, module=subject.get_name(self._schema).module)
-
-            if not isinstance(subject, s_abc.Pointer):
-                singletons = [subject]
-                path_prefix_anchor = qlast.Subject
-            else:
-                singletons = []
-                path_prefix_anchor = None
-
-            index_expr = s_expr.Expression.compiled(
-                s_expr.Expression.from_ast(
-                    indexdecl.expression, self._schema, self._mod_aliases),
-                schema=self._schema,
-                modaliases=self._mod_aliases,
-                parent_object_type=type(subject),
-                anchors={qlast.Subject: subject},
-                path_prefix_anchor=path_prefix_anchor,
-                singletons=singletons,
-            )
-
-            self._schema, index = s_indexes.Index.create_in_schema(
-                self._schema,
-                name=der_name,
-                expr=index_expr,
-                subject=subject,
-            )
-
-            self._schema = subject.add_index(self._schema, index)
-
-    def _init_objtypes(self, objtypes):
-        for objtype, objtypedecl in objtypes.items():
-            self._parse_source_props(objtype, objtypedecl)
-
-            if objtypedecl.fields:
-                self._parse_field_setters(objtype, objtypedecl.fields)
-
-            for linkdecl in objtypedecl.links:
-                link_name = linkdecl.name
-                if len(link_name) > s_pointers.MAX_NAME_LENGTH:
-                    raise errors.SchemaDefinitionError(
-                        f'link or property name length exceeds the maximum of '
-                        f'{s_pointers.MAX_NAME_LENGTH} characters',
-                        context=linkdecl.context)
-
-                if linkdecl.extends:
-                    link_bases = [
-                        self._get_ref_type(b) for b in linkdecl.extends
-                    ]
-                else:
-                    link_bases = [
-                        self._schema.get(s_links.Link.get_default_base_name())
-                    ]
-
-                if linkdecl.expr is not None:
-                    # This is a computable, but we cannot interpret
-                    # the expression yet, so set the target to `any`
-                    # temporarily.
-                    _targets = [s_pseudo.Any.instance]
-
-                else:
-                    _targets = [self._get_ref_type(t) for t in linkdecl.target]
-
-                if len(_targets) == 1:
-                    # Usual case, just one target
-                    spectargets = None
-                    target = _targets[0]
-                else:
-                    # Multiple explicit targets, create a union type.
-                    spectargets = s_obj.ObjectSet.create(
-                        self._schema, _targets)
-
-                    self._schema, target = s_utils.get_union_type(
-                        self._schema, _targets,
-                        module=self._module.get_name(self._schema))
-
-                    self._schema = target.set_field_value(
-                        self._schema, 'is_derived', True)
-
-                if (not target.is_any() and
-                        not isinstance(target, s_objtypes.ObjectType)):
-                    raise errors.InvalidLinkTargetError(
-                        f'invalid link target, expected object type, got '
-                        f'{target.__class__.__name__}',
-                        context=linkdecl.target[0].context
-                    )
-
-                new_props = {
-                    'sourcectx': linkdecl.context,
-                }
-
-                name = self._get_derived_ptr_name(link_name, objtype)
-                self._schema, link = link_bases[0].derive(
-                    self._schema, objtype, target,
-                    attrs=new_props, merge_bases=link_bases,
-                    apply_defaults=not linkdecl.inherited,
-                    name=name)
-
-                if linkdecl.cardinality is None:
-                    if linkdecl.expr is None:
-                        cardinality = qltypes.Cardinality.ONE
-                    else:
-                        cardinality = None
-                else:
-                    cardinality = linkdecl.cardinality
-
-                self._schema = link.update(self._schema, {
-                    'spectargets': spectargets,
-                    'required': bool(linkdecl.required),
-                    'cardinality': cardinality,
-                    'declared_inherited': linkdecl.inherited,
-                })
-
-                if linkdecl.on_target_delete is not None:
-                    self._schema = link.set_field_value(
-                        self._schema,
-                        'on_target_delete',
-                        linkdecl.on_target_delete.cascade)
-
-                if linkdecl.expr is not None:
-                    self._schema = link.set_field_value(
-                        self._schema, 'computable', True)
-
-                self._parse_source_props(link, linkdecl)
-                self._schema = objtype.add_pointer(self._schema, link)
-
-        for objtype, objtypedecl in objtypes.items():
-            if objtypedecl.indexes:
-                self._parse_subject_indexes(objtype, objtypedecl)
-
-            if objtypedecl.constraints:
-                self._parse_subject_constraints(objtype, objtypedecl)
-
-    def _normalize_link_constraints(self, link, linkdecl):
-        if linkdecl.constraints:
-            self._parse_subject_constraints(link, linkdecl)
-
-    def _normalize_link_expressions(self, link, linkdecl):
-        """Interpret and validate EdgeQL expressions in link declaration."""
-        for propdecl in linkdecl.properties:
-            if propdecl.expr is not None:
-                # Computable
-                prop_name = propdecl.name
-                generic_prop = self._schema.get(
-                    prop_name, module_aliases=self._mod_aliases)
-                spec_prop = link.getptr(
-                    self._schema,
-                    generic_prop.get_name(self._schema).name)
-
-                if propdecl.expr is not None:
-                    # Computable
-                    self._normalize_ptr_default(
-                        propdecl.expr, link, spec_prop, propdecl)
-
-    def _normalize_objtype_constraints(self, objtype, objtypedecl):
-        for linkdecl in objtypedecl.links:
-            if linkdecl.constraints:
-                spec_link = objtype.getptr(self._schema, linkdecl.name)
-                self._parse_subject_constraints(spec_link, linkdecl)
-
-    def _normalize_objtype_expressions(self, objtype, typedecl):
-        """Interpret and validate EdgeQL expressions in type declaration."""
-        for ptrdecl in itertools.chain(typedecl.links, typedecl.properties):
-            link_name = ptrdecl.name
-            spec_link = objtype.getptr(self._schema, link_name)
-
-            if ptrdecl.expr is not None:
-                # Computable
-                self._normalize_ptr_default(
-                    ptrdecl.expr, objtype, spec_link, ptrdecl)
-
-            for attr in ptrdecl.fields:
-                name = attr.name.name
-                if name == 'default':
-                    self._normalize_ptr_default(
-                        attr.value, objtype, spec_link, ptrdecl)
-
-    def _normalize_ptr_default(self, qltree, source, ptr, ptrdecl):
-        expr = s_expr.Expression.from_ast(
-            qltree, self._schema, self._mod_aliases)
-
-        ir = qlcompiler.compile_ast_to_ir(
-            expr.qlast, schema=self._schema,
-            modaliases=self._mod_aliases,
-            anchors={qlast.Source: source},
-            path_prefix_anchor=qlast.Source,
-            singletons=[source],
-        )
-
-        expr_type = ir.stype
-
-        self._schema = ptr.set_field_value(
-            self._schema, 'default', expr)
-
-        if ptr.is_pure_computable(self._schema):
-            # Pure computable without explicit target.
-            # Fixup pointer target and target property.
-            self._schema = ptr.set_field_value(
-                self._schema, 'target', expr_type)
-
-            if isinstance(ptr, s_links.Link):
-                if not isinstance(expr_type, s_objtypes.ObjectType):
-                    raise errors.InvalidLinkTargetError(
-                        f'invalid link target, expected object type, got '
-                        f'{expr_type.__class__.__name__}',
-                        context=ptrdecl.expr.context
-                    )
-            else:
-                if not isinstance(expr_type, (s_scalars.ScalarType,
-                                              s_types.Collection)):
-                    raise errors.InvalidPropertyTargetError(
-                        f'invalid property type: expected primitive type, '
-                        f'got {expr_type.__class__.__name__}',
-                        context=ptrdecl.expr.context
-                    )
-
-            if isinstance(ptr, s_links.Link):
-                tgt_prop = ptr.getptr(self._schema, 'target')
-                self._schema = tgt_prop.set_field_value(
-                    self._schema, 'target', expr_type)
-
-            self._schema = ptr.set_field_value(
-                self._schema, 'cardinality', ir.cardinality)
-
-            if ptrdecl.cardinality is not ptr.get_cardinality(self._schema):
-                if ptrdecl.cardinality is qltypes.Cardinality.ONE:
-                    raise errors.SchemaError(
-                        f'computable expression possibly returns more than '
-                        f'one value, but the '
-                        f'{ptr.get_schema_class_displayname()} '
-                        f'is declared as "single"',
-                        context=qltree.context)
-
-        if (not isinstance(expr_type, s_abc.Type) or
-                (ptr.get_target(self._schema) is not None and
-                    # the default must be assignment-castable to the
-                    # target type
-                    not expr_type.assignment_castable_to(
-                        ptr.get_target(self._schema), self._schema))):
-            raise errors.SchemaError(
-                'default value query must yield a single result of '
-                'type {!r}'.format(
-                    ptr.get_target(self._schema).get_name(self._schema)),
-                context=qltree.context)
-
-    def _compile_view(self, viewdecl):
-        view_ql = None
-
-        for field_decl in viewdecl.fields:
-            fieldname = field_decl.name.name
-            if fieldname == 'expr':
-                view_ql = field_decl.value
-                break
-
-        if view_ql is None:
-            raise errors.SchemaError(
-                'missing required expression in view definition',
-                context=viewdecl.context,
-            )
-
-        expr = s_expr.Expression.from_ast(
-            view_ql, self._schema, self._mod_aliases)
-
-        viewname = s_name.Name(
-            module=self._module.get_name(self._schema),
-            name=viewdecl.name)
-
-        ir = qlcompiler.compile_ast_to_ir(
-            expr.qlast,
-            self._schema,
-            derived_target_module=self._module.get_name(self._schema),
-            modaliases=self._mod_aliases,
-            result_view_name=viewname,
-            schema_view_mode=True)
-
-        self._schema = ir.schema
-
-        scls = self._schema.get(viewname)
-        self._parse_field_setters(scls, viewdecl.fields)
-
-        expr = s_expr.Expression.from_ir(
-            expr, ir, self._schema)
-
-        self._schema = scls.set_field_value(
-            self._schema, 'expr', expr)
-
-        self._schema = scls.set_field_value(
-            self._schema, 'view_type', s_types.ViewType.Select)
-
-
-def load_module_declarations(schema, declarations):
-    """Create a schema and populate it with provided declarations."""
-    loader = DeclarationLoader(schema)
+class LayoutTraceContext(TraceContextBase):
+    def __init__(self, schema, local_modules):
+        super().__init__(schema)
+        self.local_modules = local_modules
+        self.inh_graph = {}
+
+
+class DepTraceContext(TraceContextBase):
+    def __init__(self, schema, ddlgraph, objects):
+        super().__init__(schema)
+        self.ddlgraph = ddlgraph
+        self.depstack = []
+        self.objects = objects
+        self.inhgraph = {}
+
+
+def sdl_to_ddl(schema, declarations):
+    ddlgraph = {}
+    mods = []
+
+    ctx = LayoutTraceContext(
+        schema,
+        local_modules=frozenset(mod for mod, schema_decl in declarations),
+    )
+
+    for module_name, schema_ast in declarations:
+        for decl_ast in schema_ast.declarations:
+            if isinstance(decl_ast, qlast.CreateObject):
+                fq_name = f'{module_name}::{decl_ast.name.name}'
+                if isinstance(decl_ast, qlast.CreateObjectType):
+                    ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
+
+                elif isinstance(decl_ast, qlast.CreateScalarType):
+                    ctx.objects[fq_name] = qltracer.Type(fq_name)
+
+                elif isinstance(decl_ast, (qlast.CreateLink,
+                                           qlast.CreateProperty)):
+                    ctx.objects[fq_name] = qltracer.Pointer(
+                        fq_name, source=None, target=None)
 
     for module_name, decl_ast in declarations:
-        schema = loader.load_module(module_name, decl_ast)
+        ctx.set_module(module_name)
+        trace_layout(decl_ast, ctx=ctx)
 
-    return schema
+    topological.normalize(ctx.inh_graph, _merge_items)
+
+    ctx = DepTraceContext(schema, ddlgraph, ctx.objects)
+    for module_name, decl_ast in declarations:
+        ctx.set_module(module_name)
+        trace_dependencies(decl_ast, ctx=ctx)
+        mods.append(qlast.CreateModule(name=qlast.ObjectRef(name=module_name)))
+
+    return mods + list(topological.sort(ddlgraph, allow_unresolved=False))
 
 
-def parse_module_declarations(schema, declarations):
-    """Create a schema and populate it with provided declarations."""
-    loader = DeclarationLoader(schema)
+def _merge_items(item, parent):
 
-    for module_name, declaration in declarations:
-        decl_ast = ql_parser.parse_sdl(declaration)
-        schema = loader.load_module(module_name, decl_ast)
+    for pn, ptr in parent.pointers.items():
+        if pn not in item.pointers:
+            ptr_copy = qltracer.Pointer(
+                pn, source=ptr.source, target=ptr.target)
+            ptr_copy.pointers = dict(ptr.pointers)
+            item.pointers[pn] = ptr_copy
+        else:
+            ptr_copy = qltracer.Pointer(
+                pn, source=item, target=item.pointers[pn].target)
+            ptr_copy.pointers = dict(item.pointers[pn].pointers)
+            item.pointers[pn] = _merge_items(ptr_copy, ptr)
 
-    return schema
+    return item
+
+
+@functools.singledispatch
+def trace_layout(node: qlast.Base, *, ctx: LayoutTraceContext):
+    pass
+
+
+@trace_layout.register
+def trace_layout_Schema(node: qlast.Schema, *, ctx: LayoutTraceContext):
+    for decl in node.declarations:
+        trace_layout(decl, ctx=ctx)
+
+
+@trace_layout.register
+def trace_layout_CreateObjectType(
+        node: qlast.CreateObjectType, *, ctx: LayoutTraceContext):
+
+    _trace_item_layout(node, ctx=ctx)
+
+
+@trace_layout.register
+def trace_layout_CreateLink(
+        node: qlast.CreateLink, *, ctx: LayoutTraceContext):
+
+    _trace_item_layout(node, ctx=ctx)
+
+
+def _trace_item_layout(node: qlast.CreateObject, *,
+                       obj=None, fq_name=None, ctx: LayoutTraceContext):
+    if obj is None:
+        fq_name = f'{ctx.module}::{node.name.name}'
+        obj = ctx.objects[fq_name]
+
+    if hasattr(node, "bases"):
+        bases = []
+
+        for ref in _get_bases(node, ctx=ctx):
+            bases.append(ref)
+
+            if (ref.module not in ctx.local_modules
+                    and ref not in ctx.inh_graph):
+                base = ctx.schema.get(ref)
+                base_obj = type(obj)(name=ref)
+                for pn, p in base.get_pointers(ctx.schema).items(ctx.schema):
+                    base_obj.pointers[pn] = qltracer.Pointer(
+                        pn,
+                        source=base,
+                        target=p.get_target(ctx.schema),
+                    )
+                ctx.inh_graph[ref] = {
+                    "item": base_obj,
+                }
+
+        ctx.inh_graph[fq_name] = {
+            "item": obj,
+            "deps": bases,
+            "merge": bases,
+        }
+
+    for decl in node.commands:
+        if isinstance(decl, qlast.CreateConcretePointer):
+            if isinstance(decl.target, qlast.TypeExpr):
+                target = _resolve_type_expr(decl.target, ctx=ctx)
+            else:
+                target = None
+
+            ptr = qltracer.Pointer(decl.name.name, source=obj, target=target)
+            obj.pointers[decl.name.name] = ptr
+            ptr_name = f'{fq_name}@{decl.name.name}'
+            ctx.objects[ptr_name] = ptr
+
+            _trace_item_layout(
+                decl, obj=ptr, fq_name=ptr_name, ctx=ctx)
+
+
+@functools.singledispatch
+def trace_dependencies(node: qlast.Base, *, ctx: DepTraceContext):
+    raise NotImplementedError(
+        f"no SDL dep tracer handler for {node.__class__}")
+
+
+@trace_dependencies.register
+def trace_Schema(node: qlast.Schema, *, ctx: DepTraceContext):
+
+    for decl in node.declarations:
+        trace_dependencies(decl, ctx=ctx)
+
+
+@trace_dependencies.register
+def trace_SetField(node: qlast.SetField, *, ctx: DepTraceContext):
+    deps = set()
+
+    for dep in qltracer.trace_refs(
+        node.value,
+        schema=ctx.schema,
+        module=ctx.module,
+        objects=ctx.objects,
+    ):
+        if dep.startswith(f"{ctx.module}::"):
+            deps.add(dep)
+
+    _register_item(node, deps=deps, ctx=ctx)
+
+
+@trace_dependencies.register
+def trace_ConcreteConstraint(
+    node: qlast.CreateConcreteConstraint, *, ctx: DepTraceContext
+):
+    deps = set()
+
+    base_name = ctx.get_ref_name(node.name)
+    if base_name.module == ctx.module:
+        deps.add(base_name)
+
+    exprs = list(node.args)
+    if node.subjectexpr:
+        exprs.append(node.subjectexpr)
+
+    for cmd in node.commands:
+        if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
+            exprs.append(node.value)
+
+    if isinstance(ctx.depstack[-1][0], qlast.AlterScalarType):
+        # Scalars are tightly bound to their constraints, so
+        # we must prohibit any possible reference to this scalar
+        # type from within the constraint.
+        loop_control = ctx.depstack[-1][1]
+    else:
+        loop_control = None
+
+    if exprs:
+        texts = [qlcodegen.generate_source(e) for e in exprs]
+        m = hashlib.sha1()
+        m.update('|'.join(texts).encode())
+        extra_name = m.hexdigest()
+    else:
+        extra_name = None
+
+    _register_item(
+        node,
+        deps=deps,
+        hard_dep_exprs=exprs,
+        loop_control=loop_control,
+        subject=ctx.depstack[-1][1],
+        extra_name=extra_name,
+        ctx=ctx,
+    )
+
+
+@trace_dependencies.register
+def trace_ConcretePointer(
+    node: qlast.CreateConcretePointer, *, ctx: DepTraceContext
+):
+
+    _register_item(
+        node,
+        hard_dep_exprs=[node.target],
+        source=ctx.depstack[-1][1],
+        ctx=ctx,
+    )
+
+
+@trace_dependencies.register
+def trace_View(
+    node: qlast.CreateView, *, ctx: DepTraceContext
+):
+    hard_dep_exprs = []
+
+    for cmd in node.commands:
+        if isinstance(cmd, qlast.SetField) and cmd.name.name == "expr":
+            hard_dep_exprs.append(cmd.value)
+            break
+
+    _register_item(node, hard_dep_exprs=hard_dep_exprs, ctx=ctx)
+
+
+@trace_dependencies.register
+def trace_default(node: qlast.CreateObject, *, ctx: DepTraceContext):
+    # Generic DDL catchall
+    _register_item(node, ctx=ctx)
+
+
+def _register_item(
+    decl, *, deps=None, hard_dep_exprs=None, loop_control=None,
+    source=None, subject=None, extra_name=None, ctx
+):
+
+    if deps:
+        deps = set(deps)
+    else:
+        deps = set()
+
+    op = orig_op = copy.copy(decl)
+
+    if isinstance(decl, qlast.CreateConcretePointer):
+        name = decl.name.name
+    else:
+        name = ctx.get_local_name(decl.name)
+
+    if ctx.depstack:
+        op.alter_if_exists = True
+        top_parent = parent = copy.copy(ctx.depstack[0][0])
+        parent.commands = []
+        for entry, entry_name in ctx.depstack[1:]:
+            entry_op = copy.copy(entry)
+            entry_op.commands = []
+            parent.commands.append(entry_op)
+            parent = entry_op
+
+        parent.commands.append(op)
+        op = top_parent
+
+        fq_name = ctx.depstack[-1][1] + "@" + name
+    else:
+        op.aliases = [qlast.ModuleAliasDecl(alias=None, module=ctx.module)]
+        fq_name = name
+
+    if extra_name is not None:
+        fq_name = f'{fq_name}:{extra_name}'
+
+    node = {
+        "item": op,
+        "deps": {n for _, n in ctx.depstack if n != loop_control},
+    }
+    ctx.ddlgraph[fq_name] = node
+
+    if hasattr(decl, "bases"):
+        bases = set()
+
+        for ref in _get_bases(decl, ctx=ctx):
+            if ref.module == ctx.module:
+                bases.add(ref)
+
+        deps.update(bases)
+        ctx.inhgraph[fq_name] = bases
+
+    if ctx.depstack:
+        parent_bases = ctx.inhgraph.get(ctx.depstack[-1][1])
+        if parent_bases:
+            for parent_base in parent_bases:
+                base_item = f'{parent_base}@{name}'
+                if base_item in ctx.objects:
+                    deps.add(base_item)
+
+    ast_subcommands = getattr(decl, 'commands', [])
+    commands = []
+    if ast_subcommands:
+        subcmds = []
+        for cmd in ast_subcommands:
+            if isinstance(cmd, qlast.ObjectDDL):
+                subcmds.append(cmd)
+            elif (isinstance(cmd, qlast.SetField)
+                  and not isinstance(cmd.value, qlast.BaseConstant)
+                  and not isinstance(op, qlast.CreateView)):
+                subcmds.append(cmd)
+            else:
+                commands.append(cmd)
+
+        if subcmds:
+            alter_name = f"Alter{decl.__class__.__name__[len('Create'):]}"
+            alter_cls = getattr(qlast, alter_name)
+            alter_cmd = alter_cls(name=decl.name)
+
+            if not ctx.depstack:
+                alter_cmd.aliases = [
+                    qlast.ModuleAliasDecl(alias=None, module=ctx.module)
+                ]
+
+            ctx.depstack.append((alter_cmd, fq_name))
+
+            for cmd in subcmds:
+                trace_dependencies(cmd, ctx=ctx)
+
+            ctx.depstack.pop()
+
+    if hard_dep_exprs:
+        for expr in hard_dep_exprs:
+            if isinstance(expr, qlast.TypeExpr):
+                targets = qlast.get_targets(expr)
+                for target in targets:
+                    if not target.subtypes:
+                        name = ctx.get_ref_name(target.maintype)
+                        if name.module == ctx.module:
+                            deps.add(name)
+            else:
+                for dep in qltracer.trace_refs(
+                    expr,
+                    schema=ctx.schema,
+                    module=ctx.module,
+                    source=source,
+                    path_prefix=source,
+                    subject=subject or fq_name,
+                    objects=ctx.objects,
+                ):
+                    if dep.startswith(f"{ctx.module}::"):
+                        deps.add(dep)
+
+    orig_op.commands = commands
+
+    if loop_control:
+        parent_node = ctx.ddlgraph[loop_control]
+        if 'loop-control' not in parent_node:
+            parent_node['loop-control'] = {fq_name}
+        else:
+            parent_node['loop-control'].add(fq_name)
+
+    node["deps"].update(deps)
+
+
+def _get_bases(decl, *, ctx):
+    """Resolve object bases from the "extends" declaration."""
+    bases = []
+
+    if decl.bases:
+        # Explicit inheritance
+        has_enums = any(
+            br.maintype.name == "enum" and br.subtypes for br in decl.bases
+        )
+
+        if has_enums:
+            if len(decl.bases) > 1:
+                raise errors.SchemaError(
+                    f"invalid scalar type definition, enumeration must "
+                    f"be the only supertype specified",
+                    context=decl.bases[0].context,
+                )
+
+            bases = [s_name.Name("std::anyenum")]
+
+        else:
+            for base_ref in decl.bases:
+                base_name = ctx.get_ref_name(base_ref.maintype)
+                bases.append(base_name)
+
+    return bases
+
+
+def _resolve_type_expr(texpr: qlast.TypeExpr, *, ctx: LayoutTraceContext):
+
+    if isinstance(texpr, qlast.TypeName):
+        if texpr.subtypes:
+            return qltracer.Type(name=texpr.maintype.name)
+        else:
+            refname = ctx.get_ref_name(texpr.maintype)
+            obj = ctx.objects.get(refname)
+            if obj is None:
+                obj = ctx.schema.get(refname, default=None)
+
+            return obj
+
+    elif isinstance(texpr, qlast.TypeOp):
+
+        if texpr.op == '|':
+            return qltracer.UnionType([
+                _resolve_type_expr(texpr.left, ctx=ctx),
+                _resolve_type_expr(texpr.right, ctx=ctx),
+            ])
+
+        else:
+            raise NotImplementedError(
+                f'unsupported type operation: {texpr.op}')
+
+    else:
+        raise NotImplementedError(
+            f'unsupported type expression: {texpr!r}'
+        )

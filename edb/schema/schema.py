@@ -542,7 +542,7 @@ class Schema:
         except KeyError:
             if default is _void:
                 raise errors.InvalidReferenceError(
-                    f'reference to a non-existent schema item: {obj_id}'
+                    f'reference to a non-existent schema item {obj_id}'
                     f' in schema {self!r}'
                 ) from None
             else:
@@ -589,7 +589,7 @@ class Schema:
             return obj
 
         raise errors.InvalidReferenceError(
-            f'reference to a non-existent schema item: {name}')
+            f'reference to a non-existent schema item {name}')
 
     def has_module(self, module):
         return self.get_global(s_mod.Module, module, None) is not None

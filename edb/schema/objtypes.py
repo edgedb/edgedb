@@ -89,7 +89,8 @@ class BaseObjectType(sources.Source,
             l for l in schema.get_referrers(self, scls_type=links.Link,
                                             field_name='target')
             if (l.get_shortname(schema).name == name
-                and not l.get_source(schema).is_view(schema))
+                and not l.get_source(schema).is_view(schema)
+                and l.get_is_local(schema))
         }
 
         for obj in self.get_ancestors(schema).objects(schema):
@@ -97,7 +98,8 @@ class BaseObjectType(sources.Source,
                 l for l in schema.get_referrers(obj, scls_type=links.Link,
                                                 field_name='target')
                 if (l.get_shortname(schema).name == name
-                    and not l.get_source(schema).is_view(schema))
+                    and not l.get_source(schema).is_view(schema)
+                    and l.get_is_local(schema))
             )
 
         return ptrs
@@ -151,11 +153,12 @@ class DerivedObjectType(BaseObjectType):
 
 def get_union_type_attrs(
         schema,
-        components: typing.Iterable[ObjectType]):
+        components: typing.Iterable[ObjectType], *,
+        module: typing.Optional[str]=None):
 
     name = sn.Name(
         name='|'.join(sorted(str(t.id) for t in components)),
-        module='__derived__',
+        module=module or '__derived__',
     )
 
     type_id = s_types.generate_type_id(name)
@@ -185,10 +188,15 @@ def get_or_create_union_type(
     if objtype is None:
         components = list(components)
 
-        schema, objtype = ObjectType.create_in_schema_with_inheritance(
-            schema, id=type_id, name=name, bases=[schema.get('std::Object')],
-            union_of=so.ObjectSet.create(schema, components),
-            is_opaque_union=opaque,
+        std_object = schema.get('std::Object')
+
+        schema, objtype = std_object.derive(
+            schema, std_object, name=name,
+            attrs=dict(
+                id=type_id,
+                union_of=so.ObjectSet.create(schema, components),
+                is_opaque_union=opaque,
+            ),
         )
 
         if not opaque:

@@ -20,6 +20,7 @@
 import typing
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from edb import errors
 
@@ -93,46 +94,10 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link):
 
     on_target_delete = so.SchemaField(
         LinkTargetDeleteAction,
-        default=None, coerce=True, compcoef=0.9,
+        default=LinkTargetDeleteAction.RESTRICT,
+        coerce=True,
+        compcoef=0.9,
         merge_fn=merge_actions)
-
-    def init_std_props(self, schema, *, mark_derived=False, dctx=None):
-
-        src_n = sn.Name('std::source')
-        pointers = self.get_pointers(schema)
-
-        if not pointers.has(schema, 'source'):
-            source_pbase = schema.get(src_n)
-            schema, source_p = source_pbase.derive(
-                schema, self, self.get_source(schema),
-                mark_derived=mark_derived, dctx=dctx)
-
-            schema = self.add_pointer(schema, source_p)
-
-        tgt_n = sn.Name('std::target')
-        if not pointers.has(schema, 'target'):
-            target_pbase = schema.get(tgt_n)
-            schema, target_p = target_pbase.derive(
-                schema, self, self.get_target(schema),
-                mark_derived=mark_derived, dctx=dctx)
-
-            schema = self.add_pointer(schema, target_p)
-
-        return schema
-
-    def init_derived(self, schema, source, *qualifiers,
-                     mark_derived=False, dctx=None,
-                     init_props=True, **kwargs):
-
-        schema, ptr = super().init_derived(
-            schema, source, *qualifiers,
-            mark_derived=mark_derived,
-            dctx=dctx, **kwargs)
-
-        if init_props:
-            schema = ptr.init_std_props(schema, mark_derived=mark_derived)
-
-        return schema, ptr
 
     def is_link_property(self, schema):
         return False
@@ -158,27 +123,10 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link):
             other, our_schema=our_schema,
             their_schema=their_schema, context=context)
 
-    def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
-        schema = super().finalize(
-            schema, bases=bases, apply_defaults=apply_defaults,
-            dctx=dctx)
-
-        if not self.generic(schema) and apply_defaults:
-            if self.get_on_target_delete(schema) is None:
-                schema = self.set_field_value(
-                    schema,
-                    'on_target_delete',
-                    LinkTargetDeleteAction.RESTRICT)
-
-                if dctx is not None:
-                    from . import delta as sd
-
-                    dctx.current().op.add(sd.AlterObjectProperty(
-                        property='on_target_delete',
-                        new_value=self.get_on_target_delete(schema),
-                        source='default'
-                    ))
-
+    def set_target(self, schema, target):
+        schema = super().set_target(schema, target)
+        tgt_prop = self.getptr(schema, 'target')
+        schema = tgt_prop.set_target(schema, target)
         return schema
 
     @classmethod
@@ -218,11 +166,12 @@ class LinkCommand(lproperties.PropertySourceCommand,
                   referrer_context_class=LinkSourceCommandContext):
 
     @classmethod
-    def _create_union_target(cls, schema, context, targets):
+    def _create_union_target(cls, schema, context, targets, module):
         from . import objtypes as s_objtypes
 
         union_type_attrs = s_objtypes.get_union_type_attrs(
-            schema, [schema.get(t.name) for t in targets],
+            schema, [t._resolve_ref(schema) for t in targets],
+            module=module,
         )
 
         target = so.ObjectRef(name=union_type_attrs['name'])
@@ -290,21 +239,20 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             cmd.add(
                 sd.AlterObjectProperty(
                     property='required',
-                    new_value=astnode.is_required
+                    new_value=astnode.is_required or False
                 )
             )
 
             cmd.add(
                 sd.AlterObjectProperty(
                     property='cardinality',
-                    new_value=astnode.cardinality
+                    new_value=astnode.cardinality or qltypes.Cardinality.ONE
                 )
             )
 
             # "source" attribute is set automatically as a refdict back-attr
             parent_ctx = context.get(LinkSourceCommandContext)
             source_name = parent_ctx.op.classname
-            target_type = None
 
             # FIXME: this is an approximate solution
             targets = qlast.get_targets(astnode.target)
@@ -324,7 +272,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 )
 
                 target = cls._create_union_target(
-                    schema, context, new_targets)
+                    schema, context, new_targets, module=source_name.module)
             else:
                 target_expr = targets[0]
                 if isinstance(target_expr, qlast.TypeName):
@@ -333,25 +281,41 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                         schema=schema)
                 else:
                     # computable
-                    target = cmd._parse_computable(
+                    target, base = cmd._parse_computable(
                         target_expr, schema, context)
 
-            if (isinstance(target, so.ObjectRef) and
-                    target.name == source_name):
-                # Special case for loop links.  Since the target
-                # is the same as the source, we know it's a proper
-                # type.
-                pass
-            else:
-                if target_type is None:
-                    target_type = utils.resolve_typeref(target, schema=schema)
+                    if base is not None:
+                        cmd.set_attribute_value(
+                            'bases', so.ObjectList.create(schema, [base]),
+                        )
 
-                if not isinstance(target_type, s_objtypes.ObjectType):
-                    raise errors.InvalidLinkTargetError(
-                        f'invalid link target, expected object type, got '
-                        f'{target_type.__class__.__name__}',
-                        context=astnode.target.context
-                    )
+                        cmd.set_attribute_value(
+                            'derived_from', base
+                        )
+
+                        cmd.set_attribute_value(
+                            'is_derived', True
+                        )
+
+                        if context.declarative:
+                            cmd.set_attribute_value(
+                                'declared_inherited', True
+                            )
+
+                if (isinstance(target, so.ObjectRef) and
+                        target.name == source_name):
+                    # Special case for loop links.  Since the target
+                    # is the same as the source, we know it's a proper
+                    # type.
+                    pass
+                else:
+                    target_type = utils.resolve_typeref(target, schema=schema)
+                    if not isinstance(target_type, s_objtypes.ObjectType):
+                        raise errors.InvalidLinkTargetError(
+                            f'invalid link target, expected object type, got '
+                            f'{target_type.__class__.__name__}',
+                            context=astnode.target.context
+                        )
 
             cmd.add(
                 sd.AlterObjectProperty(
@@ -359,96 +323,6 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                     new_value=target
                 )
             )
-
-            base_prop_name = sn.Name('std::source')
-            s_name = sn.get_specialized_name(base_prop_name, cmd.classname)
-            src_prop_name = sn.Name(name=s_name,
-                                    module=cmd.classname.module)
-
-            src_prop = lproperties.CreateProperty(
-                classname=src_prop_name,
-                metaclass=lproperties.Property
-            )
-            src_prop.update((
-                sd.AlterObjectProperty(
-                    property='name',
-                    new_value=src_prop_name
-                ),
-                sd.AlterObjectProperty(
-                    property='bases',
-                    new_value=[
-                        so.ObjectRef(
-                            name=base_prop_name
-                        )
-                    ]
-                ),
-                sd.AlterObjectProperty(
-                    property='source',
-                    new_value=so.ObjectRef(
-                        name=cmd.classname
-                    )
-                ),
-                sd.AlterObjectProperty(
-                    property='target',
-                    new_value=so.ObjectRef(
-                        name=source_name
-                    )
-                ),
-                sd.AlterObjectProperty(
-                    property='required',
-                    new_value=True
-                ),
-                sd.AlterObjectProperty(
-                    property='readonly',
-                    new_value=True
-                ),
-            ))
-
-            cmd.add(src_prop)
-
-            base_prop_name = sn.Name('std::target')
-            s_name = sn.get_specialized_name(base_prop_name, cmd.classname)
-            tgt_prop_name = sn.Name(name=s_name,
-                                    module=cmd.classname.module)
-
-            tgt_prop = lproperties.CreateProperty(
-                classname=tgt_prop_name,
-                metaclass=lproperties.Property
-            )
-            tgt_prop.update((
-                sd.AlterObjectProperty(
-                    property='name',
-                    new_value=tgt_prop_name
-                ),
-                sd.AlterObjectProperty(
-                    property='bases',
-                    new_value=[
-                        so.ObjectRef(
-                            name=base_prop_name
-                        )
-                    ]
-                ),
-                sd.AlterObjectProperty(
-                    property='source',
-                    new_value=so.ObjectRef(
-                        name=cmd.classname
-                    )
-                ),
-                sd.AlterObjectProperty(
-                    property='target',
-                    new_value=target
-                ),
-                sd.AlterObjectProperty(
-                    property='required',
-                    new_value=False
-                ),
-                sd.AlterObjectProperty(
-                    property='readonly',
-                    new_value=True
-                ),
-            ))
-
-            cmd.add(tgt_prop)
 
             cls._parse_default(cmd)
 
@@ -505,6 +379,126 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(schema, node, op, context)
 
+    def inherit_classref_dict(self, schema, context, refdict):
+        if refdict.attr != 'pointers':
+            return super().inherit_classref_dict(schema, context, refdict)
+
+        parent_ctx = context.get(LinkSourceCommandContext)
+        if parent_ctx is None:
+            return super().inherit_classref_dict(schema, context, refdict)
+
+        source_name = parent_ctx.op.classname
+
+        base_prop_name = sn.Name('std::source')
+        s_name = sn.get_specialized_name(
+            sn.Name('__::source'), self.classname)
+        src_prop_name = sn.Name(name=s_name,
+                                module=self.classname.module)
+
+        src_prop = lproperties.CreateProperty(
+            classname=src_prop_name,
+            metaclass=lproperties.Property
+        )
+        src_prop.update((
+            sd.AlterObjectProperty(
+                property='name',
+                new_value=src_prop_name
+            ),
+            sd.AlterObjectProperty(
+                property='bases',
+                new_value=so.ObjectList.create(
+                    schema,
+                    [so.ObjectRef(name=base_prop_name)],
+                ),
+            ),
+            sd.AlterObjectProperty(
+                property='source',
+                new_value=so.ObjectRef(
+                    name=self.classname
+                )
+            ),
+            sd.AlterObjectProperty(
+                property='target',
+                new_value=so.ObjectRef(
+                    name=source_name
+                )
+            ),
+            sd.AlterObjectProperty(
+                property='required',
+                new_value=True
+            ),
+            sd.AlterObjectProperty(
+                property='readonly',
+                new_value=True
+            ),
+            sd.AlterObjectProperty(
+                property='is_final',
+                new_value=True
+            ),
+            sd.AlterObjectProperty(
+                property='cardinality',
+                new_value=qltypes.Cardinality.ONE,
+            ),
+        ))
+
+        self.add(src_prop)
+        schema, _ = src_prop.apply(schema, context)
+
+        base_prop_name = sn.Name('std::target')
+        s_name = sn.get_specialized_name(
+            sn.Name('__::target'), self.classname)
+        tgt_prop_name = sn.Name(name=s_name,
+                                module=self.classname.module)
+
+        tgt_prop = lproperties.CreateProperty(
+            classname=tgt_prop_name,
+            metaclass=lproperties.Property
+        )
+        tgt_prop.update((
+            sd.AlterObjectProperty(
+                property='name',
+                new_value=tgt_prop_name
+            ),
+            sd.AlterObjectProperty(
+                property='bases',
+                new_value=so.ObjectList.create(
+                    schema,
+                    [so.ObjectRef(name=base_prop_name)],
+                ),
+            ),
+            sd.AlterObjectProperty(
+                property='source',
+                new_value=so.ObjectRef(
+                    name=self.classname
+                )
+            ),
+            sd.AlterObjectProperty(
+                property='target',
+                new_value=self.get_attribute_value('target'),
+            ),
+            sd.AlterObjectProperty(
+                property='required',
+                new_value=False
+            ),
+            sd.AlterObjectProperty(
+                property='readonly',
+                new_value=True
+            ),
+            sd.AlterObjectProperty(
+                property='is_final',
+                new_value=True
+            ),
+            sd.AlterObjectProperty(
+                property='cardinality',
+                new_value=qltypes.Cardinality.ONE,
+            ),
+        ))
+
+        self.add(tgt_prop)
+        schema, _ = tgt_prop.apply(schema, context)
+
+        return super().inherit_classref_dict(schema, context, refdict)
+
 
 class RenameLink(LinkCommand, sd.RenameObject):
     pass
@@ -558,7 +552,7 @@ class AlterTarget(sd.Command):
             )
 
             target = cls._create_union_target(
-                schema, context, new_targets)
+                schema, context, new_targets, module=cmd.classname.module)
         else:
             target = targets[0]
             target_ref = utils.ast_to_typeref(
@@ -621,6 +615,8 @@ class AlterLink(LinkCommand, sd.AlterObject):
                     ]
                 ))
         elif op.property == 'source':
+            pass
+        elif op.property == 'derived_from':
             pass
         else:
             super()._apply_field_ast(schema, context, node, op)
