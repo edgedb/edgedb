@@ -33,12 +33,14 @@ class TestUpdate(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'updates.edgeql')
 
-    def setUp(self):
-        super().setUp()
-        self.loop.run_until_complete(self._setup_objects())
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.loop.run_until_complete(cls._setup_objects())
 
-    async def _setup_objects(self):
-        self.original = await self.con.fetchall_json(r"""
+    @classmethod
+    async def _setup_objects(cls):
+        cls.original = await cls.con.fetchall_json(r"""
             WITH MODULE test
             SELECT UpdateTest {
                 id,
@@ -50,7 +52,7 @@ class TestUpdate(tb.QueryTestCase):
             } ORDER BY .name;
         """)
         # this is used to validate what was updated and was untouched
-        self.original = json.loads(self.original)
+        cls.original = json.loads(cls.original)
 
     async def test_edgeql_update_simple_01(self):
         await self.assert_query_result(
