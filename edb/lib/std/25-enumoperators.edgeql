@@ -61,12 +61,17 @@ std::`<` (l: std::anyenum, r: std::anyenum) -> std::bool
     FROM SQL OPERATOR '<';
 
 
-## Boolean casts
-## -------------
+## Enum casts
+## ----------
 
-CREATE CAST FROM std::str TO std::anyenum
+# The only way to create an enum is to cast a str into it, so it makes
+# sense to create an implicit assignment cast.
+CREATE CAST FROM std::str TO std::anyenum {
     FROM SQL CAST;
+    ALLOW ASSIGNMENT;
+};
 
 
-CREATE CAST FROM std::anyenum TO std::str
+CREATE CAST FROM std::anyenum TO std::str {
     FROM SQL CAST;
+};

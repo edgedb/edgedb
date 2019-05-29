@@ -454,11 +454,6 @@ def insert_value_for_shape_element(
         else:
             insvalue = output.output_as_value(insvalue, env=ctx.env)
 
-    insvalue = pgast.TypeCast(
-        arg=insvalue,
-        type_name=pgast.TypeName(name=ptr_info.column_type),
-    )
-
     return insvalue
 
 

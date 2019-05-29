@@ -451,10 +451,12 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 .>(test::deck_cost)[IS std::int64]": {
                         "FENCE": {
                             "FENCE": {
-                                "ns~2@@(test::User).>(test::friends)\
-[IS test::User].>(test::deck)[IS test::Card].>(test::cost)[IS std::int64]": {
+                                "FENCE": {
                                     "ns~2@@(test::User).>(test::friends)\
+[IS test::User].>(test::deck)[IS test::Card].>(test::cost)[IS std::int64]": {
+                                        "ns~2@@(test::User).>(test::friends)\
 [IS test::User].>(test::deck)[IS test::Card]"
+                                    }
                                 }
                             }
                         }

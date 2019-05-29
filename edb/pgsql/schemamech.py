@@ -27,6 +27,8 @@ from edb.ir import typeutils as irtyputils
 from edb.ir import utils as ir_utils
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import ast as qlast
+from edb.edgeql import parser as ql_parser
+from edb.edgeql.compiler import astutils as ql_astutils
 
 from edb.schema import scalars as s_scalars
 
@@ -395,7 +397,19 @@ class SchemaTableConstraint:
 
 def ptr_default_to_col_default(schema, ptr, expr):
     try:
-        ir = ql_compiler.compile_to_ir(expr.text, schema)
+        # NOTE: This code currently will only be invoked for scalars.
+        # Blindly cast the default expression into the ptr target
+        # type, validation of the expression type is not the concern
+        # of this function.
+        eql = ql_parser.parse(expr.text)
+        eql = ql_astutils.ensure_qlstmt(
+            qlast.TypeCast(
+                type=ql_astutils.type_to_ql_typeref(
+                    ptr.get_target(schema), schema=schema),
+                expr=eql,
+            )
+        )
+        ir = ql_compiler.compile_ast_to_ir(eql, schema)
     except errors.SchemaError:
         # Reference errors mean that is is a non-constant default
         # referring to a not-yet-existing objects.

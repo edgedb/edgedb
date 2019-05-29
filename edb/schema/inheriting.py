@@ -721,6 +721,13 @@ class InheritingObject(derivable.DerivableObject):
         raise errors.SchemaError(
             f'{self.get_verbosename(schema)} has no non-abstract ancestors')
 
+    def get_base_for_cast(self, schema):
+        if self.is_enum(schema):
+            # all enums have to use std::anyenum as base type for casts
+            return schema.get('std::anyenum')
+        else:
+            return self.get_topmost_concrete_base(schema)
+
     def compute_mro(self, schema):
         return compute_mro(schema, self)
 

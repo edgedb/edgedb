@@ -123,8 +123,8 @@ class ScalarType(nodes.Node, constraints.ConsistencySubject,
             return self.issubclass(schema, other)
 
     def assignment_castable_to(self, other: s_types.Type, schema) -> bool:
-        left = self.get_topmost_concrete_base(schema)
-        right = other.get_topmost_concrete_base(schema)
+        left = self.get_base_for_cast(schema)
+        right = other.get_base_for_cast(schema)
         return s_casts.is_assignment_castable(schema, left, right)
 
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:

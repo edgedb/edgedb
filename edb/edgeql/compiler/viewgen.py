@@ -399,30 +399,45 @@ def _normalize_view_ptr_expr(
                 context=ctx.env.type_origins.get(anytype),
             )
 
-        if (is_mutation and base_ptrcls is not None
-                and not ptr_target.assignment_castable_to(
-                    base_ptrcls.get_target(ctx.env.schema),
-                    schema=ctx.env.schema)):
-            # Validate that the insert/update expression is
-            # of the correct class.
-            ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-            expected = [
-                repr(str(base_ptrcls.get_target(
-                    ctx.env.schema).get_displayname(ctx.env.schema)))
-            ]
+        # Validate that the insert/update expression is
+        # of the correct class.
+        if is_mutation and base_ptrcls is not None:
+            base_target = base_ptrcls.get_target(ctx.env.schema)
+            if ptr_target.assignment_castable_to(
+                    base_target,
+                    schema=ctx.env.schema):
+                # Force assignment casts if the target type is not a
+                # subclass of the base type and the cast is not to an
+                # object type.
+                if not (base_target.is_object_type() or
+                        ptr_target.issubclass(ctx.env.schema, base_target)):
+                    qlexpr = astutils.ensure_qlstmt(qlast.TypeCast(
+                        type=astutils.type_to_ql_typeref(
+                            base_target, schema=ctx.env.schema),
+                        expr=compexpr,
+                    ))
+                    ptr_target = base_target
 
-            if ptrcls.is_property(ctx.env.schema):
-                ercls = errors.InvalidPropertyTargetError
             else:
-                ercls = errors.InvalidLinkTargetError
+                ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+                expected = [
+                    repr(str(base_ptrcls.get_target(
+                        ctx.env.schema).get_displayname(ctx.env.schema)))
+                ]
 
-            ptr_vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+                if ptrcls.is_property(ctx.env.schema):
+                    ercls = errors.InvalidPropertyTargetError
+                else:
+                    ercls = errors.InvalidLinkTargetError
 
-            raise ercls(
-                f'invalid target for {ptr_vn}: '
-                f'{str(ptr_target.get_displayname(ctx.env.schema))!r} '
-                f'(expecting {" or ".join(expected)})'
-            )
+                ptr_vn = ptrcls.get_verbosename(ctx.env.schema,
+                                                with_parent=True)
+
+                raise ercls(
+                    f'invalid target for {ptr_vn}: '
+                    f'{str(ptr_target.get_displayname(ctx.env.schema))!r} '
+                    f'(expecting {" or ".join(expected)})'
+                )
 
     if (qlexpr is not None or
             ptr_target is not ptrcls.get_target(ctx.env.schema)):

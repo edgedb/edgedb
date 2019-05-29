@@ -766,7 +766,19 @@ def computable_ptr_set(
             raise ValueError(
                 f'{ptrcls_sn!r} is not a computable pointer')
 
-        qlexpr = astutils.ensure_qlstmt(qlparser.parse(ptrcls_default.text))
+        qlexpr = qlparser.parse(ptrcls_default.text)
+        # NOTE: Validation of the expression type is not the concern
+        # of this function. For any non-object pointer target type,
+        # the default expression must be assignment-cast into that
+        # type.
+        target_scls = ptrcls.get_target(ctx.env.schema)
+        if not target_scls.is_object_type():
+            qlexpr = qlast.TypeCast(
+                type=astutils.type_to_ql_typeref(
+                    target_scls, schema=ctx.env.schema),
+                expr=qlexpr,
+            )
+        qlexpr = astutils.ensure_qlstmt(qlexpr)
         qlctx = None
         inner_source_path_id = None
         path_id_ns = None

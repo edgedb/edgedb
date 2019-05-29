@@ -110,3 +110,8 @@ def _date(o: datetime.date):
 @serialize.register
 def _time(o: datetime.time):
     return o.isoformat()
+
+
+@serialize.register
+def _enum(o: edgedb.EnumValue):
+    return str(o)
