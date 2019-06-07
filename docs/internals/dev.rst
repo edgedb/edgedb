@@ -62,11 +62,13 @@ Python "venv" with all dependencies and commands installed into it.
    .. code-block:: bash
 
       $ cd ../edgedb
-      $ pip install -v -e .
+      $ pip install -v -e .[test,docs]
 
    In addition to compiling EdgeDB and all dependencies, this will also
    install ``edb`` and ``edgedb`` command line tools into the current
    Python virtual environment.
+
+   It will also install libraries used during development.
 
 #. Run tests:
 
