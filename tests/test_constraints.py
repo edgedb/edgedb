@@ -892,16 +892,12 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 };
             """)
 
-    @unittest.expectedFailure
-    # FIXME: the test fails because errmessage is an expression that's
-    #        not a simple string literal, but a concatenation of 2
-    #        string literals.
     async def test_constraints_ddl_04(self):
         # testing an issue with expressions used for 'errmessage'
         qry = r"""
             CREATE ABSTRACT CONSTRAINT test::mymax3(max: std::int64) {
                 SET errmessage :=
-                    '{__subject__} must be no longer ' +
+                    '{__subject__} must be no longer ' ++
                     'than {max} characters.';
                 SET expr := __subject__ <= max;
             };
