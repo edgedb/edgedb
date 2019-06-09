@@ -168,17 +168,19 @@ Here's some examples of regular strings using escape sequences
 
     db> SELECT 'hello
     ... world';
-    {'hello\nworld'}
+    {'hello
+    world'}
 
     db> SELECT "hello\nworld";
-    {'hello\nworld'}
+    {'hello
+    world'}
 
     db> SELECT 'hello \
     ... world';
     {'hello world'}
 
     db> SELECT 'hello \\ world';
-    {'hello \\ world'}
+    {'hello \ world'}
 
     db> SELECT 'hello \'world\'';
     {"hello 'world'"}
@@ -197,15 +199,17 @@ all the symbols between the quotes exactly as typed.
 .. code-block:: edgeql-repl
 
     db> SELECT r'hello \\ world';
-    {'hello \\\\ world'}
+    {'hello \\ world'}
 
     db> SELECT r'hello \
     ... world';
-    {'hello \\\nworld'}
+    {'hello \
+     world'}
 
     db> SELECT r'hello
     ... world';
-    {'hello \nworld'}
+    {'hello
+     world'}
 
 .. _ref_eql_lexical_dollar_quoting:
 
@@ -223,13 +227,14 @@ content with *dollar-quotes* in an unambiguous manner:
 
     db> SELECT $$hello
     ... world$$;
-    {'hello \nworld'}
+    {'hello
+    world'}
 
     db> SELECT $$hello\nworld$$;
-    {'hello\\nworld'}
+    {'hello\nworld'}
 
     db> SELECT $$"hello" 'world'$$;
-    {'"hello" \'world\''}
+    {"\"hello\" 'world'"}
 
     db> SELECT $a$hello$$world$$$a$;
     {'hello$$world$$'}
