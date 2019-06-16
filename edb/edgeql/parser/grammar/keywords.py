@@ -100,6 +100,7 @@ future_reserved_keywords = frozenset([
     "anyarray",
     "begin",
     "case",
+    "check",
     "deallocate",
     "discard",
     "do",
@@ -119,12 +120,14 @@ future_reserved_keywords = frozenset([
     "notify",
     "prepare",
     "partition",
+    "policy",
     "raise",
     "refresh",
     "reindex",
     "revoke",
     "over",
     "when",
+    "window",
 ])
 
 
