@@ -81,7 +81,7 @@ syntax:
 
     CREATE MIGRATION init TO {
         type User {
-            property username -> str
+            property username -> str;
         }
     };
 
