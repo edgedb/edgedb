@@ -97,6 +97,8 @@ class TypeRef(ImmutableBase):
     is_abstract: bool = False
     # True, if the collection type is persisted in the schema
     in_schema: bool = False
+    # True, if this describes an opaque union type
+    is_opaque_union: bool = False
 
 
 class AnyTypeRef(TypeRef):
@@ -123,6 +125,7 @@ class BasePointerRef(ImmutableBase):
     material_ptr: 'BasePointerRef'
     derived_from_ptr: 'BasePointerRef'
     descendants: typing.Set['BasePointerRef']
+    union_components: typing.Set['BasePointerRef']
     has_properties: bool
     required: bool
     # Relation cardinality in the direction specified
@@ -175,6 +178,9 @@ class TupleIndirectionLink(s_pointers.PointerLike):
         return self._name
 
     def get_derived_from(self, schema):
+        return None
+
+    def get_union_of(self, schema):
         return None
 
     def is_link_property(self, schema):
@@ -241,6 +247,9 @@ class TypeIndirectionLink(s_pointers.PointerLike):
         return self._name
 
     def get_derived_from(self, schema):
+        return None
+
+    def get_union_of(self, schema):
         return None
 
     def is_link_property(self, schema):

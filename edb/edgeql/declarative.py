@@ -725,14 +725,13 @@ class DeclarationLoader:
                     spectargets = None
                     target = _targets[0]
                 else:
-                    # Multiple explicit targets, create common virtual
-                    # parent and use it as target.
+                    # Multiple explicit targets, create a union type.
                     spectargets = s_obj.ObjectSet.create(
                         self._schema, _targets)
 
-                    self._schema, target = s_inh.create_virtual_parent(
+                    self._schema, target = s_utils.get_union_type(
                         self._schema, _targets,
-                        module_name=self._module.get_name(self._schema))
+                        module=self._module.get_name(self._schema))
 
                     self._schema = target.set_field_value(
                         self._schema, 'is_derived', True)

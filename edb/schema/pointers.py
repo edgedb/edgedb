@@ -30,7 +30,6 @@ from . import annotations
 from . import constraints
 from . import delta as sd
 from . import expr as s_expr
-from . import inheriting
 from . import name as sn
 from . import objects as so
 from . import referencing
@@ -135,6 +134,11 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
         default=None, compcoef=0.833, coerce=True,
         merge_fn=merge_cardinality)
 
+    union_of = so.SchemaField(
+        so.ObjectSet,
+        default=None,
+        coerce=True)
+
     def get_displayname(self, schema) -> str:
         sn = self.get_shortname(schema)
         if self.generic(schema):
@@ -183,15 +187,6 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
             return self.get_target(schema)
         else:
             return self.get_source(schema)
-
-    def create_common_target(self, schema, targets, minimize_by=False):
-        schema, target = inheriting.create_virtual_parent(
-            schema, targets, module_name=self.get_name(schema).module,
-            minimize_by=minimize_by)
-
-        schema = target.set_field_value(schema, 'is_derived', True)
-
-        return schema, target
 
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         schema = super().finalize(
@@ -258,13 +253,15 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
 
         else:
             # Targets are both objects
-            if t1.get_is_virtual(schema):
-                tt1 = tuple(t1.children(schema))
+            t1_union_of = t1.get_union_of(schema)
+            if t1_union_of:
+                tt1 = tuple(t1_union_of.objects(schema))
             else:
                 tt1 = (t1,)
 
-            if t2.get_is_virtual(schema):
-                tt2 = tuple(t2.children(schema))
+            t2_union_of = t2.get_union_of(schema)
+            if t2_union_of:
+                tt2 = tuple(t2_union_of.objects(schema))
             else:
                 tt2 = (t2,)
 
@@ -286,57 +283,56 @@ class Pointer(constraints.ConsistencySubject, annotations.AnnotationSubject,
                     vn = ptr.get_verbosename(schema, with_parent=True)
                     raise errors.SchemaError(
                         f'could not merge {vn} pointer: targets conflict',
-                        details=f'{vn} targets {t2.get_verbosename(schema)} '
-                                f'which is not related to any of targets '
-                                f'found in other sources being merged: '
-                                f'{t1.get_displayname(schema)!r}.'
-                    )
+                        details=(
+                            f'{vn} targets '
+                            f'object {t2.get_verbosename(schema)!r} which '
+                            f'is not related to any of targets found in '
+                            f'other sources being merged: '
+                            f'{t1.get_displayname(schema)!r}.'))
 
             for tgt1 in tt1:
                 if not any(tgt2.issubclass(schema, tgt1) for tgt2 in tt2):
                     new_targets.append(tgt1)
 
             if len(new_targets) > 1:
-                tnames = (t.get_name(schema) for t in new_targets)
-                module = source.get_name(schema).module
-                parent_name = s_objtypes.ObjectType.gen_virt_parent_name(
-                    tnames, module)
-                schema, current_target = \
-                    s_objtypes.ObjectType.create_in_schema(
-                        schema,
-                        name=parent_name, is_abstract=True, is_virtual=True)
-                schema = schema.update_virtual_inheritance(
-                    current_target, new_targets)
+                schema, current_target = s_objtypes.get_or_create_union_type(
+                    schema, new_targets)
             else:
                 current_target = new_targets[0]
 
             return schema, current_target
 
-    def get_derived(self, schema, source, target, **kwargs):
-        fqname = self.derive_name(schema, source)
+    def get_derived(self, schema, source, target, *,
+                    derived_name_base=None, **kwargs):
+        fqname = self.derive_name(
+            schema, source, derived_name_base=derived_name_base)
         ptr = schema.get(fqname, default=None)
-        if ptr is not None:
-            if ptr.get_target(schema) != target:
-                ptr = None
 
         if ptr is None:
-            fqname = self.derive_name(schema, source, target.get_name(schema))
+            fqname = self.derive_name(
+                schema, source, target.get_name(schema),
+                derived_name_base=derived_name_base)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
                 if self.generic(schema):
-                    schema, ptr = self.derive(schema, source, target, **kwargs)
+                    schema, ptr = self.derive(
+                        schema, source, target,
+                        derived_name_base=derived_name_base, **kwargs)
                 else:
                     schema, ptr = self.derive_copy(
-                        schema, source, target, **kwargs)
+                        schema, source, target,
+                        derived_name_base=derived_name_base, **kwargs)
 
         return schema, ptr
 
     def get_derived_name(self, schema, source, target, *qualifiers,
-                         mark_derived=False):
+                         derived_name_base=None, mark_derived=False):
         if mark_derived:
-            fqname = self.derive_name(schema, source, target.get_name(schema))
+            fqname = self.derive_name(schema, source, target.get_name(schema),
+                                      derived_name_base=derived_name_base)
         else:
-            fqname = self.derive_name(schema, source)
+            fqname = self.derive_name(schema, source,
+                                      derived_name_base=derived_name_base)
 
         return fqname
 
@@ -582,3 +578,44 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         )
 
         return target
+
+
+def get_or_create_union_pointer(
+        schema,
+        ptrname: str,
+        source,
+        direction: PointerDirection,
+        components: typing.Iterable[Pointer], *,
+        modname: typing.Optional[str]=None) -> Pointer:
+
+    targets = [p.get_far_endpoint(schema, direction) for p in components]
+    schema, target = utils.get_union_type(
+        schema, targets, opaque=False, module=modname)
+
+    cardinality = qltypes.Cardinality.ONE
+    for component in components:
+        if component.get_cardinality(schema) is qltypes.Cardinality.MANY:
+            cardinality = qltypes.Cardinality.MANY
+            break
+
+    components = list(components)
+    metacls = type(components[0])
+    genptr = schema.get(metacls.get_default_base_name())
+
+    if direction is PointerDirection.Inbound:
+        source, target = target, source
+
+    schema, result = genptr.get_derived(
+        schema,
+        source,
+        target,
+        derived_name_base=sn.Name(
+            module=modname or '__derived__',
+            name=ptrname),
+        attrs={
+            'union_of': so.ObjectSet.create(schema, components),
+            'cardinality': cardinality,
+        },
+    )
+
+    return schema, result

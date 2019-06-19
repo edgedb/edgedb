@@ -458,6 +458,9 @@ def compile_Introspect(
     typeref = typegen.ql_typeref_to_ir_typeref(expr.type, ctx=ctx)
     if typeref.material_type and not irtyputils.is_object(typeref):
         typeref = typeref.material_type
+    if typeref.is_opaque_union:
+        typeref = irtyputils.type_to_typeref(
+            ctx.env.schema, ctx.env.schema.get('std::Object'))
 
     if irtyputils.is_view(typeref):
         raise errors.QueryError(

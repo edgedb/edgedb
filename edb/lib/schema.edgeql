@@ -210,22 +210,20 @@ CREATE TYPE schema::ScalarType
 };
 
 
-CREATE TYPE schema::ObjectType
+CREATE TYPE schema::BaseObjectType
     EXTENDING
         schema::InheritingObject, schema::ConsistencySubject,
         schema::AnnotationSubject, schema::Type, schema::Source;
 
 
-CREATE TYPE schema::UnionObjectType
-    EXTENDING
-        schema::InheritingObject, schema::ConsistencySubject, schema::Type,
-        schema::Source;
+ALTER TYPE schema::BaseObjectType
+    CREATE MULTI LINK union_of -> schema::BaseObjectType;
 
 
-CREATE TYPE schema::DerivedObjectType
-    EXTENDING
-        schema::InheritingObject, schema::ConsistencySubject, schema::Type,
-        schema::Source;
+CREATE TYPE schema::ObjectType EXTENDING schema::BaseObjectType;
+
+
+CREATE TYPE schema::DerivedObjectType EXTENDING schema::BaseObjectType;
 
 
 CREATE TYPE schema::Link EXTENDING schema::Pointer, schema::Source;

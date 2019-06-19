@@ -183,16 +183,22 @@ def fini_expression(
                         ctx.env.schema))
 
                 derived_from = vptr.get_derived_from(ctx.env.schema)
-                if (derived_from is not None
-                        and derived_from.get_derived_from(ctx.env.schema)
-                        is not None):
-                    ctx.env.schema = vptr.set_field_value(
-                        ctx.env.schema,
-                        'derived_from',
-                        derived_from.get_nearest_non_derived_parent(
+                if derived_from is not None:
+                    if (derived_from.get_derived_from(ctx.env.schema)
+                            is not None):
+                        ctx.env.schema = vptr.set_field_value(
                             ctx.env.schema,
+                            'derived_from',
+                            derived_from.get_nearest_non_derived_parent(
+                                ctx.env.schema,
+                            )
                         )
-                    )
+                    elif derived_from.get_union_of(ctx.env.schema):
+                        ctx.env.schema = vptr.set_field_value(
+                            ctx.env.schema,
+                            'derived_from',
+                            None,
+                        )
 
                 if not hasattr(vptr, 'get_own_pointers'):
                     continue

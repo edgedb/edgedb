@@ -432,18 +432,31 @@ def resolve_ptr(
         msg = 'invalid property reference on a primitive type expression'
         raise errors.InvalidReferenceError(msg, context=source_context)
 
-    ctx.env.schema, ptr = near_endpoint.resolve_pointer(
-        ctx.env.schema,
-        pointer_name,
-        direction=direction)
+    if direction is s_pointers.PointerDirection.Outbound:
+        ptr = near_endpoint.getptr(ctx.env.schema, pointer_name)
+    else:
+        ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name)
+        if not ptrs:
+            ptr = None
+        else:
+            if len(ptrs) == 1:
+                ptr = next(iter(ptrs))
+            else:
+                ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
+                    ctx.env.schema,
+                    ptrname=pointer_name,
+                    source=near_endpoint,
+                    direction=direction,
+                    components=ptrs,
+                    modname=ctx.derived_target_module)
 
     if ptr is None:
         if isinstance(near_endpoint, s_links.Link):
-            msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
+            msg = (f'{near_endpoint.get_verbosename(ctx.env.schema)} '
                    f'has no property {pointer_name!r}')
 
         elif direction == s_pointers.PointerDirection.Outbound:
-            msg = (f'{near_endpoint.get_displayname(ctx.env.schema)} '
+            msg = (f'{near_endpoint.get_verbosename(ctx.env.schema)} '
                    f'has no link or property {pointer_name!r}')
 
         else:

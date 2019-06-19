@@ -167,10 +167,7 @@ class TypeSerializer:
         elif view_shapes.get(t):
             # This is a view
             mt = t.material_type(self.schema)
-            if mt.get_is_virtual(self.schema):
-                base_type_id = self._get_union_type_id(mt)
-            else:
-                base_type_id = mt.id
+            base_type_id = mt.id
 
             subtypes = []
             element_names = []

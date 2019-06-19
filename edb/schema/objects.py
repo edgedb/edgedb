@@ -1604,6 +1604,8 @@ class ObjectSet(ObjectCollection, container=frozenset):
     def merge_values(cls, target, sources, field_name, *, schema):
         result = target.get_explicit_field_value(schema, field_name, None)
         for source in sources:
+            if source.__class__.get_field(field_name) is None:
+                continue
             theirs = source.get_explicit_field_value(schema, field_name, None)
             if theirs:
                 if result is None:

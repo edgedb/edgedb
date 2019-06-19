@@ -1657,9 +1657,7 @@ class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
 class ObjectTypeMetaCommand(ViewCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
     def get_table(self, schema):
-        if self.scls.get_is_virtual(schema):
-            mcls = s_objtypes.UnionObjectType
-        elif self.scls.get_is_derived(schema):
+        if self.scls.get_union_of(schema):
             mcls = s_objtypes.DerivedObjectType
         else:
             mcls = s_objtypes.ObjectType
@@ -1669,7 +1667,7 @@ class ObjectTypeMetaCommand(ViewCapableObjectMetaCommand,
     @classmethod
     def has_table(cls, objtype, schema):
         return not (
-            objtype.get_is_virtual(schema) or
+            objtype.get_union_of(schema) or
             objtype.get_is_derived(schema)
         )
 
@@ -1679,7 +1677,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
     def apply(self, schema, context=None):
         schema, objtype = s_objtypes.CreateObjectType.apply(
             self, schema, context)
-        if objtype.get_is_virtual(schema) or objtype.get_is_derived(schema):
+        if objtype.get_union_of(schema) or objtype.get_is_derived(schema):
             schema, _ = ObjectTypeMetaCommand.apply(self, schema, context)
             self.create_object(schema, objtype)
             return schema, objtype
@@ -3280,8 +3278,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
             deferred: bool=False,
             inline: bool=False) -> None:
 
-        if objtype.get_is_virtual(schema):
-            objtypes = tuple(objtype.children(schema))
+        union_of = objtype.get_union_of(schema)
+        if union_of:
+            objtypes = tuple(union_of.objects(schema))
         else:
             objtypes = (objtype,)
 

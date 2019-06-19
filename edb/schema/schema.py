@@ -38,7 +38,6 @@ from . import types as s_types
 STD_LIB = ('std', 'schema', 'math', 'sys', 'cfg')
 STD_MODULES = frozenset({'std', 'schema', 'stdgraphql', 'math', 'sys', 'cfg'})
 
-
 _void = object()
 
 
@@ -596,28 +595,12 @@ class Schema:
         return self.get_global(s_mod.Module, module, None) is not None
 
     def get_children(self, scls):
-        _virtual_children = scls.get__virtual_children(self)
-
-        if _virtual_children is not None:
-            return frozenset(_virtual_children.objects(self))
-        else:
-            return self.get_referrers(
-                scls, scls_type=type(scls), field_name='bases')
+        return self.get_referrers(
+            scls, scls_type=type(scls), field_name='bases')
 
     def get_descendants(self, scls):
-        descendants = set()
-        _virtual_children = scls.get__virtual_children(self)
-
-        if _virtual_children is not None:
-            for c in _virtual_children.objects(self):
-                descendants.add(c)
-                descendants.update(self.get_referrers(
-                    c, scls_type=type(scls), field_name='ancestors'))
-        else:
-            descendants.update(self.get_referrers(
-                scls, scls_type=type(scls), field_name='ancestors'))
-
-        return frozenset(descendants)
+        return self.get_referrers(
+            scls, scls_type=type(scls), field_name='ancestors')
 
     def get_objects(self, *, modules=None, type=None):
         return SchemaIterator(self, modules=modules, type=type)

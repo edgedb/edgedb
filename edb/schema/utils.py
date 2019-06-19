@@ -335,3 +335,53 @@ def enrich_schema_lookup_error(
             hint = f'did you mean {names[0]!r}?'
 
         error.set_hint_and_details(hint=hint)
+
+
+def get_union_type(schema, types, *, opaque: bool = False,
+                   module: typing.Optional[str] = None):
+    from edb.schema import objtypes as s_objtypes
+
+    components = set()
+    for t in types:
+        union_of = t.get_union_of(schema)
+        if union_of:
+            components.update(union_of.objects(schema))
+        else:
+            components.add(t)
+
+    if len(components) == 1 and not opaque:
+        return schema, next(iter(components))
+
+    components = list(components)
+
+    seen_scalars = False
+    seen_objtypes = False
+
+    for component in components:
+        if component.is_scalar():
+            if seen_objtypes:
+                raise _union_error(schema, components)
+            seen_scalars = True
+        else:
+            if seen_scalars:
+                raise _union_error(schema, components)
+            seen_objtypes = True
+
+    if seen_scalars:
+        uniontype = components[0]
+        for t1 in components[1:]:
+            uniontype = uniontype.find_common_implicitly_castable_type(
+                t1, schema)
+
+        if uniontype is None:
+            raise _union_error(schema, components)
+    else:
+        schema, uniontype = s_objtypes.get_or_create_union_type(
+            schema, components=components, opaque=opaque, module=module)
+
+    return schema, uniontype
+
+
+def _union_error(schema, components):
+    names = ', '.join(c.get_displayname(schema) for c in components)
+    return errors.SchemaError(f'cannot create a union of {names}')

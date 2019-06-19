@@ -37,9 +37,6 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
     def get_displayname(self, schema):
         return self.name
 
-    def get__virtual_children(self, schema):
-        return None
-
     def get_bases(self, schema):
         return so.ObjectList.create_empty()
 

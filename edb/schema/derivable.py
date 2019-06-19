@@ -38,25 +38,33 @@ class DerivableObjectBase(s_abc.Object):
 
         return similarity
 
-    def derive_name(self, schema, source, *qualifiers):
+    def derive_name(self, schema, source, *qualifiers, derived_name_base=None):
+        if derived_name_base is None:
+            derived_name_base = self.get_shortname(schema)
         name = sn.get_specialized_name(
-            self.get_shortname(schema), source.get_name(schema), *qualifiers)
+            derived_name_base, source.get_name(schema), *qualifiers)
         return sn.Name(name=name, module=source.get_name(schema).module)
 
     def generic(self, schema):
         return self.get_shortname(schema) == self.get_name(schema)
 
     def get_derived_name(self, schema, source,
-                         *qualifiers, mark_derived=False):
-        return self.derive_name(schema, source, *qualifiers)
+                         *qualifiers,
+                         mark_derived=False,
+                         derived_name_base=None):
+        return self.derive_name(
+            schema, source, *qualifiers, derived_name_base=derived_name_base)
 
     def init_derived(self, schema, source, *qualifiers, as_copy,
                      merge_bases=None, replace_original=None,
                      mark_derived=False, attrs=None, dctx=None,
-                     name=None, **kwargs):
+                     name=None, derived_name_base=None, **kwargs):
+
         if name is None:
             derived_name = self.get_derived_name(
-                schema, source, *qualifiers, mark_derived=mark_derived)
+                schema, source, *qualifiers,
+                mark_derived=mark_derived,
+                derived_name_base=derived_name_base)
         else:
             derived_name = name
 

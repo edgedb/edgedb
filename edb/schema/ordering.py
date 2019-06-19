@@ -43,6 +43,7 @@ def get_global_dep_order():
 
 def sort_objects(schema, objects):
     from . import inheriting
+    from . import objtypes as s_objtypes
 
     g = {}
 
@@ -51,21 +52,26 @@ def sort_objects(schema, objects):
             'item': obj, 'merge': [], 'deps': []
         }
 
+        base_deps = set()
+
         if isinstance(obj, inheriting.InheritingObject):
             obj_bases = obj.get_bases(schema)
+            base_deps.update(obj_bases.objects(schema))
             derived_from = obj.get_derived_from(schema)
         else:
             obj_bases = None
             derived_from = None
 
+        if isinstance(obj, s_objtypes.ObjectType):
+            union_of = obj.get_union_of(schema)
+            base_deps.update(union_of.objects(schema))
+
         deps = g[obj.get_name(schema)]['deps']
 
-        if obj_bases:
-            deps.extend(
-                b.get_name(schema)
-                for b in obj_bases.objects(schema))
+        if base_deps:
+            deps.extend(b.get_name(schema) for b in base_deps)
 
-            for base in obj_bases.objects(schema):
+            for base in base_deps:
                 base_name = base.get_name(schema)
                 if base_name.module != obj.get_name(schema).module:
                     g[base_name] = {'item': base, 'merge': [], 'deps': []}

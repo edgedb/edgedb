@@ -17,18 +17,14 @@
 #
 
 
-import uuid
-
 from edb.common import struct
 from edb.edgeql import ast as qlast
 
 from edb import errors
 
-from . import abc as s_abc
 from . import delta as sd
 from . import derivable
 from . import objects as so
-from . import types
 from . import utils
 
 
@@ -340,83 +336,6 @@ def compute_mro(schema, obj):
     return _merge_mro(schema, obj, mros)
 
 
-def create_virtual_parent(schema, children, *,
-                          module_name=None, minimize_by=None):
-    from . import objtypes as s_objtypes, sources
-
-    if len(children) == 1:
-        return schema, next(iter(children))
-
-    if minimize_by == 'most_generic':
-        children = utils.minimize_class_set_by_most_generic(schema, children)
-    elif minimize_by == 'least_generic':
-        children = utils.minimize_class_set_by_least_generic(schema, children)
-
-    if len(children) == 1:
-        return schema, next(iter(children))
-
-    _children = set()
-    for t in children:
-        if t.get_is_virtual(schema):
-            _children.update(t.children(schema))
-        else:
-            _children.add(t)
-
-    children = list(_children)
-
-    if module_name is None:
-        module_name = children[0].get_name(schema).module
-
-    name = sources.Source.gen_virt_parent_name(
-        (t.get_name(schema) for t in children),
-        module=module_name)
-
-    # Like with collections, the id of the union type must be
-    # derived from its component types to be stable.
-    id = uuid.uuid5(
-        types.TYPE_ID_NAMESPACE,
-        'union::' + ':'.join(sorted(str(t.id) for t in children)))
-
-    target = schema.get(name, default=None)
-
-    if target:
-        return schema, target
-
-    seen_scalars = False
-    seen_objtypes = False
-
-    for target in children:
-        if isinstance(target, s_abc.ScalarType):
-            if seen_objtypes:
-                raise errors.SchemaError(
-                    'cannot mix scalars and objects in link target list')
-            seen_scalars = True
-        else:
-            if seen_scalars:
-                raise errors.SchemaError(
-                    'cannot mix scalars and objects in link target list')
-            seen_objtypes = True
-
-    if seen_scalars and len(children) > 1:
-        target = utils.get_class_nearest_common_ancestor(schema, children)
-        if target is None:
-            raise errors.SchemaError(
-                'cannot set multiple scalar children for a link')
-    else:
-        base = schema.get(s_objtypes.ObjectType.get_default_base_name())
-        schema, target = \
-            s_objtypes.ObjectType.create_in_schema_with_inheritance(
-                schema,
-                id=id, name=name, is_abstract=True,
-                is_virtual=True, bases=[base]
-            )
-        schema = target.set_field_value(
-            schema, '_virtual_children',
-            so.ObjectList.create(schema, children))
-
-    return schema, target
-
-
 class InheritingObject(derivable.DerivableObject):
     bases = so.SchemaField(
         so.ObjectList,
@@ -426,10 +345,6 @@ class InheritingObject(derivable.DerivableObject):
     ancestors = so.SchemaField(
         so.ObjectList,
         coerce=True, default=None, hashable=False)
-
-    _virtual_children = so.SchemaField(
-        so.ObjectList,
-        coerce=True, default=None)
 
     is_abstract = so.SchemaField(
         bool,
@@ -447,10 +362,6 @@ class InheritingObject(derivable.DerivableObject):
     is_final = so.SchemaField(
         bool,
         default=False, compcoef=0.909)
-
-    is_virtual = so.SchemaField(
-        bool,
-        default=False, compcoef=0.5)
 
     @classmethod
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
@@ -675,10 +586,13 @@ class InheritingObject(derivable.DerivableObject):
     def init_derived(self, schema, source, *qualifiers, as_copy,
                      merge_bases=None, mark_derived=False,
                      replace_original=None, attrs=None, dctx=None,
+                     derived_name_base=None,
                      name=None, **kwargs):
         if name is None:
             derived_name = self.get_derived_name(
-                schema, source, *qualifiers, mark_derived=mark_derived)
+                schema, source, *qualifiers,
+                mark_derived=mark_derived,
+                derived_name_base=derived_name_base)
         else:
             derived_name = name
 
@@ -687,7 +601,8 @@ class InheritingObject(derivable.DerivableObject):
                 schema, source, *qualifiers, as_copy=True,
                 merge_bases=merge_bases, mark_derived=mark_derived,
                 attrs=attrs, dctx=dctx, name=name,
-                replace_original=replace_original, **kwargs)
+                replace_original=replace_original,
+                derived_name_base=derived_name_base, **kwargs)
 
         else:
             if self.get_name(schema) == derived_name:
@@ -732,26 +647,10 @@ class InheritingObject(derivable.DerivableObject):
         return compute_mro(schema, self)
 
     def _issubclass(self, schema, parent):
-        my_vchildren = self.get__virtual_children(schema)
+        mro = self.compute_mro(schema)
+        mro = {o.id for o in mro}
 
-        if my_vchildren is None:
-            mro = self.compute_mro(schema)
-            mro = {o.id for o in mro}
-
-            if parent.id in mro:
-                return True
-            elif isinstance(parent, InheritingObject):
-                vchildren = parent.get__virtual_children(schema)
-                if vchildren:
-                    return bool(
-                        {o.id for o in vchildren.objects(schema)} & mro)
-                else:
-                    return False
-            else:
-                return False
-        else:
-            return all(c._issubclass(schema, parent)
-                       for c in my_vchildren.objects(schema))
+        return parent.id in mro
 
     def issubclass(self, schema, parent):
         if isinstance(parent, tuple):

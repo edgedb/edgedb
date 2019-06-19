@@ -216,7 +216,64 @@ class LinkCommand(lproperties.PropertySourceCommand,
                   pointers.PointerCommand,
                   schema_metaclass=Link, context_class=LinkCommandContext,
                   referrer_context_class=LinkSourceCommandContext):
-    pass
+
+    @classmethod
+    def _create_union_target(cls, schema, context, targets):
+        from . import objtypes as s_objtypes
+
+        union_type_attrs = s_objtypes.get_union_type_attrs(
+            schema, [schema.get(t.name) for t in targets],
+        )
+
+        target = so.ObjectRef(name=union_type_attrs['name'])
+
+        if schema.get_by_id(union_type_attrs['id'], None) is None:
+
+            create_union = s_objtypes.CreateObjectType(
+                classname=union_type_attrs['name'],
+                metaclass=s_objtypes.ObjectType,
+            )
+
+            create_union.update((
+                sd.AlterObjectProperty(
+                    property='id',
+                    new_value=union_type_attrs['id'],
+                ),
+                sd.AlterObjectProperty(
+                    property='bases',
+                    new_value=so.ObjectList.create(
+                        schema, [
+                            so.ObjectRef(name=b.get_name(schema))
+                            for b in union_type_attrs['bases']
+                        ],
+                    ),
+                ),
+                sd.AlterObjectProperty(
+                    property='name',
+                    new_value=union_type_attrs['name'],
+                ),
+                sd.AlterObjectProperty(
+                    property='union_of',
+                    new_value=so.ObjectSet.create(
+                        schema, [
+                            so.ObjectRef(name=c.get_name(schema))
+                            for c in union_type_attrs['union_of'].objects(
+                                schema)
+                        ],
+                    ),
+                ),
+            ))
+
+            delta_ctx = context.get(sd.DeltaRootContext)
+
+            for cc in delta_ctx.op.get_subcommands(
+                    type=s_objtypes.CreateObjectType):
+                if cc.classname == create_union.classname:
+                    break
+            else:
+                delta_ctx.op.add(create_union)
+
+        return target
 
 
 class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
@@ -253,58 +310,21 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             targets = qlast.get_targets(astnode.target)
 
             if len(targets) > 1:
+                new_targets = [
+                    utils.ast_to_typeref(
+                        t, modaliases=context.modaliases,
+                        schema=schema)
+                    for t in targets
+                ]
                 cmd.add(
                     sd.AlterObjectProperty(
                         property='spectargets',
-                        new_value=so.ObjectList([
-                            utils.ast_to_typeref(
-                                t, modaliases=context.modaliases,
-                                schema=schema)
-                            for t in targets
-                        ])
+                        new_value=so.ObjectList.create(schema, new_targets)
                     )
                 )
 
-                target_name = sources.Source.gen_virt_parent_name(
-                    (sn.Name(module=t.maintype.module, name=t.maintype.name)
-                     for t in targets),
-                    module=source_name.module
-                )
-
-                target = so.ObjectRef(name=target_name)
-
-                create_virt_parent = s_objtypes.CreateObjectType(
-                    classname=target_name,
-                    metaclass=s_objtypes.ObjectType
-                )
-
-                create_virt_parent.update((
-                    sd.AlterObjectProperty(
-                        property='bases',
-                        new_value=so.ObjectList([
-                            so.ObjectRef(name=sn.Name(
-                                module='std', name='Object'
-                            ))
-                        ])
-                    ),
-                    sd.AlterObjectProperty(
-                        property='name',
-                        new_value=target_name
-                    ),
-                    sd.AlterObjectProperty(
-                        property='is_virtual',
-                        new_value=True
-                    )
-                ))
-
-                delta_ctx = context.get(sd.DeltaRootContext)
-
-                for cc in delta_ctx.op.get_subcommands(
-                        type=s_objtypes.CreateObjectType):
-                    if cc.classname == create_virt_parent.classname:
-                        break
-                else:
-                    delta_ctx.op.add(create_virt_parent)
+                target = cls._create_union_target(
+                    schema, context, new_targets)
             else:
                 target_expr = targets[0]
                 if isinstance(target_expr, qlast.TypeName):
@@ -517,69 +537,28 @@ class AlterTarget(sd.Command):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
-        from . import objtypes as s_objtypes
-
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
-        parent_ctx = context.get(LinkSourceCommandContext)
-        source_name = parent_ctx.op.classname
-
-        alter_ptr_ctx = context.get(pointers.PointerCommandContext)
 
         targets = qlast.get_targets(astnode.target)
 
         if len(targets) > 1:
+            alter_ptr_ctx = context.get(pointers.PointerCommandContext)
+            new_targets = [
+                utils.ast_to_typeref(
+                    t, modaliases=context.modaliases,
+                    schema=schema)
+                for t in targets
+            ]
 
             alter_ptr_ctx.op.add(
                 sd.AlterObjectProperty(
                     property='spectargets',
-                    new_value=so.ObjectList([
-                        so.ObjectRef(
-                            name=sn.Name(
-                                module=t.module,
-                                name=t.name
-                            )
-                        )
-                        for t in targets
-                    ])
+                    new_value=so.ObjectList.create(schema, new_targets),
                 )
             )
 
-            target_name = sources.Source.gen_virt_parent_name(
-                (sn.Name(module=t.module, name=t.name)
-                 for t in targets),
-                module=source_name.module
-            )
-
-            target_ref = so.ObjectRef(name=target_name)
-
-            create_virt_parent = s_objtypes.CreateObjectType(
-                classname=target_name,
-                metaclass=s_objtypes.ObjectType
-            )
-
-            create_virt_parent.update((
-                sd.AlterObjectProperty(
-                    property='name',
-                    new_value=target_name
-                ),
-                sd.AlterObjectProperty(
-                    property='is_virtual',
-                    new_value=True
-                ),
-                sd.AlterObjectProperty(
-                    property='is_derived',
-                    new_value=True
-                )
-            ))
-
-            delta_ctx = context.get(sd.DeltaRootContext)
-
-            for cc in delta_ctx.op(s_objtypes.CreateObjectType):
-                if cc.classname == create_virt_parent.classname:
-                    break
-            else:
-                delta_ctx.op.add(create_virt_parent)
+            target = cls._create_union_target(
+                schema, context, new_targets)
         else:
             target = targets[0]
             target_ref = utils.ast_to_typeref(

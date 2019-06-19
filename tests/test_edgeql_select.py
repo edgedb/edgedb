@@ -1547,7 +1547,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.not_implemented('union types are not implemented yet')
     async def test_edgeql_select_setops_01(self):
         await self.assert_query_result(
             r"""
@@ -4972,7 +4971,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_bad_reference_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"test::User has no link or property 'nam'",
+                r"'test::User' has no link or property 'nam'",
                 _hint="did you mean 'name'?"):
 
             await self.con.fetchall("""

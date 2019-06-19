@@ -202,6 +202,12 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
         # parent class is available, returns self.
         return self
 
+    def get_union_of(self, schema):
+        return None
+
+    def get_is_opaque_union(self, schema):
+        return False
+
 
 class Collection(Type, s_abc.Collection):
 
@@ -264,11 +270,6 @@ class Collection(Type, s_abc.Collection):
 
     def is_collection(self):
         return True
-
-    @property
-    def is_virtual(self):
-        # This property in necessary for compatibility with node classes.
-        return False
 
     def get_common_parent_type_distance(
             self, other: Type, schema) -> int:
@@ -433,8 +434,7 @@ class BaseArray(Collection, s_abc.Array):
                 f'multi-dimensional arrays are not supported')
 
         if id is so.NoDefault:
-            id_str = f'array-{element_type.id}-{dimensions}'
-            id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+            id = generate_type_id(f'array-{element_type.id}-{dimensions}')
 
         if name is None:
             name = s_name.SchemaName(
@@ -661,7 +661,7 @@ class BaseTuple(Collection, s_abc.Tuple):
             id_str = ','.join(
                 f'{n}:{st.id}' for n, st in element_types.items())
             id_str = f'tuple-{id_str}'
-            id = uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+            id = generate_type_id(id_str)
 
         if name is None:
             if named:
@@ -1080,3 +1080,7 @@ class SchemaTuple(so.UnqualifiedObject, BaseTuple,
             return self.element_types.objects(schema)
         else:
             return []
+
+
+def generate_type_id(id_str: str) -> uuid.UUID:
+    return uuid.uuid5(TYPE_ID_NAMESPACE, id_str)

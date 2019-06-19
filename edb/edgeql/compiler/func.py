@@ -30,10 +30,10 @@ from edb.ir import utils as irutils
 
 from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
-from edb.schema import inheriting as s_inh
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -366,7 +366,7 @@ def compile_operator(
         elif right_type.issubclass(env.schema, left_type):
             rtype = left_type
         else:
-            env.schema, rtype = s_inh.create_virtual_parent(
+            env.schema, rtype = s_utils.get_union_type(
                 env.schema, [left_type, right_type])
 
     is_polymorphic = (

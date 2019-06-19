@@ -203,11 +203,14 @@ def range_for_ptrref(
     set_ops = []
 
     if only_self:
-        ptrrefs = {ptrref}
+        refs = {ptrref}
     else:
-        ptrrefs = {ptrref} | ptrref.descendants
+        if ptrref.union_components:
+            refs = ptrref.union_components
+        else:
+            refs = {ptrref} | ptrref.descendants
 
-    for src_ptrref in ptrrefs:
+    for src_ptrref in refs:
         table = table_from_ptrref(src_ptrref, env=env)
 
         qry = pgast.SelectStmt()

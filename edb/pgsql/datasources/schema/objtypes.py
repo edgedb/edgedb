@@ -31,12 +31,13 @@ async def fetch(
                 c.id AS id,
                 c.name AS name,
                 edgedb._resolve_type_name(c.bases) AS bases,
+                edgedb._resolve_type_name(c.union_of) AS union_of,
                 c.is_abstract AS is_abstract,
                 c.is_final AS is_final,
                 c.view_type AS view_type,
                 c.expr AS expr
             FROM
-                edgedb.ObjectType c
+                edgedb.BaseObjectType c
             WHERE
                 ($1::text[] IS NULL
                  OR split_part(c.name, '::', 1) = any($1::text[]))

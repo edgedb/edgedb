@@ -44,6 +44,7 @@ from edb.schema import operators as s_opers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import roles as s_roles
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.pgsql import common
 from edb.pgsql import dbops
@@ -676,7 +677,8 @@ class IntrospectionMech:
             if spectargets:
                 # Multiple specified targets,
                 # target is a virtual derived object
-                schema, target = link.create_common_target(schema, spectargets)
+                schema, target = s_utils.get_union_type(
+                    schema, spectargets)
 
             schema = link.set_field_value(schema, 'target', target)
 
@@ -882,11 +884,17 @@ class IntrospectionMech:
             exprmap[name] = row['expr']
             basemap[name] = row['bases'] or []
 
+            if row['union_of']:
+                union_of = [schema.get(t) for t in row['union_of']]
+            else:
+                union_of = None
+
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
                 schema,
                 id=objtype['id'],
                 name=name,
                 is_abstract=objtype['is_abstract'],
+                union_of=union_of,
                 is_final=objtype['is_final'],
                 view_type=objtype['view_type'],
             )
@@ -899,29 +907,6 @@ class IntrospectionMech:
             else:
                 schema = objtype.set_field_value(
                     schema, 'bases', [schema.get(b) for b in bases])
-
-            try:
-                expr = exprmap[objtype.get_name(schema)]
-            except KeyError:
-                pass
-            else:
-                if expr is not None:
-                    schema = objtype.set_field_value(
-                        schema, 'expr', self.unpack_expr(expr, schema))
-
-        derived = await datasources.schema.objtypes.fetch_derived(
-            self.connection)
-
-        for row in derived:
-            attrs = dict(row)
-            attrs['name'] = sn.SchemaName(attrs['name'])
-            attrs['bases'] = [schema.get(b) for b in attrs['bases']]
-            attrs['view_type'] = (s_types.ViewType(attrs['view_type'])
-                                  if attrs['view_type'] else None)
-            attrs['is_derived'] = True
-            exprmap[attrs['name']] = attrs.pop('expr')
-            schema, objtype = s_objtypes.ObjectType.create_in_schema(
-                schema, **attrs)
 
         return schema, exprmap
 

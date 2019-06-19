@@ -932,7 +932,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
         # @count property.
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                "deck has no property 'count'"):
+                "'deck' has no property 'count'"):
             await self.con.execute(
                 r'''
                     WITH

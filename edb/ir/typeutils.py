@@ -25,7 +25,6 @@ from edb.edgeql import qltypes
 
 from edb.schema import abc as s_abc
 from edb.schema import modules as s_mod
-from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
@@ -95,10 +94,10 @@ def type_to_typeref(schema, t: s_types.Type, *,
             name_hint=typename or t.get_name(schema),
         )
     elif not isinstance(t, s_abc.Collection):
-        if t.get_is_virtual(schema):
+        union_of = t.get_union_of(schema)
+        if union_of:
             children = frozenset(
-                type_to_typeref(schema, c) for c in t.children(schema)
-            )
+                type_to_typeref(schema, c) for c in union_of.objects(schema))
         else:
             children = frozenset()
 
@@ -124,9 +123,9 @@ def type_to_typeref(schema, t: s_types.Type, *,
             name = t.get_name(schema)
         module = schema.get_global(s_mod.Module, name.module)
 
-        if children:
+        if union_of:
             common_parent = s_utils.get_class_nearest_common_ancestor(
-                schema, t.children(schema))
+                schema, union_of.objects(schema))
             common_parent_ref = type_to_typeref(schema, common_parent)
         else:
             common_parent_ref = None
@@ -143,6 +142,7 @@ def type_to_typeref(schema, t: s_types.Type, *,
             is_scalar=t.is_scalar(),
             is_abstract=t.get_is_abstract(schema),
             is_view=t.is_view(schema),
+            is_opaque_union=t.get_is_opaque_union(schema),
         )
     elif isinstance(t, s_abc.Tuple) and t.named:
         result = irast.TypeRef(
@@ -269,10 +269,26 @@ def ptrref_from_ptrcls(
     else:
         derived_from_ptr = None
 
+    union_components = set()
+    union_of = ptrcls.get_union_of(schema)
+    if union_of:
+        for component in union_of.objects(schema):
+            material_comp = component.material_type(schema)
+            union_components.add(
+                ptrref_from_ptrcls(
+                    source_ref=source_ref,
+                    target_ref=target_ref,
+                    ptrcls=material_comp,
+                    direction=direction,
+                    parent_ptr=parent_ptr,
+                    schema=schema,
+                )
+            )
+
     descendants = set()
 
     source = ptrcls.get_source(schema)
-    if isinstance(source, s_objtypes.ObjectType):
+    if isinstance(source, s_abc.ObjectType):
         ptrs = {material_ptrcls}
         ptrname = ptrcls.get_shortname(schema).name
         for descendant in source.descendants(schema):
@@ -304,6 +320,7 @@ def ptrref_from_ptrcls(
         material_ptr=material_ptr,
         derived_from_ptr=derived_from_ptr,
         descendants=descendants,
+        union_components=union_components,
         has_properties=ptrcls.has_user_defined_properties(schema),
         required=ptrcls.get_required(schema),
         dir_cardinality=dir_cardinality,

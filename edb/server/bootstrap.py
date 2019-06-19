@@ -40,6 +40,7 @@ from edb.common import uuidgen
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
+from edb.schema import modules as s_mod
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
@@ -197,6 +198,7 @@ def _process_delta(delta, schema):
 
 async def _make_stdlib(testmode: bool):
     schema = s_schema.Schema()
+    schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
 
     current_block = None
 
