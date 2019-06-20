@@ -1,7 +1,7 @@
 Introduction
 ============
 
-EdgeDB is an object-relational database that stores and describes the data
+EdgeDB is a relational database that stores and describes the data
 as strongly typed objects and relationships between them.
 
 EdgeDB is built on top of PostgreSQL, inheriting all its core strengths:

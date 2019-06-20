@@ -4,7 +4,7 @@
 Overview
 ========
 
-EdgeDB is an object-relational database with strongly typed schema.
+EdgeDB is a relational database with strongly typed schema.
 
 
 .. _ref_datamodel_typesystem:
