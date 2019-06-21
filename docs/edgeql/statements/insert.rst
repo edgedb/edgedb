@@ -89,9 +89,11 @@ statement as an atomic operation.
     INSERT Issue {
         number := '101',
         body := 'Nested INSERT',
-        owner: User {
-            name := 'Nested User'
-        }
+        owner := (
+            INSERT User {
+                name := 'Nested User'
+            }
+        )
     };
 
 The above statement will create a new ``Issue`` as well as a new
@@ -115,12 +117,15 @@ clause.
         name := x
     });
 
+
     # example of a bulk insert of issues based on a query
     WITH
         MODULE example,
         Elvis := (SELECT User FILTER .name = 'Elvis'),
         Open := (SELECT Status FILTER .name = 'Open')
+
     FOR Q IN {(SELECT User FILTER .name ILIKE 'A%')}
+
     UNION (INSERT Issue {
         name := Q.name + ' access problem',
         body := 'This user was affected by recent system glitch',
