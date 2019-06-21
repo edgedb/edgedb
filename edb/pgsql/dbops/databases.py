@@ -19,7 +19,9 @@
 
 import textwrap
 
-from .. import common
+from ..common import quote_ident as qi
+from ..common import quote_literal as ql
+
 from . import base
 from . import ddl
 
@@ -34,7 +36,7 @@ class Database(base.DBObject):
         return 'DATABASE'
 
     def get_id(self):
-        return common.quote_ident(self.name)
+        return qi(self.name)
 
 
 class DatabaseExists(base.Condition):
@@ -48,7 +50,7 @@ class DatabaseExists(base.Condition):
             FROM
                 pg_catalog.pg_database AS db
             WHERE
-                datname = {common.quote_literal(self.name)}
+                datname = {ql(self.name)}
         ''')
 
 
@@ -63,7 +65,7 @@ class CreateDatabase(ddl.CreateObject):
     def code(self, block: base.PLBlock) -> str:
         extra = ''
         if self.object.owner:
-            extra += f' OWNER={self.object.owner}'
+            extra += f' OWNER={qi(self.object.owner)}'
         return (f'CREATE DATABASE {self.object.get_id()} '
                 f'WITH TEMPLATE=edgedb0 {extra}')
 
@@ -71,4 +73,4 @@ class CreateDatabase(ddl.CreateObject):
 class DropDatabase(ddl.SchemaObjectOperation):
 
     def code(self, block: base.PLBlock) -> str:
-        return f'DROP DATABASE {common.quote_ident(self.name)}'
+        return f'DROP DATABASE {qi(self.name)}'
