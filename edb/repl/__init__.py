@@ -297,6 +297,77 @@ class Cli:
         for dbn in result:
             print(f'  {dbn}')
 
+    @_command('dr', R'\dr', 'list roles')
+    def command_list_roles(self, args):
+        result, _ = self.fetch(
+            '''
+                SELECT name := sys::Role.name
+                ORDER BY name ASC
+            ''',
+            json=False
+        )
+        print('List of roles:')
+        for role in result:
+            print(f'  {role}')
+
+    @_command('dm', R'\dm', 'list modules')
+    def command_list_modules(self, args):
+        result, _ = self.fetch(
+            '''
+                SELECT name := schema::Module.name
+                ORDER BY name ASC
+            ''',
+            json=False
+        )
+        print('List of modules:')
+        for module in result:
+            print(f'  {module}')
+
+    @_command('dt', R'\dt [MODULE]', 'list types in module')
+    def command_list_types(self, args):
+        module = args if args else 'default'
+        result, _ = self.fetch(
+            '''
+                SELECT name := schema::Type.name
+                FILTER name LIKE <str>$module ++ '::%'
+                ORDER BY name ASC
+            ''',
+            {'module': module},
+            json=False
+        )
+
+        print('List of types:')
+        for name in result:
+            print(f'  {name}')
+
+    @_command('d', R'\d [TYPE]', 'describe type')
+    def command_describe_object(self, args):
+        if not args:
+            # if not objec name is passed, list types
+            self.command_list_types(args)
+            return
+        type_name = args
+        result, _ = self.fetch(
+            f'WITH type:= INTROSPECT {type_name}' + '''
+            SELECT type {
+              name,
+              annotations: {name},
+              pointers:= (
+                SELECT type.pointers {
+                  name,
+                  type := type.pointers.__type__.name[len('schema::'):],
+                  target := type.pointers.target.name
+                }
+              )
+            };
+            ''',
+            json=False
+        )
+
+        print(f'Type {result[0].name}:')
+        for pt in result[0].pointers:
+           print(f'  {pt.type} {pt.name} -> {pt.target}')
+
     @_command('psql', R'\psql',
               'open psql to the current postgres process',
               dev=True)
@@ -370,7 +441,7 @@ class Cli:
             print('> ' + '\n> '.join(srv_tb.strip().split('\n')))
             print()
 
-    def fetch(self, query: str, *, json: bool, retry: bool=True):
+    def fetch(self, query: str, params: dict=None, *, json: bool, retry: bool=True):
         self.ensure_connection()
         self.context.last_exception = None
 
@@ -380,7 +451,8 @@ class Cli:
             meth = self.connection.fetchall
 
         try:
-            result = meth(query)
+            params = {} if params is None else params
+            result = meth(query, **params)
         except edgedb.EdgeDBError as ex:
             self.context.last_exception = ex
             raise
