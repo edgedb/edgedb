@@ -366,7 +366,7 @@ class Cli:
 
         print(f'Type {result[0].name}:')
         for pt in result[0].pointers:
-           print(f'  {pt.type} {pt.name} -> {pt.target}')
+            print(f'  {pt.type} {pt.name} -> {pt.target}')
 
     @_command('psql', R'\psql',
               'open psql to the current postgres process',
@@ -441,7 +441,8 @@ class Cli:
             print('> ' + '\n> '.join(srv_tb.strip().split('\n')))
             print()
 
-    def fetch(self, query: str, params: dict=None, *, json: bool, retry: bool=True):
+    def fetch(self, query: str, params: dict=None, *,
+              json: bool, retry: bool=True):
         self.ensure_connection()
         self.context.last_exception = None
 
