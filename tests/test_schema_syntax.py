@@ -77,6 +77,46 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 \t      required property bar -> str;
 };
         """
+    def test_eschema_syntax_semicolon_01(self):
+        """
+        abstract type OwnedObject {
+            required link owner -> User
+        };
+
+% OK %
+
+        abstract type OwnedObject {
+            required link owner -> User;
+        };
+        """
+
+    def test_eschema_syntax_semicolon_02(self):
+        """
+        abstract type OwnedObject {
+            required property tag -> str
+        };
+
+% OK %
+
+        abstract type OwnedObject {
+            required property tag -> str;
+        };
+        """
+
+    def test_eschema_syntax_semicolon_03(self):
+        """
+        abstract type OwnedObject {
+            required link owner -> User;
+            required property tag -> str
+        };
+
+% OK %
+
+        abstract type OwnedObject {
+            required link owner -> User;
+            required property tag -> str;
+        };
+        """
 
     def test_eschema_syntax_type_01(self):
         """type User extending builtins::NamedObject;"""
