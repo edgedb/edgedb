@@ -82,7 +82,7 @@ byte values.
 For example, the UUID value ``b9545c35-1fe7-485f-a6ea-f8ead251abd3`` is
 represented as:
 
-.. code-block::
+.. code-block:: c
 
     0xb9 0x54 0x5c 0x35 0x1f 0xe7 0x48 0x5f
     0xa6 0xea 0xf8 0xea 0xd2 0x51 0xab 0xd3
@@ -97,7 +97,7 @@ The :eql:type:`std::str` values are represented as a UTF-8 encoded byte string.
 
 For example, the ``str`` value ``'Hello! 🙂'`` is encoded as:
 
-.. code-block::
+.. code-block:: c
 
     0x48 0x65 0x6c 0x6c 0x6f 0x21 0x20 0xf0 0x9f 0x99 0x82
 
@@ -120,7 +120,7 @@ significant byte first.
 
 For example, the ``int16`` value ``6556`` is represented as:
 
-.. code-block::
+.. code-block:: c
 
     0x19 0x9c
 
@@ -135,7 +135,7 @@ significant byte first.
 
 For example, the ``int32`` value ``655665`` is represented as:
 
-.. code-block::
+.. code-block:: c
 
     0x00 0x0a 0x01 0x31
 
@@ -150,7 +150,7 @@ significant byte first.
 
 For example, the ``int64`` value ``123456789987654321`` is represented as:
 
-.. code-block::
+.. code-block:: c
 
     0x01 0xb6 0x9b 0x4b 0xe0 0x52 0xfa 0xb1
 
@@ -165,7 +165,7 @@ The :eql:type:`std::float32` values are represented as a IEEE 754-2008 binary
 
 For example, the ``float32`` value ``-15.625`` is represented as:
 
-.. code-block::
+.. code-block:: c
 
     0xc1 0x7a 0x00 0x00
 
@@ -180,7 +180,7 @@ The :eql:type:`std::float32` values are represented as a IEEE 754-2008 binary
 
 For example, the ``float64`` value ``-15.625`` is represented as:
 
-.. code-block::
+.. code-block:: c
 
     0xc0 0x2f 0x40 0x00 0x00 0x00 0x00 0x00
 
@@ -270,14 +270,14 @@ between the encoded datetime and January 1st 2000, 00:00 UTC.  A Unix
 timestamp can be converted into an EdgeDB ``datetime`` value using this
 formula:
 
-.. code-block::
+.. code-block:: c
 
     edb_datetime = (unix_ts + 946684800) * 1000000
 
 For example, the ``datetime`` value ``'2019-05-06T12:00+00:00'`` is
 encoded as:
 
-.. code-block::
+.. code-block:: c
 
     0x00 0x02 0x2b 0x35 0x9b 0xc4 0x10 0x00
 
@@ -294,7 +294,7 @@ between the encoded datetime and January 1st 2000, 00:00.
 For example, the ``local_datetime`` value ``'2019-05-06T12:00'`` is
 encoded as:
 
-.. code-block::
+.. code-block:: c
 
     0x00 0x02 0x2b 0x35 0x9b 0xc4 0x10 0x00
 
@@ -311,7 +311,7 @@ between the encoded date and January 1st 2000.
 For example, the ``local_date`` value ``'2019-05-06'`` is
 encoded as:
 
-.. code-block::
+.. code-block:: c
 
     0x00 0x00 0x1b 0x99
 
@@ -328,7 +328,7 @@ since midnight.
 For example, the ``local_time`` value ``'12:10'`` is
 encoded as:
 
-.. code-block::
+.. code-block:: c
 
     0x00 0x00 0x00 0x0a 0x32 0xae 0xf6 0x00
 
@@ -352,7 +352,7 @@ structure:
 For example, the ``duration`` value ``'2 months 3 days 1 hour'`` is
 encoded as:
 
-.. code-block::
+.. code-block:: c
 
     // microseconds
     0x00 0x00 0x00 0x00 0xd6 0x93 0xa4 0x00
