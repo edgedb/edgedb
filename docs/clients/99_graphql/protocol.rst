@@ -31,9 +31,7 @@ POST request
 ------------
 
 The POST request should use ``application/json`` content type and
-submit the following JSON-encoded form with the necessary fields:
-
-.. code-block::
+submit the following JSON-encoded form with the necessary fields::
 
     {
       "query": "...",
@@ -46,9 +44,7 @@ Response
 --------
 
 The response format is the same for both methods. The body of the
-response is JSON of the following form:
-
-.. code-block::
+response is JSON of the following form::
 
     {
       "data": { ... },
