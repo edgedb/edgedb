@@ -91,7 +91,7 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
         if ancestors is None:
             bases = self.scls.get_bases(schema)
             if bases:
-                ancestors = compute_mro(schema, self.scls)[1:]
+                ancestors = compute_ancestors(schema, self.scls)
                 schema = self.scls.set_field_value(
                     schema, 'ancestors', ancestors)
 
@@ -269,7 +269,7 @@ class RebaseInheritingObject(sd.ObjectCommand):
                 bases = []
 
         schema = scls.set_field_value(schema, 'bases', bases)
-        new_ancestors = compute_mro(schema, scls)[1:]
+        new_ancestors = compute_ancestors(schema, scls)
         schema = scls.set_field_value(schema, 'ancestors', new_ancestors)
 
         if not self.has_attribute_value('bases'):
@@ -284,7 +284,7 @@ class RebaseInheritingObject(sd.ObjectCommand):
         descendants = list(scls.descendants(schema))
         if descendants and not list(self.get_subcommands(type=alter_cmd)):
             for descendant in descendants:
-                new_ancestors = compute_mro(schema, descendant)[1:]
+                new_ancestors = compute_ancestors(schema, descendant)
                 schema = descendant.set_field_value(
                     schema, 'ancestors', new_ancestors)
                 alter = alter_cmd(classname=descendant.get_name(schema))
@@ -297,16 +297,16 @@ class RebaseInheritingObject(sd.ObjectCommand):
         return schema, scls
 
 
-def _merge_mro(schema, obj, mros):
+def _merge_lineage(schema, obj, lineage):
     result = []
 
     while True:
-        nonempty = [mro for mro in mros if mro]
+        nonempty = [line for line in lineage if line]
         if not nonempty:
             return result
 
-        for mro in nonempty:
-            candidate = mro[0]
+        for line in nonempty:
+            candidate = line[0]
             tails = [m for m in nonempty
                      if id(candidate) in {id(c) for c in m[1:]}]
             if not tails:
@@ -319,21 +319,25 @@ def _merge_mro(schema, obj, mros):
 
         result.append(candidate)
 
-        for mro in nonempty:
-            if mro[0] is candidate:
-                del mro[0]
+        for line in nonempty:
+            if line[0] is candidate:
+                del line[0]
 
     return result
 
 
-def compute_mro(schema, obj):
+def compute_lineage(schema, obj):
     bases = tuple(obj.get_bases(schema).objects(schema))
-    mros = [[obj]]
+    lineage = [[obj]]
 
     for base in bases:
-        mros.append(base.compute_mro(schema))
+        lineage.append(compute_lineage(schema, base))
 
-    return _merge_mro(schema, obj, mros)
+    return _merge_lineage(schema, obj, lineage)
+
+
+def compute_ancestors(schema, obj):
+    return compute_lineage(schema, obj)[1:]
 
 
 class InheritingObject(derivable.DerivableObject):
@@ -583,6 +587,30 @@ class InheritingObject(derivable.DerivableObject):
 
         return schema
 
+    def get_classref_origin(self, schema, name, attr, local_attr, classname,
+                            farthest=False):
+        assert self.get_field_value(schema, attr).has(schema, name)
+
+        result = None
+
+        if self.get_field_value(schema, local_attr).has(schema, name):
+            result = self
+
+        if not result or farthest:
+            bases = compute_ancestors(schema, self)
+
+            for c in bases:
+                if c.get_field_value(schema, local_attr).has(schema, name):
+                    result = c
+                    if not farthest:
+                        break
+
+        if result is None:
+            raise KeyError(
+                'could not find {} "{}" origin'.format(classname, name))
+
+        return result
+
     def init_derived(self, schema, source, *qualifiers, as_copy,
                      merge_bases=None, mark_derived=False,
                      replace_original=None, attrs=None, dctx=None,
@@ -629,7 +657,7 @@ class InheritingObject(derivable.DerivableObject):
 
     def get_topmost_concrete_base(self, schema):
         # Get the topmost non-abstract base.
-        for ancestor in reversed(self.compute_mro(schema)):
+        for ancestor in reversed(compute_lineage(schema, self)):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
 
@@ -643,14 +671,9 @@ class InheritingObject(derivable.DerivableObject):
         else:
             return self.get_topmost_concrete_base(schema)
 
-    def compute_mro(self, schema):
-        return compute_mro(schema, self)
-
     def _issubclass(self, schema, parent):
-        mro = self.compute_mro(schema)
-        mro = {o.id for o in mro}
-
-        return parent.id in mro
+        lineage = compute_lineage(schema, self)
+        return parent in lineage
 
     def issubclass(self, schema, parent):
         if isinstance(parent, tuple):
@@ -686,7 +709,7 @@ class InheritingObject(derivable.DerivableObject):
             dctx=dctx)
         if self.get_ancestors(schema) is None:
             schema = self.set_field_value(
-                schema, 'ancestors', compute_mro(schema, self)[1:])
+                schema, 'ancestors', compute_ancestors(schema, self))
         schema = self.acquire_ancestor_inheritance(schema, dctx=dctx)
 
         if bases is None:

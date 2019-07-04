@@ -168,7 +168,7 @@ def fini_expression(
                 ctx.env.schema = view.set_field_value(
                     ctx.env.schema,
                     'ancestors',
-                    s_inh.compute_mro(ctx.env.schema, view)[1:]
+                    s_inh.compute_ancestors(ctx.env.schema, view)
                 )
 
             if not hasattr(view, 'get_own_pointers'):  # duck check

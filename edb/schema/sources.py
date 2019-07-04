@@ -17,8 +17,6 @@
 #
 
 
-import hashlib
-
 from . import indexes
 from . import name as sn
 from . import objects as so

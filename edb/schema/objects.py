@@ -1218,30 +1218,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         adds_mods.sort_subcommands_by_type()
         return adds_mods, dels
 
-    def get_classref_origin(self, schema, name, attr, local_attr, classname,
-                            farthest=False):
-        assert self.get_field_value(schema, attr).has(schema, name)
-
-        result = None
-
-        if self.get_field_value(schema, local_attr).has(schema, name):
-            result = self
-
-        if not result or farthest:
-            bases = self.compute_mro(schema)[1:]
-
-            for c in bases:
-                if c.get_field_value(schema, local_attr).has(schema, name):
-                    result = c
-                    if not farthest:
-                        break
-
-        if result is None:
-            raise KeyError(
-                'could not find {} "{}" origin'.format(classname, name))
-
-        return result
-
     def finalize(self, schema, bases=None, *, apply_defaults=True, dctx=None):
         return schema
 

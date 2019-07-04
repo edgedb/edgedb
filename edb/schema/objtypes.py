@@ -124,16 +124,14 @@ class BaseObjectType(sources.Source,
         my_vchildren = self.get_union_of(schema)
 
         if not my_vchildren:
-            mro = self.compute_mro(schema)
-            mro = {o.id for o in mro}
+            lineage = inheriting.compute_lineage(schema, self)
 
-            if parent.id in mro:
+            if parent in lineage:
                 return True
             elif isinstance(parent, BaseObjectType):
                 vchildren = parent.get_union_of(schema)
                 if vchildren:
-                    return bool(
-                        {o.id for o in vchildren.objects(schema)} & mro)
+                    return bool(set(vchildren.objects(schema)) & set(lineage))
                 else:
                     return False
             else:

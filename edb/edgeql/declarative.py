@@ -152,7 +152,7 @@ class DeclarationLoader:
                     self._schema, 'bases', bases)
                 self._schema = obj.set_field_value(
                     self._schema, 'ancestors',
-                    s_inh.compute_mro(self._schema, obj)[1:])
+                    s_inh.compute_ancestors(self._schema, obj))
 
                 if enum_values:
                     enums[obj] = enum_values

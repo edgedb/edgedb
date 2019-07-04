@@ -18,7 +18,6 @@
 
 
 import collections
-import itertools
 import typing
 
 from edb import errors
@@ -179,54 +178,19 @@ def is_nontrivial_container(value):
 
 
 def get_class_nearest_common_ancestor(schema, classes):
+    from . import inheriting as s_inh
+
     # First, find the intersection of parents
     classes = list(classes)
-    first = classes[0].compute_mro(schema)
+    first = s_inh.compute_lineage(schema, classes[0])
     common = set(first).intersection(
-        *[set(c.compute_mro(schema)) for c in classes[1:]])
+        *[set(s_inh.compute_lineage(schema, c)) for c in classes[1:]]
+    )
     common = sorted(common, key=lambda i: first.index(i))
     if common:
         return common[0]
     else:
         return None
-
-
-def minimize_class_set_by_most_generic(schema, classes):
-    """Minimize the given Object set by filtering out all subclasses."""
-
-    classes = list(classes)
-    mros = [set(p.compute_mro(schema)) for p in classes]
-    count = len(classes)
-    smap = itertools.starmap
-
-    # Return only those entries that do not have other entries in their mro
-    result = [
-        scls for i, scls in enumerate(classes)
-        if not any(smap(set.__contains__,
-                        ((mros[i], classes[j])
-                         for j in range(count) if j != i)))
-    ]
-
-    return result
-
-
-def minimize_class_set_by_least_generic(schema, classes):
-    """Minimize the given Object set by filtering out all superclasses."""
-
-    classes = list(classes)
-    mros = [set(p.compute_mro(schema)) for p in classes]
-    count = len(classes)
-    smap = itertools.starmap
-
-    # Return only those entries that are not present in other entries' mro
-    result = [
-        scls for i, scls in enumerate(classes)
-        if not any(smap(set.__contains__,
-                        ((mros[j], classes[i])
-                         for j in range(count) if j != i)))
-    ]
-
-    return result
 
 
 def merge_reduce(target, sources, field_name, *, schema, f):
