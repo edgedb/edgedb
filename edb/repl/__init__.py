@@ -23,6 +23,7 @@ import os
 import select
 import subprocess
 import sys
+from string import Template
 
 import edgedb
 import immutables
@@ -347,26 +348,42 @@ class Cli:
             self.command_list_types(args)
             return
         type_name = args
-        result, _ = self.fetch(
-            f'WITH type:= INTROSPECT {type_name}' + '''
+        tmpl_prop = '''
+                name,
+                required,
+                cardinality,
+                target : {name},
+                constraints: {
+                  name,
+                  is_abstract,
+                },
+        '''
+        result, _ = self.fetch(Template(
+            '''WITH type:= INTROSPECT ${type_name}
             SELECT type {
               name,
+              is_abstract,
+              is_final,
+              bases: {name},
               annotations: {name},
-              pointers:= (
-                SELECT type.pointers {
-                  name,
-                  type := type.pointers.__type__.name[len('schema::'):],
-                  target := type.pointers.target.name
+              properties: {
+                ${tmpl_prop}
+              },
+              links: {
+                ${tmpl_prop}
+                properties: {
+                  ${tmpl_prop}
                 }
-              )
+              },
             };
-            ''',
+            ''').substitute(type_name=type_name, tmpl_prop=tmpl_prop),
             json=False
         )
 
-        print(f'Type {result[0].name}:')
-        for pt in result[0].pointers:
-            print(f'  {pt.type} {pt.name} -> {pt.target}')
+        # render.render_binary(self.context, result, max_width=80)
+        # print('==============================\n')
+        render.render_sdl(self.context, result[0], max_width=80)
+
 
     @_command('psql', R'\psql',
               'open psql to the current postgres process',

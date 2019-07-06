@@ -23,6 +23,7 @@ import functools
 import json
 import re
 import uuid
+from contextlib import contextmanager
 
 import edgedb
 from edgedb import introspect
@@ -322,6 +323,86 @@ class JSONRenderer:
         buf.write('null', style.code_constant)
 
 
+def _rm_mod(name):
+    """remove module from name"""
+    return name.split('::')[-1]
+
+class SDLRenderer:
+    def __init__(self):
+        self.indent_level = 0
+
+    @property
+    def indent(self):
+        return 4 * self.indent_level * ' '
+
+    @contextmanager
+    def block(self, buf):
+        self.indent_level += 1
+        buf.write(' {\n')
+        yield
+        self.indent_level -= 1
+        buf.write(self.indent + '}')
+
+
+    def write_type(self, obj: edgedb.Object, buf):
+        if obj.is_abstract:
+            buf.write('abstract ')
+        buf.write('type ', style.code_keyword)
+        type_name = _rm_mod(obj.name)
+        buf.write(f'{type_name}', style.key)
+        if obj.bases:
+            buf.write(' extending ')
+            buf.write(', '.join(_rm_mod(b.name) for b in obj.bases))
+
+        with self.block(buf):
+            # object components
+            # properties
+            for pt in obj.properties:
+                if pt.name == 'id':
+                    continue
+                self.write_pointer('property', pt, buf)
+            # links
+            for pt in obj.links:
+                if pt.name == '__type__':
+                    continue
+                self.write_pointer('link', pt, buf)
+
+
+    @staticmethod
+    def _link_properties(obj):
+        if hasattr(obj, 'properties'):
+            return [p for p in obj.properties
+                    if p.name not in ('source', 'target')]
+        return ()
+
+    def write_pointer(self, type_, obj, buf):
+        buf.write(self.indent)
+        if obj.cardinality == 'MANY':
+            buf.write('multi ')
+        if obj.required:
+            buf.write('required ')
+        target_type = _rm_mod(obj.target.name)
+        buf.write(f'{type_} ', style.code_keyword)
+        buf.write(f'{obj.name}', style.key)
+        buf.write(f' -> {target_type}')
+
+        properties = self._link_properties(obj)
+        if obj.constraints or properties:
+            with self.block(buf):
+                for item in properties:
+                    self.write_pointer('property', item, buf)
+                for item in obj.constraints:
+                    self.write_constraint(item, buf)
+            buf.write('\n')
+        else:
+            buf.write(';\n')
+
+    def write_constraint(self, obj, buf):
+        name = _rm_mod(obj.name)
+        buf.write(f'{self.indent}constraint {name};')
+        buf.write('\n')
+
+
 def render_binary(repl_ctx: context.ReplContext,
                   data, max_width=None):
     buf = terminal.Buffer(max_width=max_width, styled=repl_ctx.use_colors)
@@ -334,6 +415,12 @@ def render_json(repl_ctx: context.ReplContext,
     data = json.loads(data)
     buf = terminal.Buffer(max_width=max_width, styled=repl_ctx.use_colors)
     JSONRenderer.walk(data, repl_ctx, buf)
+    print(buf.flush())
+
+
+def render_sdl(repl_ctx: context.ReplContext, data, max_width=None):
+    buf = terminal.Buffer(max_width=max_width, styled=repl_ctx.use_colors)
+    SDLRenderer().write_type(data, buf)
     print(buf.flush())
 
 
