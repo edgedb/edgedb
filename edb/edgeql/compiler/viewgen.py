@@ -57,7 +57,7 @@ def process_view(
         is_update: bool=False,
         ctx: context.CompilerContext) -> s_nodes.Node:
 
-    cache_key = tuple(elements)
+    cache_key = (stype, tuple(elements))
     view_scls = ctx.shape_type_cache.get(cache_key)
     if view_scls is not None:
         return view_scls
@@ -146,6 +146,25 @@ def _process_view(
                     is_insert=is_insert, is_update=is_update,
                     view_rptr=view_rptr, ctx=scopectx))
 
+    implicit_tid = has_implicit_tid(
+        view_scls,
+        is_mutation=is_insert or is_update,
+        ctx=ctx,
+    )
+
+    if ((pointers or implicit_tid)
+            and is_defining_shape
+            and view_rptr is not None
+            and view_rptr.derived_ptrcls is None):
+        # For the purposes of shape tracking, we must derive the
+        # pointer.  The derived pointer must be treated the same
+        # as the original, as this is not a new computable,
+        # and both `Foo.ptr` and `Foo { ptr }` are the same path,
+        # hence the `transparent` modifier.
+        derive_ptrcls(
+            view_rptr, target_scls=view_scls,
+            transparent=True, ctx=ctx)
+
     for ptrcls in pointers:
         if ptrcls.is_link_property(ctx.env.schema):
             source = view_rptr.derived_ptrcls
@@ -157,18 +176,6 @@ def _process_view(
                 ctx.env.schema, ptrcls, replace=True)
 
         if is_defining_shape:
-            if source is None:
-                # The nested shape is merely selecting the pointer,
-                # so the link class has not been derived.  But for
-                # the purposes of shape tracking, we must derive it
-                # still.  The derived pointer must be treated the same
-                # as the original, as this is not a new computable,
-                # and both `Foo.ptr` and `Foo { ptr }` are the same path,
-                # hence the `transparent` modifier.
-                source = derive_ptrcls(
-                    view_rptr, target_scls=view_scls,
-                    transparent=True, ctx=ctx)
-
             ctx.env.view_shapes[source].append(ptrcls)
 
     if (view_rptr is not None and view_rptr.derived_ptrcls is not None and
@@ -262,7 +269,13 @@ def _normalize_view_ptr_expr(
         else:
             ptr_cardinality = ptrcls.get_cardinality(ctx.env.schema)
 
-        if shape_el.elements:
+        implicit_tid = has_implicit_tid(
+            ptr_target,
+            is_mutation=is_mutation,
+            ctx=ctx,
+        )
+
+        if shape_el.elements or implicit_tid:
             sub_view_rptr = context.ViewRPtr(
                 ptrsource if is_linkprop else view_scls, ptrcls=ptrcls,
                 is_insert=is_insert, is_update=is_update)
@@ -540,6 +553,8 @@ def derive_ptrcls(
 
     if view_rptr.ptrcls is None:
         if view_rptr.base_ptrcls is None:
+            transparent = False
+
             if target_scls.is_object_type():
                 view_rptr.base_ptrcls = (
                     ctx.env.get_track_schema_object('std::link'))
@@ -556,7 +571,7 @@ def derive_ptrcls(
             ctx=ctx)
 
         attrs = {}
-        if transparent:
+        if transparent and not view_rptr.ptrcls_is_alias:
             attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
                 ctx.env.schema)
 
@@ -580,11 +595,14 @@ def derive_ptrcls(
 
     else:
         attrs = {}
-        if transparent:
+        if transparent and not view_rptr.ptrcls_is_alias:
             attrs['path_id_name'] = view_rptr.ptrcls.get_name(ctx.env.schema)
 
         view_rptr.derived_ptrcls = schemactx.derive_view(
             view_rptr.ptrcls, view_rptr.source, target_scls,
+            derived_name_quals=(
+                view_rptr.source.get_name(ctx.env.schema),
+            ),
             is_insert=view_rptr.is_insert,
             is_update=view_rptr.is_update,
             attrs=attrs,
@@ -608,6 +626,18 @@ def _link_has_shape(
             return True
 
     return False
+
+
+def has_implicit_tid(
+        stype: s_nodes.Node, *,
+        is_mutation: bool,
+        ctx: context.ContextLevel) -> bool:
+
+    return (
+        stype.is_object_type()
+        and not is_mutation
+        and ctx.implicit_tid_in_shapes
+    )
 
 
 def _get_shape_configuration(
@@ -649,8 +679,6 @@ def _get_shape_configuration(
 
     shape_ptrs = []
 
-    id_present_in_shape = False
-
     for source in sources:
         for ptr in ctx.env.view_shapes[source]:
             if (ptr.is_link_property(ctx.env.schema) and
@@ -661,10 +689,7 @@ def _get_shape_configuration(
 
             shape_ptrs.append((path_tip, ptr))
 
-            if source is stype and ptr.is_id_pointer(ctx.env.schema):
-                id_present_in_shape = True
-
-    if is_objtype and not id_present_in_shape:
+    if is_objtype:
         view_type = stype.get_view_type(ctx.env.schema)
         is_mutation = view_type in (s_types.ViewType.Insert,
                                     s_types.ViewType.Update)
@@ -695,11 +720,17 @@ def _get_shape_configuration(
                         shape_ptrs.insert(0, (ir_set, ptr))
                     break
 
-    if (ir_set.typeref is not None
-            and irtyputils.is_object(ir_set.typeref)
-            and parent_view_type is not s_types.ViewType.Insert
-            and parent_view_type is not s_types.ViewType.Update
-            and ctx.implicit_tid_in_shapes):
+    is_mutation = parent_view_type in {
+        s_types.ViewType.Insert,
+        s_types.ViewType.Update
+    }
+
+    implicit_tid = (
+        stype is not None
+        and has_implicit_tid(stype, is_mutation=is_mutation, ctx=ctx)
+    )
+
+    if implicit_tid:
         ql = qlast.ShapeElement(
             expr=qlast.Path(
                 steps=[qlast.Ptr(

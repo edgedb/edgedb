@@ -54,6 +54,7 @@ class ContextSwitchMode(enum.Enum):
 class ViewRPtr:
     def __init__(self, source, *, ptrcls=None, ptrcls_name=None,
                  base_ptrcls=None, ptrcls_is_linkprop=None,
+                 ptrcls_is_alias=None,
                  derived_ptrcls=None, rptr=None, is_insert=False,
                  is_update=False):
         self.source = source
@@ -61,6 +62,7 @@ class ViewRPtr:
         self.base_ptrcls = base_ptrcls
         self.ptrcls_name = ptrcls_name
         self.ptrcls_is_linkprop = ptrcls_is_linkprop
+        self.ptrcls_is_alias = ptrcls_is_alias
         self.derived_ptrcls = derived_ptrcls
         self.rptr = rptr
         self.is_insert = is_insert

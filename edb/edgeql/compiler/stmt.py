@@ -27,8 +27,9 @@ from edb import errors
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
-from edb.schema import objtypes as s_objtypes
 from edb.schema import name as s_name
+from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -581,6 +582,8 @@ def compile_result_clause(
                 expr = setgen.ensure_set(
                     dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
 
+        ctx.partial_path_prefix = expr
+
         result = compile_query_subject(
             expr, shape=shape, view_rptr=view_rptr, view_name=view_name,
             result_alias=result_alias,
@@ -613,6 +616,7 @@ def compile_query_subject(
         and view_rptr.ptrcls is None
         and view_rptr.ptrcls_name is not None
         and expr_rptr is not None
+        and expr_rptr.direction is s_pointers.PointerDirection.Outbound
         and (
             view_rptr.ptrcls_is_linkprop
             == (expr_rptr.ptrref.parent_ptr is not None)
@@ -630,6 +634,17 @@ def compile_query_subject(
             rptr = rptr.source.rptr
         view_rptr.base_ptrcls = irtyputils.ptrcls_from_ptrref(
             rptr.ptrref, schema=ctx.env.schema)
+        view_rptr.ptrcls_is_alias = True
+
+    if (ctx.expr_exposed
+            and viewgen.has_implicit_tid(
+                expr_stype, is_mutation=is_insert or is_update, ctx=ctx)
+            and shape is None
+            and expr_stype not in ctx.env.view_shapes):
+        # Force the subject to be compiled as a view if a __tid__
+        # insertion is anticipated (the actual decision is taken
+        # by the compile_view_shapes() flow).
+        shape = []
 
     if shape is not None and view_scls is None:
         if (view_name is None and
