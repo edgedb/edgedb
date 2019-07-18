@@ -18,6 +18,7 @@
 
 
 import json
+import re
 import typing
 
 import graphql
@@ -1080,8 +1081,13 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *,
     if validation_errors:
         err = validation_errors[0]
         if isinstance(err, graphql.GraphQLError):
+
+            # possibly add additional information and/or hints to the
+            # error message
+            msg = augment_error_message(gqlcore, err.message)
+
             err_loc = (err.locations[0].line, err.locations[0].column)
-            raise g_errors.GraphQLCoreError(err.message, loc=err_loc)
+            raise g_errors.GraphQLCoreError(msg, loc=err_loc)
         else:
             raise err
 
@@ -1117,3 +1123,21 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *,
         cache_deps_vars=dict(critvars) if critvars else None,
         variables_desc=defvars,
     )
+
+
+def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
+    # If the error is about wrong Query field, we can add more details
+    # about what seems to have gone wrong. The type is missing,
+    # possibly because this connection is to the wrong DB. However,
+    # this is only relevant if the message doesn't contain a hint already.
+    if (re.match(r'^Cannot query field "(.+?)" on type "Query"\.$', message)):
+        field = message.split('"', 2)[1]
+        name = gqlcore.gql_to_edb_name(field)
+
+        message += (
+            f' There\'s no corresponding type or view "{name}" exposed in '
+            'EdgeDB. Please check the configuration settings for this port '
+            'to make sure that you\'re connecting to the right database.'
+        )
+
+    return message

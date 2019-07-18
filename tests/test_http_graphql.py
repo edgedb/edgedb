@@ -420,6 +420,51 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             operation_name='users'
         )
 
+    def test_graphql_functional_query_13(self):
+        # Test special case errors.
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Cannot query field \"gibberish\" on type \"Query\"\. "
+                r"There's no corresponding type or view \"gibberish\" "
+                r"exposed in EdgeDB\. Please check the configuration settings "
+                r"for this port to make sure that you're connecting to the "
+                r"right database\.",
+                _line=3, _col=21):
+            self.graphql_query(r"""
+                query {
+                    gibberish
+                }
+            """)
+
+    def test_graphql_functional_query_14(self):
+        # Test special case errors.
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Cannot query field \"more__gibberish\" on type \"Query\"\. "
+                r"There's no corresponding type or view \"more::gibberish\" "
+                r"exposed in EdgeDB\. Please check the configuration settings "
+                r"for this port to make sure that you're connecting to the "
+                r"right database\.",
+                _line=3, _col=21):
+            self.graphql_query(r"""
+                query {
+                    more__gibberish
+                }
+            """)
+
+    def test_graphql_functional_query_15(self):
+        # Test special case errors.
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Cannot query field \"Uxer\" on type \"Query\"\. "
+                r"Did you mean \"User\"\?",
+                _line=3, _col=21):
+            self.graphql_query(r"""
+                query {
+                    Uxer
+                }
+            """)
+
     def test_graphql_functional_view_01(self):
         self.assert_graphql_query_result(
             r"""

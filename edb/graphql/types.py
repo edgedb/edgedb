@@ -166,6 +166,14 @@ class GQLCoreSchema:
         else:
             return f'{inputtype}{name}'
 
+    def gql_to_edb_name(self, name):
+        '''Convert the GraphQL field name into an EdgeDB type/view name.'''
+
+        if '__' in name:
+            return name.replace('__', '::', 1)
+        else:
+            return name
+
     def _convert_edb_type(self, edb_target):
         target = None
 
