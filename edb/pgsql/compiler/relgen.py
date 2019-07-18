@@ -809,7 +809,7 @@ def process_set_as_path(
     elif is_inline_primitive_ref:
         # There is an opportunity to also expose the "source" aspect
         # for tuple refs here, but that requires teaching pathctx about
-        # complex field indirections, so rely on the row_getattr_by_num
+        # complex field indirections, so rely on tuple_getattr()
         # fallback for tuple properties for now.
         main_rvar = SetRVar(
             relctx.ensure_source_rvar(ir_source, stmt, ctx=ctx),
@@ -1349,27 +1349,8 @@ def process_set_as_tuple_indirection(
             tuple_val = pathctx.get_path_value_var(
                 stmt, path_id=tuple_set.path_id, env=subctx.env)
 
-            type_sentinel = pgast.TypeCast(
-                arg=pgast.NullConstant(),
-                type_name=pgast.TypeName(
-                    name=pg_types.pg_type_from_ir_typeref(ir_set.typeref)
-                )
-            )
-
-            ttypes = []
-            for i, st in enumerate(tuple_set.typeref.subtypes):
-                if st.element_name:
-                    ttypes.append(st.element_name)
-                else:
-                    ttypes.append(str(i))
-
-            index = ttypes.index(ir_set.expr.name)
-            att_idx = pgast.NumericConstant(val=str(index + 1))
-
-            set_expr = pgast.FuncCall(
-                name=('edgedb', 'row_getattr_by_num'),
-                args=[tuple_val, att_idx, type_sentinel]
-            )
+            set_expr = astutils.tuple_getattr(
+                tuple_val, tuple_set.typeref, ir_set.expr.name)
 
             pathctx.put_path_var_if_not_exists(
                 stmt, ir_set.path_id, set_expr, aspect='value', env=subctx.env)
@@ -1765,8 +1746,8 @@ def _compile_func_epilogue(
         # Functions returning a set of tuples are compiled with an
         # explicit coldeflist, so the result is represented as a
         # TupleVar as opposed to an opaque record datum, so
-        # we can access the elements directly without calling
-        # `row_getattr_by_num`.
+        # we can access the elements directly without using
+        # `tuple_getattr()`.
         aspects += ('source',)
 
     return new_simple_set_rvar(ir_set, rvar, aspects=aspects)

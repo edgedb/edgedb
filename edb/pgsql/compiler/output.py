@@ -137,69 +137,145 @@ def tuple_as_json_object(expr, *, styperef, env):
 
 
 def unnamed_tuple_as_json_object(expr, *, styperef, env):
-    has_colls = any(irtyputils.is_collection(st) for st in styperef.subtypes)
-
-    if not has_colls:
-        # No nested collections, take the fast path.
-        return pgast.FuncCall(
-            name=('edgedb',) + _get_json_func('row_to_array', env=env),
-            args=[expr], null_safe=True, ser_safe=True, nullable=expr.nullable)
-
     vals = []
-    for el_idx, el_type in enumerate(styperef.subtypes):
-        type_sentinel = pgast.TypeCast(
-            arg=pgast.NullConstant(),
-            type_name=pgast.TypeName(
-                name=pgtypes.pg_type_from_ir_typeref(el_type)
+
+    if styperef.in_schema:
+        for el_idx, el_type in enumerate(styperef.subtypes):
+            val = pgast.Indirection(
+                arg=expr,
+                indirection=[
+                    pgast.ColumnRef(
+                        name=[str(el_idx)],
+                    ),
+                ],
             )
+            if irtyputils.is_collection(el_type):
+                val = coll_as_json_object(val, styperef=el_type, env=env)
+            vals.append(val)
+
+        return pgast.FuncCall(
+            name=_get_json_func('build_array', env=env),
+            args=vals, null_safe=True, ser_safe=True,
+            nullable=expr.nullable)
+
+    else:
+        coldeflist = []
+
+        for el_idx, el_type in enumerate(styperef.subtypes):
+
+            coldeflist.append(pgast.ColumnDef(
+                name=str(el_idx),
+                typename=pgast.TypeName(
+                    name=pgtypes.pg_type_from_ir_typeref(el_type),
+                ),
+            ))
+
+            val = pgast.ColumnRef(name=[str(el_idx)])
+
+            if irtyputils.is_collection(el_type):
+                val = coll_as_json_object(val, styperef=el_type, env=env)
+
+            vals.append(val)
+
+        res = pgast.FuncCall(
+            name=_get_json_func('build_array', env=env),
+            args=vals, null_safe=True, ser_safe=True,
+            nullable=expr.nullable)
+
+        return pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=res,
+                ),
+            ],
+            from_clause=[
+                pgast.RangeFunction(
+                    functions=[
+                        pgast.FuncCall(
+                            name=('unnest',),
+                            args=[
+                                pgast.ArrayExpr(
+                                    elements=[expr],
+                                )
+                            ],
+                            coldeflist=coldeflist,
+                        )
+                    ]
+                )
+            ]
         )
-
-        val = pgast.FuncCall(
-            name=('edgedb', 'row_getattr_by_num'),
-            args=[
-                expr,
-                pgast.NumericConstant(val=str(el_idx + 1)),
-                type_sentinel
-            ])
-
-        if irtyputils.is_collection(el_type):
-            val = coll_as_json_object(val, styperef=el_type, env=env)
-
-        vals.append(val)
-
-    return pgast.FuncCall(
-        name=_get_json_func('build_array', env=env),
-        args=vals, null_safe=True, ser_safe=True, nullable=expr.nullable)
 
 
 def named_tuple_as_json_object(expr, *, styperef, env):
     keyvals = []
-    for el_idx, el_type in enumerate(styperef.subtypes):
-        keyvals.append(pgast.StringConstant(val=el_type.element_name))
 
-        type_sentinel = pgast.TypeCast(
-            arg=pgast.NullConstant(),
-            type_name=pgast.TypeName(
-                name=pgtypes.pg_type_from_ir_typeref(el_type)
+    if styperef.in_schema:
+        for el_idx, el_type in enumerate(styperef.subtypes):
+            keyvals.append(pgast.StringConstant(val=el_type.element_name))
+            val = pgast.Indirection(
+                arg=expr,
+                indirection=[
+                    pgast.ColumnRef(
+                        name=[el_type.element_name]
+                    )
+                ]
             )
+            if irtyputils.is_collection(el_type):
+                val = coll_as_json_object(val, styperef=el_type, env=env)
+            keyvals.append(val)
+
+        return pgast.FuncCall(
+            name=_get_json_func('build_object', env=env),
+            args=keyvals, null_safe=True, ser_safe=True,
+            nullable=expr.nullable)
+
+    else:
+        coldeflist = []
+
+        for el_idx, el_type in enumerate(styperef.subtypes):
+            keyvals.append(pgast.StringConstant(val=el_type.element_name))
+
+            coldeflist.append(pgast.ColumnDef(
+                name=el_type.element_name,
+                typename=pgast.TypeName(
+                    name=pgtypes.pg_type_from_ir_typeref(el_type),
+                ),
+            ))
+
+            val = pgast.ColumnRef(name=[el_type.element_name])
+
+            if irtyputils.is_collection(el_type):
+                val = coll_as_json_object(val, styperef=el_type, env=env)
+
+            keyvals.append(val)
+
+        res = pgast.FuncCall(
+            name=_get_json_func('build_object', env=env),
+            args=keyvals, null_safe=True, ser_safe=True,
+            nullable=expr.nullable)
+
+        return pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=res,
+                ),
+            ],
+            from_clause=[
+                pgast.RangeFunction(
+                    functions=[
+                        pgast.FuncCall(
+                            name=('unnest',),
+                            args=[
+                                pgast.ArrayExpr(
+                                    elements=[expr],
+                                )
+                            ],
+                            coldeflist=coldeflist,
+                        )
+                    ]
+                )
+            ]
         )
-
-        val = pgast.FuncCall(
-            name=('edgedb', 'row_getattr_by_num'),
-            args=[
-                expr,
-                pgast.NumericConstant(val=str(el_idx + 1)),
-                type_sentinel
-            ])
-
-        if irtyputils.is_collection(el_type):
-            val = coll_as_json_object(val, styperef=el_type, env=env)
-
-        keyvals.append(val)
-
-    return pgast.FuncCall(
-        name=_get_json_func('build_object', env=env),
-        args=keyvals, null_safe=True, ser_safe=True, nullable=expr.nullable)
 
 
 def tuple_var_as_json_object(tvar, *, path_id, env):

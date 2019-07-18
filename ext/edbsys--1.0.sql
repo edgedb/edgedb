@@ -68,33 +68,6 @@ LANGUAGE C IMMUTABLE PARALLEL SAFE;
 
 
 --
--- Return the given attribute value from a row value.
---
-CREATE FUNCTION row_getattr_by_num(record, integer, anyelement)
-RETURNS anyelement
-AS '$libdir/edbsys'
-LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
-
-
---
--- Convert the given record into a jsonb array.
---
-CREATE FUNCTION jsonb_row_to_array(record)
-RETURNS jsonb
-AS '$libdir/edbsys'
-LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
-
-
---
--- Convert the given record into a json array.
---
-CREATE FUNCTION json_row_to_array(record)
-RETURNS json
-AS '$libdir/edbsys'
-LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
-
-
---
 -- Perform floor division of two integers.
 --
 CREATE FUNCTION int2floordiv(int2, int2)

@@ -702,7 +702,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.arg)
         self.write(')')
         for indirection in node.indirection:
-            if isinstance(indirection, pgast.Star):
+            if isinstance(indirection, (pgast.Star, pgast.ColumnRef)):
                 self.write('.')
             self.visit(indirection)
 

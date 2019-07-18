@@ -95,6 +95,8 @@ class TypeRef(ImmutableBase):
     is_view: bool = False
     # True, if this describes an abstract type
     is_abstract: bool = False
+    # True, if the collection type is persisted in the schema
+    in_schema: bool = False
 
 
 class AnyTypeRef(TypeRef):

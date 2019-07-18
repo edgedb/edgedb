@@ -150,6 +150,7 @@ def type_to_typeref(schema, t: s_types.Type, *,
             name_hint=typename or t.get_name(schema),
             element_name=_name,
             collection=t.schema_name,
+            in_schema=schema.get_by_id(t.id, None) is not None,
             subtypes=tuple(
                 type_to_typeref(schema, st, _name=sn)
                 for sn, st in t.iter_subtypes(schema)
@@ -161,6 +162,7 @@ def type_to_typeref(schema, t: s_types.Type, *,
             name_hint=typename or t.get_name(schema),
             element_name=_name,
             collection=t.schema_name,
+            in_schema=schema.get_by_id(t.id, None) is not None,
             subtypes=tuple(
                 type_to_typeref(schema, st)
                 for st in t.get_subtypes(schema)

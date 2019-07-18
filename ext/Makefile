@@ -17,7 +17,7 @@
 #
 
 MODULE_big = edbsys
-OBJS = module.o datetime.o bool.o recordext.o numop.o $(WIN32RES)
+OBJS = module.o datetime.o bool.o numop.o $(WIN32RES)
 
 EXTENSION = edbsys
 DATA = edbsys--1.0.sql

@@ -1193,6 +1193,13 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             ]
         )
 
+        await self.assert_query_result(
+            r'''SELECT test::call34(1).1.foo;''',
+            [
+                2
+            ]
+        )
+
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 'arrays of tuples are not supported'):

@@ -20,6 +20,7 @@
 import typing
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import types as pg_types
 
 
 def tuple_element_for_shape_el(shape_el, value, *, ctx):
@@ -35,6 +36,66 @@ def tuple_element_for_shape_el(shape_el, value, *, ctx):
         name=ptrname,
         val=value,
     )
+
+
+def tuple_getattr(tuple_val, tuple_typeref, attr):
+    ttypes = []
+    pgtypes = []
+    for i, st in enumerate(tuple_typeref.subtypes):
+        pgtype = pg_types.pg_type_from_ir_typeref(st)
+        pgtypes.append(pgtype)
+
+        if st.element_name:
+            ttypes.append(st.element_name)
+        else:
+            ttypes.append(str(i))
+
+    index = ttypes.index(attr)
+
+    if tuple_typeref.in_schema:
+        set_expr = pgast.Indirection(
+            arg=tuple_val,
+            indirection=[
+                pgast.ColumnRef(
+                    name=[attr],
+                ),
+            ],
+        )
+    else:
+        set_expr = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(
+                        name=[str(index)],
+                    ),
+                ),
+            ],
+            from_clause=[
+                pgast.RangeFunction(
+                    functions=[
+                        pgast.FuncCall(
+                            name=('unnest',),
+                            args=[
+                                pgast.ArrayExpr(
+                                    elements=[tuple_val],
+                                )
+                            ],
+                            coldeflist=[
+                                pgast.ColumnDef(
+                                    name=str(i),
+                                    typename=pgast.TypeName(
+                                        name=t
+                                    )
+                                )
+                                for i, t in enumerate(pgtypes)
+                            ]
+                        )
+                    ]
+                )
+            ]
+        )
+
+    return set_expr
 
 
 def is_null_const(expr):
