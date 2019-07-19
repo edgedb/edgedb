@@ -612,6 +612,7 @@ def enforce_singleton_now(
         scope = ctx.path_scope
     cardinality = inference.infer_cardinality(
         irexpr, scope_tree=scope, env=ctx.env)
+
     if cardinality != qltypes.Cardinality.ONE:
         raise errors.QueryError(
             'possibly more than one element returned by an expression '

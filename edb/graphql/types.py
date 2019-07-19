@@ -102,6 +102,7 @@ GQL_TO_OPS_MAP = {
 
 
 HIDDEN_MODULES = s_schema.STD_MODULES - {'std'}
+TOP_LEVEL_TYPES = {'Query', 'Mutation'}
 
 
 class GQLCoreSchema:
@@ -130,16 +131,22 @@ class GQLCoreSchema:
             fields=self.get_fields('Query'),
         )
 
+        mutation = self._gql_objtypes['Mutation'] = GraphQLObjectType(
+            name='Mutation',
+            fields=self.get_fields('Mutation'),
+        )
+
         # get a sorted list of types relevant for the Schema
         types = [
             objt for name, objt in
             itertools.chain(self._gql_objtypes.items(),
                             self._gql_inobjtypes.items())
             # the Query is included separately
-            if name != 'Query'
+            if name not in TOP_LEVEL_TYPES
         ]
         types = sorted(types, key=lambda x: x.name)
-        self._gql_schema = GraphQLSchema(query=query, types=types)
+        self._gql_schema = GraphQLSchema(
+            query=query, mutation=mutation, types=types)
 
         # this map is used for GQL -> EQL translator needs
         self._type_map = {}
@@ -252,9 +259,18 @@ class GQLCoreSchema:
         if typename == 'Query':
             for name, gqltype in sorted(self._gql_interfaces.items(),
                                         key=lambda x: x[1].name):
-                if name == typename:
+                if name in TOP_LEVEL_TYPES:
                     continue
                 fields[gqltype.name] = GraphQLField(
+                    GraphQLList(GraphQLNonNull(gqltype)),
+                    args=self._get_args(name),
+                )
+        elif typename == 'Mutation':
+            for name, gqltype in sorted(self._gql_interfaces.items(),
+                                        key=lambda x: x[1].name):
+                if name in TOP_LEVEL_TYPES:
+                    continue
+                fields['delete_' + gqltype.name] = GraphQLField(
                     GraphQLList(GraphQLNonNull(gqltype)),
                     args=self._get_args(name),
                 )
@@ -493,7 +509,7 @@ class GQLCoreSchema:
         kwargs = {'dummy': dummy}
 
         if isinstance(name, str):
-            if name == 'Query':
+            if name in TOP_LEVEL_TYPES:
                 name = f'stdgraphql::{name}'
 
         else:
@@ -769,9 +785,7 @@ class GQLShadowType(GQLBaseType):
         return self.edb_base.is_enum(self.edb_schema)
 
 
-class GQLQuery(GQLBaseType):
-    edb_type = 'stdgraphql::Query'
-
+class GQLBaseQuery(GQLBaseType):
     def __init__(self, schema, **kwargs):
         self.modules = schema.modules
         super().__init__(schema, **kwargs)
@@ -784,6 +798,10 @@ class GQLQuery(GQLBaseType):
             return name.split('__', 1)
         else:
             return ('default', name)
+
+
+class GQLQuery(GQLBaseQuery):
+    edb_type = 'stdgraphql::Query'
 
     def get_field_type(self, name):
         fkey = (name, self.dummy)
@@ -808,9 +826,22 @@ class GQLQuery(GQLBaseType):
         return target
 
 
-class GQLMutation(GQLBaseType):
+class GQLMutation(GQLBaseQuery):
     edb_type = 'stdgraphql::Mutation'
 
-    def __init__(self, schema, **kwargs):
-        self.modules = schema.modules
-        super().__init__(schema, **kwargs)
+    def get_field_type(self, name):
+        fkey = (name, self.dummy)
+        target = None
+
+        op, name = name.split('_')
+        if op in {'delete'}:
+            target = super().get_field_type(name)
+
+            if target is None:
+                module, edb_name = self.get_module_and_name(name)
+                target = self.edb_schema.get((module, edb_name), None)
+                if target is not None:
+                    target = self.convert_edb_to_gql_type(target)
+
+        self._fields[fkey] = target
+        return target

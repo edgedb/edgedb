@@ -121,7 +121,16 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
 
     units = compiler._compile(ctx=ctx, eql=eql.encode())
 
-    sql = b'\n'.join(b''.join(u.sql) for u in units)
+    sql_stmts = []
+    for u in units:
+        for stmt in u.sql:
+            stmt = stmt.strip()
+            if not stmt.endswith(b';'):
+                stmt += b';'
+
+            sql_stmts.append(stmt)
+
+    sql = b'\n'.join(sql_stmts)
     new_schema = state.current_tx().get_schema()
 
     return new_schema, sql.decode()

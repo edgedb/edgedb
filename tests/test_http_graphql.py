@@ -1970,7 +1970,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             '__schema': {
-                'mutationType': None
+                'mutationType': {'name': 'Mutation'},
             }
         })
 
