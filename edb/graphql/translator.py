@@ -236,6 +236,8 @@ class GraphQLTranslator:
 
         if node.operation is None or node.operation == 'query':
             stmt = self._visit_query(node)
+        elif node.operation is None or node.operation == 'mutation':
+            stmt = self._visit_mutation(node)
         else:
             raise ValueError(f'unsupported operation: {node.operation!r}')
 
@@ -268,6 +270,35 @@ class GraphQLTranslator:
             result=qlast.Shape(
                 expr=qlast.Path(
                     steps=[qlast.ObjectRef(name='Query',
+                                           module='stdgraphql')]
+                ),
+                elements=[]
+            ),
+            limit=qlast.IntegerConstant(value='1')
+        )
+
+        self._context.fields.append({})
+        self._context.path.append([Step(None, base)])
+        query.result.elements = self.visit(node.selection_set)
+        self._context.fields.pop()
+        self._context.path.pop()
+
+        return query
+
+    def _visit_mutation(self, node):
+        # populate input variables with defaults, where applicable
+        if node.variable_definitions:
+            self.visit(node.variable_definitions)
+
+        # base Mutation needs to be configured specially
+        base = self._context.gqlcore.get('Mutation')
+
+        # special treatment of the selection_set, different from inner
+        # recursion
+        query = qlast.SelectQuery(
+            result=qlast.Shape(
+                expr=qlast.Path(
+                    steps=[qlast.ObjectRef(name='Mutation',
                                            module='stdgraphql')]
                 ),
                 elements=[]
@@ -514,6 +545,16 @@ class GraphQLTranslator:
                     filterable.orderby = orderby
                     filterable.offset = offset
                     filterable.limit = limit
+
+        # this should be a DELETE operation, so we'll rearrange the
+        # components of the SelectQuery
+        if not is_shadowed and node.name.value.startswith('delete_'):
+            tmp = spec.compexpr
+            spec.compexpr = tmp.result
+            spec.compexpr.expr = qlast.DeleteQuery(
+                subject=tmp.result.expr,
+                where=tmp.where,
+            )
 
         path.pop()
         return spec

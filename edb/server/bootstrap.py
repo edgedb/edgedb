@@ -358,10 +358,11 @@ async def _init_defaults(std_schema, schema, conn):
 async def _populate_data(std_schema, schema, conn):
     script = '''
         INSERT stdgraphql::Query;
+        INSERT stdgraphql::Mutation;
     '''
 
     schema, sql = compiler.compile_bootstrap_script(std_schema, schema, script)
-    await conn.execute(sql)
+    await _execute_ddl(conn, sql)
     return schema
 
 

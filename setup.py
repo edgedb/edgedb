@@ -45,7 +45,7 @@ RUNTIME_DEPS = [
     'setuptools_scm~=3.2.0',
     'uvloop~=0.12.2',
 
-    'graphql-core~=2.1.0',
+    'graphql-core~=2.2.1',
     'promise~=2.2.0',
 
     'edgedb~=0.6.1',
