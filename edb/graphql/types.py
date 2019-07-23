@@ -233,15 +233,25 @@ class GQLCoreSchema:
         if target is not None:
             # figure out any additional wrappers due to cardinality
             # and required flags
-            if not ptr.singular(self.edb_schema):
-                target = GraphQLList(GraphQLNonNull(target))
-
-            if ptr.get_required(self.edb_schema):
-                target = GraphQLNonNull(target)
+            target = self._wrap_target(ptr, target)
 
         return target
 
-    def _get_args(self, typename):
+    def _wrap_target(self, ptr, target, for_input=False):
+        # figure out any additional wrappers due to cardinality
+        # and required flags
+        if not ptr.singular(self.edb_schema):
+            target = GraphQLList(GraphQLNonNull(target))
+
+        # for input values having a default cancels out being required
+        if (ptr.get_required(self.edb_schema) and
+                # for_input -> no default
+                (not for_input or ptr.get_default(self.edb_schema) is None)):
+            target = GraphQLNonNull(target)
+
+        return target
+
+    def _get_query_args(self, typename):
         return {
             'filter': GraphQLArgument(self._gql_inobjtypes[typename]),
             'order': GraphQLArgument(self._gql_ordertypes[typename]),
@@ -251,6 +261,13 @@ class GQLCoreSchema:
             # serialized to string
             'before': GraphQLArgument(GraphQLString),
             'after': GraphQLArgument(GraphQLString),
+        }
+
+    def _get_insert_args(self, typename):
+        return {
+            'data': GraphQLArgument(
+                GraphQLNonNull(GraphQLList(GraphQLNonNull(
+                    self._gql_inobjtypes[f'Insert{typename}'])))),
         }
 
     def get_fields(self, typename):
@@ -263,16 +280,21 @@ class GQLCoreSchema:
                     continue
                 fields[gqltype.name] = GraphQLField(
                     GraphQLList(GraphQLNonNull(gqltype)),
-                    args=self._get_args(name),
+                    args=self._get_query_args(name),
                 )
         elif typename == 'Mutation':
-            for name, gqltype in sorted(self._gql_interfaces.items(),
+            for name, gqltype in sorted(self._gql_objtypes.items(),
                                         key=lambda x: x[1].name):
                 if name in TOP_LEVEL_TYPES:
                     continue
-                fields['delete_' + gqltype.name] = GraphQLField(
+                gname = self.get_gql_name(name)
+                fields[f'delete_{gname}'] = GraphQLField(
                     GraphQLList(GraphQLNonNull(gqltype)),
-                    args=self._get_args(name),
+                    args=self._get_query_args(name),
+                )
+                fields[f'insert_{gname}'] = GraphQLField(
+                    GraphQLList(GraphQLNonNull(gqltype)),
+                    args=self._get_insert_args(name),
                 )
         else:
             edb_type = self.edb_schema.get(typename)
@@ -286,7 +308,7 @@ class GQLCoreSchema:
                 if target is not None:
                     if isinstance(ptr.get_target(self.edb_schema),
                                   s_objtypes.ObjectType):
-                        args = self._get_args(
+                        args = self._get_query_args(
                             ptr.get_target(self.edb_schema).get_name(
                                 self.edb_schema))
                     else:
@@ -318,12 +340,12 @@ class GQLCoreSchema:
                 )
 
             ptr = edb_type.getptr(self.edb_schema, name)
+            edb_target = ptr.get_target(self.edb_schema)
 
-            if not isinstance(ptr.get_target(self.edb_schema),
-                              s_scalars.ScalarType):
+            if not isinstance(edb_target, s_scalars.ScalarType):
                 continue
 
-            target = self._convert_edb_type(ptr.get_target(self.edb_schema))
+            target = self._convert_edb_type(edb_target)
             if target is None:
                 # don't expose this
                 continue
@@ -333,6 +355,73 @@ class GQLCoreSchema:
                 fields[name] = GraphQLInputObjectField(intype)
 
         return fields
+
+    def get_insert_fields(self, typename):
+        fields = OrderedDict()
+
+        edb_type = self.edb_schema.get(typename)
+        pointers = edb_type.get_pointers(self.edb_schema)
+        names = sorted(pointers.keys(self.edb_schema))
+        for name in names:
+            if name == '__type__':
+                continue
+
+            ptr = edb_type.getptr(self.edb_schema, name)
+            edb_target = ptr.get_target(self.edb_schema)
+
+            if isinstance(edb_target, s_objtypes.ObjectType):
+                typename = edb_target.get_name(self.edb_schema)
+
+                intype = self._gql_inobjtypes.get(f'NestedInsert{typename}')
+                if intype is None:
+                    # construct a nested insert type
+                    intype = self._make_generic_nested_insert_type(edb_target)
+
+                intype = self._wrap_target(ptr, intype, for_input=True)
+                fields[name] = GraphQLInputObjectField(intype)
+
+            elif isinstance(edb_target, s_scalars.ScalarType):
+                target = self._convert_edb_type(edb_target)
+                if target is None:
+                    # don't expose this
+                    continue
+
+                intype = self._gql_inobjtypes.get(f'Insert{target.name}')
+                intype = self._wrap_target(ptr, intype, for_input=True)
+
+                if intype:
+                    fields[name] = GraphQLInputObjectField(intype)
+
+            else:
+                continue
+
+        return fields
+
+    def _make_generic_nested_insert_type(self, edb_base):
+        typename = edb_base.get_name(self.edb_schema)
+        name = f'NestedInsert{typename}'
+        nitype = GraphQLInputObjectType(
+            name=self.get_input_name(
+                'NestedInsert', self.get_gql_name(typename)),
+            fields={
+                'data': GraphQLInputObjectField(
+                    self._gql_inobjtypes[f'Insert{typename}']),
+                'filter': GraphQLInputObjectField(
+                    self._gql_inobjtypes[typename]),
+                'order': GraphQLInputObjectField(
+                    self._gql_ordertypes[typename]),
+                'first': GraphQLInputObjectField(GraphQLInt),
+                'last': GraphQLInputObjectField(GraphQLInt),
+                # before and after are supposed to be opaque values
+                # serialized to string
+                'before': GraphQLInputObjectField(GraphQLString),
+                'after': GraphQLInputObjectField(GraphQLString),
+            },
+        )
+
+        self._gql_inobjtypes[name] = nitype
+
+        return nitype
 
     def define_enums(self):
         self._gql_enums['directionEnum'] = GraphQLEnumType(
@@ -386,6 +475,11 @@ class GQLCoreSchema:
             name=name,
             fields={op: GraphQLInputObjectField(base) for op in ops},
         )
+
+    def define_generic_insert_types(self):
+        for itype in [GraphQLBoolean, GraphQLID, GraphQLInt,
+                      GraphQLFloat, GraphQLString,]:
+            self._gql_inobjtypes[f'Insert{itype.name}'] = itype
 
     def define_generic_order_types(self):
         self._gql_ordertypes['directionEnum'] = \
@@ -444,6 +538,7 @@ class GQLCoreSchema:
         self.define_enums()
         self.define_generic_filter_types()
         self.define_generic_order_types()
+        self.define_generic_insert_types()
 
         # Every ObjectType is reflected as an interface.
         interface_types = list(
@@ -501,6 +596,14 @@ class GQLCoreSchema:
                 interfaces=interfaces,
             )
             self._gql_objtypes[t_name] = gqltype
+
+            # input object types corresponding to this object (only
+            # real objects can appear as input objects)
+            gqlinserttype = GraphQLInputObjectType(
+                name=self.get_input_name('Insert', gql_name),
+                fields=partial(self.get_insert_fields, t_name),
+            )
+            self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
 
     def get(self, name, *, dummy=False):
         '''Get a special GQL type either by name or based on EdgeDB type.'''
@@ -623,14 +726,16 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         return self._edb_base
 
     @property
-    def edb_base_name(self):
+    def edb_base_name_ast(self):
         base = self.edb_base.get_name(self.edb_schema)
-        return codegen.generate_source(
-            qlast.ObjectRef(
-                module=base.module,
-                name=base.name,
-            )
+        return qlast.ObjectRef(
+            module=base.module,
+            name=base.name,
         )
+
+    @property
+    def edb_base_name(self):
+        return codegen.generate_source(self.edb_base_name_ast)
 
     @property
     def gql_typename(self):
@@ -834,7 +939,7 @@ class GQLMutation(GQLBaseQuery):
         target = None
 
         op, name = name.split('_')
-        if op in {'delete'}:
+        if op in {'delete', 'insert', 'update'}:
             target = super().get_field_type(name)
 
             if target is None:

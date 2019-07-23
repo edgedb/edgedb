@@ -1842,6 +1842,19 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }]
         })
 
+    def test_graphql_functional_scalars_07(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_array_str
+                }
+            }
+        """, {
+            "ScalarTest": [{
+                'p_array_str': ['hello', 'world'],
+            }]
+        })
+
     def test_graphql_functional_schema_01(self):
         self.assert_graphql_query_result(r"""
             query {

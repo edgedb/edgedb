@@ -17,6 +17,7 @@
 #
 
 
+import contextlib
 import json
 import re
 import typing
@@ -61,10 +62,20 @@ class GraphQLTranslatorContext:
         self.document_ast = document_ast
         self.operation_name = operation_name
 
+        # auto-incrementing counter
+        self._counter = 0
+
+    @property
+    def counter(self):
+        val = self._counter
+        self._counter += 1
+        return val
+
 
 class Step(typing.NamedTuple):
     name: object
     type: object
+    eql_alias: str
 
 
 class Field(typing.NamedTuple):
@@ -278,7 +289,7 @@ class GraphQLTranslator:
         )
 
         self._context.fields.append({})
-        self._context.path.append([Step(None, base)])
+        self._context.path.append([Step(None, base, None)])
         query.result.elements = self.visit(node.selection_set)
         self._context.fields.pop()
         self._context.path.pop()
@@ -307,7 +318,7 @@ class GraphQLTranslator:
         )
 
         self._context.fields.append({})
-        self._context.path.append([Step(None, base)])
+        self._context.path.append([Step(None, base, None)])
         query.result.elements = self.visit(node.selection_set)
         self._context.fields.pop()
         self._context.path.pop()
@@ -402,7 +413,7 @@ class GraphQLTranslator:
         prevt = path[-1].type
         target = self.get_field_type(
             prevt, node.name.value)
-        path.append(Step(name=node.name.value, type=target))
+        path.append(Step(name=node.name.value, type=target, eql_alias=None))
 
         if not top and fail:
             raise g_errors.GraphQLValidationError(
@@ -437,11 +448,8 @@ class GraphQLTranslator:
             base = spath[0].type
             steps.append(qlast.TypeIndirection(
                 type=qlast.TypeName(
-                    maintype=qlast.ObjectRef(
-                        module=base.module,
-                        name=base.short_name
-                    ),
-                ),
+                    maintype=base.edb_base_name_ast
+                )
             ))
         steps.append(qlast.Ptr(
             ptr=qlast.ObjectRef(
@@ -528,33 +536,71 @@ class GraphQLTranslator:
                 cardinality=qltypes.Cardinality.MANY,
             )
 
-        if node.selection_set is not None:
+        # INSERT mutations have different arguments from queries
+        if not is_shadowed and node.name.value.startswith('insert_'):
+            # a single recursion target, so we can process
+            # selection set now
+            with self._update_path_for_eql_alias():
+                alias = self._context.path[-1][-1].eql_alias
+                self._context.fields.append({})
+                shape.elements = self.visit(node.selection_set)
+                insert_shapes = self._visit_insert_arguments(node.arguments)
+                self._context.fields.pop()
+
+            filterable.aliases = [
+                qlast.AliasedExpr(
+                    alias=alias,
+                    expr=qlast.Set(elements=[
+                        qlast.InsertQuery(
+                            subject=shape.expr,
+                            shape=sh,
+                        ) for sh in insert_shapes
+                    ])
+                )
+            ]
+            filterable.result.expr = qlast.Path(
+                steps=[qlast.ObjectRef(name=alias)])
+
+        elif node.selection_set is not None:
+            delete_mode = (not is_shadowed and
+                           node.name.value.startswith('delete_'))
+
             if not json_mode:
                 # a single recursion target, so we can process
                 # selection set now
-                self._context.fields.append({})
-                vals = self.visit(node.selection_set)
-                self._context.fields.pop()
+                with self._update_path_for_eql_alias(delete_mode):
+                    alias = self._context.path[-1][-1].eql_alias
+                    self._context.fields.append({})
+                    vals = self.visit(node.selection_set)
+                    self._context.fields.pop()
 
                 if shape:
                     shape.elements = vals
                 if filterable:
+                    # set up a unique alias for the deleted object
                     where, orderby, offset, limit = \
-                        self._visit_arguments(node.arguments)
+                        self._visit_query_arguments(node.arguments)
+
                     filterable.where = where
                     filterable.orderby = orderby
                     filterable.offset = offset
                     filterable.limit = limit
 
-        # this should be a DELETE operation, so we'll rearrange the
-        # components of the SelectQuery
-        if not is_shadowed and node.name.value.startswith('delete_'):
-            tmp = spec.compexpr
-            spec.compexpr = tmp.result
-            spec.compexpr.expr = qlast.DeleteQuery(
-                subject=tmp.result.expr,
-                where=tmp.where,
-            )
+            # this should be a DELETE operation, so we'll rearrange the
+            # components of the SelectQuery
+            if delete_mode:
+                filterable.aliases = [
+                    qlast.AliasedExpr(
+                        alias=alias,
+                        expr=qlast.DeleteQuery(
+                            subject=filterable.result.expr,
+                            where=filterable.where,
+                        )
+                    )
+                ]
+                filterable.where = None
+                filterable.result.expr = qlast.Path(
+                    steps=[qlast.ObjectRef(name=alias)])
 
         path.pop()
         return spec
@@ -603,10 +649,11 @@ class GraphQLTranslator:
                     "are not related",
                     loc=self.get_loc(frag))
 
-        self._context.path.append([Step(frag.type_condition, frag_type)])
+        self._context.path.append([
+            Step(name=frag.type_condition, type=frag_type, eql_alias=None)])
         self._context.include_base.append(is_specialized)
 
-    def _visit_arguments(self, arguments):
+    def _visit_query_arguments(self, arguments):
         where = None
         orderby = []
         first = last = before = after = None
@@ -818,11 +865,137 @@ class GraphQLTranslator:
 
         return offset, limit
 
+    @contextlib.contextmanager
+    def _update_path_for_eql_alias(self, alias_needed=True):
+        if alias_needed:
+            # we need to update the path of the delete field to keep track
+            # of the delete alias
+            alias = f'x{self._context.counter}'
+
+            # just replace the last path element with the same
+            # element, but aliased
+            step = self._context.path[-1].pop()
+            self._context.path.append([
+                Step(name=step.name, type=step.type, eql_alias=alias)])
+        yield
+        # replace it back
+        if alias_needed:
+            self._context.path[-1].pop()
+            self._context.path[-1].append(step)
+
+    def _visit_insert_arguments(self, arguments):
+        input_data = []
+
+        for arg in arguments:
+            if arg.name.value == 'data':
+                # normalize the value to a list
+                if isinstance(arg.value, gql_ast.ListValue):
+                    input_data = arg.value.values
+                else:
+                    input_data = [arg.value]
+
+        return [self._get_shape_from_input_data(node) for node in input_data]
+
+    def _get_shape_from_input_data(self, node):
+        # the node is an ObjectNode with the input spec
+        result = []
+        for field in node.fields:
+            # set-up the current path to point to the thing being inserted
+            with self._update_path_for_insert_field(field):
+                result.append(
+                    qlast.ShapeElement(
+                        expr=qlast.Path(
+                            steps=[
+                                qlast.Ptr(
+                                    ptr=qlast.ObjectRef(name=field.name.value)
+                                )
+                            ]
+                        ),
+                        compexpr=self._visit_insert_value(field.value),
+                    )
+                )
+
+        return result
+
+    @contextlib.contextmanager
+    def _update_path_for_insert_field(self, node):
+        # we need to update the path of the insert field to keep track
+        # of the insert types
+        path = self._context.path[-1]
+
+        prevt = path[-1].type
+        target = self.get_field_type(
+            prevt, node.name.value)
+
+        self._context.path.append([
+            Step(name=None, type=target, eql_alias=None)])
+
+        yield
+        self._context.path.pop()
+
+    def _visit_insert_value(self, node):
+        # get the type of the value being inserted
+        _, target = self._get_parent_and_current_type()
+        if isinstance(node, gql_ast.ObjectValue):
+            # get a template AST
+            eql, shape, filterable = target.get_template()
+
+            if node.fields[0].name.value == 'data':
+                # this may be a new object spec
+                data_node = node.fields[0].value
+
+                return qlast.InsertQuery(
+                    subject=shape.expr,
+                    shape=self._get_shape_from_input_data(data_node),
+                )
+            else:
+                eql.result = shape.expr
+                # this is a filter spec
+                where, orderby, offset, limit = \
+                    self._visit_query_arguments(node.fields)
+                filterable.where = where
+                filterable.orderby = orderby
+                filterable.offset = offset
+                filterable.limit = limit
+
+                return eql
+
+        elif isinstance(node, gql_ast.ListValue):
+            return qlast.Set(elements=[
+                self._visit_insert_value(el) for el in node.values])
+
+        else:
+            # some scalar value
+            val = self.visit(node)
+
+            if target.is_json:
+                # JSON must use a converter function and not a cast
+
+                return qlast.FunctionCall(
+                    func='to_json',
+                    args=[val]
+                )
+            elif target.edb_base_name != 'std::str':
+                return qlast.TypeCast(
+                    expr=val,
+                    type=qlast.TypeName(
+                        maintype=target.edb_base_name_ast
+                    )
+                )
+            else:
+                return val
+
     def get_path_prefix(self, end_trim=None):
         # flatten the path
         path = [step
                 for psteps in self._context.path
                 for step in psteps]
+
+        # if the last step is of the form (None, GQLShadowType), then
+        # we don't want any prefix, because we'll use partial paths
+        if (path[-1].name is None and
+                isinstance(path[-1].type, gt.GQLShadowType)):
+            return []
 
         # find the first shadowed root
         prev_base = None
@@ -844,9 +1017,11 @@ class GraphQLTranslator:
 
         # trim the rest of the path
         path = path[i + 1:end_trim]
-        prefix = [
-            qlast.ObjectRef(module=base.module, name=base.short_name)
-        ]
+        # the root may be aliased
+        if step.eql_alias:
+            prefix = [qlast.ObjectRef(name=step.eql_alias)]
+        else:
+            prefix = [base.edb_base_name_ast]
         prefix.extend(
             qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
             for step in path
@@ -888,7 +1063,8 @@ class GraphQLTranslator:
 
         name = self.get_path_prefix()
         name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
-        name = qlast.Path(steps=name)
+        # paths of length 1 are partial
+        name = qlast.Path(steps=name, partial=len(name) == 1)
 
         ftype = target.get_field_type(fname)
         typename = ftype.name
