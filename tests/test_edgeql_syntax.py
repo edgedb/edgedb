@@ -1360,6 +1360,26 @@ aa';
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Missing ':' before '{'", line=3, col=17)
+    def test_edgeql_syntax_shape_45(self):
+        """
+        SELECT Foo {
+            foo {}
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Missing ':' before '{'", line=3, col=17)
+    def test_edgeql_syntax_shape_46(self):
+        """
+        SELECT Foo {
+            foo {
+                bar
+            }
+        };
+        """
+
     def test_edgeql_syntax_struct_01(self):
         """
         SELECT (

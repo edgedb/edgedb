@@ -296,6 +296,16 @@ class OptAnySubShape(Nonterm):
         )]
         self.val += shape.elements
 
+    def reduce_LBRACE(self, *kids):
+        raise EdgeQLSyntaxError(
+            f"Missing ':' before '{{' in a sub-shape",
+            context=kids[0].context)
+
+    def reduce_Shape(self, *kids):
+        raise EdgeQLSyntaxError(
+            f"Missing ':' before '{{' in a sub-shape",
+            context=kids[0].context)
+
     def reduce_empty(self, *kids):
         self.val = None
 
