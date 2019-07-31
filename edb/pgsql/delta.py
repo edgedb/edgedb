@@ -2293,13 +2293,14 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
         endpoint_delete_actions = context.get(
             sd.DeltaRootContext).op.update_endpoint_delete_actions
         link_ops = endpoint_delete_actions.link_ops
-        link_ops.append((self, link, orig_schema))
 
         if isinstance(self, sd.DeleteObject):
             for i, (op, ex_link, _) in enumerate(link_ops):
                 if ex_link == link:
                     link_ops.pop(i)
                     break
+
+        link_ops.append((self, link, orig_schema))
 
 
 class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
@@ -3185,6 +3186,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         affected_sources = set()
         affected_targets = set()
+        deletions = False
 
         for link_op, link, orig_schema in self.link_ops:
             if isinstance(link_op, DeleteLink):
@@ -3192,14 +3194,15 @@ class UpdateEndpointDeleteActions(MetaCommand):
                         or not link.get_is_local(orig_schema)):
                     continue
                 source = link.get_source(orig_schema)
-                current_source = schema.get_by_id(source.id, None)
+                current_source = orig_schema.get_by_id(source.id, None)
                 if (current_source is not None
-                        and not current_source.is_view(schema)):
-                    affected_sources.add(current_source)
+                        and not current_source.is_view(orig_schema)):
+                    affected_sources.add((current_source, orig_schema))
                 target = link.get_target(orig_schema)
                 current_target = schema.get_by_id(target.id, None)
                 if current_target is not None:
                     affected_targets.add(current_target)
+                deletions = True
             else:
                 if link.generic(schema) or not link.get_is_local(schema):
                     continue
@@ -3207,7 +3210,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 if source.is_view(schema):
                     continue
 
-                affected_sources.add(source)
+                affected_sources.add((source, schema))
 
                 target = link.get_target(schema)
                 affected_targets.add(target)
@@ -3220,26 +3223,27 @@ class UpdateEndpointDeleteActions(MetaCommand):
                         if current_orig_target is not None:
                             affected_targets.add(current_orig_target)
 
-        for source in affected_sources:
+        for source, src_schema in affected_sources:
             links = []
 
-            for l in source.get_pointers(schema).objects(schema):
+            for l in source.get_pointers(src_schema).objects(src_schema):
                 if (not isinstance(l, s_links.Link)
-                        or not l.get_is_local(schema)):
+                        or not l.get_is_local(src_schema)):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
-                    l, schema=schema)
+                    l, schema=src_schema)
                 if ptr_stor_info.table_type != 'link':
                     continue
 
                 links.append(l)
 
             links.sort(
-                key=lambda l: (l.get_on_target_delete(schema),
-                               l.get_name(schema)))
+                key=lambda l: (l.get_on_target_delete(src_schema),
+                               l.get_name(src_schema)))
 
-            self._update_action_triggers(
-                schema, source, links, disposition='source')
+            if links or deletions:
+                self._update_action_triggers(
+                    src_schema, source, links, disposition='source')
 
         for target in affected_targets:
             deferred_links = []
@@ -3278,21 +3282,25 @@ class UpdateEndpointDeleteActions(MetaCommand):
             deferred_inline_links.sort(
                 key=lambda l: l.get_name(schema))
 
-            self._update_action_triggers(
-                schema, target, links, disposition='target')
+            if links or deletions:
+                self._update_action_triggers(
+                    schema, target, links, disposition='target')
 
-            self._update_action_triggers(
-                schema, target, inline_links,
-                disposition='target', inline=True)
+            if inline_links or deletions:
+                self._update_action_triggers(
+                    schema, target, inline_links,
+                    disposition='target', inline=True)
 
-            self._update_action_triggers(
-                schema, target, deferred_links,
-                disposition='target', deferred=True)
+            if deferred_links or deletions:
+                self._update_action_triggers(
+                    schema, target, deferred_links,
+                    disposition='target', deferred=True)
 
-            self._update_action_triggers(
-                schema, target, deferred_inline_links,
-                disposition='target', deferred=True,
-                inline=True)
+            if deferred_inline_links or deletions:
+                self._update_action_triggers(
+                    schema, target, deferred_inline_links,
+                    disposition='target', deferred=True,
+                    inline=True)
 
         return schema, None
 
@@ -3318,29 +3326,53 @@ class UpdateEndpointDeleteActions(MetaCommand):
             trigger_name = self.get_trigger_name(
                 schema, objtype, disposition=disposition,
                 deferred=deferred, inline=inline)
+
             proc_name = self.get_trigger_proc_name(
                 schema, objtype, disposition=disposition,
                 deferred=deferred, inline=inline)
-            proc_text = self.get_trigger_proc_text(
-                objtype, links, disposition=disposition,
-                inline=inline, schema=schema)
-
-            trig_func = dbops.Function(
-                name=proc_name, text=proc_text, volatility='volatile',
-                returns='trigger', language='plpgsql')
-
-            self.pgops.add(dbops.CreateOrReplaceFunction(trig_func))
 
             trigger = dbops.Trigger(
                 name=trigger_name, table_name=table_name,
                 events=('delete',), procedure=proc_name,
                 is_constraint=True, inherit=True, deferred=deferred)
 
-            self.pgops.add(dbops.CreateTrigger(
-                trigger, neg_conditions=[dbops.TriggerExists(
-                    trigger_name=trigger_name, table_name=table_name
-                )]
-            ))
+            if links:
+                proc_text = self.get_trigger_proc_text(
+                    objtype, links, disposition=disposition,
+                    inline=inline, schema=schema)
+
+                trig_func = dbops.Function(
+                    name=proc_name, text=proc_text, volatility='volatile',
+                    returns='trigger', language='plpgsql')
+
+                self.pgops.add(dbops.CreateOrReplaceFunction(trig_func))
+
+                self.pgops.add(dbops.CreateTrigger(
+                    trigger, neg_conditions=[dbops.TriggerExists(
+                        trigger_name=trigger_name, table_name=table_name
+                    )]
+                ))
+            else:
+                self.pgops.add(
+                    dbops.DropTrigger(
+                        trigger,
+                        conditions=[dbops.TriggerExists(
+                            trigger_name=trigger_name,
+                            table_name=table_name,
+                        )]
+                    )
+                )
+
+                self.pgops.add(
+                    dbops.DropFunction(
+                        name=proc_name,
+                        args=[],
+                        conditions=[dbops.FunctionExists(
+                            name=proc_name,
+                            args=[],
+                        )]
+                    )
+                )
 
 
 class ModuleMetaCommand(ObjectMetaCommand):

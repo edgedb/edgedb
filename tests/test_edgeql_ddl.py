@@ -2043,11 +2043,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             {'std::Object', 'test::ExtB3'}
         )
 
-    @test.xfail('''
-        This fails due to incomplete cleanup when DROP TYPE is executed,
-        so the final DROP MODULE fails to execute since there are
-        still objects within it.
-    ''')
     async def test_edgeql_ddl_modules_01(self):
         try:
             await self.con.execute(r"""
