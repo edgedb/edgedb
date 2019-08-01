@@ -237,17 +237,20 @@ class GQLCoreSchema:
 
         return target
 
-    def _wrap_target(self, ptr, target, for_input=False):
+    def _wrap_target(self, ptr, target, *,
+                     for_input=False, ignore_required=False):
         # figure out any additional wrappers due to cardinality
         # and required flags
         if not ptr.singular(self.edb_schema):
             target = GraphQLList(GraphQLNonNull(target))
 
-        # for input values having a default cancels out being required
-        if (ptr.get_required(self.edb_schema) and
-                # for_input -> no default
-                (not for_input or ptr.get_default(self.edb_schema) is None)):
-            target = GraphQLNonNull(target)
+        if not ignore_required:
+            # for input values having a default cancels out being required
+            if (ptr.get_required(self.edb_schema) and
+                    # for_input -> no default
+                    (not for_input or
+                     ptr.get_default(self.edb_schema) is None)):
+                target = GraphQLNonNull(target)
 
         return target
 
@@ -269,6 +272,17 @@ class GQLCoreSchema:
                 GraphQLNonNull(GraphQLList(GraphQLNonNull(
                     self._gql_inobjtypes[f'Insert{typename}'])))),
         }
+
+    def _get_update_args(self, typename):
+        # some types have no updates
+        uptype = self._gql_inobjtypes.get(f'Update{typename}')
+        if uptype is None:
+            return {}
+
+        # the update args are same as for query + data
+        args = self._get_query_args(typename)
+        args['data'] = GraphQLArgument(GraphQLNonNull(uptype))
+        return args
 
     def get_fields(self, typename):
         fields = OrderedDict()
@@ -296,6 +310,19 @@ class GQLCoreSchema:
                     GraphQLList(GraphQLNonNull(gqltype)),
                     args=self._get_insert_args(name),
                 )
+
+            for name, gqltype in sorted(self._gql_interfaces.items(),
+                                        key=lambda x: x[1].name):
+                if (name in TOP_LEVEL_TYPES or
+                        f'Update{name}' not in self._gql_inobjtypes):
+                    continue
+                gname = self.get_gql_name(name)
+                args = self._get_update_args(name)
+                if args:
+                    fields[f'update_{gname}'] = GraphQLField(
+                        GraphQLList(GraphQLNonNull(gqltype)),
+                        args=args,
+                    )
         else:
             edb_type = self.edb_schema.get(typename)
             pointers = edb_type.get_pointers(self.edb_schema)
@@ -397,6 +424,109 @@ class GQLCoreSchema:
 
         return fields
 
+    def get_update_fields(self, typename):
+        fields = OrderedDict()
+
+        edb_type = self.edb_schema.get(typename)
+        pointers = edb_type.get_pointers(self.edb_schema)
+        names = sorted(pointers.keys(self.edb_schema))
+        for name in names:
+            if name == '__type__':
+                continue
+
+            ptr = edb_type.getptr(self.edb_schema, name)
+            edb_target = ptr.get_target(self.edb_schema)
+
+            if isinstance(edb_target, s_objtypes.ObjectType):
+                intype = self._gql_inobjtypes.get(
+                    f'UpdateOp{typename}__{name}')
+                if intype is None:
+                    # the links can only be updated by selecting some
+                    # objects, meaning that the basis is the same as for
+                    # query of whatever is the link type
+                    intype = self._gql_inobjtypes.get(
+                        f'NestedUpdate{edb_target.get_name(self.edb_schema)}')
+                    if intype is None:
+                        # construct a nested insert type
+                        intype = self._make_generic_nested_update_type(
+                            edb_target)
+
+                    # wrap into additional layer representing update ops
+                    intype = self._make_generic_update_op_type(
+                        ptr, name, edb_type, intype)
+                    # depending on whether this is a multilink or not wrap
+                    # it in a List
+                    intype = self._wrap_target(
+                        ptr, intype, ignore_required=True)
+
+                fields[name] = GraphQLInputObjectField(intype)
+
+            elif isinstance(edb_target, s_scalars.ScalarType):
+                target = self._convert_edb_type(edb_target)
+                if target is None or ptr.get_readonly(self.edb_schema):
+                    # don't expose this
+                    continue
+
+                intype = self._gql_inobjtypes.get(
+                    f'UpdateOp{typename}__{name}')
+                if intype is None:
+                    # construct a nested insert type
+                    intype = self._make_generic_update_op_type(
+                        ptr, name, edb_type, target)
+                intype = self._wrap_target(ptr, intype, ignore_required=True)
+
+                if intype:
+                    fields[name] = GraphQLInputObjectField(intype)
+
+            else:
+                continue
+
+        return fields
+
+    def _make_generic_update_op_type(self, ptr, fname, edb_base, target):
+        typename = edb_base.get_name(self.edb_schema)
+        name = f'UpdateOp{typename}__{fname}'
+
+        fields = {
+            'set': GraphQLInputObjectField(target)
+        }
+
+        if not ptr.get_required(self.edb_schema):
+            fields['clear'] = GraphQLInputObjectField(GraphQLBoolean)
+
+        nitype = GraphQLInputObjectType(
+            name=self.get_input_name(
+                f'UpdateOp_{fname}_', self.get_gql_name(typename)),
+            fields=fields,
+        )
+        self._gql_inobjtypes[name] = nitype
+
+        return nitype
+
+    def _make_generic_nested_update_type(self, edb_base):
+        typename = edb_base.get_name(self.edb_schema)
+        name = f'NestedUpdate{typename}'
+        nitype = GraphQLInputObjectType(
+            name=self.get_input_name(
+                'NestedUpdate', self.get_gql_name(typename)),
+            fields={
+                'filter': GraphQLInputObjectField(
+                    self._gql_inobjtypes[typename]),
+                'order': GraphQLInputObjectField(
+                    self._gql_ordertypes[typename]),
+                'first': GraphQLInputObjectField(GraphQLInt),
+                'last': GraphQLInputObjectField(GraphQLInt),
+                # before and after are supposed to be opaque values
+                # serialized to string
+                'before': GraphQLInputObjectField(GraphQLString),
+                'after': GraphQLInputObjectField(GraphQLString),
+            },
+        )
+
+        self._gql_inobjtypes[name] = nitype
+
+        return nitype
+
     def _make_generic_nested_insert_type(self, edb_base):
         typename = edb_base.get_name(self.edb_schema)
         name = f'NestedInsert{typename}'
@@ -478,7 +608,7 @@ class GQLCoreSchema:
 
     def define_generic_insert_types(self):
         for itype in [GraphQLBoolean, GraphQLID, GraphQLInt,
-                      GraphQLFloat, GraphQLString,]:
+                      GraphQLFloat, GraphQLString]:
             self._gql_inobjtypes[f'Insert{itype.name}'] = itype
 
     def define_generic_order_types(self):
@@ -573,6 +703,20 @@ class GQLCoreSchema:
                 fields=partial(self.get_order_fields, t_name),
             )
             self._gql_ordertypes[t_name] = gqlordertype
+
+            # update object types corresponding to this object (all
+            # non-views can appear as update types)
+            if not t.is_view(self.edb_schema):
+                # only objects that have at least one non-readonly
+                # link/property are eligible
+                pointers = t.get_pointers(self.edb_schema)
+                if any(not p.get_readonly(self.edb_schema)
+                       for _, p in pointers.items(self.edb_schema)):
+                    gqlupdatetype = GraphQLInputObjectType(
+                        name=self.get_input_name('Update', gql_name),
+                        fields=partial(self.get_update_fields, t_name),
+                    )
+                    self._gql_inobjtypes[f'Update{t_name}'] = gqlupdatetype
 
         # object types
         for t in obj_types:
@@ -694,20 +838,27 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         # expected to generate non-empty results, so messy EQL is not
         # needed.
         self.dummy = dummy
-        # JSON needs some special treatment so we want to know if
+        # JSON and bool need some special treatment so we want to know if
         # we're dealing with it
         if edb_base.is_scalar():
             bt = edb_base.get_topmost_concrete_base(self.edb_schema)
-            self._is_json = bt.get_name(self.edb_schema) == 'std::json'
+            bt_name = bt.get_name(self.edb_schema)
+            self._is_json = bt_name == 'std::json'
+            self._is_bool = bt_name == 'std::bool'
         else:
-            self._is_json = False
+            self._is_json = self._is_bool = False
 
     @property
     def is_json(self):
         return self._is_json
 
+    @property
     def is_enum(self):
         return False
+
+    @property
+    def is_bool(self):
+        return self._is_bool
 
     @property
     def name(self):
@@ -886,6 +1037,7 @@ class GQLShadowType(GQLBaseType):
 
         return True
 
+    @property
     def is_enum(self):
         return self.edb_base.is_enum(self.edb_schema)
 
