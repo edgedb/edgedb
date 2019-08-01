@@ -438,20 +438,12 @@ class CreateConstraint(ConstraintCommand,
             self.set_attribute_value('subject', subject)
             self.classname = derived_name
 
-            self.set_attribute_value(
-                'bases', so.ObjectList.create(schema, [constr_base])
-            )
-
         return super()._create_begin(schema, context)
 
     @classmethod
     def as_inherited_ref_cmd(cls, schema, context, astnode, parents):
-        cmd = cls(
-            classname=cls._classname_from_ast(
-                schema, astnode, context),
-        )
+        cmd = super().as_inherited_ref_cmd(schema, context, astnode, parents)
 
-        cmd.set_attribute_value('name', cmd.classname)
         args = cls._constraint_args_from_ast(schema, astnode, context)
         if args:
             cmd.set_attribute_value('args', args)

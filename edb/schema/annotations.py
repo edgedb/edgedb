@@ -265,6 +265,10 @@ class CreateAnnotationValue(AnnotationValueCommand,
             return schema, annotation
 
 
+class AlterAnnotationValue(AnnotationValueCommand, sd.AlterObject):
+    pass
+
+
 class DeleteAnnotationValue(AnnotationValueCommand, sd.DeleteObject):
     astnode = qlast.DropAnnotationValue
 

@@ -436,6 +436,10 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                 new_value=True
             ),
             sd.AlterObjectProperty(
+                property='is_local',
+                new_value=True
+            ),
+            sd.AlterObjectProperty(
                 property='cardinality',
                 new_value=qltypes.Cardinality.ONE,
             ),
@@ -486,6 +490,10 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             ),
             sd.AlterObjectProperty(
                 property='is_final',
+                new_value=True
+            ),
+            sd.AlterObjectProperty(
+                property='is_local',
                 new_value=True
             ),
             sd.AlterObjectProperty(

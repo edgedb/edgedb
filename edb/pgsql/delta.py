@@ -864,6 +864,12 @@ class CreateAnnotationValue(
     pass
 
 
+class AlterAnnotationValue(
+        AnnotationValueCommand, AlterObject,
+        adapts=s_anno.AlterAnnotationValue):
+    pass
+
+
 class DeleteAnnotationValue(
         AnnotationValueCommand, DeleteObject,
         adapts=s_anno.DeleteAnnotationValue):
@@ -1411,7 +1417,7 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
                         inherited_aptrs.add(ptr.get_shortname(schema))
 
             added_inh_ptrs = inherited_aptrs - {
-                p.get_shortname(schema)
+                p.get_shortname(orig_schema)
                 for p in source.get_pointers(orig_schema).objects(orig_schema)
             }
 
@@ -1452,7 +1458,7 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
 
                 orig_ptrs = source.get_pointers(orig_schema)
                 dropped_ptrs = (
-                    set(orig_ptrs.keys(schema)) -
+                    set(orig_ptrs.keys(orig_schema)) -
                     set(ptrs.keys(schema))
                 )
 
@@ -1461,9 +1467,9 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
                         schema, context, force_new=True)
 
                     for dropped_ptr in dropped_ptrs:
-                        ptr = orig_ptrs.get(schema, dropped_ptr.name)
+                        ptr = orig_ptrs.get(orig_schema, dropped_ptr)
                         ptr_stor_info = types.get_pointer_storage_info(
-                            ptr, schema=schema)
+                            ptr, schema=orig_schema)
 
                         is_a_column = ((
                             ptr_stor_info.table_type == 'ObjectType' and
@@ -1475,7 +1481,7 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
                             col = dbops.Column(
                                 name=ptr_stor_info.column_name,
                                 type=common.qname(*ptr_stor_info.column_type),
-                                required=ptr.get_required(schema))
+                                required=ptr.get_required(orig_schema))
 
                             cond = dbops.ColumnExists(
                                 table_name=ptr_stor_info.table_name,

@@ -374,6 +374,7 @@ class CommandContextToken:
         self.inheritance_refdicts = None
         self.mark_derived = None
         self.preserve_path_id = None
+        self.enable_recursion = None
 
 
 class CommandContextWrapper:
@@ -432,6 +433,14 @@ class CommandContext:
         for ctx in reversed(self.stack):
             if ctx.inheritance_refdicts is not None:
                 return ctx.inheritance_refdicts
+
+    @property
+    def enable_recursion(self):
+        for ctx in reversed(self.stack):
+            if ctx.enable_recursion is not None:
+                return ctx.enable_recursion
+
+        return True
 
     @property
     def canonical(self):

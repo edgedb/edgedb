@@ -36,7 +36,12 @@ class ReferencedObject(so.Object):
 
 class ReferencedInheritingObject(inheriting.InheritingObject,
                                  ReferencedObject):
-    pass
+
+    def get_implicit_bases(self, schema):
+        return [
+            b for b in self.get_bases(schema).objects(schema)
+            if not b.generic(schema)
+        ]
 
 
 class ReferencedObjectCommandMeta(type(sd.ObjectCommand)):
@@ -134,13 +139,14 @@ class ReferencedObjectCommand(sd.ObjectCommand,
                 ref_field_type = referrer_cls.get_field(refdict.attr).type
                 refname = ref_field_type.get_key_for(schema, self.scls)
 
-                for child in referrer.children(schema):
-                    alter = alter_cmd(classname=child.get_name(schema))
-                    with alter.new_context(schema, context, child):
-                        schema, cmd = self._propagate_ref_creation(
-                            schema, context, refdict, refname, child)
-                        alter.add(cmd)
-                    self.add(alter)
+                if context.enable_recursion:
+                    for child in referrer.children(schema):
+                        alter = alter_cmd(classname=child.get_name(schema))
+                        with alter.new_context(schema, context, child):
+                            schema, cmd = self._propagate_ref_creation(
+                                schema, context, refdict, refname, child)
+                            alter.add(cmd)
+                        self.add(alter)
             else:
                 for op in self.get_subcommands(metaclass=referrer_cls):
                     schema, _ = op.apply(schema, context=context)
@@ -464,13 +470,8 @@ class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
 
     @classmethod
     def as_inherited_ref_cmd(cls, schema, context, astnode, parents):
-        cmd = cls(
-            classname=cls._classname_from_ast(
-                schema, astnode, context),
-        )
-
+        cmd = cls(classname=cls._classname_from_ast(schema, astnode, context))
         cmd.set_attribute_value('name', cmd.classname)
-
         return cmd
 
     @classmethod

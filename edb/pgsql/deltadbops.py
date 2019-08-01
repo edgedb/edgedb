@@ -524,7 +524,7 @@ class AlterTableInheritableConstraintBase(
             # Now delegated, drop db structures
             self.drop_constraint(old_constraint)
 
-        else:
+        elif not new_constraint.is_abstract:
             # Some other modification, drop/create
             self.drop_constraint(old_constraint)
             self.create_constraint(new_constraint)

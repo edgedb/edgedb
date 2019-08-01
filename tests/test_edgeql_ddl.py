@@ -2043,6 +2043,91 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             {'std::Object', 'test::ExtB3'}
         )
 
+    async def test_edgeql_ddl_extending_04(self):
+        # Check that descendants are recomputed properly on rebase.
+        await self.con.execute(r"""
+            CREATE TYPE test::ExtA4 {
+                CREATE PROPERTY a -> int64;
+            };
+
+            CREATE ABSTRACT INHERITABLE ANNOTATION a_anno;
+
+            CREATE TYPE test::ExtB4 {
+                CREATE PROPERTY a -> int64 {
+                    SET ANNOTATION a_anno := 'anno';
+                };
+
+                CREATE PROPERTY b -> str;
+            };
+
+            CREATE TYPE test::Ext4Child EXTENDING test::ExtA4;
+            CREATE TYPE test::Ext4GrandChild EXTENDING test::Ext4Child;
+            CREATE TYPE test::Ext4GrandGrandChild
+                EXTENDING test::Ext4GrandChild;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT (SELECT schema::ObjectType
+                        FILTER .name = 'test::Ext4Child').properties.name;
+            """,
+            {'id', 'a'}
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE test::Ext4Child EXTENDING test::ExtB4;
+        """)
+
+        for name in {'Ext4Child', 'Ext4GrandChild', 'Ext4GrandGrandChild'}:
+            await self.assert_query_result(
+                f"""
+                    SELECT (SELECT schema::ObjectType
+                            FILTER .name = 'test::{name}').properties.name;
+                """,
+                {'id', 'a', 'b'}
+            )
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    ggc := (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'test::Ext4GrandGrandChild'
+                    )
+                SELECT
+                    (SELECT ggc.properties FILTER .name = 'a')
+                        .annotations@value;
+            """,
+            {'anno'}
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE test::Ext4Child DROP EXTENDING test::ExtB4;
+        """)
+
+        for name in {'Ext4Child', 'Ext4GrandChild', 'Ext4GrandGrandChild'}:
+            await self.assert_query_result(
+                f"""
+                    SELECT (SELECT schema::ObjectType
+                            FILTER .name = 'test::{name}').properties.name;
+                """,
+                {'id', 'a'}
+            )
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    ggc := (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'test::Ext4GrandGrandChild'
+                    )
+                SELECT
+                    (SELECT ggc.properties FILTER .name = 'a')
+                        .annotations@value;
+            """,
+            {}
+        )
+
     async def test_edgeql_ddl_modules_01(self):
         try:
             await self.con.execute(r"""
