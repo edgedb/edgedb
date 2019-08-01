@@ -564,11 +564,14 @@ class GraphQLTranslator:
         elif node.selection_set is not None:
             delete_mode = (not is_shadowed and
                            node.name.value.startswith('delete_'))
+            update_mode = (not is_shadowed and
+                           node.name.value.startswith('update_'))
 
             if not json_mode:
                 # a single recursion target, so we can process
                 # selection set now
-                with self._update_path_for_eql_alias(delete_mode):
+                with self._update_path_for_eql_alias(
+                        delete_mode or update_mode):
                     alias = self._context.path[-1][-1].eql_alias
                     self._context.fields.append({})
                     vals = self.visit(node.selection_set)
@@ -586,15 +589,32 @@ class GraphQLTranslator:
                     filterable.offset = offset
                     filterable.limit = limit
 
-            # this should be a DELETE operation, so we'll rearrange the
-            # components of the SelectQuery
             if delete_mode:
+                # this should be a DELETE operation, so we'll rearrange the
+                # components of the SelectQuery
                 filterable.aliases = [
                     qlast.AliasedExpr(
                         alias=alias,
                         expr=qlast.DeleteQuery(
                             subject=filterable.result.expr,
                             where=filterable.where,
+                        )
+                    )
+                ]
+                filterable.where = None
+                filterable.result.expr = qlast.Path(
+                    steps=[qlast.ObjectRef(name=alias)])
+            elif update_mode:
+                update_shape = self._visit_update_arguments(node.arguments)
+                # this should be an UPDATE operation, so we'll rearrange the
+                # components of the SelectQuery and add data operations
+                filterable.aliases = [
+                    qlast.AliasedExpr(
+                        alias=alias,
+                        expr=qlast.UpdateQuery(
+                            subject=filterable.result.expr,
+                            where=filterable.where,
+                            shape=update_shape,
                         )
                     )
                 ]
@@ -883,6 +903,77 @@ class GraphQLTranslator:
             self._context.path[-1].pop()
             self._context.path[-1].append(step)
 
+    def _visit_update_arguments(self, arguments):
+        result = []
+
+        for arg in arguments:
+            if arg.name.value == 'data':
+                # the node is an ObjectNode with the update spec
+                for field in arg.value.fields:
+                    fname = field.name.value
+                    # capture the full path to the field being updated
+                    eqlpath = self.get_path_prefix()
+                    eqlpath.append(
+                        qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
+                    eqlpath = qlast.Path(steps=eqlpath)
+
+                    # set-up the current path to point to the thing
+                    # being updated (so that SELECT can be applied if needed)
+                    with self._update_path_for_insert_field(field):
+                        _, target = self._get_parent_and_current_type()
+
+                        # normalize potential link lists
+                        if isinstance(field.value, gql_ast.ListValue):
+                            input_data = field.value.values
+                        else:
+                            input_data = [field.value]
+                        vals = [
+                            self._visit_update_op(fval, eqlpath, target)
+                            for fval in input_data
+                        ]
+
+                        if len(vals) == 1:
+                            vals = vals[0]
+                        else:
+                            vals = qlast.Set(elements=vals)
+
+                        result.append(
+                            qlast.ShapeElement(
+                                expr=qlast.Path(
+                                    steps=[
+                                        qlast.Ptr(
+                                            ptr=qlast.ObjectRef(
+                                                name=field.name.value
+                                            )
+                                        )
+                                    ]
+                                ),
+                                compexpr=vals,
+                            )
+                        )
+
+        return result
+
+    def _visit_update_op(self, node, eqlpath, ftype):
+        # the node is an ObjectNode with the update spec
+
+        # we're at the beginning of a scalar op
+        for field in node.fields:
+            fname = field.name.value
+
+            # NOTE: there will be more operations in the future
+            if fname == 'set':
+                return self._visit_insert_value(field.value)
+            elif fname == 'clear':
+                # just check if the value is True (we need the visit
+                # to resolve potential variables)
+                if self.visit(field.value).value == 'true':
+                    # empty set to clear the value
+                    return qlast.Set()
+                else:
+                    raise g_errors.GraphQLTranslationError(
+                        '"clear" parameter can only take the value of "true"')
+
     def _visit_insert_arguments(self, arguments):
         input_data = []
 
@@ -1056,7 +1147,8 @@ class GraphQLTranslator:
 
         if op:
             value = self.visit(node.value)
-            return qlast.BinOp(left=self._context.filter, op=op, right=value)
+            return qlast.BinOp(
+                left=self._context.base_expr, op=op, right=value)
 
         # we're at the beginning of a scalar op
         _, target = self._get_parent_and_current_type()
@@ -1078,7 +1170,7 @@ class GraphQLTranslator:
                     type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
                 )
 
-        self._context.filter = name
+        self._context.base_expr = name
 
         value = self.visit(node.value)
         # we need to cast a target string into <uuid> or enum
@@ -1088,7 +1180,7 @@ class GraphQLTranslator:
                 expr=value.right,
                 type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),
             )
-        elif ftype.is_enum():
+        elif ftype.is_enum:
             value.right = qlast.TypeCast(
                 expr=value.right,
                 type=qlast.TypeName(maintype=qlast.ObjectRef(name=ftype.name)),
@@ -1191,7 +1283,7 @@ class GraphQLTranslator:
         )
 
     def visit_StringValue(self, node):
-        return qlast.StringConstant(value=node.value, quote='"')
+        return qlast.StringConstant.from_python(node.value)
 
     def visit_IntValue(self, node):
         return qlast.IntegerConstant(value=node.value)
@@ -1204,6 +1296,8 @@ class GraphQLTranslator:
         return qlast.BooleanConstant(value=value)
 
     def visit_EnumValue(self, node):
+        # since enums are identifier-like, we can assume they have no
+        # special characters that need escaping, etc.
         return qlast.StringConstant(value=node.value, quote='"')
 
     def _visit_list_of_inputs(self, inputlist, op):

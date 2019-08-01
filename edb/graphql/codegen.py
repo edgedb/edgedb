@@ -17,6 +17,7 @@
 #
 
 
+import json
 from edb.common.ast import codegen
 
 
@@ -130,7 +131,8 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         self._visit_arguments(node)
 
     def visit_StringValue(self, node):
-        self.write(f'"{node.value}"')
+        # the GQL string works same as JSON string
+        self.write(json.dumps(node.value))
 
     def visit_IntValue(self, node):
         self.write(node.value)
