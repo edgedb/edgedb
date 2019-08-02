@@ -231,7 +231,6 @@ class SchemaField(Field):
 
 class RefDict(struct.Struct):
 
-    local_attr = struct.Field(str, frozen=True)
     attr = struct.Field(str, frozen=True)
     backref_attr = struct.Field(str, default='subject', frozen=True)
     requires_explicit_inherit = struct.Field(bool, default=False, frozen=True)

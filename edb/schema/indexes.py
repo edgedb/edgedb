@@ -55,7 +55,6 @@ class Index(referencing.ReferencedObject):
 class IndexableSubject(inheriting.InheritingObject):
     indexes_refs = so.RefDict(
         attr='indexes',
-        local_attr='own_indexes',
         ref_cls=Index)
 
     indexes = so.SchemaField(

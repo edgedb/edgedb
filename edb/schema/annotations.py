@@ -79,7 +79,6 @@ class AnnotationValue(referencing.ReferencedInheritingObject):
 class AnnotationSubject(so.Object):
     annotations_refs = so.RefDict(
         attr='annotations',
-        local_attr='own_annotations',
         ref_cls=AnnotationValue)
 
     annotations = so.SchemaField(

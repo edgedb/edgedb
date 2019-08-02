@@ -258,7 +258,6 @@ class Constraint(referencing.ReferencedInheritingObject,
 class ConsistencySubject(inheriting.InheritingObject):
     constraints_refs = so.RefDict(
         attr='constraints',
-        local_attr='own_constraints',
         ref_cls=Constraint)
 
     constraints = so.SchemaField(
