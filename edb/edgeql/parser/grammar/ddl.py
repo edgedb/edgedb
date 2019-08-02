@@ -713,19 +713,25 @@ commands_block(
 
 class AlterConcreteConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
-        r"""%reduce ALTER CONSTRAINT NodeName \
+        r"""%reduce ALTER CONSTRAINT NodeName
+                    OptConcreteConstraintArgList OptOnExpr
                     AlterConcreteConstraintCommandsBlock"""
         self.val = qlast.AlterConcreteConstraint(
             name=kids[2].val,
-            commands=kids[3].val,
+            args=kids[3].val,
+            subjectexpr=kids[4].val,
+            commands=kids[5].val,
         )
 
 
 class DropConcreteConstraintStmt(Nonterm):
     def reduce_DropConstraint(self, *kids):
-        r"""%reduce DROP CONSTRAINT NodeName"""
+        r"""%reduce DROP CONSTRAINT NodeName
+                    OptConcreteConstraintArgList OptOnExpr"""
         self.val = qlast.DropConcreteConstraint(
-            name=kids[2].val
+            name=kids[2].val,
+            args=kids[3].val,
+            subjectexpr=kids[4].val,
         )
 
 

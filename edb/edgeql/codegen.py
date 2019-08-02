@@ -732,7 +732,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('}')
 
     def _visit_AlterObject(self, node, *object_keywords, allow_short=True,
-                           unqualified=False):
+                           after_name=None, unqualified=False):
         self._visit_aliases(node)
         self.write('ALTER', *object_keywords, delimiter=' ')
         self.write(' ')
@@ -740,6 +740,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(ident_to_str(node.name.name))
         else:
             self.visit(node.name)
+        if after_name:
+            after_name()
         if node.commands:
             if len(node.commands) == 1 and allow_short:
                 self.write(' ')
@@ -751,7 +753,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self._block_ws(-1)
                 self.write('}')
 
-    def _visit_DropObject(self, node, *object_keywords, unqualified=False):
+    def _visit_DropObject(self, node, *object_keywords, unqualified=False,
+                          after_name=None):
         self._visit_aliases(node)
         self.write('DROP', *object_keywords, delimiter=' ')
         self.write(' ')
@@ -759,6 +762,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(ident_to_str(node.name.name))
         else:
             self.visit(node.name)
+        if after_name:
+            after_name()
         if node.commands:
             self.write(' {')
             self._block_ws(1)
@@ -967,10 +972,33 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_CreateObject(node, *keywords, after_name=after_name)
 
     def visit_AlterConcreteConstraint(self, node):
-        self._visit_AlterObject(node, 'CONSTRAINT', allow_short=False)
+        def after_name():
+            if node.args:
+                self.write('(')
+                self.visit_list(node.args, newlines=False)
+                self.write(')')
+            if node.subjectexpr:
+                self._write_keywords(' ON ')
+                self.write('(')
+                self.visit(node.subjectexpr)
+                self.write(')')
+
+        self._visit_AlterObject(node, 'CONSTRAINT', allow_short=False,
+                                after_name=after_name)
 
     def visit_DropConcreteConstraint(self, node):
-        self._visit_DropObject(node, 'CONSTRAINT')
+        def after_name():
+            if node.args:
+                self.write('(')
+                self.visit_list(node.args, newlines=False)
+                self.write(')')
+            if node.subjectexpr:
+                self._write_keywords(' ON ')
+                self.write('(')
+                self.visit(node.subjectexpr)
+                self.write(')')
+
+        self._visit_DropObject(node, 'CONSTRAINT', after_name=after_name)
 
     def visit_CreateScalarType(self, node):
         keywords = []

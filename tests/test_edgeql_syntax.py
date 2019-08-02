@@ -2961,6 +2961,20 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_constraint_10(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                ALTER CONSTRAINT my_constraint ON (foo) {
+                    SET ANNOTATION title := 'special';
+                };
+            };
+            ALTER LINK baz {
+                DROP CONSTRAINT my_length(10);
+            };
+        };
+        """
+
     def test_edgeql_syntax_ddl_function_01(self):
         """
         CREATE FUNCTION std::strlen(string: std::str) -> std::int64

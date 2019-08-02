@@ -2702,19 +2702,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        The error is:
-
-        InvalidReferenceError: reference to a non-existent schema
-        item: test::std|min_value@@test|test|con_test@@test|ConTest01
-
-        Altering the constraint instead of dropping it also produces
-        the same error.
-
-        The current docs for DDL have a *very* similar example to this
-        one, but which works fine. The difference is in the
-        CREATE/ALTER sequence of the PROPERTY and CONSTRAINT.
-    ''')
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::ConTest01 {
@@ -2729,7 +2716,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             ALTER TYPE test::ConTest01
                 ALTER PROPERTY con_test
-                    DROP CONSTRAINT min_value;
+                    DROP CONSTRAINT min_value(0);
         """)
 
         await self.assert_query_result("""
@@ -2742,7 +2729,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 } FILTER .name = 'con_test'
             }
             FILTER .name = 'test::ConTest01';
-        """, [[
+        """, [
             {
                 'name': 'test::ConTest01',
                 'properties': [{
@@ -2750,7 +2737,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     'constraints': {},
                 }]
             }
-        ]])
+        ])
 
     async def test_edgeql_ddl_tuple_properties(self):
         await self.con.execute(r"""

@@ -769,17 +769,20 @@ class DropConstraint(DropObject):
     pass
 
 
-class CreateConcreteConstraint(CreateObject):
+class ConstraintOp(ObjectDDL):
     args: typing.List[Expr]
-    is_abstract: bool = False
     subjectexpr: typing.Optional[Expr]
 
 
-class AlterConcreteConstraint(AlterObject):
+class CreateConcreteConstraint(CreateObject, ConstraintOp):
+    is_abstract: bool = False
+
+
+class AlterConcreteConstraint(AlterObject, ConstraintOp):
     pass
 
 
-class DropConcreteConstraint(DropObject):
+class DropConcreteConstraint(DropObject, ConstraintOp):
     pass
 
 
