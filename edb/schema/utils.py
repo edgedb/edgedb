@@ -219,7 +219,7 @@ def minimize_class_set_by_least_generic(schema, classes):
 
 def merge_reduce(target, sources, field_name, *, schema, f):
     values = []
-    ours = target.get_explicit_field_value(schema, field_name, None)
+    ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is not None:
         values.append(ours)
     for source in sources:

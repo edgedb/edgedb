@@ -18,6 +18,9 @@
 
 """Low level introspection of the schema."""
 
+import json
+
+import immutables as immu
 
 from edb import errors
 
@@ -195,6 +198,8 @@ class IntrospectionMech:
 
             scalar_data = {
                 'id': row['id'],
+                'field_inh_map': self._unpack_field_inh_map(
+                    row['field_inh_map']),
                 'name': name,
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
@@ -431,6 +436,7 @@ class IntrospectionMech:
             schema, constraint = s_constr.Constraint.create_in_schema(
                 schema,
                 id=r['id'],
+                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
                 name=name,
                 subject=subject,
                 params=params,
@@ -460,6 +466,12 @@ class IntrospectionMech:
             schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
 
         return schema
+
+    def _unpack_field_inh_map(self, value):
+        if value is None:
+            return immu.Map()
+        else:
+            return immu.Map(json.loads(value))
 
     def _unpack_typedesc_node(self, typemap, id, schema):
         t = typemap[id]
@@ -630,6 +642,7 @@ class IntrospectionMech:
             schema, link = s_links.Link.create_in_schema(
                 schema,
                 id=r['id'],
+                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
                 name=name,
                 source=source,
                 target=target,
@@ -711,6 +724,7 @@ class IntrospectionMech:
             schema, prop = s_props.Property.create_in_schema(
                 schema,
                 id=r['id'],
+                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
                 name=name, source=source, target=target, required=required,
                 readonly=r['readonly'], computable=r['computable'],
                 cardinality=cardinality,
@@ -760,6 +774,7 @@ class IntrospectionMech:
             schema, _ = s_anno.Annotation.create_in_schema(
                 schema,
                 id=r['id'],
+                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
                 name=name,
                 inheritable=r['inheritable'],
             )
@@ -783,6 +798,7 @@ class IntrospectionMech:
             schema, anno = s_anno.AnnotationValue.create_in_schema(
                 schema,
                 id=r['id'],
+                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
                 name=name,
                 subject=subject,
                 annotation=anno,
@@ -812,6 +828,8 @@ class IntrospectionMech:
         for name, row in objtype_list.items():
             objtype = {
                 'id': row['id'],
+                'field_inh_map': self._unpack_field_inh_map(
+                    row['field_inh_map']),
                 'name': name,
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],

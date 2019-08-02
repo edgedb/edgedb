@@ -1508,7 +1508,7 @@ def _field_to_column(field):
             and issubclass(ftype.type, str)):
         coltype = 'text[]'
 
-    elif issubclass(ftype, dict):
+    elif issubclass(ftype, collections.abc.Mapping):
         coltype = 'jsonb'
 
     elif issubclass(ftype, str):

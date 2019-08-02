@@ -472,17 +472,27 @@ class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
         for op in self.get_subcommands(type=RebaseInheritingObject):
             schema, _ = op.apply(schema, context)
 
-        if not context.canonical:
+        if not context.canonical and context.enable_recursion:
             schema, props = self._get_field_updates(schema, context)
             if props:
-                for child in scls.children(schema):
-                    schema = self._propagate_field_alter(
-                        schema, context, child, props)
+                self._propagate_field_alter(schema, context, scls, props)
 
         return schema
 
     def _propagate_field_alter(self, schema, context, scls, props):
-        return schema
+        alter_cmd = sd.ObjectCommandMeta.get_command_class(
+            sd.AlterObject, type(scls))
+
+        for descendant in scls.ordered_descendants(schema):
+            descendant_alter = alter_cmd(
+                classname=descendant.get_name(schema))
+            descendant_alter.scls = descendant
+            with descendant_alter.new_context(
+                    schema, context, descendant):
+                d_bases = descendant.get_bases(schema).objects(schema)
+                schema = descendant_alter.inherit_fields(
+                    schema, context, descendant, d_bases, fields=props)
+            self.add(descendant_alter)
 
 
 class DeleteInheritingObject(InheritingObjectCommand, sd.DeleteObject):

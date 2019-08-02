@@ -207,6 +207,10 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
         else:
             schema, fields = self._get_field_updates(schema, context)
 
+        inh_map = self.get_inheritance_map(schema, context)
+        if inh_map:
+            fields['field_inh_map'] = inh_map
+
         return schema, fields
 
     def fill_record(self, schema, context, *, use_defaults=False):

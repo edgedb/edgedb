@@ -53,7 +53,7 @@ def get_known_type_id(typename, default=...):
 
 def default_field_merge(target: 'Object', sources: typing.List['Object'],
                         field_name: str, *, schema) -> object:
-    ours = target.get_explicit_field_value(schema, field_name, None)
+    ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is None:
         for source in sources:
             theirs = source.get_explicit_field_value(schema, field_name, None)
@@ -615,6 +615,19 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
             raise FieldValueNotFoundError(
                 f'{self!r} object has no value for field {field_name!r}')
+
+    def get_explicit_local_field_value(self, schema, field_name,
+                                       default=NoDefault):
+        field_inh_map = self.get_field_inh_map(schema)
+        if not field_inh_map.get(field_name):
+            return self.get_explicit_field_value(schema, field_name, default)
+        elif default is not NoDefault:
+            return default
+        else:
+            raise FieldValueNotFoundError(
+                f'{self!r} object has no non-inherited value for '
+                f'field {field_name!r}'
+            )
 
     def set_field_value(self, schema, name, value):
         field = type(self)._fields[name]

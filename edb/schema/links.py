@@ -43,7 +43,7 @@ LinkTargetDeleteAction = qlast.LinkTargetDeleteAction
 
 def merge_actions(target: so.Object, sources: typing.List[so.Object],
                   field_name: str, *, schema) -> object:
-    ours = target.get_explicit_field_value(schema, field_name, None)
+    ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is None:
         current = None
         current_from = None

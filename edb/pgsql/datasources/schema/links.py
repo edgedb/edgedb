@@ -44,7 +44,8 @@ async def fetch(
                 l.is_local,
                 l.is_derived,
                 l.readonly,
-                l.default
+                l.default,
+                l.field_inh_map
             FROM
                 edgedb.link l
             WHERE
@@ -83,7 +84,8 @@ async def fetch_properties(
                 p.is_abstract           AS is_abstract,
                 p.is_final              AS is_final,
                 p.is_local              AS is_local,
-                p.is_derived            AS is_derived
+                p.is_derived            AS is_derived,
+                p.field_inh_map         AS field_inh_map
             FROM
                 edgedb.Property p
             WHERE

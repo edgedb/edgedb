@@ -48,7 +48,8 @@ async def fetch(
                 edgedb._resolve_type_name(a.params)
                                         AS params,
                 a.return_type           AS return_type,
-                a.return_typemod        AS return_typemod
+                a.return_typemod        AS return_typemod,
+                a.field_inh_map         AS field_inh_map
 
             FROM
                 edgedb.constraint a

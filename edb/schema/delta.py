@@ -713,6 +713,14 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         metaclass = self.get_schema_metaclass()
         return schema.get(name, type=metaclass)
 
+    def get_inheritance_map(self, schema, context):
+        result = {}
+        for op in self.get_subcommands(type=AlterObjectProperty):
+            if op.source == 'inheritance':
+                result[op.property] = True
+
+        return result
+
     def _prepare_field_updates(self, schema, context):
         result = {}
         metaclass = self.get_schema_metaclass()

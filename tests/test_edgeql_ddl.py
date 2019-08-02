@@ -2128,6 +2128,93 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             {}
         )
 
+    async def test_edgeql_ddl_extending_05(self):
+        # Check that field alters are propagated.
+        await self.con.execute(r"""
+            CREATE TYPE test::ExtA5 {
+                CREATE PROPERTY a -> int64 {
+                    SET default := 1;
+                };
+            };
+
+            CREATE TYPE test::ExtB5 {
+                CREATE PROPERTY a -> int64 {
+                    SET default := 2;
+                };
+            };
+
+            CREATE TYPE test::ExtC5 EXTENDING test::ExtB5;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C5 := (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'test::ExtC5'
+                    )
+                SELECT
+                    (SELECT C5.properties FILTER .name = 'a')
+                        .default;
+            """,
+            {'2'}
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE test::ExtC5 EXTENDING test::ExtA5 FIRST;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C5 := (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'test::ExtC5'
+                    )
+                SELECT
+                    (SELECT C5.properties FILTER .name = 'a')
+                        .default;
+            """,
+            {'1'}
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE test::ExtC5 DROP EXTENDING test::ExtA5;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C5 := (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'test::ExtC5'
+                    )
+                SELECT
+                    (SELECT C5.properties FILTER .name = 'a')
+                        .default;
+            """,
+            {'2'}
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE test::ExtC5 ALTER PROPERTY a SET REQUIRED;
+            ALTER TYPE test::ExtC5 DROP EXTENDING test::ExtA5;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C5 := (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'test::ExtC5'
+                    )
+                SELECT
+                    (SELECT C5.properties FILTER .name = 'a')
+                        .default;
+            """,
+            {}
+        )
+
     async def test_edgeql_ddl_modules_01(self):
         try:
             await self.con.execute(r"""
