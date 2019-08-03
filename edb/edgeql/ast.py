@@ -153,11 +153,15 @@ class AnyTuple(PseudoObjectRef):
     pass
 
 
-class Source(Expr):
+class SpecialAnchor(Expr):
     pass
 
 
-class Subject(Expr):  # __subject__
+class Source(SpecialAnchor):  # __source__
+    pass
+
+
+class Subject(SpecialAnchor):  # __subject__
     pass
 
 

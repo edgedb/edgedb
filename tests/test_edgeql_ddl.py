@@ -366,35 +366,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    # XXX: is this kind of default expression even valid (referring to
-    # another property of the same object)?
-    @unittest.expectedFailure
     async def test_edgeql_ddl_14(self):
-        await self.con.execute("""
-            CREATE TYPE test::TestSelfLink1 {
-                CREATE PROPERTY foo1 -> std::str;
-                CREATE PROPERTY bar1 -> std::str {
-                    SET default := __source__.foo1;
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                f'__source__ cannot be used in this expression'):
+            await self.con.execute("""
+                CREATE TYPE test::TestSelfLink1 {
+                    CREATE PROPERTY foo1 -> std::str;
+                    CREATE PROPERTY bar1 -> std::str {
+                        SET default := __source__.foo1;
+                    };
                 };
-            };
-        """)
-
-        await self.con.execute(r"""
-            INSERT test::TestSelfLink1 {
-                foo1 := 'Victor'
-            };
-        """)
-
-        await self.assert_query_result(
-            r"""
-                WITH MODULE test
-                SELECT TestSelfLink1 {
-                    foo1,
-                    bar1,
-                };
-            """,
-            [{'foo1': 'Victor', 'bar1': 'Victor'}]
-        )
+            """)
 
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
@@ -446,30 +429,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 };
             """)
-
-    @unittest.expectedFailure
-    async def test_edgeql_ddl_17(self):
-        await self.con.execute("""
-            CREATE TYPE test::TestSelfLink4 {
-                CREATE PROPERTY __typename4 -> std::str {
-                    SET default := __source__.__type__.name;
-                };
-            };
-        """)
-
-        await self.con.execute(r"""
-            INSERT test::TestSelfLink4;
-        """)
-
-        await self.assert_query_result(
-            r"""
-                WITH MODULE test
-                SELECT TestSelfLink4 {
-                    __typename4,
-                };
-            """,
-            [{'__typename4': 'test::TestSelfLink4'}]
-        )
 
     async def test_edgeql_ddl_18(self):
         await self.con.execute("""

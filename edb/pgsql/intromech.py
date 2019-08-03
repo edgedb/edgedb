@@ -654,7 +654,8 @@ class IntrospectionMech:
                 is_final=r['is_final'],
                 is_local=r['is_local'],
                 readonly=r['readonly'],
-                computable=r['computable'],
+                expr=(self.unpack_expr(r['expr'], schema)
+                      if r['expr'] else None),
             )
 
             if r['default']:
@@ -726,7 +727,9 @@ class IntrospectionMech:
                 id=r['id'],
                 field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
                 name=name, source=source, target=target, required=required,
-                readonly=r['readonly'], computable=r['computable'],
+                readonly=r['readonly'],
+                expr=(self.unpack_expr(r['expr'], schema)
+                      if r['expr'] else None),
                 cardinality=cardinality,
                 is_derived=r['is_derived'],
                 is_local=r['is_local'],

@@ -520,8 +520,6 @@ def _normalize_view_ptr_expr(
 
     if qlexpr is not None:
         ctx.source_map[ptrcls] = (qlexpr, ctx, path_id, path_id_namespace)
-        ctx.env.schema = ptrcls.set_field_value(
-            ctx.env.schema, 'computable', True)
 
     if not is_mutation:
         if ptr_cardinality is None:
@@ -799,7 +797,7 @@ def _compile_view_shapes_in_set(
 
         for path_tip, ptr in shape_ptrs:
             element = setgen.extend_path(
-                path_tip, ptr, force_computable=is_mutation,
+                path_tip, ptr, is_mut_assign=is_mutation,
                 unnest_fence=True, same_computable_scope=True, ctx=ctx)
 
             element_scope = pathctx.get_set_scope(element, ctx=ctx)

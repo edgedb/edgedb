@@ -38,7 +38,7 @@ async def fetch(
                 edgedb._resolve_type_name(l.derived_from) AS derived_from,
                 l.cardinality,
                 l.required,
-                l.computable,
+                l.expr,
                 l.is_abstract,
                 l.is_final,
                 l.is_local,
@@ -75,7 +75,7 @@ async def fetch_properties(
                                         AS derived_from,
                 p.cardinality           AS cardinality,
                 p.required              AS required,
-                p.computable            AS computable,
+                p.expr                  AS expr,
                 p.readonly              AS readonly,
                 p.default               AS default,
                 edgedb._resolve_type_name(p.source)

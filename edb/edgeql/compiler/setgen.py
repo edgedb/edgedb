@@ -187,21 +187,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     path_sets = []
 
     for i, step in enumerate(expr.steps):
-        if isinstance(step, qlast.Source):
-            # 'self' can only appear as the starting path label
-            # syntactically and is a known anchor
-            try:
-                path_tip = anchors[step.__class__]
-            except KeyError:
-                path_tip = anchors['__source__']
-
-        elif isinstance(step, qlast.Subject):
-            # '__subject__' can only appear as the starting path label
-            # syntactically and is a known anchor
-            try:
-                path_tip = anchors[step.__class__]
-            except KeyError:
-                path_tip = anchors['__subject__']
+        if isinstance(step, qlast.SpecialAnchor):
+            path_tip = resolve_special_anchor(step, ctx=ctx)
 
         elif isinstance(step, qlast.ObjectRef):
             if i > 0:  # pragma: no cover
@@ -374,6 +361,37 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     return path_tip
 
 
+def resolve_special_anchor(
+        anchor: qlast.SpecialAnchor, *,
+        ctx: context.ContextLevel) -> irast.Expr:
+
+    # '__source__' and '__subject__` can only appear as the
+    # starting path label syntactically and must be pre-populated
+    # by the compile() caller.
+
+    if isinstance(anchor, qlast.Source):
+        token = '__source__'
+    elif isinstance(anchor, qlast.Subject):
+        token = '__subject__'
+    else:
+        raise errors.InternalServerError(
+            f'unexpected special anchor kind: {anchor!r}'
+        )
+
+    anchors = ctx.anchors
+    path_tip = anchors.get(anchor.__class__)
+    if path_tip is None:
+        path_tip = anchors.get(token)
+
+    if path_tip is None:
+        raise errors.InvalidReferenceError(
+            f'{token} cannot be used in this expression',
+            context=anchor.context,
+        )
+
+    return path_tip
+
+
 def fuse_scope_branch(
         ir_set: irast.Set, parent: irast.ScopeTreeNode,
         branch: irast.ScopeTreeNode, *,
@@ -494,7 +512,7 @@ def extend_path(
         direction: PtrDir=PtrDir.Outbound,
         target: typing.Optional[s_nodes.Node]=None, *,
         ignore_computable: bool=False,
-        force_computable: bool=False,
+        is_mut_assign: bool=False,
         unnest_fence: bool=False,
         same_computable_scope: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -530,19 +548,23 @@ def extend_path(
     )
 
     target_set.rptr = ptr
-
-    if (not ignore_computable and _is_computable_ptr(
-            ptrcls, force_computable=force_computable, ctx=ctx)):
+    is_computable = _is_computable_ptr(
+        ptrcls, is_mut_assign=is_mut_assign, ctx=ctx)
+    if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
-            ptr, unnest_fence=unnest_fence,
-            same_computable_scope=same_computable_scope, ctx=ctx)
+            ptr,
+            unnest_fence=unnest_fence,
+            from_default_expr=is_mut_assign,
+            same_computable_scope=same_computable_scope,
+            ctx=ctx,
+        )
 
     return target_set
 
 
 def _is_computable_ptr(
         ptrcls, *,
-        force_computable: bool=False,
+        is_mut_assign: bool=False,
         ctx: context.ContextLevel) -> bool:
     try:
         qlexpr = ctx.source_map[ptrcls][0]
@@ -554,7 +576,7 @@ def _is_computable_ptr(
     if ptrcls.is_pure_computable(ctx.env.schema):
         return True
 
-    if force_computable and ptrcls.get_default(ctx.env.schema) is not None:
+    if is_mut_assign and ptrcls.get_default(ctx.env.schema) is not None:
         return True
 
 
@@ -737,6 +759,7 @@ def computable_ptr_set(
         rptr: irast.Pointer, *,
         unnest_fence: bool=False,
         same_computable_scope: bool=False,
+        from_default_expr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     """Return ir.Set for a pointer defined as a computable."""
     ptrcls = irtyputils.ptrcls_from_ptrref(rptr.ptrref, schema=ctx.env.schema)
@@ -787,13 +810,16 @@ def computable_ptr_set(
         qlexpr, qlctx, inner_source_path_id, path_id_ns = \
             ctx.source_map[ptrcls]
     except KeyError:
-        ptrcls_default = ptrcls.get_default(ctx.env.schema)
-        if not ptrcls_default:
+        if from_default_expr:
+            comp_expr = ptrcls.get_default(ctx.env.schema)
+        else:
+            comp_expr = ptrcls.get_expr(ctx.env.schema)
+        if comp_expr is None:
             ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
             raise ValueError(
                 f'{ptrcls_sn!r} is not a computable pointer')
 
-        qlexpr = qlparser.parse(ptrcls_default.text)
+        qlexpr = qlparser.parse(comp_expr.text)
         # NOTE: Validation of the expression type is not the concern
         # of this function. For any non-object pointer target type,
         # the default expression must be assignment-cast into that

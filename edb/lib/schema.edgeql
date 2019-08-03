@@ -197,6 +197,7 @@ CREATE ABSTRACT TYPE schema::Pointer
     CREATE REQUIRED PROPERTY cardinality -> schema::cardinality_t;
     CREATE REQUIRED PROPERTY required -> std::bool;
     CREATE PROPERTY default -> std::str;
+    CREATE PROPERTY expr -> std::str;
 };
 
 

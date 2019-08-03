@@ -150,10 +150,12 @@ class Pointer(referencing.ReferencedInheritingObject,
         default=False, compcoef=0.909,
         merge_fn=utils.merge_sticky_bool)
 
-    computable = so.SchemaField(
-        bool,
-        default=None, compcoef=0.909,
-        merge_fn=utils.merge_weak_bool)
+    # Computable pointers have this set to an expression
+    # definining them.
+    expr = so.SchemaField(
+        s_expr.Expression,
+        allow_ddl_set=True,
+        default=None, coerce=True, compcoef=0.909)
 
     default = so.SchemaField(
         s_expr.Expression,
@@ -367,7 +369,7 @@ class Pointer(referencing.ReferencedInheritingObject,
             dctx=dctx, attrs=attrs, **kwargs)
 
     def is_pure_computable(self, schema):
-        return self.get_computable(schema) and bool(self.get_default(schema))
+        return bool(self.get_expr(schema))
 
     def is_id_pointer(self, schema):
         std_id = schema.get('std::Object').getptr(schema, 'id')
@@ -449,25 +451,24 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         if not scls.get_is_local(schema):
             return
 
-        if not scls.get_computable(schema):
-            default_expr = scls.get_default(schema)
+        default_expr = scls.get_default(schema)
 
-            if default_expr is not None:
-                default_type = default_expr.irast.stype
-                ptr_target = scls.get_target(schema)
-                set_cmd = self.get_attribute_set_cmd('default')
-                if set_cmd:
-                    source_context = set_cmd.source_context
-                else:
-                    source_context = None
+        if default_expr is not None:
+            default_type = default_expr.irast.stype
+            ptr_target = scls.get_target(schema)
+            set_cmd = self.get_attribute_set_cmd('default')
+            if set_cmd:
+                source_context = set_cmd.source_context
+            else:
+                source_context = None
 
-                if not default_type.assignment_castable_to(ptr_target, schema):
-                    raise errors.SchemaDefinitionError(
-                        f'default expression is of invalid type: '
-                        f'{default_type.get_displayname(schema)}, '
-                        f'expected {ptr_target.get_displayname(schema)}',
-                        context=source_context,
-                    )
+            if not default_type.assignment_castable_to(ptr_target, schema):
+                raise errors.SchemaDefinitionError(
+                    f'default expression is of invalid type: '
+                    f'{default_type.get_displayname(schema)}, '
+                    f'expected {ptr_target.get_displayname(schema)}',
+                    context=source_context,
+                )
 
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
@@ -523,24 +524,27 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
     def compile_expr_field(self, schema, context, field, value):
         from . import sources as s_sources
 
-        if field.name == 'default':
-            parent_ctx = context.get_ancestor(
-                s_sources.SourceCommandContext, self)
-            source_name = parent_ctx.op.classname
-            source = schema.get(source_name, default=None)
-            if not isinstance(source, Pointer):
-                singletons = [source]
-                path_prefix_anchor = qlast.Source
-            else:
-                singletons = []
-                path_prefix_anchor = None
+        if field.name in {'default', 'expr'}:
+            singletons = []
+            path_prefix_anchor = None
+            anchors = {}
+
+            if field.name == 'expr':
+                parent_ctx = context.get_ancestor(
+                    s_sources.SourceCommandContext, self)
+                source_name = parent_ctx.op.classname
+                source = schema.get(source_name, default=None)
+                anchors[qlast.Source] = source
+                if not isinstance(source, Pointer):
+                    singletons = [source]
+                    path_prefix_anchor = qlast.Source
 
             return type(value).compiled(
                 value,
                 schema=schema,
                 modaliases=context.modaliases,
                 parent_object_type=self.get_schema_metaclass(),
-                anchors={qlast.Source: source},
+                anchors=anchors,
                 path_prefix_anchor=path_prefix_anchor,
                 singletons=singletons,
             )
@@ -600,15 +604,8 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
         self.add(
             sd.AlterObjectProperty(
-                property='default',
+                property='expr',
                 new_value=expr,
-            )
-        )
-
-        self.add(
-            sd.AlterObjectProperty(
-                property='computable',
-                new_value=True
             )
         )
 
