@@ -173,10 +173,15 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 return True
         return False
 
-    def get_attribute_value(self, attr_name):
+    def get_attribute_set_cmd(self, attr_name):
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
-                return op.new_value
+                return op
+
+    def get_attribute_value(self, attr_name):
+        op = self.get_attribute_set_cmd(attr_name)
+        if op is not None:
+            return op.new_value
         else:
             return None
 
@@ -1321,7 +1326,8 @@ class AlterObjectProperty(Command):
                 new_value = qlcompiler.evaluate_ast_to_python_val(
                     astnode.value, schema=schema)
 
-        return cls(property=propname, new_value=new_value)
+        return cls(property=propname, new_value=new_value,
+                   source_context=astnode.context)
 
     def _get_ast(self, schema, context):
         value = self.new_value

@@ -355,9 +355,7 @@ _123456789_123456789_123456789 -> str
             type Object2 {
                 required property num -> int64 {
                     default := (
-                        INSERT Object1 {
-                            num := 1
-                        }
+                        SELECT Object1.num LIMIT 1
                     )
                 }
             };

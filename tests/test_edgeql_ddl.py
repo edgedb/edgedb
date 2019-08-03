@@ -682,20 +682,34 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ]
         )
 
-    @test.xfail('''
-        Currently default expressions are not validated, so they might
-        eventually fail in SQL, unless it so happens that the forced
-        assignment cast works (like in the example below).
-    ''')
     async def test_edgeql_ddl_default_01(self):
-        # FIXME: need a specific error message
-        with self.assertRaises(edgedb.SchemaError):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                'default expression is of invalid type: std::int64, '
+                'expected std::str'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestDefault01 {
                     CREATE PROPERTY def01 -> str {
                         # int64 doesn't have an assignment cast into str
                         SET default := 42;
                     };
+                };
+            """)
+
+    async def test_edgeql_ddl_default_02(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                'default expression is of invalid type: std::int64, '
+                'expected std::str'):
+            await self.con.execute(r"""
+                CREATE TYPE test::TestDefault02 {
+                    CREATE PROPERTY def01 -> str {
+                        SET default := '42';
+                    };
+                };
+
+                ALTER TYPE test::TestDefault02 {
+                    ALTER PROPERTY def01 SET default := 42;
                 };
             """)
 

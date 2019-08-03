@@ -343,7 +343,6 @@ class ReferencedInheritingObjectCommand(
 
     def _create_begin(self, schema, context):
         referrer_ctx = self.get_referrer_context(context)
-        schema, attrs = self._get_create_fields(schema, context)
         implicit_bases = None
 
         if referrer_ctx is not None and not context.canonical:

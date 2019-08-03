@@ -426,6 +426,49 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                      annotations.AnnotationSubjectCommand,
                      referencing.ReferencedInheritingObjectCommand):
 
+    def _create_begin(self, schema, context):
+        schema = super()._create_begin(schema, context)
+        if not context.canonical:
+            self._validate_pointer_def(schema, context)
+        return schema
+
+    def _alter_begin(self, schema, context, scls):
+        schema = super()._alter_begin(schema, context, scls)
+        if not context.canonical:
+            self._validate_pointer_def(schema, context)
+        return schema
+
+    def _validate_pointer_def(self, schema, context):
+        """Check that pointer definition is sound."""
+
+        referrer_ctx = self.get_referrer_context(context)
+        if referrer_ctx is None:
+            return
+
+        scls = self.scls
+        if not scls.get_is_local(schema):
+            return
+
+        if not scls.get_computable(schema):
+            default_expr = scls.get_default(schema)
+
+            if default_expr is not None:
+                default_type = default_expr.irast.stype
+                ptr_target = scls.get_target(schema)
+                set_cmd = self.get_attribute_set_cmd('default')
+                if set_cmd:
+                    source_context = set_cmd.source_context
+                else:
+                    source_context = None
+
+                if not default_type.assignment_castable_to(ptr_target, schema):
+                    raise errors.SchemaDefinitionError(
+                        f'default expression is of invalid type: '
+                        f'{default_type.get_displayname(schema)}, '
+                        f'expected {ptr_target.get_displayname(schema)}',
+                        context=source_context,
+                    )
+
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
         referrer_ctx = cls.get_referrer_context(context)
@@ -476,31 +519,6 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
     @classmethod
     def _parse_default(cls, cmd):
         return
-
-    def nullify_expr_field(self, schema, context, field, op):
-        from edb.edgeql.compiler import astutils as qlastutils
-
-        if field.name == 'default':
-            metaclass = self.get_schema_metaclass()
-            target_ref = self.get_attribute_value('target')
-            target = self._resolve_attr_value(
-                target_ref, 'target',
-                metaclass.get_field('target'), schema)
-
-            target_ql = qlastutils.type_to_ql_typeref(target, schema=schema)
-
-            empty = qlast.TypeCast(
-                expr=qlast.Set(),
-                type=target_ql,
-            )
-
-            op.new_value = s_expr.Expression.from_ast(
-                empty, schema=schema, modaliases=context.modaliases,
-            )
-
-            return True
-        else:
-            super().nullify_expr_field(schema, context, field, op)
 
     def compile_expr_field(self, schema, context, field, value):
         from . import sources as s_sources
