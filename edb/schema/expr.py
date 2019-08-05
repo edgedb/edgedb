@@ -206,3 +206,17 @@ def imprint_expr_context(qltree, modaliases):
         )
 
     return qltree
+
+
+def get_expr_referrers(schema, obj):
+    """Return schema referrers with refs in expressions."""
+
+    refs = schema.get_referrers_ex(obj)
+    result = {}
+
+    for (mcls, fn), referrers in refs.items():
+        field = mcls.get_field(fn)
+        if issubclass(field.type, (Expression, ExpressionList)):
+            result.update({ref: fn for ref in referrers})
+
+    return result

@@ -291,7 +291,8 @@ class CreateProperty(PropertyCommand,
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameProperty(PropertyCommand, sd.RenameObject):
+class RenameProperty(PropertyCommand,
+                     referencing.RenameReferencedInheritingObject):
     pass
 
 

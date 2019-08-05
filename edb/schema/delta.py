@@ -408,6 +408,7 @@ class CommandContext:
         self.testmode = testmode
         self.disable_dep_verification = disable_dep_verification
         self.renames = {}
+        self.renamed_objs = set()
 
     @property
     def modaliases(self):
@@ -914,6 +915,34 @@ class RenameObject(ObjectCommand):
     def _rename_begin(self, schema, context, scls):
         self._validate_legal_command(schema, context)
 
+        expr_refs = s_expr.get_expr_referrers(schema, scls)
+
+        if expr_refs:
+            # Renames of schema objects used in expressions is
+            # not supported yet.  Eventually we'll add support
+            # for transparent recompilation.
+            ref_desc = []
+            for ref, fn in expr_refs.items():
+                if fn == 'expr':
+                    fdesc = 'expression'
+                else:
+                    fdesc = f"{fn.replace('_', ' ')} expression"
+
+                vn = ref.get_verbosename(schema, with_parent=True)
+
+                ref_desc.append(f'{fdesc} of {vn}')
+
+            expr_s = 'an expression' if len(ref_desc) == 1 else 'expressions'
+            ref_desc_s = "\n - " + "\n - ".join(ref_desc)
+
+            raise errors.SchemaDefinitionError(
+                f'cannot rename {scls.get_verbosename(schema)} '
+                f'because it is used in {expr_s}',
+                details=(
+                    f'{scls.get_verbosename(schema)} is used in:{ref_desc_s}'
+                )
+            )
+
         self.old_name = self.classname
         schema = scls.set_field_value(schema, 'name', self.new_name)
 
@@ -929,11 +958,12 @@ class RenameObject(ObjectCommand):
         parent_ctx = context.current()
         scls = self.scls = parent_ctx.op.scls
 
+        context.renames[self.classname] = self.new_name
+        context.renamed_objs.add(scls)
+
         schema = self._rename_begin(schema, context, scls)
         schema = self._rename_innards(schema, context, scls)
         schema = self._rename_finalize(schema, context, scls)
-
-        context.renames[self.classname] = self.new_name
 
         return schema, scls
 

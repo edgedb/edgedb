@@ -511,3 +511,94 @@ class AlterReferencedInheritingObject(
             cmd.set_attribute_value('is_local', True)
 
         return cmd
+
+
+class RenameReferencedInheritingObject(
+        ReferencedInheritingObjectCommand,
+        sd.RenameObject):
+
+    def _rename_begin(self, schema, context, scls):
+        orig_schema = schema
+        schema = super()._rename_begin(schema, context, scls)
+
+        if not context.canonical and not scls.generic(schema):
+            implicit_bases = scls.get_implicit_bases(schema)
+            non_renamed_bases = set(implicit_bases) - context.renamed_objs
+
+            # This object is inherited from one or more ancestors that
+            # are not renamed in the same op, and this is an error.
+            if non_renamed_bases:
+                bases_str = ', '.join(
+                    b.get_verbosename(schema, with_parent=True)
+                    for b in non_renamed_bases
+                )
+
+                verb = 'are' if len(non_renamed_bases) > 1 else 'is'
+                vn = scls.get_verbosename(orig_schema)
+
+                raise errors.SchemaDefinitionError(
+                    f'cannot rename inherited {vn}',
+                    details=(
+                        f'{vn} is inherited from '
+                        f'{bases_str}, which {verb} not being renamed'
+                    ),
+                    context=self.source_context,
+                )
+
+            if context.enable_recursion:
+                self._propagate_ref_rename(schema, context, scls)
+
+        else:
+            for op in self.get_subcommands(type=sd.ObjectCommand):
+                schema, _ = op.apply(schema, context)
+
+        return schema
+
+    def _propagate_ref_rename(self, schema, context, scls):
+
+        rec = context.current().enable_recursion
+        context.current().enable_recursion = False
+
+        referrer_ctx = self.get_referrer_context(context)
+        referrer = referrer_ctx.scls
+        referrer_class = type(referrer)
+        mcls = type(scls)
+        refdict = referrer_class.get_refdict_for_class(mcls)
+        reftype = referrer_class.get_field(refdict.attr).type
+        refname = reftype.get_key_for(schema, self.scls)
+
+        r_alter_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.AlterObject, referrer_class)
+        alter_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.AlterObject, mcls)
+        rename_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.RenameObject, mcls)
+
+        for descendant in scls.ordered_descendants(schema):
+            d_name = descendant.get_name(schema)
+            d_referrer = descendant.get_referrer(schema)
+            d_alter_cmd = alter_cmdcls(classname=d_name)
+            r_alter_cmd = r_alter_cmdcls(
+                classname=d_referrer.get_name(schema))
+
+            with r_alter_cmd.new_context(schema, context, d_referrer):
+                with d_alter_cmd.new_context(
+                        schema, context, descendant):
+
+                    astnode = rename_cmdcls.astnode(
+                        new_name=qlast.ObjectRef(
+                            name=refname,
+                        ),
+                    )
+
+                    rename_cmd = rename_cmdcls._rename_cmd_from_ast(
+                        schema, astnode, context)
+
+                    d_alter_cmd.add(rename_cmd)
+
+                r_alter_cmd.add(d_alter_cmd)
+
+            schema, _ = r_alter_cmd.apply(schema, context)
+            self.add(r_alter_cmd)
+
+        context.current().enable_recursion = rec

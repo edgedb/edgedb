@@ -2281,7 +2281,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE ABSTRACT TYPE test_other::UniquelyNamed
                 EXTENDING test_other::Named
             {
-                CREATE REQUIRED PROPERTY name -> str {
+                ALTER PROPERTY name {
                     CREATE DELEGATED CONSTRAINT exclusive;
                 }
             };
@@ -2516,10 +2516,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['rename 03']
         )
 
-    @test.xfail('''
-        The error is:
-        column "test::new_prop_04" of relation "..." does not exist
-    ''')
     async def test_edgeql_ddl_rename_04(self):
         await self.con.execute("""
             CREATE ABSTRACT LINK test::rename_link_04 {
@@ -2528,7 +2524,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             CREATE TYPE test::LinkedObj04;
             CREATE TYPE test::RenameObj04 {
-                CREATE MULTI LINK rename_link_04 -> test::LinkedObj04;
+                CREATE MULTI LINK rename_link_04 EXTENDING test::rename_link_04
+                    -> test::LinkedObj04;
             };
 
             INSERT test::LinkedObj04;
@@ -2550,28 +2547,89 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [123]
         )
 
-    @test.xfail('''
-        The error is:
-        relation "edgedb_1e143af8-1929-...-311a41c76d4d" does not exist
-    ''')
     async def test_edgeql_ddl_rename_05(self):
-        await self.con.execute(r"""
-            CREATE VIEW test::RenameView05 := (
-                SELECT Object {
-                    view_computable := 'rename view 05'
-                }
-            );
+        await self.con.execute("""
+            CREATE TYPE test::GrandParent01 {
+                CREATE PROPERTY foo -> int64;
+            };
 
-            ALTER VIEW test::RenameView05 {
-                RENAME TO test::NewView05;
+            CREATE TYPE test::Parent01 EXTENDING test::GrandParent01;
+            CREATE TYPE test::Parent02 EXTENDING test::GrandParent01;
+
+            CREATE TYPE test::Child EXTENDING test::Parent01, test::Parent02;
+
+            ALTER TYPE test::GrandParent01 {
+                ALTER PROPERTY foo RENAME TO renamed;
             };
         """)
 
         await self.assert_query_result(
             r'''
-                SELECT test::NewView05.view_computable LIMIT 1;
+                SELECT test::Child.renamed;
             ''',
-            ['rename view 05']
+            []
+        )
+
+    async def test_edgeql_ddl_rename_06(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "cannot rename inherited property 'foo'"):
+            await self.con.execute("""
+                CREATE TYPE test::Parent01 {
+                    CREATE PROPERTY foo -> int64;
+                };
+
+                CREATE TYPE test::Parent02 {
+                    CREATE PROPERTY foo -> int64;
+                };
+
+                CREATE TYPE test::Child
+                    EXTENDING test::Parent01, test::Parent02;
+
+                ALTER TYPE test::Parent02 {
+                    ALTER PROPERTY foo RENAME TO renamed;
+                };
+            """)
+
+    async def test_edgeql_ddl_rename_07(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "cannot rename object type 'test::Foo' "
+                "because it is used in an expression"):
+            await self.con.execute("""
+                CREATE TYPE test::Foo;
+
+                CREATE TYPE test::Bar {
+                    CREATE MULTI LINK foo -> test::Foo {
+                        SET default := (SELECT test::Foo);
+                    }
+                };
+
+                ALTER TYPE test::Foo RENAME TO test::FooRenamed;
+            """)
+
+    @test.xfail('''
+        The error is:
+        relation "edgedb_1e143af8-1929-...-311a41c76d4d" does not exist
+    ''')
+    async def test_edgeql_ddl_rename_view_01(self):
+        await self.con.execute(r"""
+            CREATE VIEW test::RenameView01 := (
+                SELECT Object {
+                    view_computable := 'rename view 01'
+                }
+            );
+
+            ALTER VIEW test::RenameView01 {
+                RENAME TO test::NewView01;
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::NewView01.view_computable LIMIT 1;
+            ''',
+            ['rename view 01']
         )
 
     async def test_edgeql_ddl_inheritance_alter_01(self):

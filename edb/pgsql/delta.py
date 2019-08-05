@@ -2027,9 +2027,14 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                                 table_name=table_name,
                                 column_name=old_col_name)
                         ]
+                        neg_cond = [
+                            dbops.ColumnIsInherited(
+                                table_name=table_name,
+                                column_name=old_col_name)
+                        ]
                         rename = dbops.AlterTableRenameColumn(
                             table_name, old_col_name, new_col_name,
-                            conditions=cond)
+                            conditions=cond, neg_conditions=neg_cond)
                         self.pgops.add(rename)
 
                         tabcol = dbops.TableColumn(
@@ -2394,28 +2399,32 @@ class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
     def apply(self, schema, context=None):
         schema, result = s_links.RenameLink.apply(self, schema, context)
         schema, _ = LinkMetaCommand.apply(self, schema, context)
+        return schema, result
+
+    def _rename_begin(self, schema, context, scls):
+        schema = super()._rename_begin(schema, context, scls)
 
         self.rename_pointer(
-            result, schema, context, self.classname, self.new_name)
+            scls, schema, context, self.classname, self.new_name)
 
         self.attach_alter_table(context)
 
-        if result.generic(schema):
+        if scls.generic(schema):
             link_cmd = context.get(s_links.LinkCommandContext)
             assert link_cmd
 
             self.rename(
-                schema, link_cmd.original_schema, context, result)
+                schema, link_cmd.original_schema, context, scls)
             link_cmd.op.table_name = common.get_backend_name(
-                schema, result, catenate=False)
+                schema, scls, catenate=False)
         else:
             link_cmd = context.get(s_links.LinkCommandContext)
 
-            if self.has_table(result, schema):
+            if self.has_table(scls, schema):
                 self.rename(
-                    schema, link_cmd.original_schema, context, result)
+                    schema, link_cmd.original_schema, context, scls)
 
-        return schema, result
+        return schema
 
 
 class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
@@ -2721,11 +2730,15 @@ class RenameProperty(
     def apply(self, schema, context=None):
         schema, result = s_props.RenameProperty.apply(self, schema, context)
         schema, _ = PropertyMetaCommand.apply(self, schema, context)
+        return schema, result
+
+    def _rename_begin(self, schema, context, scls):
+        schema = super()._rename_begin(schema, context, scls)
 
         self.rename_pointer(
-            result, schema, context, self.classname, self.new_name)
+            scls, schema, context, self.classname, self.new_name)
 
-        return schema, result
+        return schema
 
 
 class RebaseProperty(

@@ -536,6 +536,21 @@ class Schema:
 
             return frozenset(referrers)
 
+    @functools.lru_cache()
+    def get_referrers_ex(self, scls: so.Object):
+
+        try:
+            refs = self._refs_to[scls.id]
+        except KeyError:
+            return {}
+        else:
+            result = {}
+
+            for (st, fn), ids in refs.items():
+                result[st, fn] = {self._id_to_type[objid] for objid in ids}
+
+            return result
+
     def get_by_id(self, obj_id, default=_void):
         try:
             return self._id_to_type[obj_id]

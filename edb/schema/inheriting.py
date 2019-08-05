@@ -484,11 +484,9 @@ class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
             sd.AlterObject, type(scls))
 
         for descendant in scls.ordered_descendants(schema):
-            descendant_alter = alter_cmd(
-                classname=descendant.get_name(schema))
+            descendant_alter = alter_cmd(classname=descendant.get_name(schema))
             descendant_alter.scls = descendant
-            with descendant_alter.new_context(
-                    schema, context, descendant):
+            with descendant_alter.new_context(schema, context, descendant):
                 d_bases = descendant.get_bases(schema).objects(schema)
                 schema = descendant_alter.inherit_fields(
                     schema, context, descendant, d_bases, fields=props)
