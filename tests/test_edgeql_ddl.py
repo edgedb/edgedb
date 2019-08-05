@@ -17,8 +17,6 @@
 #
 
 
-import unittest
-
 import edgedb
 
 from edb.testbase import server as tb
@@ -415,11 +413,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ],
         )
 
-    @unittest.expectedFailure
     async def test_edgeql_ddl_16(self):
-        # XXX: not sure what the error would say exactly, but
-        # cardinality should be an issue here
-        with self.assertRaisesRegex(edgedb.QueryError):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                'possibly more than one element'):
             await self.con.execute(r"""
                 CREATE TYPE test::TestSelfLink3 {
                     CREATE PROPERTY foo3 -> std::str;

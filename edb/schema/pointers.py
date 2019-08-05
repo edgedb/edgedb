@@ -470,6 +470,18 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                     context=source_context,
                 )
 
+            ptr_cardinality = scls.get_cardinality(schema)
+            default_cardinality = default_expr.irast.cardinality
+            if (ptr_cardinality is qltypes.Cardinality.ONE
+                    and default_cardinality is qltypes.Cardinality.MANY):
+                raise errors.SchemaDefinitionError(
+                    f'possibly more than one element returned by '
+                    f'the default expression for '
+                    f'{scls.get_verbosename(schema)} declared as '
+                    f'\'single\'',
+                    context=source_context,
+                )
+
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
         referrer_ctx = cls.get_referrer_context(context)
