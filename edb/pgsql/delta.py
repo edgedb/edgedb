@@ -1774,30 +1774,36 @@ class RenameObjectType(ObjectTypeMetaCommand,
         orig_name = scls.get_name(objtype.original_schema)
         delta_ctx.op._renames[orig_name] = scls.get_name(schema)
 
-        objtype.op.attach_alter_table(context)
+        has_table = self.has_table(scls, schema)
+
+        if has_table:
+            objtype.op.attach_alter_table(context)
 
         self.rename(schema, objtype.original_schema, context, scls)
 
-        new_table_name = common.get_backend_name(schema, scls, catenate=False)
-        objtype_table = dbops.Table(name=new_table_name)
-        self.pgops.add(dbops.Comment(object=objtype_table, text=self.new_name))
+        if has_table:
+            new_table_name = common.get_backend_name(
+                schema, scls, catenate=False)
+            objtype_table = dbops.Table(name=new_table_name)
+            self.pgops.add(dbops.Comment(
+                object=objtype_table, text=self.new_name))
 
-        objtype.op.table_name = new_table_name
+            objtype.op.table_name = new_table_name
 
-        # Need to update all bits that reference objtype name
+            # Need to update all bits that reference objtype name
 
-        old_constr_name = common.edgedb_name_to_pg_name(
-            self.classname + '.class_check')
-        new_constr_name = common.edgedb_name_to_pg_name(
-            self.new_name + '.class_check')
+            old_constr_name = common.edgedb_name_to_pg_name(
+                self.classname + '.class_check')
+            new_constr_name = common.edgedb_name_to_pg_name(
+                self.new_name + '.class_check')
 
-        alter_table = self.get_alter_table(schema, context, manual=True)
-        rc = dbops.AlterTableRenameConstraintSimple(
-            alter_table.name, old_name=old_constr_name,
-            new_name=new_constr_name)
-        self.pgops.add(rc)
+            alter_table = self.get_alter_table(schema, context, manual=True)
+            rc = dbops.AlterTableRenameConstraintSimple(
+                alter_table.name, old_name=old_constr_name,
+                new_name=new_constr_name)
+            self.pgops.add(rc)
 
-        self.table_name = new_table_name
+            self.table_name = new_table_name
 
         return schema, scls
 

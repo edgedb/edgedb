@@ -2608,10 +2608,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE test::Foo RENAME TO test::FooRenamed;
             """)
 
-    @test.xfail('''
-        The error is:
-        relation "edgedb_1e143af8-1929-...-311a41c76d4d" does not exist
-    ''')
     async def test_edgeql_ddl_rename_view_01(self):
         await self.con.execute(r"""
             CREATE VIEW test::RenameView01 := (
