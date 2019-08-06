@@ -87,11 +87,6 @@ def merge_actions(target: so.Object, sources: typing.List[so.Object],
 
 class Link(sources.Source, pointers.Pointer, s_abc.Link):
 
-    spectargets = so.SchemaField(
-        so.ObjectSet,
-        default=so.ObjectSet,
-        coerce=True)
-
     on_target_delete = so.SchemaField(
         LinkTargetDeleteAction,
         default=LinkTargetDeleteAction.RESTRICT,
@@ -264,12 +259,6 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                         schema=schema)
                     for t in targets
                 ]
-                cmd.add(
-                    sd.AlterObjectProperty(
-                        property='spectargets',
-                        new_value=so.ObjectList.create(schema, new_targets)
-                    )
-                )
 
                 target = cls._create_union_target(
                     schema, context, new_targets, module=source_name.module)
@@ -348,10 +337,6 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
 
         if op.property == 'is_derived':
             pass
-        elif op.property == 'spectargets':
-            if op.new_value:
-                node.target = qlast.union_targets(
-                    [t.name for t in op.new_value])
         elif op.property == 'default':
             self._encode_default(schema, context, node, op)
         elif op.property == 'required':
@@ -552,13 +537,6 @@ class AlterTarget(sd.Command):
                 for t in targets
             ]
 
-            alter_ptr_ctx.op.add(
-                sd.AlterObjectProperty(
-                    property='spectargets',
-                    new_value=so.ObjectList.create(schema, new_targets),
-                )
-            )
-
             target = cls._create_union_target(
                 schema, context, new_targets, module=cmd.classname.module)
         else:
@@ -604,16 +582,7 @@ class AlterLink(LinkCommand, sd.AlterObject):
             self._append_subcmd_ast(schema, node, op, context)
 
     def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'spectargets':
-            if op.new_value:
-                node.commands.append(qlast.AlterTarget(
-                    targets=[
-                        qlast.ObjectRef(name=t.classname.name,
-                                        module=t.classname.module)
-                        for t in op.new_value
-                    ]
-                ))
-        elif op.property == 'target':
+        if op.property == 'target':
             if op.new_value:
                 node.commands.append(qlast.AlterTarget(
                     targets=[

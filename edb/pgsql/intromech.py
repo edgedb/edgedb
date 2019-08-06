@@ -625,11 +625,6 @@ class IntrospectionMech:
                 dermap[name] = r['derived_from']
 
             source = schema.get(r['source']) if r['source'] else None
-            if r['spectargets']:
-                spectargets = [schema.get(t) for t in r['spectargets']]
-            else:
-                spectargets = None
-
             target = self.unpack_typeref(r['target'], schema)
 
             required = r['required']
@@ -646,7 +641,6 @@ class IntrospectionMech:
                 name=name,
                 source=source,
                 target=target,
-                spectargets=spectargets,
                 cardinality=cardinality,
                 required=required,
                 is_derived=r['is_derived'],

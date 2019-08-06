@@ -31,7 +31,6 @@ async def fetch(
                 l.id,
                 edgedb._resolve_type_name(l.source) AS source,
                 l.target AS target,
-                edgedb._resolve_type_name(l.spectargets) AS spectargets,
                 l.name AS name,
                 edgedb._resolve_type_name(l.bases) AS bases,
                 edgedb._resolve_type_name(l.ancestors) AS ancestors,
