@@ -186,7 +186,7 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
       DROP REQUIRED
       SET SINGLE
       SET MULTI
-      ALTER TARGET <typename> [, ...]
+      SET TYPE <typename> [, ...]
       SET ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
       CREATE CONSTRAINT <constraint-name> ...
@@ -262,7 +262,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Change the maximum cardinality of the property set to
     *greater than one*.  Only valid for concrete properties;
 
-:eql:synopsis:`ALTER TARGET <typename> [, ...]`
+:eql:synopsis:`SET TYPE <typename> [, ...]`
     Change the target type of the property to the specified type or
     a union of types.  Only valid for concrete properties.
 

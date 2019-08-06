@@ -454,6 +454,8 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         default_expr = scls.get_default(schema)
 
         if default_expr is not None:
+            if default_expr.irast is None:
+                default_expr = default_expr.compiled(default_expr, schema)
             default_type = default_expr.irast.stype
             ptr_target = scls.get_target(schema)
             set_cmd = self.get_attribute_set_cmd('default')
@@ -629,6 +631,166 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         )
 
         return target, base
+
+    @classmethod
+    def _create_union_target(cls, schema, context, targets, module):
+        from . import objtypes as s_objtypes
+
+        union_type_attrs = s_objtypes.get_union_type_attrs(
+            schema, [t._resolve_ref(schema) for t in targets],
+            module=module,
+        )
+
+        target = so.ObjectRef(name=union_type_attrs['name'])
+
+        if schema.get_by_id(union_type_attrs['id'], None) is None:
+
+            create_union = s_objtypes.CreateObjectType(
+                classname=union_type_attrs['name'],
+                metaclass=s_objtypes.ObjectType,
+            )
+
+            create_union.update((
+                sd.AlterObjectProperty(
+                    property='id',
+                    new_value=union_type_attrs['id'],
+                ),
+                sd.AlterObjectProperty(
+                    property='bases',
+                    new_value=so.ObjectList.create(
+                        schema, [
+                            so.ObjectRef(name=b.get_name(schema))
+                            for b in union_type_attrs['bases']
+                        ],
+                    ),
+                ),
+                sd.AlterObjectProperty(
+                    property='name',
+                    new_value=union_type_attrs['name'],
+                ),
+                sd.AlterObjectProperty(
+                    property='union_of',
+                    new_value=so.ObjectSet.create(
+                        schema, [
+                            so.ObjectRef(name=c.get_name(schema))
+                            for c in union_type_attrs['union_of'].objects(
+                                schema)
+                        ],
+                    ),
+                ),
+            ))
+
+            delta_ctx = context.get(sd.DeltaRootContext)
+
+            for cc in delta_ctx.op.get_subcommands(
+                    type=s_objtypes.CreateObjectType):
+                if cc.classname == create_union.classname:
+                    break
+            else:
+                delta_ctx.op.add(create_union)
+
+        return target
+
+
+class SetPointerType(
+        referencing.ReferencedInheritingObjectCommand,
+        sd.AlterObjectFragment):
+
+    def _alter_begin(self, schema, context, scls):
+        schema = super()._alter_begin(schema, context, scls)
+
+        context.altered_targets.add(scls)
+
+        # Type alters of pointers used in expressions is prohibited.
+        # Eventually we may be able to relax this by allowing to
+        # alter to the type that is compatible (i.e. does not change)
+        # with all expressions it is used in.
+        vn = scls.get_verbosename(schema)
+        self._prohibit_if_expr_refs(
+            schema, context, action=f'alter the type of {vn}')
+
+        if not context.canonical:
+            implicit_bases = scls.get_implicit_bases(schema)
+            non_altered_bases = set(implicit_bases) - context.altered_targets
+
+            # This pointer is inherited from one or more ancestors that
+            # are not altered in the same op, and this is an error.
+            if non_altered_bases:
+                bases_str = ', '.join(
+                    b.get_verbosename(schema, with_parent=True)
+                    for b in non_altered_bases
+                )
+
+                vn = scls.get_verbosename(schema)
+
+                raise errors.SchemaDefinitionError(
+                    f'cannot change the target type of inherited {vn}',
+                    details=(
+                        f'{vn} is inherited from '
+                        f'{bases_str}'
+                    ),
+                    context=self.source_context,
+                )
+
+            if context.enable_recursion:
+                tgt = self.get_attribute_value('target')
+
+                def _set_type(alter_cmd, refname):
+                    s_t = type(self)(
+                        classname=alter_cmd.classname,
+                    )
+                    s_t.set_attribute_value('target', tgt)
+                    alter_cmd.add(s_t)
+
+                schema = self._propagate_ref_op(
+                    schema, context, self.scls, cb=_set_type)
+
+        else:
+            for op in self.get_subcommands(type=sd.ObjectCommand):
+                schema, _ = op.apply(schema, context)
+
+        return schema
+
+    @classmethod
+    def _cmd_from_ast(cls, schema, astnode, context):
+        return cls(classname=context.current().op.classname)
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        targets = qlast.get_targets(astnode.type)
+        alter_ptr_ctx = context.get(PointerCommandContext)
+        alter_ptr_op = alter_ptr_ctx.op
+
+        if len(targets) > 1:
+            new_targets = [
+                utils.ast_to_typeref(
+                    t, modaliases=context.modaliases,
+                    schema=schema)
+                for t in targets
+            ]
+
+            target = alter_ptr_op._create_union_target(
+                schema, context, new_targets, module=cmd.classname.module)
+
+            target_ref = utils.reduce_to_typeref(schema, target)
+        else:
+            target = targets[0]
+            target_ref = utils.ast_to_typeref(
+                target, modaliases=context.modaliases, schema=schema)
+
+            target_obj = utils.resolve_typeref(target_ref, schema=schema)
+            if target_obj.is_collection():
+                sd.ensure_schema_collection(
+                    schema, target_obj, alter_ptr_ctx.op,
+                    src_context=astnode.type.context,
+                    context=context,
+                )
+
+        cmd.set_attribute_value('target', target_ref)
+
+        return cmd
 
 
 def get_or_create_union_pointer(

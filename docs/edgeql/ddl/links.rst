@@ -211,7 +211,7 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       DROP REQUIRED
       SET SINGLE
       SET MULTI
-      ALTER TARGET <typename> [, ...]
+      SET TYPE <typename> [, ...]
       SET ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
       CREATE PROPERTY <property-name> ...
@@ -280,7 +280,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Change the maximum cardinality of the link set to *greater than one*.
     Only valid for concrete links;
 
-:eql:synopsis:`ALTER TARGET <typename> [, ...]`
+:eql:synopsis:`SET TYPE <typename> [, ...]`
     Change the target type of the link to the specified type or
     a union of types.  Only valid for concrete links.
 

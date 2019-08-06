@@ -409,6 +409,7 @@ class CommandContext:
         self.disable_dep_verification = disable_dep_verification
         self.renames = {}
         self.renamed_objs = set()
+        self.altered_targets = set()
 
     @property
     def modaliases(self):
@@ -626,6 +627,32 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
     def _cmd_from_ast(cls, schema, astnode, context):
         classname = cls._classname_from_ast(schema, astnode, context)
         return cls(classname=classname)
+
+    def _prohibit_if_expr_refs(self, schema, context, action):
+        scls = self.scls
+        expr_refs = s_expr.get_expr_referrers(schema, scls)
+
+        if expr_refs:
+            ref_desc = []
+            for ref, fn in expr_refs.items():
+                if fn == 'expr':
+                    fdesc = 'expression'
+                else:
+                    fdesc = f"{fn.replace('_', ' ')} expression"
+
+                vn = ref.get_verbosename(schema, with_parent=True)
+
+                ref_desc.append(f'{fdesc} of {vn}')
+
+            expr_s = 'an expression' if len(ref_desc) == 1 else 'expressions'
+            ref_desc_s = "\n - " + "\n - ".join(ref_desc)
+
+            raise errors.SchemaDefinitionError(
+                f'cannot {action} because it is used in {expr_s}',
+                details=(
+                    f'{scls.get_verbosename(schema)} is used in:{ref_desc_s}'
+                )
+            )
 
     def _append_subcmd_ast(cls, schema, node, subcmd, context):
         subnode = subcmd.get_ast(schema, context)
@@ -915,33 +942,11 @@ class RenameObject(ObjectCommand):
     def _rename_begin(self, schema, context, scls):
         self._validate_legal_command(schema, context)
 
-        expr_refs = s_expr.get_expr_referrers(schema, scls)
-
-        if expr_refs:
-            # Renames of schema objects used in expressions is
-            # not supported yet.  Eventually we'll add support
-            # for transparent recompilation.
-            ref_desc = []
-            for ref, fn in expr_refs.items():
-                if fn == 'expr':
-                    fdesc = 'expression'
-                else:
-                    fdesc = f"{fn.replace('_', ' ')} expression"
-
-                vn = ref.get_verbosename(schema, with_parent=True)
-
-                ref_desc.append(f'{fdesc} of {vn}')
-
-            expr_s = 'an expression' if len(ref_desc) == 1 else 'expressions'
-            ref_desc_s = "\n - " + "\n - ".join(ref_desc)
-
-            raise errors.SchemaDefinitionError(
-                f'cannot rename {scls.get_verbosename(schema)} '
-                f'because it is used in {expr_s}',
-                details=(
-                    f'{scls.get_verbosename(schema)} is used in:{ref_desc_s}'
-                )
-            )
+        # Renames of schema objects used in expressions is
+        # not supported yet.  Eventually we'll add support
+        # for transparent recompilation.
+        vn = scls.get_verbosename(schema)
+        self._prohibit_if_expr_refs(schema, context, action=f'rename {vn}')
 
         self.old_name = self.classname
         schema = scls.set_field_value(schema, 'name', self.new_name)
@@ -1016,6 +1021,31 @@ class RenameObject(ObjectCommand):
                 name=new_name.name
             )
         )
+
+
+class AlterObjectFragment(ObjectCommand):
+
+    def apply(self, schema, context):
+        # AlterObjectFragment must be executed in the context
+        # of a parent AlterObject command.
+        scls = context.current().op.scls
+        self.scls = scls
+        schema = self._alter_begin(schema, context, scls)
+        schema = self._alter_innards(schema, context, scls)
+        schema = self._alter_finalize(schema, context, scls)
+
+        return schema, scls
+
+    def _alter_begin(self, schema, context, scls):
+        schema, props = self._get_field_updates(schema, context)
+        schema = scls.update(schema, props)
+        return schema
+
+    def _alter_innards(self, schema, context, scls):
+        return schema
+
+    def _alter_finalize(self, schema, context, scls):
+        return schema
 
 
 class AlterObject(ObjectCommand):
@@ -1174,6 +1204,9 @@ class AlterObject(ObjectCommand):
         for op in self.get_subcommands(type=CollectionTypeCommand):
             schema, _ = op.apply(schema, context)
 
+        for op in self.get_subcommands(type=AlterObjectFragment):
+            schema, _ = op.apply(schema, context)
+
         for refdict in mcls.get_refdicts():
             schema = self._alter_refs(schema, context, scls, refdict)
 
@@ -1184,7 +1217,8 @@ class AlterObject(ObjectCommand):
 
     def _alter_refs(self, schema, context, scls, refdict):
         for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            schema, _ = op.apply(schema, context=context)
+            if not isinstance(op, AlterObjectFragment):
+                schema, _ = op.apply(schema, context=context)
         return schema
 
     def apply(self, schema, context):

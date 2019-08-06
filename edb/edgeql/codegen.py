@@ -1098,8 +1098,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropConcreteLink(self, node):
         self._visit_DropObject(node, 'LINK', unqualified=True)
 
-    def visit_AlterTarget(self, node):
-        self.write('ALTER TYPE ')
+    def visit_SetType(self, node):
+        self.write('SET TYPE ')
         self.visit_list(node.target, newlines=False)
 
     def visit_OnTargetDelete(self, node):

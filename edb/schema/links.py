@@ -159,65 +159,7 @@ class LinkCommand(lproperties.PropertySourceCommand,
                   pointers.PointerCommand,
                   schema_metaclass=Link, context_class=LinkCommandContext,
                   referrer_context_class=LinkSourceCommandContext):
-
-    @classmethod
-    def _create_union_target(cls, schema, context, targets, module):
-        from . import objtypes as s_objtypes
-
-        union_type_attrs = s_objtypes.get_union_type_attrs(
-            schema, [t._resolve_ref(schema) for t in targets],
-            module=module,
-        )
-
-        target = so.ObjectRef(name=union_type_attrs['name'])
-
-        if schema.get_by_id(union_type_attrs['id'], None) is None:
-
-            create_union = s_objtypes.CreateObjectType(
-                classname=union_type_attrs['name'],
-                metaclass=s_objtypes.ObjectType,
-            )
-
-            create_union.update((
-                sd.AlterObjectProperty(
-                    property='id',
-                    new_value=union_type_attrs['id'],
-                ),
-                sd.AlterObjectProperty(
-                    property='bases',
-                    new_value=so.ObjectList.create(
-                        schema, [
-                            so.ObjectRef(name=b.get_name(schema))
-                            for b in union_type_attrs['bases']
-                        ],
-                    ),
-                ),
-                sd.AlterObjectProperty(
-                    property='name',
-                    new_value=union_type_attrs['name'],
-                ),
-                sd.AlterObjectProperty(
-                    property='union_of',
-                    new_value=so.ObjectSet.create(
-                        schema, [
-                            so.ObjectRef(name=c.get_name(schema))
-                            for c in union_type_attrs['union_of'].objects(
-                                schema)
-                        ],
-                    ),
-                ),
-            ))
-
-            delta_ctx = context.get(sd.DeltaRootContext)
-
-            for cc in delta_ctx.op.get_subcommands(
-                    type=s_objtypes.CreateObjectType):
-                if cc.classname == create_union.classname:
-                    break
-            else:
-                delta_ctx.op.add(create_union)
-
-        return target
+    pass
 
 
 class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
@@ -501,6 +443,13 @@ class RebaseLink(LinkCommand, inheriting.RebaseInheritingObject):
     pass
 
 
+class SetLinkType(pointers.SetPointerType,
+                  schema_metaclass=Link,
+                  referrer_context_class=LinkSourceCommandContext):
+
+    astnode = qlast.SetLinkType
+
+
 class SetTargetDeletePolicy(sd.Command):
     astnode = qlast.OnTargetDelete
 
@@ -512,48 +461,6 @@ class SetTargetDeletePolicy(sd.Command):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         cmd.new_value = astnode.cascade
-        return cmd
-
-
-class AlterTarget(sd.Command):
-    astnode = qlast.AlterTarget
-
-    @classmethod
-    def _cmd_from_ast(cls, schema, astnode, context):
-        return sd.AlterObjectProperty(property='target')
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
-        targets = qlast.get_targets(astnode.target)
-
-        if len(targets) > 1:
-            alter_ptr_ctx = context.get(pointers.PointerCommandContext)
-            new_targets = [
-                utils.ast_to_typeref(
-                    t, modaliases=context.modaliases,
-                    schema=schema)
-                for t in targets
-            ]
-
-            target = cls._create_union_target(
-                schema, context, new_targets, module=cmd.classname.module)
-        else:
-            target = targets[0]
-            target_ref = utils.ast_to_typeref(
-                target, modaliases=context.modaliases, schema=schema)
-
-            target_obj = utils.resolve_typeref(target_ref, schema=schema)
-            if target_obj.is_collection():
-                sd.ensure_schema_collection(
-                    schema, target_obj, alter_ptr_ctx.op,
-                    src_context=astnode.target.context,
-                    context=context,
-                )
-
-        cmd.new_value = target_ref
-
         return cmd
 
 
@@ -584,12 +491,11 @@ class AlterLink(LinkCommand, sd.AlterObject):
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'target':
             if op.new_value:
-                node.commands.append(qlast.AlterTarget(
-                    targets=[
-                        qlast.ObjectRef(
-                            name=op.new_value.classname.name,
-                            module=op.new_value.classname.module)
-                    ]
+                node.commands.append(qlast.SetType(
+                    type=qlast.ObjectRef(
+                        name=op.new_value.classname.name,
+                        module=op.new_value.classname.module
+                    )
                 ))
         elif op.property == 'source':
             pass

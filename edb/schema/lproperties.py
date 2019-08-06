@@ -300,6 +300,13 @@ class RebaseProperty(PropertyCommand, inheriting.RebaseInheritingObject):
     pass
 
 
+class SetPropertyType(pointers.SetPointerType,
+                      schema_metaclass=Property,
+                      referrer_context_class=PropertySourceContext):
+
+    astnode = qlast.SetPropertyType
+
+
 class AlterProperty(PropertyCommand,
                     referencing.AlterReferencedInheritingObject):
     astnode = [qlast.AlterConcreteProperty,
@@ -324,12 +331,11 @@ class AlterProperty(PropertyCommand,
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'target':
             if op.new_value:
-                node.commands.append(qlast.AlterTarget(
-                    targets=[
-                        qlast.ObjectRef(
-                            name=op.new_value.classname.name,
-                            module=op.new_value.classname.module)
-                    ]
+                node.commands.append(qlast.SetType(
+                    type=qlast.ObjectRef(
+                        name=op.new_value.classname.name,
+                        module=op.new_value.classname.module
+                    )
                 ))
         elif op.property == 'source':
             pass

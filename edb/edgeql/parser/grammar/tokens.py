@@ -181,6 +181,10 @@ class T_SETANNOTATION(Token):
     pass
 
 
+class T_SETTYPE(Token):
+    pass
+
+
 class T_ICONST(Token):
     pass
 

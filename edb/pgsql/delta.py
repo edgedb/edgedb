@@ -2203,7 +2203,14 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                         alter_type = dbops.AlterTableAlterColumnType(
                             old_ptr_stor_info.column_name,
                             common.qname(*new_type))
-                        alter_table.add_operation(alter_type)
+
+                        inherited_cond = dbops.ColumnIsInherited(
+                            table_name=old_ptr_stor_info.table_name,
+                            column_name=old_ptr_stor_info.column_name,
+                        )
+
+                        alter_table.add_operation(
+                            (alter_type, [], [inherited_cond]))
 
 
 class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
@@ -2450,6 +2457,16 @@ class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
         return schema, result
 
 
+class SetLinkType(
+        LinkMetaCommand, adapts=s_links.SetLinkType):
+
+    def apply(self, schema, context):
+        schema, ptr = s_links.SetLinkType.apply(self, schema, context)
+        schema, _ = LinkMetaCommand.apply(self, schema, context)
+        schema, _ = self.update(schema, context)
+        return schema, ptr
+
+
 class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
     def apply(self, schema, context=None):
         orig_schema = schema
@@ -2474,7 +2491,7 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             new_type = None
             for op in self.get_subcommands(type=sd.AlterObjectProperty):
                 if op.property == 'target':
-                    new_type = op.new_value.name \
+                    new_type = op.new_value.get_name(schema) \
                         if op.new_value is not None else None
                     break
 
@@ -2763,6 +2780,16 @@ class RebaseProperty(
                 source, orig_schema, schema, context)
 
         return schema, result
+
+
+class SetPropertyType(
+        PropertyMetaCommand, adapts=s_props.SetPropertyType):
+
+    def apply(self, schema, context):
+        schema, ptr = s_props.SetPropertyType.apply(self, schema, context)
+        schema, _ = PropertyMetaCommand.apply(self, schema, context)
+        schema, _ = self.update(schema, context)
+        return schema, ptr
 
 
 class AlterProperty(

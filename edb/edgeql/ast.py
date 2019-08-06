@@ -540,8 +540,16 @@ class AlterDropInherit(DDL):
     bases: typing.List[TypeName]
 
 
-class AlterTarget(DDL):
-    target: TypeExpr
+class SetPointerType(DDL):
+    type: TypeExpr
+
+
+class SetLinkType(SetPointerType):
+    pass
+
+
+class SetPropertyType(SetPointerType):
+    pass
 
 
 class OnTargetDelete(DDL):

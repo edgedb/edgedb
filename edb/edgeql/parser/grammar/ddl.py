@@ -877,9 +877,14 @@ class DropIndexStmt(Nonterm):
         )
 
 
-class AlterTargetStmt(Nonterm):
-    def reduce_ALTER_TYPE_FullTypeExpr(self, *kids):
-        self.val = qlast.AlterTarget(target=kids[2].val)
+class SetPropertyTypeStmt(Nonterm):
+    def reduce_SETTYPE_FullTypeExpr(self, *kids):
+        self.val = qlast.SetPropertyType(type=kids[1].val)
+
+
+class SetLinkTypeStmt(Nonterm):
+    def reduce_SETTYPE_FullTypeExpr(self, *kids):
+        self.val = qlast.SetLinkType(type=kids[1].val)
 
 
 #
@@ -1014,7 +1019,7 @@ commands_block(
     SetFieldStmt,
     SetAnnotationValueStmt,
     DropAnnotationValueStmt,
-    AlterTargetStmt,
+    SetPropertyTypeStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
     CreateConcreteConstraintStmt,
@@ -1186,7 +1191,7 @@ commands_block(
     DropAnnotationValueStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
-    AlterTargetStmt,
+    SetLinkTypeStmt,
     AlterSimpleExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,

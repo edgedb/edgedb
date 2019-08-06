@@ -669,6 +669,86 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_edgeql_ddl_link_target_alter_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::GrandParent01 {
+                CREATE PROPERTY foo -> int64;
+            };
+
+            CREATE TYPE test::Parent01 EXTENDING test::GrandParent01;
+            CREATE TYPE test::Parent02 EXTENDING test::GrandParent01;
+
+            CREATE TYPE test::Child EXTENDING test::Parent01, test::Parent02;
+
+            ALTER TYPE test::GrandParent01 {
+                ALTER PROPERTY foo SET TYPE int16;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name IN {'test::Child', 'test::Parent01'})
+                SELECT
+                    C.pointers { target: { name } }
+                FILTER
+                    C.pointers.name = 'foo'
+            """,
+            [
+                {
+                    'target': {
+                        'name': 'std::int16'
+                    }
+                },
+                {
+                    'target': {
+                        'name': 'std::int16'
+                    }
+                },
+            ],
+        )
+
+    async def test_edgeql_ddl_link_target_alter_02(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "cannot change the target type of inherited property 'foo'"):
+            await self.con.execute("""
+                CREATE TYPE test::Parent01 {
+                    CREATE PROPERTY foo -> int64;
+                };
+
+                CREATE TYPE test::Parent02 {
+                    CREATE PROPERTY foo -> int64;
+                };
+
+                CREATE TYPE test::Child
+                    EXTENDING test::Parent01, test::Parent02;
+
+                ALTER TYPE test::Parent02 {
+                    ALTER PROPERTY foo SET TYPE int16;
+                };
+            """)
+
+    async def test_edgeql_ddl_link_target_alter_03(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "cannot alter the type of property 'bar' "
+                "because it is used in an expression"):
+            await self.con.execute("""
+                CREATE TYPE test::Foo {
+                    CREATE PROPERTY bar -> int64;
+                };
+
+                CREATE TYPE test::Bar {
+                    CREATE MULTI PROPERTY foo -> int64 {
+                        SET default := (SELECT test::Foo.bar);
+                    }
+                };
+
+                ALTER TYPE test::Foo ALTER PROPERTY bar SET TYPE int32;
+            """)
+
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,

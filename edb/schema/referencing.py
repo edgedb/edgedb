@@ -425,6 +425,44 @@ class ReferencedInheritingObjectCommand(
                     context=self.source_context,
                 )
 
+    def _propagate_ref_op(self, schema, context, scls, cb):
+
+        rec = context.current().enable_recursion
+        context.current().enable_recursion = False
+
+        referrer_ctx = self.get_referrer_context(context)
+        referrer = referrer_ctx.scls
+        referrer_class = type(referrer)
+        mcls = type(scls)
+        refdict = referrer_class.get_refdict_for_class(mcls)
+        reftype = referrer_class.get_field(refdict.attr).type
+        refname = reftype.get_key_for(schema, self.scls)
+
+        r_alter_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.AlterObject, referrer_class)
+        alter_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.AlterObject, mcls)
+
+        for descendant in scls.ordered_descendants(schema):
+            d_name = descendant.get_name(schema)
+            d_referrer = descendant.get_referrer(schema)
+            d_alter_cmd = alter_cmdcls(classname=d_name)
+            r_alter_cmd = r_alter_cmdcls(
+                classname=d_referrer.get_name(schema))
+
+            with r_alter_cmd.new_context(schema, context, d_referrer):
+                with d_alter_cmd.new_context(schema, context, descendant):
+                    cb(d_alter_cmd, refname)
+
+                r_alter_cmd.add(d_alter_cmd)
+
+            schema, _ = r_alter_cmd.apply(schema, context)
+            self.add(r_alter_cmd)
+
+        context.current().enable_recursion = rec
+
+        return schema
+
 
 class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
     @classmethod
@@ -546,7 +584,7 @@ class RenameReferencedInheritingObject(
                 )
 
             if context.enable_recursion:
-                self._propagate_ref_rename(schema, context, scls)
+                schema = self._propagate_ref_rename(schema, context, scls)
 
         else:
             for op in self.get_subcommands(type=sd.ObjectCommand):
@@ -555,50 +593,19 @@ class RenameReferencedInheritingObject(
         return schema
 
     def _propagate_ref_rename(self, schema, context, scls):
-
-        rec = context.current().enable_recursion
-        context.current().enable_recursion = False
-
-        referrer_ctx = self.get_referrer_context(context)
-        referrer = referrer_ctx.scls
-        referrer_class = type(referrer)
-        mcls = type(scls)
-        refdict = referrer_class.get_refdict_for_class(mcls)
-        reftype = referrer_class.get_field(refdict.attr).type
-        refname = reftype.get_key_for(schema, self.scls)
-
-        r_alter_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.AlterObject, referrer_class)
-        alter_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.AlterObject, mcls)
         rename_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-            sd.RenameObject, mcls)
+            sd.RenameObject, type(scls))
 
-        for descendant in scls.ordered_descendants(schema):
-            d_name = descendant.get_name(schema)
-            d_referrer = descendant.get_referrer(schema)
-            d_alter_cmd = alter_cmdcls(classname=d_name)
-            r_alter_cmd = r_alter_cmdcls(
-                classname=d_referrer.get_name(schema))
+        def _ref_rename(alter_cmd, refname):
+            astnode = rename_cmdcls.astnode(
+                new_name=qlast.ObjectRef(
+                    name=refname,
+                ),
+            )
 
-            with r_alter_cmd.new_context(schema, context, d_referrer):
-                with d_alter_cmd.new_context(
-                        schema, context, descendant):
+            rename_cmd = rename_cmdcls._rename_cmd_from_ast(
+                schema, astnode, context)
 
-                    astnode = rename_cmdcls.astnode(
-                        new_name=qlast.ObjectRef(
-                            name=refname,
-                        ),
-                    )
+            alter_cmd.add(rename_cmd)
 
-                    rename_cmd = rename_cmdcls._rename_cmd_from_ast(
-                        schema, astnode, context)
-
-                    d_alter_cmd.add(rename_cmd)
-
-                r_alter_cmd.add(d_alter_cmd)
-
-            schema, _ = r_alter_cmd.apply(schema, context)
-            self.add(r_alter_cmd)
-
-        context.current().enable_recursion = rec
+        return self._propagate_ref_op(schema, context, scls, cb=_ref_rename)
