@@ -2742,15 +2742,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }
             """)
 
-    @test.xfail('''
-        The error is:
-
-        SchemaError: cannot derive <Link ...>(
-            std::std|link@@std|
-            Virtual_71a37e2cf26c98e5dad84176a6ffa910@test|Owner
-        )
-        from itself
-    ''')
     async def test_edgeql_ddl_inheritance_alter_03(self):
         await self.con.execute(r"""
             CREATE TYPE test::Owner;
@@ -2768,7 +2759,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result("""
             SELECT test::Owner.<owner;
-        """, [{}])
+        """, [])
 
     async def test_edgeql_ddl_inheritance_alter_04(self):
         await self.con.execute(r"""
