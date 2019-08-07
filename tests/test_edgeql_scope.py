@@ -19,11 +19,11 @@
 
 import json
 import os.path
-import unittest  # NOQA
 
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLScope(tb.QueryTestCase):
@@ -1889,6 +1889,39 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         {
                             'name': 'Imp',
                             'o_name': {'Alice'},
+                        },
+                    ],
+                }
+            ]
+        )
+
+    @test.xfail('''
+        Using a computable in the filter causes the cardinality to be
+        incorrectly inferred.
+
+        edb.errors.QueryError: possibly more than one element returned
+        by an expression where only singletons are allowed
+    ''')
+    async def test_edgeql_scope_computables_06(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test
+                SELECT User {
+                    name,
+                    # a sub-shape with some arbitrary computable link
+                    multi x := (
+                        SELECT Card { name }
+                        FILTER .elemental_cost = '1 Fire'
+                    )
+                } FILTER .name = 'Alice';
+            """,
+            [
+                {
+                    'name': 'Alice',
+                    'x': [
+                        {
+                            'name': 'Imp',
                         },
                     ],
                 }

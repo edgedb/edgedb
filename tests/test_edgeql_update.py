@@ -19,11 +19,12 @@
 
 import json
 import os.path
-import unittest
+import uuid
 
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestUpdate(tb.QueryTestCase):
@@ -641,7 +642,11 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
-    @unittest.expectedFailure
+    @test.xfail('''
+        Naive implementation of a += for a link fails.
+
+        edgedb.errors.InternalServerError: list index out of range
+    ''')
     async def test_edgeql_update_multiple_04(self):
         await self.assert_query_result(
             r"""
@@ -679,7 +684,7 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-            # now add another tag, but keep the existing one, too
+                # now add another tag, but keep the existing one, too
                 WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
@@ -836,7 +841,9 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
-    @unittest.expectedFailure
+    @test.xfail('''
+        The second self-referring UPDATE doesn't work right.
+    ''')
     async def test_edgeql_update_multiple_08(self):
         await self.assert_query_result(
             r"""
@@ -849,7 +856,11 @@ class TestUpdate(tb.QueryTestCase):
                     related := (SELECT UT FILTER UT != UpdateTest)
                 };
             """,
-            [3],
+            [
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+            ],
         )
 
         await self.assert_query_result(
@@ -898,7 +909,11 @@ class TestUpdate(tb.QueryTestCase):
                     related := (SELECT UT FILTER UT != UpdateTest.related)
                 };
             """,
-            [3],
+            [
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+            ],
         )
 
         await self.assert_query_result(
@@ -937,7 +952,9 @@ class TestUpdate(tb.QueryTestCase):
             ],
         )
 
-    @unittest.expectedFailure
+    @test.xfail('''
+        The second self-referring UPDATE doesn't work right.
+    ''')
     async def test_edgeql_update_multiple_09(self):
         await self.assert_query_result(
             r"""
@@ -950,7 +967,11 @@ class TestUpdate(tb.QueryTestCase):
                     related := (SELECT UT FILTER UT != UpdateTest)
                 };
             """,
-            [3],
+            [
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+            ],
         )
 
         await self.assert_query_result(
@@ -998,7 +1019,11 @@ class TestUpdate(tb.QueryTestCase):
                     related := (SELECT UT FILTER UT NOT IN UpdateTest.related)
                 };
             """,
-            [3],
+            [
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+            ],
         )
 
         await self.assert_query_result(
@@ -1031,7 +1056,9 @@ class TestUpdate(tb.QueryTestCase):
             ],
         )
 
-    @unittest.expectedFailure
+    @test.xfail('''
+        The second self-referring UPDATE doesn't work right.
+    ''')
     async def test_edgeql_update_multiple_10(self):
         await self.assert_query_result(
             r"""
@@ -1047,7 +1074,11 @@ class TestUpdate(tb.QueryTestCase):
                     related := UT
                 };
             """,
-            [3],
+            [
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+                {'id': uuid.UUID},
+            ],
         )
 
         await self.assert_query_result(
@@ -1558,3 +1589,39 @@ class TestUpdate(tb.QueryTestCase):
                     status := Status
                 };
             ''')
+
+    @test.xfail('''
+        The nested UPDATE works just fine on its own, but fails to
+        correctly infer cardinality when used as a sub-shape.
+
+        edgedb.errors.QueryError: possibly more than one element
+        returned by an expression where only singletons are allowed
+    ''')
+    async def test_edgeql_update_cardinality_02(self):
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT stdgraphql::Query {
+                multi x0 := (
+                    WITH x1 := (
+                        UPDATE UpdateTest
+                        FILTER .name = 'update-test1'
+                        SET {
+                            status := (
+                                SELECT Status
+                                # the ID is non-existent
+                                FILTER .id = <uuid>
+                                    '10000000-aaaa-bbbb-cccc-d00000000000'
+                            )
+                        }
+                    )
+                    SELECT x1 {
+                        name,
+                        status: {
+                            name
+                        }
+                    }
+                )
+            };
+        ''', [{
+            'x0': [{'name': 'update-test1', 'status': None}]
+        }])

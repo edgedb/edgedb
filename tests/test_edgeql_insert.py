@@ -389,11 +389,41 @@ class TestInsert(tb.QueryTestCase):
                 WITH MODULE test
                 INSERT InsertTest {
                     subordinates: Subordinate {
-                        name := 'nested sub 4.1',
-                        @comment := 'comment 4.1',
+                        name := 'nested sub 7.1',
+                        @comment := 'comment 7.1',
                     }
                 };
             ''')
+
+    @test.xfail('''
+        The nested INSERT works just fine, but does not allow access
+        to the freshly inserted sub-shape in the same query.
+    ''')
+    async def test_edgeql_insert_nested_08(self):
+        await self.assert_query_result(r'''
+            WITH
+                MODULE test,
+                x1 := (
+                    INSERT InsertTest {
+                        name := 'insert nested 8',
+                        l2 := 0,
+                        subordinates := (
+                            INSERT Subordinate {
+                                name := 'nested sub 8.1'
+                            }
+                        )
+                    }
+                )
+            SELECT x1 {
+                name,
+                subordinates: {
+                    name
+                }
+            };
+        ''', [{
+            'name': 'insert nested 8',
+            'subordinates': [{'name': 'nested sub 8.1'}]
+        }])
 
     async def test_edgeql_insert_returning_01(self):
         await self.con.execute('''
