@@ -45,5 +45,6 @@ used to try out queries and explore the GraphQL capabilities.
     :hidden:
 
     graphql
+    mutations
     introspection
     protocol
