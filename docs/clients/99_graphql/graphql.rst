@@ -188,6 +188,8 @@ example:
     +---------------------------------+---------------------------------+
 
 
+.. _ref_graphql_overview_order:
+
 Ordering
 --------
 
@@ -254,6 +256,8 @@ If the value of ``nulls`` is not specified it is assumed to be
     |     }                              |                              |
     +------------------------------------+------------------------------+
 
+
+.. _ref_graphql_overview_pagination:
 
 Paginating
 ----------
@@ -366,9 +370,3 @@ mapped to variables in EdgeQL.
     |     }                           |     FILTER                      |
     |                                 |         Book.title = $title;    |
     +---------------------------------+---------------------------------+
-
-
-Mutations
-+++++++++
-
-By default EdgeDB does not provide GraphQL mutations.
