@@ -887,11 +887,7 @@ def computable_ptr_set(
             source_ctx=pending_cardinality.source_ctx,
             ctx=ctx)
 
-    def _check_cardinality(ctx):
-        if ptrcls.singular(ctx.env.schema):
-            stmtctx.enforce_singleton_now(comp_ir_set_copy, ctx=ctx)
-
-    stmtctx.at_stmt_fini(_check_cardinality, ctx=ctx)
+    stmtctx.enforce_pointer_cardinality(ptrcls, comp_ir_set_copy, ctx=ctx)
 
     comp_ir_set = new_set_from_set(
         comp_ir_set, path_id=result_path_id, rptr=rptr, ctx=ctx)

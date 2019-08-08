@@ -623,7 +623,8 @@ def enforce_singleton_now(
 def enforce_singleton(
         irexpr: irast.Base, *,
         ctx: context.ContextLevel) -> None:
-    if not ctx.path_scope_is_temp:
+
+    if not ctx.defining_view:
         # We cannot reliably defer cardinality inference operations
         # because the current scope is temporary and will not be
         # accessible when the scheduled inference will run.
@@ -634,6 +635,19 @@ def enforce_singleton(
             ),
             ctx=ctx
         )
+
+
+def enforce_pointer_cardinality(
+        ptrcls,
+        irexpr: irast.Base, *,
+        ctx: context.ContextLevel) -> None:
+
+    if not ctx.defining_view:
+        def _enforce_singleton(ctx):
+            if ptrcls.singular(ctx.env.schema):
+                enforce_singleton_now(irexpr, ctx=ctx)
+
+        at_stmt_fini(_enforce_singleton, ctx=ctx)
 
 
 def at_stmt_fini(

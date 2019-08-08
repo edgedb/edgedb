@@ -276,9 +276,6 @@ class ContextLevel(compiler.ContextLevel):
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
 
-    path_scope_is_temp: bool
-    """Whether the current path scope is temporary and is to be discarded."""
-
     path_scope_map: typing.Dict[irast.Set, irast.ScopeTreeNode]
     """A forest of scope trees used for views."""
 
@@ -308,6 +305,9 @@ class ContextLevel(compiler.ContextLevel):
 
     empty_result_type_hint: s_types.Type
     """Type to use if the statement result expression is an empty set ctor."""
+
+    defining_view: bool
+    """Whether a view is currently being defined (as opposed to be compiled)"""
 
     def __init__(self, prevlevel, mode):
         self.mode = mode
@@ -341,7 +341,6 @@ class ContextLevel(compiler.ContextLevel):
             self.banned_paths = set()
             self.view_map = collections.ChainMap()
             self.path_scope = None
-            self.path_scope_is_temp = False
             self.path_scope_map = {}
             self.scope_id_ctr = compiler.Counter()
             self.view_scls = None
@@ -355,6 +354,7 @@ class ContextLevel(compiler.ContextLevel):
             self.implicit_tid_in_shapes = False
             self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
+            self.defining_view = False
 
         else:
             self.env = prevlevel.env
@@ -379,7 +379,6 @@ class ContextLevel(compiler.ContextLevel):
             self.banned_paths = prevlevel.banned_paths
             self.view_map = prevlevel.view_map
             self.path_scope = prevlevel.path_scope
-            self.path_scope_is_temp = prevlevel.path_scope_is_temp
             self.path_scope_map = prevlevel.path_scope_map
             self.scope_id_ctr = prevlevel.scope_id_ctr
             self.view_scls = prevlevel.view_scls
@@ -392,6 +391,7 @@ class ContextLevel(compiler.ContextLevel):
             self.special_computables_in_mutation_shape = \
                 prevlevel.special_computables_in_mutation_shape
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
+            self.defining_view = prevlevel.defining_view
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
@@ -454,7 +454,6 @@ class ContextLevel(compiler.ContextLevel):
                     prevlevel.path_scope = self.env.path_scope
 
                 self.path_scope = prevlevel.path_scope.copy()
-                self.path_scope_is_temp = True
 
             if mode in {ContextSwitchMode.NEWFENCE,
                         ContextSwitchMode.NEWFENCE_TEMP}:

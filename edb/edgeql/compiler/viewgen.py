@@ -374,6 +374,7 @@ def _normalize_view_ptr_expr(
                 ptrcls_is_linkprop=is_linkprop,
                 is_insert=is_insert, is_update=is_update)
 
+            shape_expr_ctx.defining_view = True
             shape_expr_ctx.path_scope.unnest_fence = True
             shape_expr_ctx.partial_path_prefix = setgen.class_set(
                 view_scls, path_id=path_id, ctx=shape_expr_ctx)

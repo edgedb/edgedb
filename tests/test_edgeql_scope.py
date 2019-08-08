@@ -23,7 +23,6 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLScope(tb.QueryTestCase):
@@ -1895,13 +1894,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        Using a computable in the filter causes the cardinality to be
-        incorrectly inferred.
-
-        edb.errors.QueryError: possibly more than one element returned
-        by an expression where only singletons are allowed
-    ''')
     async def test_edgeql_scope_computables_06(self):
         await self.assert_query_result(
             r"""

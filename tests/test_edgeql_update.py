@@ -1590,13 +1590,6 @@ class TestUpdate(tb.QueryTestCase):
                 };
             ''')
 
-    @test.xfail('''
-        The nested UPDATE works just fine on its own, but fails to
-        correctly infer cardinality when used as a sub-shape.
-
-        edgedb.errors.QueryError: possibly more than one element
-        returned by an expression where only singletons are allowed
-    ''')
     async def test_edgeql_update_cardinality_02(self):
         await self.assert_query_result(r'''
             WITH MODULE test
