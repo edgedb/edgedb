@@ -17,6 +17,9 @@
 #
 
 
+"""Context-agnostic SQL AST utilities."""
+
+
 import typing
 
 from edb.pgsql import ast as pgast
@@ -175,4 +178,117 @@ def safe_array_expr(elements: typing.List[pgast.Base], **kwargs) -> pgast.Base:
             args=[result],
             **kwargs,
         )
+    return result
+
+
+def find_column_in_subselect_rvar(rvar: pgast.BaseRangeVar, name: str) -> int:
+    # Range over a subquery, we can inspect the output list
+    # of the subquery.  If the subquery is a UNION (or EXCEPT),
+    # we take the leftmost non-setop query.
+    subquery = get_leftmost_query(rvar.subquery)
+    for i, rt in enumerate(subquery.target_list):
+        if rt.name == name:
+            return i
+
+    raise RuntimeError(f'cannot find {name!r} in {rvar} output')
+
+
+def get_column(
+        rvar: pgast.BaseRangeVar,
+        colspec: typing.Union[str, pgast.ColumnRef], *,
+        nullable: bool=None) -> pgast.ColumnRef:
+
+    if isinstance(colspec, pgast.ColumnRef):
+        colname = colspec.name[-1]
+    else:
+        colname = colspec
+
+    ser_safe = False
+
+    if nullable is None:
+        if isinstance(rvar, pgast.RangeVar):
+            # Range over a relation, we cannot infer nullability in
+            # this context, so assume it's true.
+            nullable = True
+
+        elif isinstance(rvar, pgast.RangeSubselect):
+            col_idx = find_column_in_subselect_rvar(rvar, colname)
+            if is_set_op_query(rvar.subquery):
+                nullables = []
+                ser_safes = []
+                for_each_query_in_set(
+                    rvar.subquery,
+                    lambda q:
+                        (nullables.append(q.target_list[col_idx].nullable),
+                         ser_safes.append(q.target_list[col_idx].ser_safe))
+                )
+                nullable = any(nullables)
+                ser_safe = all(ser_safes)
+            else:
+                rt = rvar.subquery.target_list[col_idx]
+                nullable = rt.nullable
+                ser_safe = rt.ser_safe
+
+        elif isinstance(rvar, pgast.RangeFunction):
+            # Range over a function.
+            # TODO: look into the possibility of inspecting coldeflist.
+            nullable = True
+
+        elif isinstance(rvar, pgast.JoinExpr):
+            raise RuntimeError(
+                f'cannot find {colname!r} in unexpected {rvar!r} range var')
+
+    name = [rvar.alias.aliasname, colname]
+
+    return pgast.ColumnRef(name=name, nullable=nullable, ser_safe=ser_safe)
+
+
+def get_rvar_var(
+        rvar: pgast.BaseRangeVar,
+        var: pgast.OutputVar) -> pgast.OutputVar:
+
+    assert isinstance(var, pgast.OutputVar)
+
+    if isinstance(var, pgast.TupleVar):
+        elements = []
+
+        for el in var.elements:
+            val = get_rvar_var(rvar, el.name)
+            elements.append(
+                pgast.TupleElement(
+                    path_id=el.path_id, name=el.name, val=val))
+
+        fieldref = pgast.TupleVar(elements, named=var.named)
+    else:
+        fieldref = get_column(rvar, var)
+
+    return fieldref
+
+
+def strip_output_var(
+        var: pgast.OutputVar, *,
+        optional: typing.Optional[bool]=None,
+        nullable: typing.Optional[bool]=None) -> pgast.OutputVar:
+
+    if isinstance(var, pgast.TupleVar):
+        elements = []
+
+        for el in var.elements:
+            if isinstance(el.name, str):
+                val = pgast.ColumnRef(name=[el.name])
+            else:
+                val = strip_output_var(el.name)
+
+            elements.append(
+                pgast.TupleElement(
+                    path_id=el.path_id, name=el.name, val=val))
+
+        result = pgast.TupleVar(elements, named=var.named)
+    else:
+        result = pgast.ColumnRef(
+            name=[var.name[-1]],
+            optional=optional if optional is not None else var.optional,
+            nullable=nullable if nullable is not None else var.nullable,
+        )
+
     return result

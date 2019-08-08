@@ -78,6 +78,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.path_scope = collections.ChainMap()
             self.scope_tree = None
+            self.rel_overlays = collections.defaultdict(list)
 
         else:
             self.env = prevlevel.env
@@ -104,6 +105,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree
+            self.rel_overlays = prevlevel.rel_overlays
 
             if mode in {ContextSwitchMode.SUBREL, ContextSwitchMode.NEWREL,
                         ContextSwitchMode.SUBSTMT}:
@@ -149,7 +151,6 @@ class Environment:
                  explicit_top_cast):
         self.aliases = aliases.AliasGenerator()
         self.root_rels = set()
-        self.rel_overlays = collections.defaultdict(list)
         self.output_format = output_format
         self.tuple_formats = {}
         self.use_named_params = use_named_params

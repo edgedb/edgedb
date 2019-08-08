@@ -429,7 +429,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_rptr = None
                 self.view_scls = None
                 self.clause = None
-                self.stmt = None
+                self.stmt = prevlevel.stmt
 
                 self.partial_path_prefix = None
 

@@ -395,10 +395,6 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
-    @test.xfail('''
-        The nested INSERT works just fine, but does not allow access
-        to the freshly inserted sub-shape in the same query.
-    ''')
     async def test_edgeql_insert_nested_08(self):
         await self.assert_query_result(r'''
             WITH
@@ -626,9 +622,6 @@ class TestInsert(tb.QueryTestCase):
             }],
         )
 
-    @test.xfail('''
-        The default INSERT works, but it is not visible in the query.
-    ''')
     async def test_edgeql_insert_returning_07(self):
         await self.con.execute('''
             INSERT test::Subordinate {
@@ -663,9 +656,6 @@ class TestInsert(tb.QueryTestCase):
             }],
         )
 
-    @test.xfail('''
-        The default INSERT works, but it is not visible in the query.
-    ''')
     async def test_edgeql_insert_returning_08(self):
         await self.con.execute('''
             INSERT test::Subordinate {
@@ -684,7 +674,10 @@ class TestInsert(tb.QueryTestCase):
                     other: {
                         name,
                         other: {
-                            name
+                            name,
+                            other: {
+                                name,
+                            },
                         },
                     },
                 };

@@ -39,7 +39,6 @@ from edb.pgsql import types as pg_types
 
 from . import astutils
 from . import context
-from . import dbobj
 from . import dispatch
 from . import output
 from . import pathctx
@@ -553,7 +552,7 @@ def finalize_optional_rel(
             _ensure_empty_tvar(lvar, ir_set.path_id)
 
     unionrel = optrel.unionrel
-    union_rvar = dbobj.rvar_for_rel(unionrel, lateral=True, env=ctx.env)
+    union_rvar = relctx.rvar_for_rel(unionrel, lateral=True, ctx=ctx)
 
     with ctx.new() as subctx:
         subctx.rel = wrapper = optrel.wrapper
@@ -561,14 +560,13 @@ def finalize_optional_rel(
 
     with ctx.new() as subctx:
         subctx.rel = stmt = optrel.container
-        wrapper_rvar = dbobj.rvar_for_rel(
-            wrapper, lateral=True, env=subctx.env)
+        wrapper_rvar = relctx.rvar_for_rel(wrapper, lateral=True, ctx=subctx)
 
         relctx.include_rvar(stmt, wrapper_rvar, ir_set.path_id, ctx=subctx)
 
         stmt.where_clause = astutils.extend_binop(
             stmt.where_clause,
-            dbobj.get_column(wrapper_rvar, optrel.marker, nullable=False))
+            astutils.get_column(wrapper_rvar, optrel.marker, nullable=False))
 
         stmt.nullable = True
 
@@ -785,8 +783,7 @@ def process_set_as_path(
                         pgast.NullTest(arg=var, negated=True))
 
         srcrel = srcctx.rel
-        src_rvar = dbobj.rvar_for_rel(
-            srcrel, lateral=True, env=srcctx.env)
+        src_rvar = relctx.rvar_for_rel(srcrel, lateral=True, ctx=srcctx)
         relctx.include_rvar(stmt, src_rvar, path_id=ir_source.path_id, ctx=ctx)
         stmt.path_id_mask.add(ir_source.path_id)
 
@@ -1047,10 +1044,10 @@ def process_set_as_setop(
         subqry.larg = larg
         subqry.rarg = rarg
 
-        union_rvar = dbobj.rvar_for_rel(subqry, lateral=True, env=subctx.env)
+        union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
         relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
-    rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
+    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 
@@ -1064,7 +1061,7 @@ def process_set_as_distinct(
         arg = expr.args[0].expr
         subqry.view_path_id_map[ir_set.path_id] = arg.path_id
         dispatch.visit(arg, ctx=subctx)
-        subrvar = dbobj.rvar_for_rel(subqry, lateral=True, env=subctx.env)
+        subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
 
     relctx.include_rvar(stmt, subrvar, ir_set.path_id, ctx=ctx)
 
@@ -1074,7 +1071,7 @@ def process_set_as_distinct(
     stmt.distinct_clause = pathctx.get_rvar_output_var_as_col_list(
         subrvar, value_var, aspect='value', env=ctx.env)
 
-    rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
+    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 
@@ -1147,11 +1144,10 @@ def process_set_as_ifelse(
             subqry.larg = larg
             subqry.rarg = rarg
 
-            union_rvar = dbobj.rvar_for_rel(
-                subqry, lateral=True, env=subctx.env)
+            union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
             relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
-    rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
+    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 
@@ -1244,8 +1240,8 @@ def process_set_as_coalesce(
                     unionqry.larg = larg
                     unionqry.rarg = rarg
 
-                union_rvar = dbobj.rvar_for_rel(
-                    unionqry, lateral=True, env=subctx.env)
+                union_rvar = relctx.rvar_for_rel(
+                    unionqry, lateral=True, ctx=subctx)
 
                 relctx.include_rvar(
                     subqry, union_rvar, path_id=ir_set.path_id, ctx=subctx)
@@ -1269,17 +1265,16 @@ def process_set_as_coalesce(
                     )
                 )
 
-            subrvar = dbobj.rvar_for_rel(
-                subqry, lateral=True, env=newctx.env)
+            subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=newctx)
 
             relctx.include_rvar(
                 stmt, subrvar, path_id=ir_set.path_id, ctx=newctx)
 
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause,
-                dbobj.get_column(subrvar, marker, nullable=False))
+                astutils.get_column(subrvar, marker, nullable=False))
 
-    rvar = dbobj.rvar_for_rel(stmt, lateral=True, env=ctx.env)
+    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 
@@ -1428,12 +1423,12 @@ def process_set_as_type_introspection(
         ctx: context.CompilerContextLevel) -> SetRVars:
 
     typeref = ir_set.expr.typeref
-    type_rvar = dbobj.range_for_typeref(ir_set.typeref,
-                                        ir_set.path_id, env=ctx.env)
+    type_rvar = relctx.range_for_typeref(
+        ir_set.typeref, ir_set.path_id, ctx=ctx)
     pathctx.put_rvar_path_bond(type_rvar, ir_set.path_id)
     type_rvar.value_scope.add(ir_set.path_id)
     clsname = pgast.StringConstant(val=str(typeref.id))
-    nameref = dbobj.get_column(type_rvar, 'id', nullable=False)
+    nameref = astutils.get_column(type_rvar, 'id', nullable=False)
 
     condition = astutils.new_binop(nameref, clsname, op='=')
     substmt = pgast.SelectStmt()
@@ -1595,7 +1590,7 @@ def _process_set_func_with_ordinality(
                     path_id=outer_func_set.expr.tuple_path_ids[
                         len(rtype.subtypes) + i],
                     name=n,
-                    val=dbobj.get_column(
+                    val=astutils.get_column(
                         func_rvar, n, nullable=set_expr.nullable)
                 )
                 for i, n in enumerate(colnames[:-1])
@@ -1603,7 +1598,7 @@ def _process_set_func_with_ordinality(
             named=inner_named_tuple
         )
     else:
-        inner_expr = dbobj.get_column(
+        inner_expr = astutils.get_column(
             func_rvar, colnames[0], nullable=set_expr.nullable)
 
     set_expr = pgast.TupleVar(
@@ -1614,7 +1609,7 @@ def _process_set_func_with_ordinality(
                 val=pgast.Expr(
                     kind=pgast.ExprKind.OP,
                     name='-',
-                    lexpr=dbobj.get_column(
+                    lexpr=astutils.get_column(
                         func_rvar, colnames[-1], nullable=set_expr.nullable,
                     ),
                     rexpr=pgast.NumericConstant(val='1')
@@ -1689,7 +1684,7 @@ def _process_set_func(
     ctx.rel.from_clause.append(func_rvar)
 
     if not is_tuple:
-        set_expr = dbobj.get_column(
+        set_expr = astutils.get_column(
             func_rvar, colnames[0], nullable=set_expr.nullable)
     else:
         set_expr = pgast.TupleVar(
@@ -1697,7 +1692,7 @@ def _process_set_func(
                 pgast.TupleElement(
                     path_id=expr.tuple_path_ids[i],
                     name=n,
-                    val=dbobj.get_column(
+                    val=astutils.get_column(
                         func_rvar, n, nullable=set_expr.nullable)
                 )
                 for i, n in enumerate(colnames)
@@ -1727,7 +1722,7 @@ def _compile_func_epilogue(
         volatility_source = pgast.SelectStmt(
             values=[pgast.ImplicitRowExpr(args=[ctx.volatility_ref])]
         )
-        volatility_rvar = dbobj.rvar_for_rel(volatility_source, env=ctx.env)
+        volatility_rvar = relctx.rvar_for_rel(volatility_source, ctx=ctx)
         relctx.rel_join(func_rel, volatility_rvar, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
@@ -1866,7 +1861,7 @@ def process_set_as_agg_expr(
 
         if ctx.group_by_rels:
             for (path_id, s_path_id), group_rel in ctx.group_by_rels.items():
-                group_rvar = dbobj.rvar_for_rel(group_rel, env=ctx.env)
+                group_rvar = relctx.rvar_for_rel(group_rel, ctx=ctx)
                 relctx.include_rvar(stmt, group_rvar, path_id=path_id, ctx=ctx)
                 ref = pathctx.get_path_identity_var(stmt, path_id, env=ctx.env)
                 stmt.group_clause.append(ref)
@@ -1919,12 +1914,11 @@ def process_set_as_agg_expr(
                         values=[pgast.ImplicitRowExpr(args=[arg_ref])]
                     )
                     colname = argctx.env.aliases.get('a')
-                    wrapper_rvar = dbobj.rvar_for_rel(
-                        wrapper, lateral=True, colnames=[colname],
-                        env=argctx.env)
-                    relctx.include_rvar(stmt, wrapper_rvar,
-                                        path_id=ir_arg.path_id, ctx=argctx)
-                    arg_ref = dbobj.get_column(wrapper_rvar, colname)
+                    wrapper_rvar = relctx.rvar_for_rel(
+                        wrapper, lateral=True, colnames=[colname], ctx=argctx)
+                    relctx.include_rvar(
+                        stmt, wrapper_rvar, path_id=ir_arg.path_id, ctx=argctx)
+                    arg_ref = astutils.get_column(wrapper_rvar, colname)
 
                 if i == 0 and irutils.is_subquery_set(ir_arg):
                     # If the first argument of the aggregate
@@ -1954,7 +1948,7 @@ def process_set_as_agg_expr(
 
                             agg_sort.append(
                                 pgast.SortBy(
-                                    node=dbobj.get_column(qrvar, alias),
+                                    node=astutils.get_column(qrvar, alias),
                                     dir=sortref.dir,
                                     nulls=sortref.nulls))
 

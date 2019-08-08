@@ -841,17 +841,33 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        The second self-referring UPDATE doesn't work right.
-    ''')
     async def test_edgeql_update_multiple_08(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-8-1',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-8-2',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-8-3',
+            };
+        """)
+
         await self.assert_query_result(
             r"""
                 # make tests related to the other 2
                 WITH
                     MODULE test,
-                    UT := UpdateTest
+                    UT := (SELECT UpdateTest
+                           FILTER .name LIKE 'update-test-8-%')
                 UPDATE UpdateTest
+                FILTER .name LIKE 'update-test-8-%'
                 SET {
                     related := (SELECT UT FILTER UT != UpdateTest)
                 };
@@ -869,28 +885,30 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
-                } ORDER BY .name;
+                }
+                FILTER .name LIKE 'update-test-8-%'
+                ORDER BY .name;
             """,
             [
                 {
-                    'name': 'update-test1',
+                    'name': 'update-test-8-1',
                     'related': [
-                        {'name': 'update-test2'},
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-8-2'},
+                        {'name': 'update-test-8-3'},
                     ],
                 },
                 {
-                    'name': 'update-test2',
+                    'name': 'update-test-8-2',
                     'related': [
-                        {'name': 'update-test1'},
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-8-1'},
+                        {'name': 'update-test-8-3'},
                     ],
                 },
                 {
-                    'name': 'update-test3',
+                    'name': 'update-test-8-3',
                     'related': [
-                        {'name': 'update-test1'},
-                        {'name': 'update-test2'},
+                        {'name': 'update-test-8-1'},
+                        {'name': 'update-test-8-2'},
                     ],
                 },
             ],
@@ -901,8 +919,10 @@ class TestUpdate(tb.QueryTestCase):
                 # now update related tests based on existing related tests
                 WITH
                     MODULE test,
-                    UT := UpdateTest
+                    UT := (SELECT UpdateTest
+                           FILTER .name LIKE 'update-test-8-%')
                 UPDATE UpdateTest
+                FILTER .name LIKE 'update-test-8-%'
                 SET {
                     # since there are 2 tests in each FILTER, != is
                     # guaranteed to be TRUE for at least one of them
@@ -922,47 +942,65 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
-                } ORDER BY .name;
+                }
+                FILTER .name LIKE 'update-test-8-%'
+                ORDER BY .name;
             """,
             [
                 {
-                    'name': 'update-test1',
+                    'name': 'update-test-8-1',
                     'related': [
-                        {'name': 'update-test1'},
-                        {'name': 'update-test2'},
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-8-1'},
+                        {'name': 'update-test-8-2'},
+                        {'name': 'update-test-8-3'},
                     ],
                 },
                 {
-                    'name': 'update-test2',
+                    'name': 'update-test-8-2',
                     'related': [
-                        {'name': 'update-test1'},
-                        {'name': 'update-test2'},
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-8-1'},
+                        {'name': 'update-test-8-2'},
+                        {'name': 'update-test-8-3'},
                     ],
                 },
                 {
-                    'name': 'update-test3',
+                    'name': 'update-test-8-3',
                     'related': [
-                        {'name': 'update-test1'},
-                        {'name': 'update-test2'},
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-8-1'},
+                        {'name': 'update-test-8-2'},
+                        {'name': 'update-test-8-3'},
                     ],
                 },
             ],
         )
 
-    @test.xfail('''
-        The second self-referring UPDATE doesn't work right.
-    ''')
     async def test_edgeql_update_multiple_09(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-9-1',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-9-2',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-9-3',
+            };
+        """)
+
         await self.assert_query_result(
             r"""
                 # make tests related to the other 2
                 WITH
                     MODULE test,
-                    UT := UpdateTest
+                    UT := (SELECT UpdateTest
+                           FILTER .name LIKE 'update-test-9-%')
                 UPDATE UpdateTest
+                FILTER .name LIKE 'update-test-9-%'
                 SET {
                     related := (SELECT UT FILTER UT != UpdateTest)
                 };
@@ -980,28 +1018,30 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
-                } ORDER BY .name;
+                }
+                FILTER .name LIKE 'update-test-9-%'
+                ORDER BY .name;
             """,
             [
                 {
-                    'name': 'update-test1',
+                    'name': 'update-test-9-1',
                     'related': [
-                        {'name': 'update-test2'},
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-9-2'},
+                        {'name': 'update-test-9-3'},
                     ],
                 },
                 {
-                    'name': 'update-test2',
+                    'name': 'update-test-9-2',
                     'related': [
-                        {'name': 'update-test1'},
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-9-1'},
+                        {'name': 'update-test-9-3'},
                     ],
                 },
                 {
-                    'name': 'update-test3',
+                    'name': 'update-test-9-3',
                     'related': [
-                        {'name': 'update-test1'},
-                        {'name': 'update-test2'},
+                        {'name': 'update-test-9-1'},
+                        {'name': 'update-test-9-2'},
                     ],
                 },
             ],
@@ -1012,8 +1052,10 @@ class TestUpdate(tb.QueryTestCase):
                 # now update related tests based on existing related tests
                 WITH
                     MODULE test,
-                    UT := UpdateTest
+                    UT := (SELECT UpdateTest
+                           FILTER .name LIKE 'update-test-9-%')
                 UPDATE UpdateTest
+                FILTER .name LIKE 'update-test-9-%'
                 SET {
                     # this should make the related test be the same as parent
                     related := (SELECT UT FILTER UT NOT IN UpdateTest.related)
@@ -1032,44 +1074,60 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
-                } ORDER BY .name;
+                }
+                FILTER .name LIKE 'update-test-9-%'
+                ORDER BY .name;
             """,
             [
                 {
-                    'name': 'update-test1',
+                    'name': 'update-test-9-1',
                     'related': [
-                        {'name': 'update-test1'},
+                        {'name': 'update-test-9-1'},
                     ],
                 },
                 {
-                    'name': 'update-test2',
+                    'name': 'update-test-9-2',
                     'related': [
-                        {'name': 'update-test2'},
+                        {'name': 'update-test-9-2'},
                     ],
                 },
                 {
-                    'name': 'update-test3',
+                    'name': 'update-test-9-3',
                     'related': [
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-9-3'},
                     ],
                 },
             ],
         )
 
-    @test.xfail('''
-        The second self-referring UPDATE doesn't work right.
-    ''')
     async def test_edgeql_update_multiple_10(self):
+        await self.con.execute("""
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-10-1',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-10-2',
+            };
+
+            WITH MODULE test
+            INSERT UpdateTest {
+                name := 'update-test-10-3',
+            };
+        """)
+
         await self.assert_query_result(
             r"""
-                # make each test related to 'update-test1'
+                # make each test related to 'update-test-10-1'
                 WITH
                     MODULE test,
                     UT := (
-                        SELECT UpdateTest FILTER UpdateTest.name =
-                            'update-test1'
+                        SELECT UpdateTest FILTER .name = 'update-test-10-1'
                     )
                 UPDATE UpdateTest
+                FILTER .name LIKE 'update-test-10-%'
                 SET {
                     related := UT
                 };
@@ -1087,25 +1145,27 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
-                } ORDER BY .name;
+                }
+                FILTER .name LIKE 'update-test-10-%'
+                ORDER BY .name;
             """,
             [
                 {
-                    'name': 'update-test1',
+                    'name': 'update-test-10-1',
                     'related': [
-                        {'name': 'update-test1'},
+                        {'name': 'update-test-10-1'},
                     ],
                 },
                 {
-                    'name': 'update-test2',
+                    'name': 'update-test-10-2',
                     'related': [
-                        {'name': 'update-test1'},
+                        {'name': 'update-test-10-1'},
                     ],
                 },
                 {
-                    'name': 'update-test3',
+                    'name': 'update-test-10-3',
                     'related': [
-                        {'name': 'update-test1'},
+                        {'name': 'update-test-10-1'},
                     ],
                 },
             ],
@@ -1117,6 +1177,7 @@ class TestUpdate(tb.QueryTestCase):
                 WITH MODULE test
                 # there's only one item in the UPDATE set
                 UPDATE UpdateTest.related
+                FILTER .name LIKE 'update-test-10-%'
                 SET {
                     # every test is .<related to 'update-test1'
                     related := UpdateTest.related.<related
@@ -1131,27 +1192,29 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
-                } ORDER BY .name;
+                }
+                FILTER .name LIKE 'update-test-10-%'
+                ORDER BY .name;
             """,
             [
                 {
-                    'name': 'update-test1',
+                    'name': 'update-test-10-1',
                     'related': [
-                        {'name': 'update-test1'},
-                        {'name': 'update-test2'},
-                        {'name': 'update-test3'},
+                        {'name': 'update-test-10-1'},
+                        {'name': 'update-test-10-2'},
+                        {'name': 'update-test-10-3'},
                     ],
                 },
                 {
-                    'name': 'update-test2',
+                    'name': 'update-test-10-2',
                     'related': [
-                        {'name': 'update-test1'},
+                        {'name': 'update-test-10-1'},
                     ],
                 },
                 {
-                    'name': 'update-test3',
+                    'name': 'update-test-10-3',
                     'related': [
-                        {'name': 'update-test1'},
+                        {'name': 'update-test-10-1'},
                     ],
                 },
             ],

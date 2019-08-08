@@ -248,3 +248,15 @@ def is_type_indirection_reference(ir_expr):
         source_is_type_indirection = False
 
     return source_is_type_indirection
+
+
+def get_nearest_dml_stmt(ir_set) -> typing.Optional[irast.MutatingStmt]:
+    while ir_set is not None:
+        if isinstance(ir_set.expr, irast.MutatingStmt):
+            return ir_set.expr
+        elif isinstance(ir_set.expr, irast.SelectStmt):
+            ir_set = ir_set.expr.result
+        elif ir_set.rptr is not None:
+            ir_set = ir_set.rptr.source
+        else:
+            ir_set = None

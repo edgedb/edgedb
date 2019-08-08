@@ -24,7 +24,6 @@ from edb.pgsql import ast as pgast
 from . import astutils
 from . import clauses
 from . import context
-from . import dbobj
 from . import dispatch
 from . import dml
 from . import pathctx
@@ -150,7 +149,7 @@ def compile_GroupStmt(
                 with ctx.subrel() as subctx:
                     wrapper = subctx.rel
 
-                    gquery_rvar = dbobj.rvar_for_rel(gquery, env=ctx.env)
+                    gquery_rvar = relctx.rvar_for_rel(gquery, ctx=subctx)
                     wrapper.from_clause = [gquery_rvar]
                     relctx.pull_path_namespace(
                         target=wrapper, source=gquery_rvar, ctx=subctx)
@@ -164,7 +163,7 @@ def compile_GroupStmt(
                         output_ref = pathctx.get_path_value_output(
                             gquery, path_id, env=ctx.env)
                         new_part_clause.append(
-                            dbobj.get_column(gquery_rvar, output_ref)
+                            astutils.get_column(gquery_rvar, output_ref)
                         )
 
                     part_clause = new_part_clause
@@ -194,7 +193,7 @@ def compile_GroupStmt(
             name=ctx.env.aliases.get('g')
         )
 
-        group_cte_rvar = dbobj.rvar_for_rel(group_cte, env=ctx.env)
+        group_cte_rvar = relctx.rvar_for_rel(group_cte, ctx=ctx)
 
         # Generate another subquery contaning distinct values of
         # path expressions in BY.
@@ -231,7 +230,7 @@ def compile_GroupStmt(
             name=ctx.env.aliases.get('gv')
         )
 
-        groupval_cte_rvar = dbobj.rvar_for_rel(groupval_cte, env=ctx.env)
+        groupval_cte_rvar = relctx.rvar_for_rel(groupval_cte, ctx=ctx)
 
         o_stmt = stmt.result.expr
 
@@ -290,7 +289,7 @@ def compile_GroupStmt(
             gvquery.distinct_clause[:] = []
 
         query = ctx.rel
-        result_rvar = dbobj.rvar_for_rel(selquery, lateral=True, env=ctx.env)
+        result_rvar = relctx.rvar_for_rel(selquery, lateral=True, ctx=ctx)
         relctx.include_rvar(query, result_rvar, path_id=outer_id, ctx=ctx)
 
         for rt in selquery.target_list:
@@ -299,13 +298,13 @@ def compile_GroupStmt(
             if rt.name not in sortoutputs:
                 query.target_list.append(
                     pgast.ResTarget(
-                        val=dbobj.get_column(result_rvar, rt.name),
+                        val=astutils.get_column(result_rvar, rt.name),
                         name=rt.name
                     )
                 )
 
         for i, expr in enumerate(o_stmt.orderby):
-            sort_ref = dbobj.get_column(result_rvar, sortoutputs[i])
+            sort_ref = astutils.get_column(result_rvar, sortoutputs[i])
             sortexpr = pgast.SortBy(
                 node=sort_ref,
                 dir=expr.direction,

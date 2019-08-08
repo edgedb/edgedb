@@ -35,7 +35,6 @@ from edb.pgsql import types as pg_types
 
 from . import astutils
 from . import context
-from . import dbobj
 from . import output
 
 
@@ -192,7 +191,7 @@ def get_path_var(
         # Path vars produced by UNION expressions can be "optional",
         # i.e the record is accepted as-is when such var is NULL.
         # This is necessary to correctly join heterogeneous UNIONs.
-        var = dbobj.strip_output_var(
+        var = astutils.strip_output_var(
             first, optional=optional, nullable=optional or nullable)
         put_path_var(rel, path_id, var, aspect=aspect, env=env)
         return var
@@ -279,7 +278,7 @@ def get_path_var(
         source_rel, drilldown_path_id, ptr_info=ptr_info,
         aspect=aspect, env=env)
 
-    var = dbobj.get_rvar_var(rel_rvar, outvar)
+    var = astutils.get_rvar_var(rel_rvar, outvar)
     put_path_var(rel, path_id, var, aspect=aspect, env=env)
 
     if isinstance(var, pgast.TupleVar):
@@ -452,7 +451,7 @@ def get_rvar_path_var(
         # Range is another query.
         outvar = get_path_output(rvar.query, path_id, aspect=aspect, env=env)
 
-    return dbobj.get_rvar_var(rvar, outvar)
+    return astutils.get_rvar_var(rvar, outvar)
 
 
 def put_rvar_path_output(
@@ -797,7 +796,7 @@ def _get_path_output(
 
     else:
         if astutils.is_set_op_query(rel):
-            result = dbobj.strip_output_var(ref)
+            result = astutils.strip_output_var(ref)
         else:
             if alias is None:
                 alias = get_path_output_alias(path_id, aspect, env=env)

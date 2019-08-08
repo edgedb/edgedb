@@ -42,7 +42,6 @@ from edb.pgsql import types as pg_types
 from . import astutils
 from . import clauses
 from . import context
-from . import dbobj
 from . import dispatch
 from . import pathctx
 from . import relctx
@@ -76,9 +75,13 @@ def init_dml_stmt(
 
     target_ir_set = ir_stmt.subject
 
-    dml_stmt.relation = dbobj.range_for_set(
-        ir_stmt.subject, include_overlays=False,
-        common_parent=True, env=ctx.env)
+    dml_stmt.relation = relctx.range_for_typeref(
+        ir_stmt.subject.typeref,
+        ir_stmt.subject.path_id,
+        include_overlays=False,
+        common_parent=True,
+        ctx=ctx,
+    )
     pathctx.put_path_value_rvar(
         dml_stmt, target_ir_set.path_id, dml_stmt.relation, env=ctx.env)
     pathctx.put_path_source_rvar(
@@ -162,17 +165,33 @@ def fini_dml_stmt(
     # Record the effect of this insertion in the relation overlay
     # context to ensure that the RETURNING clause potentially
     # referencing this class yields the expected results.
+    dml_stack = get_dml_stmt_stack(ir_stmt, ctx=ctx)
     if isinstance(ir_stmt, irast.InsertStmt):
-        dbobj.add_rel_overlay(
-            str(ir_stmt.subject.typeref.id), 'union', dml_cte, env=ctx.env)
+        relctx.add_type_rel_overlay(
+            ir_stmt.subject.typeref, 'union', dml_cte,
+            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
     elif isinstance(ir_stmt, irast.DeleteStmt):
-        dbobj.add_rel_overlay(
-            str(ir_stmt.subject.typeref.id), 'except', dml_cte, env=ctx.env)
+        relctx.add_type_rel_overlay(
+            ir_stmt.subject.typeref, 'except', dml_cte,
+            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
     clauses.compile_output(ir_stmt.result, ctx=ctx)
     clauses.fini_stmt(wrapper, ctx, parent_ctx)
 
     return wrapper
+
+
+def get_dml_stmt_stack(
+        ir_stmt: irast.MutatingStmt, *,
+        ctx: context.CompilerContextLevel) -> typing.List[irast.MutatingStmt]:
+    stack = []
+    stmt = ir_stmt
+    while stmt is not None:
+        if isinstance(stmt, irast.MutatingStmt):
+            stack.append(stmt)
+        stmt = stmt.parent_stmt
+
+    return stack
 
 
 def get_dml_range(
@@ -282,7 +301,7 @@ def process_insert_body(
                 name=ctx.env.aliases.get('iter')
             )
             ictx.toplevel_stmt.ctes.append(iterator_cte)
-        iterator_rvar = dbobj.rvar_for_rel(iterator_cte, env=ctx.env)
+        iterator_rvar = relctx.rvar_for_rel(iterator_cte, ctx=ctx)
         relctx.include_rvar(select, iterator_rvar,
                             path_id=ictx.rel.path_id, ctx=ctx)
         iterator_id = pathctx.get_path_identity_var(
@@ -599,8 +618,8 @@ def process_link_update(
     else:
         mptrref = ptrref
 
-    target_rvar = dbobj.range_for_ptrref(
-        mptrref, include_overlays=False, only_self=True, env=ctx.env)
+    target_rvar = relctx.range_for_ptrref(
+        mptrref, include_overlays=False, only_self=True, ctx=ctx)
     target_alias = target_rvar.alias.aliasname
 
     target_tab_name = (target_rvar.relation.schemaname,
@@ -647,10 +666,11 @@ def process_link_update(
             delcte.query, path_id.ptr_path(), target_rvar, env=ctx.env)
 
         # Record the effect of this removal in the relation overlay
-        # context to ensure that the RETURNING clause potentially
-        # referencing this link yields the expected results.
-        overlays = ctx.env.rel_overlays[ptrref.shortname]
-        overlays.append(('except', delcte))
+        # context to ensure that references to the link in the result
+        # of this DML statement yield the expected results.
+        dml_stack = get_dml_stmt_stack(ir_stmt, ctx=ctx)
+        relctx.add_ptr_rel_overlay(
+            ptrref, 'except', delcte, dml_stmts=dml_stack, ctx=ctx)
         toplevel.ctes.append(delcte)
 
     # Turn the IR of the expression on the right side of :=
@@ -742,11 +762,11 @@ def process_link_update(
         updcte.query, path_id.ptr_path(), target_rvar, env=ctx.env)
 
     # Record the effect of this insertion in the relation overlay
-    # context to ensure that the RETURNING clause potentially
-    # referencing this link yields the expected results.
-    overlays = ctx.env.rel_overlays[ptrref.shortname]
-    overlays.append(('union', updcte))
-
+    # context to ensure that references to the link in the result
+    # of this DML statement yield the expected results.
+    dml_stack = get_dml_stmt_stack(ir_stmt, ctx=ctx)
+    relctx.add_ptr_rel_overlay(
+        ptrref, 'union', updcte, dml_stmts=dml_stack, ctx=ctx)
     toplevel.ctes.append(updcte)
 
     return data_cte
@@ -775,8 +795,8 @@ def process_linkprop_update(
     if ptrref.material_ptr:
         ptrref = ptrref.material_ptr
 
-    target_tab = dbobj.range_for_ptrref(
-        ptrref, include_overlays=False, env=ctx.env)
+    target_tab = relctx.range_for_ptrref(
+        ptrref, include_overlays=False, ctx=ctx)
 
     dml_cte_rvar = pgast.RangeVar(
         relation=dml_cte,
@@ -788,7 +808,7 @@ def process_linkprop_update(
     cond = astutils.new_binop(
         pathctx.get_rvar_path_identity_var(
             dml_cte_rvar, ir_stmt.subject.path_id, env=ctx.env),
-        dbobj.get_column(target_tab, 'source', nullable=False),
+        astutils.get_column(target_tab, 'source', nullable=False),
         op='=',
     )
 
@@ -853,8 +873,8 @@ def process_link_values(
         subrelctx.path_scope[ir_stmt.subject.path_id] = row_query
 
         if iterator_cte is not None:
-            iterator_rvar = dbobj.rvar_for_rel(
-                iterator_cte, lateral=True, env=subrelctx.env)
+            iterator_rvar = relctx.rvar_for_rel(
+                iterator_cte, lateral=True, ctx=subrelctx)
             relctx.include_rvar(row_query, iterator_rvar,
                                 path_id=iterator_cte.query.path_id,
                                 ctx=subrelctx)

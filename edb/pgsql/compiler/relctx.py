@@ -27,13 +27,14 @@ from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.schema import pointers as s_pointers
+from edb.schema import name as sn
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import common
 from edb.pgsql import types as pg_types
 
 from . import astutils
 from . import context
-from . import dbobj
 from . import pathctx
 
 
@@ -300,7 +301,7 @@ def new_empty_rvar(
         ir_set: irast.EmptySet, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     nullrel = pgast.NullRelation(path_id=ir_set.path_id)
-    rvar = dbobj.rvar_for_rel(nullrel, env=ctx.env)
+    rvar = rvar_for_rel(nullrel, ctx=ctx)
     pathctx.put_rvar_path_bond(rvar, ir_set.path_id)
     rvar.value_scope.add(ir_set.path_id)
     return rvar
@@ -315,7 +316,9 @@ def new_root_rvar(
     if typeref is None:
         typeref = ir_set.typeref
 
-    set_rvar = dbobj.range_for_typeref(typeref, ir_set.path_id, env=ctx.env)
+    dml_source = irutils.get_nearest_dml_stmt(ir_set)
+    set_rvar = range_for_typeref(
+        typeref, ir_set.path_id, dml_source=dml_source, ctx=ctx)
     pathctx.put_rvar_path_bond(set_rvar, ir_set.path_id)
     set_rvar.value_scope.add(ir_set.path_id)
 
@@ -386,7 +389,7 @@ def _new_inline_pointer_rvar(
         src_rvar: pgast.BaseRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     ptr_rel = pgast.SelectStmt()
-    ptr_rvar = dbobj.rvar_for_rel(ptr_rel, lateral=lateral, env=ctx.env)
+    ptr_rvar = rvar_for_rel(ptr_rel, lateral=lateral, ctx=ctx)
     ptr_rvar.query.path_id = ir_ptr.target.path_id.ptr_path()
 
     is_inbound = ir_ptr.direction == s_pointers.PointerDirection.Inbound
@@ -409,7 +412,8 @@ def _new_mapped_pointer_rvar(
         ir_ptr: irast.Pointer, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
     ptrref = ir_ptr.ptrref
-    ptr_rvar = dbobj.range_for_pointer(ir_ptr, env=ctx.env)
+    dml_source = irutils.get_nearest_dml_stmt(ir_ptr.source)
+    ptr_rvar = range_for_pointer(ir_ptr, dml_source=dml_source, ctx=ctx)
     src_col = 'source'
 
     source_ref = pgast.ColumnRef(name=[src_col], nullable=False)
@@ -462,7 +466,7 @@ def new_rel_rvar(
     if irutils.is_scalar_view_set(ir_set):
         ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
 
-    return dbobj.rvar_for_rel(stmt, lateral=lateral, env=ctx.env)
+    return rvar_for_rel(stmt, lateral=lateral, ctx=ctx)
 
 
 def semi_join(
@@ -644,3 +648,365 @@ def rel_join(
 
         query.from_clause[0] = pgast.JoinExpr(
             type=join_type, larg=larg, rarg=rarg, quals=condition)
+
+
+def range_for_material_objtype(
+        typeref: irast.TypeRef,
+        path_id: irast.PathId, *,
+        include_overlays: bool=True,
+        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+
+    env = ctx.env
+
+    if typeref.material_type is not None:
+        typeref = typeref.material_type
+
+    table_schema_name, table_name = common.get_objtype_backend_name(
+        typeref.id, typeref.module_id, catenate=False)
+
+    if typeref.name_hint.module in {'schema', 'cfg', 'sys'}:
+        # Redirect all queries to schema tables to edgedbss
+        table_schema_name = 'edgedbss'
+
+    relation = pgast.Relation(
+        schemaname=table_schema_name,
+        name=table_name,
+        path_id=path_id,
+    )
+
+    rvar = pgast.RangeVar(
+        relation=relation,
+        alias=pgast.Alias(
+            aliasname=env.aliases.get(typeref.name_hint.name)
+        )
+    )
+
+    overlays = get_type_rel_overlays(typeref, dml_source=dml_source, ctx=ctx)
+    if overlays and include_overlays:
+        set_ops = []
+
+        qry = pgast.SelectStmt()
+        qry.from_clause.append(rvar)
+        pathctx.put_path_value_rvar(qry, path_id, rvar, env=env)
+        if path_id.is_objtype_path():
+            pathctx.put_path_source_rvar(qry, path_id, rvar, env=env)
+        pathctx.put_path_bond(qry, path_id)
+
+        set_ops.append(('union', qry))
+
+        for op, cte, cte_path_id in overlays:
+            rvar = pgast.RangeVar(
+                relation=cte,
+                alias=pgast.Alias(
+                    aliasname=env.aliases.get(hint=cte.name)
+                )
+            )
+
+            qry = pgast.SelectStmt(
+                from_clause=[rvar],
+            )
+
+            pathctx.put_path_value_rvar(qry, cte_path_id, rvar, env=env)
+            if path_id.is_objtype_path():
+                pathctx.put_path_source_rvar(qry, cte_path_id, rvar, env=env)
+            pathctx.put_path_bond(qry, cte_path_id)
+
+            qry.view_path_id_map[path_id] = cte_path_id
+
+            qry_rvar = pgast.RangeSubselect(
+                subquery=qry,
+                alias=pgast.Alias(
+                    aliasname=env.aliases.get(hint=cte.name)
+                )
+            )
+
+            qry2 = pgast.SelectStmt(
+                from_clause=[qry_rvar]
+            )
+            pathctx.put_path_value_rvar(qry2, path_id, qry_rvar, env=env)
+            if path_id.is_objtype_path():
+                pathctx.put_path_source_rvar(qry2, path_id, qry_rvar, env=env)
+            pathctx.put_path_bond(qry2, path_id)
+
+            if op == 'replace':
+                op = 'union'
+                set_ops = []
+            set_ops.append((op, qry2))
+
+        rvar = range_from_queryset(set_ops, typeref.name_hint, ctx=ctx)
+
+    return rvar
+
+
+def range_for_typeref(
+        typeref: irast.TypeRef,
+        path_id: irast.PathId, *,
+        include_overlays: bool=True,
+        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        common_parent: bool=False,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+
+    if not typeref.children:
+        rvar = range_for_material_objtype(
+            typeref,
+            path_id,
+            include_overlays=include_overlays,
+            dml_source=dml_source,
+            ctx=ctx,
+        )
+    elif common_parent:
+        rvar = range_for_material_objtype(
+            typeref.common_parent,
+            path_id,
+            include_overlays=include_overlays,
+            dml_source=dml_source,
+            ctx=ctx,
+        )
+    else:
+        # Union object types are represented as a UNION of selects
+        # from their children, which is, for most purposes, equivalent
+        # to SELECTing from a parent table.
+        set_ops = []
+
+        for child in typeref.children:
+            c_rvar = range_for_typeref(
+                child,
+                path_id=path_id,
+                include_overlays=include_overlays,
+                dml_source=dml_source,
+                ctx=ctx,
+            )
+
+            qry = pgast.SelectStmt(
+                from_clause=[c_rvar],
+            )
+
+            pathctx.put_path_value_rvar(qry, path_id, c_rvar, env=ctx.env)
+            if path_id.is_objtype_path():
+                pathctx.put_path_source_rvar(qry, path_id, c_rvar, env=ctx.env)
+
+            pathctx.put_path_bond(qry, path_id)
+
+            set_ops.append(('union', qry))
+
+        rvar = range_from_queryset(set_ops, typeref.name_hint, ctx=ctx)
+
+    rvar.query.path_id = path_id
+
+    return rvar
+
+
+def range_from_queryset(
+        set_ops: typing.Sequence[typing.Tuple[str, pgast.BaseRelation]],
+        objname: sn.Name, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    if len(set_ops) > 1:
+        # More than one class table, generate a UNION/EXCEPT clause.
+        qry = pgast.SelectStmt(
+            all=True,
+            larg=set_ops[0][1]
+        )
+
+        for op, rarg in set_ops[1:]:
+            qry.op, qry.rarg = op, rarg
+            qry = pgast.SelectStmt(
+                all=True,
+                larg=qry
+            )
+
+        qry = qry.larg
+
+        rvar = pgast.RangeSubselect(
+            subquery=qry,
+            alias=pgast.Alias(
+                aliasname=ctx.env.aliases.get(objname.name),
+            )
+        )
+
+    else:
+        # Just one class table, so return it directly
+        rvar = set_ops[0][1].from_clause[0]
+
+    return rvar
+
+
+def table_from_ptrref(
+        ptrref: irast.PointerRef, *,
+        ctx: context.CompilerContextLevel) -> pgast.RangeVar:
+    """Return a Table corresponding to a given Link."""
+    table_schema_name, table_name = common.get_pointer_backend_name(
+        ptrref.id, ptrref.module_id, catenate=False)
+
+    if ptrref.name.module in {'schema', 'cfg', 'sys'}:
+        # Redirect all queries to schema tables to edgedbss
+        table_schema_name = 'edgedbss'
+
+    relation = pgast.Relation(
+        schemaname=table_schema_name, name=table_name)
+
+    rvar = pgast.RangeVar(
+        relation=relation,
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get(ptrref.shortname.name)
+        )
+    )
+
+    return rvar
+
+
+def range_for_ptrref(
+        ptrref: irast.BasePointerRef, *,
+        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        include_overlays: bool=True,
+        only_self: bool=False,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    """"Return a Range subclass corresponding to a given ptr step.
+
+    The return value may potentially be a UNION of all tables
+    corresponding to a set of specialized links computed from the given
+    `ptrref` taking source inheritance into account.
+    """
+    tgt_col = pg_types.get_ptrref_storage_info(
+        ptrref, resolve_type=False, link_bias=True).column_name
+
+    cols = [
+        'source',
+        tgt_col
+    ]
+
+    set_ops = []
+
+    if only_self:
+        refs = {ptrref}
+    else:
+        if ptrref.union_components:
+            refs = ptrref.union_components
+        else:
+            refs = {ptrref} | ptrref.descendants
+
+    for src_ptrref in refs:
+        table = table_from_ptrref(src_ptrref, ctx=ctx)
+
+        qry = pgast.SelectStmt()
+        qry.from_clause.append(table)
+        qry.rptr_rvar = table
+
+        # Make sure all property references are pulled up properly
+        for colname in cols:
+            selexpr = pgast.ColumnRef(
+                name=[table.alias.aliasname, colname])
+            qry.target_list.append(
+                pgast.ResTarget(val=selexpr, name=colname))
+
+        set_ops.append(('union', qry))
+
+        overlays = get_ptr_rel_overlays(
+            src_ptrref, dml_source=dml_source, ctx=ctx)
+        if overlays and include_overlays:
+            for op, cte in overlays:
+                rvar = pgast.RangeVar(
+                    relation=cte,
+                    alias=pgast.Alias(
+                        aliasname=ctx.env.aliases.get(cte.name)
+                    )
+                )
+
+                qry = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            val=pgast.ColumnRef(
+                                name=[col]
+                            )
+                        )
+                        for col in cols
+                    ],
+                    from_clause=[rvar],
+                )
+                set_ops.append((op, qry))
+
+    rvar = range_from_queryset(set_ops, ptrref.shortname, ctx=ctx)
+    return rvar
+
+
+def range_for_pointer(
+        pointer: irast.Pointer, *,
+        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    ptrref = pointer.ptrref
+    if ptrref.derived_from_ptr is not None:
+        ptrref = ptrref.derived_from_ptr
+
+    return range_for_ptrref(ptrref, dml_source=dml_source, ctx=ctx)
+
+
+def rvar_for_rel(
+        rel: pgast.BaseRelation, *,
+        lateral: bool=False, colnames: typing.List[str]=[],
+        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+    if isinstance(rel, pgast.Query):
+        alias = ctx.env.aliases.get(rel.name or 'q')
+
+        rvar = pgast.RangeSubselect(
+            subquery=rel,
+            alias=pgast.Alias(aliasname=alias, colnames=colnames),
+            lateral=lateral,
+        )
+    else:
+        alias = ctx.env.aliases.get(rel.name)
+
+        rvar = pgast.RangeVar(
+            relation=rel,
+            alias=pgast.Alias(aliasname=alias, colnames=colnames)
+        )
+
+    return rvar
+
+
+def add_type_rel_overlay(
+        typeref: irast.TypeRef, op: str, rel: pgast.BaseRelation, *,
+        dml_stmts: typing.Iterable[irast.MutatingStmt] = (),
+        path_id: irast.PathId,
+        ctx: context.CompilerContextLevel) -> None:
+    if typeref.material_type is not None:
+        typeref = typeref.material_type
+    typeid = str(typeref.id)
+    if dml_stmts:
+        for dml_stmt in dml_stmts:
+            overlays = ctx.rel_overlays[typeid, dml_stmt]
+            overlays.append((op, rel, path_id))
+    else:
+        overlays = ctx.rel_overlays[typeid, None]
+        overlays.append((op, rel, path_id))
+
+
+def get_type_rel_overlays(
+        typeref: irast.TypeRef, *,
+        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        ctx: context.CompilerContextLevel):
+    if typeref.material_type is not None:
+        typeref = typeref.material_type
+
+    return ctx.rel_overlays.get((str(typeref.id), dml_source))
+
+
+def add_ptr_rel_overlay(
+        ptrref: irast.PointerRef, op: str, rel: pgast.BaseRelation, *,
+        dml_stmts: typing.Iterable[irast.MutatingStmt] = (),
+        ctx: context.CompilerContextLevel) -> None:
+
+    if dml_stmts:
+        for dml_stmt in dml_stmts:
+            overlays = ctx.rel_overlays[ptrref.shortname, dml_stmt]
+            overlays.append((op, rel))
+    else:
+        overlays = ctx.rel_overlays[ptrref.shortname, None]
+        overlays.append((op, rel))
+
+
+def get_ptr_rel_overlays(
+        ptrref: irast.PointerRef, *,
+        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        ctx: context.CompilerContextLevel):
+
+    return ctx.rel_overlays.get((ptrref.shortname, dml_source))
