@@ -1084,37 +1084,53 @@ class GraphQLTranslator:
                 for psteps in self._context.path
                 for step in psteps]
 
-        # if the last step is of the form (None, GQLShadowType), then
-        # we don't want any prefix, because we'll use partial paths
-        if (path[-1].name is None and
-                isinstance(path[-1].type, gt.GQLShadowType)):
-            return []
-
         # find the first shadowed root
-        prev_base = None
+        prev_step = None
+        base_step = None
+        base_i = 0
         for i, step in enumerate(path):
-            base = step.type
+            cur = step.type
 
             # if the field is specifically shadowed, then this is
             # appropriate shadow base
-            if (prev_base is not None and
-                    prev_base.is_field_shadowed(step.name)):
-                base = prev_base
+            if base_step is None:
+                if (prev_step is not None and
+                        prev_step.type.is_field_shadowed(step.name)):
+                    base_step = prev_step
+                    base_i = i
+                    break
+
+                # otherwise the base must be shadowing an entire type
+                elif isinstance(cur, gt.GQLShadowType):
+                    base_step = step
+                    base_i = i
+
+            # we have a base, but we might find out that we need to
+            # override it with a partial path
+            elif step.name is None and isinstance(cur, gt.GQLShadowType):
+                base_step = None
+                base_i = i
                 break
 
-            # otherwise the base must be shadowing an entire type
-            elif isinstance(base, gt.GQLShadowType):
-                break
-
-            prev_base = base
+            prev_step = step
+        else:
+            # we got to the end of the list without hitting other
+            # conditions, so that's the base
+            if base_step is None:
+                base_step = step
+                base_i = i
 
         # trim the rest of the path
-        path = path[i + 1:end_trim]
-        # the root may be aliased
-        if step.eql_alias:
-            prefix = [qlast.ObjectRef(name=step.eql_alias)]
+        path = path[base_i + 1:end_trim]
+        if base_step is None:
+            # if the base_step is of the form (None, GQLShadowType), then
+            # we don't want any prefix, because we'll use partial paths
+            prefix = []
+        elif base_step.eql_alias:
+            # the root may be aliased
+            prefix = [qlast.ObjectRef(name=base_step.eql_alias)]
         else:
-            prefix = [base.edb_base_name_ast]
+            prefix = [base_step.type.edb_base_name_ast]
         prefix.extend(
             qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
             for step in path
@@ -1157,8 +1173,11 @@ class GraphQLTranslator:
 
         name = self.get_path_prefix()
         name.append(qlast.Ptr(ptr=qlast.ObjectRef(name=fname)))
-        # paths of length 1 are partial
-        name = qlast.Path(steps=name, partial=len(name) == 1)
+        name = qlast.Path(
+            steps=name,
+            # paths that start with a Ptr are partial
+            partial=isinstance(name[0], qlast.Ptr),
+        )
 
         ftype = target.get_field_type(fname)
         typename = ftype.name
@@ -1174,7 +1193,13 @@ class GraphQLTranslator:
 
         self._context.base_expr = name
 
+        # insert current field in path
+        path = self._context.path[-1]
+        path.append(Step(name=fname, type=ftype, eql_alias=None))
         value = self.visit(node.value)
+        # pop the path
+        path.pop()
+
         # we need to cast a target string into <uuid> or enum
         if typename == 'std::uuid' and not isinstance(
                 value.right, qlast.TypeCast):

@@ -377,7 +377,6 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             }
         """
 
-        # nested results aren't fetching correctly
         self.assert_graphql_query_result(r"""
             mutation insert_UserGroup {
                 insert_UserGroup(
@@ -392,12 +391,14 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     }]
                 ) {
                     name
+                    settings {
+                        name
+                        value
+                    }
                 }
             }
         """, {
-            "insert_UserGroup": [{
-                'name': data['name']
-            }]
+            "insert_UserGroup": [data]
         })
 
         self.assert_graphql_query_result(validation_query, {
@@ -571,10 +572,14 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     }}]
                 ) {{
                     name
+                    settings(order: {{name: {{dir: ASC}}}}) {{
+                        name
+                        value
+                    }}
                 }}
             }}
         """, {
-            "insert_UserGroup": [{'name': data['name']}]
+            "insert_UserGroup": [data]
         })
 
         self.assert_graphql_query_result(validation_query, {
@@ -600,10 +605,10 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "UserGroup": []
         })
 
-    def test_graphql_mutation_insert_nested_05(self):
+    def test_graphql_mutation_insert_nested_04(self):
         # Test nested insert for a singular link.
         data = {
-            "name": "New User05",
+            "name": "New User04",
             "age": 99,
             "score": 99.99,
             "profile": {
@@ -614,7 +619,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
 
         validation_query = r"""
             query {
-                User(filter: {name: {eq: "New User05"}}) {
+                User(filter: {name: {eq: "New User04"}}) {
                     name
                     age
                     score
@@ -626,12 +631,11 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             }
         """
 
-        # nested results aren't fetching correctly
         self.assert_graphql_query_result(r"""
             mutation insert_User {
                 insert_User(
                     data: [{
-                        name: "New User05",
+                        name: "New User04",
                         active: false,
                         age: 99,
                         score: 99.99,
@@ -644,12 +648,107 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     }]
                 ) {
                     name
+                    age
+                    score
+                    profile {
+                        name
+                        value
+                    }
                 }
             }
         """, {
-            "insert_User": [{
-                'name': data['name']
-            }]
+            "insert_User": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "User": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_User {
+                delete_User(filter: {name: {eq: "New User04"}}) {
+                    name
+                    age
+                    score
+                    profile {
+                        name
+                        value
+                    }
+                }
+            }
+        """, {
+            "delete_User": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "User": []
+        })
+
+    def test_graphql_mutation_insert_nested_05(self):
+        # Test nested insert for a singular link.
+        profile = self.graphql_query(r"""
+            query {
+                Profile(filter: {
+                    name: {eq: "Alice profile"}
+                }) {
+                    id
+                    name
+                    value
+                }
+            }
+        """)['Profile'][0]
+
+        data = {
+            "name": "New User05",
+            "age": 99,
+            "score": 99.99,
+            "profile": profile
+        }
+
+        validation_query = r"""
+            query {
+                User(filter: {name: {eq: "New User05"}}) {
+                    name
+                    age
+                    score
+                    profile {
+                        id
+                        name
+                        value
+                    }
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(rf"""
+            mutation insert_User {{
+                insert_User(
+                    data: [{{
+                        name: "New User05",
+                        active: false,
+                        age: 99,
+                        score: 99.99,
+                        profile: {{
+                            filter: {{
+                                id: {{eq: "{profile['id']}"}}
+                            }},
+                            first: 1
+                        }},
+                    }}]
+                ) {{
+                    name
+                    age
+                    score
+                    profile {{
+                        id
+                        name
+                        value
+                    }}
+                }}
+            }}
+        """, {
+            "insert_User": [data]
         })
 
         self.assert_graphql_query_result(validation_query, {
@@ -663,6 +762,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     age
                     score
                     profile {
+                        id
                         name
                         value
                     }
@@ -678,34 +778,22 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         })
 
     def test_graphql_mutation_insert_nested_06(self):
-        # Test nested insert for a singular link.
-        profile = self.graphql_query(r"""
-            query {
-                Profile(filter: {
-                    name: {eq: "Alice profile"}
-                }) {
-                    id
-                    name
-                    value
-                }
-            }
-        """)['Profile'][0]
-
+        # Test delete based on nested field.
         data = {
-            "name": "New User06",
-            "age": 99,
-            "score": 99.99,
-            "profile": profile
+            'name': 'New UserGroup06',
+            'settings': [{
+                'name': 'setting06',
+                'value': 'aardvark06',
+            }],
         }
 
         validation_query = r"""
             query {
-                User(filter: {name: {eq: "New User06"}}) {
+                UserGroup(
+                    filter: {settings: {name: {eq: "setting06"}}}
+                ) {
                     name
-                    age
-                    score
-                    profile {
-                        id
+                    settings {
                         name
                         value
                     }
@@ -713,30 +801,145 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             }
         """
 
-        # nested results aren't fetching correctly
-        self.assert_graphql_query_result(rf"""
-            mutation insert_User {{
-                insert_User(
-                    data: [{{
-                        name: "New User06",
-                        active: false,
-                        age: 99,
-                        score: 99.99,
-                        profile: {{
-                            filter: {{
-                                id: {{eq: "{profile['id']}"}}
-                            }},
-                            first: 1
-                        }},
-                    }}]
-                ) {{
+        self.assert_graphql_query_result(r"""
+            mutation insert_UserGroup {
+                insert_UserGroup(
+                    data: [{
+                        name: "New UserGroup06",
+                        settings: [{
+                            data: {
+                                name: "setting06",
+                                value: "aardvark06"
+                            }
+                        }],
+                    }]
+                ) {
                     name
-                }}
-            }}
+                    settings {
+                        name
+                        value
+                    }
+                }
+            }
         """, {
-            "insert_User": [{
-                'name': data['name']
+            "insert_UserGroup": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "UserGroup": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_UserGroup {
+                delete_UserGroup(
+                    filter: {settings: {name: {eq: "setting06"}}}
+                ) {
+                    name
+                    settings {
+                        name
+                        value
+                    }
+                }
+            }
+        """, {
+            "delete_UserGroup": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "UserGroup": []
+        })
+
+    def test_graphql_mutation_insert_nested_07(self):
+        # Test insert with nested object filter.
+        data = {
+            "name": "New User07",
+            "age": 33,
+            "score": 33.33,
+            "groups": [{
+                'name': 'New UserGroup07',
+                'settings': [{
+                    'name': 'setting07',
+                    'value': 'aardvark07',
+                }],
             }]
+        }
+
+        validation_query = r"""
+            query {
+                User(
+                    filter: {groups: {settings: {name: {eq: "setting07"}}}}
+                ) {
+                    name
+                    age
+                    score
+                    groups {
+                        name
+                        settings {
+                            name
+                            value
+                        }
+                    }
+                }
+            }
+        """
+
+        # insert the user groups first
+        self.assert_graphql_query_result(r"""
+            mutation insert_UserGroup {
+                insert_UserGroup(
+                    data: [{
+                        name: "New UserGroup07",
+                        settings: [{
+                            data: {
+                                name: "setting07",
+                                value: "aardvark07"
+                            }
+                        }],
+                    }]
+                ) {
+                    name
+                    settings {
+                        name
+                        value
+                    }
+                }
+            }
+        """, {
+            "insert_UserGroup": [data['groups'][0]]
+        })
+
+        # insert the User
+        self.assert_graphql_query_result(r"""
+            mutation insert_User {
+                insert_User(
+                    data: [{
+                        name: "New User07",
+                        active: true,
+                        age: 33,
+                        score: 33.33,
+                        groups: {
+                            filter: {
+                                settings: {name: {eq: "setting07"}}
+                            },
+                            first: 1
+                        },
+                    }]
+                ) {
+                    name
+                    age
+                    score
+                    groups {
+                        name
+                        settings {
+                            name
+                            value
+                        }
+                    }
+                }
+            }
+        """, {
+            "insert_User": [data]
         })
 
         self.assert_graphql_query_result(validation_query, {
@@ -745,14 +948,18 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
 
         self.assert_graphql_query_result(r"""
             mutation delete_User {
-                delete_User(filter: {name: {eq: "New User06"}}) {
+                delete_User(
+                    filter: {groups: {settings: {name: {eq: "setting07"}}}}
+                ) {
                     name
                     age
                     score
-                    profile {
-                        id
+                    groups {
                         name
-                        value
+                        settings {
+                            name
+                            value
+                        }
                     }
                 }
             }
@@ -763,6 +970,23 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         # validate that the deletion worked
         self.assert_graphql_query_result(validation_query, {
             "User": []
+        })
+
+        # cleanup
+        self.assert_graphql_query_result(r"""
+            mutation delete_UserGroup {
+                delete_UserGroup(
+                    filter: {settings: {name: {eq: "setting07"}}}
+                ) {
+                    name
+                    settings {
+                        name
+                        value
+                    }
+                }
+            }
+        """, {
+            "delete_UserGroup": data['groups']
         })
 
     def test_graphql_mutation_update_scalars_01(self):
@@ -1217,6 +1441,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         })
 
     def test_graphql_mutation_update_link_02(self):
+        # test fancy filters for updates
         orig_data = {
             'name': 'John',
             'groups': [{
@@ -1258,7 +1483,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         groups: [{
                             set: {
                                 filter: {
-                                    name: {eq: "upgraded"}
+                                    settings: {name: {eq: "template"}}
                                 }
                             }
                         }, {

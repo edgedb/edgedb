@@ -347,14 +347,15 @@ class GQLCoreSchema:
 
         return fields
 
-    def get_filter_fields(self, typename):
+    def get_filter_fields(self, typename, nested=False):
         selftype = self._gql_inobjtypes[typename]
         fields = OrderedDict()
-        fields['and'] = GraphQLInputObjectField(
-            GraphQLList(GraphQLNonNull(selftype)))
-        fields['or'] = GraphQLInputObjectField(
-            GraphQLList(GraphQLNonNull(selftype)))
-        fields['not'] = GraphQLInputObjectField(selftype)
+        if not nested:
+            fields['and'] = GraphQLInputObjectField(
+                GraphQLList(GraphQLNonNull(selftype)))
+            fields['or'] = GraphQLInputObjectField(
+                GraphQLList(GraphQLNonNull(selftype)))
+            fields['not'] = GraphQLInputObjectField(selftype)
 
         edb_type = self.edb_schema.get(typename)
         pointers = edb_type.get_pointers(self.edb_schema)
@@ -371,15 +372,31 @@ class GQLCoreSchema:
             ptr = edb_type.getptr(self.edb_schema, name)
             edb_target = ptr.get_target(self.edb_schema)
 
-            if not isinstance(edb_target, s_scalars.ScalarType):
+            if isinstance(edb_target, s_objtypes.ObjectType):
+                t_name = edb_target.get_name(self.edb_schema)
+                gql_name = self.get_input_name(
+                    'NestedFilter', self.get_gql_name(t_name))
+
+                intype = self._gql_inobjtypes.get(gql_name)
+                if intype is None:
+                    # construct a nested insert type
+                    intype = GraphQLInputObjectType(
+                        name=gql_name,
+                        fields=partial(self.get_filter_fields, t_name, True),
+                    )
+                    self._gql_inobjtypes[gql_name] = intype
+
+            elif not isinstance(edb_target, s_scalars.ScalarType):
                 continue
 
-            target = self._convert_edb_type(edb_target)
-            if target is None:
-                # don't expose this
-                continue
+            else:
+                target = self._convert_edb_type(edb_target)
+                if target is None:
+                    # don't expose this
+                    continue
 
-            intype = self._gql_inobjtypes.get(f'Filter{target.name}')
+                intype = self._gql_inobjtypes.get(f'Filter{target.name}')
+
             if intype:
                 fields[name] = GraphQLInputObjectField(intype)
 

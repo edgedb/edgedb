@@ -465,6 +465,30 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_functional_query_16(self):
+        # test filtering by nested object
+        self.assert_graphql_query_result(r"""
+            query {
+                User(filter: {groups: {name: {eq: "basic"}}}) {
+                    name
+                    age
+                    groups {
+                        id
+                        name
+                    }
+                }
+            }
+        """, {
+            'User': [{
+                'name': 'John',
+                'age': 25,
+                'groups': [{
+                    'id': uuid.UUID,
+                    'name': 'basic',
+                }]
+            }],
+        })
+
     def test_graphql_functional_view_01(self):
         self.assert_graphql_query_result(
             r"""
@@ -4433,6 +4457,14 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         }
                     },
                     {
+                        "name": "groups",
+                        "type": {
+                            "kind": "INPUT_OBJECT",
+                            "name": "NestedFilterUserGroup",
+                            "ofType": None
+                        }
+                    },
+                    {
                         "name": "id",
                         "type": {
                             "name": "FilterID",
@@ -4470,6 +4502,14 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                                     "ofType": None
                                 }
                             }
+                        }
+                    },
+                    {
+                        "name": "profile",
+                        "type": {
+                            "kind": "INPUT_OBJECT",
+                            "name": "NestedFilterProfile",
+                            "ofType": None
                         }
                     },
                     {
