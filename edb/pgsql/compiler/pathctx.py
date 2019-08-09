@@ -827,9 +827,17 @@ def _get_path_output(
                 name=[alias], nullable=nullable, optional=optional)
 
     _put_path_output_var(rel, path_id, aspect, result, env=env)
-    if (aspect == 'identity' and path_id.is_objtype_path()
-            and (path_id, 'value') not in rel.path_outputs):
-        _put_path_output_var(rel, path_id, 'value', result, env=env)
+    if path_id.is_objtype_path() and not isinstance(result, pgast.TupleVar):
+        if aspect == 'identity':
+            equiv_aspect = 'value'
+        elif aspect == 'value':
+            equiv_aspect = 'identity'
+        else:
+            equiv_aspect = None
+
+        if (equiv_aspect is not None
+                and (path_id, equiv_aspect) not in rel.path_outputs):
+            _put_path_output_var(rel, path_id, equiv_aspect, result, env=env)
 
     return result
 

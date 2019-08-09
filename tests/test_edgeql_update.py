@@ -24,7 +24,6 @@ import uuid
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestUpdate(tb.QueryTestCase):
@@ -642,11 +641,6 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        Naive implementation of a += for a link fails.
-
-        edgedb.errors.InternalServerError: list index out of range
-    ''')
     async def test_edgeql_update_multiple_04(self):
         await self.assert_query_result(
             r"""
