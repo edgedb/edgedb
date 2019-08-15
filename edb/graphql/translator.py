@@ -975,6 +975,69 @@ class GraphQLTranslator:
                 else:
                     raise g_errors.GraphQLTranslationError(
                         '"clear" parameter can only take the value of "true"')
+            elif fname == 'increment':
+                return qlast.BinOp(
+                    left=eqlpath,
+                    op='+',
+                    right=self._visit_insert_value(field.value)
+                )
+            elif fname == 'decrement':
+                return qlast.BinOp(
+                    left=eqlpath,
+                    op='-',
+                    right=self._visit_insert_value(field.value)
+                )
+            elif fname == 'prepend':
+                return qlast.BinOp(
+                    left=self._visit_insert_value(field.value),
+                    op='++',
+                    right=eqlpath
+                )
+            elif fname == 'append':
+                return qlast.BinOp(
+                    left=eqlpath,
+                    op='++',
+                    right=self._visit_insert_value(field.value)
+                )
+            elif fname == 'slice':
+                args = field.value.values
+                num_args = len(args)
+                if num_args == 1:
+                    start = self.visit(args[0])
+                    stop = None
+                elif num_args == 2:
+                    start = self.visit(args[0])
+                    stop = self.visit(args[1])
+                else:
+                    raise g_errors.GraphQLTranslationError(
+                        f'"slice" must be a list of 1 or 2 integers')
+
+                return qlast.Indirection(
+                    arg=eqlpath,
+                    indirection=[qlast.Slice(
+                        start=start,
+                        stop=stop
+                    )]
+                )
+            elif fname == 'add':
+                # this is a set
+                newset = self._visit_insert_value(field.value)
+                newset.elements.append(eqlpath)
+                return qlast.UnaryOp(
+                    op='DISTINCT',
+                    operand=newset,
+                )
+            elif fname == 'remove':
+                alias = f'x{self._context.counter}'
+                return qlast.SelectQuery(
+                    result_alias=alias,
+                    result=eqlpath,
+                    where=qlast.BinOp(
+                        left=qlast.Path(steps=[qlast.ObjectRef(name=alias)]),
+                        op='NOT IN',
+                        right=self._visit_insert_value(field.value)
+                    )
+                )
 
     def _visit_insert_arguments(self, arguments):
         input_data = []
@@ -1053,7 +1116,8 @@ class GraphQLTranslator:
 
                 return eql
 
-        elif isinstance(node, gql_ast.ListValue):
+        elif isinstance(node, gql_ast.ListValue) and not target.is_array:
+            # not an actual array, but a set represented as a list
             return qlast.Set(elements=[
                 self._visit_insert_value(el) for el in node.values])
 
@@ -1069,12 +1133,23 @@ class GraphQLTranslator:
                     args=[val]
                 )
             elif target.edb_base_name != 'std::str':
-                return qlast.TypeCast(
+                res = qlast.TypeCast(
                     expr=val,
                     type=qlast.TypeName(
                         maintype=target.edb_base_name_ast
                     )
                 )
+
+                if target.is_array:
+                    res = qlast.TypeCast(
+                        expr=val,
+                        type=qlast.TypeName(
+                            maintype=qlast.ObjectRef(name='array'),
+                            subtypes=[res.type],
+                        )
+                    )
+
+                return res
             else:
                 return val
 

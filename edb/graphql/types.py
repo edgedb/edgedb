@@ -46,7 +46,6 @@ from edb.edgeql import qltypes
 from edb.edgeql import codegen
 from edb.edgeql.parser import parse_fragment
 
-from edb.schema import abc as s_abc
 from edb.schema import modules as s_mod
 from edb.schema import pointers as s_pointers
 from edb.schema import objtypes as s_objtypes
@@ -188,7 +187,7 @@ class GQLCoreSchema:
 
         # only arrays can be validly wrapped, other containers don't
         # produce a valid graphql type
-        if isinstance(edb_target, s_abc.Array):
+        if edb_target.is_array():
             subtype = edb_target.get_subtypes(self.edb_schema)[0]
             if subtype.get_name(self.edb_schema) == 'std::json':
                 # cannot expose arrays of JSON
@@ -201,7 +200,7 @@ class GQLCoreSchema:
             else:
                 target = GraphQLList(GraphQLNonNull(el_type))
 
-        elif isinstance(edb_target, s_objtypes.ObjectType):
+        elif edb_target.is_object_type():
             target = self._gql_interfaces.get(
                 edb_target.get_name(self.edb_schema),
                 self._gql_objtypes.get(edb_target.get_name(self.edb_schema))
@@ -335,8 +334,7 @@ class GQLCoreSchema:
                 ptr = edb_type.getptr(self.edb_schema, name)
                 target = self._get_target(ptr)
                 if target is not None:
-                    if isinstance(ptr.get_target(self.edb_schema),
-                                  s_objtypes.ObjectType):
+                    if ptr.get_target(self.edb_schema).is_object_type():
                         args = self._get_query_args(
                             ptr.get_target(self.edb_schema).get_name(
                                 self.edb_schema))
@@ -372,7 +370,7 @@ class GQLCoreSchema:
             ptr = edb_type.getptr(self.edb_schema, name)
             edb_target = ptr.get_target(self.edb_schema)
 
-            if isinstance(edb_target, s_objtypes.ObjectType):
+            if edb_target.is_object_type():
                 t_name = edb_target.get_name(self.edb_schema)
                 gql_name = self.get_input_name(
                     'NestedFilter', self.get_gql_name(t_name))
@@ -386,7 +384,7 @@ class GQLCoreSchema:
                     )
                     self._gql_inobjtypes[gql_name] = intype
 
-            elif not isinstance(edb_target, s_scalars.ScalarType):
+            elif not edb_target.is_scalar():
                 continue
 
             else:
@@ -415,7 +413,7 @@ class GQLCoreSchema:
             ptr = edb_type.getptr(self.edb_schema, name)
             edb_target = ptr.get_target(self.edb_schema)
 
-            if isinstance(edb_target, s_objtypes.ObjectType):
+            if edb_target.is_object_type():
                 typename = edb_target.get_name(self.edb_schema)
 
                 intype = self._gql_inobjtypes.get(f'NestedInsert{typename}')
@@ -426,13 +424,19 @@ class GQLCoreSchema:
                 intype = self._wrap_target(ptr, intype, for_input=True)
                 fields[name] = GraphQLInputObjectField(intype)
 
-            elif isinstance(edb_target, s_scalars.ScalarType):
+            elif edb_target.is_scalar() or edb_target.is_array():
                 target = self._convert_edb_type(edb_target)
                 if target is None:
                     # don't expose this
                     continue
 
-                intype = self._gql_inobjtypes.get(f'Insert{target.name}')
+                if edb_target.is_array():
+                    intype = self._gql_inobjtypes.get(
+                        f'Insert{target.of_type.of_type.name}')
+                    intype = GraphQLList(GraphQLNonNull(intype))
+                else:
+                    intype = self._gql_inobjtypes.get(f'Insert{target.name}')
+
                 intype = self._wrap_target(ptr, intype, for_input=True)
 
                 if intype:
@@ -456,7 +460,7 @@ class GQLCoreSchema:
             ptr = edb_type.getptr(self.edb_schema, name)
             edb_target = ptr.get_target(self.edb_schema)
 
-            if isinstance(edb_target, s_objtypes.ObjectType):
+            if edb_target.is_object_type():
                 intype = self._gql_inobjtypes.get(
                     f'UpdateOp{typename}__{name}')
                 if intype is None:
@@ -470,17 +474,17 @@ class GQLCoreSchema:
                         intype = self._make_generic_nested_update_type(
                             edb_target)
 
-                    # wrap into additional layer representing update ops
-                    intype = self._make_generic_update_op_type(
-                        ptr, name, edb_type, intype)
                     # depending on whether this is a multilink or not wrap
                     # it in a List
                     intype = self._wrap_target(
                         ptr, intype, ignore_required=True)
+                    # wrap into additional layer representing update ops
+                    intype = self._make_generic_update_op_type(
+                        ptr, name, edb_type, intype)
 
                 fields[name] = GraphQLInputObjectField(intype)
 
-            elif isinstance(edb_target, s_scalars.ScalarType):
+            elif edb_target.is_scalar() or edb_target.is_array():
                 target = self._convert_edb_type(edb_target)
                 if target is None or ptr.get_readonly(self.edb_schema):
                     # don't expose this
@@ -490,9 +494,10 @@ class GQLCoreSchema:
                     f'UpdateOp{typename}__{name}')
                 if intype is None:
                     # construct a nested insert type
+                    target = self._wrap_target(
+                        ptr, target, ignore_required=True)
                     intype = self._make_generic_update_op_type(
                         ptr, name, edb_type, target)
-                intype = self._wrap_target(ptr, intype, ignore_required=True)
 
                 if intype:
                     fields[name] = GraphQLInputObjectField(intype)
@@ -505,13 +510,39 @@ class GQLCoreSchema:
     def _make_generic_update_op_type(self, ptr, fname, edb_base, target):
         typename = edb_base.get_name(self.edb_schema)
         name = f'UpdateOp{typename}__{fname}'
+        edb_target = ptr.get_target(self.edb_schema)
 
         fields = {
             'set': GraphQLInputObjectField(target)
         }
 
+        # get additional commands based on the pointer type
         if not ptr.get_required(self.edb_schema):
             fields['clear'] = GraphQLInputObjectField(GraphQLBoolean)
+
+        if edb_target.is_scalar():
+            base_target = edb_target.get_topmost_concrete_base(self.edb_schema)
+            bt_name = base_target.get_name(self.edb_schema)
+        else:
+            bt_name = None
+
+        # first check for this being a multi-link
+        if not ptr.singular(self.edb_schema):
+            fields['add'] = GraphQLInputObjectField(target)
+            fields['remove'] = GraphQLInputObjectField(target)
+        elif target is GraphQLInt or target is GraphQLFloat:
+            # anything that maps onto the numeric types is a fair game
+            fields['increment'] = GraphQLInputObjectField(target)
+            fields['decrement'] = GraphQLInputObjectField(target)
+        elif bt_name == 'std::str' or edb_target.is_array():
+            # only actual strings and arrays have append, prepend and
+            # slice ops
+            fields['prepend'] = GraphQLInputObjectField(target)
+            fields['append'] = GraphQLInputObjectField(target)
+            # slice [from, to]
+            fields['slice'] = GraphQLInputObjectField(
+                GraphQLList(GraphQLNonNull(GraphQLInt))
+            )
 
         nitype = GraphQLInputObjectType(
             name=self.get_input_name(
@@ -661,8 +692,7 @@ class GQLCoreSchema:
 
             ptr = edb_type.getptr(self.edb_schema, name)
 
-            if not isinstance(ptr.get_target(self.edb_schema),
-                              s_scalars.ScalarType):
+            if not ptr.get_target(self.edb_schema).is_scalar():
                 continue
 
             target = self._convert_edb_type(ptr.get_target(self.edb_schema))
@@ -747,7 +777,7 @@ class GQLCoreSchema:
 
             ancestors = t.get_ancestors(self.edb_schema)
             for st in ancestors.objects(self.edb_schema):
-                if (isinstance(st, s_objtypes.ObjectType) and
+                if (st.is_object_type() and
                         st.get_name(self.edb_schema) in self._gql_interfaces):
                     interfaces.append(
                         self._gql_interfaces[st.get_name(self.edb_schema)])
@@ -880,6 +910,10 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         return self._is_bool
 
     @property
+    def is_array(self):
+        return self.edb_base.is_array()
+
+    @property
     def name(self):
         return self._name
 
@@ -897,11 +931,19 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
     @property
     def edb_base_name_ast(self):
-        base = self.edb_base.get_name(self.edb_schema)
-        return qlast.ObjectRef(
-            module=base.module,
-            name=base.name,
-        )
+        if self.is_array:
+            el = self.edb_base.get_element_type(self.edb_schema)
+            base = el.get_name(self.edb_schema)
+            return qlast.ObjectRef(
+                module=base.module,
+                name=base.name,
+            )
+        else:
+            base = self.edb_base.get_name(self.edb_schema)
+            return qlast.ObjectRef(
+                module=base.module,
+                name=base.name,
+            )
 
     @property
     def edb_base_name(self):

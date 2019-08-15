@@ -1311,6 +1311,386 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "ScalarTest": [orig_data]
         })
 
+    def test_graphql_mutation_update_scalars_04(self):
+        # This tests update ops for various numerical types.
+        self.assert_graphql_query_result(r"""
+            mutation insert_ScalarTest {
+                insert_ScalarTest(
+                    data: [{
+                        p_str: "Update ScalarTest04",
+                        p_int16: 0,
+                        p_int32: 0,
+                        p_int64: 0,
+                        p_float32: 0,
+                        p_float64: 0,
+                        p_decimal: 0,
+                    }]
+                ) {
+                    p_str
+                    p_int16
+                    p_int32
+                    p_int64
+                    p_float32
+                    p_float64
+                    p_decimal
+                }
+            }
+        """, {
+            "insert_ScalarTest": [{
+                'p_str': 'Update ScalarTest04',
+                'p_int16': 0,
+                'p_int32': 0,
+                'p_int64': 0,
+                'p_float32': 0,
+                'p_float64': 0,
+                'p_decimal': 0,
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {eq: "Update ScalarTest04"}}
+                    data: {
+                        p_int16: {increment: 2},
+                        p_int32: {increment: 2},
+                        p_int64: {increment: 2},
+                        p_float32: {increment: 1.5},
+                        p_float64: {increment: 1.5},
+                        p_decimal: {increment: 1.5},
+                    }
+                ) {
+                    p_str
+                    p_int16
+                    p_int32
+                    p_int64
+                    p_float32
+                    p_float64
+                    p_decimal
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': 'Update ScalarTest04',
+                'p_int16': 2,
+                'p_int32': 2,
+                'p_int64': 2,
+                'p_float32': 1.5,
+                'p_float64': 1.5,
+                'p_decimal': 1.5,
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {eq: "Update ScalarTest04"}}
+                    data: {
+                        p_int16: {decrement: 1},
+                        p_int32: {decrement: 1},
+                        p_int64: {decrement: 1},
+                        p_float32: {decrement: 0.4},
+                        p_float64: {decrement: 0.4},
+                        p_decimal: {decrement: 0.4},
+                    }
+                ) {
+                    p_str
+                    p_int16
+                    p_int32
+                    p_int64
+                    p_float32
+                    p_float64
+                    p_decimal
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': 'Update ScalarTest04',
+                'p_int16': 1,
+                'p_int32': 1,
+                'p_int64': 1,
+                'p_float32': 1.1,
+                'p_float64': 1.1,
+                'p_decimal': 1.1,
+            }]
+        })
+
+        # clean up
+        self.assert_graphql_query_result(r"""
+            mutation delete_ScalarTest {
+                delete_ScalarTest(
+                    filter: {p_str: {eq: "Update ScalarTest04"}}
+                ) {
+                    p_str
+                    p_int16
+                    p_int32
+                    p_int64
+                    p_float32
+                    p_float64
+                    p_decimal
+                }
+            }
+        """, {
+            "delete_ScalarTest": [{
+                'p_str': 'Update ScalarTest04',
+                'p_int16': 1,
+                'p_int32': 1,
+                'p_int64': 1,
+                'p_float32': 1.1,
+                'p_float64': 1.1,
+                'p_decimal': 1.1,
+            }]
+        })
+
+    def test_graphql_mutation_update_scalars_05(self):
+        # This tests update ops for various numerical types.
+        self.assert_graphql_query_result(r"""
+            mutation insert_ScalarTest {
+                insert_ScalarTest(
+                    data: [{
+                        p_str: "Update ScalarTest05",
+                    }]
+                ) {
+                    p_str
+                }
+            }
+        """, {
+            "insert_ScalarTest": [{
+                'p_str': 'Update ScalarTest05',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {like: "%Update ScalarTest05%"}}
+                    data: {
+                        p_str: {prepend: "--"},
+                    }
+                ) {
+                    p_str
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': '--Update ScalarTest05',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {like: "%Update ScalarTest05%"}}
+                    data: {
+                        p_str: {append: "!!!"},
+                    }
+                ) {
+                    p_str
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': '--Update ScalarTest05!!!',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {like: "%Update ScalarTest05%"}}
+                    data: {
+                        p_str: {slice: [1]},
+                    }
+                ) {
+                    p_str
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': '-Update ScalarTest05!!!',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {like: "%Update ScalarTest05%"}}
+                    data: {
+                        p_str: {slice: [0, -1]},
+                    }
+                ) {
+                    p_str
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': '-Update ScalarTest05!!',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {like: "%Update ScalarTest05%"}}
+                    data: {
+                        p_str: {slice: [1, -2]},
+                    }
+                ) {
+                    p_str
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': 'Update ScalarTest05',
+            }]
+        })
+
+        # clean up
+        self.assert_graphql_query_result(r"""
+            mutation delete_ScalarTest {
+                delete_ScalarTest(
+                    filter: {p_str: {like: "%Update ScalarTest05%"}}
+                ) {
+                    p_str
+                }
+            }
+        """, {
+            "delete_ScalarTest": [{
+                'p_str': 'Update ScalarTest05',
+            }]
+        })
+
+    def test_graphql_mutation_update_scalars_06(self):
+        # This tests update ops for various numerical types.
+        self.assert_graphql_query_result(r"""
+            mutation insert_ScalarTest {
+                insert_ScalarTest(
+                    data: [{
+                        p_str: "Update ScalarTest06",
+                        p_array_str: ["world"],
+                        p_array_int64: [0],
+                    }]
+                ) {
+                    p_str
+                    p_array_str
+                    p_array_int64
+                }
+            }
+        """, {
+            "insert_ScalarTest": [{
+                'p_str': 'Update ScalarTest06',
+                'p_array_str': ['world'],
+                'p_array_int64': [0],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {eq: "Update ScalarTest06"}}
+                    data: {
+                        p_array_str: {prepend: ["Hello"]},
+                        p_array_int64: {prepend: [1, 2]},
+                    }
+                ) {
+                    p_str
+                    p_array_str
+                    p_array_int64
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': 'Update ScalarTest06',
+                'p_array_str': ['Hello', 'world'],
+                'p_array_int64': [1, 2, 0],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {eq: "Update ScalarTest06"}}
+                    data: {
+                        p_array_str: {append: ["!"]},
+                        p_array_int64: {append: [3, 4]},
+                    }
+                ) {
+                    p_str
+                    p_array_str
+                    p_array_int64
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': 'Update ScalarTest06',
+                'p_array_str': ['Hello', 'world', '!'],
+                'p_array_int64': [1, 2, 0, 3, 4],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {eq: "Update ScalarTest06"}}
+                    data: {
+                        p_array_str: {slice: [1]},
+                        p_array_int64: {slice: [1]},
+                    }
+                ) {
+                    p_str
+                    p_array_str
+                    p_array_int64
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': 'Update ScalarTest06',
+                'p_array_str': ['world', '!'],
+                'p_array_int64': [2, 0, 3, 4],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_ScalarTest {
+                update_ScalarTest(
+                    filter: {p_str: {eq: "Update ScalarTest06"}}
+                    data: {
+                        p_array_str: {slice: [1, -2]},
+                        p_array_int64: {slice: [1, -2]},
+                    }
+                ) {
+                    p_str
+                    p_array_str
+                    p_array_int64
+                }
+            }
+        """, {
+            "update_ScalarTest": [{
+                'p_str': 'Update ScalarTest06',
+                'p_array_str': [],
+                'p_array_int64': [0],
+            }]
+        })
+
+        # clean up
+        self.assert_graphql_query_result(r"""
+            mutation delete_ScalarTest {
+                delete_ScalarTest(
+                    filter: {p_str: {eq: "Update ScalarTest06"}}
+                ) {
+                    p_str
+                    p_array_str
+                    p_array_int64
+                }
+            }
+        """, {
+            "delete_ScalarTest": [{
+                'p_str': 'Update ScalarTest06',
+                'p_array_str': [],
+                'p_array_int64': [0],
+            }]
+        })
+
     def test_graphql_mutation_update_link_01(self):
         orig_data = {
             'name': 'John',
@@ -1354,13 +1734,9 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             mutation update_User {
                 update_User(
                     data: {
-                        groups: [{
-                            set: {
-                                filter: {
-                                    name: {eq: "NOPE"}
-                                }
-                            }
-                        }]
+                        groups: {
+                            clear: true
+                        }
                     },
                     filter: {
                         name: {eq: "John"}
@@ -1384,13 +1760,13 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             mutation update_User {
                 update_User(
                     data: {
-                        groups: [{
-                            set: {
+                        groups: {
+                            set: [{
                                 filter: {
                                     name: {like: "%"}
                                 }
-                            }
-                        }]
+                            }]
+                        }
                     },
                     filter: {
                         name: {eq: "John"}
@@ -1414,13 +1790,13 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             mutation update_User {
                 update_User(
                     data: {
-                        groups: [{
-                            set: {
+                        groups: {
+                            set: [{
                                 filter: {
                                     name: {eq: "basic"}
                                 }
-                            }
-                        }]
+                            }]
+                        }
                     },
                     filter: {
                         name: {eq: "John"}
@@ -1480,19 +1856,17 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             mutation update_User {
                 update_User(
                     data: {
-                        groups: [{
-                            set: {
+                        groups: {
+                            set: [{
                                 filter: {
                                     settings: {name: {eq: "template"}}
                                 }
-                            }
-                        }, {
-                            set: {
+                            }, {
                                 filter: {
                                     name: {eq: "basic"}
                                 }
-                            }
-                        }]
+                            }]
+                        }
                     },
                     filter: {
                         name: {eq: "John"}
@@ -1516,13 +1890,13 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             mutation update_User {
                 update_User(
                     data: {
-                        groups: [{
-                            set: {
+                        groups: {
+                            set: [{
                                 filter: {
                                     name: {eq: "basic"}
                                 }
-                            }
-                        }]
+                            }]
+                        }
                     },
                     filter: {
                         name: {eq: "John"}
@@ -1540,4 +1914,104 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
 
         self.assert_graphql_query_result(validation_query, {
             "User": [orig_data]
+        })
+
+    def test_graphql_mutation_update_link_03(self):
+        # test set ops for update
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    filter: {
+                        name: {eq: "Jane"}
+                    },
+                    data: {
+                        groups: {
+                            add: [{
+                                filter: {
+                                    name: {eq: "basic"}
+                                }
+                            }]
+                        }
+                    }
+                ) {
+                    name
+                    groups(order: {name: {dir: ASC}}) {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [{
+                'name': 'Jane',
+                'groups': [{
+                    'name': 'basic'
+                }, {
+                    'name': 'upgraded'
+                }],
+            }]
+        })
+
+        # add an existing group
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    filter: {
+                        name: {eq: "Jane"}
+                    },
+                    data: {
+                        groups: {
+                            add: [{
+                                filter: {
+                                    name: {eq: "basic"}
+                                }
+                            }]
+                        }
+                    }
+                ) {
+                    name
+                    groups(order: {name: {dir: ASC}}) {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [{
+                'name': 'Jane',
+                'groups': [{
+                    'name': 'basic'
+                }, {
+                    'name': 'upgraded'
+                }],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    filter: {
+                        name: {eq: "Jane"}
+                    },
+                    data: {
+                        groups: {
+                            remove: [{
+                                filter: {
+                                    name: {eq: "basic"}
+                                }
+                            }]
+                        }
+                    }
+                ) {
+                    name
+                    groups(order: {name: {dir: ASC}}) {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [{
+                'name': 'Jane',
+                'groups': [{
+                    'name': 'upgraded'
+                }],
+            }]
         })

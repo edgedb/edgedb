@@ -70,6 +70,7 @@ type ScalarTest {
 
     property p_posint -> positive_int_t;
     property p_array_str -> array<str>;
+    property p_array_int64 -> array<int64>;
     property p_array_json -> array<json>;
     property p_array_bytes -> array<bytes>;
 }
