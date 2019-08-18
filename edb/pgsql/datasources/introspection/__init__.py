@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from . import domains  # NOQA
 from . import tables  # NOQA
 from . import schemas  # NOQA

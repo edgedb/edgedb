@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from pygments.lexer import RegexLexer, include
 from pygments import token
 

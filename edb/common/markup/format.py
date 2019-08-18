@@ -17,6 +17,9 @@
 #
 
 
+from __future__ import annotations
+
+
 def xrepr(obj, *, max_len=None):
     """Extended ``builtins.repr`` function.
 

@@ -20,6 +20,8 @@
 """Helpers to manage statement path contexts."""
 
 
+from __future__ import annotations
+
 import functools
 import typing
 

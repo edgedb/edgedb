@@ -17,6 +17,9 @@
 #
 
 
+from __future__ import annotations
+
+
 def patch_graphql_core():
     import graphql
     import graphql.utils.type_comparators as type_comparators

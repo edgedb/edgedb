@@ -19,6 +19,8 @@
 """Support utilities for lexical processing of literals."""
 
 
+from __future__ import annotations
+
 import re
 
 from . import lexer

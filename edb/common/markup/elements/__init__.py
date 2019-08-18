@@ -17,4 +17,6 @@
 #
 
 
+from __future__ import annotations
+
 from . import base, lang, doc, code  # NOQA

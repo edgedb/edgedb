@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.common.struct import Struct, Field
 from edb.common import typed
 

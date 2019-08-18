@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import typing
 
 from edb.common import context as pctx

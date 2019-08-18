@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .compiler import Compiler, BaseCompiler, CompilerDatabaseState
 from .compiler import compile_bootstrap_script
 from .dbstate import QueryUnit

@@ -17,6 +17,9 @@
 #
 
 
+from __future__ import annotations
+
+
 def distance(s, t):
     """Calculates Levenshtein distance between s and t."""
 

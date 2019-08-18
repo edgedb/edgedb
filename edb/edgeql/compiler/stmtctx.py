@@ -20,6 +20,8 @@
 """EdgeQL compiler statement-level context management."""
 
 
+from __future__ import annotations
+
 import functools
 import typing
 

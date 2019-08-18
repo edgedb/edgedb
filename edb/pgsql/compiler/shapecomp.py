@@ -19,6 +19,8 @@
 
 """Compilation helpers for shapes."""
 
+from __future__ import annotations
+
 import typing
 
 from edb.edgeql import qltypes

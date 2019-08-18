@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .pidfile import PidFile  # NOQA
 from .exceptions import DaemonError  # NOQA
 from .daemon import DaemonContext  # NOQA

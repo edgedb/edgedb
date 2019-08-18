@@ -17,6 +17,10 @@
 #
 
 
+from __future__ import annotations
+
+del annotations  # There is a conflicting `annotations` module in this package.
+
 from .name import SchemaName  # NOQA
 
 from .objects import Object, ObjectMeta  # NOQA

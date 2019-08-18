@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.server import compiler
 from edb.server import http
 

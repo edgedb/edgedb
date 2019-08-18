@@ -18,6 +18,8 @@
 
 """Low level introspection of the schema."""
 
+from __future__ import annotations
+
 import json
 
 import immutables as immu

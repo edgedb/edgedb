@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from . import indexes
 from . import name as sn
 from . import objects as so

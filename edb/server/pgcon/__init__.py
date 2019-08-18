@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .pgcon import connect
 
 __all__ = ('connect',)

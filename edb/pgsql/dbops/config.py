@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 

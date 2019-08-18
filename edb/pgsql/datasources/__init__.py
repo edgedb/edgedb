@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from . import introspection  # NOQA
 from . import schema  # NOQA
 from . import deltalog  # NOQA

@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .expressions import Nonterm
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA

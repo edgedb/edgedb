@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import collections
 
 from edb.common import topological

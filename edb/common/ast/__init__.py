@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .base import *  # NOQA
 from .visitor import *  # NOQA
 from .transformer import *  # NOQA

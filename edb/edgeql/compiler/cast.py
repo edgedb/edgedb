@@ -20,6 +20,8 @@
 """EdgeQL compiler routines for type casts."""
 
 
+from __future__ import annotations
+
 import typing
 
 from edb import errors

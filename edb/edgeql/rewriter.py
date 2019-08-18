@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.common import ast
 
 from edb.schema import name as sn

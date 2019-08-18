@@ -20,6 +20,8 @@
 """EdgeQL set compilation functions."""
 
 
+from __future__ import annotations
+
 import contextlib
 import typing
 

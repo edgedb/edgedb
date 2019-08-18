@@ -39,6 +39,8 @@ and function directives in the following ways:
   necessarily have a meaningful link).
 """
 
+from __future__ import annotations
+
 from docutils import nodes as d_nodes
 from docutils.parsers.rst import directives
 

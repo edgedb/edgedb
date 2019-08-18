@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edgedb import scram
 
 from edb.edgeql import ast as qlast

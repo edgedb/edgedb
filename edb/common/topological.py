@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from collections import defaultdict
 
 from edb.common.ordered import OrderedSet

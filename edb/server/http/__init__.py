@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .port import BaseHttpPort
 
 

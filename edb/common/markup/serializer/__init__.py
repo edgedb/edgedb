@@ -17,6 +17,9 @@
 #
 
 
+from __future__ import annotations
+
+
 class settings:
     censor_sensitive_vars = True
     censor_list = ['secret', 'password']

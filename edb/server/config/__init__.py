@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .ops import OpLevel, OpCode, Operation, lookup
 from .ops import spec_to_json, to_json, from_json
 from .ops import value_from_json

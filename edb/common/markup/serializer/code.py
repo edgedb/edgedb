@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.common.markup.elements import code as code_el
 
 try:

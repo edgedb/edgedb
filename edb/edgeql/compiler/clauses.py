@@ -20,6 +20,8 @@
 """EdgeQL compiler functions to process shared clauses."""
 
 
+from __future__ import annotations
+
 import typing
 
 from edb.edgeql import ast as qlast

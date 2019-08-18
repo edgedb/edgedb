@@ -20,6 +20,8 @@
 """EdgeQL to IR compiler."""
 
 
+from __future__ import annotations
+
 from edb import errors
 
 from edb.edgeql import parser as ql_parser

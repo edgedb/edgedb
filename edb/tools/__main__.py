@@ -19,6 +19,8 @@
 
 """Stub to allow invoking `edb` as `python -m edb.tools`."""
 
+from __future__ import annotations
+
 import sys
 
 from edb.tools import edbcommands

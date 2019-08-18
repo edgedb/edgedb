@@ -28,6 +28,8 @@ In those cases we make a best-effort tracing using a rudimentary
 EdgeQL AST visitor.
 """
 
+from __future__ import annotations
+
 import copy
 import hashlib
 import functools

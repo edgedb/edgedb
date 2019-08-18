@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from docutils import nodes as d_nodes
 from docutils import utils as d_utils
 from docutils.parsers.rst import roles as d_roles

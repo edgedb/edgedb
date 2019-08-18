@@ -19,6 +19,8 @@
 
 """Abstractions for low-level database DDL and DML operations."""
 
+from __future__ import annotations
+
 from edb.schema import objects as s_obj
 from edb.common import adapter
 

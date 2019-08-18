@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import binascii
 
 from edb import errors

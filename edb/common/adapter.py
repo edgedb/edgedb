@@ -17,6 +17,9 @@
 #
 
 
+from __future__ import annotations
+
+
 class AdapterError(Exception):
     pass
 

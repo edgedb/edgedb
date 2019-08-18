@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
 from edb.edgeql import ast as qlast
 
 from .expressions import Nonterm

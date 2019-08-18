@@ -12,6 +12,8 @@ Example usage::
 
 # NOTE: This module must support Python 2.7 in addition to Python 3.x
 
+from __future__ import annotations
+
 import sys
 NEW_TYPING = sys.version_info[:3] >= (3, 7, 0)  # PEP 560
 if NEW_TYPING:

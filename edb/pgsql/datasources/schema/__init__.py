@@ -17,6 +17,10 @@
 #
 
 
+from __future__ import annotations
+
+del annotations  # There is a conflicting `annotations` module in this package.
+
 from . import annotations  # NOQA
 from . import casts  # NOQA
 from . import constraints  # NOQA

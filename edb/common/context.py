@@ -31,6 +31,8 @@ general approach is to infer context information by propagating known
 contexts through the AST structure.
 """
 
+from __future__ import annotations
+
 import bisect
 
 from edb.common import ast

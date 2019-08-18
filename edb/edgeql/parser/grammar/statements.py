@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
 from edb import errors
 
 from edb.common import parsing

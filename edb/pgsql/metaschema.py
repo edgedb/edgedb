@@ -19,6 +19,8 @@
 
 """Database structure and objects supporting EdgeDB metadata."""
 
+from __future__ import annotations
+
 import collections
 import re
 import textwrap

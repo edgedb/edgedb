@@ -20,6 +20,8 @@
 """EdgeQL compiler type-related helpers."""
 
 
+from __future__ import annotations
+
 import collections
 import typing
 

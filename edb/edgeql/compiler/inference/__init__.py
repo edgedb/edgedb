@@ -17,5 +17,7 @@
 #
 
 
+from __future__ import annotations
+
 from .cardinality import infer_cardinality  # NOQA
 from .types import amend_empty_set_type, infer_type  # NOQA

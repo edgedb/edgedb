@@ -22,6 +22,8 @@
 Contains additional functions, with the most notable - :func:`rgb_distance`.
 """
 
+from __future__ import annotations
+
 from math import sqrt as _sqrt
 from colorsys import (
     rgb_to_yiq, yiq_to_rgb, rgb_to_hls, hls_to_rgb, rgb_to_hsv, hsv_to_rgb

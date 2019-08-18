@@ -20,6 +20,8 @@
 """Compiler functions to generate SQL relations for IR sets."""
 
 
+from __future__ import annotations
+
 import contextlib
 import typing
 
