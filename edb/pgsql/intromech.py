@@ -576,20 +576,24 @@ class IntrospectionMech:
                 schema, subj, catenate=False)
             index_name = sn.Name(index_data['name'])
 
-            try:
-                pg_indexes.remove((subj_table_name, index_name))
-            except KeyError:
-                raise errors.SchemaError(
-                    'internal metadata inconsistency',
-                    details=f'Index {index_name} is defined in schema, but'
+            if index_data['is_local']:
+                try:
+                    pg_indexes.remove((subj_table_name, index_name))
+                except KeyError:
+                    raise errors.SchemaError(
+                        'internal metadata inconsistency',
+                        details=(
+                            f'Index {index_name} is defined in schema, but '
                             f'the corresponding PostgreSQL index is missing.'
-                ) from None
+                        )
+                    ) from None
 
             schema, index = s_indexes.Index.create_in_schema(
                 schema,
                 id=index_data['id'],
                 name=index_name,
                 subject=subj,
+                is_local=index_data['is_local'],
                 expr=self.unpack_expr(index_data['expr'], schema))
 
             schema = subj.add_index(schema, index)

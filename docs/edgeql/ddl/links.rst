@@ -50,7 +50,7 @@ CREATE LINK
       CREATE PROPERTY <property-name> ...
       CREATE CONSTRAINT <constraint-name> ...
       ON TARGET DELETE <action>
-      CREATE INDEX <index-name> ON <index-expr>
+      CREATE INDEX ON <index-expr>
 
 
 Description
@@ -135,9 +135,9 @@ The following subcommands are allowed in the ``CREATE LINK`` block:
     what ``ON TARGET DELETE`` options mean are described in
     :ref:`this section <ref_datamodel_links>`.
 
-:eql:synopsis:`CREATE INDEX <index-name> ON <index-expr>`
-    Define a new :ref:`index <ref_datamodel_indexes>` named
-    *index-name* using *index-expr* for this link.  See
+:eql:synopsis:`CREATE INDEX ON <index-expr>`
+    Define a new :ref:`index <ref_datamodel_indexes>`
+    using *index-expr* for this link.  See
     :eql:stmt:`CREATE INDEX` for details.
 
 
@@ -221,8 +221,8 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       ALTER CONSTRAINT <constraint-name> ...
       DROP CONSTRAINT <constraint-name> ...
       ON TARGET DELETE <action>
-      CREATE INDEX <index-name> ON <index-expr>
-      DROP INDEX <index-name>
+      CREATE INDEX ON <index-expr>
+      DROP INDEX ON <index-expr>
 
 Description
 -----------
@@ -304,8 +304,8 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Remove a constraint from this link.  See
     :eql:stmt:`DROP CONSTRAINT` for details.
 
-:eql:synopsis:`DROP INDEX <index-name>`
-    Remove an :ref:`index <ref_datamodel_indexes>` named *index-name*
+:eql:synopsis:`DROP INDEX ON <index-expr>`
+    Remove an :ref:`index <ref_datamodel_indexes>` defined on *index-expr*
     from this link.  See :eql:stmt:`DROP INDEX` for details.
 
 All the subcommands allowed in the ``CREATE LINK`` block are also

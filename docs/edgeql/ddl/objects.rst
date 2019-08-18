@@ -28,7 +28,7 @@ CREATE TYPE
       SET ANNOTATION <annotation-name> := <value>
       CREATE LINK <link-name> ...
       CREATE PROPERTY <property-name> ...
-      CREATE INDEX <index-name> ON <index-expr>
+      CREATE INDEX ON <index-expr>
 
 Description
 -----------
@@ -88,9 +88,9 @@ The following subcommands are allowed in the ``CREATE TYPE`` block:
     Define a new property for this object type.  See
     :eql:stmt:`CREATE PROPERTY` for details.
 
-:eql:synopsis:`CREATE INDEX <index-name> ON <index-expr>`
-    Define a new :ref:`index <ref_datamodel_indexes>` named
-    *index-name* using *index-expr* for this object type.  See
+:eql:synopsis:`CREATE INDEX ON <index-expr>`
+    Define a new :ref:`index <ref_datamodel_indexes>`
+    using *index-expr* for this object type.  See
     :eql:stmt:`CREATE INDEX` for details.
 
 Examples
@@ -138,8 +138,8 @@ Change the definition of an
       CREATE PROPERTY <property-name> ...
       ALTER PROPERTY <property-name> ...
       DROP PROPERTY <property-name> ...
-      CREATE INDEX <index-name> ON <index-expr>
-      DROP INDEX <index-name>
+      CREATE INDEX ON <index-expr>
+      DROP INDEX ON <index-expr>
 
 
 Description
@@ -207,8 +207,8 @@ The following subcommands are allowed in the ``ALTER TYPE`` block:
     Remove a property item from this object type.  See
     :eql:stmt:`DROP PROPERTY` for details.
 
-:eql:synopsis:`DROP INDEX <index-name>`
-    Remove an :ref:`index <ref_datamodel_indexes>` named *index-name*
+:eql:synopsis:`DROP INDEX ON <index-expr>`
+    Remove an :ref:`index <ref_datamodel_indexes>` defined as *index-expr*
     from this object type.  See :eql:stmt:`DROP INDEX` for details.
 
 All the subcommands allowed in the ``CREATE TYPE`` block are also

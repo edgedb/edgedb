@@ -19,8 +19,6 @@
 
 from __future__ import annotations
 
-import hashlib
-
 from edb import errors
 
 from edb import edgeql
@@ -88,13 +86,8 @@ class Constraint(referencing.ReferencedInheritingObject,
         else:
             finalexpr = self.get_field_value(schema, 'finalexpr')
 
-        return (self._name_qual_from_expr(schema, finalexpr.text),)
-
-    @classmethod
-    def _name_qual_from_expr(self, schema, expr):
-        m = hashlib.sha1()
-        m.update(expr.encode())
-        return m.hexdigest()
+        return (referencing.ReferencedObjectCommand._name_qual_from_expr(
+            schema, finalexpr.origtext),)
 
     @classmethod
     def _dummy_subject(cls, schema):
@@ -328,8 +321,8 @@ class ConstraintCommand(
             sourcectx=astnode.context,
             modaliases=context.modaliases, **props)
 
-        return (Constraint._name_qual_from_expr(
-            schema, attrs['finalexpr'].text),)
+        return (cls._name_qual_from_expr(
+            schema, attrs['finalexpr'].origtext),)
 
     @classmethod
     def _constraint_args_from_ast(cls, schema, astnode, context):

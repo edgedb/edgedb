@@ -30,7 +30,7 @@ Declare a *concrete* link "friends" within a "User" type:
         # define a concrete link "friends"
         multi link friends extending friends_base-> User;
 
-        index user_name_idx on (__subject__.name);
+        index on (__subject__.name);
     }
 
 

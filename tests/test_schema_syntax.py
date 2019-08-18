@@ -468,7 +468,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         type LogEntry extending OwnedObject, Text {
             required link owner -> User;
-            index test_index on (SELECT datetime::datetime_current());
+            index on (SELECT datetime::datetime_current());
         };
         """
 
@@ -478,7 +478,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             property foo -> str {
                 title := 'Sample property';
             };
-            index prop on (__subject__@foo);
+            index on (__subject__@foo);
         };
         """
 

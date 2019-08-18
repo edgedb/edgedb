@@ -474,10 +474,10 @@ class AnnotationDeclarationShort(Nonterm):
 # Indexes
 #
 class IndexDeclaration(Nonterm):
-    def reduce_INDEX_ShortNodeName_OnExpr(self, *kids):
+    def reduce_INDEX_OnExpr(self, *kids):
         self.val = qlast.CreateIndex(
-            name=kids[1].val,
-            expr=kids[2].val,
+            name=qlast.ObjectRef(name='idx'),
+            expr=kids[1].val,
         )
 
 

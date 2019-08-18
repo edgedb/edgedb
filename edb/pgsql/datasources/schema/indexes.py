@@ -31,8 +31,12 @@ async def fetch(
     return await conn.fetch("""
         SELECT
                 i.id            AS id,
+                i.bases         AS bases,
                 i.name          AS name,
                 i.expr          AS expr,
+                i.is_local      AS is_local,
+                i.is_final      AS is_final,
+                i.is_abstract   AS is_abstract,
                 edgedb._resolve_type_name(i.subject)
                                 AS subject_name
             FROM

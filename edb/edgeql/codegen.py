@@ -713,17 +713,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.bases, newlines=False)
 
     def _visit_CreateObject(self, node, *object_keywords, after_name=None,
-                            render_commands=True, unqualified=False):
+                            render_commands=True, unqualified=False,
+                            named=True):
         self._visit_aliases(node)
         if self.sdlmode:
             self.write(*[kw.lower() for kw in object_keywords], delimiter=' ')
         else:
             self.write('CREATE', *object_keywords, delimiter=' ')
-        self.write(' ')
-        if unqualified:
-            self.write(ident_to_str(node.name.name))
-        else:
-            self.visit(node.name)
+        if named:
+            self.write(' ')
+            if unqualified:
+                self.write(ident_to_str(node.name.name))
+            else:
+                self.visit(node.name)
         if after_name:
             after_name()
         if node.commands and render_commands:
@@ -756,14 +758,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write('}')
 
     def _visit_DropObject(self, node, *object_keywords, unqualified=False,
-                          after_name=None):
+                          after_name=None, named=True):
         self._visit_aliases(node)
         self.write('DROP', *object_keywords, delimiter=' ')
-        self.write(' ')
-        if unqualified:
-            self.write(ident_to_str(node.name.name))
-        else:
-            self.visit(node.name)
+        if named:
+            self.write(' ')
+            if unqualified:
+                self.write(ident_to_str(node.name.name))
+            else:
+                self.visit(node.name)
         if after_name:
             after_name()
         if node.commands:
@@ -1130,10 +1133,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ON (')
             self.visit(node.expr)
             self.write(')')
-        self._visit_CreateObject(node, 'INDEX', after_name=after_name)
+        self._visit_CreateObject(
+            node, 'INDEX', after_name=after_name, named=False)
 
     def visit_DropIndex(self, node):
-        self._visit_DropObject(node, 'INDEX')
+        def after_name():
+            self.write(' ON (')
+            self.visit(node.expr)
+            self.write(')')
+        self._visit_DropObject(
+            node, 'INDEX', after_name=after_name, named=False)
 
     def visit_CreateFunction(self, node):
         def after_name():

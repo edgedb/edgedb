@@ -862,10 +862,10 @@ class DropAnnotationStmt(Nonterm):
 # CREATE INDEX
 #
 class CreateIndexStmt(Nonterm):
-    def reduce_CREATE_INDEX_NodeName_OnExpr(self, *kids):
+    def reduce_CREATE_INDEX_OnExpr(self, *kids):
         self.val = qlast.CreateIndex(
-            name=kids[2].val,
-            expr=kids[3].val
+            name=qlast.ObjectRef(name='idx'),
+            expr=kids[2].val,
         )
 
 
@@ -873,9 +873,10 @@ class CreateIndexStmt(Nonterm):
 # DROP INDEX
 #
 class DropIndexStmt(Nonterm):
-    def reduce_DROP_INDEX_NodeName(self, *kids):
+    def reduce_DROP_INDEX_OnExpr(self, *kids):
         self.val = qlast.DropIndex(
-            name=kids[2].val
+            name=qlast.ObjectRef(name='idx'),
+            expr=kids[2].val,
         )
 
 

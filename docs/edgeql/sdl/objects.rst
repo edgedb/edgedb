@@ -21,7 +21,7 @@ Example
         multi link friends -> User;
 
         # define an index for User based on name
-        index user_name_idx on (__subject__.name);
+        index on (__subject__.name);
     }
 
 

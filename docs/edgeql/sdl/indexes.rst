@@ -22,7 +22,7 @@ Declare an index for a "User" based on the "name" property:
         multi link friends -> User;
 
         # define an index for User based on name
-        index user_name_idx on (__subject__.name);
+        index on (__subject__.name);
     }
 
 
@@ -34,7 +34,7 @@ commands <ref_eql_ddl_indexes>`.
 
 .. sdl:synopsis::
 
-    index <index-name> on ( <index-expr> ) ;
+    index on ( <index-expr> ) ;
 
 
 Description

@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from edb.edgeql import ast as qlast
 
 from edb import errors
@@ -100,6 +102,12 @@ class ReferencedObjectCommand(sd.ObjectCommand,
     def _classname_quals_from_ast(cls, schema, astnode, base_name,
                                   referrer_name, context):
         return ()
+
+    @classmethod
+    def _name_qual_from_expr(cls, schema, expr):
+        m = hashlib.sha1()
+        m.update(expr.encode())
+        return m.hexdigest()
 
     def _get_ast_node(self, context):
         subject_ctx = self.get_referrer_context(context)

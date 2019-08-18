@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from edb import edgeql
+from edb import errors
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
@@ -30,21 +32,12 @@ from . import objects as so
 from . import referencing
 
 
-class Index(referencing.ReferencedObject):
+class Index(referencing.ReferencedInheritingObject):
 
     subject = so.SchemaField(so.Object)
 
     expr = so.SchemaField(
         s_expr.Expression, coerce=True, compcoef=0.909)
-
-    is_local = so.SchemaField(
-        bool,
-        default=False,
-        inheritable=False,
-        compcoef=0.909)
-
-    def get_is_final(self, schema):
-        return False
 
     def __repr__(self):
         cls = self.__class__
@@ -53,6 +46,10 @@ class Index(referencing.ReferencedObject):
 
     __str__ = __repr__
 
+    def get_displayname(self, schema) -> str:
+        expr = self.get_expr(schema)
+        return expr.origtext
+
 
 class IndexableSubject(inheriting.InheritingObject):
     indexes_refs = so.RefDict(
@@ -60,9 +57,9 @@ class IndexableSubject(inheriting.InheritingObject):
         ref_cls=Index)
 
     indexes = so.SchemaField(
-        so.ObjectIndexByShortname,
+        so.ObjectIndexByUnqualifiedName,
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
-        default=so.ObjectIndexByShortname)
+        default=so.ObjectIndexByUnqualifiedName)
 
     def add_index(self, schema, index):
         return self.add_classref(schema, 'indexes', index)
@@ -80,24 +77,65 @@ class IndexCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class IndexCommand(referencing.ReferencedObjectCommand,
+class IndexCommand(referencing.ReferencedInheritingObjectCommand,
                    schema_metaclass=Index,
                    context_class=IndexCommandContext,
                    referrer_context_class=IndexSourceCommandContext):
+
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):
-        parent_ctx = context.get(IndexSourceCommandContext)
-        subject_name = parent_ctx.op.classname
+        referrer_ctx = cls.get_referrer_context(context)
+        if referrer_ctx is not None:
 
-        idx_name = sn.get_specialized_name(
-            sn.Name(name=astnode.name.name, module=subject_name),
-            subject_name
-        )
+            referrer_name = referrer_ctx.op.classname
 
-        return sn.Name(name=idx_name, module=subject_name.module)
+            shortname = sn.Name(
+                module='__',
+                name=astnode.name.name,
+            )
+
+            quals = cls._classname_quals_from_ast(
+                schema, astnode, shortname, referrer_name, context)
+
+            name = sn.Name(
+                module=referrer_name.module,
+                name=sn.get_specialized_name(
+                    shortname,
+                    referrer_name,
+                    *quals,
+                ),
+            )
+        else:
+            name = super()._classname_from_ast(schema, astnode, context)
+
+        return name
+
+    @classmethod
+    def _classname_quals_from_ast(cls, schema, astnode, base_name,
+                                  referrer_name, context):
+        subject = schema.get(referrer_name, None)
+        if subject is None:
+            return ()
+
+        expr = s_expr.Expression.from_ast(
+            astnode.expr, schema, context.modaliases)
+
+        return (cls._name_qual_from_expr(schema, expr.origtext),)
+
+    def get_object(self, schema, context, *, name=None):
+        try:
+            return super().get_object(schema, context, name=name)
+        except errors.InvalidReferenceError:
+            referrer_ctx = self.get_referrer_context(context)
+            referrer = referrer_ctx.scls
+            expr = self.get_attribute_value('expr')
+            raise errors.InvalidReferenceError(
+                f"index {expr.origtext!r} does not exist on "
+                f"{referrer.get_verbosename(schema)}"
+            ) from None
 
 
-class CreateIndex(IndexCommand, referencing.CreateReferencedObject):
+class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
     astnode = qlast.CreateIndex
     referenced_astnode = qlast.CreateIndex
 
@@ -112,6 +150,23 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedObject):
         )
 
         return cmd
+
+    @classmethod
+    def as_inherited_ref_ast(cls, schema, context, name, parent):
+        astnode_cls = cls.referenced_astnode
+        expr = parent.get_expr(schema)
+        if expr is not None:
+            expr_ql = edgeql.parse_fragment(expr.origtext)
+        else:
+            expr_ql = None
+
+        return astnode_cls(
+            name=qlast.ObjectRef(
+                name=name,
+                module=parent.get_shortname(schema).module,
+            ),
+            expr=expr_ql,
+        )
 
     def _apply_fields_ast(self, schema, context, node):
         super()._apply_fields_ast(schema, context, node)
@@ -152,13 +207,25 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedObject):
             return super().compile_expr_field(schema, context, field, value)
 
 
-class RenameIndex(IndexCommand, sd.RenameObject):
+class RenameIndex(IndexCommand, referencing.RenameReferencedInheritingObject):
     pass
 
 
-class AlterIndex(IndexCommand, sd.AlterObject):
+class AlterIndex(IndexCommand, referencing.AlterReferencedInheritingObject):
     pass
 
 
-class DeleteIndex(IndexCommand, sd.DeleteObject):
+class DeleteIndex(IndexCommand, inheriting.DeleteInheritingObject):
     astnode = qlast.DropIndex
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        cmd.set_attribute_value(
+            'expr',
+            s_expr.Expression.from_ast(
+                astnode.expr, schema, context.modaliases),
+        )
+
+        return cmd

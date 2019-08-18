@@ -333,7 +333,11 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
                 schema, 'ancestors', ancestors)
             self.set_attribute_value('ancestors', ancestors)
 
-            bases = self.get_attribute_value('bases').objects(schema)
+            bases_coll = self.get_attribute_value('bases')
+            if bases_coll:
+                bases = bases_coll.objects(schema)
+            else:
+                bases = ()
 
             if context.mark_derived and len(bases) == 1:
                 schema = self.scls.update(schema, {

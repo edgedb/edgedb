@@ -174,6 +174,8 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
         tag = 'rebase'
     elif isinstance(op, sd.DeleteObject):
         tag = 'delete'
+    elif isinstance(op, sd.AlterObjectProperty):
+        return
     else:
         raise RuntimeError(
             f'unexpected delta command type at top level: {op!r}'

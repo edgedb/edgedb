@@ -60,7 +60,7 @@ Consider the following schema:
         multi link friends -> User;
 
         # define an index for User based on name
-        index user_name_idx on (__subject__.name);
+        index on (.name);
     }
 
 Introspection of ``User``:
@@ -88,7 +88,7 @@ Introspection of ``User``:
     ...         target: { name },
     ...     },
     ...     constraints: { name },
-    ...     indexes: { name, expr },
+    ...     indexes: { expr },
     ... }
     ... FILTER .name = 'default::User';
     {
@@ -139,8 +139,7 @@ Introspection of ``User``:
             constraints: {},
             indexes: {
                 Object {
-                    name: 'default::User.user_name_idx',
-                    expr: 'default::User.name'
+                    expr: '.name'
                 }
             }
         }

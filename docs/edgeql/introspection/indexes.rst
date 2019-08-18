@@ -49,23 +49,21 @@ Consider the following schema:
         multi link friends -> User;
 
         # define an index for User based on name
-        index user_name_idx on (__subject__.name);
+        index on (.name);
     }
 
-Introspection of ``user_name_idx``:
+Introspection of ``User.name`` index:
 
 .. code-block:: edgeql-repl
 
     db> WITH MODULE schema
     ... SELECT Index {
-    ...     name,
     ...     expr,
     ... }
-    ... FILTER .name LIKE '%user_name_idx';
+    ... FILTER .expr LIKE '%.name';
     {
         Object {
-            name: 'default::User.user_name_idx',
-            expr: 'default::User.name'
+            expr: '.name'
         }
     }
 

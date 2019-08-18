@@ -799,11 +799,15 @@ class DropConcreteConstraint(DropObject, ConstraintOp):
     pass
 
 
-class CreateIndex(CreateObject):
+class IndexOp(ObjectDDL):
     expr: Expr
 
 
-class DropIndex(DropObject):
+class CreateIndex(CreateObject, IndexOp):
+    pass
+
+
+class DropIndex(DropObject, IndexOp):
     pass
 
 

@@ -31,7 +31,7 @@ Declare *concrete* properties "name" and "address" within a "User" type:
 
         multi link friends -> User;
 
-        index user_name_idx on (__subject__.name);
+        index on (__subject__.name);
     }
 
 

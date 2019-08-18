@@ -3559,13 +3559,13 @@ aa';
 
     def test_edgeql_syntax_ddl_index_01(self):
         """
-        CREATE INDEX title_name ON (Foo);
+        CREATE INDEX ON (Foo);
 
-        CREATE INDEX title_name ON (__subject__.title);
+        CREATE INDEX ON (.title);
 
-        CREATE INDEX title_name ON (SELECT __subject__.title);
+        CREATE INDEX ON (SELECT __subject__.title);
 
-        DROP INDEX title_name;
+        DROP INDEX ON (.title);
         """
 
     def test_edgeql_transaction_01(self):
