@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from collections import OrderedDict
 from functools import partial
 from graphql import (

@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 EDGEDB_PORT = 5656
 EDGEDB_SUPERUSER = 'edgedb'
 EDGEDB_TEMPLATE_DB = 'edgedb0'

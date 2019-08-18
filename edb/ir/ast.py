@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import typing
 import uuid
 
@@ -71,16 +73,16 @@ class TypeRef(ImmutableBase):
     name_hint: str
     # The ref of the underlying material type, if this is a view type,
     # else None.
-    material_type: typing.Optional['TypeRef']
+    material_type: typing.Optional[TypeRef]
     # If this is a scalar type, base_type would be the highest
     # non-abstract base type.
-    base_type: typing.Optional['TypeRef']
+    base_type: typing.Optional[TypeRef]
     # If this is a union type, this would be a set of
     # union elements.
-    children: typing.FrozenSet['TypeRef']
+    children: typing.FrozenSet[TypeRef]
     # If this is a union type, this would be the nearest common
     # ancestor of the union members.
-    common_parent: typing.Optional['TypeRef']
+    common_parent: typing.Optional[TypeRef]
     # If this node is an element of a collection, and the
     # collection elements are named, this would be then
     # name of the element.
@@ -88,7 +90,7 @@ class TypeRef(ImmutableBase):
     # The kind of the collection type if this is a collection
     collection: str
     # Collection subtypes if this is a collection
-    subtypes: typing.Tuple['TypeRef', ...]
+    subtypes: typing.Tuple[TypeRef, ...]
     # True, if this describes a scalar type
     is_scalar: bool = False
     # True, if this describes a view
@@ -122,11 +124,11 @@ class BasePointerRef(ImmutableBase):
     out_source: TypeRef
     out_target: TypeRef
     direction: s_pointers.PointerDirection
-    parent_ptr: 'BasePointerRef'
-    material_ptr: 'BasePointerRef'
-    derived_from_ptr: 'BasePointerRef'
-    descendants: typing.Set['BasePointerRef']
-    union_components: typing.Set['BasePointerRef']
+    parent_ptr: BasePointerRef
+    material_ptr: BasePointerRef
+    derived_from_ptr: BasePointerRef
+    descendants: typing.Set[BasePointerRef]
+    union_components: typing.Set[BasePointerRef]
     has_properties: bool
     required: bool
     # Relation cardinality in the direction specified

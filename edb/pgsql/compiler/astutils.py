@@ -20,6 +20,8 @@
 """Context-agnostic SQL AST utilities."""
 
 
+from __future__ import annotations
+
 import typing
 
 from edb.pgsql import ast as pgast

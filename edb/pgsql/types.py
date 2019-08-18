@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import collections
 import functools
 import typing

@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .translator import translate
 from .types import GQLCoreSchema
 

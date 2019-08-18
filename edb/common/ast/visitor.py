@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.common import typeutils
 
 from . import base

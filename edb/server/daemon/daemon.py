@@ -19,6 +19,8 @@
 
 """Implementation of PEP 3143."""
 
+from __future__ import annotations
+
 import atexit
 import io
 import signal

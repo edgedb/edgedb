@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from . import abc as s_abc
 from . import name as sn
 from . import objects as so

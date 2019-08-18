@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .stmt_cache import StatementsCache
 
 

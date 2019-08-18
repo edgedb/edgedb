@@ -20,6 +20,8 @@
 """Static evaluation of EdgeQL IR."""
 
 
+from __future__ import annotations
+
 import dataclasses
 import decimal
 import functools

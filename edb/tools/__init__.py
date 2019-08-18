@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from .edb import edbcommands  # noqa
 from . import dflags  # noqa
 from . import gen_errors  # noqa

@@ -17,6 +17,9 @@
 #
 
 
+from __future__ import annotations
+
+
 class BackendError(Exception):
 
     def __init__(self, *, fields):

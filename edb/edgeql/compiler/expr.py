@@ -20,6 +20,8 @@
 """EdgeQL non-statement expression compilation functions."""
 
 
+from __future__ import annotations
+
 import ast
 import typing
 

@@ -19,6 +19,8 @@
 
 """A collection of functions and classes to simplify output to terminal."""
 
+from __future__ import annotations
+
 import os
 import sys
 import fcntl

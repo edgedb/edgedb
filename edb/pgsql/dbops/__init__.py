@@ -19,6 +19,8 @@
 
 """Abstractions for low-level database DDL and DML operations and data."""
 
+from __future__ import annotations
+
 from .base import *  # NOQA
 from .config import *  # NOQA
 from .ddl import *  # NOQA

@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb import edgeql
 
 from edb.edgeql import declarative as s_decl

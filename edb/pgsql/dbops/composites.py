@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.common import ordered
 
 from .. import common

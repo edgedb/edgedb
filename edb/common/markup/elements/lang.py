@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import linecache
 
 from edb.common.struct import Field

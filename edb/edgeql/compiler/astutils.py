@@ -20,6 +20,8 @@
 """EdgeQL compiler helpers for AST classification and basic transforms."""
 
 
+from __future__ import annotations
+
 from edb.edgeql import ast as qlast
 
 from edb.schema import abc as s_abc

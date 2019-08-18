@@ -20,6 +20,8 @@
 """Compiler routines managing relation ranges and scope."""
 
 
+from __future__ import annotations
+
 import typing
 
 from edb.ir import ast as irast

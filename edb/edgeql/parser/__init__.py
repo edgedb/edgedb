@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from . import parser as ql_parser
 from .. import ast as qlast
 

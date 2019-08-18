@@ -16,6 +16,9 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
+del annotations
 
 # DO NOT ADD ANYTHING TO THIS FILE:
 # we might want to make "edb" a namespace

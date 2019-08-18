@@ -17,6 +17,9 @@
 #
 
 
+from __future__ import annotations
+
+
 def humanize_time_delta(t):
     f = 's'
     if t and not round(t):

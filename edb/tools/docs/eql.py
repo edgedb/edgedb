@@ -198,6 +198,8 @@ To reference a keyword use a ":eql:kw:" role.  For instance:
 """
 
 
+from __future__ import annotations
+
 import io
 import re
 

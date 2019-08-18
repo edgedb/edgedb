@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.common import struct, typed
 from . import base
 

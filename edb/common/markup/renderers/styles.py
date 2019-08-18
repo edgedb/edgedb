@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.common.term import Style16, Style256
 
 

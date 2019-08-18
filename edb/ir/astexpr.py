@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 from edb.common.ast import match as astmatch
 
 from . import astmatch as irastmatch

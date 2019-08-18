@@ -19,6 +19,8 @@
 
 """IR compiler context."""
 
+from __future__ import annotations
+
 import collections
 import enum
 

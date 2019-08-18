@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import asyncpg
 import typing
 

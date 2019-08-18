@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import contextlib
 
 import immutables as immu

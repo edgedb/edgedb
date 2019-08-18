@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import textwrap
 
 from ..common import quote_ident as qi

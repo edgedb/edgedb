@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import re
 
 from .parser.grammar import keywords

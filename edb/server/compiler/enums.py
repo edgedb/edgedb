@@ -17,6 +17,8 @@
 #
 
 
+from __future__ import annotations
+
 import enum
 
 from edb.common import enum as strenum

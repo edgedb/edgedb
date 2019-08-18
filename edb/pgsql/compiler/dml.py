@@ -30,6 +30,8 @@
 #    depending on the link layout.
 #
 
+from __future__ import annotations
+
 import collections
 import typing
 
