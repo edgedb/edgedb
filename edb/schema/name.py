@@ -27,6 +27,9 @@ from edb import errors
 class SchemaName(str):
     __slots__ = ('module', 'name')
 
+    module: str
+    name: str
+
     def __new__(cls, name, module=None):
         if not name:
             raise NameError('name must not be empty')
@@ -60,6 +63,16 @@ class SchemaName(str):
     @staticmethod
     def is_qualified(name):
         return isinstance(name, SchemaName) or '::' in name
+
+
+class UnqualifiedName(SchemaName):
+
+    def __new__(cls, name):
+        result = str.__new__(cls, name)
+        result.name = name
+        result.module = ''
+
+        return result
 
 
 Name = SchemaName

@@ -50,7 +50,9 @@ def fini_stmt(
 def compile_iterator_expr(
         query: pgast.Query, iterator_expr: irast.Set, *,
         ctx: context.CompilerContextLevel) \
-        -> typing.Optional[pgast.BaseRangeVar]:
+        -> pgast.PathRangeVar:
+
+    assert isinstance(iterator_expr.expr, irast.SelectStmt)
 
     with ctx.new() as subctx:
         subctx.rel = query
@@ -98,9 +100,11 @@ def compile_output(
 def compile_filter_clause(
         ir_set: typing.Optional[irast.Set],
         cardinality: qltypes.Cardinality, *,
-        ctx: context.CompilerContextLevel) -> typing.Optional[pgast.Expr]:
+        ctx: context.CompilerContextLevel) -> typing.Optional[pgast.BaseExpr]:
     if ir_set is None:
         return None
+
+    where_clause: pgast.BaseExpr
 
     with ctx.new() as ctx1:
         ctx1.clause = 'where'
@@ -128,10 +132,8 @@ def compile_filter_clause(
 
 
 def compile_orderby_clause(
-        ir_exprs: typing.List[irast.Base], *,
-        ctx: context.CompilerContextLevel) -> pgast.Expr:
-    if not ir_exprs:
-        return []
+        ir_exprs: typing.Sequence[irast.SortExpr], *,
+        ctx: context.CompilerContextLevel) -> typing.Sequence[pgast.SortBy]:
 
     sort_clause = []
 
@@ -157,8 +159,8 @@ def compile_orderby_clause(
 
 
 def compile_limit_offset_clause(
-        ir_set: typing.Optional[irast.Base], *,
-        ctx: context.CompilerContextLevel) -> pgast.Expr:
+        ir_set: typing.Optional[irast.Set], *,
+        ctx: context.CompilerContextLevel) -> typing.Optional[pgast.BaseExpr]:
     if ir_set is None:
         return None
 

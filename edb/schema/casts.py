@@ -193,7 +193,7 @@ class CastCommand(sd.ObjectCommand,
         return super()._cmd_tree_from_ast(schema, astnode, context)
 
     @classmethod
-    def _classname_from_ast(cls, schema, astnode: qlast.OperatorCommand,
+    def _classname_from_ast(cls, schema, astnode: qlast.CastCommand,
                             context) -> sn.Name:
         modaliases = context.modaliases
 

@@ -35,7 +35,7 @@ from . import relctx
 @dispatch.compile.register(irast.SelectStmt)
 def compile_SelectStmt(
         stmt: irast.SelectStmt, *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if ctx.singleton_mode:
         return dispatch.compile(stmt.result, ctx=ctx)
@@ -65,7 +65,7 @@ def compile_SelectStmt(
         if outvar.nullable and query is ctx.toplevel_stmt:
             # A nullable var has bubbled up to the top,
             # filter out NULLs.
-            valvar = pathctx.get_path_value_var(
+            valvar: pgast.BaseExpr = pathctx.get_path_value_var(
                 query, stmt.result.path_id, env=ctx.env)
             if isinstance(valvar, pgast.TupleVar):
                 valvar = pgast.ImplicitRowExpr(
@@ -109,10 +109,6 @@ def compile_GroupStmt(
             gctx.expr_exposed = False
             gquery = gctx.rel
             pathctx.put_path_bond(gquery, group_path_id)
-            if stmt.path_scope:
-                ctx.path_scope.update({
-                    path_id: gquery for path_id in stmt.path_scope.paths
-                })
             relctx.update_scope(stmt.subject, gquery, ctx=gctx)
             stmt.subject.path_scope = None
             clauses.compile_output(stmt.subject, ctx=gctx)
@@ -125,12 +121,12 @@ def compile_GroupStmt(
 
             part_clause = []
 
-            for expr in stmt.groupby:
+            for ir_gexpr in stmt.groupby:
                 with gctx.new() as subctx:
-                    partexpr = dispatch.compile(expr, ctx=subctx)
+                    partexpr = dispatch.compile(ir_gexpr, ctx=subctx)
 
                 part_clause.append(partexpr)
-                group_paths.add(expr.path_id)
+                group_paths.add(ir_gexpr.path_id)
 
             # Since we will be computing arbitrary expressions
             # based on the grouped sets, it is more efficient
@@ -235,6 +231,7 @@ def compile_GroupStmt(
         groupval_cte_rvar = relctx.rvar_for_rel(groupval_cte, ctx=ctx)
 
         o_stmt = stmt.result.expr
+        assert isinstance(o_stmt, irast.SelectStmt)
 
         # process the result expression;
         with ctx.subrel() as selctx:
@@ -244,7 +241,7 @@ def compile_GroupStmt(
 
             relctx.include_specific_rvar(
                 selquery, groupval_cte_rvar, group_path_id,
-                aspect='identity', ctx=ctx)
+                aspects=['identity'], ctx=ctx)
 
             for path_id in group_paths:
                 selctx.path_scope[path_id] = selquery
@@ -305,12 +302,12 @@ def compile_GroupStmt(
                     )
                 )
 
-        for i, expr in enumerate(o_stmt.orderby):
+        for i, ir_oexpr in enumerate(o_stmt.orderby):
             sort_ref = astutils.get_column(result_rvar, sortoutputs[i])
             sortexpr = pgast.SortBy(
                 node=sort_ref,
-                dir=expr.direction,
-                nulls=expr.nones_order)
+                dir=ir_oexpr.direction,
+                nulls=ir_oexpr.nones_order)
             query.sort_clause.append(sortexpr)
 
         # The OFFSET clause
@@ -364,8 +361,8 @@ def compile_UpdateStmt(
             stmt, pgast.UpdateStmt(), parent_ctx=parent_ctx, ctx=ctx)
 
         # Process UPDATE body.
-        dml.process_update_body(
-            stmt, wrapper, update_cte, range_cte, ctx=ctx)
+        assert range_cte is not None
+        dml.process_update_body(stmt, wrapper, update_cte, range_cte, ctx=ctx)
 
         return dml.fini_dml_stmt(stmt, wrapper, update_cte, update_rvar,
                                  parent_ctx=parent_ctx, ctx=ctx)

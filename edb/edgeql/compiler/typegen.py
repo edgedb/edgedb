@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import collections
 import typing
 
 from edb import errors
@@ -31,8 +30,8 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
-from edb.schema import objects as s_obj
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
@@ -43,29 +42,37 @@ from . import schemactx
 from . import setgen
 
 
-def type_to_ql_typeref(t: s_obj.Object, *,
+def type_to_ql_typeref(t: s_types.Type, *,
                        _name=None,
                        ctx: context.ContextLevel) -> qlast.TypeName:
 
     return astutils.type_to_ql_typeref(t, schema=ctx.env.schema)
 
 
-def ql_typeref_to_ir_typeref(
+def ql_typeexpr_to_ir_typeref(
         ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> typing.Union[irast.Array, irast.TypeRef]:
+        ctx: context.ContextLevel) -> irast.TypeRef:
 
-    types = _ql_typeexpr_to_ir_typeref(ql_t, ctx=ctx)
+    stype = ql_typeexpr_to_type(ql_t, ctx=ctx)
+    return irtyputils.type_to_typeref(ctx.env.schema, stype)
+
+
+def ql_typeexpr_to_type(
+        ql_t: qlast.TypeExpr, *,
+        ctx: context.ContextLevel) -> s_types.Type:
+
+    types = _ql_typeexpr_to_type(ql_t, ctx=ctx)
     if len(types) > 1:
-        return irast.Array(
-            elements=types
-        )
+        ctx.env.schema, uniontype = s_utils.get_union_type(
+            ctx.env.schema, types)
+        return uniontype
     else:
         return types[0]
 
 
-def _ql_typeexpr_to_ir_typeref(
+def _ql_typeexpr_to_type(
         ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> typing.List[irast.TypeRef]:
+        ctx: context.ContextLevel) -> typing.List[s_types.Type]:
 
     if isinstance(ql_t, qlast.TypeOf):
         with ctx.newscope(fenced=True, temporary=True) as subctx:
@@ -73,38 +80,33 @@ def _ql_typeexpr_to_ir_typeref(
                                        ctx=subctx)
             stype = setgen.get_set_type(ir_set, ctx=subctx)
 
-        return [irtyputils.type_to_typeref(subctx.env.schema, stype)]
+        return [stype]
 
     elif isinstance(ql_t, qlast.TypeOp):
         if ql_t.op == '|':
-            return (_ql_typeexpr_to_ir_typeref(ql_t.left, ctx=ctx) +
-                    _ql_typeexpr_to_ir_typeref(ql_t.right, ctx=ctx))
+            return (_ql_typeexpr_to_type(ql_t.left, ctx=ctx) +
+                    _ql_typeexpr_to_type(ql_t.right, ctx=ctx))
 
         raise errors.UnsupportedFeatureError(
             f'type operator {ql_t.op!r} is not implemented',
             context=ql_t.context)
 
+    elif isinstance(ql_t, qlast.TypeName):
+        return [_ql_typename_to_type(ql_t, ctx=ctx)]
+
     else:
-        return [_ql_typeref_to_ir_typeref(ql_t, ctx=ctx)]
+        raise errors.InternalServerError(f'unexpected TypeExpr: {ql_t!r}')
 
 
-def _ql_typeref_to_ir_typeref(
+def _ql_typename_to_type(
         ql_t: qlast.TypeName, *,
-        ctx: context.ContextLevel) -> irast.TypeRef:
-
-    stype = ql_typeref_to_type(ql_t, ctx=ctx)
-    return irtyputils.type_to_typeref(ctx.env.schema, stype)
-
-
-def ql_typeref_to_type(
-        ql_t: qlast.TypeName, *,
-        ctx: context.ContextLevel) -> s_obj.Object:
+        ctx: context.ContextLevel) -> s_types.Type:
     if ql_t.subtypes:
-        coll = s_types.Collection.get_class(
-            ql_t.maintype.name)
+        assert isinstance(ql_t.maintype, qlast.ObjectRef)
+        coll = s_types.Collection.get_class(ql_t.maintype.name)
 
         if issubclass(coll, s_abc.Tuple):
-            subtypes = collections.OrderedDict()
+            t_subtypes = {}
             named = False
             for si, st in enumerate(ql_t.subtypes):
                 if st.name:
@@ -113,15 +115,15 @@ def ql_typeref_to_type(
                 else:
                     type_name = str(si)
 
-                subtypes[type_name] = ql_typeref_to_type(st, ctx=ctx)
+                t_subtypes[type_name] = ql_typeexpr_to_type(st, ctx=ctx)
 
             return coll.from_subtypes(
-                ctx.env.schema, subtypes, {'named': named})
+                ctx.env.schema, t_subtypes, {'named': named})
         else:
-            subtypes = []
+            a_subtypes = []
             for st in ql_t.subtypes:
-                subtypes.append(ql_typeref_to_type(st, ctx=ctx))
+                a_subtypes.append(ql_typeexpr_to_type(st, ctx=ctx))
 
-            return coll.from_subtypes(ctx.env.schema, subtypes)
+            return coll.from_subtypes(ctx.env.schema, a_subtypes)
     else:
         return schemactx.get_schema_type(ql_t.maintype, ctx=ctx)

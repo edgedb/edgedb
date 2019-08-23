@@ -36,6 +36,7 @@ from edb.ir import typeutils as irtyputils
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
 from edb.schema import pointers as s_pointers
+from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 
@@ -52,7 +53,7 @@ from . import func  # NOQA
 
 @dispatch.compile.register(qlast._Optional)
 def compile__Optional(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast._Optional, *, ctx: context.ContextLevel) -> irast.Set:
 
     result = setgen.ensure_set(
         dispatch.compile(expr.expr, ctx=ctx),
@@ -66,18 +67,19 @@ def compile__Optional(
 
 @dispatch.compile.register(qlast.Path)
 def compile_Path(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     return setgen.compile_path(expr, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
 
     op_node = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
 
     if ctx.env.constant_folding:
+        op_node.expr = typing.cast(irast.OperatorCall, op_node.expr)
         folded = try_fold_binop(op_node.expr, ctx=ctx)
         if folded is not None:
             return folded
@@ -87,7 +89,7 @@ def compile_BinOp(
 
 @dispatch.compile.register(qlast.IsOp)
 def compile_IsOp(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.Set:
     op_node = compile_type_check_op(expr, ctx=ctx)
     return setgen.ensure_set(op_node, ctx=ctx)
 
@@ -119,8 +121,7 @@ def compile_DetachedExpr(
 
 
 @dispatch.compile.register(qlast.Set)
-def compile_Set(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Base:
     # after flattening the set may still end up with 0 or 1 element,
     # which are treated as a special case
     elements = flatten_set(expr)
@@ -161,6 +162,8 @@ def compile_Set(
 def compile_BaseConstant(
         expr: qlast.BaseConstant, *, ctx: context.ContextLevel) -> irast.Base:
     value = expr.value
+
+    node_cls: typing.Type[irast.BaseConstant]
 
     if isinstance(expr, qlast.StringConstant):
         std_type = 'std::str'
@@ -219,6 +222,8 @@ def try_fold_binop(
                     ctx.env.schema, anyreal)
                     for a in opcall.args)):
             return try_fold_associative_binop(opcall, ctx=ctx)
+        else:
+            return None
     else:
         return setgen.ensure_set(const, ctx=ctx)
 
@@ -308,7 +313,7 @@ def try_fold_associative_binop(
 
 @dispatch.compile.register(qlast.NamedTuple)
 def compile_NamedTuple(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast.NamedTuple, *, ctx: context.ContextLevel) -> irast.Set:
 
     elements = []
     for el in expr.elements:
@@ -323,7 +328,7 @@ def compile_NamedTuple(
 
 @dispatch.compile.register(qlast.Tuple)
 def compile_Tuple(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast.Tuple, *, ctx: context.ContextLevel) -> irast.Set:
 
     elements = []
     for i, el in enumerate(expr.elements):
@@ -338,7 +343,7 @@ def compile_Tuple(
 
 @dispatch.compile.register(qlast.Array)
 def compile_Array(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Array, *, ctx: context.ContextLevel) -> irast.Set:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
@@ -363,30 +368,34 @@ def compile_IfElse(
 
 @dispatch.compile.register(qlast.UnaryOp)
 def compile_UnaryOp(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
+        expr: qlast.UnaryOp, *, ctx: context.ContextLevel) -> irast.Set:
 
     result = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.operand], ctx=ctx)
 
     try:
-        result = ireval.evaluate(result, schema=ctx.env.schema)
+        result = setgen.ensure_set(
+            ireval.evaluate(result, schema=ctx.env.schema),
+            ctx=ctx,
+        )
     except ireval.UnsupportedExpressionError:
         pass
 
-    return setgen.ensure_set(result, ctx=ctx)
+    return result
 
 
 @dispatch.compile.register(qlast.TypeCast)
 def compile_TypeCast(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
-    target_typeref = typegen.ql_typeref_to_ir_typeref(expr.type, ctx=ctx)
+        expr: qlast.TypeCast, *, ctx: context.ContextLevel) -> irast.Set:
+    target_typeref = typegen.ql_typeexpr_to_ir_typeref(expr.type, ctx=ctx)
+    ir_expr: irast.Base
 
     if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
             irtyputils.is_array(target_typeref)):
         ir_expr = irast.Array()
 
     elif isinstance(expr.expr, qlast.Parameter):
-        pt = typegen.ql_typeref_to_type(expr.type, ctx=ctx)
+        pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
         param_name = expr.expr.name
         if param_name not in ctx.env.query_parameters:
             if ctx.env.query_parameters:
@@ -422,21 +431,28 @@ def compile_TypeCast(
             json_typeref = irtyputils.type_to_typeref(
                 ctx.env.schema, ctx.env.get_track_schema_object('std::json'))
 
-            param = irast.Parameter(
-                typeref=json_typeref,
-                name=param_name, context=expr.expr.context)
-
             param = cast.compile_cast(
-                param, pt,
+                irast.Parameter(
+                    typeref=json_typeref,
+                    name=param_name,
+                    context=expr.expr.context,
+                ),
+                pt,
                 srcctx=expr.expr.context,
-                ctx=ctx)
+                ctx=ctx,
+            )
 
         else:
-            param = irast.Parameter(
-                typeref=irtyputils.type_to_typeref(ctx.env.schema, pt),
-                name=param_name, context=expr.expr.context)
+            param = setgen.ensure_set(
+                irast.Parameter(
+                    typeref=irtyputils.type_to_typeref(ctx.env.schema, pt),
+                    name=param_name,
+                    context=expr.expr.context,
+                ),
+                ctx=ctx,
+            )
 
-        return setgen.ensure_set(param, ctx=ctx)
+        return param
 
     else:
         with ctx.new() as subctx:
@@ -448,7 +464,7 @@ def compile_TypeCast(
             subctx.expr_exposed = True
             ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
-    new_stype = typegen.ql_typeref_to_type(expr.type, ctx=ctx)
+    new_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
     return cast.compile_cast(
         ir_expr, new_stype, ctx=ctx, srcctx=expr.expr.context)
 
@@ -457,7 +473,7 @@ def compile_TypeCast(
 def compile_Introspect(
         expr: qlast.Introspect, *, ctx: context.ContextLevel) -> irast.Base:
 
-    typeref = typegen.ql_typeref_to_ir_typeref(expr.type, ctx=ctx)
+    typeref = typegen.ql_typeexpr_to_ir_typeref(expr.type, ctx=ctx)
     if typeref.material_type and not irtyputils.is_object(typeref):
         typeref = typeref.material_type
     if typeref.is_opaque_union:
@@ -482,7 +498,7 @@ def compile_Introspect(
 
 @dispatch.compile.register(qlast.Indirection)
 def compile_Indirection(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Indirection, *, ctx: context.ContextLevel) -> irast.Base:
     node = dispatch.compile(expr.arg, ctx=ctx)
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):
@@ -492,6 +508,9 @@ def compile_Indirection(
                                           context=expr.context)
 
         elif isinstance(indirection_el, qlast.Slice):
+            start: typing.Optional[irast.Base]
+            stop: typing.Optional[irast.Base]
+
             if indirection_el.start:
                 start = dispatch.compile(indirection_el.start, ctx=ctx)
             else:
@@ -516,7 +535,7 @@ def compile_type_check_op(
     # <Expr> IS <TypeExpr>
     left = setgen.ensure_set(dispatch.compile(expr.left, ctx=ctx), ctx=ctx)
     ltype = setgen.get_set_type(left, ctx=ctx)
-    typeref = typegen.ql_typeref_to_ir_typeref(expr.right, ctx=ctx)
+    typeref = typegen.ql_typeexpr_to_ir_typeref(expr.right, ctx=ctx)
 
     if ltype.is_object_type():
         left = setgen.ptr_step_set(
@@ -526,7 +545,9 @@ def compile_type_check_op(
         pathctx.register_set_in_scope(left, ctx=ctx)
         result = None
     else:
-        if ltype.is_collection() and ltype.contains_object(ctx.env.schema):
+        if (ltype.is_collection()
+                and typing.cast(s_types.Collection, ltype).contains_object(
+                    ctx.env.schema)):
             raise errors.QueryError(
                 f'type checks on non-primitive collections are not supported'
             )

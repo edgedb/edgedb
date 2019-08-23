@@ -406,7 +406,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_Keyword(self, node):
         self.write(node.name)
 
-    def visit_RangeVar(self, node):
+    def visit_RelRangeVar(self, node):
         rel = node.relation
 
         if isinstance(rel, (pgast.Relation, pgast.NullRelation)):
@@ -415,7 +415,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(common.quote_ident(rel.name))
         else:
             raise SQLSourceGeneratorError(
-                'unexpected relation in RangeVar: {!r}'.format(rel))
+                'unexpected relation in RelRangeVar: {!r}'.format(rel))
 
         if node.alias:
             self.write(' AS ')

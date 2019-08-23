@@ -110,7 +110,10 @@ def is_null_const(expr):
 
 
 def is_set_op_query(query):
-    return getattr(query, 'op', None) is not None
+    return (
+        isinstance(query, pgast.SelectStmt)
+        and query.op is not None
+    )
 
 
 def get_leftmost_query(query):
@@ -172,8 +175,11 @@ def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
     return path_cond
 
 
-def safe_array_expr(elements: typing.List[pgast.Base], **kwargs) -> pgast.Base:
-    result = pgast.ArrayExpr(elements=elements, **kwargs)
+def safe_array_expr(
+    elements: typing.List[pgast.BaseExpr],
+    **kwargs,
+) -> pgast.BaseExpr:
+    result: pgast.BaseExpr = pgast.ArrayExpr(elements=elements, **kwargs)
     if any(el.nullable for el in elements):
         result = pgast.FuncCall(
             name=('edgedb', '_nullif_array_nulls'),
@@ -183,7 +189,10 @@ def safe_array_expr(elements: typing.List[pgast.Base], **kwargs) -> pgast.Base:
     return result
 
 
-def find_column_in_subselect_rvar(rvar: pgast.BaseRangeVar, name: str) -> int:
+def find_column_in_subselect_rvar(
+    rvar: pgast.RangeSubselect,
+    name: str,
+) -> int:
     # Range over a subquery, we can inspect the output list
     # of the subquery.  If the subquery is a UNION (or EXCEPT),
     # we take the leftmost non-setop query.
@@ -205,10 +214,12 @@ def get_column(
     else:
         colname = colspec
 
+    assert isinstance(colname, str)
+
     ser_safe = False
 
     if nullable is None:
-        if isinstance(rvar, pgast.RangeVar):
+        if isinstance(rvar, pgast.RelRangeVar):
             # Range over a relation, we cannot infer nullability in
             # this context, so assume it's true.
             nullable = True
@@ -251,7 +262,7 @@ def get_rvar_var(
 
     assert isinstance(var, pgast.OutputVar)
 
-    if isinstance(var, pgast.TupleVar):
+    if isinstance(var, pgast.TupleVarBase):
         elements = []
 
         for el in var.elements:
@@ -272,7 +283,7 @@ def strip_output_var(
         optional: typing.Optional[bool]=None,
         nullable: typing.Optional[bool]=None) -> pgast.OutputVar:
 
-    if isinstance(var, pgast.TupleVar):
+    if isinstance(var, pgast.TupleVarBase):
         elements = []
 
         for el in var.elements:

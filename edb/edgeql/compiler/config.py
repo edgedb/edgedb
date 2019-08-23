@@ -53,7 +53,9 @@ class SettingInfo(typing.NamedTuple):
 
 @dispatch.compile.register
 def compile_ConfigSet(
-        expr: qlast.ConfigSet, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.ConfigSet, *,
+    ctx: context.ContextLevel,
+) -> irast.ConfigSet:
 
     info = _validate_op(expr, ctx=ctx)
     param_val = dispatch.compile(expr.expr, ctx=ctx)
@@ -80,9 +82,13 @@ def compile_ConfigSet(
 
 @dispatch.compile.register
 def compile_ConfigReset(
-        expr: qlast.ConfigReset, *, ctx: context.ContextLevel) -> irast.Set:
+    expr: qlast.ConfigReset, *,
+    ctx: context.ContextLevel,
+) -> irast.ConfigReset:
+
     info = _validate_op(expr, ctx=ctx)
     filter_expr = expr.where
+    select_ir = None
 
     if not info.param_type.is_object_type() and filter_expr is not None:
         raise errors.QueryError(
@@ -108,9 +114,6 @@ def compile_ConfigReset(
 
         ctx.modaliases[None] = 'cfg'
         select_ir = dispatch.compile(select, ctx=ctx)
-
-    else:
-        select_ir = None
 
     return irast.ConfigReset(
         name=info.param_name,
@@ -165,7 +168,9 @@ def compile_ConfigInsert(
         subctx.modaliases[None] = 'cfg'
         subctx.special_computables_in_mutation_shape |= {'_tname'}
         insert_ir = dispatch.compile(insert_stmt, ctx=subctx)
-        insert_subject = insert_ir.expr.subject
+        insert_ir_set = setgen.ensure_set(insert_ir, ctx=subctx)
+        assert isinstance(insert_ir_set.expr, irast.InsertStmt)
+        insert_subject = insert_ir_set.expr.subject
 
         _validate_config_object(insert_subject, level=level, ctx=subctx)
 
@@ -226,7 +231,7 @@ def _validate_config_object(
 
 def _validate_op(
         expr: qlast.ConfigOp, *,
-        ctx: context.ContextLevel) -> typing.Tuple[str, s_types.Type]:
+        ctx: context.ContextLevel) -> SettingInfo:
 
     if expr.name.module and expr.name.module != 'cfg':
         raise errors.QueryError(
@@ -320,7 +325,7 @@ def _validate_op(
 def get_config_type_shape(
         schema, stype, path) -> typing.List[qlast.ShapeElement]:
     shape = []
-    seen = set()
+    seen: typing.Set[str] = set()
 
     stypes = [stype] + list(stype.descendants(schema))
 
@@ -331,7 +336,7 @@ def get_config_type_shape(
             if pn in ('id', '__type__') or pn in seen:
                 continue
 
-            elem_path = []
+            elem_path: typing.List[qlast.Base] = []
 
             if t is not stype:
                 elem_path.append(

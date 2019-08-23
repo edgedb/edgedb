@@ -22,6 +22,7 @@ from __future__ import annotations
 import copy
 import collections.abc
 import functools
+import re
 import sys
 import typing
 
@@ -60,7 +61,25 @@ class MetaAST(type):
         globalns[cls.__name__] = cls
 
         try:
-            annos = typing.get_type_hints(cls, globalns)
+            while True:
+                try:
+                    annos = typing.get_type_hints(cls, globalns)
+                except NameError as e:
+                    # Forward type declaration.  Generally, we try
+                    # to avoid these as much as possible, but when
+                    # there's a cycle it's better to have correct
+                    # static type analysis even though the runtime
+                    # validation infrastructure does not support
+                    # cyclic rerefences.
+                    # XXX: This is a horrible hack, need to find
+                    # a better way.
+                    m = re.match(r"name '(\w+)' is not defined", e.args[0])
+                    if not m:
+                        raise
+                    globalns[m.group(1)] = AST
+                else:
+                    break
+
         except Exception:
             raise RuntimeError(
                 f'unable to resolve type annotations for '
@@ -205,7 +224,11 @@ class AST(object, metaclass=MetaAST):
                 self.check_field_type(field, value)
 
             # Bypass overloaded setattr
-            object.__setattr__(self, field_name, value)
+            try:
+                object.__setattr__(self, field_name, value)
+            except AttributeError:
+                # Field overriden as a property in a subclass.
+                pass
 
     def __copy__(self):
         copied = self.__class__()
@@ -356,7 +379,7 @@ def _check_annotation(f_type, f_fullname, f_default):
             raise RuntimeError(
                 f'cannot find origin of a generic type {f_type}')
 
-        if ot in (list, typing.List):
+        if ot in (list, typing.List, collections.abc.Sequence):
             f_default = list
         elif ot in (set, typing.Set):
             f_default = set
@@ -450,7 +473,7 @@ def _check_type(type_, value, raise_error):
     elif typing_inspect.is_generic_type(type_):
         ot = typing_inspect.get_origin(type_)
 
-        if ot in (list, typing.List):
+        if ot in (list, typing.List, collections.abc.Sequence):
             _check_container_type(type_, value, raise_error, list)
 
         elif ot in (set, typing.Set):

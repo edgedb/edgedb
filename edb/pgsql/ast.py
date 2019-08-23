@@ -45,14 +45,6 @@ class ImmutableBase(ast.ImmutableASTMixin, Base):
     pass
 
 
-class _Ref(Base):
-
-    node: Base
-
-    def __repr__(self):
-        return f'<pg.{self.__class__.__name__} -> {self.node!r}>'
-
-
 class Alias(ImmutableBase):
     """Alias for a range variable."""
 
@@ -70,7 +62,7 @@ class Star(Base):
     """'*' representing all columns of a table or compound field."""
 
 
-class BaseExpr(ImmutableBase):
+class BaseExpr(Base):
     """Any non-statement expression node that returns a value."""
 
     __ast_meta__ = {'nullable'}
@@ -97,7 +89,8 @@ class BaseExpr(ImmutableBase):
         nullable = False
         for k, v in kwargs.items():
             if typeutils.is_container(v):
-                nullable = all(getattr(vv, 'nullable', False) for vv in v)
+                items = typing.cast(typing.Iterable, v)
+                nullable = all(getattr(vv, 'nullable', False) for vv in items)
 
             elif getattr(v, 'nullable', None):
                 nullable = True
@@ -108,7 +101,11 @@ class BaseExpr(ImmutableBase):
         return nullable
 
 
-class OutputVar(BaseExpr):
+class ImmutableBaseExpr(BaseExpr, ImmutableBase):
+    pass
+
+
+class OutputVar(ImmutableBaseExpr):
     """A base class representing expression output address."""
     pass
 
@@ -119,7 +116,7 @@ class EdgeQLPathInfo(Base):
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {
         'path_scope', 'path_outputs', 'path_id', 'is_distinct', 'value_scope',
-        'path_id_mask'
+        'path_id_mask', 'path_namespace'
     }
 
     # The path id represented by the node.
@@ -135,56 +132,67 @@ class EdgeQLPathInfo(Base):
     value_scope: typing.Set[irast.PathId]
 
     # Map of res target names corresponding to paths.
-    path_outputs: typing.Dict[irast.PathId, OutputVar]
+    path_outputs: typing.Dict[typing.Tuple[irast.PathId, str], OutputVar]
 
     path_id_mask: typing.Set[irast.PathId]
 
+    # Map of col refs corresponding to paths.
+    path_namespace: typing.Dict[typing.Tuple[irast.PathId, str], BaseExpr]
 
-class BaseRangeVar(BaseExpr):
+
+class BaseRangeVar(ImmutableBaseExpr):
     """Range variable, used in FROM clauses."""
 
     alias: Alias
 
-    @property
-    def path_outputs(self):
-        return self.query.path_outputs
 
-    @property
-    def path_namespace(self):
-        return self.query.path_namespace
-
-    @property
-    def path_scope(self):
-        return self.query.path_scope
-
-    @property
-    def value_scope(self):
-        return self.query.value_scope
-
-
-RangeTypes = typing.Union[BaseRangeVar, _Ref]
-
-
-class BaseRelation(Base):
+class BaseRelation(EdgeQLPathInfo):
     name: str
     nullable: bool              # Whether the result can be NULL.
 
 
-class Relation(BaseRelation, EdgeQLPathInfo):
+class Relation(BaseRelation):
     """Regular relation."""
 
     catalogname: str
     schemaname: str
 
 
-class RangeVar(BaseRangeVar):
+class CommonTableExpr(Base):
+
+    # Query name (unqualified)
+    name: str
+    # Whether the result can be NULL.
+    nullable: bool
+    # Optional list of column names
+    aliascolnames: list
+    # The CTE query
+    query: Query
+    # True if this CTE is recursive
+    recursive: bool
+
+    def __repr__(self):
+        return (
+            f'<pg.{self.__class__.__name__} '
+            f'name={self.name!r} at 0x{id(self):x}>'
+        )
+
+
+class PathRangeVar(BaseRangeVar):
+
+    @property
+    def query(self) -> BaseRelation:
+        raise NotImplementedError
+
+
+class RelRangeVar(PathRangeVar):
     """Relation range variable, used in FROM clauses."""
 
-    relation: BaseRelation
+    relation: typing.Union[BaseRelation, CommonTableExpr]
     inhopt: bool
 
     @property
-    def query(self):
+    def query(self) -> BaseRelation:
         if isinstance(self.relation, CommonTableExpr):
             return self.relation.query
         else:
@@ -218,19 +226,28 @@ class ColumnRef(OutputVar):
             return super().__repr__()
 
 
-ColumnRefTypes = typing.Union[ColumnRef, _Ref]
+class TupleElementBase(ImmutableBase):
 
-
-class TupleElement(ImmutableBase):
     path_id: irast.PathId
-    name: typing.Union[OutputVar, str]
-    val: Base
+    name: typing.Optional[typing.Union[OutputVar, str]]
 
     def __init__(self, path_id: irast.PathId,
-                 name: typing.Optional[OutputVar]=None,
-                 val: typing.Optional[Base]=None):
+                 name: typing.Optional[typing.Union[OutputVar, str]]=None):
         self.path_id = path_id
         self.name = name
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} ' \
+               f'name={self.name} path_id={self.path_id}>'
+
+
+class TupleElement(TupleElementBase):
+
+    val: BaseExpr
+
+    def __init__(self, path_id: irast.PathId, val: BaseExpr, *,
+                 name: typing.Optional[typing.Union[OutputVar, str]]=None):
+        super().__init__(path_id, name)
         self.val = val
 
     def __repr__(self):
@@ -238,13 +255,13 @@ class TupleElement(ImmutableBase):
                f'name={self.name} val={self.val} path_id={self.path_id}>'
 
 
-class TupleVar(OutputVar):
+class TupleVarBase(OutputVar):
 
-    elements: typing.List[TupleElement]
+    elements: typing.Sequence[TupleElementBase]
     named: bool
     nullable: bool
 
-    def __init__(self, elements: typing.List[TupleElement], *,
+    def __init__(self, elements: typing.List[TupleElementBase], *,
                  named: bool=False, nullable: bool=False):
         self.elements = elements
         self.named = named
@@ -254,20 +271,35 @@ class TupleVar(OutputVar):
         return f'<{self.__class__.__name__} [{self.elements!r}]'
 
 
-class ParamRef(BaseExpr):
+class TupleVar(TupleVarBase):
+
+    elements: typing.Sequence[TupleElement]
+
+    def __init__(self, elements: typing.List[TupleElement], *,
+                 named: bool=False, nullable: bool=False):
+        self.elements = elements
+        self.named = named
+        self.nullable = nullable
+
+
+class BaseParamRef(ImmutableBaseExpr):
+    pass
+
+
+class ParamRef(BaseParamRef):
     """Query parameter ($0..$n)."""
 
     # Number of the parameter.
     number: int
 
 
-class NamedParamRef(BaseExpr):
+class NamedParamRef(BaseParamRef):
     """Named query parameter."""
 
     name: str
 
 
-class ResTarget(BaseExpr):
+class ResTarget(ImmutableBaseExpr):
     """Query result target."""
 
     # Column name (optional)
@@ -278,7 +310,7 @@ class ResTarget(BaseExpr):
     val: Base
 
 
-class UpdateTarget(BaseExpr):
+class UpdateTarget(ImmutableBaseExpr):
     """Query update target."""
 
     # column name (optional)
@@ -287,7 +319,7 @@ class UpdateTarget(BaseExpr):
     val: Base
 
 
-class InferClause(BaseExpr):
+class InferClause(ImmutableBaseExpr):
 
     # IndexElems to infer unique index
     index_elems: list
@@ -297,7 +329,7 @@ class InferClause(BaseExpr):
     conname: str
 
 
-class OnConflictClause(BaseExpr):
+class OnConflictClause(ImmutableBaseExpr):
 
     action: str
     infer: InferClause
@@ -305,45 +337,29 @@ class OnConflictClause(BaseExpr):
     where: Base
 
 
-class CommonTableExpr(BaseRelation):
-
-    # Query name (unqualified)
-    name: str
-    # Optional list of column names
-    aliascolnames: list
-    # The CTE query
-    query: Base
-    # True if this CTE is recursive
-    recursive: bool
-
-    def __repr__(self):
-        return (
-            f'<pg.{self.__class__.__name__} '
-            f'name={self.name!r} at 0x{id(self):x}>'
-        )
-
-
-class NullRelation(BaseRelation, EdgeQLPathInfo):
-    """Special relation that produces nulls for all its attributes."""
+class ReturningQuery(BaseRelation):
 
     target_list: typing.List[ResTarget]
+
+
+class NullRelation(ReturningQuery):
+    """Special relation that produces nulls for all its attributes."""
+
     where_clause: Base
 
 
-class Query(BaseRelation, EdgeQLPathInfo):
+class Query(BaseExpr, BaseRelation):
     """Generic superclass representing a query."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'ptr_join_map', 'path_rvar_map', 'path_namespace',
+    __ast_meta__ = {'ptr_join_map', 'path_rvar_map',
                     'view_path_id_map', 'argnames', 'nullable'}
 
     view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
     # Map of RangeVars corresponding to pointer relations.
     ptr_join_map: dict
     # Map of RangeVars corresponding to paths.
-    path_rvar_map: typing.Dict[typing.Tuple[irast.PathId, str], BaseRangeVar]
-    # Map of col refs corresponding to paths.
-    path_namespace: dict
+    path_rvar_map: typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
 
     argnames: typing.Dict[str, int]
 
@@ -354,11 +370,11 @@ class Query(BaseRelation, EdgeQLPathInfo):
         return all(t.ser_safe for t in self.target_list)
 
 
-class DML(Base):
+class DMLQuery(Query, ReturningQuery):
     """Generic superclass for INSERT/UPDATE/DELETE statements."""
 
     # Target relation to perform the operation on.
-    relation: RangeTypes
+    relation: PathRangeVar
     # List of expressions returned
     returning_list: typing.List[ResTarget]
 
@@ -367,41 +383,41 @@ class DML(Base):
         return self.returning_list
 
 
-class InsertStmt(Query, DML):
+class InsertStmt(DMLQuery):
 
     # (optional) list of target column names
-    cols: typing.List[ColumnRefTypes]
+    cols: typing.List[ColumnRef]
     # source SELECT/VALUES or None
     select_stmt: Query
     # ON CONFLICT clause
     on_conflict: OnConflictClause
 
 
-class UpdateStmt(Query, DML):
+class UpdateStmt(DMLQuery):
 
     # The UPDATE target list
     targets: typing.List[UpdateTarget]
     # WHERE clause
     where_clause: Base
     # optional FROM clause
-    from_clause: typing.List[RangeTypes]
+    from_clause: typing.List[BaseRangeVar]
 
 
-class DeleteStmt(Query, DML):
+class DeleteStmt(DMLQuery):
     # WHERE clause
     where_clause: Base
     # optional USING clause
-    using_clause: typing.List[RangeTypes]
+    using_clause: typing.List[BaseRangeVar]
 
 
-class SelectStmt(Query):
+class SelectStmt(Query, ReturningQuery):
 
     # List of DISTINCT ON expressions, empty list for DISTINCT ALL
     distinct_clause: list
     # The target list
     target_list: typing.List[ResTarget]
     # The FROM clause
-    from_clause: typing.List[RangeTypes]
+    from_clause: typing.List[BaseRangeVar]
     # The WHERE clause
     where_clause: Base
     # GROUP BY clauses
@@ -413,7 +429,7 @@ class SelectStmt(Query):
     # List of ImplicitRow's in a VALUES query
     values: typing.List[Base]
     # ORDER BY clause
-    sort_clause: typing.List[Base]
+    sort_clause: typing.List[SortBy]
     # OFFSET expression
     limit_offset: Base
     # LIMIT expression
@@ -435,7 +451,7 @@ class ExprKind(enum.IntEnum):
     OP = enum.auto()
 
 
-class Expr(BaseExpr):
+class Expr(ImmutableBaseExpr):
     """Infix, prefix, and postfix expressions."""
 
     # Operator kind
@@ -448,7 +464,7 @@ class Expr(BaseExpr):
     rexpr: Base
 
 
-class BaseConstant(BaseExpr):
+class BaseConstant(ImmutableBaseExpr):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not isinstance(self, NullConstant) and self.val is None:
@@ -490,14 +506,14 @@ class BooleanConstant(BaseConstant):
     val: str
 
 
-class LiteralExpr(BaseExpr):
+class LiteralExpr(ImmutableBaseExpr):
     """A literal expression."""
 
     # Expression text
     expr: str
 
 
-class TypeCast(BaseExpr):
+class TypeCast(ImmutableBaseExpr):
     """A CAST expression."""
 
     # Expression being casted.
@@ -506,7 +522,7 @@ class TypeCast(BaseExpr):
     type_name: TypeName
 
 
-class CollateClause(BaseExpr):
+class CollateClause(ImmutableBaseExpr):
     """A COLLATE expression."""
 
     # Input expression
@@ -515,7 +531,7 @@ class CollateClause(BaseExpr):
     collname: str
 
 
-class VariadicArgument(BaseExpr):
+class VariadicArgument(ImmutableBaseExpr):
 
     expr: Base
     nullable: bool = False
@@ -533,7 +549,7 @@ class ColumnDef(ImmutableBase):
     coll_clause: Base
 
 
-class FuncCall(BaseExpr):
+class FuncCall(ImmutableBaseExpr):
 
     # Function name
     name: typing.Tuple[str, ...]
@@ -568,7 +584,7 @@ class FuncCall(BaseExpr):
         super().__init__(nullable=nullable, **kwargs)
 
 
-class NamedFuncArg(BaseExpr):
+class NamedFuncArg(ImmutableBaseExpr):
 
     name: str
     val: Base
@@ -585,7 +601,7 @@ class Indices(ImmutableBase):
     ridx: Base
 
 
-class Indirection(BaseExpr):
+class Indirection(ImmutableBaseExpr):
     """Field and/or array element indirection."""
 
     # Indirection subject
@@ -594,7 +610,7 @@ class Indirection(BaseExpr):
     indirection: list
 
 
-class ArrayExpr(BaseExpr):
+class ArrayExpr(ImmutableBaseExpr):
     """ARRAY[] construct."""
 
     # array element expressions
@@ -607,7 +623,7 @@ class MultiAssignRef(ImmutableBase):
     # row-valued expression
     source: Base
     # list of columns to assign to
-    columns: typing.List[ColumnRefTypes]
+    columns: typing.List[ColumnRef]
 
 
 class SortBy(ImmutableBase):
@@ -640,18 +656,15 @@ class WindowDef(ImmutableBase):
     end_offset: Base
 
 
-class RangeSubselect(BaseRangeVar):
+class RangeSubselect(PathRangeVar):
     """Subquery appearing in FROM clauses."""
 
     lateral: bool
-    subquery: BaseRelation
+    subquery: Query
 
     @property
     def query(self):
-        if isinstance(self.subquery, CommonTableExpr):
-            return self.subquery.query
-        else:
-            return self.subquery
+        return self.subquery
 
 
 class RangeFunction(BaseRangeVar):
@@ -696,7 +709,7 @@ class SubLinkType(enum.IntEnum):
     ANY = enum.auto()
 
 
-class SubLink(ImmutableBase):
+class SubLink(ImmutableBaseExpr):
     """Subselect appearing in an expression."""
 
     # Type of sublink
@@ -707,7 +720,7 @@ class SubLink(ImmutableBase):
     nullable: bool = False
 
 
-class RowExpr(BaseExpr):
+class RowExpr(ImmutableBaseExpr):
     """A ROW() expression."""
 
     # The fields.
@@ -716,7 +729,7 @@ class RowExpr(BaseExpr):
     nullable: bool = False
 
 
-class ImplicitRowExpr(BaseExpr):
+class ImplicitRowExpr(ImmutableBaseExpr):
     """A (a, b, c) expression."""
 
     # The fields.
@@ -725,14 +738,14 @@ class ImplicitRowExpr(BaseExpr):
     nullable: bool = False
 
 
-class CoalesceExpr(BaseExpr):
+class CoalesceExpr(ImmutableBaseExpr):
     """A COALESCE() expression."""
 
     # The arguments.
     args: typing.List[Base]
 
 
-class NullTest(BaseExpr):
+class NullTest(ImmutableBaseExpr):
     """IS [NOT] NULL."""
 
     # Input expression,
@@ -751,7 +764,7 @@ class CaseWhen(ImmutableBase):
     result: Base
 
 
-class CaseExpr(BaseExpr):
+class CaseExpr(ImmutableBaseExpr):
 
     # Equality comparison argument
     arg: Base
@@ -769,13 +782,13 @@ NullsFirst = qlast.NonesFirst
 NullsLast = qlast.NonesLast
 
 
-class AlterSystem(BaseExpr):
+class AlterSystem(ImmutableBaseExpr):
 
     name: str
     value: BaseExpr
 
 
-class Set(BaseExpr):
+class Set(ImmutableBaseExpr):
 
     name: str
     value: BaseExpr

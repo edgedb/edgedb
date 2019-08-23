@@ -313,10 +313,13 @@ def in_serialization_ctx(ctx: context.CompilerContextLevel) -> bool:
 
 
 def output_as_value(
-        expr: pgast.Base, *,
-        env: context.Environment) -> pgast.Base:
+        expr: pgast.BaseExpr, *,
+        env: context.Environment) -> pgast.BaseExpr:
 
+    val = expr
     if isinstance(expr, pgast.TupleVar):
+        RowCls: typing.Union[typing.Type[pgast.ImplicitRowExpr],
+                             typing.Type[pgast.RowExpr]]
         if len(expr.elements) > 1:
             RowCls = pgast.ImplicitRowExpr
         else:
@@ -325,16 +328,14 @@ def output_as_value(
         val = RowCls(args=[
             output_as_value(e.val, env=env) for e in expr.elements
         ])
-    else:
-        val = expr
 
     return val
 
 
 def serialize_expr_if_needed(
-        expr: pgast.Base, *,
+        expr: pgast.BaseExpr, *,
         path_id: irast.PathId,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     if in_serialization_ctx(ctx):
         val = serialize_expr(expr, path_id=path_id, env=ctx.env)
     else:
@@ -344,10 +345,10 @@ def serialize_expr_if_needed(
 
 
 def serialize_expr_to_json(
-        expr: pgast.Base, *,
+        expr: pgast.BaseExpr, *,
         path_id: irast.PathId,
         nested: bool=False,
-        env: context.Environment) -> pgast.Base:
+        env: context.Environment) -> pgast.BaseExpr:
 
     if isinstance(expr, pgast.TupleVar):
         val = tuple_var_as_json_object(expr, path_id=path_id, env=env)
@@ -372,10 +373,10 @@ def serialize_expr_to_json(
 
 
 def serialize_expr(
-        expr: pgast.Base, *,
+        expr: pgast.BaseExpr, *,
         path_id: irast.PathId,
         nested: bool=False,
-        env: context.Environment) -> pgast.Base:
+        env: context.Environment) -> pgast.BaseExpr:
 
     if env.output_format in (context.OutputFormat.JSON,
                              context.OutputFormat.JSONB):
@@ -393,7 +394,7 @@ def serialize_expr(
 
 def get_pg_type(
         typeref: irast.TypeRef, *,
-        ctx: context.CompilerContextLevel) -> typing.Tuple[str]:
+        ctx: context.CompilerContextLevel) -> typing.Tuple[str, ...]:
 
     if in_serialization_ctx(ctx):
         if ctx.env.output_format is context.OutputFormat.JSONB:
@@ -410,9 +411,9 @@ def get_pg_type(
 
 
 def aggregate_json_output(
-        stmt: pgast.Query,
+        stmt: pgast.SelectStmt,
         ir_set: irast.Set, *,
-        env: context.Environment) -> pgast.Query:
+        env: context.Environment) -> pgast.SelectStmt:
 
     subrvar = pgast.RangeSubselect(
         subquery=stmt,
@@ -429,14 +430,12 @@ def aggregate_json_output(
             val=stmt_res.val,
         )
 
-    new_val = pgast.FuncCall(
-        name=_get_json_func('agg', env=env),
-        args=[pgast.ColumnRef(name=[stmt_res.name])]
-    )
-
     new_val = pgast.CoalesceExpr(
         args=[
-            new_val,
+            pgast.FuncCall(
+                name=_get_json_func('agg', env=env),
+                args=[pgast.ColumnRef(name=[stmt_res.name])]
+            ),
             pgast.StringConstant(val='[]')
         ]
     )
@@ -461,9 +460,9 @@ def aggregate_json_output(
 
 
 def top_output_as_value(
-        stmt: pgast.Query,
+        stmt: pgast.SelectStmt,
         ir_set: irast.Set, *,
-        env: context.Environment) -> pgast.Query:
+        env: context.Environment) -> pgast.SelectStmt:
     """Finalize output serialization on the top level."""
 
     if (env.output_format is context.OutputFormat.JSON and

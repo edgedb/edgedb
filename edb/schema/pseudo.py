@@ -22,13 +22,14 @@ from __future__ import annotations
 import typing
 
 from . import inheriting
+from . import name as sn
 from . import objects as so
 from . import types as s_types
 
 
 class PseudoType(inheriting.InheritingObject, s_types.Type):
 
-    name = so.Field(str)
+    name = so.Field(sn.UnqualifiedName)
 
     def get_name(self, schema):
         return self.name
@@ -81,7 +82,7 @@ class Any(PseudoType, metaclass=AnyMeta):
 
     @classmethod
     def create(cls):
-        return cls._create(None, name='anytype')
+        return cls._create(None, name=sn.UnqualifiedName('anytype'))
 
     def is_any(self):
         return True
@@ -115,12 +116,12 @@ class Any(PseudoType, metaclass=AnyMeta):
             return s_types.MAX_TYPE_DISTANCE
 
     def _reduce_to_ref(self, schema):
-        return AnyObjectRef(), 'anytype'
+        return AnyObjectRef(), sn.UnqualifiedName('anytype')
 
 
 class AnyObjectRef(so.ObjectRef):
 
-    def __init__(self, *, name='anytype'):
+    def __init__(self, *, name=sn.UnqualifiedName('anytype')):
         super().__init__(name=name)
 
     def _resolve_ref(self, schema):
@@ -133,7 +134,7 @@ class AnyTuple(PseudoType, metaclass=AnyMeta):
 
     @classmethod
     def create(cls):
-        return cls._create(None, name='anytuple')
+        return cls._create(None, name=sn.UnqualifiedName('anytuple'))
 
     def is_anytuple(self):
         return True
@@ -145,7 +146,7 @@ class AnyTuple(PseudoType, metaclass=AnyMeta):
         return other.is_anytuple()
 
     def _reduce_to_ref(self, schema):
-        return AnyTupleRef(), 'anytuple'
+        return AnyTupleRef(), sn.UnqualifiedName('anytuple')
 
     def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
         if (not concrete_type.is_tuple() or
@@ -160,7 +161,7 @@ class AnyTuple(PseudoType, metaclass=AnyMeta):
 
 class AnyTupleRef(so.ObjectRef):
 
-    def __init__(self, *, name='anytuple'):
+    def __init__(self, *, name=sn.UnqualifiedName('anytuple')):
         super().__init__(name=name)
 
     def _resolve_ref(self, schema):

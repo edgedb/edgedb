@@ -27,6 +27,7 @@ import immutables as immu
 
 from edb import errors
 
+from . import abc as s_abc
 from . import casts as s_casts
 from . import expr as s_expr
 from . import functions as s_func
@@ -43,7 +44,7 @@ STD_MODULES = frozenset({'std', 'schema', 'stdgraphql', 'math', 'sys', 'cfg'})
 _void = object()
 
 
-class Schema:
+class Schema(s_abc.Schema):
 
     def __init__(self):
         self._id_to_data = immu.Map()

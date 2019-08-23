@@ -128,7 +128,7 @@ class BaseObjectType(sources.Source,
         my_vchildren = self.get_union_of(schema)
 
         if not my_vchildren:
-            lineage = inheriting.compute_lineage(schema, self)
+            lineage = so.compute_lineage(schema, self)
 
             if parent in lineage:
                 return True

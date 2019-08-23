@@ -409,7 +409,7 @@ class CallableObject(s_anno.AnnotationSubject):
 
     params = so.SchemaField(
         FuncParameterList,
-        coerce=True, compcoef=0.4, default=None,
+        coerce=True, compcoef=0.4, default=FuncParameterList,
         simpledelta=False)
 
     return_type = so.SchemaField(

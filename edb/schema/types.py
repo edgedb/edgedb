@@ -34,6 +34,7 @@ from . import derivable
 from . import expr as s_expr
 from . import name as s_name
 from . import objects as so
+from . import schema as s_schema
 from . import utils
 
 
@@ -71,7 +72,8 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
 
     def derive_subtype(
             self, schema, *, name: str,
-            attrs: typing.Optional[typing.Mapping]=None) -> 'Type':
+            attrs: typing.Optional[typing.Mapping]=None
+    ) -> typing.Tuple[s_schema.Schema, Type]:
         raise NotImplementedError
 
     def is_type(self):
@@ -489,7 +491,8 @@ class BaseArray(Collection, s_abc.Array):
 
     def derive_subtype(
             self, schema, *, name: str,
-            attrs: typing.Optional[typing.Mapping]=None) -> Type:
+            attrs: typing.Optional[typing.Mapping]=None
+    ) -> typing.Tuple[s_schema.Schema, Type]:
         return schema, Array.from_subtypes(
             schema,
             [self.get_element_type(schema)],
@@ -784,7 +787,8 @@ class BaseTuple(Collection, s_abc.Tuple):
 
     def derive_subtype(
             self, schema, *, name: str,
-            attrs: typing.Optional[typing.Mapping]=None) -> Type:
+            attrs: typing.Optional[typing.Mapping]=None
+    ) -> typing.Tuple[s_schema.Schema, Type]:
         return schema, Tuple.from_subtypes(
             schema,
             dict(self.iter_subtypes(schema)),

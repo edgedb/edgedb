@@ -20,11 +20,11 @@
 from __future__ import annotations
 
 import contextlib
+import typing
 
 import immutables as immu
 
 from edb.common import struct
-from edb.common import topological
 from edb.edgeql import ast as qlast
 
 from edb import errors
@@ -33,6 +33,7 @@ from . import delta as sd
 from . import derivable
 from . import name as sn
 from . import objects as so
+from . import schema as s_schema
 from . import utils
 
 
@@ -162,7 +163,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
         orig_rec = context.current().enable_recursion
         context.current().enable_recursion = False
 
-        new_ancestors = compute_ancestors(schema, scls)
+        new_ancestors = so.compute_ancestors(schema, scls)
         new_ancestors = so.ObjectList.create(schema, new_ancestors)
         schema = scls.set_field_value(schema, 'ancestors', new_ancestors)
         self.set_attribute_value('ancestors', new_ancestors)
@@ -228,7 +229,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
 
         new_bases_coll = so.ObjectList.create(schema, new_bases)
         schema = scls.set_field_value(schema, 'bases', new_bases_coll)
-        ancestors = compute_ancestors(schema, scls)
+        ancestors = so.compute_ancestors(schema, scls)
         ancestors_coll = so.ObjectList.create(schema, ancestors)
 
         alter_cmd = alter(
@@ -327,7 +328,7 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
 
         if not context.canonical:
             ancestors = so.ObjectList.create(
-                schema, compute_ancestors(schema, self.scls))
+                schema, so.compute_ancestors(schema, self.scls))
             schema = self.scls.set_field_value(
                 schema, 'ancestors', ancestors)
             self.set_attribute_value('ancestors', ancestors)
@@ -589,47 +590,7 @@ class RebaseInheritingObject(InheritingObjectCommand):
         return so.ObjectList.create(schema, bases)
 
 
-def _merge_lineage(schema, obj, lineage):
-    result = []
-
-    while True:
-        nonempty = [line for line in lineage if line]
-        if not nonempty:
-            return result
-
-        for line in nonempty:
-            candidate = line[0]
-            tails = [m for m in nonempty
-                     if id(candidate) in {id(c) for c in m[1:]}]
-            if not tails:
-                break
-        else:
-            name = obj.get_verbosename(schema)
-            raise errors.SchemaError(
-                f"Could not find consistent ancestor order for {name}"
-            )
-
-        result.append(candidate)
-
-        for line in nonempty:
-            if line[0] is candidate:
-                del line[0]
-
-    return result
-
-
-def compute_lineage(schema, obj):
-    bases = tuple(obj.get_bases(schema).objects(schema))
-    lineage = [[obj]]
-
-    for base in bases:
-        lineage.append(compute_lineage(schema, base))
-
-    return _merge_lineage(schema, obj, lineage)
-
-
-def compute_ancestors(schema, obj):
-    return compute_lineage(schema, obj)[1:]
+InheritingT = typing.TypeVar('InheritingT', bound='InheritingObject')
 
 
 class InheritingObject(derivable.DerivableObject):
@@ -712,15 +673,20 @@ class InheritingObject(derivable.DerivableObject):
             if f.inheritable:
                 yield fn
 
-    def derive(self, schema, source,
-               *qualifiers,
-               mark_derived=False,
-               attrs=None, dctx=None,
-               derived_name_base=None,
-               inheritance_merge=True,
-               preserve_path_id=None,
-               refdict_whitelist=None,
-               name=None, **kwargs):
+    def derive(
+        self: InheritingT,
+        schema,
+        source,
+        *qualifiers,
+        mark_derived=False,
+        attrs=None, dctx=None,
+        derived_name_base=None,
+        inheritance_merge=True,
+        preserve_path_id=None,
+        refdict_whitelist=None,
+        name=None,
+        **kwargs,
+    ) -> typing.Tuple[s_schema.Schema, InheritingT]:
         if name is None:
             derived_name = self.get_derived_name(
                 schema, source, *qualifiers,
@@ -733,7 +699,7 @@ class InheritingObject(derivable.DerivableObject):
             raise errors.SchemaError(
                 f'cannot derive {self!r}({derived_name}) from itself')
 
-        derived_attrs = {}
+        derived_attrs: typing.Dict[str, object] = {}
 
         if attrs is not None:
             derived_attrs.update(attrs)
@@ -854,7 +820,7 @@ class InheritingObject(derivable.DerivableObject):
 
     def get_topmost_concrete_base(self, schema):
         # Get the topmost non-abstract base.
-        for ancestor in reversed(compute_lineage(schema, self)):
+        for ancestor in reversed(so.compute_lineage(schema, self)):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
 
@@ -870,36 +836,6 @@ class InheritingObject(derivable.DerivableObject):
             return schema.get('std::anyenum')
         else:
             return self.get_topmost_concrete_base(schema)
-
-    def _issubclass(self, schema, parent):
-        lineage = compute_lineage(schema, self)
-        return parent in lineage
-
-    def issubclass(self, schema, parent):
-        if isinstance(parent, tuple):
-            return any(self.issubclass(schema, p) for p in parent)
-        else:
-            if parent.is_type() and parent.is_any():
-                return True
-            else:
-                return self._issubclass(schema, parent)
-
-    def descendants(self, schema):
-        return schema.get_descendants(self)
-
-    def ordered_descendants(self, schema):
-        """Return class descendants in ancestral order."""
-        graph = {}
-        for descendant in self.descendants(schema):
-            graph[descendant] = {
-                'item': descendant,
-                'deps': descendant.get_bases(schema).objects(schema),
-            }
-
-        return list(topological.sort(graph, allow_unresolved=True))
-
-    def children(self, schema):
-        return schema.get_children(self)
 
     def get_nearest_non_derived_parent(self, schema):
         obj = self

@@ -20,6 +20,10 @@
 from __future__ import annotations
 
 
+class Schema:
+    pass
+
+
 class Object:
     pass
 

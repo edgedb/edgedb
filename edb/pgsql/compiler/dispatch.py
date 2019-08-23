@@ -31,7 +31,7 @@ from . import context
 @functools.singledispatch
 def compile(
         ir: irast.Base, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     raise NotImplementedError(
         f'no IR compiler handler for {ir.__class__}')
 

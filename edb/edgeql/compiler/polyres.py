@@ -44,9 +44,15 @@ class BoundArg(typing.NamedTuple):
 
     param: typing.Optional[s_func.Parameter]
     param_type: s_types.Type
-    val: typing.Optional[irast.Base]
+    val: irast.Set
     valtype: s_types.Type
     cast_distance: int
+
+
+class MissingArg(typing.NamedTuple):
+
+    param: typing.Optional[s_func.Parameter]
+    param_type: s_types.Type
 
 
 class BoundCall(typing.NamedTuple):
@@ -54,7 +60,7 @@ class BoundCall(typing.NamedTuple):
     func: s_func.CallableObject
     args: typing.List[BoundArg]
     null_args: typing.Set[str]
-    return_type: typing.Optional[s_types.Type]
+    return_type: s_types.Type
     has_empty_variadic: bool
 
 
@@ -66,13 +72,11 @@ _SET_OF = ft.TypeModifier.SET_OF
 _OPTIONAL = ft.TypeModifier.OPTIONAL
 _SINGLETON = ft.TypeModifier.SINGLETON
 
-_NO_MATCH = BoundCall(None, [], frozenset(), None, False)
-
 
 def find_callable(
         candidates: typing.Iterable[s_func.CallableObject], *,
-        args: typing.List[typing.Tuple[s_types.Type, irast.Base]],
-        kwargs: typing.Dict[str, typing.Tuple[s_types.Type, irast.Base]],
+        args: typing.Sequence[typing.Tuple[s_types.Type, irast.Set]],
+        kwargs: typing.Mapping[str, typing.Tuple[s_types.Type, irast.Set]],
         ctx: context.ContextLevel) -> typing.List[BoundCall]:
 
     implicit_cast_distance = None
@@ -80,7 +84,7 @@ def find_callable(
 
     for candidate in candidates:
         call = try_bind_call_args(args, kwargs, candidate, ctx=ctx)
-        if call is _NO_MATCH:
+        if call is None:
             continue
 
         total_cd = sum(barg.cast_distance for barg in call.args)
@@ -130,13 +134,14 @@ def find_callable(
 
 
 def try_bind_call_args(
-        args: typing.List[typing.Tuple[s_types.Type, irast.Base]],
-        kwargs: typing.Dict[str, typing.Tuple[s_types.Type, irast.Base]],
+        args: typing.Sequence[typing.Tuple[s_types.Type, irast.Set]],
+        kwargs: typing.Mapping[str, typing.Tuple[s_types.Type, irast.Set]],
         func: s_func.CallableObject, *,
-        ctx: context.ContextLevel) -> BoundCall:
+        ctx: context.ContextLevel) -> typing.Optional[BoundCall]:
 
     return_type = func.get_return_type(ctx.env.schema)
     is_abstract = func.get_is_abstract(ctx.env.schema)
+    resolved_poly_base_type: typing.Optional[s_types.Type] = None
 
     def _get_cast_distance(arg, arg_type, param_type) -> int:
         nonlocal resolved_poly_base_type
@@ -195,7 +200,6 @@ def try_bind_call_args(
     )
 
     has_empty_variadic = False
-    resolved_poly_base_type = None
     no_args_call = not args and not kwargs
     has_inlined_defaults = func.has_inlined_defaults(schema)
 
@@ -205,7 +209,7 @@ def try_bind_call_args(
         if no_args_call:
             # Match: `func` is a function without parameters
             # being called with no arguments.
-            args = []
+            bargs: typing.List[BoundArg] = []
             if has_inlined_defaults:
                 bytes_t = ctx.env.get_track_schema_object('std::bytes')
                 argval = setgen.ensure_set(
@@ -214,14 +218,14 @@ def try_bind_call_args(
                         typeref=irtyputils.type_to_typeref(schema, bytes_t)),
                     typehint=bytes_t,
                     ctx=ctx)
-                args = [BoundArg(None, bytes_t, argval, bytes_t, 0)]
+                bargs = [BoundArg(None, bytes_t, argval, bytes_t, 0)]
             return BoundCall(
-                func, args, set(),
+                func, bargs, set(),
                 return_type, False)
         else:
             # No match: `func` is a function without parameters
             # being called with some arguments.
-            return _NO_MATCH
+            return None
 
     pg_params = s_func.PgParams.from_params(schema, func_params)
     named_only = func_params.find_named_only(schema)
@@ -229,9 +233,9 @@ def try_bind_call_args(
     if no_args_call and pg_params.has_param_wo_default:
         # A call without arguments and there is at least
         # one parameter without default.
-        return _NO_MATCH
+        return None
 
-    bound_param_args = []
+    bound_args_prep: typing.List[typing.Union[MissingArg, BoundArg]] = []
 
     params = pg_params.params
     nparams = len(params)
@@ -261,24 +265,23 @@ def try_bind_call_args(
             arg_type, arg_val = kwargs[param_shortname]
             cd = _get_cast_distance(arg_val, arg_type, param_type)
             if cd < 0:
-                return _NO_MATCH
+                return None
 
-            bound_param_args.append(
+            bound_args_prep.append(
                 BoundArg(param, param_type, arg_val, arg_type, cd))
 
         else:
             if param.get_default(schema) is None:
                 # required named parameter without default and
                 # without a matching argument
-                return _NO_MATCH
+                return None
 
             has_missing_args = True
-            bound_param_args.append(
-                BoundArg(param, param_type, None, param_type, 0))
+            bound_args_prep.append(MissingArg(param, param_type))
 
     if matched_kwargs != len(kwargs):
         # extra kwargs?
-        return _NO_MATCH
+        return None
 
     # Bind POSITIONAL arguments (compiled to go after NAMED ONLY arguments).
     while True:
@@ -288,7 +291,7 @@ def try_bind_call_args(
 
             if pi >= nparams:
                 # too many positional arguments
-                return _NO_MATCH
+                return None
             param = params[pi]
             param_type = param.get_type(schema)
             param_kind = param.get_kind(schema)
@@ -302,26 +305,26 @@ def try_bind_call_args(
                 var_type = param.get_type(schema).get_subtypes(schema)[0]
                 cd = _get_cast_distance(arg_val, arg_type, var_type)
                 if cd < 0:
-                    return _NO_MATCH
+                    return None
 
-                bound_param_args.append(
+                bound_args_prep.append(
                     BoundArg(param, param_type, arg_val, arg_type, cd))
 
                 for arg_type, arg_val in args[ai:]:
                     cd = _get_cast_distance(arg_val, arg_type, var_type)
                     if cd < 0:
-                        return _NO_MATCH
+                        return None
 
-                    bound_param_args.append(
+                    bound_args_prep.append(
                         BoundArg(param, param_type, arg_val, arg_type, cd))
 
                 break
 
             cd = _get_cast_distance(arg_val, arg_type, param.get_type(schema))
             if cd < 0:
-                return _NO_MATCH
+                return None
 
-            bound_param_args.append(
+            bound_args_prep.append(
                 BoundArg(param, param_type, arg_val, arg_type, cd))
 
         else:
@@ -336,12 +339,11 @@ def try_bind_call_args(
             if param.get_default(schema) is None:
                 # required positional parameter that we don't have a
                 # positional argument for.
-                return _NO_MATCH
+                return None
 
             has_missing_args = True
             param_type = param.get_type(schema)
-            bound_param_args.append(
-                BoundArg(param, param_type, None, param_type, 0))
+            bound_args_prep.append(MissingArg(param, param_type))
 
         elif param_kind is _VARIADIC:
             has_empty_variadic = True
@@ -352,12 +354,13 @@ def try_bind_call_args(
 
     # Populate defaults.
     defaults_mask = 0
-    null_args = set()
+    null_args: typing.Set[str] = set()
+    bound_param_args: typing.List[BoundArg] = []
     if has_missing_args:
         if has_inlined_defaults or named_only:
-            for i in range(len(bound_param_args)):
-                barg = bound_param_args[i]
-                if barg.val is not None:
+            for i, barg in enumerate(bound_args_prep):
+                if isinstance(barg, BoundArg):
+                    bound_param_args.append(barg)
                     continue
 
                 param = barg.param
@@ -404,17 +407,22 @@ def try_bind_call_args(
                     typehint=default_type,
                     ctx=ctx)
 
-                bound_param_args[i] = BoundArg(
-                    param,
-                    param_type,
-                    default,
-                    barg.valtype,
-                    barg.cast_distance,
+                bound_param_args.append(
+                    BoundArg(
+                        param,
+                        param_type,
+                        default,
+                        param_type,
+                        0,
+                    )
                 )
 
         else:
             bound_param_args = [
-                barg for barg in bound_param_args if barg.val is not None]
+                barg for barg in bound_args_prep if isinstance(barg, BoundArg)
+            ]
+    else:
+        bound_param_args = typing.cast(typing.List[BoundArg], bound_args_prep)
 
     if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
@@ -433,7 +441,7 @@ def try_bind_call_args(
             return_type = return_type.to_nonpolymorphic(
                 schema, resolved_poly_base_type)
         elif not in_polymorphic_func:
-            return _NO_MATCH
+            return None
 
     # resolved_poly_base_type may be legitimately None within
     # bodies of polymorphic functions

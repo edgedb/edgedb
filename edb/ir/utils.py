@@ -190,7 +190,7 @@ def is_trivial_select(ir_expr):
     )
 
 
-def unwrap_set(ir_set):
+def unwrap_set(ir_set: irast.Set) -> irast.Set:
     if is_implicit_wrapper(ir_set.expr):
         return ir_set.expr.result
     else:

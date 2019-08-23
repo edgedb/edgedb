@@ -50,7 +50,8 @@ from . import relctx
 class SetRVar:
     __slots__ = ('rvar', 'path_id', 'aspects')
 
-    def __init__(self, rvar: pgast.BaseRangeVar,
+    def __init__(self,
+                 rvar: pgast.PathRangeVar,
                  path_id: irast.PathId,
                  aspects: typing.Iterable[str]=('value',)) -> None:
         self.aspects = aspects
@@ -67,7 +68,7 @@ class SetRVars:
 
 
 def new_simple_set_rvar(
-        ir_set: irast.Set, rvar: pgast.BaseRangeVar,
+        ir_set: irast.Set, rvar: pgast.PathRangeVar,
         aspects: typing.Optional[typing.Iterable[str]]=None) -> SetRVars:
 
     if aspects is None:
@@ -76,12 +77,12 @@ def new_simple_set_rvar(
         else:
             aspects = ('value',)
 
-    rvar = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)
-    return SetRVars(main=rvar, new=[rvar])
+    srvar = SetRVar(rvar=rvar, path_id=ir_set.path_id, aspects=aspects)
+    return SetRVars(main=srvar, new=[srvar])
 
 
 def new_source_set_rvar(
-        ir_set: irast.Set, rvar: pgast.BaseRangeVar) -> SetRVars:
+        ir_set: irast.Set, rvar: pgast.PathRangeVar) -> SetRVars:
 
     aspects = ['value']
     if ir_set.path_id.is_objtype_path():
@@ -104,8 +105,8 @@ class OptionalRel:
 
 def get_set_rvar(
         ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
-    """Return a BaseRangeVar for a given IR Set.
+        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    """Return a PathRangeVar for a given IR Set.
 
     @param ir_set: IR Set node.
     """
@@ -200,7 +201,7 @@ def get_set_rvar(
 
 def _process_toplevel_query(
         ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
     relctx.init_toplevel_query(ir_set, ctx=ctx)
     rvars = _get_set_rvar(ir_set, ctx=ctx)
@@ -209,7 +210,7 @@ def _process_toplevel_query(
 
 def _get_set_rvar(
         ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseRangeVar:
+        ctx: context.CompilerContextLevel) -> SetRVars:
 
     stmt = ctx.rel
 
@@ -353,8 +354,10 @@ def set_to_array(
     result = pgast.SelectStmt()
     relctx.include_rvar(result, subrvar, path_id=ir_set.path_id, ctx=ctx)
 
-    val = pathctx.maybe_get_path_serialized_var(
-        result, ir_set.path_id, env=ctx.env)
+    val: typing.Optional[pgast.BaseExpr] = (
+        pathctx.maybe_get_path_serialized_var(
+            result, ir_set.path_id, env=ctx.env)
+    )
 
     if val is None:
         value_var = pathctx.get_path_value_var(
@@ -409,7 +412,7 @@ def set_to_array(
 
 
 def prepare_optional_rel(
-        *, ir_set: irast.Set, stmt: pgast.Query,
+        *, ir_set: irast.Set, stmt: pgast.SelectStmt,
         ctx: context.CompilerContextLevel) \
         -> typing.Tuple[pgast.Query, OptionalRel]:
 
@@ -539,15 +542,16 @@ def finalize_optional_rel(
                 aspect='value', env=subctx.env)
 
             def _ensure_empty_tvar(tvar: pgast.TupleVar,
-                                   path_id: irast.PathId) -> pgast.TupleVar:
+                                   path_id: irast.PathId) -> None:
                 tvarels = []
                 for element in tvar.elements:
                     if isinstance(element.val, pgast.TupleVar):
                         _ensure_empty_tvar(element.val, element.path_id)
-                    tvarels.append(pgast.TupleElement(path_id=element.path_id))
+                    tvarels.append(pgast.TupleElementBase(
+                        path_id=element.path_id))
                 pathctx.put_path_value_var(
                     optrel.emptyrel, path_id,
-                    pgast.TupleVar(elements=tvarels), env=subctx.env)
+                    pgast.TupleVarBase(elements=tvarels), env=subctx.env)
                 pathctx.put_path_source_rvar(
                     optrel.emptyrel, path_id, null_rvar, env=subctx.env)
 
@@ -594,7 +598,7 @@ def get_set_rel_alias(ir_set: irast.Set, *,
 
 
 def process_set_as_root(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
 
     rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
@@ -602,7 +606,7 @@ def process_set_as_root(
 
 
 def process_set_as_empty(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.EmptySet, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
 
     rvar = relctx.new_empty_rvar(ir_set, ctx=ctx)
@@ -610,7 +614,7 @@ def process_set_as_empty(
 
 
 def process_set_as_link_property_ref(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     ir_source = ir_set.rptr.source
     src_rvar = get_set_rvar(ir_source, ctx=ctx)
@@ -661,7 +665,7 @@ def process_set_as_link_property_ref(
 
 
 def process_set_as_path(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     rptr = ir_set.rptr
     ptrref = rptr.ptrref
@@ -852,10 +856,10 @@ def process_set_as_path(
         # it means that there are no other paths sharing this path prefix
         # in this scope.  In such cases the path is represented by a subquery
         # rather than a simple set of ranges.
-        for set_rvar in rvars:
+        for srvar in rvars:
             relctx.include_specific_rvar(
-                stmt, set_rvar.rvar, path_id=set_rvar.path_id,
-                aspects=set_rvar.aspects, ctx=ctx)
+                stmt, srvar.rvar, path_id=srvar.path_id,
+                aspects=srvar.aspects, ctx=ctx)
 
         if is_primitive_ref:
             aspects = ['value']
@@ -874,9 +878,12 @@ def process_set_as_path(
 
 
 def process_set_as_subquery(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> None:
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
     is_scalar_path = ir_set.path_id.is_scalar_path()
+
+    expr = ir_set.expr
+    assert isinstance(expr, irast.Stmt)
 
     if ir_set.rptr is not None:
         ir_source = ir_set.rptr.source
@@ -895,7 +902,7 @@ def process_set_as_subquery(
         source_is_visible = False
 
     with ctx.new() as newctx:
-        inner_set = ir_set.expr.result
+        inner_set = expr.result
         outer_id = ir_set.path_id
         inner_id = inner_set.path_id
         semi_join = False
@@ -952,16 +959,17 @@ def process_set_as_subquery(
         aspects = pathctx.list_path_rvar_aspects(stmt, inner_id, env=ctx.env)
         aspects -= {'serialized'}
     else:
-        aspects = ['value', 'source']
+        aspects = {'value', 'source'}
 
     sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
     return new_simple_set_rvar(ir_set, sub_rvar, aspects)
 
 
 def process_set_as_membership_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> None:
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
+    assert isinstance(expr, irast.OperatorCall)
 
     with ctx.new() as newctx:
         left_arg, right_arg = (a.expr for a in expr.args)
@@ -973,12 +981,13 @@ def process_set_as_membership_expr(
         # If the right operand of [NOT] IN is an array_unpack call,
         # then use the ANY/ALL array comparison operator directly,
         # since that has a higher chance of using the indexes.
-        is_array_unpack = (
-            isinstance(right_arg.expr, irast.FunctionCall)
-            and right_arg.expr.func_shortname == 'std::array_unpack'
-        )
-        if is_array_unpack:
-            right_arg = right_arg.expr.args[0].expr
+        right_expr = right_arg.expr
+        if (isinstance(right_expr, irast.FunctionCall)
+                and right_expr.func_shortname == 'std::array_unpack'):
+            is_array_unpack = True
+            right_arg = right_expr.args[0].expr
+        else:
+            is_array_unpack = False
 
         with newctx.subrel() as _, _.newscope() as subctx:
             dispatch.compile(right_arg, ctx=subctx)
@@ -1018,9 +1027,10 @@ def process_set_as_membership_expr(
 
 
 def process_set_as_setop(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
+    assert isinstance(expr, irast.OperatorCall)
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
@@ -1054,9 +1064,10 @@ def process_set_as_setop(
 
 
 def process_set_as_distinct(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
+    assert isinstance(expr, irast.OperatorCall)
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel
@@ -1078,11 +1089,12 @@ def process_set_as_distinct(
 
 
 def process_set_as_ifelse(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     # A IF Cond ELSE B is transformed into:
     # SELECT A WHERE Cond UNION ALL SELECT B WHERE NOT Cond
     expr = ir_set.expr
+    assert isinstance(expr, irast.OperatorCall)
 
     condition, if_expr, else_expr = (a.expr for a in expr.args)
     _, if_expr_card, else_expr_card = (a.cardinality for a in expr.args)
@@ -1154,9 +1166,10 @@ def process_set_as_ifelse(
 
 
 def process_set_as_coalesce(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
+    assert isinstance(expr, irast.OperatorCall)
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
@@ -1281,9 +1294,10 @@ def process_set_as_coalesce(
 
 
 def process_set_as_tuple(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
+    assert isinstance(expr, irast.Tuple)
 
     with ctx.new() as subctx:
         elements = []
@@ -1301,7 +1315,7 @@ def process_set_as_tuple(
                 stmt.view_path_id_map[path_id] = element.val.path_id
 
             dispatch.visit(element.val, ctx=subctx)
-            elements.append(pgast.TupleElement(path_id=path_id))
+            elements.append(pgast.TupleElementBase(path_id=path_id))
 
             var = pathctx.maybe_get_path_var(
                 stmt, element.val.path_id,
@@ -1310,7 +1324,7 @@ def process_set_as_tuple(
                 pathctx.put_path_var(stmt, path_id, var,
                                      aspect='serialized', env=subctx.env)
 
-        set_expr = pgast.TupleVar(elements=elements, named=expr.named)
+        set_expr = pgast.TupleVarBase(elements=elements, named=expr.named)
 
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
@@ -1320,9 +1334,11 @@ def process_set_as_tuple(
 
 
 def process_set_as_tuple_indirection(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> typing.List[pgast.BaseRangeVar]:
-    tuple_set = ir_set.expr.expr
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.TupleIndirection)
+    tuple_set = expr.expr
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False
@@ -1332,7 +1348,7 @@ def process_set_as_tuple_indirection(
             # Tuple indirection set is fenced, so we need to
             # wrap the reference in a subquery to ensure path_id
             # remapping.
-            stmt.view_path_id_map[ir_set.path_id] = ir_set.expr.path_id
+            stmt.view_path_id_map[ir_set.path_id] = expr.path_id
             rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
 
         source_rvar = pathctx.maybe_get_path_rvar(
@@ -1347,7 +1363,7 @@ def process_set_as_tuple_indirection(
                 stmt, path_id=tuple_set.path_id, env=subctx.env)
 
             set_expr = astutils.tuple_getattr(
-                tuple_val, tuple_set.typeref, ir_set.expr.name)
+                tuple_val, tuple_set.typeref, expr.name)
 
             pathctx.put_path_var_if_not_exists(
                 stmt, ir_set.path_id, set_expr, aspect='value', env=subctx.env)
@@ -1358,12 +1374,13 @@ def process_set_as_tuple_indirection(
 
 
 def process_set_as_type_cast(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.TypeCast)
 
-    inner_set = ir_set.expr.expr
-    is_json_cast = (
-        ir_set.expr.to_type.id == s_obj.get_known_type_id('std::json'))
+    inner_set = expr.expr
+    is_json_cast = expr.to_type.id == s_obj.get_known_type_id('std::json')
 
     with ctx.new() as subctx:
         ctx.rel.view_path_id_map[ir_set.path_id] = inner_set.path_id
@@ -1384,8 +1401,10 @@ def process_set_as_type_cast(
         if implicit_cast:
             set_expr = dispatch.compile(inner_set, ctx=subctx)
 
-            serialized = pathctx.maybe_get_path_serialized_var(
-                stmt, inner_set.path_id, env=subctx.env)
+            serialized: typing.Optional[pgast.BaseExpr] = (
+                pathctx.maybe_get_path_serialized_var(
+                    stmt, inner_set.path_id, env=subctx.env)
+            )
 
             if serialized is not None:
                 if irtyputils.is_collection(inner_set.typeref):
@@ -1421,14 +1440,16 @@ def process_set_as_type_cast(
 
 
 def process_set_as_type_introspection(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.TypeIntrospection)
 
-    typeref = ir_set.expr.typeref
+    typeref = expr.typeref
     type_rvar = relctx.range_for_typeref(
         ir_set.typeref, ir_set.path_id, ctx=ctx)
     pathctx.put_rvar_path_bond(type_rvar, ir_set.path_id)
-    type_rvar.value_scope.add(ir_set.path_id)
+    type_rvar.query.value_scope.add(ir_set.path_id)
     clsname = pgast.StringConstant(val=str(typeref.id))
     nameref = astutils.get_column(type_rvar, 'id', nullable=False)
 
@@ -1443,11 +1464,13 @@ def process_set_as_type_introspection(
 
 
 def process_set_as_const_set(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.ConstantSet)
 
     with ctx.subrel() as subctx:
-        vals = [dispatch.compile(v, ctx=subctx) for v in ir_set.expr.elements]
+        vals = [dispatch.compile(v, ctx=subctx) for v in expr.elements]
         vals_rel = subctx.rel
         vals_rel.values = [pgast.ImplicitRowExpr(args=[v]) for v in vals]
 
@@ -1459,7 +1482,7 @@ def process_set_as_const_set(
 
 
 def process_set_as_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     with ctx.new() as newctx:
         newctx.expr_exposed = False
@@ -1473,15 +1496,15 @@ def process_set_as_expr(
 
 
 def process_set_as_enumerate(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> None:
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
 
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
 
-        expr = ir_set.expr
-        ir_arg = ir_set.expr.args[0].expr
-
+        ir_arg = expr.args[0].expr
         arg_ref = dispatch.compile(ir_arg, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
         rtype = expr.typeref
@@ -1537,10 +1560,13 @@ def _process_set_func_with_ordinality(
         ir_set: irast.Set, *,
         outer_func_set: irast.Set,
         func_name: typing.Tuple[str, ...],
-        args: typing.List[pgast.Base],
-        ctx: context.CompilerContextLevel) -> None:
+        args: typing.List[pgast.BaseExpr],
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     rtype = outer_func_set.typeref
+    outer_func_expr = outer_func_set.expr
+    assert isinstance(outer_func_expr, irast.FunctionCall)
+
     named_tuple = any(st.element_name for st in rtype.subtypes)
     inner_rtype = ir_set.typeref
 
@@ -1567,7 +1593,7 @@ def _process_set_func_with_ordinality(
         colnames = [ctx.env.aliases.get('v')]
         coldeflist = []
 
-    set_expr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
+    fexpr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
 
     colnames.append(
         rtype.subtypes[0].element_name or '0'
@@ -1580,20 +1606,22 @@ def _process_set_func_with_ordinality(
         lateral=True,
         is_rowsfrom=True,
         with_ordinality=True,
-        functions=[set_expr])
+        functions=[fexpr])
 
     ctx.rel.from_clause.append(func_rvar)
+
+    inner_expr: pgast.OutputVar
 
     if arg_is_tuple:
         inner_named_tuple = any(st.element_name for st in inner_rtype.subtypes)
         inner_expr = pgast.TupleVar(
             elements=[
                 pgast.TupleElement(
-                    path_id=outer_func_set.expr.tuple_path_ids[
+                    path_id=outer_func_expr.tuple_path_ids[
                         len(rtype.subtypes) + i],
                     name=n,
                     val=astutils.get_column(
-                        func_rvar, n, nullable=set_expr.nullable)
+                        func_rvar, n, nullable=fexpr.nullable)
                 )
                 for i, n in enumerate(colnames[:-1])
             ],
@@ -1601,24 +1629,24 @@ def _process_set_func_with_ordinality(
         )
     else:
         inner_expr = astutils.get_column(
-            func_rvar, colnames[0], nullable=set_expr.nullable)
+            func_rvar, colnames[0], nullable=fexpr.nullable)
 
     set_expr = pgast.TupleVar(
         elements=[
             pgast.TupleElement(
-                path_id=outer_func_set.expr.tuple_path_ids[0],
+                path_id=outer_func_expr.tuple_path_ids[0],
                 name=colnames[0],
                 val=pgast.Expr(
                     kind=pgast.ExprKind.OP,
                     name='-',
                     lexpr=astutils.get_column(
-                        func_rvar, colnames[-1], nullable=set_expr.nullable,
+                        func_rvar, colnames[-1], nullable=fexpr.nullable,
                     ),
                     rexpr=pgast.NumericConstant(val='1')
                 )
             ),
             pgast.TupleElement(
-                path_id=outer_func_set.expr.tuple_path_ids[1],
+                path_id=outer_func_expr.tuple_path_ids[1],
                 name=rtype.subtypes[1].element_name or '1',
                 val=inner_expr,
             ),
@@ -1631,7 +1659,9 @@ def _process_set_func_with_ordinality(
             ctx.rel, element.path_id, element.val, env=ctx.env)
 
     if arg_is_tuple:
-        for element in set_expr.elements[1].val.elements:
+        arg_tuple = set_expr.elements[1].val
+        assert isinstance(arg_tuple, pgast.TupleVar)
+        for element in arg_tuple.elements:
             pathctx.put_path_value_var(
                 ctx.rel, element.path_id, element.val, env=ctx.env)
 
@@ -1641,10 +1671,11 @@ def _process_set_func_with_ordinality(
 def _process_set_func(
         ir_set: irast.Set, *,
         func_name: typing.Tuple[str, ...],
-        args: typing.List[pgast.Base],
-        ctx: context.CompilerContextLevel) -> None:
-
+        args: typing.List[pgast.BaseExpr],
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
     rtype = expr.typeref
     named_tuple = any(st.element_name for st in rtype.subtypes)
     coldeflist = []
@@ -1673,7 +1704,7 @@ def _process_set_func(
         # SQL functions declared with OUT params reject column definitions.
         coldeflist = []
 
-    set_expr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
+    fexpr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
 
     func_rvar = pgast.RangeFunction(
         alias=pgast.Alias(
@@ -1681,13 +1712,15 @@ def _process_set_func(
             colnames=colnames),
         lateral=True,
         is_rowsfrom=True,
-        functions=[set_expr])
+        functions=[fexpr])
 
     ctx.rel.from_clause.append(func_rvar)
 
+    set_expr: pgast.BaseExpr
+
     if not is_tuple:
         set_expr = astutils.get_column(
-            func_rvar, colnames[0], nullable=set_expr.nullable)
+            func_rvar, colnames[0], nullable=fexpr.nullable)
     else:
         set_expr = pgast.TupleVar(
             elements=[
@@ -1695,7 +1728,7 @@ def _process_set_func(
                     path_id=expr.tuple_path_ids[i],
                     name=n,
                     val=astutils.get_column(
-                        func_rvar, n, nullable=set_expr.nullable)
+                        func_rvar, n, nullable=fexpr.nullable)
                 )
                 for i, n in enumerate(colnames)
             ],
@@ -1711,14 +1744,16 @@ def _process_set_func(
 
 def _compile_func_epilogue(
         ir_set: irast.Set, *,
-        set_expr: pgast.Base,
-        func_rel: pgast.Query,
-        stmt: pgast.Query,
-        ctx: context.CompilerContextLevel) -> None:
+        set_expr: pgast.BaseExpr,
+        func_rel: pgast.SelectStmt,
+        stmt: pgast.SelectStmt,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
 
     if (ctx.volatility_ref is not None and
             ctx.volatility_ref is not context.NO_VOLATILITY and
-            ir_set.expr.volatility is qltypes.Volatility.VOLATILE):
+            expr.volatility is qltypes.Volatility.VOLATILE):
         # Apply the volatility reference.
         # See the comment in process_set_as_subquery().
         volatility_source = pgast.SelectStmt(
@@ -1730,7 +1765,7 @@ def _compile_func_epilogue(
     pathctx.put_path_var_if_not_exists(
         func_rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
-    aspects = ('value',)
+    aspects: typing.Tuple[str, ...] = ('value',)
 
     func_rvar = relctx.new_rel_rvar(ir_set, func_rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
@@ -1739,7 +1774,7 @@ def _compile_func_epilogue(
     rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
 
     if (ir_set.path_id.is_tuple_path()
-            and ir_set.expr.typemod is qltypes.TypeModifier.SET_OF):
+            and expr.typemod is qltypes.TypeModifier.SET_OF):
         # Functions returning a set of tuples are compiled with an
         # explicit coldeflist, so the result is represented as a
         # TupleVar as opposed to an opaque record datum, so
@@ -1752,17 +1787,18 @@ def _compile_func_epilogue(
 
 def _compile_func_args(
         ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> None:
-
+        ctx: context.CompilerContextLevel
+) -> typing.List[pgast.BaseExpr]:
     expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
 
     args = []
 
-    for ir_arg in ir_set.expr.args:
+    for ir_arg in expr.args:
         arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(output.output_as_value(arg_ref, env=ctx.env))
 
-    if expr.has_empty_variadic:
+    if expr.has_empty_variadic and expr.variadic_param_type is not None:
         var = pgast.TypeCast(
             arg=pgast.ArrayExpr(elements=[]),
             type_name=pgast.TypeName(
@@ -1777,12 +1813,14 @@ def _compile_func_args(
 
 
 def process_set_as_func_enumerate(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
-
     expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
     inner_func_set = irutils.unwrap_set(expr.args[0].expr)
     inner_func = inner_func_set.expr
+    assert isinstance(inner_func, irast.FunctionCall)
 
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
@@ -1808,10 +1846,10 @@ def process_set_as_func_enumerate(
 
 
 def process_set_as_func_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
-
     expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
 
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
@@ -1854,10 +1892,14 @@ def process_set_as_func_expr(
 
 
 def process_set_as_agg_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    set_expr: pgast.BaseExpr
+
     with ctx.newscope() as newctx:
-        expr = ir_set.expr
         agg_filter = None
         agg_sort = []
 
@@ -1882,10 +1924,11 @@ def process_set_as_agg_expr(
 
             args = []
 
-            for i, ir_call_arg in enumerate(ir_set.expr.args):
+            for i, ir_call_arg in enumerate(expr.args):
                 ir_arg = ir_call_arg.expr
                 dispatch.visit(ir_arg, ctx=argctx)
 
+                arg_ref: pgast.BaseExpr
                 if output.in_serialization_ctx(ctx=argctx):
                     arg_ref = pathctx.get_path_serialized_or_value_var(
                         argctx.rel, ir_arg.path_id, env=argctx.env)
@@ -1902,9 +1945,11 @@ def process_set_as_agg_expr(
                             arg_ref, env=argctx.env)
 
                 path_scope = relctx.get_scope(ir_arg, ctx=argctx)
-                arg_is_visible = (
-                    path_scope is not None and
-                    path_scope.parent.is_any_prefix_visible(ir_arg.path_id))
+                if path_scope is not None and path_scope.parent is not None:
+                    arg_is_visible = path_scope.parent.is_any_prefix_visible(
+                        ir_arg.path_id)
+                else:
+                    arg_is_visible = False
 
                 if arg_is_visible:
                     # If the argument set is visible above us, we
@@ -1937,6 +1982,7 @@ def process_set_as_agg_expr(
                             stmt, ir_arg.path_id,
                             aspect='value', env=argctx.env)
                         query = qrvar.query
+                        assert isinstance(query, pgast.SelectStmt)
 
                         for i, sortref in enumerate(query.sort_clause):
                             alias = argctx.env.aliases.get(f's{i}')
@@ -1966,9 +2012,9 @@ def process_set_as_agg_expr(
                     #
                     # XXX: Remove this once we switch to PostgreSQL 11,
                     #      which supports domain type arrays.
-                    pgtype = pg_types.pg_type_from_ir_typeref(
+                    pgtype_name = pg_types.pg_type_from_ir_typeref(
                         ir_arg.typeref.base_type)
-                    pgtype = pgast.TypeName(name=pgtype)
+                    pgtype = pgast.TypeName(name=pgtype_name)
                     arg_ref = pgast.TypeCast(arg=arg_ref, type_name=pgtype)
 
                 args.append(arg_ref)
@@ -2047,12 +2093,15 @@ def process_set_as_agg_expr(
 
 
 def process_set_as_exists_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
-        ctx: context.CompilerContextLevel) -> None:
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.OperatorCall)
+
     with ctx.subrel() as subctx:
         wrapper = subctx.rel
         subctx.expr_exposed = False
-        ir_expr = ir_set.expr.args[0].expr
+        ir_expr = expr.args[0].expr
         set_ref = dispatch.compile(ir_expr, ctx=subctx)
 
         pathctx.put_path_value_var(
@@ -2076,11 +2125,12 @@ def process_set_as_exists_expr(
 def build_array_expr(
         ir_expr: irast.Base,
         elements: typing.List[pgast.BaseExpr], *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     array = astutils.safe_array_expr(elements)
 
     if irutils.is_empty_array_expr(ir_expr):
+        assert isinstance(ir_expr, irast.Array)
         typeref = ir_expr.typeref
 
         if irtyputils.is_any(typeref.subtypes[0]):
@@ -2089,7 +2139,7 @@ def build_array_expr(
             # to a generic function, e.g. `count(array_agg({}))`.  In this
             # case, amend the array type to a concrete type,
             # since Postgres balks at `[]::anyarray`.
-            pg_type = ('text[]',)
+            pg_type: typing.Tuple[str, ...] = ('text[]',)
         else:
             serialized = output.in_serialization_ctx(ctx=ctx)
             pg_type = pg_types.pg_type_from_ir_typeref(
@@ -2106,17 +2156,22 @@ def build_array_expr(
 
 
 def process_set_as_array_expr(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.Array)
+
     elements = []
     s_elements = []
     serializing = output.in_serialization_ctx(ctx=ctx)
 
-    for ir_element in ir_set.expr.elements:
+    for ir_element in expr.elements:
         element = dispatch.compile(ir_element, ctx=ctx)
         elements.append(element)
 
         if serializing:
+            s_var: typing.Optional[pgast.BaseExpr]
+
             s_var = pathctx.maybe_get_path_serialized_var(
                 stmt, ir_element.path_id, env=ctx.env)
 
@@ -2143,7 +2198,7 @@ def process_set_as_array_expr(
             s_set_expr = pgast.TypeCast(
                 arg=s_set_expr,
                 type_name=pgast.TypeName(
-                    name=pg_types.pg_type_from_ir_typeref(ir_set.expr.typeref)
+                    name=pg_types.pg_type_from_ir_typeref(expr.typeref)
                 )
             )
 

@@ -66,7 +66,7 @@ def get_less_specific_aspect(path_id: irast.PathId, aspect: str):
     else:
         mapping = PRIMITIVE_ASPECT_SPECIFICITY_MAP
 
-    return mapping.get(aspect)
+    return mapping.get(PathAspect(aspect))
 
 
 def map_path_id(
@@ -94,9 +94,9 @@ def reverse_map_path_id(
 
 
 def get_path_var(
-        rel: pgast.BaseRelation, path_id: irast.PathId, *,
-        aspect: str, env: context.Environment) -> pgast.OutputVar:
-    """Return an OutputVar for a given *path_id* in a given *rel*."""
+        rel: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, env: context.Environment) -> pgast.BaseExpr:
+    """Return a value expression for a given *path_id* in a given *rel*."""
     if isinstance(rel, pgast.CommonTableExpr):
         rel = rel.query
 
@@ -160,6 +160,8 @@ def get_path_var(
         ptr_info = None
         src_path_id = None
         ptr_dir = None
+
+    var: typing.Optional[pgast.BaseExpr]
 
     if astutils.is_set_op_query(rel):
         cb = functools.partial(
@@ -293,21 +295,21 @@ def get_path_var(
 
 def get_path_identity_var(
         rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.OutputVar:
+        env: context.Environment) -> pgast.BaseExpr:
     return get_path_var(rel, path_id, aspect='identity', env=env)
 
 
 def get_path_value_var(
         rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.OutputVar:
+        env: context.Environment) -> pgast.BaseExpr:
     return get_path_var(rel, path_id, aspect='value', env=env)
 
 
 def is_relation_rvar(
         rvar: pgast.BaseRangeVar) -> bool:
     return (
-        isinstance(rvar, pgast.RangeVar) and
-        is_terminal_relation(rvar.relation)
+        isinstance(rvar, pgast.RelRangeVar) and
+        is_terminal_relation(rvar.query)
     )
 
 
@@ -323,7 +325,7 @@ def is_values_relation(
 
 def maybe_get_path_var(
         rel: pgast.Query, path_id: irast.PathId, *, aspect: str,
-        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+        env: context.Environment) -> typing.Optional[pgast.BaseExpr]:
     try:
         return get_path_var(rel, path_id, aspect=aspect, env=env)
     except LookupError:
@@ -333,7 +335,7 @@ def maybe_get_path_var(
 def maybe_get_path_identity_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+        env: context.Environment) -> typing.Optional[pgast.BaseExpr]:
     try:
         return get_path_var(rel, path_id, aspect='identity', env=env)
     except LookupError:
@@ -343,7 +345,7 @@ def maybe_get_path_identity_var(
 def maybe_get_path_value_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+        env: context.Environment) -> typing.Optional[pgast.BaseExpr]:
     try:
         return get_path_var(rel, path_id, aspect='value', env=env)
     except LookupError:
@@ -353,7 +355,7 @@ def maybe_get_path_value_var(
 def maybe_get_path_serialized_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+        env: context.Environment) -> typing.Optional[pgast.BaseExpr]:
     try:
         return get_path_var(rel, path_id, aspect='serialized', env=env)
     except LookupError:
@@ -361,7 +363,7 @@ def maybe_get_path_serialized_var(
 
 
 def put_path_var(
-        rel: pgast.Query, path_id: irast.PathId, var: pgast.Base, *,
+        rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
         aspect: str, force: bool=False, env: context.Environment) -> None:
     if (path_id, aspect) in rel.path_namespace and not force:
         raise KeyError(
@@ -370,7 +372,7 @@ def put_path_var(
 
 
 def put_path_var_if_not_exists(
-        rel: pgast.Query, path_id: irast.PathId, var: pgast.Base, *,
+        rel: pgast.Query, path_id: irast.PathId, var: pgast.BaseExpr, *,
         aspect: str, env: context.Environment) -> None:
     try:
         put_path_var(rel, path_id, var, aspect=aspect, env=env)
@@ -379,25 +381,25 @@ def put_path_var_if_not_exists(
 
 
 def put_path_identity_var(
-        rel: pgast.Query, path_id: irast.PathId, var: pgast.Base, *,
+        rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
         force: bool=False, env: context.Environment) -> None:
     put_path_var(rel, path_id, var, aspect='identity', force=force, env=env)
 
 
 def put_path_value_var(
-        rel: pgast.Query, path_id: irast.PathId, var: pgast.Base, *,
+        rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
         force=False, env: context.Environment) -> None:
     put_path_var(rel, path_id, var, aspect='value', force=force, env=env)
 
 
 def put_path_serialized_var(
-        rel: pgast.Query, path_id: irast.PathId, var: pgast.Base, *,
+        rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
         force=False, env: context.Environment) -> None:
     put_path_var(rel, path_id, var, aspect='serialized', force=force, env=env)
 
 
 def put_path_value_var_if_not_exists(
-        rel: pgast.Query, path_id: irast.PathId, var: pgast.Base, *,
+        rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
         force=False, env: context.Environment) -> None:
     try:
         put_path_var(rel, path_id, var, aspect='value', force=force, env=env)
@@ -406,7 +408,7 @@ def put_path_value_var_if_not_exists(
 
 
 def put_path_serialized_var_if_not_exists(
-        rel: pgast.Query, path_id: irast.PathId, var: pgast.Base, *,
+        rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
         force=False, env: context.Environment) -> None:
     try:
         put_path_var(rel, path_id, var, aspect='serialized',
@@ -416,12 +418,12 @@ def put_path_serialized_var_if_not_exists(
 
 
 def put_path_bond(
-        stmt: pgast.Query, path_id: irast.PathId) -> None:
+        stmt: pgast.BaseRelation, path_id: irast.PathId) -> None:
     stmt.path_scope.add(path_id)
 
 
 def put_rvar_path_bond(
-        rvar: pgast.BaseRangeVar, path_id: irast.PathId) -> None:
+        rvar: pgast.PathRangeVar, path_id: irast.PathId) -> None:
     put_path_bond(rvar.query, path_id)
 
 
@@ -440,12 +442,12 @@ def get_path_output_alias(
 
 
 def get_rvar_path_var(
-        rvar: pgast.BaseRangeVar, path_id: irast.PathId, aspect: str, *,
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str, *,
         env: context.Environment) -> pgast.OutputVar:
     """Return ColumnRef for a given *path_id* in a given *range var*."""
 
-    if (path_id, aspect) in rvar.path_outputs:
-        outvar = rvar.path_outputs[path_id, aspect]
+    if (path_id, aspect) in rvar.query.path_outputs:
+        outvar = rvar.query.path_outputs[path_id, aspect]
     elif is_relation_rvar(rvar):
         outvar = _get_rel_path_output(rvar.query, path_id, aspect=aspect,
                                       env=env)
@@ -457,20 +459,20 @@ def get_rvar_path_var(
 
 
 def put_rvar_path_output(
-        rvar: pgast.BaseRangeVar, path_id: irast.PathId, aspect: str,
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str,
         var: pgast.OutputVar, *, env: context.Environment) -> None:
-    rvar.path_outputs[path_id, aspect] = var
+    rvar.query.path_outputs[path_id, aspect] = var
 
 
 def get_rvar_path_identity_var(
-        rvar: pgast.BaseRangeVar, path_id: irast.PathId, *,
-        env: context.Environment):
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
+        env: context.Environment) -> pgast.OutputVar:
     return get_rvar_path_var(rvar, path_id, aspect='identity', env=env)
 
 
 def maybe_get_rvar_path_identity_var(
-        rvar: pgast.BaseRangeVar, path_id: irast.PathId, *,
-        env: context.Environment):
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
+        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
     try:
         return get_rvar_path_var(rvar, path_id, aspect='identity', env=env)
     except LookupError:
@@ -478,14 +480,14 @@ def maybe_get_rvar_path_identity_var(
 
 
 def get_rvar_path_value_var(
-        rvar: pgast.BaseRangeVar, path_id: irast.PathId, *,
-        env: context.Environment):
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
+        env: context.Environment) -> pgast.OutputVar:
     return get_rvar_path_var(rvar, path_id, aspect='value', env=env)
 
 
 def maybe_get_rvar_path_value_var(
-        rvar: pgast.BaseRangeVar, path_id: irast.PathId, *,
-        env: context.Environment):
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
+        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
     try:
         return get_rvar_path_var(rvar, path_id, aspect='value', env=env)
     except LookupError:
@@ -493,21 +495,26 @@ def maybe_get_rvar_path_value_var(
 
 
 def get_rvar_output_var_as_col_list(
-        rvar: pgast.BaseRangeVar, outvar: pgast.OutputVar, aspect: str, *,
-        env: context.Environment) -> typing.List[pgast.ColumnRef]:
+        rvar: pgast.PathRangeVar, outvar: pgast.OutputVar, aspect: str, *,
+        env: context.Environment) -> typing.List[pgast.OutputVar]:
+
+    cols: typing.List[pgast.OutputVar]
+
     if isinstance(outvar, pgast.ColumnRef):
         cols = [outvar]
-    else:
+    elif isinstance(outvar, pgast.TupleVarBase):
         cols = []
         for el in outvar.elements:
             col = get_rvar_path_var(rvar, el.path_id, aspect=aspect, env=env)
             cols.append(col)
+    else:
+        raise RuntimeError(f'unexpected OutputVar: {outvar!r}')
 
     return cols
 
 
 def put_path_rvar(
-        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.BaseRangeVar, *,
+        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         aspect: str, env: context.Environment) -> None:
     assert isinstance(path_id, irast.PathId)
     stmt.path_rvar_map[path_id, aspect] = rvar
@@ -521,25 +528,25 @@ def put_path_rvar(
 
 
 def put_path_value_rvar(
-        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.BaseRangeVar, *,
+        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         env: context.Environment) -> None:
     put_path_rvar(stmt, path_id, rvar, aspect='value', env=env)
 
 
 def put_path_source_rvar(
-        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.BaseRangeVar, *,
+        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         env: context.Environment) -> None:
     put_path_rvar(stmt, path_id, rvar, aspect='source', env=env)
 
 
 def has_rvar(
-        stmt: pgast.Query, rvar: pgast.BaseRangeVar, *,
+        stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
         env: context.Environment) -> bool:
     return rvar in set(stmt.path_rvar_map.values())
 
 
 def put_path_rvar_if_not_exists(
-        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.BaseRangeVar, *,
+        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         aspect: str, env: context.Environment) -> None:
     if (path_id, aspect) not in stmt.path_rvar_map:
         put_path_rvar(stmt, path_id, rvar, aspect=aspect, env=env)
@@ -547,7 +554,7 @@ def put_path_rvar_if_not_exists(
 
 def get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
-        aspect: str, env: context.Environment) -> pgast.BaseRangeVar:
+        aspect: str, env: context.Environment) -> pgast.PathRangeVar:
     rvar = stmt.path_rvar_map.get((path_id, aspect))
     if rvar is None:
         if aspect == 'identity':
@@ -560,7 +567,7 @@ def get_path_rvar(
 
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *, aspect: str,
-        env: context.Environment) -> typing.Optional[pgast.BaseRangeVar]:
+        env: context.Environment) -> typing.Optional[pgast.PathRangeVar]:
     try:
         return get_path_rvar(stmt, path_id, aspect=aspect, env=env)
     except LookupError:
@@ -712,14 +719,16 @@ def _get_rel_path_output(
 
 
 def find_path_output(
-        rel: pgast.Query, path_id: irast.PathId, ref: pgast.Base, *,
-        env: context.Environment) -> str:
-    if isinstance(ref, pgast.TupleVar):
+        rel: pgast.BaseRelation, path_id: irast.PathId, ref: pgast.Base, *,
+        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+    if isinstance(ref, pgast.TupleVarBase):
         return None
 
     for key, other_ref in rel.path_namespace.items():
         if _same_expr(other_ref, ref) and key in rel.path_outputs:
             return rel.path_outputs.get(key)
+    else:
+        return None
 
 
 def get_path_output(
@@ -747,6 +756,7 @@ def _get_path_output(
     if result is not None:
         return result
 
+    ref: pgast.BaseExpr
     alias = None
     rptr = path_id.rptr()
     if rptr is not None and irtyputils.is_id_ptrref(rptr):
@@ -761,7 +771,9 @@ def _get_path_output(
     if is_terminal_relation(rel):
         return _get_rel_path_output(rel, path_id, aspect=aspect,
                                     ptr_info=ptr_info, env=env)
-    elif is_values_relation(rel):
+
+    assert isinstance(rel, pgast.Query)
+    if is_values_relation(rel):
         # The VALUES() construct seems to always expose its
         # value as "column1".
         alias = 'column1'
@@ -774,7 +786,7 @@ def _get_path_output(
         _put_path_output_var(rel, path_id, aspect, other_output, env=env)
         return other_output
 
-    if isinstance(ref, pgast.TupleVar):
+    if isinstance(ref, pgast.TupleVarBase):
         elements = []
         for el in ref.elements:
             el_path_id = reverse_map_path_id(
@@ -791,13 +803,14 @@ def _get_path_output(
                     rel, el_path_id, aspect=aspect,
                     allow_nullable=False, env=env)
 
-            elements.append(pgast.TupleElement(
+            elements.append(pgast.TupleElementBase(
                 path_id=el_path_id, name=element))
 
-        result = pgast.TupleVar(elements=elements, named=ref.named)
+        result = pgast.TupleVarBase(elements=elements, named=ref.named)
 
     else:
         if astutils.is_set_op_query(rel):
+            assert isinstance(ref, pgast.OutputVar)
             result = astutils.strip_output_var(ref)
         else:
             if alias is None:
@@ -805,17 +818,13 @@ def _get_path_output(
 
             restarget = pgast.ResTarget(
                 name=alias, val=ref, ser_safe=getattr(ref, 'ser_safe', False))
-            if hasattr(rel, 'returning_list'):
-                rel.returning_list.append(restarget)
-            else:
-                rel.target_list.append(restarget)
+            rel.target_list.append(restarget)
 
             nullable = is_nullable(ref, env=env)
 
+            optional = None
             if isinstance(ref, pgast.ColumnRef):
                 optional = ref.optional
-            else:
-                optional = None
 
             if nullable and not allow_nullable:
                 var = get_path_var(rel, path_id, aspect=aspect, env=env)
@@ -829,13 +838,13 @@ def _get_path_output(
                 name=[alias], nullable=nullable, optional=optional)
 
     _put_path_output_var(rel, path_id, aspect, result, env=env)
-    if path_id.is_objtype_path() and not isinstance(result, pgast.TupleVar):
+    if (path_id.is_objtype_path()
+            and not isinstance(result, pgast.TupleVarBase)):
+        equiv_aspect = None
         if aspect == 'identity':
             equiv_aspect = 'value'
         elif aspect == 'value':
             equiv_aspect = 'identity'
-        else:
-            equiv_aspect = None
 
         if (equiv_aspect is not None
                 and (path_id, equiv_aspect) not in rel.path_outputs):
@@ -870,7 +879,7 @@ def get_path_value_output(
 
 def get_path_serialized_or_value_var(
         rel: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> pgast.OutputVar:
+        env: context.Environment) -> pgast.BaseExpr:
 
     ref = maybe_get_path_serialized_var(rel, path_id, env=env)
     if ref is None:
@@ -892,17 +901,14 @@ def get_path_serialized_output(
 
     ref = get_path_serialized_or_value_var(rel, path_id, env=env)
 
-    ref = output.serialize_expr(ref, path_id=path_id, env=env)
+    refexpr = output.serialize_expr(ref, path_id=path_id, env=env)
     alias = get_path_output_alias(path_id, aspect, env=env)
 
-    restarget = pgast.ResTarget(name=alias, val=ref, ser_safe=True)
-    if hasattr(rel, 'returning_list'):
-        rel.returning_list.append(restarget)
-    else:
-        rel.target_list.append(restarget)
+    restarget = pgast.ResTarget(name=alias, val=refexpr, ser_safe=True)
+    rel.target_list.append(restarget)
 
     result = pgast.ColumnRef(
-        name=[alias], nullable=ref.nullable, ser_safe=True)
+        name=[alias], nullable=refexpr.nullable, ser_safe=True)
 
     _put_path_output_var(rel, path_id, aspect, result, env=env)
 
@@ -932,10 +938,7 @@ def get_path_output_or_null(
         name=alias,
         val=pgast.NullConstant())
 
-    if hasattr(rel, 'returning_list'):
-        rel.returning_list.append(restarget)
-    else:
-        rel.target_list.append(restarget)
+    rel.target_list.append(restarget)
 
     ref = pgast.ColumnRef(name=[alias], nullable=True)
     _put_path_output_var(rel, path_id, aspect, ref, env=env)
@@ -944,12 +947,12 @@ def get_path_output_or_null(
 
 
 def is_nullable(
-        expr: pgast.Base, *,
+        expr: pgast.BaseExpr, *,
         env: context.Environment) -> bool:
     try:
         return expr.nullable
     except AttributeError:
-        if isinstance(expr, pgast.Query):
+        if isinstance(expr, pgast.ReturningQuery):
             tl_len = len(expr.target_list)
             if tl_len != 1:
                 raise RuntimeError(

@@ -32,6 +32,7 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import links as s_links
 from edb.schema import name as sn
+from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
@@ -56,7 +57,7 @@ def process_view(
         view_name: typing.Optional[sn.SchemaName]=None,
         is_insert: bool=False,
         is_update: bool=False,
-        ctx: context.CompilerContext) -> s_types.Type:
+        ctx: context.ContextLevel) -> s_types.Type:
 
     cache_key = (stype, tuple(elements))
     view_scls = ctx.shape_type_cache.get(cache_key)
@@ -65,12 +66,11 @@ def process_view(
 
     with ctx.newscope(fenced=True, temporary=True) as scopectx:
         scopectx.path_scope.attach_path(path_id)
+        view_path_id_ns = None
         if ctx.expr_exposed or is_insert or is_update:
             view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
             scopectx.path_id_namespace |= {view_path_id_ns}
             scopectx.path_scope.add_namespaces((view_path_id_ns,))
-        else:
-            view_path_id_ns = None
 
         view_scls = _process_view(
             stype=stype, path_id=path_id, elements=elements,
@@ -94,7 +94,7 @@ def _process_view(
         view_name: typing.Optional[sn.SchemaName]=None,
         is_insert: bool=False,
         is_update: bool=False,
-        ctx: context.CompilerContext) -> s_types.Type:
+        ctx: context.ContextLevel) -> s_types.Type:
     view_scls = schemactx.derive_view(
         stype, is_insert=is_insert, is_update=is_update,
         derived_name=view_name, ctx=ctx)
@@ -117,6 +117,7 @@ def _process_view(
                 view_rptr=view_rptr, ctx=scopectx))
 
     if is_insert:
+        assert isinstance(stype, s_objtypes.ObjectType)
         explicit_ptrs = {ptrcls.get_shortname(ctx.env.schema).name
                          for ptrcls in pointers}
 
@@ -154,6 +155,7 @@ def _process_view(
 
     for ptrcls in pointers:
         if ptrcls.is_link_property(ctx.env.schema):
+            assert view_rptr is not None
             source = view_rptr.ptrcls
         else:
             source = view_scls
@@ -177,7 +179,7 @@ def _normalize_view_ptr_expr(
         is_insert: bool=False,
         is_update: bool=False,
         view_rptr: typing.Optional[context.ViewRPtr]=None,
-        ctx: context.CompilerContext) -> s_pointers.Pointer:
+        ctx: context.ContextLevel) -> s_pointers.Pointer:
     steps = shape_el.expr.steps
     is_linkprop = False
     is_polymorphic = False
@@ -187,18 +189,19 @@ def _normalize_view_ptr_expr(
     plen = len(steps)
     ptrsource = view_scls
     qlexpr = None
+    target_typexpr = None
+    source: qlast.Base
 
     if plen >= 2 and isinstance(steps[-1], qlast.TypeIndirection):
         # Target type indirection: foo: Type
         target_typexpr = steps[-1].type
         plen -= 1
         steps = steps[:-1]
-    else:
-        target_typexpr = None
 
     if plen == 1:
         # regular shape
         lexpr = steps[0]
+        assert isinstance(lexpr, qlast.Ptr)
         is_linkprop = lexpr.type == 'property'
         if is_linkprop:
             if view_rptr is None:
@@ -215,12 +218,18 @@ def _normalize_view_ptr_expr(
         ])
         lexpr = steps[1]
         ptype = steps[0].type
+        if not isinstance(ptype, qlast.TypeName):
+            raise errors.QueryError(
+                'complex type expressions are not supported here',
+                context=ptype.context,
+            )
         ptrsource = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
         is_polymorphic = True
     else:  # pragma: no cover
         raise RuntimeError(
             f'unexpected path length in view shape: {len(steps)}')
 
+    assert isinstance(lexpr, qlast.Ptr)
     ptrname = lexpr.ptr.name
 
     compexpr = shape_el.compexpr
@@ -234,7 +243,7 @@ def _normalize_view_ptr_expr(
     if compexpr is None:
         ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
         if is_polymorphic:
-            ptrcls = schemactx.derive_view(
+            ptrcls = schemactx.derive_ptr(
                 ptrcls, view_scls,
                 is_insert=is_insert,
                 is_update=is_update,
@@ -333,11 +342,12 @@ def _normalize_view_ptr_expr(
                     elements=shape_el.elements, ctx=ctx)
 
     else:
+        base_ptrcls = ptrcls = None
+
         if (is_mutation
                 and ptrname not in ctx.special_computables_in_mutation_shape):
             # If this is a mutation, the pointer must exist.
-            ptrcls = setgen.resolve_ptr(
-                ptrsource, ptrname, ctx=ctx)
+            ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
 
             base_ptrcls = ptrcls.get_bases(
                 ctx.env.schema).first(ctx.env.schema)
@@ -354,8 +364,6 @@ def _normalize_view_ptr_expr(
             # pointer aliases (Foo {some := Foo.other}), where `foo`
             # gets derived from `Foo.other`.  This logic is applied
             # in compile_query_subject() by populating the base_ptrcls.
-            base_ptrcls = ptrcls = None
-
             ptr_name = sn.Name(
                 module='__',
                 name=ptrname,
@@ -406,6 +414,7 @@ def _normalize_view_ptr_expr(
         # of the correct class.
         if is_mutation and ptrcls is not None:
             base_target = ptrcls.get_target(ctx.env.schema)
+            assert base_target is not None
             if ptr_target.assignment_castable_to(
                     base_target,
                     schema=ctx.env.schema):
@@ -426,6 +435,7 @@ def _normalize_view_ptr_expr(
                     repr(str(base_target.get_displayname(ctx.env.schema)))
                 ]
 
+                ercls: typing.Type[errors.EdgeDBError]
                 if ptrcls.is_property(ctx.env.schema):
                     ercls = errors.InvalidPropertyTargetError
                 else:
@@ -442,6 +452,8 @@ def _normalize_view_ptr_expr(
 
     if qlexpr is not None or ptrcls is None:
         if is_linkprop:
+            # Proper checking was done when is_linkprop is defined.
+            assert view_rptr is not None
             src_scls = view_rptr.ptrcls
         else:
             src_scls = view_scls
@@ -485,7 +497,7 @@ def _normalize_view_ptr_expr(
                     )
 
                 ctx.env.schema = existing.delete(ctx.env.schema)
-                ptrcls = schemactx.derive_view(
+                ptrcls = schemactx.derive_ptr(
                     derive_from, src_scls, ptr_target,
                     is_insert=is_insert,
                     is_update=is_update,
@@ -500,7 +512,7 @@ def _normalize_view_ptr_expr(
                         ptrcls,
                     )
         else:
-            ptrcls = schemactx.derive_view(
+            ptrcls = schemactx.derive_ptr(
                 derive_from, src_scls, ptr_target,
                 is_insert=is_insert,
                 is_update=is_update,
@@ -509,6 +521,8 @@ def _normalize_view_ptr_expr(
 
     elif ptrcls.get_target(ctx.env.schema) != ptr_target:
         ctx.env.schema = ptrcls.set_target(ctx.env.schema, ptr_target)
+
+    assert ptrcls is not None
 
     if qlexpr is None:
         # This is not a computable, just a pointer
@@ -589,7 +603,7 @@ def derive_ptrcls(
             attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
                 ctx.env.schema)
 
-        view_rptr.ptrcls = schemactx.derive_view(
+        view_rptr.ptrcls = schemactx.derive_ptr(
             view_rptr.base_ptrcls, view_rptr.source, target_scls,
             derived_name=derived_name,
             is_insert=view_rptr.is_insert,
@@ -603,7 +617,7 @@ def derive_ptrcls(
         if transparent and not view_rptr.ptrcls_is_alias:
             attrs['path_id_name'] = view_rptr.ptrcls.get_name(ctx.env.schema)
 
-        view_rptr.ptrcls = schemactx.derive_view(
+        view_rptr.ptrcls = schemactx.derive_ptr(
             view_rptr.ptrcls, view_rptr.source, target_scls,
             derived_name_quals=(
                 view_rptr.source.get_name(ctx.env.schema),
@@ -618,7 +632,7 @@ def derive_ptrcls(
 
 
 def _link_has_shape(
-        ptrcls: s_pointers.Pointer, *,
+        ptrcls: s_pointers.PointerLike, *,
         ctx: context.ContextLevel) -> bool:
     if not isinstance(ptrcls, s_links.Link):
         return False
@@ -657,7 +671,8 @@ def _get_shape_configuration(
 
     stype = setgen.get_set_type(ir_set, ctx=ctx)
 
-    sources = []
+    sources: typing.List[
+        typing.Union[s_types.Type, s_pointers.PointerLike]] = []
     link_view = False
     is_objtype = ir_set.path_id.is_objtype_path()
 
@@ -695,6 +710,8 @@ def _get_shape_configuration(
             shape_ptrs.append((path_tip, ptr))
 
     if is_objtype:
+        assert isinstance(stype, s_objtypes.ObjectType)
+
         view_type = stype.get_view_type(ctx.env.schema)
         is_mutation = view_type in (s_types.ViewType.Insert,
                                     s_types.ViewType.Update)
@@ -736,6 +753,8 @@ def _get_shape_configuration(
     )
 
     if implicit_tid:
+        assert isinstance(stype, s_objtypes.ObjectType)
+
         ql = qlast.ShapeElement(
             expr=qlast.Path(
                 steps=[qlast.Ptr(

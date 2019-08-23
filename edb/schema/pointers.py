@@ -34,6 +34,7 @@ from . import expr as s_expr
 from . import name as sn
 from . import objects as so
 from . import referencing
+from . import schema as s_schema
 from . import types as s_types
 from . import utils
 
@@ -46,7 +47,7 @@ class PointerDirection(enum.StrEnum):
 MAX_NAME_LENGTH = 63
 
 
-def merge_cardinality(target: so.Object, sources: typing.List[so.Object],
+def merge_cardinality(target: Pointer, sources: typing.List[so.Object],
                       field_name: str, *, schema) -> object:
     current = None
     current_from = None
@@ -112,22 +113,10 @@ def merge_target(ptr: Pointer, bases: typing.List[so.Pointer],
     return target
 
 
-class PointerLike:
-    # An abstract base class for pointer-like objects, which
-    # include actual schema properties and links, as well as
-    # pseudo-links used by the compiler to represent things like
-    # tuple and type indirection.
-    def is_tuple_indirection(self):
-        return False
-
-    def is_type_indirection(self):
-        return False
-
-
 class Pointer(referencing.ReferencedInheritingObject,
               constraints.ConsistencySubject,
               s_anno.AnnotationSubject,
-              PointerLike, s_abc.Pointer):
+              s_abc.Pointer):
 
     source = so.SchemaField(
         so.Object,
@@ -171,6 +160,12 @@ class Pointer(referencing.ReferencedInheritingObject,
         so.ObjectSet,
         default=None,
         coerce=True)
+
+    def is_tuple_indirection(self):
+        return False
+
+    def is_type_indirection(self):
+        return False
 
     def get_displayname(self, schema) -> str:
         sn = self.get_shortname(schema)
@@ -389,6 +384,9 @@ class Pointer(referencing.ReferencedInheritingObject,
     def is_property(self, schema):
         raise NotImplementedError
 
+    def is_link_property(self, schema):
+        raise NotImplementedError
+
     def is_protected_pointer(self, schema):
         return self.get_shortname(schema).name in {'id', '__type__'}
 
@@ -417,6 +415,83 @@ class Pointer(referencing.ReferencedInheritingObject,
             return self.get_cardinality(schema) is qltypes.Cardinality.ONE
         else:
             return self.is_exclusive(schema)
+
+
+class PseudoPointer(s_abc.Pointer):
+    # An abstract base class for pointer-like objects, i.e.
+    # pseudo-links used by the compiler to represent things like
+    # tuple and type indirection.
+    def is_tuple_indirection(self):
+        return False
+
+    def is_type_indirection(self):
+        return False
+
+    def get_bases(self, schema):
+        return so.ObjectList.create(schema, [])
+
+    def get_ancestors(self, schema):
+        return so.ObjectList.create(schema, [])
+
+    def get_name(self, schema):
+        raise NotImplementedError
+
+    def get_shortname(self, schema):
+        return self.get_name(schema)
+
+    def get_displayname(self, schema):
+        return self.get_name(schema)
+
+    def has_user_defined_properties(self, schema):
+        return False
+
+    def get_required(self, schema):
+        return True
+
+    def get_cardinality(self, schema):
+        raise NotImplementedError
+
+    def get_path_id_name(self, schema):
+        return self.get_name(schema)
+
+    def get_derived_from(self, schema):
+        return None
+
+    def get_is_local(self, schema):
+        return True
+
+    def get_union_of(self, schema):
+        return None
+
+    def get_default(self, schema):
+        return None
+
+    def get_expr(self, schema):
+        return None
+
+    def get_target(self, schema) -> s_types.Type:
+        raise NotImplementedError
+
+    def is_link_property(self, schema):
+        return False
+
+    def generic(self, schema):
+        return False
+
+    def singular(self, schema, direction=PointerDirection.Outbound) -> bool:
+        raise NotImplementedError
+
+    def scalar(self):
+        raise NotImplementedError
+
+    def material_type(self, schema):
+        return self
+
+    def is_pure_computable(self, schema):
+        return False
+
+
+PointerLike = typing.Union[Pointer, PseudoPointer]
 
 
 class PointerCommandContext(sd.ObjectCommandContext,
@@ -794,12 +869,13 @@ class SetPointerType(
 
 
 def get_or_create_union_pointer(
-        schema,
-        ptrname: str,
-        source,
-        direction: PointerDirection,
-        components: typing.Iterable[Pointer], *,
-        modname: typing.Optional[str]=None) -> Pointer:
+    schema,
+    ptrname: str,
+    source,
+    direction: PointerDirection,
+    components: typing.Iterable[Pointer], *,
+    modname: typing.Optional[str]=None,
+) -> typing.Tuple[s_schema.Schema, Pointer]:
 
     targets = [p.get_far_endpoint(schema, direction) for p in components]
     schema, target = utils.get_union_type(

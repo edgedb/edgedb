@@ -257,7 +257,7 @@ def compile_GroupQuery(
 
 @dispatch.compile.register(qlast.InsertQuery)
 def compile_InsertQuery(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.InsertQuery, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.subquery() as ictx:
         ictx.implicit_id_in_shapes = False
         ictx.implicit_tid_in_shapes = False
@@ -266,6 +266,7 @@ def compile_InsertQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
+        assert isinstance(subject, irast.Set)
 
         # Self-references in INSERT are prohibited.
         pathctx.ban_path(subject.path_id, ctx=ictx)
@@ -312,7 +313,7 @@ def compile_InsertQuery(
 
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.subquery() as ictx:
         ictx.implicit_id_in_shapes = False
         ictx.implicit_tid_in_shapes = False
@@ -321,6 +322,8 @@ def compile_UpdateQuery(
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
+        assert isinstance(subject, irast.Set)
+
         subj_type = inference.infer_type(subject, ictx.env)
         if not isinstance(subj_type, s_objtypes.ObjectType):
             raise errors.QueryError(
@@ -362,7 +365,7 @@ def compile_UpdateQuery(
 
 @dispatch.compile.register(qlast.DeleteQuery)
 def compile_DeleteQuery(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Base:
     with ctx.subquery() as ictx:
         ictx.implicit_id_in_shapes = False
         ictx.implicit_tid_in_shapes = False
@@ -494,7 +497,7 @@ def fini_stmt(
 
 
 def process_with_block(
-        edgeql_tree: qlast.Base, *,
+        edgeql_tree: qlast.Stmt, *,
         ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
@@ -528,6 +531,9 @@ def compile_result_clause(
         if forward_rptr:
             sctx.view_rptr = view_rptr
             # sctx.view_scls = view_scls
+
+        result_expr: qlast.Base
+        shape: typing.Optional[typing.Sequence[qlast.ShapeElement]]
 
         if isinstance(result, qlast.Shape):
             result_expr = result.expr
@@ -586,16 +592,16 @@ def compile_result_clause(
 
         ctx.partial_path_prefix = expr
 
-        result = compile_query_subject(
+        ir_result = compile_query_subject(
             expr, shape=shape, view_rptr=view_rptr, view_name=view_name,
             result_alias=result_alias,
             view_scls=view_scls,
             compile_views=ctx.stmt is ctx.toplevel_stmt,
             ctx=sctx)
 
-        ctx.partial_path_prefix = result
+        ctx.partial_path_prefix = ir_result
 
-    return result
+    return ir_result
 
 
 def compile_query_subject(
@@ -629,6 +635,7 @@ def compile_query_subject(
     )
 
     if is_ptr_alias:
+        assert view_rptr is not None
         # We are inside an expression that defines a link alias in
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
@@ -675,7 +682,7 @@ def compile_query_subject(
 def compile_groupby_clause(
         groupexprs: typing.Iterable[qlast.Base], *,
         ctx: context.ContextLevel) -> typing.List[irast.Set]:
-    result = []
+    result: typing.List[irast.Set] = []
     if not groupexprs:
         return result
 

@@ -49,7 +49,7 @@ from . import shapecomp
 @dispatch.compile.register(irast.Set)
 def compile_Set(
         ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if ctx.singleton_mode:
         return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
@@ -77,7 +77,7 @@ def visit_Set(
         ctx: context.CompilerContextLevel) -> None:
 
     if ctx.singleton_mode:
-        return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
+        _compile_set_in_singleton_mode(ir_set, ctx=ctx)
 
     _compile_set_impl(ir_set, ctx=ctx)
 
@@ -114,7 +114,9 @@ def _compile_set_impl(
 @dispatch.compile.register(irast.Parameter)
 def compile_Parameter(
         expr: irast.Parameter, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+
+    result: pgast.BaseParamRef
     if expr.name.isdecimal():
         index = int(expr.name) + 1
         result = pgast.ParamRef(number=index)
@@ -141,7 +143,7 @@ def compile_Parameter(
 @dispatch.compile.register(irast.RawStringConstant)
 def compile_RawStringConstant(
         expr: irast.RawStringConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     return pgast.TypeCast(
         arg=pgast.StringConstant(val=expr.value),
@@ -154,7 +156,7 @@ def compile_RawStringConstant(
 @dispatch.compile.register(irast.StringConstant)
 def compile_StringConstant(
         expr: irast.StringConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     return pgast.TypeCast(
         arg=pgast.EscapedStringConstant(val=expr.value),
@@ -167,7 +169,7 @@ def compile_StringConstant(
 @dispatch.compile.register(irast.BytesConstant)
 def compile_BytesConstant(
         expr: irast.StringConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     return pgast.ByteaConstant(val=expr.value)
 
@@ -177,7 +179,7 @@ def compile_BytesConstant(
 @dispatch.compile.register(irast.IntegerConstant)
 def compile_FloatConstant(
         expr: irast.BaseConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     return pgast.TypeCast(
         arg=pgast.NumericConstant(val=expr.value),
@@ -190,7 +192,7 @@ def compile_FloatConstant(
 @dispatch.compile.register(irast.BooleanConstant)
 def compile_BooleanConstant(
         expr: irast.BooleanConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     return pgast.TypeCast(
         arg=pgast.BooleanConstant(val=expr.value),
@@ -203,7 +205,7 @@ def compile_BooleanConstant(
 @dispatch.compile.register(irast.TypeCast)
 def compile_TypeCast(
         expr: irast.TypeCast, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     pg_expr = dispatch.compile(expr.expr, ctx=ctx)
 
@@ -238,7 +240,8 @@ def compile_TypeCast(
 
 @dispatch.compile.register(irast.IndexIndirection)
 def compile_IndexIndirection(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.IndexIndirection, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     # Handle Expr[Index], where Expr may be std::str, array<T> or
     # std::json. For strings we translate this into substr calls.
     # Arrays use the native index access. JSON is handled by using the
@@ -267,7 +270,8 @@ def compile_IndexIndirection(
 
 @dispatch.compile.register(irast.SliceIndirection)
 def compile_SliceIndirection(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.SliceIndirection, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     # Handle Expr[Index], where Expr may be std::str, array<T> or
     # std::json. For strings we translate this into substr calls.
     # Arrays use the native slice syntax. JSON is handled by a
@@ -295,7 +299,7 @@ def compile_SliceIndirection(
 @dispatch.compile.register(irast.OperatorCall)
 def compile_OperatorCall(
         expr: irast.OperatorCall, *,
-        ctx: context.CompilerContextLevel) -> pgast.Expr:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if (expr.func_shortname == 'std::IF'
             and expr.args[1].cardinality is ql_ft.Cardinality.ONE
@@ -315,14 +319,13 @@ def compile_OperatorCall(
             f'in simple expressions')
 
     args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
+    lexpr = rexpr = None
     if expr.operator_kind is ql_ft.OperatorKind.INFIX:
         lexpr, rexpr = args
     elif expr.operator_kind is ql_ft.OperatorKind.PREFIX:
         rexpr = args[0]
-        lexpr = None
     elif expr.operator_kind is ql_ft.OperatorKind.POSTFIX:
         lexpr = args[0]
-        rexpr = None
     else:
         raise RuntimeError(f'unexpected operator kind: {expr.operator_kind!r}')
 
@@ -356,7 +359,7 @@ def compile_OperatorCall(
         sql_oper = common.get_operator_backend_name(
             expr.func_shortname, expr.func_module_id)[1]
 
-    result = pgast.Expr(
+    result: pgast.BaseExpr = pgast.Expr(
         kind=pgast.ExprKind.OP,
         name=sql_oper,
         lexpr=lexpr,
@@ -380,18 +383,30 @@ def compile_OperatorCall(
 @dispatch.compile.register(irast.TypeCheckOp)
 def compile_TypeCheckOp(
         expr: irast.TypeCheckOp, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False
         left = dispatch.compile(expr.left, ctx=newctx)
         negated = expr.op == 'IS NOT'
 
+        result: pgast.BaseExpr
+
         if expr.result is not None:
             result = pgast.BooleanConstant(
                 val='false' if not expr.result or negated else 'true')
         else:
-            right = dispatch.compile(expr.right, ctx=newctx)
+            right: pgast.BaseExpr
+
+            if expr.right.children:
+                right = pgast.ArrayExpr(
+                    elements=[
+                        dispatch.compile(c, ctx=newctx)
+                        for c in expr.right.children
+                    ]
+                )
+            else:
+                right = dispatch.compile(expr.right, ctx=newctx)
 
             result = pgast.FuncCall(
                 name=('edgedb', 'issubclass'),
@@ -405,15 +420,19 @@ def compile_TypeCheckOp(
 
 @dispatch.compile.register(irast.Array)
 def compile_Array(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.Array, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
     return relgen.build_array_expr(expr, elements, ctx=ctx)
 
 
 @dispatch.compile.register(irast.TupleIndirection)
 def compile_TupleIndirection(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
-    for se in expr.expr.expr.elements:
+        expr: irast.TupleIndirection, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    tuple_expr = expr.expr.expr
+    assert isinstance(tuple_expr, irast.Tuple)
+    for se in tuple_expr.elements:
         if se.name == expr.name:
             return dispatch.compile(se.val, ctx=ctx)
 
@@ -422,7 +441,8 @@ def compile_TupleIndirection(
 
 @dispatch.compile.register(irast.Tuple)
 def compile_Tuple(
-        expr: irast.Tuple, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.Tuple, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     ttype = expr.typeref
     ttypes = {}
     for i, st in enumerate(ttype.subtypes):
@@ -447,7 +467,8 @@ def compile_Tuple(
 
 @dispatch.compile.register(irast.TypeRef)
 def compile_TypeRef(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.TypeRef, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     if expr.collection:
         raise NotImplementedError()
     else:
@@ -463,7 +484,8 @@ def compile_TypeRef(
 
 @dispatch.compile.register(irast.FunctionCall)
 def compile_FunctionCall(
-        expr: irast.Base, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        expr: irast.FunctionCall, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if expr.typemod is ql_ft.TypeModifier.SET_OF:
         raise RuntimeError(
@@ -471,7 +493,7 @@ def compile_FunctionCall(
 
     args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
 
-    if expr.has_empty_variadic:
+    if expr.has_empty_variadic and expr.variadic_param_type is not None:
         var = pgast.TypeCast(
             arg=pgast.ArrayExpr(elements=[]),
             type_name=pgast.TypeName(
@@ -487,7 +509,7 @@ def compile_FunctionCall(
         name = common.get_function_backend_name(expr.func_shortname,
                                                 expr.func_module_id)
 
-    result = pgast.FuncCall(name=name, args=args)
+    result: pgast.BaseExpr = pgast.FuncCall(name=name, args=args)
 
     if expr.force_return_cast:
         # The underlying function has a return value type
@@ -505,7 +527,8 @@ def compile_FunctionCall(
 
 def _tuple_to_row_expr(
         tuple_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.ImplicitRowExpr:
+        ctx: context.CompilerContextLevel,
+) -> typing.Union[pgast.ImplicitRowExpr, pgast.RowExpr]:
     tuple_val = dispatch.compile(tuple_set, ctx=ctx)
     if not isinstance(tuple_val, (pgast.RowExpr, pgast.ImplicitRowExpr)):
         raise RuntimeError('tuple compilation unexpectedly did '
@@ -556,7 +579,8 @@ def _compile_shape(
 
 
 def _compile_set_in_singleton_mode(
-        node: irast.Set, *, ctx: context.CompilerContextLevel) -> pgast.Base:
+        node: irast.Set, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     if isinstance(node, irast.EmptySet):
         return pgast.NullConstant()
     elif node.expr is not None:

@@ -34,6 +34,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
+from edb.schema import operators as s_oper
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
@@ -54,7 +55,7 @@ from . import typegen
 
 @dispatch.compile.register(qlast.FunctionCall)
 def compile_FunctionCall(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.FunctionCall, *, ctx: context.ContextLevel) -> irast.Base:
 
     env = ctx.env
 
@@ -103,6 +104,7 @@ def compile_FunctionCall(
         matched_call = matched[0]
 
     func = matched_call.func
+    assert isinstance(func, s_func.Function)
     func_name = func.get_shortname(env.schema)
 
     if not ctx.env.session_mode and func.get_session_only(env.schema):
@@ -110,9 +112,9 @@ def compile_FunctionCall(
             f'{func_name}() cannot be called in a non-session context',
             context=expr.context)
 
-    args, params_typemods = finalize_args(matched_call, ctx=ctx)
+    final_args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
-    matched_func_params = matched_call.func.get_params(env.schema)
+    matched_func_params = func.get_params(env.schema)
     variadic_param = matched_func_params.find_variadic(env.schema)
     variadic_param_type = None
     if variadic_param is not None:
@@ -120,15 +122,14 @@ def compile_FunctionCall(
             env.schema,
             variadic_param.get_type(env.schema))
 
-    matched_func_ret_type = matched_call.func.get_return_type(env.schema)
+    matched_func_ret_type = func.get_return_type(env.schema)
     is_polymorphic = (
         any(p.get_type(env.schema).is_polymorphic(env.schema)
             for p in matched_func_params.objects(env.schema)) and
         matched_func_ret_type.is_polymorphic(env.schema)
     )
 
-    matched_func_initial_value = matched_call.func.get_initial_value(
-        env.schema)
+    matched_func_initial_value = func.get_initial_value(env.schema)
 
     if not in_abstract_constraint:
         # We cannot add strong references to functions from
@@ -136,12 +137,17 @@ def compile_FunctionCall(
         # form of the function is actually used.
         env.schema_refs.add(func)
 
+    func_initial_value: typing.Optional[irast.Set]
+
     if matched_func_initial_value is not None:
         iv_ql = qlast.TypeCast(
             expr=qlparser.parse_fragment(matched_func_initial_value.text),
             type=typegen.type_to_ql_typeref(matched_call.return_type, ctx=ctx),
         )
-        func_initial_value = dispatch.compile(iv_ql, ctx=ctx)
+        func_initial_value = setgen.ensure_set(
+            dispatch.compile(iv_ql, ctx=ctx),
+            ctx=ctx,
+        )
     else:
         func_initial_value = None
 
@@ -149,6 +155,7 @@ def compile_FunctionCall(
     path_id = pathctx.get_expression_path_id(rtype, ctx=ctx)
 
     if rtype.is_tuple():
+        rtype = typing.cast(s_types.Tuple, rtype)
         tuple_path_ids = []
         nested_path_ids = []
         for n, st in rtype.iter_subtypes(ctx.env.schema):
@@ -166,10 +173,10 @@ def compile_FunctionCall(
         for nested in nested_path_ids:
             tuple_path_ids.extend(nested)
     else:
-        tuple_path_ids = None
+        tuple_path_ids = []
 
     fcall = irast.FunctionCall(
-        args=args,
+        args=final_args,
         func_module_id=env.schema.get_global(
             s_mod.Module, func_name.module).id,
         func_shortname=func_name,
@@ -195,7 +202,7 @@ def compile_FunctionCall(
 
 def compile_operator(
         qlexpr: qlast.Base, op_name: str, qlargs: typing.List[qlast.Base], *,
-        ctx: context.ContextLevel) -> irast.OperatorCall:
+        ctx: context.ContextLevel) -> irast.Set:
 
     env = ctx.env
     schema = env.schema
@@ -332,7 +339,7 @@ def compile_operator(
                 matched_call = matched[0]
             else:
                 detail = ', '.join(
-                    f'`{m.func.get_display_signature(ctx.env.schema)}`'
+                    f'`{m.func.get_verbosename(ctx.env.schema)}`'
                     for m in matched
                 )
                 raise errors.QueryError(
@@ -341,9 +348,10 @@ def compile_operator(
                     hint=f'Possible variants: {detail}.',
                     context=qlexpr.context)
 
-    args, params_typemods = finalize_args(matched_call, ctx=ctx)
+    final_args, params_typemods = finalize_args(matched_call, ctx=ctx)
 
     oper = matched_call.func
+    assert isinstance(oper, s_oper.Operator)
     env.schema_refs.add(oper)
     oper_name = oper.get_shortname(env.schema)
 
@@ -354,9 +362,9 @@ def compile_operator(
         # Special case for the UNION and IF operators, instead of common
         # parent type, we return a union type.
         if oper_name == 'std::UNION':
-            larg, rarg = (a.expr for a in args)
+            larg, rarg = (a.expr for a in final_args)
         else:
-            larg, rarg = (a.expr for a in args[1:])
+            larg, rarg = (a.expr for a in final_args[1:])
 
         left_type = setgen.get_set_type(larg, ctx=ctx).material_type(
             ctx.env.schema)
@@ -378,15 +386,14 @@ def compile_operator(
     )
 
     from_op = oper.get_from_operator(env.schema)
+    sql_operator = None
     if (from_op is not None and oper.get_code(env.schema) is None and
             oper.get_from_function(env.schema) is None and
             not in_polymorphic_func):
         sql_operator = tuple(from_op)
-    else:
-        sql_operator = None
 
     node = irast.OperatorCall(
-        args=args,
+        args=final_args,
         func_module_id=env.schema.get_global(
             s_mod.Module, oper_name.module).id,
         func_shortname=oper_name,
@@ -407,15 +414,17 @@ def compile_operator(
 
 def validate_recursive_operator(
         opers: typing.Iterable[s_func.CallableObject],
-        larg: typing.Tuple[s_types.Type, irast.Base],
-        rarg: typing.Tuple[s_types.Type, irast.Base], *,
+        larg: typing.Tuple[s_types.Type, irast.Set],
+        rarg: typing.Tuple[s_types.Type, irast.Set], *,
         ctx: context.ContextLevel) -> typing.List[polyres.BoundCall]:
 
-    matched = []
+    matched: typing.List[polyres.BoundCall] = []
 
     # if larg and rarg are tuples or arrays, recurse into their subtypes
     if (larg[0].is_tuple() and rarg[0].is_tuple() or
             larg[0].is_array() and rarg[0].is_array()):
+        assert isinstance(larg[0], s_types.Collection)
+        assert isinstance(rarg[0], s_types.Collection)
         for rsub, lsub in zip(larg[0].get_subtypes(ctx.env.schema),
                               rarg[0].get_subtypes(ctx.env.schema)):
             matched = validate_recursive_operator(
@@ -433,7 +442,7 @@ def validate_recursive_operator(
 
 
 def compile_call_arg(arg_ql: qlast.Expr, *,
-                     ctx: context.ContextLevel) -> irast.Base:
+                     ctx: context.ContextLevel) -> irast.Set:
     with ctx.newscope(fenced=True) as fencectx:
         # We put on a SET OF fence preemptively in case this is
         # a SET OF arg, which we don't know yet due to polymorphic
@@ -448,11 +457,11 @@ def compile_call_arg(arg_ql: qlast.Expr, *,
 
 
 def compile_call_args(
-        expr: qlast.FunctionCall, funcname: sn.Name, *,
+        expr: qlast.FunctionCall, funcname: str, *,
         ctx: context.ContextLevel) \
         -> typing.Tuple[
-            typing.List[typing.Tuple[s_types.Type, irast.Base]],
-            typing.Dict[str, typing.Tuple[s_types.Type, irast.Base]]]:
+            typing.List[typing.Tuple[s_types.Type, irast.Set]],
+            typing.Dict[str, typing.Tuple[s_types.Type, irast.Set]]]:
 
     args = []
     kwargs = {}
@@ -484,10 +493,12 @@ def compile_call_args(
     return args, kwargs
 
 
-def finalize_args(bound_call: polyres.BoundCall, *,
-                  ctx: context.ContextLevel) -> typing.List[irast.Base]:
+def finalize_args(
+    bound_call: polyres.BoundCall, *,
+    ctx: context.ContextLevel,
+) -> typing.Tuple[typing.List[irast.CallArg], typing.List[ft.TypeModifier]]:
 
-    args = []
+    args: typing.List[irast.CallArg] = []
     typemods = []
 
     for barg in bound_call.args:
@@ -536,6 +547,7 @@ def finalize_args(bound_call: polyres.BoundCall, *,
         if param_kind is ft.ParameterKind.VARIADIC:
             # For variadic params, paramtype would be array<T>,
             # and we need T to cast the arguments.
+            assert isinstance(paramtype, s_types.Array)
             paramtype = list(paramtype.get_subtypes(ctx.env.schema))[0]
 
         val_material_type = barg.valtype.material_type(ctx.env.schema)

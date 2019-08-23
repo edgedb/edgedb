@@ -63,6 +63,8 @@ def default_field_merge(target: 'Object', sources: typing.List['Object'],
             theirs = source.get_explicit_field_value(schema, field_name, None)
             if theirs is not None:
                 return theirs
+
+        return None
     else:
         return ours
 
@@ -243,8 +245,8 @@ class RefDict(struct.Struct):
 
 class ObjectMeta(type):
 
-    _schema_metaclasses = []
-    _schema_types = set()
+    _schema_metaclasses: typing.List[ObjectMeta] = []
+    _schema_types: typing.Set[ObjectMeta] = set()
 
     def __new__(mcls, name, bases, clsdict):
         fields = {}
@@ -410,6 +412,9 @@ class FieldValueNotFoundError(Exception):
     pass
 
 
+Object_T = typing.TypeVar('Object_T', bound='Object')
+
+
 class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     """Base schema item class."""
 
@@ -436,6 +441,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         sn.Name,
         inheritable=False, ephemeral=True,
         introspectable=False, default=None)
+
+    _fields: typing.Dict[str, SchemaField]
 
     def get_shortname(self, schema) -> sn.Name:
         return sn.shortname_from_fullname(self.get_name(schema))
@@ -482,7 +489,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return obj
 
     @classmethod
-    def create_in_schema(cls, schema, *, id=None, **data) -> 'Object':
+    def create_in_schema(
+        cls: typing.Type[Object_T],
+        schema, *,
+        id=None,
+        **data,
+    ) -> typing.Tuple[object, Object_T]:
+
         if not cls.is_schema_object:
             raise TypeError(f'{cls.__name__} type cannot be created in schema')
 
@@ -1263,7 +1276,7 @@ class ObjectCollection(s_abc.ObjectContainer):
         )
 
     @classmethod
-    def create(cls, schema, data: typing.Iterable[Object]):
+    def create(cls, schema, data):
         ids = []
 
         if isinstance(data, ObjectCollection):
@@ -1436,8 +1449,11 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return schema, type(self).create(schema, items.values())
 
-    def delete(self, schema,
-               names: typing.Iterable[str]) -> 'ObjectIndexBase':
+    def delete(
+        self,
+        schema,
+        names: typing.Iterable[str],
+    ) -> typing.Tuple[s_abc.Schema, ObjectIndexBase]:
         items = dict(self.items(schema))
         for name in names:
             items.pop(name)
@@ -1499,7 +1515,11 @@ class ObjectIndexByUnqualifiedName(
 class ObjectDict(ObjectCollection, container=tuple):
 
     @classmethod
-    def create(cls, schema, data: typing.Mapping[object, Object]):
+    def create(
+        cls,
+        schema,
+        data: typing.Mapping[object, Object]
+    ) -> ObjectDict:
 
         result = super().create(schema, data.values())
         result._keys = tuple(data.keys())
@@ -1593,6 +1613,36 @@ class InheritingObjectBase(Object):
         hashable=False,
     )
 
+    def _issubclass(self, schema, parent):
+        lineage = compute_lineage(schema, self)
+        return parent in lineage
+
+    def issubclass(self, schema, parent):
+        if isinstance(parent, tuple):
+            return any(self.issubclass(schema, p) for p in parent)
+        else:
+            if parent.is_type() and parent.is_any():
+                return True
+            else:
+                return self._issubclass(schema, parent)
+
+    def descendants(self, schema):
+        return schema.get_descendants(self)
+
+    def ordered_descendants(self, schema):
+        """Return class descendants in ancestral order."""
+        graph = {}
+        for descendant in self.descendants(schema):
+            graph[descendant] = {
+                'item': descendant,
+                'deps': descendant.get_bases(schema).objects(schema),
+            }
+
+        return list(topological.sort(graph, allow_unresolved=True))
+
+    def children(self, schema):
+        return schema.get_children(self)
+
 
 @markup.serializer.serializer.register(Object)
 @markup.serializer.serializer.register(ObjectCollection)
@@ -1606,3 +1656,46 @@ def _serialize_to_markup(o, *, ctx):
         id=id(o), class_module=type(o).__module__,
         classname=type(o).__name__,
         repr=orepr)
+
+
+def _merge_lineage(schema, obj, lineage):
+    result = []
+
+    while True:
+        nonempty = [line for line in lineage if line]
+        if not nonempty:
+            return result
+
+        for line in nonempty:
+            candidate = line[0]
+            tails = [m for m in nonempty
+                     if id(candidate) in {id(c) for c in m[1:]}]
+            if not tails:
+                break
+        else:
+            name = obj.get_verbosename(schema)
+            raise errors.SchemaError(
+                f"Could not find consistent ancestor order for {name}"
+            )
+
+        result.append(candidate)
+
+        for line in nonempty:
+            if line[0] is candidate:
+                del line[0]
+
+    return result
+
+
+def compute_lineage(schema, obj):
+    bases = tuple(obj.get_bases(schema).objects(schema))
+    lineage = [[obj]]
+
+    for base in bases:
+        lineage.append(compute_lineage(schema, base))
+
+    return _merge_lineage(schema, obj, lineage)
+
+
+def compute_ancestors(schema, obj):
+    return compute_lineage(schema, obj)[1:]

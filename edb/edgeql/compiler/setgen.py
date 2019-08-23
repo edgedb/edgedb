@@ -76,7 +76,8 @@ def new_empty_set(*, stype: typing.Optional[s_types.Type]=None, alias: str,
                       parsing.ParserContext]=None) -> irast.Set:
     if stype is None:
         stype = s_pseudo.Any.create()
-        ctx.env.type_origins[stype] = srcctx
+        if srcctx is not None:
+            ctx.env.type_origins[stype] = srcctx
 
     typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
     path_id = pathctx.get_expression_path_id(stype, alias, ctx=ctx)
@@ -173,8 +174,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     """Create an ir.Set representing the given EdgeQL path expression."""
     anchors = ctx.anchors
 
-    path_tip = None
-
     if expr.partial:
         if ctx.partial_path_prefix is not None:
             path_tip = ctx.partial_path_prefix
@@ -218,7 +217,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
                     path_tip = new_set_from_set(view_set, ctx=ctx)
-                    path_scope = ctx.path_scope_map.get(view_set)
+                    path_scope = ctx.path_scope_map[view_set]
                     extra_scopes[path_tip] = path_scope.copy()
                 else:
                     path_tip = class_set(stype, ctx=ctx)
@@ -232,9 +231,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         elif isinstance(step, qlast.Ptr):
             # Pointer traversal step
             ptr_expr = step
-            direction = (ptr_expr.direction or
-                         s_pointers.PointerDirection.Outbound)
+            if ptr_expr.direction is not None:
+                direction = s_pointers.PointerDirection(ptr_expr.direction)
+            else:
+                direction = s_pointers.PointerDirection.Outbound
+
             ptr_name = ptr_expr.ptr.name
+
+            source: typing.Union[s_types.Type, s_pointers.PointerLike]
 
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
@@ -270,6 +274,12 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     f'{arg_type.get_displayname(ctx.env.schema)} '
                     f'is not an object type',
                     context=step.context)
+
+            if not isinstance(step.type, qlast.TypeName):
+                raise errors.QueryError(
+                    f'complex type expressions are not supported here',
+                    context=step.context,
+                )
 
             typ = schemactx.get_schema_type(step.type.maintype, ctx=ctx)
             if not isinstance(typ, s_objtypes.ObjectType):
@@ -364,7 +374,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
 def resolve_special_anchor(
         anchor: qlast.SpecialAnchor, *,
-        ctx: context.ContextLevel) -> irast.Expr:
+        ctx: context.ContextLevel) -> irast.Set:
 
     # '__source__' and '__subject__` can only appear as the
     # starting path label syntactically and must be pre-populated
@@ -417,7 +427,7 @@ def fuse_scope_branch(
 
 def ptr_step_set(
         path_tip: irast.Set, *,
-        source: s_sources.Source,
+        source: typing.Union[s_types.Type, s_pointers.PointerLike],
         ptr_name: str,
         direction: PtrDir,
         source_context: parsing.ParserContext,
@@ -438,7 +448,7 @@ def ptr_step_set(
 
 
 def resolve_ptr(
-        near_endpoint: s_sources.Source,
+        near_endpoint: typing.Union[s_types.Type, s_pointers.PointerLike],
         pointer_name: str, *,
         direction: s_pointers.PointerDirection=(
             s_pointers.PointerDirection.Outbound
@@ -580,13 +590,17 @@ def _is_computable_ptr(
     if is_mut_assign and ptrcls.get_default(ctx.env.schema) is not None:
         return True
 
+    return False
+
 
 def tuple_indirection_set(
         path_tip: irast.Set, *,
-        source: s_sources.Source,
+        source: s_types.Type,
         ptr_name: str,
         source_context: parsing.ParserContext,
         ctx: context.ContextLevel) -> irast.Set:
+
+    assert isinstance(source, s_types.Tuple)
 
     el_name = ptr_name
     el_norm_name = source.normalize_index(ctx.env.schema, el_name)
@@ -807,6 +821,9 @@ def computable_ptr_set(
                     stmtctx.ensure_ptrref_cardinality(
                         base, source_set.rptr.ptrref, ctx=ctx)
 
+    qlctx: typing.Optional[context.ContextLevel]
+    inner_source_path_id: typing.Optional[irast.PathId]
+
     try:
         qlexpr, qlctx, inner_source_path_id, path_id_ns = \
             ctx.source_map[ptrcls]
@@ -826,6 +843,7 @@ def computable_ptr_set(
         # the default expression must be assignment-cast into that
         # type.
         target_scls = ptrcls.get_target(ctx.env.schema)
+        assert target_scls is not None
         if not target_scls.is_object_type():
             qlexpr = qlast.TypeCast(
                 type=astutils.type_to_ql_typeref(
@@ -877,7 +895,8 @@ def computable_ptr_set(
             subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
                 is_unnest_fence=True)
 
-        comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
+        comp_ir_set = ensure_set(
+            dispatch.compile(qlexpr, ctx=subctx), ctx=subctx)
 
     comp_ir_set_copy = new_set_from_set(comp_ir_set, ctx=ctx)
     pending_cardinality = ctx.pending_cardinality.get(ptrcls)
@@ -899,15 +918,17 @@ def computable_ptr_set(
 
 
 def _get_computable_ctx(
-        *,
-        rptr: irast.Pointer,
-        source: irast.Set,
-        source_scls: s_types.Type,
-        inner_source_path_id: irast.PathId,
-        path_id_ns: typing.Optional[irast.WeakNamespace],
-        same_scope: bool,
-        qlctx: context.ContextLevel,
-        ctx: context.ContextLevel) -> typing.ContextManager:
+    *,
+    rptr: irast.Pointer,
+    source: irast.Set,
+    source_scls: s_types.Type,
+    inner_source_path_id: typing.Optional[irast.PathId],
+    path_id_ns: typing.Optional[irast.WeakNamespace],
+    same_scope: bool,
+    qlctx: context.ContextLevel,
+    ctx: context.ContextLevel
+) -> typing.Callable[[], typing.ContextManager]:
+
     @contextlib.contextmanager
     def newctx():
         with ctx.new() as subctx:

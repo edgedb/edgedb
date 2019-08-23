@@ -285,7 +285,7 @@ class UnaryOp(Expr):
 
 
 class TypeExpr(Base):
-    pass
+    name: str  # name is used for types in named tuples
 
 
 class TypeOf(TypeExpr):
@@ -298,14 +298,12 @@ class TypeExprLiteral(TypeExpr):
 
 
 class TypeName(TypeExpr):
-    name: str  # name is used for types in named tuples
     maintype: BaseObjectRef
     subtypes: typing.Optional[typing.List[TypeExpr]]
     dimensions: typing.Optional[typing.List[int]]
 
 
 class TypeOp(TypeExpr):
-    name: str
     left: TypeExpr
     op: str
     right: TypeExpr
@@ -434,37 +432,9 @@ class SelectClauseStatement(Statement):
     implicit: bool = False
 
 
-class SelectQuery(ReturningStatement, SelectClauseStatement):
-    pass
-
-
-class GroupQuery(SelectQuery, SubjStatement):
-    using: typing.List[AliasedExpr]
-    by: typing.List[Expr]
-    into: str
-
-
-class InsertQuery(SubjStatement):
-    shape: typing.List[Expr]
-
-
-class UpdateQuery(SubjStatement):
-    shape: typing.List[Expr]
-    where: Expr
-
-
-class DeleteQuery(SubjStatement, SelectClauseStatement):
-    pass
-
-
-class ForQuery(SelectQuery):
-    iterator: Expr
-    iterator_alias: str
-
-
 class ShapeElement(Expr):
-    expr: Expr
-    elements: typing.List[Expr]
+    expr: Path
+    elements: typing.List[ShapeElement]
     where: Expr
     orderby: typing.List[SortExpr]
     offset: Expr
@@ -477,6 +447,35 @@ class ShapeElement(Expr):
 class Shape(Expr):
     expr: Expr
     elements: typing.List[ShapeElement]
+
+
+class SelectQuery(ReturningStatement, SelectClauseStatement):
+    pass
+
+
+class GroupQuery(SelectQuery, SubjStatement):
+    using: typing.List[AliasedExpr]
+    by: typing.List[Expr]
+    into: str
+
+
+class InsertQuery(SubjStatement):
+    subject: Path
+    shape: typing.List[ShapeElement]
+
+
+class UpdateQuery(SubjStatement):
+    shape: typing.List[ShapeElement]
+    where: Expr
+
+
+class DeleteQuery(SubjStatement, SelectClauseStatement):
+    pass
+
+
+class ForQuery(SelectQuery):
+    iterator: Expr
+    iterator_alias: str
 
 
 # Transactions

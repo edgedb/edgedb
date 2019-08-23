@@ -67,6 +67,7 @@ def compile_shape(
             rptr = el.rptr
             ptrref = rptr.ptrref
             is_singleton = ptrref.dir_cardinality is qltypes.Cardinality.ONE
+            value: pgast.BaseExpr
 
             if (irutils.is_subquery_set(el) or
                     el.path_id.is_objtype_path() or

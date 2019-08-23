@@ -52,8 +52,8 @@ from . import viewgen
 
 def compile_cast(
         ir_expr: irast.Base, new_stype: s_types.Type, *,
-        srcctx: parsing.ParserContext,
-        ctx: context.ContextLevel) -> irast.OperatorCall:
+        srcctx: typing.Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
 
     if isinstance(ir_expr, irast.EmptySet):
         # For the common case of casting an empty set, we simply
@@ -131,7 +131,7 @@ def _compile_cast(
         ir_expr: irast.Base,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: parsing.ParserContext,
+        srcctx: typing.Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
@@ -240,7 +240,7 @@ class CastCallableWrapper:
 def _find_cast(
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: parsing.ParserContext,
+        srcctx: typing.Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> typing.Optional[s_casts.Cast]:
 
     casts = ctx.env.schema.get_casts_to_type(new_stype)
@@ -274,11 +274,13 @@ def _find_cast(
 
 
 def _cast_tuple(
-        ir_set: irast.Base,
+        ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: parsing.ParserContext,
-        ctx: context.ContextLevel) -> irast.Base:
+        srcctx: typing.Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    assert isinstance(orig_stype, s_types.Tuple)
 
     # Make sure the source tuple expression is pinned in the scope,
     # so that we don't generate a cross-product of it by evaluating
@@ -324,11 +326,12 @@ def _cast_tuple(
             f'to {new_stype.get_displayname(ctx.env.schema)!r}',
             context=srcctx)
 
+    assert isinstance(new_stype, s_types.Tuple)
     new_subtypes = list(new_stype.iter_subtypes(ctx.env.schema))
     if len(orig_subtypes) != len(new_subtypes):
         raise errors.QueryError(
             f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
-            f'to {new_stype.get_displayname(ctx.env.schema)!r}: ',
+            f'to {new_stype.get_displayname(ctx.env.schema)!r}: '
             f'the number of elements is not the same',
             context=srcctx)
 
@@ -362,8 +365,10 @@ def _cast_array(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: parsing.ParserContext,
-        ctx: context.ContextLevel) -> irast.Base:
+        srcctx: typing.Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    assert isinstance(orig_stype, s_types.Array)
 
     direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
@@ -373,6 +378,7 @@ def _cast_array(
                 f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
                 f'to {new_stype.get_displayname(ctx.env.schema)!r}',
                 context=srcctx)
+        assert isinstance(new_stype, s_types.Array)
         el_type = new_stype.get_subtypes(ctx.env.schema)[0]
     else:
         el_type = new_stype
@@ -413,6 +419,7 @@ def _cast_array(
             )
 
             array_ir = dispatch.compile(elements, ctx=subctx)
+            assert isinstance(array_ir, irast.Set)
 
             if direct_cast is not None:
                 array_stype = s_types.Array.from_subtypes(
@@ -428,8 +435,10 @@ def _cast_array_literal(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: parsing.ParserContext,
-        ctx: context.ContextLevel) -> irast.Base:
+        srcctx: typing.Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    assert isinstance(ir_set.expr, irast.Array)
 
     orig_typeref = irtyputils.type_to_typeref(ctx.env.schema, orig_stype)
     new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
@@ -442,6 +451,7 @@ def _cast_array_literal(
                 f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
                 f'to {new_stype.get_displayname(ctx.env.schema)!r}',
                 context=srcctx) from None
+        assert isinstance(new_stype, s_types.Array)
         el_type = new_stype.get_subtypes(ctx.env.schema)[0]
     else:
         el_type = new_stype

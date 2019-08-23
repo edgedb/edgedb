@@ -70,7 +70,7 @@ class TypeRef(ImmutableBase):
     module_id: uuid.UUID
     # Full name of the type, not necessarily schema-addressable,
     # used for annotations only.
-    name_hint: str
+    name_hint: sn.Name
     # The ref of the underlying material type, if this is a view type,
     # else None.
     material_type: typing.Optional[TypeRef]
@@ -114,7 +114,7 @@ class AnyTupleRef(TypeRef):
 class BasePointerRef(ImmutableBase):
 
     # cardinality fields need to be mutable for lazy cardinality inference.
-    __ast_mutable_fields__ = ('dir_cardinality', 'out_cardinality')
+    __ast_mutable_fields__ = frozenset(('dir_cardinality', 'out_cardinality'))
 
     name: sn.Name
     shortname: sn.Name
@@ -124,7 +124,7 @@ class BasePointerRef(ImmutableBase):
     out_source: TypeRef
     out_target: TypeRef
     direction: s_pointers.PointerDirection
-    parent_ptr: BasePointerRef
+    parent_ptr: PointerRef
     material_ptr: BasePointerRef
     derived_from_ptr: BasePointerRef
     descendants: typing.Set[BasePointerRef]
@@ -144,7 +144,7 @@ class PointerRef(BasePointerRef):
     module_id: uuid.UUID
 
 
-class TupleIndirectionLink(s_pointers.PointerLike):
+class TupleIndirectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in tuple indirection path ids."""
 
     def __init__(self, element_name):
@@ -159,50 +159,11 @@ class TupleIndirectionLink(s_pointers.PointerLike):
 
         return self._name == other._name
 
-    def get_bases(self, schema):
-        return so.ObjectList.create(schema, [])
-
-    def get_ancestors(self, schema):
-        return so.ObjectList.create(schema, [])
-
-    def get_shortname(self, schema):
-        return self._name
-
     def get_name(self, schema):
         return self._name
 
-    def get_displayname(self, schema):
-        return self._name
-
-    def has_user_defined_properties(self, schema):
-        return False
-
-    def get_required(self, schema):
-        return True
-
     def get_cardinality(self, schema):
         return qltypes.Cardinality.ONE
-
-    def get_path_id_name(self, schema):
-        return self._name
-
-    def get_derived_from(self, schema):
-        return None
-
-    def get_is_local(self, schema):
-        return True
-
-    def get_union_of(self, schema):
-        return None
-
-    def is_link_property(self, schema):
-        return False
-
-    def generic(self, schema):
-        return False
-
-    def get_source(self, schema):
-        return None
 
     def singular(self, schema,
                  direction=s_pointers.PointerDirection.Outbound) -> bool:
@@ -211,11 +172,8 @@ class TupleIndirectionLink(s_pointers.PointerLike):
     def scalar(self):
         return self._target.is_scalar()
 
-    def material_type(self, schema):
-        return self
-
-    def is_pure_computable(self, schema):
-        return False
+    def get_source(self, schema):
+        return None
 
     def is_tuple_indirection(self):
         return True
@@ -225,7 +183,7 @@ class TupleIndirectionPointerRef(BasePointerRef):
     pass
 
 
-class TypeIndirectionLink(s_pointers.PointerLike):
+class TypeIndirectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in type indirection path ids."""
 
     def __init__(self, source, target, *, optional, ancestral, cardinality):
@@ -237,44 +195,11 @@ class TypeIndirectionLink(s_pointers.PointerLike):
         self._optional = optional
         self._ancestral = ancestral
 
-    def get_bases(self, schema):
-        return so.ObjectList.create(schema, [])
-
-    def get_ancestors(self, schema):
-        return so.ObjectList.create(schema, [])
-
     def get_name(self, schema):
         return self._name
 
-    def get_shortname(self, schema):
-        return self._name
-
-    def get_displayname(self, schema):
-        return self._name
-
-    def has_user_defined_properties(self, schema):
-        return False
-
-    def get_required(self, schema):
-        return True
-
     def get_cardinality(self, schema):
         return self._cardinality
-
-    def get_path_id_name(self, schema):
-        return self._name
-
-    def get_derived_from(self, schema):
-        return None
-
-    def get_is_local(self, schema):
-        return True
-
-    def get_union_of(self, schema):
-        return None
-
-    def is_link_property(self, schema):
-        return False
 
     def is_type_indirection(self):
         return True
@@ -284,9 +209,6 @@ class TypeIndirectionLink(s_pointers.PointerLike):
 
     def is_ancestral(self):
         return self._ancestral
-
-    def generic(self, schema):
-        return False
 
     def get_source(self, schema):
         return self._source
@@ -304,12 +226,6 @@ class TypeIndirectionLink(s_pointers.PointerLike):
     def scalar(self):
         return self._target.is_scalar()
 
-    def material_type(self, schema):
-        return self
-
-    def is_pure_computable(self, schema):
-        return False
-
 
 class TypeIndirectionPointerRef(BasePointerRef):
 
@@ -319,8 +235,8 @@ class TypeIndirectionPointerRef(BasePointerRef):
 
 class Pointer(Base):
 
-    source: Base
-    target: Base
+    source: Set
+    target: Set
     ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
     anchor: typing.Union[str, ast.MetaAST]
@@ -343,16 +259,16 @@ class TypeIntrospection(ImmutableBase):
 
 class Set(Base):
 
-    __ast_frozen_fields__ = ('typeref',)
+    __ast_frozen_fields__ = frozenset({'typeref'})
 
     path_id: PathId
-    path_scope_id: int
+    path_scope_id: typing.Optional[int]
     typeref: TypeRef
     expr: Base
     rptr: Pointer
     anchor: typing.Union[str, ast.MetaAST]
     show_as_anchor: typing.Union[str, ast.MetaAST]
-    shape: typing.List[Base]
+    shape: typing.List[Set]
 
     def __repr__(self):
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
@@ -396,7 +312,7 @@ class ConstExpr(Expr):
 
 class BaseConstant(ConstExpr):
 
-    value: str
+    value: object
 
     def __init__(self, *args, typeref, **kwargs):
         super().__init__(*args, typeref=typeref, **kwargs)
@@ -406,27 +322,32 @@ class BaseConstant(ConstExpr):
             raise ValueError('cannot create irast.Constant without a value')
 
 
-class StringConstant(BaseConstant):
+class BaseStrConstant(BaseConstant):
+
+    value: str
+
+
+class StringConstant(BaseStrConstant):
     pass
 
 
-class RawStringConstant(BaseConstant):
+class RawStringConstant(BaseStrConstant):
     pass
 
 
-class IntegerConstant(BaseConstant):
+class IntegerConstant(BaseStrConstant):
     pass
 
 
-class FloatConstant(BaseConstant):
+class FloatConstant(BaseStrConstant):
     pass
 
 
-class DecimalConstant(BaseConstant):
+class DecimalConstant(BaseStrConstant):
     pass
 
 
-class BooleanConstant(BaseConstant):
+class BooleanConstant(BaseStrConstant):
     pass
 
 
@@ -462,21 +383,21 @@ class Tuple(Expr):
 
 class Array(Expr):
 
-    elements: typing.List[Base]
+    elements: typing.List[Set]
     typeref: TypeRef
 
 
 class TypeCheckOp(Expr):
 
     left: Set
-    right: typing.Union[TypeRef, Array]
+    right: TypeRef
     op: str
     result: typing.Optional[bool] = None
 
 
 class SortExpr(Base):
 
-    expr: Base
+    expr: Set
     direction: str
     nones_order: qlast.NonesOrder
 
@@ -485,9 +406,9 @@ class CallArg(ImmutableBase):
     """Call argument."""
 
     # cardinality fields need to be mutable for lazy cardinality inference.
-    __ast_mutable_fields__ = ('cardinality',)
+    __ast_mutable_fields__ = frozenset(('cardinality',))
 
-    expr: Base
+    expr: Set
     cardinality: qltypes.Cardinality = qltypes.Cardinality.ONE
 
 
@@ -527,7 +448,7 @@ class Call(Expr):
 
     # If the return type is a tuple, this will contain a list
     # of tuple element path ids relative to the call set.
-    tuple_path_ids: typing.Optional[typing.List[PathId]]
+    tuple_path_ids: typing.List[PathId]
 
     # Volatility of the funciton or operator.
     volatility: qltypes.Volatility
@@ -537,7 +458,7 @@ class FunctionCall(Call):
 
     # initial value needed for aggregate function calls to correctly
     # handle empty set
-    func_initial_value: Base
+    func_initial_value: Set
 
     # True if the bound function has a variadic parameter and
     # there are no arguments that are bound to it.
@@ -570,7 +491,7 @@ class OperatorCall(Call):
 
 class TupleIndirection(Expr):
 
-    expr: Base
+    expr: Set
     name: str
     path_id: PathId
 
@@ -592,7 +513,7 @@ class SliceIndirection(Expr):
 class TypeCast(Expr):
     """<Type>Expr"""
 
-    expr: Base
+    expr: Set
     cast_module_id: uuid.UUID
     cast_name: str
     from_type: TypeRef
@@ -605,30 +526,30 @@ class TypeCast(Expr):
 class Stmt(Base):
 
     name: str
-    result: Base
+    result: Set
     cardinality: qltypes.Cardinality
-    parent_stmt: Base
-    iterator_stmt: Base
+    parent_stmt: Stmt
+    iterator_stmt: Set
 
 
 class FilteredStmt(Stmt):
 
-    where: Base
+    where: Set
     where_card: qltypes.Cardinality
 
 
 class SelectStmt(FilteredStmt):
 
     orderby: typing.List[SortExpr]
-    offset: Base
-    limit: Base
+    offset: typing.Optional[Set]
+    limit: typing.Optional[Set]
     implicit_wrapper: bool = False
 
 
 class GroupStmt(Stmt):
-    subject: Base
-    groupby: typing.List[Base]
-    result: SelectStmt
+    subject: Set
+    groupby: typing.List[Set]
+    result: Set
     group_path_id: PathId
 
 

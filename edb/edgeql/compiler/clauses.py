@@ -40,30 +40,31 @@ from . import stmtctx
 def compile_where_clause(
         ir_stmt: irast.FilteredStmt,
         where: qlast.Base, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Base]:
+        ctx: context.ContextLevel) -> None:
 
     if where is None:
-        return None
-    else:
-        with ctx.newscope(fenced=True) as subctx:
-            subctx.path_scope.unnest_fence = True
-            subctx.clause = 'where'
-            if subctx.stmt.parent_stmt is None:
-                subctx.toplevel_clause = subctx.clause
-            ir_expr = dispatch.compile(where, ctx=subctx)
-            bool_t = ctx.env.get_track_schema_object('std::bool')
-            ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
+        return
 
-        ir_stmt.where = ir_set
-        stmtctx.get_expr_cardinality_later(
-            target=ir_stmt, field='where_card', irexpr=ir_set,
-            ctx=ctx)
+    with ctx.newscope(fenced=True) as subctx:
+        subctx.path_scope.unnest_fence = True
+        subctx.clause = 'where'
+        if subctx.stmt.parent_stmt is None:
+            subctx.toplevel_clause = subctx.clause
+        ir_expr = dispatch.compile(where, ctx=subctx)
+        bool_t = ctx.env.get_track_schema_object('std::bool')
+        ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
+
+    ir_stmt.where = ir_set
+    stmtctx.get_expr_cardinality_later(
+        target=ir_stmt, field='where_card', irexpr=ir_set,
+        ctx=ctx)
 
 
 def compile_orderby_clause(
         sortexprs: typing.Iterable[qlast.SortExpr], *,
         ctx: context.ContextLevel) -> typing.List[irast.SortExpr]:
-    result = []
+
+    result: typing.List[irast.SortExpr] = []
     if not sortexprs:
         return result
 

@@ -78,7 +78,7 @@ class StatementMetadata:
 class PendingCardinality(typing.NamedTuple):
 
     specified_cardinality: typing.Optional[qltypes.Cardinality]
-    source_ctx: parsing.ParserContext
+    source_ctx: typing.Optional[parsing.ParserContext]
     from_parent: bool
     callbacks: typing.List[typing.Callable]
 
@@ -98,7 +98,7 @@ class Environment:
     schema_view_cache: typing.Dict[s_types.Type, s_types.Type]
     """Type cache used by schema-level views."""
 
-    query_parameters: typing.Dict[str, s_obj.Object]
+    query_parameters: typing.Dict[str, s_types.Type]
     """A mapping of query parameters to their types.  Gets populated during
     the compilation."""
 
@@ -126,8 +126,10 @@ class Environment:
     constant_folding: bool
     """Enables constant folding optimization (enabled by default)."""
 
-    view_shapes: typing.Dict[s_types.Type,
-                             typing.List[s_pointers.Pointer]]
+    view_shapes: typing.Dict[
+        typing.Union[s_types.Type, s_pointers.PointerLike],
+        typing.List[s_pointers.Pointer]
+    ]
     """Object output or modification shapes."""
 
     view_shapes_metadata: typing.Dict[s_types.Type, irast.ViewShapeMetadata]
@@ -197,12 +199,15 @@ class ContextLevel(compiler.ContextLevel):
     derived_target_module: typing.Optional[str]
     """The name of the module for classes derived by views."""
 
-    anchors: typing.Dict[str, irast.Set]
+    anchors: typing.Dict[
+        typing.Union[str, typing.Type[qlast.SpecialAnchor]],
+        irast.Set,
+    ]
     """A mapping of anchor variables (aliases to path expressions passed
     to the compiler programmatically).
     """
 
-    modaliases: typing.Dict[str, str]
+    modaliases: typing.Dict[typing.Optional[str], str]
     """A combined list of module name aliases declared in the WITH block,
     or passed to the compiler programmatically.
     """
@@ -213,9 +218,15 @@ class ContextLevel(compiler.ContextLevel):
     stmt_metadata: typing.Dict[qlast.Statement, StatementMetadata]
     """Extra statement metadata needed by the compiler, but not in AST."""
 
-    source_map: typing.Dict[s_pointers.Pointer,
-                            typing.Tuple[qlast.Expr, compiler.ContextLevel,
-                                         typing.Optional[irast.WeakNamespace]]]
+    source_map: typing.Dict[
+        s_pointers.PointerLike,
+        typing.Tuple[
+            qlast.Expr,
+            ContextLevel,
+            irast.PathId,
+            typing.Optional[irast.WeakNamespace],
+        ],
+    ]
     """A mapping of computable pointers to QL source AST and context."""
 
     view_nodes: typing.Dict[s_name.SchemaName, s_types.Type]
@@ -224,14 +235,19 @@ class ContextLevel(compiler.ContextLevel):
     view_sets: typing.Dict[s_types.Type, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
 
-    aliased_views: typing.Dict[str, s_types.Type]
+    aliased_views: typing.ChainMap[str, s_types.Type]
     """A dictionary of views aliased in a statement body."""
 
     expr_view_cache: typing.Dict[typing.Tuple[qlast.Base, str], irast.Set]
     """Type cache used by expression-level views."""
 
-    shape_type_cache: typing.Dict[typing.Tuple[qlast.ShapeElement, ...],
-                                  s_types.Type]
+    shape_type_cache: typing.Dict[
+        typing.Tuple[
+            s_types.Type,
+            typing.Tuple[qlast.ShapeElement, ...],
+        ],
+        s_types.Type,
+    ]
     """Type cache for shape expressions."""
 
     class_view_overrides: typing.Dict[uuid.UUID, s_types.Type]
@@ -267,10 +283,16 @@ class ContextLevel(compiler.ContextLevel):
     completion_work: typing.List[typing.Callable]
     """A list of callbacks to execute when the whole query has been seen."""
 
-    pending_cardinality: typing.Dict[s_pointers.Pointer, PendingCardinality]
+    pending_cardinality: typing.Dict[
+        s_pointers.PointerLike,
+        PendingCardinality,
+    ]
     """A set of derived pointers for which the cardinality is not yet known."""
 
-    pointer_derivation_map: typing.Dict[s_pointers.Pointer, s_pointers.Pointer]
+    pointer_derivation_map: typing.Dict[
+        s_pointers.Pointer,
+        typing.List[s_pointers.Pointer],
+    ]
     """A parent: children mapping of derived pointer classes."""
 
     path_scope: irast.ScopeTreeNode
@@ -297,7 +319,7 @@ class ContextLevel(compiler.ContextLevel):
     implicit_id_in_shapes: bool
     """Whether to include the id property in object shapes implicitly."""
 
-    implicit_id_in_shapes: bool
+    implicit_tid_in_shapes: bool
     """Whether to include the type id property in object shapes implicitly."""
 
     special_computables_in_mutation_shape: typing.FrozenSet[str]

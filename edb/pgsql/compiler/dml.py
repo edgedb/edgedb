@@ -52,11 +52,12 @@ from . import output
 
 
 def init_dml_stmt(
-        ir_stmt: irast.MutatingStmt, dml_stmt: pgast.DML, *,
+        ir_stmt: irast.MutatingStmt, dml_stmt: pgast.DMLQuery, *,
         ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) \
         -> typing.Tuple[pgast.Query, pgast.CommonTableExpr,
-                        pgast.CommonTableExpr]:
+                        pgast.PathRangeVar,
+                        typing.Optional[pgast.CommonTableExpr]]:
     """Prepare the common structure of the query representing a DML stmt.
 
     :param ir_stmt:
@@ -96,12 +97,14 @@ def init_dml_stmt(
         name=ctx.env.aliases.get(hint='m')
     )
 
+    range_cte = None
+
     if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
         # UPDATE and DELETE operate over a range, so generate
         # the corresponding CTE and connect it to the DML query.
         range_cte = get_dml_range(ir_stmt, dml_stmt, ctx=ctx)
 
-        range_rvar = pgast.RangeVar(
+        range_rvar = pgast.RelRangeVar(
             relation=range_cte,
             alias=pgast.Alias(
                 aliasname=ctx.env.aliases.get(hint='range')
@@ -124,13 +127,10 @@ def init_dml_stmt(
         )
 
         # UPDATE has "FROM", while DELETE has "USING".
-        if hasattr(dml_stmt, 'from_clause'):
+        if isinstance(dml_stmt, pgast.UpdateStmt):
             dml_stmt.from_clause.append(range_rvar)
-        else:
+        elif isinstance(dml_stmt, pgast.DeleteStmt):
             dml_stmt.using_clause.append(range_rvar)
-
-    else:
-        range_cte = None
 
     # Due to the fact that DML statements are structured
     # as a flat list of CTEs instead of nested range vars,
@@ -145,7 +145,7 @@ def init_dml_stmt(
     pathctx.put_path_source_rvar(
         dml_stmt, ir_stmt.subject.path_id, dml_stmt.relation, env=ctx.env)
 
-    dml_rvar = pgast.RangeVar(
+    dml_rvar = pgast.RelRangeVar(
         relation=dml_cte,
         alias=pgast.Alias(aliasname=parent_ctx.env.aliases.get('d'))
     )
@@ -187,7 +187,7 @@ def get_dml_stmt_stack(
         ir_stmt: irast.MutatingStmt, *,
         ctx: context.CompilerContextLevel) -> typing.List[irast.MutatingStmt]:
     stack = []
-    stmt = ir_stmt
+    stmt: irast.Stmt = ir_stmt
     while stmt is not None:
         if isinstance(stmt, irast.MutatingStmt):
             stack.append(stmt)
@@ -197,8 +197,8 @@ def get_dml_stmt_stack(
 
 
 def get_dml_range(
-        ir_stmt: irast.MutatingStmt,
-        dml_stmt: pgast.DML, *,
+        ir_stmt: typing.Union[irast.UpdateStmt, irast.DeleteStmt],
+        dml_stmt: pgast.DMLQuery, *,
         ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
     """Create a range CTE for the given DML statement.
 
@@ -263,7 +263,7 @@ def process_insert_body(
         ir_stmt: irast.MutatingStmt,
         wrapper: pgast.Query,
         insert_cte: pgast.CommonTableExpr,
-        insert_rvar: pgast.BaseRangeVar, *,
+        insert_rvar: pgast.PathRangeVar, *,
         ctx: context.CompilerContextLevel) -> None:
     """Generate SQL DML CTEs from an InsertStmt IR.
 
@@ -282,6 +282,7 @@ def process_insert_body(
     # present to insert at least the `id` and `__type__`
     # properties.
     insert_stmt = insert_cte.query
+    assert isinstance(insert_stmt, pgast.InsertStmt)
 
     insert_stmt.cols = cols
     insert_stmt.select_stmt = select
@@ -425,7 +426,7 @@ def compile_insert_shape_element(
         wrapper: pgast.Query,
         ir_stmt: irast.MutatingStmt,
         shape_el: irast.Set,
-        iterator_id: pgast.OutputVar, *,
+        iterator_id: pgast.BaseExpr, *,
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
     with ctx.newscope() as insvalctx:
@@ -450,9 +451,9 @@ def insert_value_for_shape_element(
         wrapper: pgast.Query,
         ir_stmt: irast.MutatingStmt,
         shape_el: irast.Set,
-        iterator_id: pgast.OutputVar, *,
+        iterator_id: pgast.BaseExpr, *,
         ptr_info: pg_types.PointerStorageInfo,
-        ctx: context.CompilerContextLevel) -> pgast.OutputVar:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     rel = compile_insert_shape_element(
         insert_stmt, wrapper, ir_stmt, shape_el, iterator_id, ctx=ctx)
@@ -460,7 +461,7 @@ def insert_value_for_shape_element(
     insvalue = pathctx.get_path_value_var(
         rel, shape_el.path_id, env=ctx.env)
 
-    if isinstance(insvalue, pgast.TupleVar):
+    if isinstance(insvalue, pgast.TupleVarBase):
         if shape_el.path_id.is_objtype_path():
             for element in insvalue.elements:
                 name = element.path_id.rptr_name()
@@ -495,6 +496,7 @@ def process_update_body(
         CTE representing the range affected by the statement.
     """
     update_stmt = update_cte.query
+    assert isinstance(update_stmt, pgast.UpdateStmt)
 
     external_updates = []
 
@@ -520,15 +522,15 @@ def process_update_body(
             if ptr_info.table_type == 'ObjectType' and updvalue is not None:
                 with subctx.newscope() as scopectx:
                     # First, process all internal link updates
-                    updvalue = pgast.TypeCast(
-                        arg=dispatch.compile(updvalue, ctx=scopectx),
-                        type_name=pgast.TypeName(name=ptr_info.column_type)
+                    updtarget = pgast.UpdateTarget(
+                        name=ptr_info.column_name,
+                        val=pgast.TypeCast(
+                            arg=dispatch.compile(updvalue, ctx=scopectx),
+                            type_name=pgast.TypeName(name=ptr_info.column_type)
+                        )
                     )
 
-                    update_stmt.targets.append(
-                        pgast.UpdateTarget(
-                            name=ptr_info.column_name,
-                            val=updvalue))
+                    update_stmt.targets.append(updtarget)
 
             props_only = is_props_only_update(shape_el, ctx=subctx)
 
@@ -544,7 +546,7 @@ def process_update_body(
         update_cte.query = pgast.SelectStmt(
             ctes=update_stmt.ctes,
             target_list=update_stmt.returning_list,
-            from_clause=[update_stmt.relation] + update_stmt.from_clause,
+            from_clause=[update_stmt.relation] + list(update_stmt.from_clause),
             where_clause=update_stmt.where_clause,
             path_namespace=update_stmt.path_namespace,
             path_outputs=update_stmt.path_outputs,
@@ -573,7 +575,7 @@ def is_props_only_update(shape_el: irast.Set, *,
         `True` if *shape_el* represents a link property-only update.
     """
     return (
-        shape_el.shape and
+        bool(shape_el.shape) and
         all(el.rptr.ptrref.parent_ptr is not None for el in shape_el.shape)
     )
 
@@ -586,8 +588,8 @@ def process_link_update(
         is_insert: bool,
         wrapper: pgast.Query,
         dml_cte: pgast.CommonTableExpr,
-        iterator_cte: pgast.CommonTableExpr,
-        ctx: context.CompilerContextLevel) -> typing.Optional[pgast.Query]:
+        iterator_cte: typing.Optional[pgast.CommonTableExpr],
+        ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
     """Perform updates to a link relation as part of a DML statement.
 
     :param ir_stmt:
@@ -609,6 +611,7 @@ def process_link_update(
 
     rptr = ir_set.rptr
     ptrref = rptr.ptrref
+    assert isinstance(ptrref, irast.PointerRef)
     target_is_scalar = irtyputils.is_scalar(ptrref.dir_target)
     path_id = ir_set.path_id
 
@@ -622,12 +625,14 @@ def process_link_update(
 
     target_rvar = relctx.range_for_ptrref(
         mptrref, include_overlays=False, only_self=True, ctx=ctx)
+    assert isinstance(target_rvar, pgast.RelRangeVar)
+    assert isinstance(target_rvar.relation, pgast.Relation)
     target_alias = target_rvar.alias.aliasname
 
     target_tab_name = (target_rvar.relation.schemaname,
                        target_rvar.relation.name)
 
-    dml_cte_rvar = pgast.RangeVar(
+    dml_cte_rvar = pgast.RelRangeVar(
         relation=dml_cte,
         alias=pgast.Alias(
             aliasname=ctx.env.aliases.get('m')
@@ -690,7 +695,7 @@ def process_link_update(
                     name=[data_cte.name, pgast.Star()]))
         ],
         from_clause=[
-            pgast.RangeVar(relation=data_cte)
+            pgast.RelRangeVar(relation=data_cte)
         ]
     )
 
@@ -723,7 +728,7 @@ def process_link_update(
                         name=[data_cte.name, pgast.Star()]))
             ],
             from_clause=[
-                pgast.RangeVar(relation=data_cte)
+                pgast.RelRangeVar(relation=data_cte)
             ],
             where_clause=astutils.new_binop(
                 lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
@@ -775,7 +780,7 @@ def process_link_update(
 
 
 def process_linkprop_update(
-        ir_stmt: irast.MutatingStmt, ir_expr: irast.Base,
+        ir_stmt: irast.MutatingStmt, ir_expr: irast.Set,
         wrapper: pgast.Query, dml_cte: pgast.CommonTableExpr, *,
         ctx: context.CompilerContextLevel) -> None:
     """Perform link property updates to a link relation.
@@ -800,7 +805,7 @@ def process_linkprop_update(
     target_tab = relctx.range_for_ptrref(
         ptrref, include_overlays=False, ctx=ctx)
 
-    dml_cte_rvar = pgast.RangeVar(
+    dml_cte_rvar = pgast.RelRangeVar(
         relation=dml_cte,
         alias=pgast.Alias(
             aliasname=ctx.env.aliases.get('m')
@@ -890,6 +895,7 @@ def process_link_values(
             input_rel_ctx.volatility_ref = pathctx.get_path_identity_var(
                 row_query, ir_stmt.subject.path_id, env=input_rel_ctx.env)
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
+            shape_tuple = None
             if ir_expr.shape:
                 shape_tuple = shapecomp.compile_shape(
                     ir_expr, ir_expr.shape, ctx=input_rel_ctx)
@@ -898,8 +904,6 @@ def process_link_values(
                     pathctx.put_path_var_if_not_exists(
                         input_rel_ctx.rel, element.path_id, element.val,
                         aspect='value', env=input_rel_ctx.env)
-            else:
-                shape_tuple = None
 
     input_stmt = input_rel
 
@@ -911,7 +915,7 @@ def process_link_values(
         )
     )
 
-    source_data = {}
+    source_data: typing.Dict[str, pgast.BaseExpr] = {}
 
     if input_stmt.op is not None:
         # UNION

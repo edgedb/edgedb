@@ -40,7 +40,7 @@ from . import stmtctx
 
 def get_path_id(stype: s_obj.Object, *,
                 typename: typing.Optional[str]=None,
-                ctx: context.CompilerContext) -> irast.PathId:
+                ctx: context.ContextLevel) -> irast.PathId:
     return irast.PathId.from_type(
         ctx.env.schema, stype,
         typename=typename,
@@ -50,7 +50,7 @@ def get_path_id(stype: s_obj.Object, *,
 def get_tuple_indirection_path_id(
         tuple_path_id: irast.PathId, element_name: str,
         element_type: s_types.Type, *,
-        ctx: context.CompilerContext) -> irast.PathId:
+        ctx: context.ContextLevel) -> irast.PathId:
     return tuple_path_id.extend(
         ptrcls=irast.TupleIndirectionLink(element_name),
         direction=s_pointers.PointerDirection.Outbound,
@@ -62,7 +62,7 @@ def get_tuple_indirection_path_id(
 def get_type_indirection_path_id(
         path_id: irast.PathId, target_type: s_types.Type, *,
         optional: bool, ancestral: bool, cardinality: qltypes.Cardinality,
-        ctx: context.CompilerContext) -> irast.PathId:
+        ctx: context.ContextLevel) -> irast.PathId:
     return path_id.extend(
         ptrcls=irast.TypeIndirectionLink(
             path_id.target, target_type,
@@ -87,7 +87,7 @@ def get_expression_path_id(
 def register_set_in_scope(
         ir_set: irast.Set, *,
         path_scope: irast.ScopeTreeNode=None,
-        ctx: context.CompilerContext) -> None:
+        ctx: context.ContextLevel) -> None:
     if path_scope is None:
         path_scope = ctx.path_scope
 
@@ -124,20 +124,14 @@ def get_set_scope(
 
 def mark_path_as_optional(
         path_id: irast.PathId, *,
-        ctx: context.CompilerContext) -> None:
+        ctx: context.ContextLevel) -> None:
     ctx.path_scope.mark_as_optional(path_id)
-
-
-def set_path_alias(
-        path_id: irast.PathId, alias: irast.PathId, *,
-        ctx: context.CompilerContext) -> None:
-    ctx.path_scope.set_alias(path_id, alias)
 
 
 def extend_path_id(
         path_id: irast.PathId, *,
         ptrcls, direction=None, target=None, ns=None,
-        ctx: context.CompilerContext) -> irast.PathId:
+        ctx: context.ContextLevel) -> irast.PathId:
 
     result = path_id.extend(ptrcls=ptrcls, direction=direction, target=target,
                             ns=ns, schema=ctx.env.schema)
@@ -150,14 +144,14 @@ def extend_path_id(
 
 def ban_path(
         path_id: irast.PathId, *,
-        ctx: context.CompilerContext) -> None:
+        ctx: context.ContextLevel) -> None:
 
     ctx.banned_paths.add(path_id.strip_weak_namespaces())
 
 
 def path_is_banned(
         path_id: irast.PathId, *,
-        ctx: context.CompilerContext) -> bool:
+        ctx: context.ContextLevel) -> bool:
 
     s_path_id = path_id.strip_weak_namespaces()
     return s_path_id in ctx.banned_paths and ctx.path_scope.is_visible(path_id)

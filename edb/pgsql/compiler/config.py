@@ -64,7 +64,7 @@ def compile_ConfigSet(
 
     if not op.system:
         stmt = pgast.InsertStmt(
-            relation=pgast.RangeVar(
+            relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
                     name='_edgecon_state',
                 ),
@@ -167,7 +167,7 @@ def compile_ConfigReset(
 
     if not op.system:
         stmt = pgast.DeleteStmt(
-            relation=pgast.RangeVar(
+            relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
                     name='_edgecon_state',
                 ),

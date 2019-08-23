@@ -71,8 +71,9 @@ class AnnotationValue(referencing.ReferencedInheritingObject):
     def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
         vn = super().get_verbosename(schema)
         if with_parent:
-            pvn = self.get_subject(schema).get_verbosename(
-                schema, with_parent=True)
+            subject = self.get_subject(schema)
+            assert subject is not None
+            pvn = subject.get_verbosename(schema, with_parent=True)
             return f'{vn} of {pvn}'
         else:
             return vn

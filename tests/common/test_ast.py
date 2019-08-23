@@ -167,11 +167,6 @@ class ASTBaseTests(unittest.TestCase):
             class Node1(ast.AST):
                 field: typing.Any  # We don't want to use/support it.
 
-        with self.assertRaisesRegex(
-                RuntimeError, r'unable to resolve type annotations'):
-            class Node2(ast.AST):
-                field: 'abc'  # noqa
-
         with self.assertRaisesRegex(RuntimeError,
                                     r"Mapping.*is not supported"):
             class Node3(ast.AST):

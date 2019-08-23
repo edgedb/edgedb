@@ -360,6 +360,8 @@ def ptrcls_from_ptrref(
         ptrref: irast.BasePointerRef, *,
         schema) -> s_pointers.PointerLike:
 
+    ptrcls: s_pointers.PointerLike
+
     if isinstance(ptrref, irast.TupleIndirectionPointerRef):
         ptrcls = irast.TupleIndirectionLink(
             ptrref.name.name
@@ -372,8 +374,10 @@ def ptrcls_from_ptrref(
             ancestral=ptrref.ancestral,
             cardinality=ptrref.out_cardinality,
         )
-    else:
+    elif isinstance(ptrref, irast.PointerRef):
         ptrcls = schema.get_by_id(ptrref.id)
+    else:
+        raise TypeError(f'unexpected pointer ref type: {ptrref!r}')
 
     return ptrcls
 

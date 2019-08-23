@@ -33,10 +33,10 @@ from edb.ir import ast as irast
 
 from edb.schema import abc as s_abc
 from edb.schema import functions as s_func
-from edb.schema import inheriting as s_inh
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
@@ -170,7 +170,7 @@ def fini_expression(
                 ctx.env.schema = view.set_field_value(
                     ctx.env.schema,
                     'ancestors',
-                    s_inh.compute_ancestors(ctx.env.schema, view)
+                    s_obj.compute_ancestors(ctx.env.schema, view)
                 )
 
             if not hasattr(view, 'get_pointers'):  # duck check
@@ -273,7 +273,7 @@ def _derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
 
 def compile_anchor(
         name: str, anchor: typing.Union[qlast.Expr, s_obj.Object], *,
-        ctx: context.ContextLevel) -> qlast.Expr:
+        ctx: context.ContextLevel) -> irast.Set:
 
     show_as_anchor = True
 
@@ -282,13 +282,16 @@ def compile_anchor(
 
     elif (isinstance(anchor, s_pointers.Pointer) and
             not anchor.is_link_property(ctx.env.schema)):
-        if anchor.get_source(ctx.env.schema):
+        src = anchor.get_source(ctx.env.schema)
+        if src is not None:
+            assert isinstance(src, s_objtypes.ObjectType)
             path = setgen.extend_path(
-                setgen.class_set(anchor.get_source(ctx.env.schema), ctx=ctx),
+                setgen.class_set(src, ctx=ctx),
                 anchor,
                 s_pointers.PointerDirection.Outbound,
                 anchor.get_target(ctx.env.schema),
-                ctx=ctx)
+                ctx=ctx,
+            )
         else:
             ptrcls = _derive_dummy_ptr(anchor, ctx=ctx)
             path = setgen.extend_path(
@@ -304,15 +307,18 @@ def compile_anchor(
             anchor.is_link_property(ctx.env.schema)):
 
         anchor_source = anchor.get_source(ctx.env.schema)
+        assert isinstance(anchor_source, s_pointers.Pointer)
         anchor_source_source = anchor_source.get_source(ctx.env.schema)
 
         if anchor_source_source:
+            assert isinstance(anchor_source_source, s_objtypes.ObjectType)
             path = setgen.extend_path(
                 setgen.class_set(anchor_source_source, ctx=ctx),
                 anchor_source,
                 s_pointers.PointerDirection.Outbound,
-                anchor.get_source(ctx.env.schema).get_target(ctx.env.schema),
-                ctx=ctx)
+                anchor_source.get_target(ctx.env.schema),
+                ctx=ctx,
+            )
         else:
             ptrcls = _derive_dummy_ptr(anchor_source, ctx=ctx)
             path = setgen.extend_path(
@@ -405,6 +411,7 @@ def declare_view(
         subctx.toplevel_result_view_name = view_name
 
         view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
+        assert isinstance(view_set, irast.Set)
 
         if not fully_detached:
             # The view path id _itself_ should not be in the nested namespace.
@@ -420,17 +427,19 @@ def declare_view(
 
 
 def declare_view_from_schema(
-        viewcls: s_obj.Object, *,
-        ctx: context.ContextLevel) -> irast.Set:
+        viewcls: s_types.Type, *,
+        ctx: context.ContextLevel) -> s_types.Type:
     vc = ctx.env.schema_view_cache.get(viewcls)
     if vc is not None:
         return vc
 
     with ctx.detached() as subctx:
         subctx.expr_exposed = False
-        view_expr = qlparser.parse(viewcls.get_expr(ctx.env.schema).text)
+        view_expr = viewcls.get_expr(ctx.env.schema)
+        assert view_expr is not None
+        view_ql = qlparser.parse(view_expr.text)
         viewcls_name = viewcls.get_name(ctx.env.schema)
-        view_set = declare_view(view_expr, alias=viewcls_name,
+        view_set = declare_view(view_ql, alias=viewcls_name,
                                 fully_detached=True, ctx=subctx)
         # The view path id _itself_ should not be in the nested namespace.
         view_set.path_id = view_set.path_id.replace_namespace(
@@ -448,8 +457,8 @@ def declare_view_from_schema(
 
 def infer_expr_cardinality(
         *,
-        irexpr: irast.Expr,
-        ctx: context.ContextLevel) -> None:
+        irexpr: irast.Set,
+        ctx: context.ContextLevel) -> qltypes.Cardinality:
 
     scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
     if scope is None:
@@ -460,7 +469,7 @@ def infer_expr_cardinality(
 def _infer_pointer_cardinality(
         *,
         ptrcls: s_pointers.Pointer,
-        irexpr: irast.Expr,
+        irexpr: irast.Set,
         specified_card: typing.Optional[qltypes.Cardinality] = None,
         source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
@@ -539,7 +548,7 @@ def pend_pointer_cardinality_inference(
 
 
 def once_pointer_cardinality_is_inferred(
-        ptrcls: s_pointers.Pointer,
+        ptrcls: s_pointers.PointerLike,
         cb: typing.Callable, *,
         ctx: context.ContextLevel) -> None:
 
@@ -554,8 +563,8 @@ def once_pointer_cardinality_is_inferred(
 
 def get_pointer_cardinality_later(
         *,
-        ptrcls: s_pointers.Pointer,
-        irexpr: irast.Expr,
+        ptrcls: s_pointers.PointerLike,
+        irexpr: irast.Set,
         specified_card: typing.Optional[qltypes.Cardinality] = None,
         source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
@@ -572,9 +581,9 @@ def get_pointer_cardinality_later(
 
 def get_expr_cardinality_later(
         *,
-        target: irast.Expr,
+        target: irast.Base,
         field: str,
-        irexpr: irast.Expr,
+        irexpr: irast.Base,
         ctx: context.ContextLevel) -> None:
 
     def cb(irexpr, ctx):
@@ -607,7 +616,7 @@ def ensure_ptrref_cardinality(
 
 
 def enforce_singleton_now(
-        irexpr: irast.Base, *,
+        irexpr: irast.Set, *,
         ctx: context.ContextLevel) -> None:
     scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
     if scope is None:

@@ -25,8 +25,8 @@ from __future__ import annotations
 from edb.edgeql import ast as qlast
 
 from edb.schema import abc as s_abc
-from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
+from edb.schema import types as s_types
 
 
 def extend_qlbinop(binop, *exprs, op='AND'):
@@ -101,7 +101,7 @@ def is_degenerate_select(qlstmt):
     )
 
 
-def type_to_ql_typeref(t: s_obj.Object, *,
+def type_to_ql_typeref(t: s_types.Type, *,
                        _name=None,
                        schema: s_schema.Schema) -> qlast.TypeName:
     if t.is_any():
