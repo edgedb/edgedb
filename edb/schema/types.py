@@ -34,6 +34,7 @@ from . import derivable
 from . import expr as s_expr
 from . import name as s_name
 from . import objects as so
+from . import utils
 
 
 TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
@@ -46,7 +47,7 @@ class ViewType(enum.IntEnum):
     Update = enum.auto()
 
 
-class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
+class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     """A schema item that is a valid *type*."""
 
     # For a type representing a view, this would contain the
@@ -193,22 +194,48 @@ class Type(so.Object, derivable.DerivableObjectBase, s_abc.Type):
 
         return False
 
-    def material_type(self, schema):
-        # When self is a view, this returns the material type
-        # under the view.
-        return self
-
-    def peel_view(self, schema):
-        # When self is a view, this returns the class the view
-        # is derived from (which may be another view).  If no
-        # parent class is available, returns self.
-        return self
-
     def get_union_of(self, schema):
         return None
 
     def get_is_opaque_union(self, schema):
         return False
+
+    def material_type(self, schema):
+        # When self is a view, this returns the material type
+        # under the view.
+        t = self
+        while t.is_view(schema):
+            t = t.get_bases(schema).first(schema)
+        return t
+
+    def peel_view(self, schema):
+        # When self is a view, this returns the class the view
+        # is derived from (which may be another view).  If no
+        # parent class is available, returns self.
+        if self.is_view(schema):
+            return self.get_bases(schema).first(schema)
+        else:
+            return self
+
+    def get_common_parent_type_distance(
+            self, other: Type, schema) -> int:
+        if other.is_any() or self.is_any():
+            return MAX_TYPE_DISTANCE
+
+        if not isinstance(other, type(self)):
+            return -1
+
+        if self == other:
+            return 0
+
+        ancestor = utils.get_class_nearest_common_ancestor(
+            schema, [self, other])
+
+        if ancestor == self:
+            return 0
+        else:
+            ancestors = list(self.get_ancestors(schema).objects(schema))
+            return ancestors.index(ancestor) + 1
 
 
 class Collection(Type, s_abc.Collection):

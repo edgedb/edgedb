@@ -36,7 +36,6 @@ from edb.ir import ast as irast
 
 from edb.schema import functions as s_func
 from edb.schema import name as s_name
-from edb.schema import nodes as s_nodes
 from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
@@ -96,7 +95,7 @@ class Environment:
     path_scope: irast.ScopeTreeNode
     """Overrall expression path scope tree."""
 
-    schema_view_cache: typing.Dict[s_nodes.Node, s_nodes.Node]
+    schema_view_cache: typing.Dict[s_types.Type, s_types.Type]
     """Type cache used by schema-level views."""
 
     query_parameters: typing.Dict[str, s_obj.Object]
@@ -219,24 +218,23 @@ class ContextLevel(compiler.ContextLevel):
                                          typing.Optional[irast.WeakNamespace]]]
     """A mapping of computable pointers to QL source AST and context."""
 
-    view_nodes: typing.Dict[s_name.SchemaName, s_nodes.Node]
+    view_nodes: typing.Dict[s_name.SchemaName, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
-    view_sets: typing.Dict[s_nodes.Node, irast.Set]
+    view_sets: typing.Dict[s_types.Type, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
 
-    aliased_views: typing.Dict[str, s_nodes.Node]
+    aliased_views: typing.Dict[str, s_types.Type]
     """A dictionary of views aliased in a statement body."""
 
-    expr_view_cache: typing.Dict[typing.Tuple[qlast.Base, str],
-                                 irast.Set]
+    expr_view_cache: typing.Dict[typing.Tuple[qlast.Base, str], irast.Set]
     """Type cache used by expression-level views."""
 
     shape_type_cache: typing.Dict[typing.Tuple[qlast.ShapeElement, ...],
-                                  s_nodes.Node]
+                                  s_types.Type]
     """Type cache for shape expressions."""
 
-    class_view_overrides: typing.Dict[uuid.UUID, s_nodes.Node]
+    class_view_overrides: typing.Dict[uuid.UUID, s_types.Type]
     """Object mapping used by implicit view override in SELECT."""
 
     clause: str

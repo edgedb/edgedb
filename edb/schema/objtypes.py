@@ -31,16 +31,16 @@ from . import inheriting
 from . import links
 from . import lproperties
 from . import name as sn
-from . import nodes
 from . import objects as so
 from . import pointers
 from . import sources
 from . import types as s_types
+from . import types_delta as s_types_d
 from . import utils
 
 
 class BaseObjectType(sources.Source,
-                     nodes.Node,
+                     s_types.Type,
                      constraints.ConsistencySubject,
                      annotations.AnnotationSubject,
                      s_abc.ObjectType):
@@ -241,14 +241,13 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext,
                                constraints.ConsistencySubjectCommandContext,
                                annotations.AnnotationSubjectCommandContext,
                                links.LinkSourceCommandContext,
-                               lproperties.PropertySourceContext,
-                               nodes.NodeCommandContext):
+                               lproperties.PropertySourceContext):
     pass
 
 
 class ObjectTypeCommand(constraints.ConsistencySubjectCommand,
                         sources.SourceCommand, links.LinkSourceCommand,
-                        nodes.NodeCommand,
+                        s_types_d.TypeCommand,
                         schema_metaclass=ObjectType,
                         context_class=ObjectTypeCommandContext):
     def _apply_field_ast(self, schema, context, node, op):

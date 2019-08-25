@@ -25,6 +25,8 @@ import itertools
 import typing
 import uuid
 
+import immutables as immu
+
 from edb import errors
 
 from edb.common import markup
@@ -1563,6 +1565,33 @@ class ObjectList(ObjectCollection, container=tuple):
             raise IndexError('ObjectList is empty')
         else:
             return default
+
+
+class InheritingObjectBase(Object):
+
+    bases = SchemaField(
+        ObjectList,
+        default=ObjectList,
+        coerce=True,
+        inheritable=False,
+        compcoef=0.714,
+    )
+
+    ancestors = SchemaField(
+        ObjectList,
+        default=ObjectList,
+        coerce=True,
+        inheritable=False,
+        hashable=False,
+    )
+
+    field_inh_map = SchemaField(
+        immu.Map,
+        default=immu.Map(),
+        inheritable=False,
+        introspectable=False,
+        hashable=False,
+    )
 
 
 @markup.serializer.serializer.register(Object)

@@ -34,7 +34,6 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
 from edb.schema import links as s_links
-from edb.schema import nodes as s_nodes
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
@@ -512,7 +511,7 @@ def extend_path(
         source_set: irast.Set,
         ptrcls: s_pointers.Pointer,
         direction: PtrDir=PtrDir.Outbound,
-        target: typing.Optional[s_nodes.Node]=None, *,
+        target: typing.Optional[s_types.Type]=None, *,
         ignore_computable: bool=False,
         is_mut_assign: bool=False,
         unnest_fence: bool=False,
@@ -604,7 +603,7 @@ def tuple_indirection_set(
 
 def class_indirection_set(
         source_set: irast.Set,
-        target_scls: s_nodes.Node, *,
+        target_scls: s_types.Type, *,
         optional: bool,
         ctx: context.ContextLevel) -> irast.Set:
 
@@ -635,7 +634,7 @@ def class_indirection_set(
 
 
 def class_set(
-        stype: s_nodes.Node, *,
+        stype: s_types.Type, *,
         path_id: typing.Optional[irast.PathId]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
@@ -903,7 +902,7 @@ def _get_computable_ctx(
         *,
         rptr: irast.Pointer,
         source: irast.Set,
-        source_scls: s_nodes.Node,
+        source_scls: s_types.Type,
         inner_source_path_id: irast.PathId,
         path_id_ns: typing.Optional[irast.WeakNamespace],
         same_scope: bool,

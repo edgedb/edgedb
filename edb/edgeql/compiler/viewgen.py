@@ -32,7 +32,6 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import links as s_links
 from edb.schema import name as sn
-from edb.schema import nodes as s_nodes
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
@@ -50,14 +49,14 @@ from . import stmtctx
 
 def process_view(
         *,
-        stype: s_nodes.Node,
+        stype: s_types.Type,
         path_id: irast.PathId,
         elements: typing.List[qlast.ShapeElement],
         view_rptr: typing.Optional[context.ViewRPtr]=None,
         view_name: typing.Optional[sn.SchemaName]=None,
         is_insert: bool=False,
         is_update: bool=False,
-        ctx: context.CompilerContext) -> s_nodes.Node:
+        ctx: context.CompilerContext) -> s_types.Type:
 
     cache_key = (stype, tuple(elements))
     view_scls = ctx.shape_type_cache.get(cache_key)
@@ -87,7 +86,7 @@ def process_view(
 
 def _process_view(
         *,
-        stype: s_nodes.Node,
+        stype: s_types.Type,
         path_id: irast.PathId,
         path_id_namespace: typing.Optional[irast.WeakNamespace]=None,
         elements: typing.List[qlast.ShapeElement],
@@ -95,7 +94,7 @@ def _process_view(
         view_name: typing.Optional[sn.SchemaName]=None,
         is_insert: bool=False,
         is_update: bool=False,
-        ctx: context.CompilerContext) -> s_nodes.Node:
+        ctx: context.CompilerContext) -> s_types.Type:
     view_scls = schemactx.derive_view(
         stype, is_insert=is_insert, is_update=is_update,
         derived_name=view_name, ctx=ctx)
@@ -172,7 +171,7 @@ def _process_view(
 
 def _normalize_view_ptr_expr(
         shape_el: qlast.ShapeElement,
-        view_scls: s_nodes.Node, *,
+        view_scls: s_types.Type, *,
         path_id: irast.PathId,
         path_id_namespace: typing.Optional[irast.WeakNamespace]=None,
         is_insert: bool=False,
@@ -562,7 +561,7 @@ def _normalize_view_ptr_expr(
 
 def derive_ptrcls(
         view_rptr: context.ViewRPtr, *,
-        target_scls: s_nodes.Node,
+        target_scls: s_types.Type,
         transparent: bool=False,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
 
@@ -635,7 +634,7 @@ def _link_has_shape(
 
 
 def has_implicit_tid(
-        stype: s_nodes.Node, *,
+        stype: s_types.Type, *,
         is_mutation: bool,
         ctx: context.ContextLevel) -> bool:
 

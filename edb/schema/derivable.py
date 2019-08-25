@@ -69,7 +69,7 @@ class DerivableObjectBase(s_abc.Object):
             module=module)
 
 
-class DerivableObject(so.Object, DerivableObjectBase):
+class DerivableObject(so.InheritingObjectBase, DerivableObjectBase):
 
     # Indicates that the object has been declared as
     # explicitly inherited.

@@ -25,52 +25,11 @@ from edb.edgeql import ast as qlast
 
 from . import delta as sd
 from . import expr as s_expr
-from . import inheriting
 from . import objects as so
 from . import types as s_types
-from . import utils
 
 
-class Node(inheriting.InheritingObject, s_types.Type):
-    def material_type(self, schema):
-        t = self
-        while t.is_view(schema):
-            t = t.get_bases(schema).first(schema)
-        return t
-
-    def peel_view(self, schema):
-        if self.is_view(schema):
-            return self.get_bases(schema).first(schema)
-        else:
-            return self
-
-    def get_common_parent_type_distance(
-            self, other: s_types.Type, schema) -> int:
-        if other.is_any() or self.is_any():
-            return s_types.MAX_TYPE_DISTANCE
-
-        if not isinstance(other, type(self)):
-            return -1
-
-        if self == other:
-            return 0
-
-        ancestor = utils.get_class_nearest_common_ancestor(
-            schema, [self, other])
-
-        if ancestor == self:
-            return 0
-        else:
-            ancestors = list(self.get_ancestors(schema).objects(schema))
-            return ancestors.index(ancestor) + 1
-
-
-class NodeCommandContext:
-    # context mixin
-    pass
-
-
-class NodeCommand(sd.ObjectCommand):
+class TypeCommand(sd.ObjectCommand):
     @classmethod
     def _maybe_get_view_expr(cls, astnode):
         for subcmd in astnode.commands:

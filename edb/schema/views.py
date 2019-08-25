@@ -25,16 +25,15 @@ from . import scalars as s_scalars
 from . import annotations
 from . import objtypes as s_objtypes
 from . import delta as sd
-from . import nodes
+from . import types_delta as s_types_d
 
 
 class ViewCommandContext(sd.ObjectCommandContext,
-                         annotations.AnnotationSubjectCommandContext,
-                         nodes.NodeCommandContext):
+                         annotations.AnnotationSubjectCommandContext):
     pass
 
 
-class ViewCommand(nodes.NodeCommand, context_class=ViewCommandContext):
+class ViewCommand(s_types_d.TypeCommand, context_class=ViewCommandContext):
 
     _scalar_cmd_map = {
         qlast.CreateView: s_scalars.CreateScalarType,

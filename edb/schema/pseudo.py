@@ -51,6 +51,9 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
     def is_polymorphic(self, schema):
         return True
 
+    def material_type(self, schema):
+        return self
+
     def __hash__(self):
         return hash((
             type(self),

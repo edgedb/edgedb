@@ -34,16 +34,16 @@ from . import delta as sd
 from . import expr
 from . import inheriting
 from . import name as sn
-from . import nodes
 from . import objects as so
 from . import types as s_types
+from . import types_delta as s_types_d
 
 
 class FrozenStrList(typed.FrozenTypedList, type=str):
     pass
 
 
-class ScalarType(nodes.Node, constraints.ConsistencySubject,
+class ScalarType(s_types.Type, constraints.ConsistencySubject,
                  annotations.AnnotationSubject, s_abc.ScalarType):
 
     default = so.SchemaField(
@@ -171,14 +171,13 @@ class AnonymousEnumTypeRef(so.ObjectRef):
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext,
                                annotations.AnnotationSubjectCommandContext,
-                               constraints.ConsistencySubjectCommandContext,
-                               nodes.NodeCommandContext):
+                               constraints.ConsistencySubjectCommandContext):
     pass
 
 
 class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
                         annotations.AnnotationSubjectCommand,
-                        nodes.NodeCommand,
+                        s_types_d.TypeCommand,
                         schema_metaclass=ScalarType,
                         context_class=ScalarTypeCommandContext):
     @classmethod

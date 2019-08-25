@@ -31,7 +31,6 @@ from edb.common import parsing
 from edb.schema import abc as s_abc
 from edb.schema import derivable as s_der
 from edb.schema import name as sn
-from edb.schema import nodes as s_nodes
 from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
@@ -120,8 +119,8 @@ def resolve_schema_name(
 
 def derive_view(
         stype: s_obj.Object,
-        source: typing.Optional[s_nodes.Node]=None,
-        target: typing.Optional[s_nodes.Node]=None,
+        source: typing.Optional[s_types.Type]=None,
+        target: typing.Optional[s_types.Type]=None,
         *qualifiers,
         derived_name: typing.Optional[sn.SchemaName]=None,
         derived_name_quals: typing.Optional[typing.Sequence[str]]=(),

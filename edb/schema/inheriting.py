@@ -633,15 +633,6 @@ def compute_ancestors(schema, obj):
 
 
 class InheritingObject(derivable.DerivableObject):
-    bases = so.SchemaField(
-        so.ObjectList,
-        default=so.ObjectList,
-        coerce=True, inheritable=False, compcoef=0.714)
-
-    ancestors = so.SchemaField(
-        so.ObjectList,
-        coerce=True, default=None, hashable=False)
-
     is_abstract = so.SchemaField(
         bool,
         default=False,
@@ -664,14 +655,6 @@ class InheritingObject(derivable.DerivableObject):
         default=False,
         inheritable=False,
         compcoef=0.909)
-
-    field_inh_map = so.SchemaField(
-        immu.Map,
-        default=immu.Map(),
-        inheritable=False,
-        introspectable=False,
-        hashable=False,
-    )
 
     @classmethod
     def delta(cls, old, new, *, context=None, old_schema, new_schema):
