@@ -19,13 +19,14 @@
 
 from __future__ import annotations
 
+from edb import errors
 from edb.edgeql import ast as qlast
 
 from . import scalars as s_scalars
 from . import annos as s_anno
 from . import objtypes as s_objtypes
 from . import delta as sd
-from . import types_delta as s_types_d
+from . import types as s_types
 
 
 class ViewCommandContext(sd.ObjectCommandContext,
@@ -33,7 +34,7 @@ class ViewCommandContext(sd.ObjectCommandContext,
     pass
 
 
-class ViewCommand(s_types_d.TypeCommand, context_class=ViewCommandContext):
+class ViewCommand(s_types.TypeCommand, context_class=ViewCommandContext):
 
     _scalar_cmd_map = {
         qlast.CreateView: s_scalars.CreateScalarType,
@@ -45,6 +46,16 @@ class ViewCommand(s_types_d.TypeCommand, context_class=ViewCommandContext):
         qlast.CreateView: s_objtypes.CreateObjectType,
         qlast.AlterView: s_objtypes.AlterObjectType,
         qlast.DropView: s_objtypes.DeleteObjectType,
+    }
+
+    _array_cmd_map = {
+        qlast.CreateView: s_types.CreateArrayView,
+        qlast.DropView: s_types.DeleteArrayView,
+    }
+
+    _tuple_cmd_map = {
+        qlast.CreateView: s_types.CreateTupleView,
+        qlast.DropView: s_types.DeleteTupleView,
     }
 
     @classmethod
@@ -65,8 +76,17 @@ class ViewCommand(s_types_d.TypeCommand, context_class=ViewCommandContext):
 
             if isinstance(scls, s_scalars.ScalarType):
                 mapping = cls._scalar_cmd_map
-            else:
+            elif isinstance(scls, s_types.BaseTuple):
+                mapping = cls._tuple_cmd_map
+            elif isinstance(scls, s_types.BaseArray):
+                mapping = cls._array_cmd_map
+            elif isinstance(scls, s_objtypes.ObjectType):
                 mapping = cls._objtype_cmd_map
+            else:
+                raise errors.InternalServerError(
+                    f'unsupported view type: '
+                    f'{scls.get_schema_class_displayname()}'
+                )
 
             return mapping[type(astnode)]
 

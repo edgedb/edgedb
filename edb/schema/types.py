@@ -29,7 +29,10 @@ from edb import errors
 
 from edb.common import typed
 
+from edb.edgeql import ast as qlast
+
 from . import abc as s_abc
+from . import delta as sd
 from . import derivable
 from . import expr as s_expr
 from . import name as s_name
@@ -242,40 +245,6 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
 
 class Collection(Type, s_abc.Collection):
 
-    name = so.Field(
-        s_name.SchemaName,
-        inheritable=False, compcoef=0.670)
-
-    view_type = so.Field(
-        ViewType,
-        default=None, ephemeral=True)
-
-    expr = so.Field(
-        s_expr.Expression,
-        default=None, ephemeral=True)
-
-    rptr = so.Field(
-        so.Object,
-        default=None, ephemeral=True)
-
-    def get_name(self, schema):
-        return self.name
-
-    def get_shortname(self, schema):
-        return self.name
-
-    def get_verbosename(self, schema, *, with_parent=False):
-        return self.get_displayname(schema)
-
-    def get_view_type(self, schema):
-        return self.view_type
-
-    def get_expr(self, schema):
-        return self.expr
-
-    def get_rptr(self, schema):
-        return self.rptr
-
     def is_polymorphic(self, schema):
         return any(st.is_polymorphic(schema)
                    for st in self.get_subtypes(schema))
@@ -447,6 +416,43 @@ class Collection(Type, s_abc.Collection):
         return repr(self)
 
 
+class EphemeralCollection(Collection):
+
+    name = so.Field(
+        s_name.SchemaName,
+        inheritable=False, compcoef=0.670)
+
+    view_type = so.Field(
+        ViewType,
+        default=None, ephemeral=True)
+
+    expr = so.Field(
+        s_expr.Expression,
+        default=None, ephemeral=True)
+
+    rptr = so.Field(
+        so.Object,
+        default=None, ephemeral=True)
+
+    def get_name(self, schema):
+        return self.name
+
+    def get_shortname(self, schema):
+        return self.name
+
+    def get_verbosename(self, schema, *, with_parent=False):
+        return self.get_displayname(schema)
+
+    def get_view_type(self, schema):
+        return self.view_type
+
+    def get_expr(self, schema):
+        return self.expr
+
+    def get_rptr(self, schema):
+        return self.rptr
+
+
 class Dimensions(typed.FrozenTypedList, type=int):
     pass
 
@@ -596,21 +602,26 @@ class BaseArray(Collection, s_abc.Array):
         else:
             return self
 
-    def as_create_delta(self, schema):
-        from . import delta as sd
-
+    def as_create_delta(self, schema, *, view_name=None):
         cmd = sd.CommandGroup()
 
-        ca = sd.CreateArray(
-            classname=str(self.id),
-        )
+        if view_name is None:
+            name = str(self.id)
+            ca = CreateArray(
+                classname=name,
+            )
+        else:
+            name = view_name
+            ca = CreateArrayView(
+                classname=name,
+            )
 
         el = self.get_element_type(schema)
         if el.is_collection() and schema.get_by_id(el.id, None) is None:
             cmd.add(el.as_create_delta(schema))
 
         ca.set_attribute_value('id', self.id)
-        ca.set_attribute_value('name', str(self.id))
+        ca.set_attribute_value('name', name)
         ca.set_attribute_value('element_type', el)
         ca.set_attribute_value('dimensions', self.get_dimensions(schema))
 
@@ -618,12 +629,17 @@ class BaseArray(Collection, s_abc.Array):
 
         return cmd
 
-    def as_delete_delta(self, schema):
-        from . import delta as sd
-
-        cmd = sd.DeleteArray(
-            classname=str(self.id),
-        )
+    def as_delete_delta(self, schema, *, view_name=None):
+        if view_name is None:
+            name = str(self.id)
+            cmd = DeleteArray(
+                classname=name,
+            )
+        else:
+            name = view_name
+            cmd = DeleteArrayView(
+                classname=name,
+            )
 
         el = self.get_element_type(schema)
         if (el.is_collection()
@@ -633,7 +649,7 @@ class BaseArray(Collection, s_abc.Array):
         return cmd
 
 
-class Array(BaseArray):
+class Array(EphemeralCollection, BaseArray):
 
     element_type = so.Field(so.Object)
     dimensions = so.Field(Dimensions, coerce=True)
@@ -672,14 +688,36 @@ class SchemaCollectionMeta(type(Type)):
         return True
 
 
-class SchemaArray(so.UnqualifiedObject, BaseArray,
-                  metaclass=SchemaCollectionMeta):
+class SchemaCollection(so.Object, metaclass=SchemaCollectionMeta):
+    pass
+
+
+class CollectionView(SchemaCollection):
+
+    @classmethod
+    def get_schema_class_displayname(cls):
+        return 'view'
+
+
+class SchemaAnonymousCollection(so.UnqualifiedObject, SchemaCollection):
+    pass
+
+
+class BaseSchemaArray(SchemaCollection, BaseArray):
 
     element_type = so.SchemaField(so.Object)
     dimensions = so.SchemaField(Dimensions, default=None, coerce=True)
 
     def get_subtypes(self, schema):
         return (self.get_element_type(schema),)
+
+
+class SchemaArray(SchemaAnonymousCollection, BaseSchemaArray):
+    pass
+
+
+class ArrayView(CollectionView, BaseSchemaArray):
+    pass
 
 
 class BaseTuple(Collection, s_abc.Tuple):
@@ -1001,21 +1039,29 @@ class BaseTuple(Collection, s_abc.Tuple):
         else:
             return self
 
-    def as_create_delta(self, schema):
+    def as_create_delta(self, schema, *, view_name=None):
         from . import delta as sd
 
         cmd = sd.CommandGroup()
 
-        ct = sd.CreateTuple(
-            classname=str(self.id),
-        )
+        if view_name is None:
+            name = str(self.id)
+
+            ct = CreateTuple(
+                classname=name,
+            )
+        else:
+            name = view_name
+            ct = CreateTupleView(
+                classname=name,
+            )
 
         for el in self.get_subtypes(schema):
             if el.is_collection() and schema.get_by_id(el.id, None) is None:
                 cmd.add(el.as_create_delta(schema))
 
         ct.set_attribute_value('id', self.id)
-        ct.set_attribute_value('name', str(self.id))
+        ct.set_attribute_value('name', name)
         ct.set_attribute_value('named', self.is_named(schema))
         ct.set_attribute_value(
             'element_types',
@@ -1028,12 +1074,17 @@ class BaseTuple(Collection, s_abc.Tuple):
 
         return cmd
 
-    def as_delete_delta(self, schema):
-        from . import delta as sd
-
-        cmd = sd.DeleteTuple(
-            classname=str(self.id),
-        )
+    def as_delete_delta(self, schema, *, view_name=None):
+        if view_name is None:
+            name = str(self.id)
+            cmd = DeleteTuple(
+                classname=name,
+            )
+        else:
+            name = view_name
+            cmd = DeleteTupleView(
+                classname=name,
+            )
 
         for el in self.get_subtypes(schema):
             if el.is_collection():
@@ -1044,7 +1095,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         return cmd
 
 
-class Tuple(BaseTuple):
+class Tuple(EphemeralCollection, BaseTuple):
 
     named = so.Field(bool)
     element_types = so.Field(dict, coerce=True)
@@ -1095,8 +1146,7 @@ class Tuple(BaseTuple):
         self.__dict__.update(state)
 
 
-class SchemaTuple(so.UnqualifiedObject, BaseTuple,
-                  metaclass=SchemaCollectionMeta):
+class BaseSchemaTuple(SchemaCollection, BaseTuple):
 
     named = so.SchemaField(
         bool)
@@ -1123,5 +1173,194 @@ class SchemaTuple(so.UnqualifiedObject, BaseTuple,
             return []
 
 
+class SchemaTuple(SchemaAnonymousCollection, BaseSchemaTuple):
+    pass
+
+
+class TupleView(CollectionView, BaseSchemaTuple):
+    pass
+
+
 def generate_type_id(id_str: str) -> uuid.UUID:
     return uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+
+
+class TypeCommand(sd.ObjectCommand):
+    @classmethod
+    def _maybe_get_view_expr(cls, astnode):
+        for subcmd in astnode.commands:
+            if (isinstance(subcmd, qlast.SetField) and
+                    subcmd.name.name == 'expr'):
+                return subcmd.value
+
+    @classmethod
+    def _get_view_expr(cls, astnode):
+        expr = cls._maybe_get_view_expr(astnode)
+        if expr is None:
+            raise errors.InvalidViewDefinitionError(
+                f'missing required view expression', context=astnode.context)
+        return expr
+
+    @classmethod
+    def _compile_view_expr(cls, expr, classname, schema, context):
+        from edb.edgeql import compiler as qlcompiler
+
+        ir = context.get_cached((expr, classname))
+        if ir is None:
+            if not isinstance(expr, qlast.Statement):
+                expr = qlast.SelectQuery(result=expr)
+            ir = qlcompiler.compile_ast_to_ir(
+                expr, schema, derived_target_module=classname.module,
+                result_view_name=classname, modaliases=context.modaliases,
+                schema_view_mode=True)
+            context.cache_value((expr, classname), ir)
+
+        return ir
+
+    @classmethod
+    def _handle_view_op(cls, schema, cmd, astnode, context):
+        view_expr = cls._maybe_get_view_expr(astnode)
+        if view_expr is not None:
+            classname = cmd.classname
+            if not s_name.Name.is_qualified(classname):
+                # Collection commands use unqualified names
+                # because they use the type id in the general case,
+                # but in the case of an explicit named view, we
+                # still want a properly qualified name.
+                classname = sd.ObjectCommand._classname_from_ast(
+                    schema, astnode, context)
+                cmd.classname = classname
+
+            expr = s_expr.Expression.from_ast(
+                view_expr, schema, context.modaliases)
+
+            ir = cls._compile_view_expr(expr.qlast, classname,
+                                        schema, context)
+
+            expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
+
+            cmd.set_attribute_value('expr', expr)
+
+            coll_view_types = []
+            prev_coll_view_types = []
+            view_types = []
+            prev_view_types = []
+            prev_ir = None
+
+            for vt in ir.views.values():
+                if vt.is_collection():
+                    coll_view_types.append(vt)
+                else:
+                    view_types.append(vt)
+
+            if isinstance(astnode, qlast.AlterObject):
+                prev = schema.get(classname)
+                prev_ir = cls._compile_view_expr(
+                    prev.expr, classname, schema, context)
+                for vt in prev_ir.views.values():
+                    if vt.is_collection():
+                        prev_coll_view_types.append(vt)
+                    else:
+                        prev_view_types.append(vt)
+
+            derived_delta = sd.DeltaRoot()
+
+            new_schema = ir.schema
+            old_schema = prev_ir.schema if prev_ir is not None else None
+
+            derived_delta.update(so.Object.delta_sets(
+                prev_view_types, view_types,
+                old_schema=old_schema, new_schema=new_schema))
+
+            for vt in prev_coll_view_types:
+                dt = vt.as_delete_delta(prev_ir.schema, view_name=classname)
+                derived_delta.prepend(dt)
+
+            for vt in coll_view_types:
+                ct = vt.as_create_delta(ir.schema, view_name=classname)
+                derived_delta.add(ct)
+
+            for op in list(derived_delta.get_subcommands()):
+                if op.classname == classname:
+                    for subop in op.get_subcommands():
+                        if isinstance(subop, sd.AlterObjectProperty):
+                            cmd.discard_attribute(subop.property)
+                        cmd.add(subop)
+
+                    derived_delta.discard(op)
+
+            cmd.update(derived_delta.get_subcommands())
+            cmd.discard_attribute('view_type')
+            cmd.add(sd.AlterObjectProperty(
+                property='view_type', new_value=ViewType.Select))
+
+            cmd.canonical = True
+
+        return cmd
+
+
+class CollectionTypeCommandContext(sd.ObjectCommandContext):
+    pass
+
+
+class CollectionTypeCommand(sd.UnqualifiedObjectCommand,
+                            TypeCommand,
+                            context_class=CollectionTypeCommandContext):
+    pass
+
+
+class CollectionViewCommand(TypeCommand,
+                            context_class=CollectionTypeCommandContext):
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd = cls._handle_view_op(schema, cmd, astnode, context)
+        return cmd
+
+
+class CreateCollectionType(CollectionTypeCommand, sd.CreateObject):
+    pass
+
+
+class DeleteCollectionType(CollectionTypeCommand, sd.DeleteObject):
+    pass
+
+
+class CreateCollectionView(CollectionViewCommand, sd.CreateObject):
+    pass
+
+
+class DeleteCollectionView(CollectionViewCommand, sd.DeleteObject):
+    pass
+
+
+class CreateTuple(CreateCollectionType, schema_metaclass=SchemaTuple):
+    pass
+
+
+class CreateTupleView(CreateCollectionView, schema_metaclass=TupleView):
+    pass
+
+
+class CreateArray(CreateCollectionType, schema_metaclass=SchemaArray):
+    pass
+
+
+class CreateArrayView(CreateCollectionView, schema_metaclass=ArrayView):
+    pass
+
+
+class DeleteTuple(DeleteCollectionType, schema_metaclass=SchemaTuple):
+    pass
+
+
+class DeleteTupleView(DeleteCollectionView, schema_metaclass=TupleView):
+    pass
+
+
+class DeleteArray(DeleteCollectionType, schema_metaclass=SchemaArray):
+    pass
+
+
+class DeleteArrayView(DeleteCollectionView, schema_metaclass=ArrayView):
+    pass

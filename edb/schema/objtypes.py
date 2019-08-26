@@ -35,7 +35,6 @@ from . import objects as so
 from . import pointers
 from . import sources
 from . import types as s_types
-from . import types_delta as s_types_d
 from . import utils
 
 
@@ -247,7 +246,7 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext,
 
 class ObjectTypeCommand(constraints.ConsistencySubjectCommand,
                         sources.SourceCommand, links.LinkSourceCommand,
-                        s_types_d.TypeCommand,
+                        s_types.TypeCommand,
                         schema_metaclass=ObjectType,
                         context_class=ObjectTypeCommandContext):
     def _apply_field_ast(self, schema, context, node, op):

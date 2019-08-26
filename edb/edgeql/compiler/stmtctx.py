@@ -146,6 +146,9 @@ def fini_expression(
 
     if ctx.env.schema_view_mode:
         for view in ctx.view_nodes.values():
+            if view.is_collection():
+                continue
+
             derived_from = view.get_derived_from(ctx.env.schema)
             if (derived_from is not None
                     and derived_from.get_derived_from(ctx.env.schema)

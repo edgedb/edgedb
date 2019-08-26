@@ -599,14 +599,6 @@ class InheritingObject(derivable.DerivableObject):
         default=False,
         inheritable=False, compcoef=0.909)
 
-    is_derived = so.SchemaField(
-        bool,
-        default=False, compcoef=0.909)
-
-    derived_from = so.SchemaField(
-        so.Object,
-        default=None, compcoef=0.909, inheritable=False)
-
     is_final = so.SchemaField(
         bool,
         default=False, compcoef=0.909)

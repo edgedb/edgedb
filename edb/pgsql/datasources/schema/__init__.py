@@ -30,3 +30,4 @@ from . import objtypes  # NOQA
 from . import operators  # NOQA
 from . import roles  # NOQA
 from . import scalars  # NOQA
+from . import types  # NOQA

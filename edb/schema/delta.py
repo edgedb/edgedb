@@ -35,7 +35,6 @@ from . import expr as s_expr
 from . import name as sn
 from . import objects as so
 from . import schema as s_schema
-from . import types
 from . import utils
 
 
@@ -536,6 +535,7 @@ class DeltaRoot(CommandGroup):
 
     def apply(self, schema, context=None):
         from . import modules
+        from . import types as s_types
 
         context = context or CommandContext()
 
@@ -553,10 +553,10 @@ class DeltaRoot(CommandGroup):
             for op in self:
                 if not isinstance(op, (modules.CreateModule,
                                        modules.AlterModule,
-                                       DeleteCollectionType)):
+                                       s_types.DeleteCollectionType)):
                     schema, _ = op.apply(schema, context)
 
-            for op in self.get_subcommands(type=DeleteCollectionType):
+            for op in self.get_subcommands(type=s_types.DeleteCollectionType):
                 schema, _ = op.apply(schema, context)
 
         return schema, None
@@ -891,9 +891,11 @@ class CreateObject(ObjectCommand):
         return schema, field_updates
 
     def _create_innards(self, schema, context):
+        from . import types as s_types
+
         mcls = self.get_schema_metaclass()
 
-        for op in self.get_subcommands(type=CollectionTypeCommand):
+        for op in self.get_subcommands(type=s_types.CollectionTypeCommand):
             schema, _ = op.apply(schema, context)
 
         for refdict in mcls.get_refdicts():
@@ -1201,9 +1203,11 @@ class AlterObject(ObjectCommand):
         return schema
 
     def _alter_innards(self, schema, context, scls):
+        from . import types as s_types
+
         mcls = self.get_schema_metaclass()
 
-        for op in self.get_subcommands(type=CollectionTypeCommand):
+        for op in self.get_subcommands(type=s_types.CollectionTypeCommand):
             schema, _ = op.apply(schema, context)
 
         for op in self.get_subcommands(type=AlterObjectFragment):
@@ -1433,39 +1437,6 @@ class AlterObjectProperty(Command):
         return '<%s.%s "%s":"%s"->"%s">' % (
             self.__class__.__module__, self.__class__.__name__,
             self.property, self.old_value, self.new_value)
-
-
-class CollectionTypeCommandContext(ObjectCommandContext):
-    pass
-
-
-class CollectionTypeCommand(UnqualifiedObjectCommand,
-                            context_class=CollectionTypeCommandContext):
-    pass
-
-
-class CreateCollectionType(CollectionTypeCommand, CreateObject):
-    pass
-
-
-class DeleteCollectionType(CollectionTypeCommand, DeleteObject):
-    pass
-
-
-class CreateTuple(CreateCollectionType, schema_metaclass=types.SchemaTuple):
-    pass
-
-
-class CreateArray(CreateCollectionType, schema_metaclass=types.SchemaArray):
-    pass
-
-
-class DeleteTuple(DeleteCollectionType, schema_metaclass=types.SchemaTuple):
-    pass
-
-
-class DeleteArray(DeleteCollectionType, schema_metaclass=types.SchemaArray):
-    pass
 
 
 def ensure_schema_collection(schema, coll_type, parent_cmd, *,

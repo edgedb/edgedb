@@ -36,7 +36,6 @@ from . import inheriting
 from . import name as sn
 from . import objects as so
 from . import types as s_types
-from . import types_delta as s_types_d
 
 
 class FrozenStrList(typed.FrozenTypedList, type=str):
@@ -177,7 +176,7 @@ class ScalarTypeCommandContext(sd.ObjectCommandContext,
 
 class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
                         s_anno.AnnotationSubjectCommand,
-                        s_types_d.TypeCommand,
+                        s_types.TypeCommand,
                         schema_metaclass=ScalarType,
                         context_class=ScalarTypeCommandContext):
     @classmethod

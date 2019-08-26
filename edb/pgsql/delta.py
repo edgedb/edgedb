@@ -166,7 +166,7 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
             id_array = ', '.join(ql(str(v)) for v in result)
             recvalue = dbops.Query(f'ARRAY[{id_array}]::uuid[]')
 
-        elif isinstance(value, s_obj.ObjectIndexBase):
+        elif isinstance(value, (s_obj.ObjectIndexBase, s_obj.ObjectDict)):
             result = s_types.Tuple.from_subtypes(
                 schema,
                 dict(value.items(schema)),
@@ -325,12 +325,17 @@ class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
     pass
 
 
-class CreateTuple(ObjectMetaCommand, adapts=sd.CreateTuple):
+class TupleCommand(ObjectMetaCommand):
+
+    pass
+
+
+class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
 
     def apply(self, schema, context):
         schema, self.scls = self.__class__.get_adaptee().apply(
             self, schema, context)
-        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        schema, _ = TupleCommand.apply(self, schema, context)
 
         elements = self.scls.get_element_types(schema).items(schema)
 
@@ -351,7 +356,7 @@ class CreateTuple(ObjectMetaCommand, adapts=sd.CreateTuple):
         return schema, self.scls
 
 
-class DeleteTuple(ObjectMetaCommand, adapts=sd.DeleteTuple):
+class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
 
     def apply(self, schema, context):
         tup = schema.get_global(s_types.SchemaTuple, self.classname)
@@ -363,27 +368,76 @@ class DeleteTuple(ObjectMetaCommand, adapts=sd.DeleteTuple):
 
         schema, self.scls = self.__class__.get_adaptee().apply(
             self, schema, context)
-        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        schema, _ = TupleCommand.apply(self, schema, context)
 
         return schema, self.scls
 
 
-class CreateArray(ObjectMetaCommand, adapts=sd.CreateArray):
+class TupleViewCommand(ObjectMetaCommand):
+
+    _table = metaschema.get_metaclass_table(s_types.TupleView)
+
+    def get_table(self, schema):
+        return self._table
+
+
+class CreateTupleView(
+        TupleViewCommand, CreateObject,
+        adapts=s_types.CreateTupleView):
+
+    pass
+
+
+class DeleteTupleView(
+        TupleViewCommand, DeleteObject,
+        adapts=s_types.DeleteTupleView):
+
+    pass
+
+
+class ArrayCommand(ObjectMetaCommand):
+
+    pass
+
+
+class CreateArray(ArrayCommand, adapts=s_types.CreateArray):
 
     def apply(self, schema, context):
         schema, self.scls = self.__class__.get_adaptee().apply(
             self, schema, context)
-        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        schema, _ = ArrayCommand.apply(self, schema, context)
         return schema, self.scls
 
 
-class DeleteArray(ObjectMetaCommand, adapts=sd.DeleteArray):
+class DeleteArray(ArrayCommand, adapts=s_types.DeleteArray):
 
     def apply(self, schema, context):
         schema, self.scls = self.__class__.get_adaptee().apply(
             self, schema, context)
-        schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        schema, _ = ArrayCommand.apply(self, schema, context)
         return schema, self.scls
+
+
+class ArrayViewCommand(ObjectMetaCommand):
+
+    _table = metaschema.get_metaclass_table(s_types.ArrayView)
+
+    def get_table(self, schema):
+        return self._table
+
+
+class CreateArrayView(
+        ArrayViewCommand, CreateObject,
+        adapts=s_types.CreateArrayView):
+
+    pass
+
+
+class DeleteArrayView(
+        ArrayViewCommand, DeleteObject,
+        adapts=s_types.DeleteArrayView):
+
+    pass
 
 
 class ParameterCommand:

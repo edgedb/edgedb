@@ -21,7 +21,6 @@ import json
 import os.path
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLViews(tb.QueryTestCase):
@@ -62,13 +61,6 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        Tuples are not supported as the base type for view.
-
-        edb.errors.SchemaError: cannot get 'path_id_name' value: item
-        '4863a66b-e798-5351-be51-f2d9075d7643' is not present in the
-        schema <Schema gen:5588 at 0x7f179a5e07b8>
-    ''')
     async def test_edgeql_views_basic_02(self):
         await self.con.execute('''
             CREATE VIEW test::expert_map := (
@@ -95,13 +87,10 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        Tuples are not supported as the base type for view.
+        await self.con.execute('''
+            DROP VIEW test::expert_map;
+        ''')
 
-        edb.errors.SchemaError: cannot get 'path_id_name' value: item
-        '845d28cd-c0cc-5db8-b617-8be5906d5486' is not present in the
-        schema <Schema gen:5587 at 0x7fb8a09d7ba8>
-    ''')
     async def test_edgeql_views_basic_03(self):
         await self.con.execute('''
             CREATE VIEW test::scores := (
@@ -154,6 +143,10 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 {'name': 'Dave', 'points': 78, 'plays': 10},
             ],
         )
+
+        await self.con.execute('''
+            DROP VIEW test::scores;
+        ''')
 
     async def test_edgeql_views_basic_04(self):
         await self.con.execute('''

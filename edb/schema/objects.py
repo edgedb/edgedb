@@ -1545,6 +1545,9 @@ class ObjectDict(ObjectCollection, container=tuple):
     def keys(self, schema):
         return self._keys
 
+    def values(self, schema):
+        return self.objects(schema)
+
     def items(self, schema):
         return tuple(zip(self._keys, self.objects(schema)))
 
@@ -1612,6 +1615,14 @@ class InheritingObjectBase(Object):
         introspectable=False,
         hashable=False,
     )
+
+    is_derived = SchemaField(
+        bool,
+        default=False, compcoef=0.909)
+
+    derived_from = SchemaField(
+        Object,
+        default=None, compcoef=0.909, inheritable=False)
 
     def _issubclass(self, schema, parent):
         lineage = compute_lineage(schema, self)

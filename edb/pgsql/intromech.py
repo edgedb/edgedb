@@ -99,6 +99,8 @@ class IntrospectionMech:
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_annotation_values(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
+            schema = await self.read_views(
+                schema, only_modules=modules, exclude_modules=exclude_modules)
 
             schema = await self.order_scalars(schema)
             schema = await self.order_operators(schema)
@@ -871,6 +873,44 @@ class IntrospectionMech:
                 if expr is not None:
                     schema = objtype.set_field_value(
                         schema, 'expr', self.unpack_expr(expr, schema))
+
+        return schema
+
+    async def read_views(self, schema, only_modules, exclude_modules):
+        tuple_views = await datasources.schema.types.fetch_tuple_views(
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
+
+        for r in tuple_views:
+            eltypes = self.unpack_typeref(r['element_types'], schema)
+
+            schema, tview = s_types.TupleView.create_in_schema(
+                schema,
+                id=r['id'],
+                name=sn.Name(r['name']),
+                view_type=s_types.ViewType(r['view_type']),
+                named=r['named'],
+                expr=self.unpack_expr(r['expr'], schema),
+                element_types=s_obj.ObjectDict.create(
+                    schema, dict(eltypes.iter_subtypes(schema))),
+            )
+
+        array_views = await datasources.schema.types.fetch_array_views(
+            self.connection, modules=only_modules,
+            exclude_modules=exclude_modules)
+
+        for r in array_views:
+            eltype = self.unpack_typeref(r['element_type'], schema)
+
+            schema, tview = s_types.ArrayView.create_in_schema(
+                schema,
+                id=r['id'],
+                name=sn.Name(r['name']),
+                view_type=s_types.ViewType(r['view_type']),
+                expr=self.unpack_expr(r['expr'], schema),
+                element_type=eltype,
+                dimensions=r['dimensions'],
+            )
 
         return schema
 

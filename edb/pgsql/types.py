@@ -538,7 +538,7 @@ class TypeDesc:
 
         for i, (tn, t) in enumerate(types):
             if isinstance(t, s_abc.Collection):
-                if isinstance(t, s_abc.Tuple) and t.named:
+                if isinstance(t, s_abc.Tuple) and t.is_named(schema):
                     stypes = list(t.iter_subtypes(schema))
                 else:
                     stypes = [(None, st) for st in t.get_subtypes(schema)]
@@ -546,7 +546,7 @@ class TypeDesc:
                 subtypes = cls._get_typedesc(
                     schema, stypes, typedesc, is_root=False)
                 if isinstance(t, s_abc.Array):
-                    dimensions = t.dimensions
+                    dimensions = t.get_dimensions(schema)
                 else:
                     dimensions = []
                 desc = TypeDescNode(

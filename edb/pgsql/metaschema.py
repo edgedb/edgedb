@@ -42,6 +42,7 @@ from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import pseudo as s_pseudo
+from edb.schema import types as s_types
 
 from . import common
 from . import dbops
@@ -1510,6 +1511,10 @@ def _field_to_column(field):
             and issubclass(ftype.type, str)):
         coltype = 'text[]'
 
+    elif (issubclass(ftype, (typed.TypedList, typed.FrozenTypedList))
+            and issubclass(ftype.type, int)):
+        coltype = 'int[]'
+
     elif issubclass(ftype, collections.abc.Mapping):
         coltype = 'jsonb'
 
@@ -1543,14 +1548,20 @@ metaclass_tables = collections.OrderedDict()
 
 
 def get_interesting_metaclasses():
-    metaclasses = s_obj.ObjectMeta.get_schema_metaclasses()
+    metaclasses = []
 
-    metaclasses = [
-        mcls for mcls in metaclasses
-        if (not issubclass(mcls, (s_obj.ObjectRef, s_abc.Collection)) and
-            not isinstance(mcls, adapter.Adapter) and
-            not issubclass(mcls, (s_db.Database)))
-    ]
+    for mcls in s_obj.ObjectMeta.get_schema_metaclasses():
+        if issubclass(mcls, (s_obj.ObjectRef, s_db.Database)):
+            continue
+
+        if isinstance(mcls, adapter.Adapter):
+            continue
+
+        if (issubclass(mcls, s_abc.Collection)
+                and not issubclass(mcls, s_types.SchemaCollection)):
+            continue
+
+        metaclasses.append(mcls)
 
     return metaclasses
 
@@ -1564,16 +1575,20 @@ def init_metaclass_tables():
         table = dbops.Table(name=('edgedb', mcls.__name__.lower()))
 
         bases = []
-        for parent in mcls.__bases__:
+        seen_bases = set()
+        for parent in mcls.__mro__[1:-1]:
             if not issubclass(parent, s_obj.Object):
+                continue
+
+            if any(issubclass(b, parent) for b in seen_bases):
                 continue
 
             parent_tab = metaclass_tables.get(parent)
             if parent_tab is None:
-                raise RuntimeError(
-                    'cannot determine schema metaclass table hierarchy')
+                continue
 
             bases.append(parent_tab)
+            seen_bases.add(parent)
 
         table.add_bases(bases)
 

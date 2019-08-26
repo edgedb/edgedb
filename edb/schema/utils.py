@@ -31,7 +31,6 @@ from edb.edgeql import ast as ql_ast
 from . import abc as s_abc
 from . import name as sn
 from . import objects as so
-from . import types as s_types
 
 
 def ast_objref_to_objref(
@@ -85,6 +84,8 @@ def ast_to_typeref(
         )
 
     elif node.subtypes is not None:
+        from . import types as s_types
+
         coll = s_types.Collection.get_class(node.maintype.name)
 
         if issubclass(coll, s_abc.Tuple):
@@ -172,7 +173,7 @@ def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
     return result
 
 
-def reduce_to_typeref(schema, t: s_types.Type) -> so.Object:
+def reduce_to_typeref(schema, t) -> so.Object:
     ref, _ = t._reduce_to_ref(schema)
     return ref
 
