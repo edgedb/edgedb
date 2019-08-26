@@ -24,7 +24,7 @@ import typing
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
-from . import annotations
+from . import annos as s_anno
 from . import constraints
 from . import delta as sd
 from . import inheriting
@@ -42,7 +42,7 @@ from . import utils
 class BaseObjectType(sources.Source,
                      s_types.Type,
                      constraints.ConsistencySubject,
-                     annotations.AnnotationSubject,
+                     s_anno.AnnotationSubject,
                      s_abc.ObjectType):
 
     union_of = so.SchemaField(
@@ -239,7 +239,7 @@ def get_or_create_union_type(
 
 class ObjectTypeCommandContext(sd.ObjectCommandContext,
                                constraints.ConsistencySubjectCommandContext,
-                               annotations.AnnotationSubjectCommandContext,
+                               s_anno.AnnotationSubjectCommandContext,
                                links.LinkSourceCommandContext,
                                lproperties.PropertySourceContext):
     pass

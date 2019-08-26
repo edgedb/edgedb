@@ -31,7 +31,7 @@ from edb.edgeql import ast as ql_ast
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import qltypes as ql_ft
 
-from edb.schema import annotations as s_anno
+from edb.schema import annos as s_anno
 from edb.schema import casts as s_casts
 from edb.schema import scalars as s_scalars
 from edb.schema import objtypes as s_objtypes

@@ -30,7 +30,7 @@ from edb.edgeql import qltypes
 
 from edb import schema as so
 from edb.schema import abc as s_abc
-from edb.schema import annotations as s_anno
+from edb.schema import annos as s_anno
 from edb.schema import casts as s_casts
 from edb.schema import scalars as s_scalars
 from edb.schema import objtypes as s_objtypes
@@ -764,7 +764,7 @@ class IntrospectionMech:
         return schema
 
     async def read_annotations(self, schema, only_modules, exclude_modules):
-        annotations = await datasources.schema.annotations.fetch(
+        annotations = await datasources.schema.annos.fetch(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
 
@@ -782,7 +782,7 @@ class IntrospectionMech:
 
     async def read_annotation_values(
             self, schema, only_modules, exclude_modules):
-        annotations = await datasources.schema.annotations.fetch_values(
+        annotations = await datasources.schema.annos.fetch_values(
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
 

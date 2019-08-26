@@ -22,14 +22,14 @@ from __future__ import annotations
 from edb.edgeql import ast as qlast
 
 from . import scalars as s_scalars
-from . import annotations
+from . import annos as s_anno
 from . import objtypes as s_objtypes
 from . import delta as sd
 from . import types_delta as s_types_d
 
 
 class ViewCommandContext(sd.ObjectCommandContext,
-                         annotations.AnnotationSubjectCommandContext):
+                         s_anno.AnnotationSubjectCommandContext):
     pass
 
 

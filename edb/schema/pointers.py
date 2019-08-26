@@ -27,7 +27,7 @@ from edb.common import enum
 from edb import errors
 
 from . import abc as s_abc
-from . import annotations
+from . import annos as s_anno
 from . import constraints
 from . import delta as sd
 from . import expr as s_expr
@@ -126,7 +126,7 @@ class PointerLike:
 
 class Pointer(referencing.ReferencedInheritingObject,
               constraints.ConsistencySubject,
-              annotations.AnnotationSubject,
+              s_anno.AnnotationSubject,
               PointerLike, s_abc.Pointer):
 
     source = so.SchemaField(
@@ -420,12 +420,12 @@ class Pointer(referencing.ReferencedInheritingObject,
 
 
 class PointerCommandContext(sd.ObjectCommandContext,
-                            annotations.AnnotationSubjectCommandContext):
+                            s_anno.AnnotationSubjectCommandContext):
     pass
 
 
 class PointerCommand(constraints.ConsistencySubjectCommand,
-                     annotations.AnnotationSubjectCommand,
+                     s_anno.AnnotationSubjectCommand,
                      referencing.ReferencedInheritingObjectCommand):
 
     def _create_begin(self, schema, context):

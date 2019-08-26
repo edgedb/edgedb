@@ -33,7 +33,7 @@ from . import schema as s_schema
 # necessary mappers from/to DDL AST.
 
 from . import scalars  # NOQA
-from . import annotations  # NOQA
+from . import annos  # NOQA
 from . import casts  # NOQA
 from . import expr as s_expr
 from . import objtypes  # NOQA
@@ -50,7 +50,7 @@ from . import views  # NOQA
 
 def get_global_dep_order():
     return (
-        annotations.Annotation,
+        annos.Annotation,
         functions.Function,
         constraints.Constraint,
         scalars.ScalarType,

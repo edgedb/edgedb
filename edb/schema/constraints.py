@@ -28,7 +28,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
 from . import abc as s_abc
-from . import annotations
+from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
 from . import functions as s_func
@@ -282,7 +282,7 @@ class ConsistencySubjectCommand(inheriting.InheritingObjectCommand):
 
 
 class ConstraintCommandContext(sd.ObjectCommandContext,
-                               annotations.AnnotationSubjectCommandContext):
+                               s_anno.AnnotationSubjectCommandContext):
     pass
 
 

@@ -29,7 +29,7 @@ from edb.edgeql import codegen
 from edb.edgeql import qltypes as ft
 
 from . import abc as s_abc
-from . import annotations
+from . import annos as s_anno
 from . import delta as sd
 from . import expr
 from . import name as sn
@@ -405,7 +405,7 @@ class VolatilitySubject(so.Object):
         compcoef=0.4, coerce=True, allow_ddl_set=True)
 
 
-class CallableObject(annotations.AnnotationSubject):
+class CallableObject(s_anno.AnnotationSubject):
 
     params = so.SchemaField(
         FuncParameterList,
@@ -500,7 +500,7 @@ class CallableObject(annotations.AnnotationSubject):
 
 
 class CallableCommandContext(sd.ObjectCommandContext,
-                             annotations.AnnotationSubjectCommandContext):
+                             s_anno.AnnotationSubjectCommandContext):
     pass
 
 
