@@ -206,7 +206,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     refnode, preserve_scope_ns=True, ctx=ctx)
             else:
                 stype = schemactx.get_schema_type(
-                    step, item_types=(s_objtypes.ObjectType,), ctx=ctx)
+                    step,
+                    condition=lambda o: (
+                        o.is_object_type() or o.is_view(ctx.env.schema)
+                    ),
+                    label='object type or view',
+                    srcctx=step.context,
+                    ctx=ctx,
+                )
 
                 if (stype.get_view_type(ctx.env.schema) is not None and
                         stype.get_name(ctx.env.schema) not in ctx.view_nodes):

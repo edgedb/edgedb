@@ -320,7 +320,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent function: bar::min'):
+                "function 'bar::min' does not exist"):
             await self.con.fetchall('SELECT bar::min({1})')
 
         await self.con.fetchall('''
@@ -329,7 +329,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent function: foo::min'):
+                "function 'foo::min' does not exist"):
             await self.con.fetchall('SELECT foo::min({3})')
 
         self.assertEqual(
@@ -338,7 +338,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent schema item Tmp'):
+                "object type or view 'Tmp' does not exist"):
             await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
@@ -364,7 +364,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent schema item Tmp'):
+                "object type or view 'Tmp' does not exist"):
             await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
@@ -407,7 +407,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent function: foo::min'):
+                "function 'foo::min' does not exist"):
             await self.con.fetchall('SELECT foo::min({3})')
 
     async def test_server_proto_basic_datatypes_01(self):
@@ -710,7 +710,8 @@ class TestServerProto(tb.QueryTestCase):
             await con.execute('ROLLBACK TO SAVEPOINT t1')
 
             with self.assertRaisesRegex(
-                    edgedb.InvalidReferenceError, 'non-existent.*Savepoint'):
+                    edgedb.InvalidReferenceError,
+                    ".*Savepoint.*does not exist"):
                 await con.fetchall(query)
 
         finally:
@@ -982,7 +983,7 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InvalidReferenceError,
-                    'non-existent function: t2::min'):
+                    "function 't2::min' does not exist"):
                 await con.fetchall('SELECT t1::min({1}) + t2::min({2})')
 
             await self.con.execute('''
@@ -995,7 +996,7 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InvalidReferenceError,
-                    'non-existent function: t1::min'):
+                    "function 't1::min' does not exist"):
                 await con.fetchall('SELECT t1::min({1})')
 
         finally:
@@ -1003,7 +1004,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent function: t1::min'):
+                "function 't1::min' does not exist"):
             await con.fetchall('SELECT t1::min({1})')
 
     async def test_server_proto_tx_savepoint_08(self):
@@ -1025,7 +1026,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'non-existent function: t1::min'):
+                "function 't1::min' does not exist"):
             await con.fetchone('SELECT t1::min({1})')
 
     async def test_server_proto_tx_savepoint_09(self):
@@ -1059,7 +1060,7 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InvalidReferenceError,
-                    'non-existent function: t1::min'):
+                    "function 't1::min' does not exist"):
                 await con.fetchall('SELECT t1::min({1})')
 
         finally:

@@ -54,9 +54,13 @@ def ast_objref_to_objref(
         return obj
 
     if module is None:
+        if metaclass is not None:
+            desc = metaclass.get_schema_class_displayname()
+        else:
+            desc = 'schema item'
         err = errors.InvalidReferenceError(
-            f'reference to a non-existent schema item {nqname!r}',
-            context=node.context
+            f'{desc} {nqname!r} does not exist',
+            context=node.context,
         )
         enrich_schema_lookup_error(
             err, lname, modaliases=modaliases, schema=schema,
@@ -253,7 +257,7 @@ def get_nq_name(schema, item) -> str:
 
 def find_item_suggestions(
         name, modaliases, schema, *, item_types=None, limit=3,
-        collection=None):
+        collection=None, condition=None):
     from . import modules as s_mod
 
     if isinstance(name, sn.Name):
@@ -282,6 +286,9 @@ def find_item_suggestions(
         suggestions = list(
             filter(lambda s: isinstance(s, item_types), suggestions))
 
+    if condition is not None:
+        suggestions = list(filter(condition, suggestions))
+
     # Compute Levenshtein distance for each suggestion.
     with_distance = [
         (s, levenshtein.distance(short_name, get_nq_name(schema, s)))
@@ -307,11 +314,13 @@ def find_item_suggestions(
 
 def enrich_schema_lookup_error(
         error, item_name, modaliases, schema, *,
-        item_types, suggestion_limit=3, name_template=None, collection=None):
+        item_types, suggestion_limit=3, name_template=None,
+        collection=None, condition=None, context=None):
 
     suggestions = find_item_suggestions(
         item_name, modaliases, schema,
-        item_types=item_types, limit=suggestion_limit, collection=collection)
+        item_types=item_types, limit=suggestion_limit,
+        collection=collection, condition=condition)
 
     if suggestions:
         names = []
@@ -333,6 +342,9 @@ def enrich_schema_lookup_error(
             hint = f'did you mean {names[0]!r}?'
 
         error.set_hint_and_details(hint=hint)
+
+    if context is not None:
+        error.set_source_context(context)
 
 
 def get_union_type(schema, types, *, opaque: bool = False,

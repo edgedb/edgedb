@@ -135,7 +135,7 @@ _123456789_123456789_123456789 -> str
         """
 
     @tb.must_fail(errors.InvalidReferenceError,
-                  "reference to a non-existent schema item 'int'",
+                  "type 'int' does not exist",
                   position=59,
                   hint='did you mean one of these: int16, int32, int64?')
     def test_schema_bad_type_01(self):

@@ -155,6 +155,18 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_views_basic_04(self):
+        await self.con.execute('''
+            CREATE VIEW test::levels := {'pro', 'casual', 'noob'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test SELECT levels;
+            ''',
+            {'pro', 'casual', 'noob'},
+        )
+
     async def test_edgeql_views_create_01(self):
         await self.con.fetchall(r'''
             CREATE VIEW test::DCard := (

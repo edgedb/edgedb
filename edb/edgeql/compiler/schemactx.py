@@ -48,6 +48,8 @@ def get_schema_object(
         name: typing.Union[str, qlast.BaseObjectRef],
         module: typing.Optional[str]=None, *,
         item_types: typing.Optional[typing.Sequence[s_obj.ObjectMeta]],
+        condition: typing.Optional[typing.Callable[[s_types.Type], bool]]=None,
+        label: typing.Optional[str]=None,
         ctx: context.ContextLevel,
         srcctx: typing.Optional[parsing.ParserContext] = None) -> s_obj.Object:
 
@@ -71,12 +73,15 @@ def get_schema_object(
 
     try:
         stype = ctx.env.get_track_schema_object(
-            name=name, modaliases=ctx.modaliases, type=item_types)
+            name=name, modaliases=ctx.modaliases,
+            type=item_types, condition=condition,
+            label=label,
+        )
 
     except errors.QueryError as e:
         s_utils.enrich_schema_lookup_error(
             e, name, modaliases=ctx.modaliases, schema=ctx.env.schema,
-            item_types=item_types)
+            item_types=item_types, condition=condition, context=srcctx)
         raise
 
     result = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
@@ -90,11 +95,16 @@ def get_schema_type(
         name: typing.Union[str, qlast.BaseObjectRef],
         module: typing.Optional[str]=None, *,
         ctx: context.ContextLevel,
-        item_types: typing.Optional[typing.Sequence[s_obj.ObjectMeta]]=None,
+        label: typing.Optional[str]=None,
+        condition: typing.Optional[typing.Callable[[s_types.Type], bool]]=None,
+        item_types: typing.Optional[
+            typing.Sequence[typing.Type[s_types.Type]]
+        ] = None,
         srcctx: typing.Optional[parsing.ParserContext] = None) -> s_types.Type:
     if item_types is None:
         item_types = (s_types.Type,)
     obj = get_schema_object(name, module, item_types=item_types,
+                            condition=condition, label=label,
                             ctx=ctx, srcctx=srcctx)
     assert isinstance(obj, s_types.Type)
     return obj

@@ -457,7 +457,7 @@ class Schema(s_abc.Schema):
             return funcs
 
         raise errors.InvalidReferenceError(
-            f'reference to a non-existent function: {name}')
+            f'function {name!r} does not exist')
 
     def get_operators(self, name, default=_void, *, module_aliases=None):
         funcs = self._get(name,
@@ -469,7 +469,7 @@ class Schema(s_abc.Schema):
             return funcs
 
         raise errors.InvalidReferenceError(
-            f'reference to a non-existent operator: {name}')
+            f'operator {name!r} does not exist')
 
     @functools.lru_cache()
     def _get_casts(
@@ -591,12 +591,19 @@ class Schema(s_abc.Schema):
         elif default is not _void:
             return default
         else:
+            desc = objtype.get_schema_class_displayname()
             raise errors.InvalidReferenceError(
-                f'reference to a non-existent {objtype.__name__}: {name}')
+                f'{desc} {name!r} does not exist')
 
-    def get(self, name, default=_void, *, module_aliases=None, type=None):
+    def get(self, name, default=_void, *,
+            module_aliases=None, type=None,
+            condition=None, label=None):
         def getter(schema, name):
-            return schema._get_by_name(name, type=type)
+            obj = schema._get_by_name(name, type=type)
+            if obj is not None and condition is not None:
+                if not condition(obj):
+                    obj = None
+            return obj
 
         obj = self._get(name,
                         getter=getter,
@@ -606,8 +613,18 @@ class Schema(s_abc.Schema):
         if obj is not _void:
             return obj
 
+        if label is None:
+            if type is not None:
+                if isinstance(type, tuple):
+                    label = " or ".join(t.get_schema_class_displayname()
+                                        for t in type)
+                else:
+                    label = type.get_schema_class_displayname()
+            else:
+                label = 'schema item'
+
         raise errors.InvalidReferenceError(
-            f'reference to a non-existent schema item {name}')
+            f'{label} {name!r} does not exist')
 
     def has_module(self, module):
         return self.get_global(s_mod.Module, module, None) is not None

@@ -355,7 +355,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_13(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                'reference to a non-existent schema item self'):
+                "object type or view 'self' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY foo -> std::str {
@@ -752,7 +752,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"reference to a non-existent schema item 'array'"):
+                r"type 'array' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> array;
@@ -762,7 +762,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"reference to a non-existent schema item 'tuple'"):
+                r"type 'tuple' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::Foo {
                     CREATE PROPERTY bar -> tuple;
@@ -1397,7 +1397,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_19(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r'reference to a non-existent schema item std::anytype'):
+                r"schema item 'std::anytype' does not exist"):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_19(f: std::anytype) -> int64

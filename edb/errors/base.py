@@ -74,7 +74,6 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         self._attrs = {}
 
         if isinstance(context, pctx.ParserContext):
-            self.set_linecol(context.start.line, context.start.column)
             self.set_source_context(context)
 
         self.set_hint_and_details(hint, details)
@@ -104,6 +103,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
             self._attrs[FIELD_DETAILS] = details
 
     def set_source_context(self, context):
+        self.set_linecol(context.start.line, context.start.column)
         ex.replace_context(self, context)
 
         if context.start is not None:

@@ -274,14 +274,14 @@ def compile_InsertQuery(
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
         if subject_stype.get_is_abstract(ctx.env.schema):
             raise errors.QueryError(
-                f'cannot insert: '
-                f'{subject_stype.get_displayname(ctx.env.schema)} is abstract',
+                f'cannot insert into abstract '
+                f'{subject_stype.get_verbosename(ctx.env.schema)}',
                 context=expr.subject.context)
 
         if subject_stype.is_view(ctx.env.schema):
             raise errors.QueryError(
-                f'cannot insert: '
-                f'{subject_stype.get_shortname(ctx.env.schema)} is a view',
+                f'cannot insert into view '
+                f'{subject_stype.get_shortname(ctx.env.schema)!r}',
                 context=expr.subject.context)
 
         stmt.subject = compile_query_subject(

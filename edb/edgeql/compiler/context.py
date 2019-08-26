@@ -182,9 +182,17 @@ class Environment:
         self.func_params = func_params
         self.parent_object_type = parent_object_type
 
-    def get_track_schema_object(self, name, *, modaliases=None, type=None,
-                                default=s_schema._void):
+    def get_track_schema_object(
+        self,
+        name, *,
+        modaliases=None,
+        type=None,
+        default=s_schema._void,
+        label: typing.Optional[str]=None,
+        condition: typing.Optional[typing.Callable[[s_types.Type], bool]]=None,
+    ) -> s_obj.Object:
         sobj = self.schema.get(name, module_aliases=modaliases, type=type,
+                               condition=condition, label=label,
                                default=default)
         if sobj is not default:
             self.schema_refs.add(sobj)
