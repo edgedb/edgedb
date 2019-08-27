@@ -413,6 +413,7 @@ class FieldValueNotFoundError(Exception):
 
 
 Object_T = typing.TypeVar('Object_T', bound='Object')
+Schema_T = typing.TypeVar('Schema_T')
 
 
 class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
@@ -491,10 +492,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     @classmethod
     def create_in_schema(
         cls: typing.Type[Object_T],
-        schema, *,
+        schema: Schema_T, *,
         id=None,
         **data,
-    ) -> typing.Tuple[object, Object_T]:
+    ) -> typing.Tuple[Schema_T, Object_T]:
 
         if not cls.is_schema_object:
             raise TypeError(f'{cls.__name__} type cannot be created in schema')
@@ -1624,6 +1625,15 @@ class InheritingObjectBase(Object):
         Object,
         default=None, compcoef=0.909, inheritable=False)
 
+    is_abstract = SchemaField(
+        bool,
+        default=False,
+        inheritable=False, compcoef=0.909)
+
+    is_final = SchemaField(
+        bool,
+        default=False, compcoef=0.909)
+
     def _issubclass(self, schema, parent):
         lineage = compute_lineage(schema, self)
         return parent in lineage
@@ -1653,6 +1663,12 @@ class InheritingObjectBase(Object):
 
     def children(self, schema):
         return schema.get_children(self)
+
+    def get_nearest_non_derived_parent(self, schema):
+        obj = self
+        while obj.get_derived_from(schema) is not None:
+            obj = obj.get_derived_from(schema)
+        return obj
 
 
 @markup.serializer.serializer.register(Object)

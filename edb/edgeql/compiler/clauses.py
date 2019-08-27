@@ -51,7 +51,7 @@ def compile_where_clause(
         if subctx.stmt.parent_stmt is None:
             subctx.toplevel_clause = subctx.clause
         ir_expr = dispatch.compile(where, ctx=subctx)
-        bool_t = ctx.env.get_track_schema_object('std::bool')
+        bool_t = ctx.env.get_track_schema_type('std::bool')
         ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
 
     ir_stmt.where = ir_set
@@ -136,7 +136,7 @@ def compile_limit_offset_clause(
         with ctx.newscope(fenced=True) as subctx:
             subctx.clause = 'offsetlimit'
             ir_expr = dispatch.compile(expr, ctx=subctx)
-            int_t = ctx.env.get_track_schema_object('std::int64')
+            int_t = ctx.env.get_track_schema_type('std::int64')
             ir_set = setgen.scoped_set(
                 ir_expr, force_reassign=True, typehint=int_t, ctx=subctx)
             ir_set.context = expr.context

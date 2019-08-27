@@ -254,8 +254,8 @@ def _find_cast(
             return None
 
     args = [
-        (orig_stype, None),
-        (new_stype, None),
+        (orig_stype, irast.EmptySet()),
+        (new_stype, irast.EmptySet()),
     ]
 
     matched = polyres.find_callable(

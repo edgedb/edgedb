@@ -198,6 +198,22 @@ class Environment:
             self.schema_refs.add(sobj)
         return sobj
 
+    def get_track_schema_type(
+        self,
+        name, *,
+        modaliases=None,
+        default=s_schema._void,
+        label: typing.Optional[str]=None,
+        condition: typing.Optional[typing.Callable[[s_types.Type], bool]]=None,
+    ) -> s_types.Type:
+
+        stype = self.get_track_schema_object(
+            name, modaliases=modaliases, default=default, label=label,
+            condition=condition, type=(s_types.Type,),
+        )
+
+        return typing.cast(s_types.Type, stype)
+
 
 class ContextLevel(compiler.ContextLevel):
 

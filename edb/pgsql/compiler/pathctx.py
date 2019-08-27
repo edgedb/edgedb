@@ -813,6 +813,9 @@ def _get_path_output(
             assert isinstance(ref, pgast.OutputVar)
             result = astutils.strip_output_var(ref)
         else:
+            assert isinstance(rel, pgast.ReturningQuery), \
+                "expected ReturningQuery"
+
             if alias is None:
                 alias = get_path_output_alias(path_id, aspect, env=env)
 

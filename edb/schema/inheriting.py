@@ -594,15 +594,6 @@ InheritingT = typing.TypeVar('InheritingT', bound='InheritingObject')
 
 
 class InheritingObject(derivable.DerivableObject):
-    is_abstract = so.SchemaField(
-        bool,
-        default=False,
-        inheritable=False, compcoef=0.909)
-
-    is_final = so.SchemaField(
-        bool,
-        default=False, compcoef=0.909)
-
     is_local = so.SchemaField(
         bool,
         default=False,
@@ -828,12 +819,6 @@ class InheritingObject(derivable.DerivableObject):
             return schema.get('std::anyenum')
         else:
             return self.get_topmost_concrete_base(schema)
-
-    def get_nearest_non_derived_parent(self, schema):
-        obj = self
-        while obj.get_derived_from(schema) is not None:
-            obj = obj.get_derived_from(schema)
-        return obj
 
     @classmethod
     def get_root_classes(cls):

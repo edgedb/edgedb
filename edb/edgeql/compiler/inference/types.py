@@ -102,7 +102,8 @@ def _infer_common_type(irs: typing.List[irast.Base], env):
         return None
 
     for i in empties:
-        amend_empty_set_type(irs[i], common_type, env)
+        amend_empty_set_type(
+            typing.cast(irast.EmptySet, irs[i]), common_type, env)
 
     return common_type
 

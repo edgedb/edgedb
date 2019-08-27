@@ -209,7 +209,7 @@ def _is_ptr_or_self_ref(
 def extract_filters(
         result_set: irast.Set,
         filter_set: irast.Set,
-        scope_tree: typing.Set[irast.PathId],
+        scope_tree: irast.ScopeTreeNode,
         env) -> typing.Sequence[typing.Tuple[s_pointers.Pointer, irast.Set]]:
 
     schema = env.schema
@@ -263,7 +263,7 @@ def extract_filters(
 
 def _analyse_filter_clause(
         result_set: irast.Set, filter_clause: irast.Set,
-        scope_tree: typing.Set[irast.PathId],
+        scope_tree: irast.ScopeTreeNode,
         env) -> qltypes.Cardinality:
 
     schema = env.schema
@@ -290,7 +290,7 @@ def _analyse_filter_clause(
 
 def _infer_stmt_cardinality(
         result_set: irast.Set, filter_clause: typing.Optional[irast.Set],
-        scope_tree: typing.Set[irast.PathId],
+        scope_tree: irast.ScopeTreeNode,
         env) -> qltypes.Cardinality:
     result_card = infer_cardinality(result_set, scope_tree, env)
     if result_card == ONE or filter_clause is None:

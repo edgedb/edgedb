@@ -31,6 +31,7 @@ from edb.common import parsing
 from edb.schema import abc as s_abc
 from edb.schema import derivable as s_der
 from edb.schema import inheriting as s_inh
+from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
@@ -67,9 +68,9 @@ def get_schema_object(
         name = sn.Name(name=name, module=module)
 
     elif isinstance(name, str):
-        result = ctx.aliased_views.get(name)
-        if result is not None:
-            return result
+        view = ctx.aliased_views.get(name)
+        if view is not None:
+            return view
 
     try:
         stype = ctx.env.get_track_schema_object(
@@ -84,11 +85,11 @@ def get_schema_object(
             item_types=item_types, condition=condition, context=srcctx)
         raise
 
-    result = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
-    if result is None:
-        result = stype
-
-    return result
+    view = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
+    if view is not None:
+        return view
+    else:
+        return stype
 
 
 def get_schema_type(
@@ -233,6 +234,7 @@ def derive_ptr(
 
     if not ptr.generic(ctx.env.schema):
         if isinstance(derived, s_sources.Source):
+            ptr = typing.cast(s_links.Link, ptr)
             scls_pointers = ptr.get_pointers(ctx.env.schema)
             derived_own_pointers = derived.get_pointers(ctx.env.schema)
 

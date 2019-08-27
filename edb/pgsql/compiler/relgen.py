@@ -676,6 +676,7 @@ def process_set_as_path(
     rvars = []
 
     if is_type_indirection:
+        ptrref = typing.cast(irast.TypeIndirectionPointerRef, ptrref)
         if ptrref.ancestral:
             # This is an ancestral type indirection, i.e. the
             # target type is an ancestor of the current type,

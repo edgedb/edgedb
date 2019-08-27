@@ -543,10 +543,12 @@ def process_update_body(
     if not update_stmt.targets:
         # No updates directly to the set target table,
         # so convert the UPDATE statement into a SELECT.
+        from_clause: typing.List[pgast.BaseRangeVar] = [update_stmt.relation]
+        from_clause.extend(update_stmt.from_clause)
         update_cte.query = pgast.SelectStmt(
             ctes=update_stmt.ctes,
             target_list=update_stmt.returning_list,
-            from_clause=[update_stmt.relation] + list(update_stmt.from_clause),
+            from_clause=from_clause,
             where_clause=update_stmt.where_clause,
             path_namespace=update_stmt.path_namespace,
             path_outputs=update_stmt.path_outputs,
@@ -620,6 +622,7 @@ def process_link_update(
     # base material type.
     if ptrref.material_ptr is not None:
         mptrref = ptrref.material_ptr
+        assert isinstance(mptrref, irast.PointerRef)
     else:
         mptrref = ptrref
 

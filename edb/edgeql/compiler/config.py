@@ -34,6 +34,7 @@ from edb.ir import staeval as ireval
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import links as s_links
+from edb.schema import objtypes as s_objtypes
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -240,7 +241,8 @@ def _validate_op(
         )
 
     name = expr.name.name
-    cfg_host_type = ctx.env.get_track_schema_object('cfg::Config')
+    cfg_host_type = ctx.env.get_track_schema_type('cfg::Config')
+    assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
 
     if isinstance(expr, (qlast.ConfigSet, qlast.ConfigReset)):
@@ -257,8 +259,7 @@ def _validate_op(
             )
 
         # expr.name is the name of the configuration type
-        cfg_type = ctx.env.get_track_schema_object(
-            f'cfg::{name}', default=None)
+        cfg_type = ctx.env.get_track_schema_type(f'cfg::{name}', default=None)
         if cfg_type is None:
             raise errors.ConfigurationError(
                 f'unrecognized configuration object {name!r}',

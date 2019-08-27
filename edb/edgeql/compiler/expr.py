@@ -203,7 +203,7 @@ def compile_BaseConstant(
 
     ct = irtyputils.type_to_typeref(
         ctx.env.schema,
-        ctx.env.get_track_schema_object(std_type),
+        ctx.env.get_track_schema_type(std_type),
     )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
 
@@ -429,7 +429,7 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
             json_typeref = irtyputils.type_to_typeref(
-                ctx.env.schema, ctx.env.get_track_schema_object('std::json'))
+                ctx.env.schema, ctx.env.get_track_schema_type('std::json'))
 
             param = cast.compile_cast(
                 irast.Parameter(

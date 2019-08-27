@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import typing
+
 from edb.ir import ast as irast
 
 from edb.pgsql import ast as pgast
@@ -119,7 +121,7 @@ def compile_GroupStmt(
 
             group_paths = set()
 
-            part_clause = []
+            part_clause: typing.List[pgast.BaseExpr] = []
 
             for ir_gexpr in stmt.groupby:
                 with gctx.new() as subctx:
@@ -152,7 +154,7 @@ def compile_GroupStmt(
                     relctx.pull_path_namespace(
                         target=wrapper, source=gquery_rvar, ctx=subctx)
 
-                    new_part_clause = []
+                    new_part_clause: typing.List[pgast.BaseExpr] = []
 
                     for i, expr in enumerate(part_clause):
                         path_id = stmt.groupby[i].path_id
@@ -160,6 +162,7 @@ def compile_GroupStmt(
                             gquery, path_id, expr, force=True, env=ctx.env)
                         output_ref = pathctx.get_path_value_output(
                             gquery, path_id, env=ctx.env)
+                        assert isinstance(output_ref, pgast.ColumnRef)
                         new_part_clause.append(
                             astutils.get_column(gquery_rvar, output_ref)
                         )

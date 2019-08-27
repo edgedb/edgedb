@@ -41,6 +41,7 @@ def compile_ConfigSet(
 
     with ctx.new() as subctx:
         val = dispatch.compile(op.expr, ctx=subctx)
+        assert isinstance(val, pgast.SelectStmt), "expected ast.SelectStmt"
         pathctx.get_path_serialized_output(
             val, op.expr.path_id, env=ctx.env)
         if op.cardinality is qltypes.Cardinality.MANY:
@@ -61,6 +62,8 @@ def compile_ConfigSet(
         null_safe=True,
         ser_safe=True,
     )
+
+    stmt: pgast.Query
 
     if not op.system:
         stmt = pgast.InsertStmt(
@@ -140,6 +143,8 @@ def compile_ConfigReset(
         rvar = None
     else:
         selector = dispatch.compile(op.selector, ctx=ctx)
+        assert isinstance(selector, pgast.SelectStmt), \
+            "expected ast.SelectStmt"
         target = selector.target_list[0]
         if not target.name:
             target = selector.target_list[0] = pgast.ResTarget(
@@ -164,6 +169,8 @@ def compile_ConfigReset(
         null_safe=True,
         ser_safe=True,
     )
+
+    stmt: pgast.Query
 
     if not op.system:
         stmt = pgast.DeleteStmt(
@@ -205,7 +212,7 @@ def compile_ConfigReset(
 @dispatch.compile.register
 def compile_ConfigInsert(
         stmt: irast.ConfigInsert, *,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
+        ctx: context.CompilerContextLevel) -> pgast.Base:
 
     with ctx.new() as subctx:
         subctx.expr_exposed = True
@@ -253,8 +260,10 @@ def _rewrite_config_insert(
 
 def top_output_as_config_op(
         ir_set: irast.Set,
-        stmt: pgast.Query, *,
+        stmt: pgast.SelectStmt, *,
         env: context.Environment) -> pgast.Query:
+
+    assert isinstance(ir_set.expr, irast.ConfigCommand)
 
     if ir_set.expr.system:
         alias = env.aliases.get('cfg')

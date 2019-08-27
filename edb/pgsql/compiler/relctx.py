@@ -54,8 +54,11 @@ def pull_path_namespace(
         replace_bonds: bool=True, ctx: context.CompilerContextLevel):
 
     squery = source.query
+    source_qs: typing.List[pgast.BaseRelation]
+
     if astutils.is_set_op_query(squery):
         # Set op query
+        squery = typing.cast(pgast.SelectStmt, squery)
         source_qs = [squery, squery.larg, squery.rarg]
     else:
         source_qs = [squery]
@@ -68,7 +71,7 @@ def pull_path_namespace(
             s_paths.update(source_q.path_outputs)
         if hasattr(source_q, 'path_namespace'):
             s_paths.update(source_q.path_namespace)
-        if hasattr(source_q, 'path_rvar_map'):
+        if isinstance(source_q, pgast.Query):
             s_paths.update(source_q.path_rvar_map)
 
         view_path_id_map = getattr(source_q, 'view_path_id_map', {})
@@ -837,7 +840,9 @@ def range_from_queryset(
 
     else:
         # Just one class table, so return it directly
-        rvar = set_ops[0][1].from_clause[0]
+        from_rvar = set_ops[0][1].from_clause[0]
+        assert isinstance(from_rvar, pgast.PathRangeVar)
+        rvar = from_rvar
 
     return rvar
 
@@ -897,6 +902,8 @@ def range_for_ptrref(
             refs = {ptrref} | ptrref.descendants
 
     for src_ptrref in refs:
+        assert isinstance(src_ptrref, irast.PointerRef), \
+            "expected regular PointerRef"
         table = table_from_ptrref(src_ptrref, ctx=ctx)
 
         qry = pgast.SelectStmt()

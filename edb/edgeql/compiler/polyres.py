@@ -211,7 +211,7 @@ def try_bind_call_args(
             # being called with no arguments.
             bargs: typing.List[BoundArg] = []
             if has_inlined_defaults:
-                bytes_t = ctx.env.get_track_schema_object('std::bytes')
+                bytes_t = ctx.env.get_track_schema_type('std::bytes')
                 argval = setgen.ensure_set(
                     irast.BytesConstant(
                         value=b'\x00',
@@ -427,7 +427,7 @@ def try_bind_call_args(
     if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
-        bytes_t = ctx.env.get_track_schema_object('std::bytes')
+        bytes_t = ctx.env.get_track_schema_type('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         bm_set = setgen.ensure_set(
             irast.BytesConstant(

@@ -39,6 +39,7 @@ from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
+from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -150,6 +151,7 @@ def fini_expression(
                 continue
 
             derived_from = view.get_derived_from(ctx.env.schema)
+            assert isinstance(derived_from, s_obj.InheritingObjectBase)
             if (derived_from is not None
                     and derived_from.get_derived_from(ctx.env.schema)
                     is not None):
@@ -176,7 +178,7 @@ def fini_expression(
                     s_obj.compute_ancestors(ctx.env.schema, view)
                 )
 
-            if not hasattr(view, 'get_pointers'):  # duck check
+            if not isinstance(view, s_sources.Source):
                 continue
 
             view_own_pointers = view.get_pointers(ctx.env.schema)
@@ -189,6 +191,7 @@ def fini_expression(
 
                 derived_from = vptr.get_derived_from(ctx.env.schema)
                 if derived_from is not None:
+                    assert isinstance(derived_from, s_obj.InheritingObjectBase)
                     if (derived_from.get_derived_from(ctx.env.schema)
                             is not None):
                         ctx.env.schema = vptr.set_field_value(
