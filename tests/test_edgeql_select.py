@@ -469,6 +469,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_select_computable_17(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"possibly more than one element returned by an expression "
+                r"for a computable property 'foo' declared as 'single'",
+                _position=248):
+            await self.con.fetchall("""\
+                WITH
+                    MODULE test,
+                    V := (SELECT Issue {
+                        foo := {1, 2}
+                    } FILTER .number = '1')
+                SELECT
+                    V {
+                        single foo := .foo
+                    };
+            """)
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""

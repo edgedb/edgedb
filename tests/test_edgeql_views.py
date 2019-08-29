@@ -721,6 +721,33 @@ class TestEdgeQLViews(tb.QueryTestCase):
             res
         )
 
+    async def test_edgeql_views_limit_01(self):
+        # Test interaction of views and the LIMIT clause
+        await self.con.execute("""
+            WITH MODULE test
+            CREATE VIEW FirstUser := (
+                SELECT User {
+                    name_upper := str_upper(User.name)
+                }
+                ORDER BY .name
+                LIMIT 1
+            );
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT FirstUser {
+                    name_upper,
+                }
+            """,
+            [
+                {
+                    'name_upper': 'ALICE',
+                },
+            ],
+        )
+
     async def test_edgeql_views_ignore_alias(self):
         await self.con.execute('''
             SET MODULE test;

@@ -72,14 +72,12 @@ class ViewRPtr:
 @dataclasses.dataclass
 class StatementMetadata:
     is_unnest_fence: bool = False
-    ignore_offset_limit: bool = False
 
 
 class PendingCardinality(typing.NamedTuple):
 
     specified_cardinality: typing.Optional[qltypes.Cardinality]
     source_ctx: typing.Optional[parsing.ParserContext]
-    from_parent: bool
     callbacks: typing.List[typing.Callable]
 
 

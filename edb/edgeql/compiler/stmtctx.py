@@ -150,33 +150,7 @@ def fini_expression(
             if view.is_collection():
                 continue
 
-            derived_from = view.get_derived_from(ctx.env.schema)
-            assert isinstance(derived_from, s_obj.InheritingObjectBase)
-            if (derived_from is not None
-                    and derived_from.get_derived_from(ctx.env.schema)
-                    is not None):
-                ctx.env.schema = view.set_field_value(
-                    ctx.env.schema,
-                    'derived_from',
-                    derived_from.get_nearest_non_derived_parent(
-                        ctx.env.schema,
-                    )
-                )
-
-            base = view.get_bases(ctx.env.schema).first(ctx.env.schema)
-            if base.get_derived_from(ctx.env.schema) is not None:
-                base = base.get_nearest_non_derived_parent(ctx.env.schema)
-                ctx.env.schema = view.set_field_value(
-                    ctx.env.schema,
-                    'bases',
-                    s_obj.ObjectList.create(ctx.env.schema, [base]),
-                )
-
-                ctx.env.schema = view.set_field_value(
-                    ctx.env.schema,
-                    'ancestors',
-                    s_obj.compute_ancestors(ctx.env.schema, view)
-                )
+            _elide_derived_ancestors(view, ctx=ctx)
 
             if not isinstance(view, s_sources.Source):
                 continue
@@ -189,24 +163,7 @@ def fini_expression(
                     vptr.get_target(ctx.env.schema).material_type(
                         ctx.env.schema))
 
-                derived_from = vptr.get_derived_from(ctx.env.schema)
-                if derived_from is not None:
-                    assert isinstance(derived_from, s_obj.InheritingObjectBase)
-                    if (derived_from.get_derived_from(ctx.env.schema)
-                            is not None):
-                        ctx.env.schema = vptr.set_field_value(
-                            ctx.env.schema,
-                            'derived_from',
-                            derived_from.get_nearest_non_derived_parent(
-                                ctx.env.schema,
-                            )
-                        )
-                    elif derived_from.get_union_of(ctx.env.schema):
-                        ctx.env.schema = vptr.set_field_value(
-                            ctx.env.schema,
-                            'derived_from',
-                            None,
-                        )
+                _elide_derived_ancestors(vptr, ctx=ctx)
 
                 if not hasattr(vptr, 'get_pointers'):
                     continue
@@ -218,6 +175,8 @@ def fini_expression(
                         ctx.env.schema,
                         'target',
                         vlprop_target.material_type(ctx.env.schema))
+
+                    _elide_derived_ancestors(vlprop, ctx=ctx)
 
     expr_type = inference.infer_type(ir, ctx.env)
 
@@ -248,6 +207,56 @@ def fini_expression(
         schema_refs=frozenset(ctx.env.schema_refs),
     )
     return result
+
+
+def _elide_derived_ancestors(
+    obj: typing.Union[s_types.Type, s_pointers.Pointer], *,
+    ctx: context.ContextLevel
+) -> None:
+    """Collapse references to derived objects in bases.
+
+    When compiling a schema view expression, make sure we don't
+    expose any ephemeral derived objects, as these wouldn't be
+    present in the schema outside of the compilation context.
+    """
+
+    derived_from = obj.get_derived_from(ctx.env.schema)
+    if derived_from is not None:
+        derived_from = typing.cast(
+            typing.Union[s_types.Type, s_pointers.Pointer],
+            derived_from,
+        )
+        if (derived_from.get_derived_from(ctx.env.schema)
+                is not None):
+            ctx.env.schema = obj.set_field_value(
+                ctx.env.schema,
+                'derived_from',
+                derived_from.get_nearest_non_derived_parent(
+                    ctx.env.schema,
+                )
+            )
+        elif derived_from.get_union_of(ctx.env.schema):
+            ctx.env.schema = obj.set_field_value(
+                ctx.env.schema,
+                'derived_from',
+                None,
+            )
+
+    pbase = obj.get_bases(ctx.env.schema).first(ctx.env.schema)
+    if pbase.get_derived_from(ctx.env.schema) is not None:
+        pbase = pbase.get_nearest_non_derived_parent(
+            ctx.env.schema)
+        ctx.env.schema = obj.set_field_value(
+            ctx.env.schema,
+            'bases',
+            s_obj.ObjectList.create(ctx.env.schema, [pbase]),
+        )
+
+        ctx.env.schema = obj.set_field_value(
+            ctx.env.schema,
+            'ancestors',
+            s_obj.compute_ancestors(ctx.env.schema, obj)
+        )
 
 
 def _derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
@@ -532,25 +541,20 @@ def pend_pointer_cardinality_inference(
         *,
         ptrcls: s_pointers.Pointer,
         specified_card: typing.Optional[qltypes.Cardinality] = None,
-        from_parent: bool=False,
         source_ctx: typing.Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
     existing = ctx.pending_cardinality.get(ptrcls)
     if existing is not None:
-        if (existing.specified_cardinality != specified_card
-                or existing.from_parent != from_parent):
-            raise errors.InternalServerError(
-                f'cardinality inference for {ptrcls.get_name(ctx.env.schema)} '
-                f'is scheduled multiple times with different context'
-            )
+        callbacks = existing.callbacks
     else:
-        ctx.pending_cardinality[ptrcls] = context.PendingCardinality(
-            specified_cardinality=specified_card,
-            source_ctx=source_ctx,
-            from_parent=from_parent,
-            callbacks=[],
-        )
+        callbacks = []
+
+    ctx.pending_cardinality[ptrcls] = context.PendingCardinality(
+        specified_cardinality=specified_card,
+        source_ctx=source_ctx,
+        callbacks=callbacks,
+    )
 
 
 def once_pointer_cardinality_is_inferred(

@@ -117,30 +117,63 @@ class SimpleFor(Nonterm):
         r"%reduce FOR Identifier IN Set \
                   UNION OptionallyAliasedExpr \
                   OptFilterClause OptSortClause OptSelectLimit"
-        self.val = qlast.ForQuery(
-            iterator_alias=kids[1].val,
-            iterator=kids[3].val,
-            result=kids[5].val.expr,
-            result_alias=kids[5].val.alias,
-            where=kids[6].val,
-            orderby=kids[7].val,
-            offset=kids[8].val[0],
-            limit=kids[8].val[1],
-        )
+        offset, limit = kids[8].val
+
+        if offset is not None or limit is not None:
+            subj = qlast.ForQuery(
+                iterator_alias=kids[1].val,
+                iterator=kids[3].val,
+                result=kids[5].val.expr,
+                result_alias=kids[5].val.alias,
+                where=kids[6].val,
+                orderby=kids[7].val,
+                implicit=True,
+            )
+
+            self.val = qlast.SelectQuery(
+                result=subj,
+                offset=offset,
+                limit=limit,
+            )
+        else:
+            self.val = qlast.ForQuery(
+                iterator_alias=kids[1].val,
+                iterator=kids[3].val,
+                result=kids[5].val.expr,
+                result_alias=kids[5].val.alias,
+                where=kids[6].val,
+                orderby=kids[7].val,
+            )
 
 
 class SimpleSelect(Nonterm):
     def reduce_Select(self, *kids):
         r"%reduce SELECT OptionallyAliasedExpr \
                   OptFilterClause OptSortClause OptSelectLimit"
-        self.val = qlast.SelectQuery(
-            result=kids[1].val.expr,
-            result_alias=kids[1].val.alias,
-            where=kids[2].val,
-            orderby=kids[3].val,
-            offset=kids[4].val[0],
-            limit=kids[4].val[1],
-        )
+
+        offset, limit = kids[4].val
+
+        if offset is not None or limit is not None:
+            subj = qlast.SelectQuery(
+                result=kids[1].val.expr,
+                result_alias=kids[1].val.alias,
+                where=kids[2].val,
+                orderby=kids[3].val,
+                implicit=True,
+            )
+
+            self.val = qlast.SelectQuery(
+                result=subj,
+                offset=offset,
+                limit=limit,
+            )
+        else:
+            self.val = qlast.SelectQuery(
+                result=kids[1].val.expr,
+                result_alias=kids[1].val.alias,
+                where=kids[2].val,
+                orderby=kids[3].val,
+            )
 
 
 class SimpleGroup(Nonterm):

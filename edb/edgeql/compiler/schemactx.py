@@ -43,6 +43,7 @@ from edb.schema import utils as s_utils
 from edb.edgeql import ast as qlast
 
 from . import context
+from . import stmtctx
 
 
 def get_schema_object(
@@ -187,6 +188,11 @@ def derive_view(
                 computable_data = ctx.source_map.get(src_ptr)
                 if computable_data is not None:
                     ctx.source_map[ptr] = computable_data
+
+                if src_ptr in ctx.pending_cardinality:
+                    ctx.pointer_derivation_map[src_ptr].append(ptr)
+                    stmtctx.pend_pointer_cardinality_inference(
+                        ptrcls=ptr, ctx=ctx)
 
     ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived
 

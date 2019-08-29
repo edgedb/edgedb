@@ -274,8 +274,11 @@ def _normalize_view_ptr_expr(
             qlexpr = astutils.ensure_qlstmt(qlexpr)
             qlexpr.where = shape_el.where
             qlexpr.orderby = shape_el.orderby
-            qlexpr.offset = shape_el.offset
-            qlexpr.limit = shape_el.limit
+
+            if shape_el.offset or shape_el.limit:
+                qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
+                qlexpr.offset = shape_el.offset
+                qlexpr.limit = shape_el.limit
 
         if target_typexpr is not None:
             ptr_target = schemactx.get_schema_type(
@@ -290,7 +293,6 @@ def _normalize_view_ptr_expr(
             stmtctx.pend_pointer_cardinality_inference(
                 ptrcls=ptrcls,
                 specified_card=shape_el.cardinality,
-                from_parent=True,
                 source_ctx=shape_el.context,
                 ctx=ctx)
         else:
@@ -539,21 +541,14 @@ def _normalize_view_ptr_expr(
 
     if not is_mutation:
         if ptr_cardinality is None:
-            if ptrcls not in ctx.pending_cardinality:
-                if qlexpr is not None:
-                    from_parent = False
-                elif ptrcls is not base_ptrcls:
-                    ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
-                    from_parent = True
-                else:
-                    from_parent = False
+            if qlexpr is None and ptrcls is not base_ptrcls:
+                ctx.pointer_derivation_map[base_ptrcls].append(ptrcls)
 
-                stmtctx.pend_pointer_cardinality_inference(
-                    ptrcls=ptrcls,
-                    specified_card=shape_el.cardinality,
-                    from_parent=from_parent,
-                    source_ctx=shape_el.context,
-                    ctx=ctx)
+            stmtctx.pend_pointer_cardinality_inference(
+                ptrcls=ptrcls,
+                specified_card=shape_el.cardinality,
+                source_ctx=shape_el.context,
+                ctx=ctx)
 
             ctx.env.schema = ptrcls.set_field_value(
                 ctx.env.schema, 'cardinality', None)

@@ -76,56 +76,25 @@ def compile_SelectQuery(
             # implicit subqueries.
             sctx.partial_path_prefix = ctx.partial_path_prefix
 
-        compile_limit_offset = False
+        stmt.result = compile_result_clause(
+            expr.result,
+            view_scls=ctx.view_scls,
+            view_rptr=ctx.view_rptr,
+            result_alias=expr.result_alias,
+            view_name=ctx.toplevel_result_view_name,
+            ctx=sctx)
 
-        if expr.offset is not None or expr.limit is not None:
-            # LIMIT and OFFSET are infix operators with both
-            # operands being SET OF, so we need to compile
-            # the body of the statement behind a fence.
-            metadata = ctx.stmt_metadata.get(expr)
-            if metadata is None:
-                metadata = context.StatementMetadata()
-                ctx.stmt_metadata[expr] = metadata
+        clauses.compile_where_clause(
+            stmt, expr.where, ctx=sctx)
 
-            if not metadata.ignore_offset_limit:
-                metadata.ignore_offset_limit = True
-                compile_limit_offset = True
+        stmt.orderby = clauses.compile_orderby_clause(
+            expr.orderby, ctx=sctx)
 
-        if compile_limit_offset:
-            sctx.toplevel_result_view_name = ctx.toplevel_result_view_name
+        stmt.offset = clauses.compile_limit_offset_clause(
+            expr.offset, ctx=sctx)
 
-            stmt.result = compile_result_clause(
-                expr,
-                view_scls=ctx.view_scls,
-                view_rptr=ctx.view_rptr,
-                ctx=sctx)
-
-            if ctx.toplevel_result_view_name:
-                result_stype = setgen.get_set_type(stmt.result, ctx=ctx)
-                stmt.result.path_id = pathctx.get_expression_path_id(
-                    result_stype, ctx=ctx)
-
-            stmt.offset = clauses.compile_limit_offset_clause(
-                expr.offset, ctx=sctx)
-
-            stmt.limit = clauses.compile_limit_offset_clause(
-                expr.limit, ctx=sctx)
-
-            metadata.ignore_offset_limit = False
-        else:
-            stmt.result = compile_result_clause(
-                expr.result,
-                view_scls=ctx.view_scls,
-                view_rptr=ctx.view_rptr,
-                result_alias=expr.result_alias,
-                view_name=ctx.toplevel_result_view_name,
-                ctx=sctx)
-
-            clauses.compile_where_clause(
-                stmt, expr.where, ctx=sctx)
-
-            stmt.orderby = clauses.compile_orderby_clause(
-                expr.orderby, ctx=sctx)
+        stmt.limit = clauses.compile_limit_offset_clause(
+            expr.limit, ctx=sctx)
 
         result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
 
@@ -374,9 +343,22 @@ def compile_DeleteQuery(
         # Expand the DELETE from sugar into full DELETE (SELECT ...)
         # form, if there's any additional clauses.
         if any([expr.where, expr.orderby, expr.offset, expr.limit]):
-            expr = qlast.DeleteQuery(
-                aliases=expr.aliases,
-                subject=qlast.SelectQuery(
+            if expr.offset or expr.limit:
+                subjql = qlast.SelectQuery(
+                    result=qlast.SelectQuery(
+                        result=expr.subject,
+                        result_alias=expr.subject_alias,
+                        where=expr.where,
+                        orderby=expr.orderby,
+                        context=expr.context,
+                        implicit=True,
+                    ),
+                    limit=expr.limit,
+                    offset=expr.offset,
+                    context=expr.context,
+                )
+            else:
+                subjql = qlast.SelectQuery(
                     result=expr.subject,
                     result_alias=expr.subject_alias,
                     where=expr.where,
@@ -384,9 +366,14 @@ def compile_DeleteQuery(
                     offset=expr.offset,
                     limit=expr.limit,
                     context=expr.context,
-                ),
+                )
+
+            expr = qlast.DeleteQuery(
+                aliases=expr.aliases,
                 context=expr.context,
+                subject=subjql,
             )
+
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         # DELETE Expr is a delete(SET OF X), so we need a scope fence.

@@ -206,6 +206,21 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         )
 
+    async def test_edgeql_for_limit_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                FOR X IN {User.name}
+                UNION X
+                ORDER BY X
+                OFFSET 2
+                LIMIT 1
+            ''',
+            {
+                'Carol',
+            }
+        )
+
     async def test_edgeql_for_filter_02(self):
         await self.assert_query_result(
             r'''

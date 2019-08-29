@@ -907,7 +907,7 @@ def computable_ptr_set(
 
     comp_ir_set_copy = new_set_from_set(comp_ir_set, ctx=ctx)
     pending_cardinality = ctx.pending_cardinality.get(ptrcls)
-    if pending_cardinality is not None and not pending_cardinality.from_parent:
+    if pending_cardinality is not None:
         stmtctx.get_pointer_cardinality_later(
             ptrcls=ptrcls, irexpr=comp_ir_set_copy,
             specified_card=pending_cardinality.specified_cardinality,
