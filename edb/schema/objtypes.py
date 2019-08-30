@@ -191,8 +191,9 @@ def get_or_create_union_type(
 
         std_object = schema.get('std::Object')
 
-        schema, objtype = std_object.derive(
-            schema, std_object, name=name,
+        schema, objtype = std_object.derive_subtype(
+            schema,
+            name=name,
             attrs=dict(
                 id=type_id,
                 union_of=so.ObjectSet.create(schema, components),
@@ -249,11 +250,7 @@ class ObjectTypeCommand(constraints.ConsistencySubjectCommand,
                         s_types.TypeCommand,
                         schema_metaclass=ObjectType,
                         context_class=ObjectTypeCommandContext):
-    def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'is_derived':
-            pass
-        else:
-            super()._apply_field_ast(schema, context, node, op)
+    pass
 
 
 class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):

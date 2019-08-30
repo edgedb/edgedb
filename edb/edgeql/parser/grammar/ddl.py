@@ -356,18 +356,22 @@ commands_block(
 
 class AlterAbstract(Nonterm):
     def reduce_DROP_ABSTRACT(self, *kids):
-        self.val = qlast.SetSpecialField(name='is_abstract', value=False)
+        self.val = qlast.SetSpecialField(
+            name=qlast.ObjectRef(name='is_abstract'), value=False)
 
     def reduce_SET_ABSTRACT(self, *kids):
-        self.val = qlast.SetSpecialField(name='is_abstract', value=True)
+        self.val = qlast.SetSpecialField(
+            name=qlast.ObjectRef(name='is_abstract'), value=True)
 
 
 class AlterFinal(Nonterm):
     def reduce_DROP_FINAL(self, *kids):
-        self.val = qlast.SetSpecialField(name='is_final', value=False)
+        self.val = qlast.SetSpecialField(
+            name=qlast.ObjectRef(name='is_final'), value=False)
 
     def reduce_SET_FINAL(self, *kids):
-        self.val = qlast.SetSpecialField(name='is_final', value=True)
+        self.val = qlast.SetSpecialField(
+            name=qlast.ObjectRef(name='is_final'), value=True)
 
 
 class OptInheritPosition(Nonterm):
@@ -702,10 +706,26 @@ class CreateConcreteConstraintStmt(Nonterm):
         )
 
 
+class SetDelegatedStmt(Nonterm):
+
+    def reduce_SET_DELEGATED(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name=qlast.ObjectRef(name='delegated'),
+            value=True,
+        )
+
+    def reduce_DROP_DELEGATED(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name=qlast.ObjectRef(name='delegated'),
+            value=False,
+        )
+
+
 commands_block(
     'AlterConcreteConstraint',
     RenameStmt,
     SetFieldStmt,
+    SetDelegatedStmt,
     SetAnnotationValueStmt,
     DropAnnotationValueStmt,
     AlterAbstract,
@@ -990,13 +1010,13 @@ class SetCardinalityStmt(Nonterm):
 
     def reduce_SET_SINGLE(self, *kids):
         self.val = qlast.SetSpecialField(
-            name='cardinality',
+            name=qlast.ObjectRef(name='cardinality'),
             value=qltypes.Cardinality.ONE,
         )
 
     def reduce_SET_MULTI(self, *kids):
         self.val = qlast.SetSpecialField(
-            name='cardinality',
+            name=qlast.ObjectRef(name='cardinality'),
             value=qltypes.Cardinality.MANY,
         )
 
@@ -1005,13 +1025,13 @@ class SetRequiredStmt(Nonterm):
 
     def reduce_SET_REQUIRED(self, *kids):
         self.val = qlast.SetSpecialField(
-            name='required',
+            name=qlast.ObjectRef(name='required'),
             value=True,
         )
 
     def reduce_DROP_REQUIRED(self, *kids):
         self.val = qlast.SetSpecialField(
-            name='required',
+            name=qlast.ObjectRef(name='required'),
             value=False,
         )
 
@@ -1025,6 +1045,7 @@ commands_block(
     SetPropertyTypeStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
+    AlterSimpleExtending,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
     DropConcreteConstraintStmt,

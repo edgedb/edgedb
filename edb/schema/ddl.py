@@ -63,8 +63,8 @@ def get_global_dep_order():
 def delta_schemas(schema1, schema2):
     result = sd.DeltaRoot(canonical=True)
 
-    my_modules = set(schema1.modules)
-    other_modules = set(schema2.modules)
+    my_modules = set(schema1.get_objects(type=modules.Module))
+    other_modules = set(schema2.get_objects(type=modules.Module))
 
     added_modules = my_modules - other_modules
     dropped_modules = other_modules - my_modules
@@ -85,6 +85,9 @@ def delta_schemas(schema1, schema2):
 
         result.update(so.Object.delta_sets(
             old, new, old_schema=schema2, new_schema=schema1))
+
+    result = s_ordering.linearize_delta(
+        result, old_schema=schema2, new_schema=schema1)
 
     for dropped_module in dropped_modules:
         result.add(modules.DeleteModule(classname=dropped_module))
@@ -222,33 +225,27 @@ def _delta_from_ddl(ddl_stmt, *, schema, modaliases,
     return schema, delta
 
 
-def ddl_from_delta(schema, delta):
+def ddl_from_delta(schema, context, delta):
     """Return DDL AST for a delta command tree."""
-    return delta.get_ast(schema, None)
-
-
-def ddl_text_from_delta_command(schema, delta):
-    """Return DDL text for a delta command tree."""
-    if isinstance(delta, sd.DeltaRoot):
-        commands = delta
-    else:
-        commands = [delta]
-
-    text = []
-    for command in commands:
-        delta_ast = ddl_from_delta(schema, command)
-        if delta_ast:
-            stmt_text = edgeql.generate_source(delta_ast)
-            text.append(stmt_text + ';')
-
-    return '\n'.join(text)
+    return delta.get_ast(schema, context)
 
 
 def ddl_text_from_delta(schema, delta):
     """Return DDL text for a delta object."""
+
+    root = sd.DeltaRoot(canonical=True)
+    root.update(delta.get_commands(schema))
+
+    context = sd.CommandContext()
+    schema, _ = root.apply(schema, context)
+
+    context = sd.CommandContext()
     text = []
-    for command in delta.get_commands(schema):
-        cmd_text = ddl_text_from_delta_command(schema, command)
-        text.append(cmd_text)
+    for command in root.get_subcommands():
+        with context(sd.DeltaRootContext(schema=schema, op=root)):
+            delta_ast = ddl_from_delta(schema, context, command)
+            if delta_ast:
+                stmt_text = edgeql.generate_source(delta_ast)
+                text.append(stmt_text + ';')
 
     return '\n'.join(text)

@@ -51,6 +51,9 @@ class ViewType(enum.IntEnum):
     Update = enum.auto()
 
 
+TypeT = typing.TypeVar('TypeT', bound='Type')
+
+
 class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     """A schema item that is a valid *type*."""
 
@@ -84,10 +87,64 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         return reference is not self.get_rptr(schema)
 
     def derive_subtype(
-            self, schema, *, name: str,
-            attrs: typing.Optional[typing.Mapping]=None
-    ) -> typing.Tuple[s_schema.Schema, Type]:
-        raise NotImplementedError
+        self: TypeT,
+        schema,
+        *,
+        name: str,
+        mark_derived=False,
+        attrs=None,
+        inheritance_merge=True,
+        preserve_path_id=None,
+        refdict_whitelist=None,
+        **kwargs,
+    ) -> typing.Tuple[s_schema.Schema, TypeT]:
+
+        if self.get_name(schema) == name:
+            raise errors.SchemaError(
+                f'cannot derive {self!r}({name}) from itself')
+
+        derived_attrs: typing.Dict[str, object] = {}
+
+        if attrs is not None:
+            derived_attrs.update(attrs)
+
+        derived_attrs['name'] = name
+        derived_attrs['bases'] = so.ObjectList.create(schema, [self])
+
+        cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+            sd.CreateObject, type(self))
+
+        cmd = cmdcls(classname=name)
+
+        for k, v in derived_attrs.items():
+            cmd.set_attribute_value(k, v)
+
+        context = sd.CommandContext(
+            modaliases={},
+            schema=schema,
+        )
+
+        delta = sd.DeltaRoot()
+
+        with context(sd.DeltaRootContext(schema=schema, op=delta)):
+            if not inheritance_merge:
+                context.current().inheritance_merge = False
+
+            if refdict_whitelist is not None:
+                context.current().inheritance_refdicts = refdict_whitelist
+
+            if mark_derived:
+                context.current().mark_derived = True
+
+            if preserve_path_id:
+                context.current().preserve_path_id = True
+
+            delta.add(cmd)
+            schema, _ = delta.apply(schema, context)
+
+        derived = schema.get(name)
+
+        return schema, derived
 
     def is_type(self):
         return True
@@ -216,12 +273,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         return False
 
     def material_type(self, schema):
-        # When self is a view, this returns the material type
-        # under the view.
-        t = self
-        while t.is_view(schema):
-            t = t.get_bases(schema).first(schema)
-        return t
+        return self.get_nearest_non_derived_parent(schema)
 
     def peel_view(self, schema):
         # When self is a view, this returns the class the view

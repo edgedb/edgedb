@@ -19,10 +19,14 @@
 
 from edb import errors
 
+from edb.common import markup
 from edb.testbase import lang as tb
 
+from edb import edgeql
 from edb.edgeql import qltypes
 
+from edb.schema import delta as s_delta
+from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 
@@ -525,3 +529,162 @@ _123456789_123456789_123456789 -> str
             "constraint 'std::max_len_value' of property 'bar_prop' of "
             "link 'bar' of object type 'test::Object1'",
         )
+
+
+class TestGetMigration(tb.BaseSchemaLoadTest):
+    """Test migration deparse consistency.
+
+    This tests that schemas produced by `COMMIT MIGRATION foo` and
+    by deparsed DDL via `GET MIGRATION foo` are identical.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.std_schema = tb._load_std_schema()
+        cls.schema = cls.run_ddl(cls.schema, 'CREATE MODULE default;')
+
+    def _assert_migration_consistency(self, schema_text):
+
+        migration_text = f'''
+            CREATE MIGRATION m TO {{
+                {schema_text}
+            }};
+        '''
+
+        migration_ql = edgeql.parse_block(migration_text)
+
+        migration_cmd = s_ddl.cmd_from_ddl(
+            migration_ql[0],
+            schema=self.schema,
+            modaliases={
+                None: 'default'
+            },
+        )
+
+        migration_cmd = s_ddl.compile_migration(
+            migration_cmd,
+            self.std_schema,
+            self.schema,
+        )
+
+        context = s_delta.CommandContext()
+        schema, migration = migration_cmd.apply(self.schema, context)
+
+        ddl_plan = s_delta.DeltaRoot(canonical=True)
+        ddl_plan.update(migration.get_commands(schema))
+
+        baseline_schema, _ = ddl_plan.apply(schema, context)
+
+        ddl_text = s_ddl.ddl_text_from_delta(schema, migration)
+
+        try:
+            test_schema = self.run_ddl(schema, ddl_text)
+        except errors.EdgeDBError as e:
+            self.fail(markup.dumps(e))
+
+        diff = s_ddl.delta_schemas(baseline_schema, test_schema)
+
+        if list(diff.get_subcommands()):
+            self.fail(
+                f'unexpected difference in schema produced by\n'
+                f'COMMIT MIGRATION and DDL obtained from GET MIGRATION:\n'
+                f'{markup.dumps(diff)}\n'
+                f'DDL text was:\n{ddl_text}'
+            )
+
+    def test_get_migration_01(self):
+
+        schema = '''
+            abstract inheritable annotation my_anno;
+
+            abstract type Named {
+                property name -> str {
+                    annotation title := 'Name';
+                    delegated constraint exclusive {
+                        annotation title := 'uniquely named';
+                    }
+                }
+            }
+
+            type User extending Named {
+                required multi link friends -> User {
+                    annotation my_anno := 'foo';
+                }
+            };
+
+            abstract link special;
+            abstract property annotated_name {
+                annotation title := 'Name';
+            }
+
+            type SpecialUser extending User {
+                inherited property name extending annotated_name -> str;
+                inherited link friends extending special -> SpecialUser;
+            };
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_02(self):
+        schema = '''
+            abstract type Named {
+                property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+
+            abstract type User extending Named {
+                inherited required property name -> str {
+                    delegated constraint exclusive;
+                }
+            };
+
+            type SpecialUser extending User;
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_03(self):
+        schema = '''
+            abstract type Named {
+                property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+
+            type Ingredient extending Named {
+                property vegetarian -> bool {
+                    default := false;
+                }
+            }
+
+            scalar type unit extending enum<'ml', 'g', 'oz'>;
+
+            type Recipe extending Named {
+                multi link ingredients -> Ingredient {
+                    property quantity -> decimal {
+                        annotation title := 'ingredient quantity';
+                    };
+                    property unit -> unit;
+                }
+            }
+
+            view VegRecipes := (
+                SELECT Recipe
+                FILTER all(.ingredients.vegetarian)
+            );
+
+            function get_ingredients(
+                recipe: Recipe
+            ) -> tuple<name: str, quantity: decimal> {
+                from edgeql $$
+                    SELECT (
+                        name := recipe.ingredients.name,
+                        quantity := recipe.ingredients.quantity,
+                    );
+                $$
+            }
+        '''
+
+        self._assert_migration_consistency(schema)

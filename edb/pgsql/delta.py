@@ -440,7 +440,9 @@ class DeleteArrayView(
     pass
 
 
-class ParameterCommand:
+class ParameterCommand(sd.ObjectCommand,
+                       metaclass=ReferencedObjectCommandMeta):
+
     _table = metaschema.get_metaclass_table(s_funcs.Parameter)
 
     def get_table(self, schema):

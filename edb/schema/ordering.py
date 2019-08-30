@@ -33,9 +33,10 @@ def linearize_delta(delta, old_schema, new_schema):
     """Sort delta operations to dependency order."""
 
     opmap = {}
+    strongrefs = {}
 
     for op in delta.get_subcommands():
-        _break_down(opmap, [delta, op])
+        _break_down(opmap, strongrefs, [delta, op])
 
     depgraph = {}
     renames = {}
@@ -48,7 +49,7 @@ def linearize_delta(delta, old_schema, new_schema):
 
     for op, opstack in opmap.items():
         _trace_op(op, opstack, depgraph, renames,
-                  renames_r, old_schema, new_schema)
+                  renames_r, strongrefs, old_schema, new_schema)
 
     depgraph = dict(
         filter(lambda i: i[1].get('item') is not None, depgraph.items()))
@@ -147,7 +148,7 @@ def linearize_delta(delta, old_schema, new_schema):
     return delta
 
 
-def _break_down(opmap, opstack):
+def _break_down(opmap, strongrefs, opstack):
     if len(opstack) > 2:
         new_opstack = _extract_op(opstack)
     else:
@@ -159,19 +160,21 @@ def _break_down(opmap, opstack):
         if isinstance(sub_op, (referencing.ReferencedObjectCommand,
                                sd.RenameObject,
                                inheriting.RebaseInheritingObject)):
-            _break_down(opmap, new_opstack + [sub_op])
+            _break_down(opmap, strongrefs, new_opstack + [sub_op])
         elif isinstance(sub_op, sd.AlterObjectProperty):
             mcls = op.get_schema_metaclass()
             field = mcls.get_field(sub_op.property)
             # Break a possible reference cycle
             # (i.e. Type.rptr <-> Pointer.target)
             if field.weak_ref:
-                _break_down(opmap, new_opstack + [sub_op])
+                _break_down(opmap, strongrefs, new_opstack + [sub_op])
+        elif isinstance(sub_op, referencing.StronglyReferencedObjectCommand):
+            strongrefs[sub_op.classname] = op.classname
 
     opmap[op] = new_opstack
 
 
-def _trace_op(op, opstack, depgraph, renames, renames_r,
+def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
               old_schema, new_schema):
     deps = set()
 
@@ -196,11 +199,9 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
         # Things must be deleted _after_ their referrers have
         # been deleted or altered.
         obj = old_schema.get(op.classname)
-        refs = old_schema.get_referrers(old_schema.get(op.classname))
+        refs = _get_referrers(
+            old_schema, old_schema.get(op.classname), strongrefs)
         for ref in refs:
-            if not ref.is_blocking_ref(old_schema, obj):
-                continue
-
             ref_name = ref.get_name(old_schema)
             if (isinstance(obj, referencing.ReferencedObject)
                     and obj.get_referrer(old_schema) == ref):
@@ -245,11 +246,8 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
             else:
                 obj = new_schema.get(op.classname)
 
-        refs = new_schema.get_referrers(obj)
+        refs = _get_referrers(new_schema, obj, strongrefs)
         for ref in refs:
-            if not ref.is_blocking_ref(new_schema, obj):
-                continue
-
             ref_name = ref.get_name(new_schema)
             if ref_name in renames_r:
                 ref_name = renames_r[ref_name]
@@ -322,6 +320,23 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
     item['op'] = op
     item['tag'] = tag
     item['deps'].update(deps)
+
+
+def _get_referrers(schema, obj, strongrefs):
+    refs = schema.get_referrers(obj)
+    result = set()
+
+    for ref in refs:
+        if not ref.is_blocking_ref(schema, obj):
+            continue
+
+        parent_ref = strongrefs.get(ref.get_name(schema))
+        if parent_ref is not None:
+            result.add(schema.get(parent_ref))
+        else:
+            result.add(ref)
+
+    return result
 
 
 def _extract_op(stack):

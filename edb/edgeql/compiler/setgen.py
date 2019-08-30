@@ -791,7 +791,7 @@ def computable_ptr_set(
     # in the form "self.linkname".  To prevent infinite recursion,
     # self must resolve to the parent type of the view NOT the view
     # type itself.  Similarly, when resolving computable link properties
-    # make sure that we use ptrcls.derived_from.
+    # make sure that we use the parent of derived ptrcls.
     if source_scls.is_view(ctx.env.schema):
         source_set_stype = source_scls.peel_view(ctx.env.schema)
         source_set = new_set_from_set(

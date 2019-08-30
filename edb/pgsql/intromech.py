@@ -620,7 +620,6 @@ class IntrospectionMech:
         links_list = {sn.Name(r['name']): r for r in links_list}
 
         basemap = {}
-        dermap = {}
         exprmap = {}
 
         for name, r in links_list.items():
@@ -630,9 +629,6 @@ class IntrospectionMech:
                 bases = tuple(sn.Name(b) for b in r['bases'])
             elif name != 'std::link':
                 bases = (sn.Name('std::link'), )
-
-            if r['derived_from']:
-                dermap[name] = r['derived_from']
 
             source = schema.get(r['source']) if r['source'] else None
             target = self.unpack_typeref(r['target'], schema)
@@ -675,16 +671,6 @@ class IntrospectionMech:
         for scls, (basenames, ancestors) in basemap.items():
             schema = self._set_reflist(schema, scls, 'bases', basenames)
             schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
-
-            try:
-                derived_from = dermap[scls.get_name(schema)]
-            except KeyError:
-                pass
-            else:
-                schema = scls.set_field_value(
-                    schema,
-                    'derived_from',
-                    schema.get(derived_from))
 
         return schema, exprmap
 
@@ -739,7 +725,7 @@ class IntrospectionMech:
                 is_local=r['is_local'],
                 is_abstract=r['is_abstract'], is_final=r['is_final'])
 
-            basemap[prop] = (bases, r['ancestors'], r['derived_from'])
+            basemap[prop] = (bases, r['ancestors'])
 
             if r['default']:
                 exprmap[prop] = r['default']
@@ -755,12 +741,9 @@ class IntrospectionMech:
             if source:
                 schema = source.add_pointer(schema, prop)
 
-        for scls, (basenames, ancestors, derived) in basemap.items():
+        for scls, (basenames, ancestors) in basemap.items():
             schema = self._set_reflist(schema, scls, 'bases', basenames)
             schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
-            if derived is not None:
-                schema = scls.set_field_value(
-                    schema, 'derived_from', schema.get(derived))
 
         return schema, exprmap
 

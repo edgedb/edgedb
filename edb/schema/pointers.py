@@ -31,6 +31,7 @@ from . import annos as s_anno
 from . import constraints
 from . import delta as sd
 from . import expr as s_expr
+from . import inheriting
 from . import name as sn
 from . import objects as so
 from . import referencing
@@ -191,18 +192,11 @@ class Pointer(referencing.ReferencedInheritingObject,
         return False
 
     def material_type(self, schema):
-        if self.generic(schema):
-            return self
-        elif self.get_source(schema).is_scalar():
+        non_derived_parent = self.get_nearest_non_derived_parent(schema)
+        if non_derived_parent.generic(schema):
             return self
         else:
-            source = self.get_source(schema)
-            mptr = source.material_type(schema).getptr(
-                schema, self.get_shortname(schema).name)
-            if mptr is not None:
-                return mptr
-            else:
-                return self
+            return non_derived_parent
 
     def as_locally_defined(self, schema):
         if self.get_is_local(schema) or self.generic(schema):
@@ -330,7 +324,7 @@ class Pointer(referencing.ReferencedInheritingObject,
                 derived_name_base=derived_name_base)
             ptr = schema.get(fqname, default=None)
             if ptr is None:
-                schema, ptr = self.derive(
+                schema, ptr = self.derive_ref(
                     schema, source, target,
                     derived_name_base=derived_name_base, **kwargs)
 
@@ -340,12 +334,12 @@ class Pointer(referencing.ReferencedInheritingObject,
         shortname = self.get_shortname(schema)
         return sn.Name(module='__', name=shortname.name)
 
-    def derive(self, schema, source,
-               target=None,
-               *qualifiers,
-               mark_derived=False,
-               attrs=None,
-               dctx=None, **kwargs):
+    def derive_ref(self, schema, source,
+                   target=None,
+                   *qualifiers,
+                   mark_derived=False,
+                   attrs=None,
+                   dctx=None, **kwargs):
 
         if target is None:
             if attrs and 'target' in attrs:
@@ -359,7 +353,7 @@ class Pointer(referencing.ReferencedInheritingObject,
         attrs['source'] = source
         attrs['target'] = target
 
-        return super().derive(
+        return super().derive_ref(
             schema, source, mark_derived=mark_derived,
             dctx=dctx, attrs=attrs, **kwargs)
 
@@ -454,8 +448,8 @@ class PseudoPointer(s_abc.Pointer):
     def get_path_id_name(self, schema):
         return self.get_name(schema)
 
-    def get_derived_from(self, schema):
-        return None
+    def get_is_derived(self, schema):
+        return False
 
     def get_is_local(self, schema):
         return True
@@ -640,18 +634,6 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         else:
             return super().compile_expr_field(schema, context, field, value)
 
-    def _encode_default(self, schema, context, node, op):
-        if op.new_value:
-            expr = op.new_value
-            if not isinstance(expr, s_expr.Expression):
-                expr_t = qlast.SelectQuery(
-                    result=qlast.BaseConstant.from_python(expr)
-                )
-                op.new_value = s_expr.Expression.from_ast(
-                    expr_t, schema, context.modaliases,
-                )
-            super()._apply_field_ast(schema, context, node, op)
-
     def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
@@ -769,7 +751,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
 class SetPointerType(
         referencing.ReferencedInheritingObjectCommand,
-        sd.AlterObjectFragment):
+        inheriting.AlterInheritingObjectFragment):
 
     def _alter_begin(self, schema, context, scls):
         schema = super()._alter_begin(schema, context, scls)
@@ -786,7 +768,14 @@ class SetPointerType(
 
         if not context.canonical:
             implicit_bases = scls.get_implicit_bases(schema)
-            non_altered_bases = set(implicit_bases) - context.altered_targets
+            non_altered_bases = []
+
+            tgt = self.get_attribute_value('target')._resolve_ref(schema)
+
+            for base in set(implicit_bases) - context.altered_targets:
+                base_tgt = base.get_target(schema)
+                if not tgt.issubclass(schema, base_tgt):
+                    non_altered_bases.append(base)
 
             # This pointer is inherited from one or more ancestors that
             # are not altered in the same op, and this is an error.

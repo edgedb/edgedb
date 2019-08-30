@@ -1660,10 +1660,6 @@ class InheritingObjectBase(Object):
         bool,
         default=False, compcoef=0.909)
 
-    derived_from = SchemaField(
-        Object,
-        default=None, compcoef=0.909, inheritable=False)
-
     is_abstract = SchemaField(
         bool,
         default=False,
@@ -1705,8 +1701,8 @@ class InheritingObjectBase(Object):
 
     def get_nearest_non_derived_parent(self, schema):
         obj = self
-        while obj.get_derived_from(schema) is not None:
-            obj = obj.get_derived_from(schema)
+        while obj.get_is_derived(schema):
+            obj = obj.get_bases(schema).first(schema)
         return obj
 
 

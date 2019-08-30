@@ -84,6 +84,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             node.parent is not None and (
                 not isinstance(node.parent, qlast.Base)
                 or not isinstance(node.parent, qlast.DDL)
+                or isinstance(node.parent, qlast.SetField)
             )
         )
 
@@ -786,20 +787,24 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write('DROP ')
 
-        if node.name == 'is_abstract':
+        fname = node.name.name
+
+        if fname == 'is_abstract':
             self.write('ABSTRACT')
-        elif node.name == 'is_final':
+        elif fname == 'delegated':
+            self.write('DELEGATED')
+        elif fname == 'is_final':
             self.write('FINAL')
-        elif node.name == 'required':
+        elif fname == 'required':
             self.write('REQUIRED')
-        elif node.name == 'cardinality':
+        elif fname == 'cardinality':
             if node.value is qltypes.Cardinality.ONE:
                 self.write('SINGLE')
             else:
                 self.write('MULTI')
         else:
             raise EdgeQLSourceGeneratorError(
-                'unknown special field: {!r}'.format(node.name))
+                'unknown special field: {!r}'.format(fname))
 
     def visit_AlterAddInherit(self, node):
         self.write('EXTENDING ')
@@ -888,13 +893,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 and node.commands[0].name.name == 'expr'):
 
             self._visit_CreateObject(node, 'VIEW', render_commands=False)
-            self.write(' := (')
+            self.write(' := ')
             self.new_lines = 1
             self.indentation += 1
             self.visit(node.commands[0].value)
             self.indentation -= 1
             self.new_lines = 1
-            self.write(')')
         else:
             self._visit_CreateObject(node, 'VIEW')
 
@@ -1103,9 +1107,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropConcreteLink(self, node):
         self._visit_DropObject(node, 'LINK', unqualified=True)
 
-    def visit_SetType(self, node):
+    def visit_SetPropertyType(self, node):
         self.write('SET TYPE ')
-        self.visit_list(node.target, newlines=False)
+        self.visit(node.type)
+
+    def visit_SetLinkType(self, node):
+        self.write('SET TYPE ')
+        self.visit(node.type)
 
     def visit_OnTargetDelete(self, node):
         self.write('ON TARGET DELETE ', node.cascade)
