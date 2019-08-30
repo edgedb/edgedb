@@ -208,32 +208,9 @@ def _elide_derived_ancestors(
     present in the schema outside of the compilation context.
     """
 
-    derived_from = obj.get_derived_from(ctx.env.schema)
-    if derived_from is not None:
-        derived_from = typing.cast(
-            typing.Union[s_types.Type, s_pointers.Pointer],
-            derived_from,
-        )
-        if (derived_from.get_derived_from(ctx.env.schema)
-                is not None):
-            ctx.env.schema = obj.set_field_value(
-                ctx.env.schema,
-                'derived_from',
-                derived_from.get_nearest_non_derived_parent(
-                    ctx.env.schema,
-                )
-            )
-        elif derived_from.get_union_of(ctx.env.schema):
-            ctx.env.schema = obj.set_field_value(
-                ctx.env.schema,
-                'derived_from',
-                None,
-            )
-
     pbase = obj.get_bases(ctx.env.schema).first(ctx.env.schema)
-    if pbase.get_derived_from(ctx.env.schema) is not None:
-        pbase = pbase.get_nearest_non_derived_parent(
-            ctx.env.schema)
+    if pbase.get_is_derived(ctx.env.schema):
+        pbase = pbase.get_nearest_non_derived_parent(ctx.env.schema)
         ctx.env.schema = obj.set_field_value(
             ctx.env.schema,
             'bases',
@@ -253,15 +230,15 @@ def _derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
         ctx.env.schema, stdobj, module='__derived__')
     derived_obj = ctx.env.schema.get(derived_obj_name, None)
     if derived_obj is None:
-        ctx.env.schema, derived_obj = stdobj.derive(
-            ctx.env.schema, stdobj, name=derived_obj_name)
+        ctx.env.schema, derived_obj = stdobj.derive_subtype(
+            ctx.env.schema, name=derived_obj_name)
 
     derived_name = ptr.get_derived_name(
         ctx.env.schema, derived_obj)
 
     derived = ctx.env.schema.get(derived_name, None)
     if derived is None:
-        ctx.env.schema, derived = ptr.derive(
+        ctx.env.schema, derived = ptr.derive_ref(
             ctx.env.schema,
             derived_obj,
             derived_obj,

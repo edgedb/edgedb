@@ -136,12 +136,8 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        cmd.update((
-            sd.AlterObjectProperty(
-                property='inheritable',
-                new_value=astnode.inheritable,
-            ),
-        ))
+        cmd.set_attribute_value('inheritable', astnode.inheritable)
+        cmd.set_attribute_value('is_abstract', True)
 
         return cmd
 
@@ -204,15 +200,9 @@ class CreateAnnotationValue(AnnotationValueCommand,
             raise ValueError(
                 f'unexpected value type in AnnotationValue: {value!r}')
 
-        parent_ctx = context.get(AnnotationSubjectCommandContext)
-        subject_name = parent_ctx.op.classname
         attr = schema.get(propname)
 
         cmd.update((
-            sd.AlterObjectProperty(
-                property='subject',
-                new_value=so.ObjectRef(name=subject_name),
-            ),
             sd.AlterObjectProperty(
                 property='annotation',
                 new_value=utils.reduce_to_typeref(schema, attr)
@@ -236,14 +226,6 @@ class CreateAnnotationValue(AnnotationValueCommand,
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'value':
             node.value = qlast.BaseConstant.from_python(op.new_value)
-        elif op.property == 'is_derived':
-            pass
-        elif op.property == 'annotation':
-            pass
-        elif op.property == 'subject':
-            pass
-        elif op.property == 'inheritable':
-            pass
         else:
             super()._apply_field_ast(schema, context, node, op)
 

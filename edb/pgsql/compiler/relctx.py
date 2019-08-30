@@ -951,8 +951,8 @@ def range_for_pointer(
         dml_source: typing.Optional[irast.MutatingStmt]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     ptrref = pointer.ptrref
-    if ptrref.derived_from_ptr is not None:
-        ptrref = ptrref.derived_from_ptr
+    if ptrref.material_ptr is not None:
+        ptrref = ptrref.material_ptr
 
     return range_for_ptrref(ptrref, dml_source=dml_source, ctx=ctx)
 

@@ -26,7 +26,6 @@ import collections.abc
 from edb import errors
 
 from edb.common import adapter
-from edb import edgeql
 from edb.edgeql import ast as qlast
 
 from edb.common import markup, ordered, struct, typed
@@ -186,14 +185,19 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             return None
 
-    def set_attribute_value(self, attr_name, value):
+    def set_attribute_value(self, attr_name, value, *, inherited=False):
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
                 op.new_value = value
+                if inherited:
+                    op.source = 'inheritance'
                 break
         else:
-            self.add(AlterObjectProperty(
-                property=attr_name, new_value=value))
+            op = AlterObjectProperty(property=attr_name, new_value=value)
+            if inherited:
+                op.source = 'inheritance'
+
+            self.add(op)
 
     def discard_attribute(self, attr_name):
         for op in self.get_subcommands(type=AlterObjectProperty):
@@ -250,9 +254,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return schema, None
 
     def get_ast(self, schema, context):
-        if context is None:
-            context = CommandContext()
-
         with self.new_context(schema, context):
             return self._get_ast(schema, context)
 
@@ -638,6 +639,10 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         classname = cls._classname_from_ast(schema, astnode, context)
         return cls(classname=classname)
 
+    def _build_alter_cmd_stack(self, schema, context, scls, *, referrer=None):
+        root = DeltaRoot()
+        return root, root
+
     def _prohibit_if_expr_refs(self, schema, context, action):
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
@@ -669,11 +674,11 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         if subnode is not None:
             node.commands.append(subnode)
 
-    def _get_ast_node(self, context):
+    def _get_ast_node(self, schema, context):
         return self.__class__.astnode
 
     def _get_ast(self, schema, context):
-        astnode = self._get_ast_node(context)
+        astnode = self._get_ast_node(schema, context)
         if isinstance(self.classname, sn.Name):
             nname = sn.shortname_from_fullname(self.classname)
             name = qlast.ObjectRef(module=nname.module, name=nname.name)
@@ -706,9 +711,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
             self._append_subcmd_ast(schema, node, op, context)
 
     def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'name':
-            pass
-        else:
+        if op.property != 'name':
             subnode = op._get_ast(schema, context)
             if subnode is not None:
                 node.commands.append(subnode)
@@ -927,19 +930,38 @@ class CreateObject(ObjectCommand):
             schema = self._create_finalize(schema, context)
         return schema, self.scls
 
-    def _apply_field_ast(self, schema, context, node, op):
-        if op.property in ('id', 'name'):
-            pass
-        else:
-            super()._apply_field_ast(schema, context, node, op)
-
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
                                  self.classname)
 
 
-class RenameObject(ObjectCommand):
+class AlterObjectFragment(ObjectCommand):
+
+    def apply(self, schema, context):
+        # AlterObjectFragment must be executed in the context
+        # of a parent AlterObject command.
+        scls = context.current().op.scls
+        self.scls = scls
+        schema = self._alter_begin(schema, context, scls)
+        schema = self._alter_innards(schema, context, scls)
+        schema = self._alter_finalize(schema, context, scls)
+
+        return schema, scls
+
+    def _alter_begin(self, schema, context, scls):
+        schema, props = self._get_field_updates(schema, context)
+        schema = scls.update(schema, props)
+        return schema
+
+    def _alter_innards(self, schema, context, scls):
+        return schema
+
+    def _alter_finalize(self, schema, context, scls):
+        return schema
+
+
+class RenameObject(AlterObjectFragment):
     _delta_action = 'rename'
 
     astnode = qlast.Rename
@@ -985,7 +1007,7 @@ class RenameObject(ObjectCommand):
         return schema, scls
 
     def _get_ast(self, schema, context):
-        astnode = self._get_ast_node(context)
+        astnode = self._get_ast_node(schema, context)
 
         new_name = sn.shortname_from_fullname(self.new_name)
 
@@ -1033,31 +1055,6 @@ class RenameObject(ObjectCommand):
                 name=new_name.name
             )
         )
-
-
-class AlterObjectFragment(ObjectCommand):
-
-    def apply(self, schema, context):
-        # AlterObjectFragment must be executed in the context
-        # of a parent AlterObject command.
-        scls = context.current().op.scls
-        self.scls = scls
-        schema = self._alter_begin(schema, context, scls)
-        schema = self._alter_innards(schema, context, scls)
-        schema = self._alter_finalize(schema, context, scls)
-
-        return schema, scls
-
-    def _alter_begin(self, schema, context, scls):
-        schema, props = self._get_field_updates(schema, context)
-        schema = scls.update(schema, props)
-        return schema
-
-    def _alter_innards(self, schema, context, scls):
-        return schema
-
-    def _alter_finalize(self, schema, context, scls):
-        return schema
 
 
 class AlterObject(ObjectCommand):
@@ -1130,58 +1127,11 @@ class AlterObject(ObjectCommand):
 
         return cmd
 
-    def _apply_rebase_ast(self, context, node, op):
-        from . import inheriting
-
-        parent_ctx = context.parent()
-        parent_op = parent_ctx.op
-        rebase = next(iter(parent_op.get_subcommands(
-            type=inheriting.RebaseInheritingObject)))
-
-        dropped = rebase.removed_bases
-        added = rebase.added_bases
-
-        if dropped:
-            node.commands.append(
-                qlast.AlterDropInherit(
-                    bases=[
-                        qlast.ObjectRef(
-                            module=b.classname.module,
-                            name=b.classname.name
-                        )
-                        for b in dropped
-                    ]
-                )
-            )
-
-        for bases, pos in added:
-            if isinstance(pos, tuple):
-                pos_node = qlast.Position(
-                    position=pos[0],
-                    ref=qlast.ObjectRef(
-                        module=pos[1].classname.module,
-                        name=pos[1].classname.name))
-            else:
-                pos_node = qlast.Position(position=pos)
-
-            node.commands.append(
-                qlast.AlterAddInherit(
-                    bases=[
-                        qlast.ObjectRef(
-                            module=b.classname.module,
-                            name=b.classname.name
-                        )
-                        for b in bases
-                    ],
-                    position=pos_node
-                )
-            )
-
     def _apply_field_ast(self, schema, context, node, op):
         if op.property in {'is_abstract', 'is_final'}:
             node.commands.append(
                 qlast.SetSpecialField(
-                    name=op.property,
+                    name=qlast.ObjectRef(name=op.property),
                     value=op.new_value
                 )
             )
@@ -1201,9 +1151,14 @@ class AlterObject(ObjectCommand):
         return node
 
     def _alter_begin(self, schema, context, scls):
+        from . import types as s_types
+
         self._validate_legal_command(schema, context)
 
-        for op in self.get_subcommands(type=RenameObject):
+        for op in self.get_subcommands(type=AlterObjectFragment):
+            schema, _ = op.apply(schema, context)
+
+        for op in self.get_subcommands(type=s_types.CollectionTypeCommand):
             schema, _ = op.apply(schema, context)
 
         schema, props = self._get_field_updates(schema, context)
@@ -1211,28 +1166,13 @@ class AlterObject(ObjectCommand):
         return schema
 
     def _alter_innards(self, schema, context, scls):
-        from . import types as s_types
-
-        mcls = self.get_schema_metaclass()
-
-        for op in self.get_subcommands(type=s_types.CollectionTypeCommand):
-            schema, _ = op.apply(schema, context)
-
-        for op in self.get_subcommands(type=AlterObjectFragment):
-            schema, _ = op.apply(schema, context)
-
-        for refdict in mcls.get_refdicts():
-            schema = self._alter_refs(schema, context, scls, refdict)
+        for op in self.get_subcommands():
+            if not isinstance(op, (AlterObjectFragment, AlterObjectProperty)):
+                schema, _ = op.apply(schema, context=context)
 
         return schema
 
     def _alter_finalize(self, schema, context, scls):
-        return schema
-
-    def _alter_refs(self, schema, context, scls, refdict):
-        for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            if not isinstance(op, AlterObjectFragment):
-                schema, _ = op.apply(schema, context=context)
         return schema
 
     def apply(self, schema, context):
@@ -1342,7 +1282,7 @@ class AlterSpecialObjectProperty(Command):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         return AlterObjectProperty(
-            property=astnode.name,
+            property=astnode.name.name,
             new_value=astnode.value
         )
 
@@ -1420,16 +1360,25 @@ class AlterObjectProperty(Command):
                 (isinstance(self.old_value, collections.abc.Container) and
                     not self.old_value))
 
-        if new_value_empty and not old_value_empty:
-            op = qlast.DropAnnotationValue(
-                name=qlast.ObjectRef(module='', name=self.property))
-            return op
+        parent_ctx = context.current()
+        parent_op = parent_ctx.op
+        field = parent_op.get_schema_metaclass().get_field(self.property)
+        if field is None:
+            raise errors.SchemaDefinitionError(
+                f'{self.property!r} is not a valid field',
+                context=self.context)
+
+        if not field.allow_ddl_set:
+            return
+
+        if self.source == 'inheritance':
+            return
 
         if new_value_empty and old_value_empty:
             return
 
         if isinstance(value, s_expr.Expression):
-            value = edgeql.parse(value.text)
+            value = value.qlast
         elif utils.is_nontrivial_container(value):
             value = qlast.Tuple(elements=[
                 qlast.BaseConstant.from_python(el) for el in value

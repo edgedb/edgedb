@@ -161,20 +161,15 @@ def derive_view(
             ctx.env.schema, name=derived_name)
 
     elif isinstance(stype, s_inh.InheritingObject):
-        qualifiers: typing.Tuple[str, ...] = ()
-        if stype.get_name(ctx.env.schema) == derived_name:
-            qualifiers = (ctx.aliases.get('d'),)
-
-        ctx.env.schema, derived = stype.derive(
+        ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema,
-            stype,
-            *qualifiers,
             name=derived_name,
             inheritance_merge=inheritance_merge,
             refdict_whitelist={'pointers'},
             mark_derived=True,
             preserve_path_id=preserve_path_id,
-            attrs=attrs)
+            attrs=attrs,
+        )
 
         if (not stype.generic(ctx.env.schema)
                 and isinstance(derived, s_sources.Source)):
@@ -226,7 +221,7 @@ def derive_ptr(
     if ptr.get_name(ctx.env.schema) == derived_name:
         qualifiers = qualifiers + (ctx.aliases.get('d'),)
 
-    ctx.env.schema, derived = ptr.derive(
+    ctx.env.schema, derived = ptr.derive_ref(
         ctx.env.schema,
         source,
         target,

@@ -126,11 +126,11 @@ class BasePointerRef(ImmutableBase):
     direction: s_pointers.PointerDirection
     parent_ptr: PointerRef
     material_ptr: BasePointerRef
-    derived_from_ptr: BasePointerRef
     descendants: typing.Set[BasePointerRef]
     union_components: typing.Set[BasePointerRef]
     has_properties: bool
     required: bool
+    is_derived: bool
     # Relation cardinality in the direction specified
     # by *direction*.
     dir_cardinality: qltypes.Cardinality

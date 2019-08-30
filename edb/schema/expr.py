@@ -53,6 +53,8 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
 
     @property
     def qlast(self):
+        if self._qlast is None:
+            self._qlast = qlparser.parse_fragment(self.text)
         return self._qlast
 
     @property
@@ -98,12 +100,8 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
 
         from edb.edgeql import compiler as qlcompiler
 
-        qltree = expr.qlast
-        if qltree is None:
-            qltree = qlparser.parse(expr.text)
-
         ir = qlcompiler.compile_ast_to_ir(
-            qltree,
+            expr.qlast,
             schema=schema,
             modaliases=modaliases,
             anchors=anchors,
@@ -118,7 +116,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
             text=expr.text,
             origtext=expr.origtext,
             refs=so.ObjectSet.create(schema, ir.schema_refs),
-            _qlast=qltree,
+            _qlast=expr.qlast,
             _irast=ir,
         )
 

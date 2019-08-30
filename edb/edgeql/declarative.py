@@ -180,6 +180,13 @@ def trace_layout_CreateLink(
     _trace_item_layout(node, ctx=ctx)
 
 
+@trace_layout.register
+def trace_layout_CreateProperty(
+        node: qlast.CreateProperty, *, ctx: LayoutTraceContext):
+
+    _trace_item_layout(node, ctx=ctx)
+
+
 def _trace_item_layout(node: qlast.CreateObject, *,
                        obj=None, fq_name=None, ctx: LayoutTraceContext):
     if obj is None:

@@ -36,7 +36,6 @@ async def fetch(
                 l.name AS name,
                 edgedb._resolve_type_name(l.bases) AS bases,
                 edgedb._resolve_type_name(l.ancestors) AS ancestors,
-                edgedb._resolve_type_name(l.derived_from) AS derived_from,
                 l.cardinality,
                 l.required,
                 l.expr,
@@ -72,8 +71,6 @@ async def fetch_properties(
                                         AS bases,
                 edgedb._resolve_type_name(p.ancestors)
                                         AS ancestors,
-                edgedb._resolve_type_name(p.derived_from)
-                                        AS derived_from,
                 p.cardinality           AS cardinality,
                 p.required              AS required,
                 p.expr                  AS expr,

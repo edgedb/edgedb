@@ -712,11 +712,6 @@ class DropConcreteProperty(AlterObject):
     pass
 
 
-class SetSpecialField(DDL):
-    name: str
-    value: object
-
-
 class CreateObjectType(CreateExtendingObject):
     pass
 
@@ -818,6 +813,10 @@ class BaseSetField(DDL):
 
 class SetField(BaseSetField):
     pass
+
+
+class SetSpecialField(BaseSetField):
+    value: object
 
 
 class CreateAnnotationValue(CreateObject):

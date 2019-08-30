@@ -34,6 +34,7 @@ from . import delta as sd
 from . import expr
 from . import name as sn
 from . import objects as so
+from . import referencing
 from . import types as s_types
 from . import utils
 
@@ -126,7 +127,7 @@ class ParameterDesc(typing.NamedTuple):
             type=props['type'],
             typemod=props['typemod'],
             kind=props['kind'],
-            default=props['default'],
+            default=props.get('default'),
         )
 
     def as_create_delta(self, schema, func_fqname, *, context):
@@ -255,13 +256,19 @@ class Parameter(so.Object, s_abc.Parameter):
         return param_as_str(schema, self)
 
 
+class CallableCommandContext(sd.ObjectCommandContext,
+                             s_anno.AnnotationSubjectCommandContext):
+    pass
+
+
 class ParameterCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class ParameterCommand(sd.ObjectCommand,
+class ParameterCommand(referencing.StronglyReferencedObjectCommand,
                        schema_metaclass=Parameter,
-                       context_class=ParameterCommandContext):
+                       context_class=ParameterCommandContext,
+                       referrer_context_class=CallableCommandContext):
     pass
 
 
@@ -497,11 +504,6 @@ class CallableObject(s_anno.AnnotationSubject):
         # so the only possible scenario is the deletion of
         # the host function.
         return not isinstance(reference, Parameter)
-
-
-class CallableCommandContext(sd.ObjectCommandContext,
-                             s_anno.AnnotationSubjectCommandContext):
-    pass
 
 
 class CallableCommand(sd.ObjectCommand):
@@ -889,6 +891,48 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                 ))
 
         return cmd
+
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
+
+        params = []
+        for op in self.get_subcommands(type=ParameterCommand):
+            props = op.get_struct_properties(schema)
+            num = props['num']
+            default = props.get('default')
+            param = qlast.FuncParam(
+                name=Parameter.paramname_from_fullname(props['name']),
+                type=utils.typeref_to_ast(schema, props['type']),
+                typemod=props['typemod'],
+                kind=props['kind'],
+                default=default.qlast if default is not None else None,
+            )
+            params.append((num, param))
+
+        params.sort(key=lambda e: e[0])
+
+        node.params = [p[1] for p in params]
+
+    def _apply_field_ast(self, schema, context, node, op):
+        if op.property == 'return_type':
+            node.returning = utils.typeref_to_ast(schema, op.new_value)
+        elif op.property == 'return_typemod':
+            node.returning_typemod = op.new_value
+        elif op.property == 'code':
+            node.code = qlast.FunctionCode(
+                language=self.get_attribute_value('language'),
+                code=op.new_value,
+            )
+        elif op.property == 'from_function' and op.new_value:
+            node.code = qlast.FunctionCode(
+                from_function=op.new_value,
+            )
+        elif op.property == 'from_expr' and op.new_value:
+            node.code = qlast.FunctionCode(
+                from_expr=op.new_value,
+            )
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class RenameFunction(sd.RenameObject, FunctionCommand):

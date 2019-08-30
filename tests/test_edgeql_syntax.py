@@ -3552,7 +3552,7 @@ aa';
         CREATE VIEW Foo := (SELECT User);
 
         ALTER VIEW Foo
-            SET expr := SELECT Person;
+            SET expr := (SELECT Person);
 
         DROP VIEW Foo;
         """

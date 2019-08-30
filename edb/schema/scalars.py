@@ -244,6 +244,23 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
             if op.new_value:
                 op.new_value = op.new_value[0]
                 super()._apply_field_ast(schema, context, node, op)
+
+        elif op.property == 'bases':
+            enum_values = self.get_attribute_value('enum_values')
+            if enum_values:
+                node.bases = [
+                    qlast.TypeName(
+                        maintype=qlast.ObjectRef(name='enum'),
+                        subtypes=[
+                            qlast.TypeExprLiteral(
+                                val=qlast.BaseConstant.from_python(v)
+                            )
+                            for v in enum_values
+                        ]
+                    )
+                ]
+            else:
+                super()._apply_field_ast(schema, context, node, op)
         else:
             super()._apply_field_ast(schema, context, node, op)
 

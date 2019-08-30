@@ -168,17 +168,9 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
             expr=expr_ql,
         )
 
-    def _apply_fields_ast(self, schema, context, node):
-        super()._apply_fields_ast(schema, context, node)
-        node.name.module = ''
-
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'expr':
-            node.expr = op.new_value
-        elif op.property == 'is_derived':
-            pass
-        elif op.property == 'subject':
-            pass
+            node.expr = op.new_value.qlast
         else:
             super()._apply_field_ast(schema, context, node, op)
 

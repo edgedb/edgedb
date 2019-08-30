@@ -141,6 +141,7 @@ class Constraint(referencing.ReferencedInheritingObject,
             args = constr_base.get_field_value(schema, 'args')
 
         attrs = dict(kwargs)
+        inherited = dict()
         if orig_subjectexpr is not None:
             attrs['subjectexpr'] = orig_subjectexpr
         else:
@@ -151,6 +152,7 @@ class Constraint(referencing.ReferencedInheritingObject,
         errmessage = attrs.get('errmessage')
         if not errmessage:
             errmessage = constr_base.get_errmessage(schema)
+            inherited['errmessage'] = True
 
         attrs['errmessage'] = errmessage
 
@@ -181,6 +183,7 @@ class Constraint(referencing.ReferencedInheritingObject,
 
             args_map['__subject__'] = '{__subject__}'
             attrs['errmessage'] = attrs['errmessage'].format(**args_map)
+            inherited.pop('errmessage', None)
 
         attrs['args'] = args
 
@@ -211,7 +214,7 @@ class Constraint(referencing.ReferencedInheritingObject,
         attrs['finalexpr'] = final_expr
         attrs['params'] = constr_base.get_params(schema)
 
-        return constr_base, attrs
+        return constr_base, attrs, inherited
 
     def format_error_message(self, schema):
         errmsg = self.get_errmessage(schema)
@@ -323,7 +326,7 @@ class ConstraintCommand(
             props['subjectexpr'] = s_expr.Expression.from_ast(
                 astnode.subjectexpr, schema, context.modaliases)
 
-        _, attrs = Constraint.get_concrete_constraint_attrs(
+        _, attrs, _ = Constraint.get_concrete_constraint_attrs(
             schema, subject, name=base_name,
             sourcectx=astnode.context,
             modaliases=context.modaliases, **props)
@@ -420,7 +423,7 @@ class CreateConstraint(ConstraintCommand,
             fullname = self.classname
             shortname = sn.shortname_from_fullname(fullname)
 
-            constr_base, attrs = Constraint.get_concrete_constraint_attrs(
+            constr_base, attrs, inh = Constraint.get_concrete_constraint_attrs(
                 schema,
                 subject,
                 name=shortname,
@@ -428,7 +431,8 @@ class CreateConstraint(ConstraintCommand,
                 **props)
 
             for k, v in attrs.items():
-                self.set_attribute_value(k, v)
+                inherited = inh.get(k)
+                self.set_attribute_value(k, v, inherited=inherited)
 
             quals = constr_base.get_derived_quals(schema, subject, attrs)
 
@@ -438,6 +442,35 @@ class CreateConstraint(ConstraintCommand,
             self.set_attribute_value('name', derived_name)
             self.set_attribute_value('subject', subject)
             self.classname = derived_name
+
+            for subcmd in self.get_subcommands():
+                if isinstance(subcmd, referencing.ReferencedObjectCommand):
+                    # Since we amended the full name of the constraint
+                    # object, we need to make sure that any subordinate
+                    # refs, such as annotations have the correct names
+                    # also.
+                    name = sn.shortname_from_fullname(subcmd.classname)
+                    astnode = subcmd.referenced_astnode(
+                        name=qlast.ObjectRef(
+                            name=name.name,
+                            module=name.module,
+                        ),
+                    )
+
+                    refdict = Constraint.get_refdict_for_class(
+                        subcmd.get_schema_metaclass())
+
+                    subcmd.set_attribute_value(
+                        refdict.backref_attr,
+                        so.ObjectRef(name=self.classname),
+                    )
+
+                    with subcmd.new_context(schema, context):
+                        new_classname = subcmd._classname_from_ast(
+                            schema, astnode, context)
+
+                        subcmd.classname = new_classname
+                        subcmd.set_attribute_value('name', new_classname)
 
         return super()._create_begin(schema, context)
 
@@ -559,7 +592,15 @@ class CreateConstraint(ConstraintCommand,
 
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'delegated':
-            node.delegated = op.new_value
+            if isinstance(node, qlast.CreateConcreteConstraint):
+                node.delegated = op.new_value
+            else:
+                node.commands.append(
+                    qlast.SetSpecialField(
+                        name=qlast.ObjectRef(name='delegated'),
+                        value=op.new_value,
+                    )
+                )
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -593,7 +634,7 @@ class AlterConstraint(ConstraintCommand,
             subject_ctx = context.get(ConsistencySubjectCommandContext)
             new_subject_name = None
 
-            if astnode.delegated:
+            if getattr(astnode, 'delegated', False):
                 cmd.set_attribute_value('delegated', astnode.delegated)
 
             for op in subject_ctx.op.get_subcommands(
@@ -627,9 +668,10 @@ class AlterConstraint(ConstraintCommand,
         return cmd
 
     def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'subject':
-            return
-        super()._apply_field_ast(schema, context, node, op)
+        if op.property == 'delegated':
+            node.delegated = op.new_value
+        else:
+            super()._apply_field_ast(schema, context, node, op)
 
 
 class DeleteConstraint(ConstraintCommand, s_func.DeleteCallableObject):

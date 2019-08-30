@@ -39,11 +39,11 @@ from . import utils
 
 class Property(pointers.Pointer, s_abc.Property):
 
-    def derive(self, schema, source, target=None, attrs=None, **kwargs):
+    def derive_ref(self, schema, source, target=None, attrs=None, **kwargs):
         if target is None:
             target = self.get_target(schema)
 
-        schema, ptr = super().derive(
+        schema, ptr = super().derive_ref(
             schema, source, target, attrs=attrs, **kwargs)
 
         ptr_sn = ptr.get_shortname(schema)
@@ -142,7 +142,92 @@ class PropertyCommand(pointers.PointerCommand,
                       schema_metaclass=Property,
                       context_class=PropertyCommandContext,
                       referrer_context_class=PropertySourceContext):
-    pass
+
+    @classmethod
+    def _process_create_ast(cls, schema, astnode, context, cmd):
+        """Handle the CREATE PROPERTY ast node.
+
+        This may be called in the context of either Create or Alter.
+        """
+
+        if astnode.is_required is not None:
+            cmd.set_attribute_value('required', astnode.is_required)
+
+        if astnode.cardinality is not None:
+            cmd.set_attribute_value('cardinality', astnode.cardinality)
+
+        parent_ctx = context.get(PropertySourceContext)
+        source_name = parent_ctx.op.classname
+        cmd.set_attribute_value('source', so.ObjectRef(name=source_name))
+
+        target = getattr(astnode, 'target', None)
+
+        if isinstance(target, qlast.TypeName):
+            target_ref = utils.ast_to_typeref(
+                target, modaliases=context.modaliases, schema=schema,
+                metaclass=s_types.Type)
+        else:
+            # computable
+            target_ref, base = cmd._parse_computable(
+                target, schema, context)
+
+            if base is not None:
+                cmd.set_attribute_value(
+                    'bases', so.ObjectList.create(schema, [base]),
+                )
+
+                cmd.set_attribute_value(
+                    'is_derived', True
+                )
+
+                if context.declarative:
+                    cmd.set_attribute_value(
+                        'declared_inherited', True
+                    )
+
+        target_type = utils.resolve_typeref(target_ref, schema=schema)
+
+        if target_type.is_polymorphic(schema):
+            raise errors.InvalidPropertyTargetError(
+                f'invalid property type: '
+                f'{target_type.get_displayname(schema)!r} '
+                f'is a generic type',
+                context=target.context
+            )
+
+        if (target_type.is_object_type()
+                or (target_type.is_collection()
+                    and target_type.contains_object(schema))):
+            raise errors.InvalidPropertyTargetError(
+                f'invalid property type: expected a scalar type, '
+                f'or a scalar collection, got '
+                f'{target_type.get_displayname(schema)!r}',
+                context=target.context
+            )
+
+        if target_type.is_collection():
+            sd.ensure_schema_collection(
+                schema, target_type, cmd,
+                src_context=target.context,
+                context=context,
+            )
+
+        if isinstance(cmd, sd.CreateObject):
+            cmd.set_attribute_value('target', target_ref)
+
+            if cmd.get_attribute_value('cardinality') is None:
+                cmd.set_attribute_value(
+                    'cardinality', qltypes.Cardinality.ONE)
+
+            if cmd.get_attribute_value('required') is None:
+                cmd.set_attribute_value(
+                    'required', False)
+        else:
+            slt = SetPropertyType(classname=cmd.classname, type=target_ref)
+            slt.set_attribute_value('target', target_ref)
+            cmd.add(slt)
+
+        cls._parse_default(cmd)
 
 
 class CreateProperty(PropertyCommand,
@@ -156,100 +241,8 @@ class CreateProperty(PropertyCommand,
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        modaliases = context.modaliases
-
         if isinstance(astnode, qlast.CreateConcreteProperty):
-            target = getattr(astnode, 'target', None)
-
-            cmd.add(
-                sd.AlterObjectProperty(
-                    property='required',
-                    new_value=astnode.is_required or False
-                )
-            )
-
-            cmd.add(
-                sd.AlterObjectProperty(
-                    property='cardinality',
-                    new_value=astnode.cardinality or qltypes.Cardinality.ONE
-                )
-            )
-
-            parent_ctx = context.get(PropertySourceContext)
-            source_name = parent_ctx.op.classname
-
-            cmd.add(
-                sd.AlterObjectProperty(
-                    property='source',
-                    new_value=so.ObjectRef(
-                        name=source_name
-                    )
-                )
-            )
-
-            if isinstance(target, qlast.TypeName):
-                target_ref = utils.ast_to_typeref(
-                    target, modaliases=modaliases, schema=schema,
-                    metaclass=s_types.Type)
-            else:
-                # computable
-                target_ref, base = cmd._parse_computable(
-                    target, schema, context)
-
-                if base is not None:
-                    cmd.set_attribute_value(
-                        'bases', so.ObjectList.create(schema, [base]),
-                    )
-
-                    cmd.set_attribute_value(
-                        'derived_from', base
-                    )
-
-                    cmd.set_attribute_value(
-                        'is_derived', True
-                    )
-
-                    if context.declarative:
-                        cmd.set_attribute_value(
-                            'declared_inherited', True
-                        )
-
-            target_type = utils.resolve_typeref(target_ref, schema=schema)
-
-            if target_type.is_polymorphic(schema):
-                raise errors.InvalidPropertyTargetError(
-                    f'invalid property type: '
-                    f'{target_type.get_displayname(schema)!r} '
-                    f'is a generic type',
-                    context=target.context
-                )
-
-            if (target_type.is_object_type()
-                    or (target_type.is_collection()
-                        and target_type.contains_object(schema))):
-                raise errors.InvalidPropertyTargetError(
-                    f'invalid property type: expected a scalar type, '
-                    f'or a scalar collection, got '
-                    f'{target_type.get_displayname(schema)!r}',
-                    context=target.context
-                )
-
-            if target_type.is_collection():
-                sd.ensure_schema_collection(
-                    schema, target_type, cmd,
-                    src_context=target.context,
-                    context=context,
-                )
-
-            cmd.add(
-                sd.AlterObjectProperty(
-                    property='target',
-                    new_value=target_ref,
-                )
-            )
-
-            cls._parse_default(cmd)
-
+            cls._process_create_ast(schema, astnode, context, cmd)
         else:
             # this is an abstract property then
             if cmd.get_attribute_value('default') is not None:
@@ -259,34 +252,21 @@ class CreateProperty(PropertyCommand,
 
         return cmd
 
-    def _get_ast_node(self, context):
-        link = context.get(PropertySourceContext)
-        if link:
-            return qlast.CreateConcreteProperty
-        else:
-            return qlast.CreateProperty
-
-    def _apply_fields_ast(self, schema, context, node):
-        super()._apply_fields_ast(schema, context, node)
-
-        for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(schema, node, op, context)
-
     def _apply_field_ast(self, schema, context, node, op):
         link = context.get(PropertySourceContext)
 
-        if op.property == 'is_derived':
-            pass
-        elif op.property == 'derived_from':
-            pass
-        elif op.property == 'default':
-            self._encode_default(schema, context, node, op)
-        elif op.property == 'required':
-            node.is_required = op.new_value
+        if op.property == 'required':
+            if isinstance(node, qlast.CreateConcreteProperty):
+                node.is_required = op.new_value
+            else:
+                node.commands.append(
+                    qlast.SetSpecialField(
+                        name=qlast.ObjectRef(name='required'),
+                        value=op.new_value,
+                    ),
+                )
         elif op.property == 'cardinality':
             node.cardinality = op.new_value
-        elif op.property == 'source':
-            pass
         elif op.property == 'target' and link:
             node.target = utils.typeref_to_ast(schema, op.new_value)
         else:
@@ -316,19 +296,14 @@ class AlterProperty(PropertyCommand,
 
     referenced_astnode = qlast.AlterConcreteProperty
 
-    def _get_ast_node(self, context):
-        objtype = context.get(PropertySourceContext)
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        if objtype:
-            return qlast.AlterConcreteProperty
-        else:
-            return qlast.AlterProperty
+        if isinstance(astnode, qlast.CreateConcreteProperty):
+            cls._process_create_ast(schema, astnode, context, cmd)
 
-    def _apply_fields_ast(self, schema, context, node):
-        super()._apply_fields_ast(schema, context, node)
-
-        for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(schema, node, op, context)
+        return cmd
 
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'target':
@@ -339,8 +314,6 @@ class AlterProperty(PropertyCommand,
                         module=op.new_value.classname.module
                     )
                 ))
-        elif op.property == 'source':
-            pass
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -350,20 +323,6 @@ class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
                qlast.DropProperty]
 
     referenced_astnode = qlast.DropConcreteProperty
-
-    def _get_ast_node(self, context):
-        objtype = context.get(PropertySourceContext)
-
-        if objtype:
-            return qlast.DropConcreteProperty
-        else:
-            return qlast.DropProperty
-
-    def _apply_fields_ast(self, schema, context, node):
-        super()._apply_fields_ast(schema, context, node)
-
-        for op in self.get_subcommands(type=constraints.ConstraintCommand):
-            self._append_subcmd_ast(schema, node, op, context)
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):

@@ -258,18 +258,6 @@ def ptrref_from_ptrcls(
     else:
         material_ptr = None
 
-    if ptrcls.get_derived_from(schema) is not None:
-        derived_ptrcls = ptrcls.get_nearest_non_derived_parent(schema)
-        derived_from_ptr = ptrref_from_ptrcls(
-            source_ref=source_ref,
-            target_ref=target_ref,
-            ptrcls=derived_ptrcls,
-            direction=direction,
-            parent_ptr=parent_ptr,
-            schema=schema)
-    else:
-        derived_from_ptr = None
-
     union_components = set()
     union_of = ptrcls.get_union_of(schema)
     if union_of:
@@ -285,7 +273,7 @@ def ptrref_from_ptrcls(
                     schema=schema,
                 )
             )
-    elif (derived_from_ptr is None
+    elif (material_ptr is None
             and not ptrcls.generic(schema)
             and not ptrcls.get_is_local(schema)):
         for base in ptrcls.as_locally_defined(schema):
@@ -344,7 +332,7 @@ def ptrref_from_ptrcls(
         direction=direction,
         parent_ptr=parent_ptr,
         material_ptr=material_ptr,
-        derived_from_ptr=derived_from_ptr,
+        is_derived=ptrcls.get_is_derived(schema),
         descendants=descendants,
         union_components=union_components,
         has_properties=ptrcls.has_user_defined_properties(schema),
@@ -396,4 +384,4 @@ def is_inbound_ptrref(
 
 def is_computable_ptrref(
         ptrref: irast.BasePointerRef):
-    return ptrref.derived_from_ptr is not None
+    return ptrref.is_derived

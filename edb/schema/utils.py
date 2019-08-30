@@ -26,7 +26,7 @@ import typing
 from edb import errors
 
 from edb.common import levenshtein
-from edb.edgeql import ast as ql_ast
+from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
 from . import name as sn
@@ -34,7 +34,7 @@ from . import objects as so
 
 
 def ast_objref_to_objref(
-        node: ql_ast.ObjectRef, *,
+        node: qlast.ObjectRef, *,
         metaclass: typing.Optional[so.ObjectMeta] = None,
         modaliases: typing.Dict[typing.Optional[str], str],
         schema) -> so.Object:
@@ -70,7 +70,7 @@ def ast_objref_to_objref(
 
 
 def ast_to_typeref(
-        node: ql_ast.TypeName, *,
+        node: qlast.TypeName, *,
         metaclass: typing.Optional[so.ObjectMeta] = None,
         modaliases: typing.Dict[typing.Optional[str], str],
         schema) -> so.ObjectRef:
@@ -132,11 +132,11 @@ def ast_to_typeref(
                 e.set_source_context(node.context)
                 raise e
 
-    elif isinstance(node.maintype, ql_ast.AnyType):
+    elif isinstance(node.maintype, qlast.AnyType):
         from . import pseudo as s_pseudo
         return s_pseudo.AnyObjectRef()
 
-    elif isinstance(node.maintype, ql_ast.AnyTuple):
+    elif isinstance(node.maintype, qlast.AnyTuple):
         from . import pseudo as s_pseudo
         return s_pseudo.AnyTupleRef()
 
@@ -145,28 +145,39 @@ def ast_to_typeref(
         metaclass=metaclass, schema=schema)
 
 
-def typeref_to_ast(schema, t: so.Object) -> ql_ast.TypeName:
-    if not isinstance(t, s_abc.Collection):
-        if t.is_type() and t.is_any():
-            ref = ql_ast.AnyType()
-        elif t.is_type() and t.is_anytuple():
-            ref = ql_ast.AnyTuple()
-        else:
-            ref = ql_ast.ObjectRef(
+def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
+    if t.is_type() and t.is_any():
+        result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
+    elif t.is_type() and t.is_anytuple():
+        result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
+    elif not isinstance(t, s_abc.Collection):
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
                 module=t.get_name(schema).module,
                 name=t.get_name(schema).name
             )
-
-        result = ql_ast.TypeName(
-            maintype=ref
         )
-    else:
-        result = ql_ast.TypeName(
-            maintype=ql_ast.ObjectRef(
+    elif isinstance(t, s_abc.Tuple) and t.named:
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
                 name=t.schema_name
             ),
             subtypes=[
-                typeref_to_ast(schema, st) for st in t.get_subtypes(schema)
+                typeref_to_ast(schema, st, _name=sn)
+                for sn, st in t.iter_subtypes(schema)
+            ]
+        )
+    else:
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name=t.schema_name
+            ),
+            subtypes=[
+                typeref_to_ast(schema, st)
+                for st in t.get_subtypes(schema)
             ]
         )
 
