@@ -533,3 +533,22 @@ class DeleteLink(LinkCommand, sd.DeleteObject):
 
         for op in self.get_subcommands(type=constraints.ConstraintCommand):
             self._append_subcmd_ast(schema, node, op, context)
+
+    def _canonicalize(self, schema, context, scls):
+        super()._canonicalize(schema, context, scls)
+
+        target = scls.get_target(schema)
+
+        # A link may only target a view only inside another view,
+        # which means that the target view must be dropped along
+        # with this link.
+        if (target is not None
+                and target.is_view(schema)
+                and target.get_view_is_persistent(schema)):
+
+            Cmd = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.DeleteObject, type(target))
+
+            del_cmd = Cmd(classname=target.get_name(schema))
+            del_cmd._canonicalize(schema, context, target)
+            self.add(del_cmd)

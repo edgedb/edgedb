@@ -161,7 +161,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         )
 
     async def test_edgeql_views_create_01(self):
-        await self.con.fetchall(r'''
+        await self.con.execute(r'''
             CREATE VIEW test::DCard := (
                 WITH MODULE test
                 SELECT Card {
@@ -170,7 +170,9 @@ class TestEdgeQLViews(tb.QueryTestCase):
                     # override the link with any compatible
                     # expression.
                     owners := (
-                        SELECT Card.<deck[IS User]
+                        SELECT Card.<deck[IS User] {
+                            name_upper := str_upper(.name)
+                        }
                     )
                 } FILTER Card.name LIKE 'D%'
             );
@@ -182,27 +184,74 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 SELECT DCard {
                     name,
                     owners: {
-                        name
+                        name_upper,
                     } ORDER BY .name
                 } ORDER BY DCard.name;
             ''',
             [
                 {
                     'name': 'Djinn',
-                    'owners': [{'name': 'Carol'}, {'name': 'Dave'}],
+                    'owners': [{'name_upper': 'CAROL'},
+                               {'name_upper': 'DAVE'}],
                 },
                 {
                     'name': 'Dragon',
-                    'owners': [{'name': 'Alice'}, {'name': 'Dave'}],
+                    'owners': [{'name_upper': 'ALICE'},
+                               {'name_upper': 'DAVE'}],
                 },
                 {
                     'name': 'Dwarf',
-                    'owners': [{'name': 'Bob'}, {'name': 'Carol'}],
+                    'owners': [{'name_upper': 'BOB'},
+                               {'name_upper': 'CAROL'}],
                 }
             ],
         )
 
         await self.con.execute('DROP VIEW test::DCard;')
+
+        # Check that we can recreate the view.
+        await self.con.execute(r'''
+            CREATE VIEW test::DCard := (
+                WITH MODULE test
+                SELECT Card {
+                    owners := (
+                        SELECT Card.<deck[IS User] {
+                            name_upper := str_upper(.name)
+                        }
+                    )
+                } FILTER Card.name LIKE 'D%'
+            );
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE schema,
+                    DCardT := (SELECT ObjectType
+                               FILTER .name = 'test::DCard'),
+                    DCardOwners := (SELECT DCardT.links
+                                    FILTER .name = 'owners')
+                SELECT
+                    DCardOwners {
+                        target: ObjectType {
+                            name,
+                            pointers: {
+                                name
+                            } FILTER .name = 'name_upper'
+                        }
+                    }
+            ''',
+            [{
+                'target': {
+                    'name': 'test::__DCard__owners',
+                    'pointers': [
+                        {
+                            'name': 'name_upper',
+                        }
+                    ]
+                }
+            }]
+        )
 
     async def test_edgeql_views_filter_01(self):
         await self.assert_query_result(

@@ -22,6 +22,7 @@ from __future__ import annotations
 import base64
 import collections
 import collections.abc
+import typing
 
 from edb import errors
 
@@ -413,7 +414,7 @@ class CommandContext:
         self.altered_targets = set()
 
     @property
-    def modaliases(self):
+    def modaliases(self) -> typing.Mapping[typing.Optional[str], str]:
         maps = [t.modaliases for t in reversed(self.stack)]
         maps.append(self._modaliases)
         return collections.ChainMap(*maps)
@@ -453,6 +454,31 @@ class CommandContext:
     @property
     def canonical(self):
         return any(ctx.op.canonical for ctx in self.stack)
+
+    def in_deletion(self, offset: int = 0) -> bool:
+        """Return True if any object is being deleted in this context.
+
+        :param offset:
+            The offset in the context stack to start looking at.
+
+        :returns:
+            True if any object is being deleted in this context starting
+            from *offset* in the stack.
+        """
+        return any(isinstance(ctx.op, DeleteObject)
+                   for ctx in self.stack[:-offset])
+
+    def is_deleting(self, obj: so.Object) -> bool:
+        """Return True if *obj* is being deleted in this context.
+
+        :param obj:
+            The object in question.
+
+        :returns:
+            True if *obj* is being deleted in this context.
+        """
+        return any(isinstance(ctx.op, DeleteObject)
+                   and ctx.op.scls is obj for ctx in self.stack)
 
     def push(self, token):
         self.stack.append(token)
@@ -1297,7 +1323,8 @@ class DeleteObject(ObjectCommand):
         refs = schema.get_referrers(self.scls)
         if refs:
             for ref in refs:
-                if ref.is_blocking_ref(schema, context, scls):
+                if (not context.is_deleting(ref)
+                        and ref.is_blocking_ref(schema, scls)):
                     ref_strs.append(
                         ref.get_verbosename(schema, with_parent=True))
 

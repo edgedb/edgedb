@@ -33,6 +33,7 @@ async def fetch_tuple_views(
             c.id AS id,
             c.name AS name,
             c.view_type AS view_type,
+            c.view_is_persistent AS view_is_persistent,
             c.expr AS expr,
             c.named AS named,
             c.element_types AS element_types
@@ -59,6 +60,7 @@ async def fetch_array_views(
             c.id AS id,
             c.name AS name,
             c.view_type AS view_type,
+            c.view_is_persistent AS view_is_persistent,
             c.expr AS expr,
             c.element_type AS element_type,
             c.dimensions AS dimensions

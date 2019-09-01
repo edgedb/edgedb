@@ -492,7 +492,7 @@ class CallableObject(s_anno.AnnotationSubject):
     def has_inlined_defaults(self, schema):
         return False
 
-    def is_blocking_ref(self, schema, context, reference):
+    def is_blocking_ref(self, schema, reference):
         # Paramters cannot be deleted via DDL syntax,
         # so the only possible scenario is the deletion of
         # the host function.

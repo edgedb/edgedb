@@ -259,7 +259,7 @@ class ReferencedObjectCommand(sd.ObjectCommand,
         reftype = referrer_class.get_field(refdict.attr).type
         refname = reftype.get_key_for(schema, self.scls)
 
-        if (not isinstance(referrer_ctx.op, sd.DeleteObject)
+        if (not context.in_deletion(offset=1)
                 and not context.disable_dep_verification):
             implicit_bases = set(self._get_implicit_ref_bases(
                 schema, context, referrer, refdict, refname))

@@ -119,12 +119,45 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
-                 'merge_fn', 'ephemeral', 'introspectable', 'allow_ddl_set')
+                 'merge_fn', 'ephemeral', 'introspectable',
+                 'allow_ddl_set', 'weak_ref')
+
+    #: The type of the value stored in the field
+    type: type
+    #: Whether the field is allowed to automatically coerce
+    #: the input value to the declared type of the field.
+    coerce: bool
+    #: The diffing coefficient to use when comparing field
+    #: values in objects from 0 to 1.
+    compcoef: float
+    #: Whether the field value can be inherited.
+    inheritable: bool
+    #: Wheter the field uses the generic AlterObjectProperty
+    #: delta op, or a custom delta command.
+    simpledelta: bool
+    #: If true, the value of the field is not persisted in the
+    #: database.
+    ephemeral: bool
+    #: If true, the field value can be introspected.
+    introspectable: bool
+    #: Whether the field can be set directly using the `SET`
+    #: command in DDL.
+    allow_ddl_set: bool
+    #: Used for fields holding references to objects.  If True,
+    #: the reference is considered "weak", i.e. not essential for
+    #: object definition.  The schema and delta linearization
+    #: rely on this to break object reference cycles.
+    weak_ref: bool
+    #: A callable used to merge the value of the field from
+    #: multiple objects.  Most oftenly used by inheritance.
+    merge_fn: typing.Callable[
+        [Object, typing.List[Object], str], Object
+    ]
 
     def __init__(self, type_, *, coerce=False,
                  compcoef=None, inheritable=True,
                  simpledelta=True, merge_fn=None, ephemeral=False,
-                 introspectable=True, **kwargs):
+                 introspectable=True, weak_ref=False, **kwargs):
         """Schema item core attribute definition.
 
         """
@@ -139,6 +172,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
         self.inheritable = inheritable
         self.simpledelta = simpledelta
         self.introspectable = introspectable
+        self.weak_ref = weak_ref
 
         if merge_fn is not None:
             self.merge_fn = merge_fn
@@ -211,6 +245,11 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 class SchemaField(Field):
 
     __slots__ = ('default', 'hashable')
+
+    #: The default value to use for the field.
+    default: typing.Any
+    #: Whether the field participates in object hash.
+    hashable: bool
 
     def __init__(self, type, *,
                  default=NoDefault, hashable=True,
@@ -742,7 +781,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return similarity
 
-    def is_blocking_ref(self, schema, context, reference):
+    def is_blocking_ref(self, schema, reference):
         return True
 
     @classmethod
@@ -789,7 +828,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             context = ComparisonContext()
 
         with context(old, new):
-            command_args = {}
+            command_args = {'canonical': True}
 
             if old and new:
                 try:

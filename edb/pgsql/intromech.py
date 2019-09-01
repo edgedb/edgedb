@@ -209,6 +209,7 @@ class IntrospectionMech:
                 'is_final': row['is_final'],
                 'view_type': (s_types.ViewType(row['view_type'])
                               if row['view_type'] else None),
+                'view_is_persistent': row['view_is_persistent'],
                 'default': (self.unpack_expr(row['default'], schema)
                             if row['default'] else None),
                 'expr': (self.unpack_expr(row['expr'], schema)
@@ -840,6 +841,7 @@ class IntrospectionMech:
                 'is_final': row['is_final'],
                 'view_type': (s_types.ViewType(row['view_type'])
                               if row['view_type'] else None),
+                'view_is_persistent': row['view_is_persistent'],
             }
 
             exprmap[name] = row['expr']
@@ -857,6 +859,7 @@ class IntrospectionMech:
                 union_of=union_of,
                 is_final=objtype['is_final'],
                 view_type=objtype['view_type'],
+                view_is_persistent=objtype['view_is_persistent'],
             )
 
             basemap[objtype] = (row['bases'], row['ancestors'])
@@ -893,6 +896,7 @@ class IntrospectionMech:
                 id=r['id'],
                 name=sn.Name(r['name']),
                 view_type=s_types.ViewType(r['view_type']),
+                view_is_persistent=r['view_is_persistent'],
                 named=r['named'],
                 expr=self.unpack_expr(r['expr'], schema),
                 element_types=s_obj.ObjectDict.create(
@@ -911,6 +915,7 @@ class IntrospectionMech:
                 id=r['id'],
                 name=sn.Name(r['name']),
                 view_type=s_types.ViewType(r['view_type']),
+                view_is_persistent=r['view_is_persistent'],
                 expr=self.unpack_expr(r['expr'], schema),
                 element_type=eltype,
                 dimensions=r['dimensions'],

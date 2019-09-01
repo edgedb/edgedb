@@ -157,12 +157,6 @@ def fini_expression(
 
             view_own_pointers = view.get_pointers(ctx.env.schema)
             for vptr in view_own_pointers.objects(ctx.env.schema):
-                ctx.env.schema = vptr.set_field_value(
-                    ctx.env.schema,
-                    'target',
-                    vptr.get_target(ctx.env.schema).material_type(
-                        ctx.env.schema))
-
                 _elide_derived_ancestors(vptr, ctx=ctx)
 
                 if not hasattr(vptr, 'get_pointers'):
@@ -170,12 +164,6 @@ def fini_expression(
 
                 vptr_own_pointers = vptr.get_pointers(ctx.env.schema)
                 for vlprop in vptr_own_pointers.objects(ctx.env.schema):
-                    vlprop_target = vlprop.get_target(ctx.env.schema)
-                    ctx.env.schema = vlprop.set_field_value(
-                        ctx.env.schema,
-                        'target',
-                        vlprop_target.material_type(ctx.env.schema))
-
                     _elide_derived_ancestors(vlprop, ctx=ctx)
 
     expr_type = inference.infer_type(ir, ctx.env)

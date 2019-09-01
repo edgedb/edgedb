@@ -17,16 +17,6 @@
 #
 
 
-# FIXME: the computable in the view doesn't work without an explicit
-# abstract link
-CREATE ABSTRACT LINK default::of_group;
-# FIXME: currently a view cannot be defined via eschema
-CREATE VIEW SettingView := default::Setting {
-   # the settings link is exclusive, so this one is a singleton
-   of_group := default::Setting.<settings[IS default::UserGroup]
-};
-
-
 INSERT Setting {
     name := 'template',
     value := 'blue'
