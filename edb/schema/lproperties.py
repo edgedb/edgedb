@@ -121,7 +121,7 @@ class Property(pointers.Pointer, s_abc.Property):
     def get_default_base_name(self):
         return sn.Name('std::property')
 
-    def is_blocking_ref(self, schema, context, reference):
+    def is_blocking_ref(self, schema, reference):
         return not self.is_endpoint_pointer(schema)
 
 

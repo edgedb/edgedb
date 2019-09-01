@@ -208,15 +208,27 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        bases = cmd.get_attribute_value('bases')
+        if isinstance(cmd, sd.CommandGroup):
+            for subcmd in cmd.get_subcommands():
+                if isinstance(subcmd, cls):
+                    create_cmd = subcmd
+                    break
+            else:
+                raise errors.InternalServerError(
+                    'scalar view definition did not return CreateScalarType'
+                )
+        else:
+            create_cmd = cmd
+
+        bases = create_cmd.get_attribute_value('bases')
         is_enum = False
         if len(bases) == 1 and isinstance(bases._ids[0], AnonymousEnumTypeRef):
             elements = bases._ids[0].elements
-            cmd.set_attribute_value('enum_values', elements)
-            cmd.set_attribute_value('is_final', True)
+            create_cmd.set_attribute_value('enum_values', elements)
+            create_cmd.set_attribute_value('is_final', True)
             is_enum = True
 
-        for sub in cmd.get_subcommands(type=sd.AlterObjectProperty):
+        for sub in create_cmd.get_subcommands(type=sd.AlterObjectProperty):
             if sub.property == 'default':
                 if is_enum:
                     raise errors.UnsupportedFeatureError(

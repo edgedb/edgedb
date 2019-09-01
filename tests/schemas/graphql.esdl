@@ -45,6 +45,16 @@ type User extending NamedObject {
     link profile -> Profile;
 }
 
+view SettingView := Setting {
+    of_group := .<settings[IS UserGroup]
+};
+
+view SettingViewAugmented := Setting {
+    of_group := .<settings[IS UserGroup] {
+        name_upper := str_upper(.name)
+    }
+};
+
 type Person extending User;
 
 scalar type positive_int_t extending int64 {

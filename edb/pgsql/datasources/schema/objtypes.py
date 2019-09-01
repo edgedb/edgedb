@@ -38,6 +38,7 @@ async def fetch(
                 c.is_abstract AS is_abstract,
                 c.is_final AS is_final,
                 c.view_type AS view_type,
+                c.view_is_persistent AS view_is_persistent,
                 c.expr AS expr,
                 c.field_inh_map AS field_inh_map
 
@@ -65,6 +66,7 @@ async def fetch_derived(
                 c.is_abstract AS is_abstract,
                 c.is_final AS is_final,
                 c.view_type AS view_type,
+                c.view_is_persistent AS view_is_persistent,
                 c.expr AS expr,
                 c.field_inh_map AS field_inh_map
             FROM

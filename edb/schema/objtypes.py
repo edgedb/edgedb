@@ -62,7 +62,7 @@ class BaseObjectType(sources.Source,
         return True
 
     def get_displayname(self, schema):
-        if self.is_view(schema):
+        if self.is_view(schema) and not self.get_view_is_persistent(schema):
             mtype = self.material_type(schema)
         else:
             mtype = self
@@ -255,15 +255,15 @@ class ObjectTypeCommand(constraints.ConsistencySubjectCommand,
         else:
             super()._apply_field_ast(schema, context, node, op)
 
+
+class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
+    astnode = qlast.CreateObjectType
+
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
-
-
-class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
-    astnode = qlast.CreateObjectType
 
 
 class RenameObjectType(ObjectTypeCommand, sd.RenameObject):
@@ -276,6 +276,12 @@ class RebaseObjectType(ObjectTypeCommand, inheriting.RebaseInheritingObject):
 
 class AlterObjectType(ObjectTypeCommand, inheriting.AlterInheritingObject):
     astnode = qlast.AlterObjectType
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd = cls._handle_view_op(schema, cmd, astnode, context)
+        return cmd
 
 
 class DeleteObjectType(ObjectTypeCommand, inheriting.DeleteInheritingObject):

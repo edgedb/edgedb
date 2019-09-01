@@ -454,6 +454,14 @@ class CommandContext:
     def canonical(self):
         return any(ctx.op.canonical for ctx in self.stack)
 
+    def in_deletion(self, offset=0):
+        return any(isinstance(ctx.op, DeleteObject)
+                   for ctx in self.stack[:-offset])
+
+    def is_deleting(self, obj):
+        return any(isinstance(ctx.op, DeleteObject)
+                   and ctx.op.scls is obj for ctx in self.stack)
+
     def push(self, token):
         self.stack.append(token)
 
@@ -1297,7 +1305,8 @@ class DeleteObject(ObjectCommand):
         refs = schema.get_referrers(self.scls)
         if refs:
             for ref in refs:
-                if ref.is_blocking_ref(schema, context, scls):
+                if (not context.is_deleting(ref)
+                        and ref.is_blocking_ref(schema, scls)):
                     ref_strs.append(
                         ref.get_verbosename(schema, with_parent=True))
 

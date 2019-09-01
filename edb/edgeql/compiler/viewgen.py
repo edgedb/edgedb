@@ -95,6 +95,36 @@ def _process_view(
         is_insert: bool=False,
         is_update: bool=False,
         ctx: context.ContextLevel) -> s_types.Type:
+
+    if (view_name is None and ctx.env.schema_view_mode
+            and view_rptr is not None):
+        # Make sure persistent schema views have properly formed
+        # names as opposed to the usual mangled form of the ephemeral
+        # views.  This is needed for introspection reasonableness.
+        #
+        # We use the name of the source together with the name
+        # of the inbound link to form the name, so in e.g.
+        #    CREATE VIEW V := (SELECT Foo { bar: { baz: { ... } })
+        # The name of the innermost view would be "__V__bar__baz".
+        source_name = view_rptr.source.get_name(ctx.env.schema).name
+        if not source_name.startswith('__'):
+            source_name = f'__{source_name}'
+        if view_rptr.ptrcls_name is not None:
+            ptr_name = view_rptr.ptrcls_name.name
+        elif view_rptr.ptrcls is not None:
+            ptr_name = view_rptr.ptrcls.get_shortname(ctx.env.schema).name
+        else:
+            raise errors.InternalServerError(
+                '_process_view in schema mode received view_rptr with '
+                'neither ptrcls_name, not ptrcls'
+            )
+
+        name = f'{source_name}__{ptr_name}'
+        view_name = sn.Name(
+            module=ctx.derived_target_module or '__derived__',
+            name=name,
+        )
+
     view_scls = schemactx.derive_view(
         stype, is_insert=is_insert, is_update=is_update,
         derived_name=view_name, ctx=ctx)

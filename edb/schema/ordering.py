@@ -25,7 +25,7 @@ from edb.common import topological
 
 from . import delta as sd
 from . import inheriting
-from . import pointers
+from . import objects as so
 from . import referencing
 
 
@@ -64,6 +64,7 @@ def linearize_delta(delta, old_schema, new_schema):
 
     for key, info in ordered:
         op = info['op']
+        opstack = opmap[op]
         parent = opstack[1]
         for dep in info['deps']:
             dep_item = depgraph.get(dep)
@@ -72,7 +73,8 @@ def linearize_delta(delta, old_schema, new_schema):
             dep_op = dep_item['op']
             dep_stack = opmap[dep_op]
             dep_parent = dep_stack[1]
-            if dep_parent.classname != parent.classname:
+            if ((dep_item['tag'], dep_parent.classname)
+                    != (info['tag'], parent.classname)):
                 dependencies[op].add(dep_op)
 
     for key, info in ordered:
@@ -134,8 +136,10 @@ def linearize_delta(delta, old_schema, new_schema):
             offset = len(ops) - 1
 
         for op in opstack[reattachment_offset:]:
-            ancestor_key = (type(op), op.classname)
-            parents[ancestor_key] = op
+            if not isinstance(op, sd.AlterObjectProperty):
+                ancestor_key = (type(op), op.classname)
+                parents[ancestor_key] = op
+
             offsets[op] = offset
 
     delta.replace(ops)
@@ -155,7 +159,14 @@ def _break_down(opmap, opstack):
         if isinstance(sub_op, (referencing.ReferencedObjectCommand,
                                sd.RenameObject,
                                inheriting.RebaseInheritingObject)):
-            _break_down(opmap, opstack + [sub_op])
+            _break_down(opmap, new_opstack + [sub_op])
+        elif isinstance(sub_op, sd.AlterObjectProperty):
+            mcls = op.get_schema_metaclass()
+            field = mcls.get_field(sub_op.property)
+            # Break a possible reference cycle
+            # (i.e. Type.rptr <-> Pointer.target)
+            if field.weak_ref:
+                _break_down(opmap, new_opstack + [sub_op])
 
     opmap[op] = new_opstack
 
@@ -175,7 +186,7 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
     elif isinstance(op, sd.DeleteObject):
         tag = 'delete'
     elif isinstance(op, sd.AlterObjectProperty):
-        return
+        tag = 'field'
     else:
         raise RuntimeError(
             f'unexpected delta command type at top level: {op!r}'
@@ -187,9 +198,7 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
         obj = old_schema.get(op.classname)
         refs = old_schema.get_referrers(old_schema.get(op.classname))
         for ref in refs:
-            if (isinstance(ref, pointers.Pointer)
-                    and ref.is_endpoint_pointer(old_schema)):
-                # Ignore special link properties
+            if not ref.is_blocking_ref(old_schema, obj):
                 continue
 
             ref_name = ref.get_name(old_schema)
@@ -218,6 +227,15 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
                     referrer_name = renames_r[referrer_name]
                 deps.add(('rebase', referrer_name))
 
+        graph_key = op.classname
+
+    elif tag == 'field':
+        if isinstance(op.new_value, so.Object):
+            deps.add(('create', op.new_value.name))
+            deps.add(('alter', op.new_value.name))
+
+        graph_key = (opstack[-2].classname, op.property)
+
     else:
         obj = new_schema.get(op.classname, None)
         if obj is None:
@@ -229,9 +247,7 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
 
         refs = new_schema.get_referrers(obj)
         for ref in refs:
-            if (isinstance(ref, pointers.Pointer)
-                    and ref.is_endpoint_pointer(new_schema)):
-                # Ignore special link properties
+            if not ref.is_blocking_ref(new_schema, obj):
                 continue
 
             ref_name = ref.get_name(new_schema)
@@ -295,10 +311,12 @@ def _trace_op(op, opstack, depgraph, renames, renames_r,
                 deps.add(('create', referrer_name))
                 deps.add(('rebase', referrer_name))
 
+        graph_key = op.classname
+
     try:
-        item = depgraph[(tag, op.classname)]
+        item = depgraph[(tag, graph_key)]
     except KeyError:
-        item = depgraph[(tag, op.classname)] = {'deps': set()}
+        item = depgraph[(tag, graph_key)] = {'deps': set()}
 
     item['item'] = opstack[1]
     item['op'] = op

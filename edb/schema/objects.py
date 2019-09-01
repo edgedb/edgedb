@@ -119,12 +119,13 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
-                 'merge_fn', 'ephemeral', 'introspectable', 'allow_ddl_set')
+                 'merge_fn', 'ephemeral', 'introspectable',
+                 'allow_ddl_set', 'weak_ref')
 
     def __init__(self, type_, *, coerce=False,
                  compcoef=None, inheritable=True,
                  simpledelta=True, merge_fn=None, ephemeral=False,
-                 introspectable=True, **kwargs):
+                 introspectable=True, weak_ref=False, **kwargs):
         """Schema item core attribute definition.
 
         """
@@ -139,6 +140,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
         self.inheritable = inheritable
         self.simpledelta = simpledelta
         self.introspectable = introspectable
+        self.weak_ref = weak_ref
 
         if merge_fn is not None:
             self.merge_fn = merge_fn
@@ -742,7 +744,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return similarity
 
-    def is_blocking_ref(self, schema, context, reference):
+    def is_blocking_ref(self, schema, reference):
         return True
 
     @classmethod
@@ -789,7 +791,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             context = ComparisonContext()
 
         with context(old, new):
-            command_args = {}
+            command_args = {'canonical': True}
 
             if old and new:
                 try:

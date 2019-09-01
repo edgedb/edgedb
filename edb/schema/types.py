@@ -60,6 +60,12 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         ViewType,
         default=None, compcoef=0.909)
 
+    # True for views defined by CREATE VIEW, false for ephemeral
+    # views in queries.
+    view_is_persistent = so.SchemaField(
+        bool,
+        default=False, compcoef=None)
+
     # If this type is a view, expr may contain an expression that
     # defines the view set.
     expr = so.SchemaField(
@@ -71,7 +77,11 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     # rptr will contain the inbound pointer class.
     rptr = so.SchemaField(
         so.Object,
+        weak_ref=True,
         default=None, compcoef=0.909)
+
+    def is_blocking_ref(self, schema, reference):
+        return reference is not self.get_rptr(schema)
 
     def derive_subtype(
             self, schema, *, name: str,
@@ -602,7 +612,7 @@ class BaseArray(Collection, s_abc.Array):
         else:
             return self
 
-    def as_create_delta(self, schema, *, view_name=None):
+    def as_create_delta(self, schema, *, view_name=None, attrs=None):
         cmd = sd.CommandGroup()
 
         if view_name is None:
@@ -624,6 +634,10 @@ class BaseArray(Collection, s_abc.Array):
         ca.set_attribute_value('name', name)
         ca.set_attribute_value('element_type', el)
         ca.set_attribute_value('dimensions', self.get_dimensions(schema))
+
+        if attrs:
+            for k, v in attrs.items():
+                ca.set_attribute_value(k, v)
 
         cmd.add(ca)
 
@@ -1039,7 +1053,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         else:
             return self
 
-    def as_create_delta(self, schema, *, view_name=None):
+    def as_create_delta(self, schema, *, view_name=None, attrs=None):
         from . import delta as sd
 
         cmd = sd.CommandGroup()
@@ -1069,6 +1083,10 @@ class BaseTuple(Collection, s_abc.Tuple):
                 schema,
                 dict(self.iter_subtypes(schema)),
             ))
+
+        if attrs:
+            for k, v in attrs.items():
+                ct.set_attribute_value(k, v)
 
         cmd.add(ct)
 
@@ -1219,82 +1237,100 @@ class TypeCommand(sd.ObjectCommand):
 
     @classmethod
     def _handle_view_op(cls, schema, cmd, astnode, context):
+        from . import ordering as s_ordering
+
         view_expr = cls._maybe_get_view_expr(astnode)
-        if view_expr is not None:
-            classname = cmd.classname
-            if not s_name.Name.is_qualified(classname):
-                # Collection commands use unqualified names
-                # because they use the type id in the general case,
-                # but in the case of an explicit named view, we
-                # still want a properly qualified name.
-                classname = sd.ObjectCommand._classname_from_ast(
-                    schema, astnode, context)
-                cmd.classname = classname
+        if view_expr is None:
+            return cmd
 
-            expr = s_expr.Expression.from_ast(
-                view_expr, schema, context.modaliases)
+        classname = cmd.classname
+        if not s_name.Name.is_qualified(classname):
+            # Collection commands use unqualified names
+            # because they use the type id in the general case,
+            # but in the case of an explicit named view, we
+            # still want a properly qualified name.
+            classname = sd.ObjectCommand._classname_from_ast(
+                schema, astnode, context)
+            cmd.classname = classname
 
-            ir = cls._compile_view_expr(expr.qlast, classname,
-                                        schema, context)
+        expr = s_expr.Expression.from_ast(
+            view_expr, schema, context.modaliases)
 
-            expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
+        ir = cls._compile_view_expr(expr.qlast, classname,
+                                    schema, context)
 
-            cmd.set_attribute_value('expr', expr)
+        new_schema = ir.schema
 
-            coll_view_types = []
-            prev_coll_view_types = []
-            view_types = []
-            prev_view_types = []
-            prev_ir = None
+        expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
 
-            for vt in ir.views.values():
+        coll_view_types = []
+        prev_coll_view_types = []
+        view_types = []
+        prev_view_types = []
+        prev_ir = None
+        old_schema = None
+
+        for vt in ir.views.values():
+            if vt.is_collection():
+                coll_view_types.append(vt)
+            else:
+                new_schema = vt.set_field_value(
+                    new_schema, 'view_is_persistent', True)
+
+                view_types.append(vt)
+
+        if isinstance(astnode, qlast.AlterObject):
+            prev = schema.get(classname)
+            prev_ir = cls._compile_view_expr(
+                prev.get_expr(schema).qlast, classname, schema, context)
+            old_schema = prev_ir.schema
+            for vt in prev_ir.views.values():
                 if vt.is_collection():
-                    coll_view_types.append(vt)
+                    prev_coll_view_types.append(vt)
                 else:
-                    view_types.append(vt)
+                    prev_view_types.append(vt)
 
-            if isinstance(astnode, qlast.AlterObject):
-                prev = schema.get(classname)
-                prev_ir = cls._compile_view_expr(
-                    prev.expr, classname, schema, context)
-                for vt in prev_ir.views.values():
-                    if vt.is_collection():
-                        prev_coll_view_types.append(vt)
-                    else:
-                        prev_view_types.append(vt)
+        derived_delta = sd.DeltaRoot()
 
-            derived_delta = sd.DeltaRoot()
+        derived_delta.update(so.Object.delta_sets(
+            prev_view_types, view_types,
+            old_schema=old_schema, new_schema=new_schema))
 
-            new_schema = ir.schema
-            old_schema = prev_ir.schema if prev_ir is not None else None
+        for vt in prev_coll_view_types:
+            dt = vt.as_delete_delta(prev_ir.schema, view_name=classname)
+            derived_delta.prepend(dt)
 
-            derived_delta.update(so.Object.delta_sets(
-                prev_view_types, view_types,
-                old_schema=old_schema, new_schema=new_schema))
+        for vt in coll_view_types:
+            ct = vt.as_create_delta(
+                new_schema, view_name=classname,
+                attrs={
+                    'expr': expr,
+                    'view_is_persistent': True,
+                    'view_type': ViewType.Select,
+                })
+            new_schema, _ = ct.apply(new_schema, context)
+            derived_delta.add(ct)
 
-            for vt in prev_coll_view_types:
-                dt = vt.as_delete_delta(prev_ir.schema, view_name=classname)
-                derived_delta.prepend(dt)
+        derived_delta = s_ordering.linearize_delta(
+            derived_delta, old_schema=old_schema, new_schema=new_schema)
 
-            for vt in coll_view_types:
-                ct = vt.as_create_delta(ir.schema, view_name=classname)
-                derived_delta.add(ct)
+        real_cmd = None
+        for op in derived_delta.get_subcommands():
+            if op.classname == classname:
+                real_cmd = op
+                break
 
-            for op in list(derived_delta.get_subcommands()):
-                if op.classname == classname:
-                    for subop in op.get_subcommands():
-                        if isinstance(subop, sd.AlterObjectProperty):
-                            cmd.discard_attribute(subop.property)
-                        cmd.add(subop)
+        if real_cmd is None:
+            raise RuntimeError(
+                'view delta does not contain the expected '
+                'view Create/Alter command')
 
-                    derived_delta.discard(op)
+        real_cmd.set_attribute_value('expr', expr)
 
-            cmd.update(derived_delta.get_subcommands())
-            cmd.discard_attribute('view_type')
-            cmd.add(sd.AlterObjectProperty(
-                property='view_type', new_value=ViewType.Select))
+        cmd = sd.CommandGroup()
+        cmd.update(derived_delta.get_subcommands())
 
-            cmd.canonical = True
+        cmd.canonical = True
 
         return cmd
 
