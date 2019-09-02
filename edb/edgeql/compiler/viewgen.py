@@ -419,6 +419,26 @@ def _normalize_view_ptr_expr(
             shape_expr_ctx.path_scope.unnest_fence = True
             shape_expr_ctx.partial_path_prefix = setgen.class_set(
                 view_scls, path_id=path_id, ctx=shape_expr_ctx)
+            prefix_rptrref = path_id.rptr()
+            if prefix_rptrref is not None:
+                # Source path seems to contain multiple steps,
+                # so set up a rptr for abbreviated link property
+                # paths.
+                src_path_id = path_id.src_path()
+                prefix_rptr = irast.Pointer(
+                    source=setgen.class_set(
+                        irtyputils.ir_typeref_to_type(
+                            shape_expr_ctx.env.schema,
+                            src_path_id.target,
+                        ),
+                        path_id=src_path_id,
+                        ctx=shape_expr_ctx,
+                    ),
+                    target=shape_expr_ctx.partial_path_prefix,
+                    ptrref=prefix_rptrref,
+                    direction=s_pointers.PointerDirection.Outbound,
+                )
+                shape_expr_ctx.partial_path_prefix.rptr = prefix_rptr
 
             if is_mutation and ptrcls is not None:
                 shape_expr_ctx.expr_exposed = True
