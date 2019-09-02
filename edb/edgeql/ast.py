@@ -788,7 +788,7 @@ class ConstraintOp(ObjectDDL):
 
 
 class CreateConcreteConstraint(CreateObject, ConstraintOp):
-    is_abstract: bool = False
+    delegated: bool = False
 
 
 class AlterConcreteConstraint(AlterObject, ConstraintOp):

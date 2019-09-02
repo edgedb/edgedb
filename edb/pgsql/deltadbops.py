@@ -44,7 +44,7 @@ class ConstraintCommon:
     def __init__(self, constraint, schema):
         self._constr_id = constraint.id
         self._schema_constr_name = constraint.get_name(schema)
-        self._schema_constr_is_delegated = constraint.get_is_abstract(schema)
+        self._schema_constr_is_delegated = constraint.get_delegated(schema)
         self._schema = schema
         self._constraint = constraint
 
@@ -66,7 +66,7 @@ class ConstraintCommon:
         cmd.generate(block)
 
     @property
-    def is_abstract(self):
+    def delegated(self):
         return self._schema_constr_is_delegated
 
 
@@ -518,15 +518,15 @@ class AlterTableInheritableConstraintBase(
             self.add_commands(mv_trigger)
 
     def alter_constraint(self, old_constraint, new_constraint):
-        if old_constraint.is_abstract and not new_constraint.is_abstract:
+        if old_constraint.delegated and not new_constraint.delegated:
             # No longer delegated, create db structures
             self.create_constraint(new_constraint)
 
-        elif not old_constraint.is_abstract and new_constraint.is_abstract:
+        elif not old_constraint.delegated and new_constraint.delegated:
             # Now delegated, drop db structures
             self.drop_constraint(old_constraint)
 
-        elif not new_constraint.is_abstract:
+        elif not new_constraint.delegated:
             # Some other modification, drop/create
             self.drop_constraint(old_constraint)
             self.create_constraint(new_constraint)
@@ -557,7 +557,7 @@ class AlterTableAddInheritableConstraint(AlterTableInheritableConstraintBase):
             self._constraint)
 
     def generate(self, block):
-        if not self._constraint.is_abstract:
+        if not self._constraint.delegated:
             self.create_constraint(self._constraint)
         super().generate(block)
 
@@ -574,7 +574,7 @@ class AlterTableRenameInheritableConstraint(
             self._constraint)
 
     def generate(self, block):
-        if not self._constraint.is_abstract:
+        if not self._constraint.delegated:
             self.rename_constraint(self._constraint, self._new_constraint)
         super().generate(block)
 
@@ -602,6 +602,6 @@ class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
             self._constraint)
 
     def generate(self, block):
-        if not self._constraint.is_abstract:
+        if not self._constraint.delegated:
             self.drop_constraint(self._constraint)
         super().generate(block)

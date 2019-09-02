@@ -161,6 +161,7 @@ CREATE TYPE schema::Constraint
     CREATE PROPERTY subjectexpr -> std::str;
     CREATE PROPERTY finalexpr -> std::str;
     CREATE PROPERTY errmessage -> std::str;
+    CREATE PROPERTY delegated -> std::bool;
 };
 
 

@@ -61,6 +61,13 @@ class Constraint(referencing.ReferencedInheritingObject,
         default=None, coerce=True, inheritable=False,
         compcoef=0.875)
 
+    delegated = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.9,
+    )
+
     errmessage = so.SchemaField(
         str, default=None, compcoef=0.971, allow_ddl_set=True)
 
@@ -449,10 +456,6 @@ class CreateConstraint(ConstraintCommand,
         cmd.set_attribute_value(
             'bases', so.ObjectList.create(schema, parents))
 
-        if any(parent.get_is_abstract(schema) for parent in parents):
-            # Constraint delegation.
-            cmd.set_attribute_value('is_local', True)
-
         return cmd
 
     @classmethod
@@ -494,6 +497,9 @@ class CreateConstraint(ConstraintCommand,
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteConstraint):
+            if astnode.delegated:
+                cmd.set_attribute_value('delegated', astnode.delegated)
+
             args = cls._constraint_args_from_ast(schema, astnode, context)
             if args:
                 cmd.add(
@@ -552,12 +558,8 @@ class CreateConstraint(ConstraintCommand,
         return cmd
 
     def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'is_derived':
-            pass
-        elif op.property == 'is_abstract':
-            node.is_abstract = op.new_value
-        elif op.property in {'subjectexpr', 'subject', 'return_type'}:
-            pass
+        if op.property == 'delegated':
+            node.delegated = op.new_value
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -586,9 +588,13 @@ class AlterConstraint(ConstraintCommand,
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        if isinstance(astnode, qlast.AlterConcreteConstraint):
+        if isinstance(astnode, (qlast.CreateConcreteConstraint,
+                                qlast.AlterConcreteConstraint)):
             subject_ctx = context.get(ConsistencySubjectCommandContext)
             new_subject_name = None
+
+            if astnode.delegated:
+                cmd.set_attribute_value('delegated', astnode.delegated)
 
             for op in subject_ctx.op.get_subcommands(
                     type=sd.RenameObject):
