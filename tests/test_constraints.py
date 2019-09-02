@@ -216,9 +216,9 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-    async def test_constraints_exclusive_abstract(self):
+    async def test_constraints_exclusive_delegation(self):
         async with self._run_and_rollback():
-            # This is OK, the name exclusivity constraint is abstract
+            # This is OK, the name exclusivity constraint is delegating
             await self.con.execute("""
                 INSERT test::AbstractConstraintParent {
                     name := 'exclusive_name_ap'

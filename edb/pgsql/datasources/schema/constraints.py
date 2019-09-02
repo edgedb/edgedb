@@ -36,6 +36,7 @@ async def fetch(
                 a.is_abstract           AS is_abstract,
                 a.is_final              AS is_final,
                 a.is_local              AS is_local,
+                a.delegated             AS delegated,
                 edgedb._resolve_type_name(a.bases)
                                         AS bases,
                 edgedb._resolve_type_name(a.ancestors)

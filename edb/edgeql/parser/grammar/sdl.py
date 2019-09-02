@@ -309,7 +309,7 @@ class ConcreteConstraintBlock(Nonterm):
                     NodeName OptConcreteConstraintArgList OptOnExpr \
                     CreateSDLCommandsBlock"""
         self.val = qlast.CreateConcreteConstraint(
-            is_abstract=True,
+            delegated=True,
             name=kids[2].val,
             args=kids[3].val,
             subjectexpr=kids[4].val,
@@ -331,7 +331,7 @@ class ConcreteConstraintShort(Nonterm):
         r"""%reduce DELEGATED CONSTRAINT \
                     NodeName OptConcreteConstraintArgList OptOnExpr"""
         self.val = qlast.CreateConcreteConstraint(
-            is_abstract=True,
+            delegated=True,
             name=kids[2].val,
             args=kids[3].val,
             subjectexpr=kids[4].val,

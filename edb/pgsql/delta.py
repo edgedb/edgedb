@@ -944,13 +944,21 @@ class ConstraintCommand(sd.ObjectCommand,
     def get_table(self, schema):
         return self._table
 
+    def constraint_is_effective(self, schema, constraint):
+        is_local = constraint.get_is_local(schema)
+        delegated_from_parent = any(
+            b.get_delegated(schema)
+            for b in constraint.get_bases(schema).objects(schema)
+        )
+        return is_local or delegated_from_parent
+
 
 class CreateConstraint(
         ConstraintCommand, CreateObject,
         adapts=s_constr.CreateConstraint):
     def apply(self, schema, context):
         schema, constraint = super().apply(schema, context)
-        if not constraint.get_is_local(schema):
+        if not self.constraint_is_effective(schema, constraint):
             return schema, constraint
 
         subject = constraint.get_subject(schema)
@@ -981,7 +989,7 @@ class AlterConstraint(
         adapts=s_constr.AlterConstraint):
     def _alter_finalize(self, schema, context, constraint):
         schema = super()._alter_finalize(schema, context, constraint)
-        if not constraint.get_is_local(schema):
+        if not self.constraint_is_effective(schema, constraint):
             return schema
 
         subject = constraint.get_subject(schema)
@@ -1007,7 +1015,7 @@ class AlterConstraint(
                 constraint, orig_schema)
 
             op = dbops.CommandGroup(priority=1)
-            if not constraint.get_is_local(orig_schema):
+            if not self.constraint_is_effective(orig_schema, constraint):
                 op.add_command(bconstr.create_ops())
             else:
                 op.add_command(bconstr.alter_ops(orig_bconstr))
@@ -1021,7 +1029,7 @@ class DeleteConstraint(
         adapts=s_constr.DeleteConstraint):
     def apply(self, schema, context):
         constraint = schema.get(self.classname)
-        if constraint.get_is_local(schema):
+        if self.constraint_is_effective(schema, constraint):
             subject = constraint.get_subject(schema)
 
             if subject is not None:

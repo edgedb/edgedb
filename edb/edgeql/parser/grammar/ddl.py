@@ -694,7 +694,7 @@ class CreateConcreteConstraintStmt(Nonterm):
                     NodeName OptConcreteConstraintArgList OptOnExpr \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConcreteConstraint(
-            is_abstract=kids[1].val,
+            delegated=kids[1].val,
             name=kids[3].val,
             args=kids[4].val,
             subjectexpr=kids[5].val,

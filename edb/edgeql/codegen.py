@@ -971,7 +971,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(')')
 
         keywords = []
-        if node.is_abstract:
+        if node.delegated:
             keywords.append('DELEGATED')
         keywords.append('CONSTRAINT')
         self._visit_CreateObject(node, *keywords, after_name=after_name)

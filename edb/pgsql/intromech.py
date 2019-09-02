@@ -448,6 +448,7 @@ class IntrospectionMech:
                 is_abstract=r['is_abstract'],
                 is_final=r['is_final'],
                 is_local=r['is_local'],
+                delegated=r['delegated'],
                 expr=(self.unpack_expr(r['expr'], schema)
                       if r['expr'] else None),
                 subjectexpr=(self.unpack_expr(r['subjectexpr'], schema)
