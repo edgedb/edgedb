@@ -236,7 +236,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         ancestor = utils.get_class_nearest_common_ancestor(
             schema, [self, other])
 
-        if ancestor == self:
+        if ancestor is self:
             return 0
         else:
             ancestors = list(self.get_ancestors(schema).objects(schema))
@@ -279,6 +279,7 @@ class Collection(Type, s_abc.Collection):
         if other.__class__ is not self.__class__:
             return -1
 
+        other = typing.cast(Collection, other)
         other_types = other.get_subtypes(schema)
         my_types = self.get_subtypes(schema)
 
