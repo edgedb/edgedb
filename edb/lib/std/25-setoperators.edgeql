@@ -92,7 +92,7 @@ std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype {
 
 
 CREATE TERNARY OPERATOR
-std::`IF` (condition: bool, if_true: SET OF anytype,
+std::`IF` (if_true: SET OF anytype, condition: bool,
            if_false: SET OF anytype) -> SET OF anytype {
     SET volatility := 'IMMUTABLE';
     FROM SQL EXPRESSION;

@@ -302,9 +302,9 @@ def compile_OperatorCall(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if (expr.func_shortname == 'std::IF'
-            and expr.args[1].cardinality is ql_ft.Cardinality.ONE
+            and expr.args[0].cardinality is ql_ft.Cardinality.ONE
             and expr.args[2].cardinality is ql_ft.Cardinality.ONE):
-        condition, if_expr, else_expr = (a.expr for a in expr.args)
+        if_expr, condition, else_expr = (a.expr for a in expr.args)
         return pgast.CaseExpr(
             args=[
                 pgast.CaseWhen(

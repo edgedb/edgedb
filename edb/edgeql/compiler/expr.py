@@ -361,7 +361,7 @@ def compile_IfElse(
 
     op_node = func.compile_operator(
         expr, op_name='std::IF',
-        qlargs=[expr.condition, expr.if_expr, expr.else_expr], ctx=ctx)
+        qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=ctx)
 
     return setgen.ensure_set(op_node, ctx=ctx)
 

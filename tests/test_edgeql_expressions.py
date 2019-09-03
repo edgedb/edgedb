@@ -1658,6 +1658,30 @@ class TestExpressions(tb.QueryTestCase):
                     # this operation should always be valid
                     await self.assert_query_result(query, {True})
 
+    async def test_edgeql_expr_valid_setop_13(self):
+        # IF ELSE with every numeric scalar combined with an int64
+        for val in get_test_values(anyreal=True):
+            query = f"""SELECT 1 IF True ELSE {val};"""
+            await self.assert_query_result(query, [1])
+
+    async def test_edgeql_expr_valid_setop_14(self):
+        # testing IF ELSE with mismatched operand types
+        expected_error_msg = 'cannot be applied to operands'
+        hint = ("The IF and ELSE result clauses must be of compatible "
+                "types, while the condition clause must be "
+                "'std::bool'. "
+                "Consider using an explicit type cast or a conversion "
+                "function.")
+        # IF ELSE with every non-numeric scalar combined with an int64
+        for val in get_test_values(anyreal=False):
+            query = f"""SELECT 1 IF True ELSE {val};"""
+            # every other combination must produce an error
+            with self.assertRaisesRegex(edgedb.QueryError,
+                                        expected_error_msg,
+                                        msg=query, _hint=hint):
+                async with self.con.transaction():
+                    await self.con.execute(query)
+
     async def test_edgeql_expr_valid_bool_01(self):
         expected_error_msg = 'cannot be applied to operands'
         # use every scalar combination with AND and OR

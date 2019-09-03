@@ -1097,8 +1097,8 @@ def process_set_as_ifelse(
     expr = ir_set.expr
     assert isinstance(expr, irast.OperatorCall)
 
-    condition, if_expr, else_expr = (a.expr for a in expr.args)
-    _, if_expr_card, else_expr_card = (a.cardinality for a in expr.args)
+    if_expr, condition, else_expr = (a.expr for a in expr.args)
+    if_expr_card, _, else_expr_card = (a.cardinality for a in expr.args)
 
     with ctx.new() as newctx:
         newctx.expr_exposed = False

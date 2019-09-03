@@ -328,11 +328,18 @@ def compile_operator(
             )
 
         if not matched:
+            hint = ('Consider using an explicit type cast or a conversion '
+                    'function.')
+
+            if op_name == 'std::IF':
+                hint = (f"The IF and ELSE result clauses must be of "
+                        f"compatible types, while the condition clause must "
+                        f"be 'std::bool'. {hint}")
+
             raise errors.QueryError(
                 f'operator {str(op_name)!r} cannot be applied to '
                 f'operands of type {types}',
-                hint='Consider using an explicit type cast or a conversion '
-                     'function.',
+                hint=hint,
                 context=qlexpr.context)
         elif len(matched) > 1:
             if in_abstract_constraint:
@@ -364,7 +371,7 @@ def compile_operator(
         if oper_name == 'std::UNION':
             larg, rarg = (a.expr for a in final_args)
         else:
-            larg, rarg = (a.expr for a in final_args[1:])
+            larg, _, rarg = (a.expr for a in final_args)
 
         left_type = setgen.get_set_type(larg, ctx=ctx).material_type(
             ctx.env.schema)
