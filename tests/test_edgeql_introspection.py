@@ -314,6 +314,40 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_introspection_locality(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    properties: {
+                        name,
+                        @is_local,
+                        inherited_fields,
+                    } ORDER BY .name
+                }
+                FILTER
+                    .name = 'test::URL'
+            """,
+            [{
+                'properties': [{
+                    "name": "address",
+                    "inherited_fields": [],
+                    "@is_local": True
+                }, {
+                    "name": "id",
+                    "inherited_fields": {
+                        "default", "readonly",
+                        "required", "cardinality"
+                    },
+                    "@is_local": False
+                }, {
+                    "name": "name",
+                    "inherited_fields": {"required", "cardinality"},
+                    "@is_local": False
+                }]
+            }]
+        )
+
     async def test_edgeql_introspection_constraint_01(self):
         await self.assert_query_result(
             r"""

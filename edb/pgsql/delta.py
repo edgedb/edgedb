@@ -209,9 +209,9 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
         else:
             schema, fields = self._get_field_updates(schema, context)
 
-        inh_map = self.get_inheritance_map(schema, context)
-        if inh_map:
-            fields['field_inh_map'] = inh_map
+        inherited_fields = self.compute_inherited_fields(schema, context)
+        if inherited_fields:
+            fields['inherited_fields'] = inherited_fields
 
         return schema, fields
 

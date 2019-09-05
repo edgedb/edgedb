@@ -19,8 +19,6 @@
 
 from __future__ import annotations
 
-import immutables as immu
-
 from edb.common import struct
 from edb.edgeql import ast as qlast
 
@@ -43,24 +41,19 @@ class InheritingObjectCommand(sd.ObjectCommand):
 
     def _create_begin(self, schema, context):
         schema = super()._create_begin(schema, context)
-        inh_map = self._get_inh_map(schema, context)
-        schema = self.scls.set_field_value(schema, 'field_inh_map', inh_map)
+        inherited_fields = self.compute_inherited_fields(schema, context)
+        schema = self.scls.set_field_value(
+            schema, 'inherited_fields', inherited_fields)
         return schema
 
     def _alter_begin(self, schema, context, scls):
         schema = super()._alter_begin(schema, context, scls)
-        inh_map = self.scls.get_field_inh_map(schema)
-        inh_map = inh_map.update(self._get_inh_map(schema, context))
-        schema = self.scls.set_field_value(schema, 'field_inh_map', inh_map)
+        inherited_fields = self.scls.get_inherited_fields(schema)
+        inherited_fields = inherited_fields.update(
+            self.compute_inherited_fields(schema, context))
+        schema = self.scls.set_field_value(
+            schema, 'inherited_fields', inherited_fields)
         return schema
-
-    def _get_inh_map(self, schema, context):
-        result = {}
-
-        for op in self.get_subcommands(type=sd.AlterObjectProperty):
-            result[op.property] = op.source == 'inheritance'
-
-        return immu.Map(result)
 
     def inherit_fields(self, schema, context, scls, bases, *, fields=None):
         mcls = self.get_schema_metaclass()
@@ -70,20 +63,20 @@ class InheritingObjectCommand(sd.ObjectCommand):
         else:
             field_names = scls.inheritable_fields()
 
-        field_inh_map = scls.get_field_inh_map(schema)
-        inh_map_update = {}
+        inherited_fields = scls.get_inherited_fields(schema)
+        inherited_fields_update = {}
 
         for field_name in field_names:
             field = mcls.get_field(field_name)
             result = field.merge_fn(scls, bases, field_name, schema=schema)
 
-            if not field_inh_map.get(field_name):
+            if not inherited_fields.get(field_name):
                 ours = scls.get_explicit_field_value(schema, field_name, None)
             else:
                 ours = None
 
             inherited = result is not None and ours is None
-            inh_map_update[field_name] = inherited
+            inherited_fields_update[field_name] = inherited
 
             if result is not None or ours is not None:
                 schema = scls.set_field_value_with_delta(
@@ -92,8 +85,8 @@ class InheritingObjectCommand(sd.ObjectCommand):
 
         schema = scls.set_field_value(
             schema,
-            'field_inh_map',
-            field_inh_map.update(inh_map_update),
+            'inherited_fields',
+            inherited_fields.update(inherited_fields_update),
         )
 
         return schema
@@ -603,9 +596,10 @@ class AlterInheritingObjectFragment(InheritingObjectCommand,
     def _alter_begin(self, schema, context, scls):
 
         if not context.canonical:
-            inh_map = self._get_inh_map(schema, context)
-            field_inh_map = scls.get_field_inh_map(schema).update(inh_map)
-            self.set_attribute_value('field_inh_map', field_inh_map)
+            inherited_fields = self.compute_inherited_fields(schema, context)
+            inherited_fields = (
+                scls.get_inherited_fields(schema).update(inherited_fields))
+            self.set_attribute_value('inherited_fields', inherited_fields)
 
         return super()._alter_begin(schema, context, scls)
 
@@ -757,10 +751,10 @@ class InheritingObject(derivable.DerivableObject):
 
     @classmethod
     def delta_property(cls, schema, scls, delta, fname, value):
-        inh_map = scls.get_field_inh_map(schema)
+        inherited_fields = scls.get_inherited_fields(schema)
         delta.add(sd.AlterObjectProperty(
             property=fname, old_value=None, new_value=value,
-            source='inheritance' if inh_map.get(fname) else None))
+            source='inheritance' if inherited_fields.get(fname) else None))
 
     def inheritable_fields(self):
         for fn, f in self.__class__.get_fields().items():

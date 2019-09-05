@@ -1733,7 +1733,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         props = []
 
         if ptr.issubclass(schema, schema.get('schema::reference')):
-            props.append('is_local')
+            props.append('COALESCE(is_local, false) AS is_local')
 
         if props:
             props_q = ',' + ',\n'.join(props)
@@ -2527,6 +2527,15 @@ async def generate_views(conn, schema):
     metaclasses = get_interesting_metaclasses()
     views = collections.OrderedDict()
     type_fields = []
+    non_intro_fields = set()
+
+    for mcls in metaclasses:
+        non_intro_fields.update(
+            fn for fn, f in mcls.get_fields().items() if not f.introspectable
+        )
+
+    non_intro_fields_list = ','.join(ql(f) for f in non_intro_fields)
+    non_intro_fields_expr = f'({non_intro_fields_list})'
 
     for mcls in metaclasses:
         if mcls is s_obj.Object:
@@ -2593,6 +2602,8 @@ async def generate_views(conn, schema):
                 ptr, link_bias=True, schema=schema)
 
             if ptrstor.table_type == 'ObjectType':
+                col_default_expr = None
+
                 if pn == 'name':
                     name_expr = f't.{qi(ptrstor.column_name)}'
 
@@ -2615,6 +2626,15 @@ async def generate_views(conn, schema):
                     else:
                         col_expr = shortname_expr
 
+                elif pn == 'inherited_fields':
+                    col_expr = f'''
+                        (SELECT array_agg(key)
+                         FROM jsonb_each(t.{qi(ptrstor.column_name)})
+                         WHERE key NOT IN {non_intro_fields_expr}
+                               AND value = 'true'::jsonb)
+                    '''
+
+                    col_default_expr = 'ARRAY[]::text[]'
                 elif field.type is s_expr.Expression:
                     col_expr = f'(t.{qi(ptrstor.column_name)}).origtext'
                 elif field.type is s_expr.ExpressionList:
@@ -2635,7 +2655,11 @@ async def generate_views(conn, schema):
 
                 if (getattr(field, 'default', None) is not None
                         and not field.required):
-                    col_default = f'{ql(str(field.default))}::{qt(coltype)}'
+                    if col_default_expr is not None:
+                        col_default = col_default_expr
+                    else:
+                        col_default = (
+                            f'{ql(str(field.default))}::{qt(coltype)}')
                     col_expr = f'COALESCE({col_expr}, {col_default})'
 
                 cols.append((col_expr, pn))

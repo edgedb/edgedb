@@ -674,8 +674,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     def get_explicit_local_field_value(self, schema, field_name,
                                        default=NoDefault):
-        field_inh_map = self.get_field_inh_map(schema)
-        if not field_inh_map.get(field_name):
+        inherited_fields = self.get_inherited_fields(schema)
+        if not inherited_fields.get(field_name):
             return self.get_explicit_field_value(schema, field_name, default)
         elif default is not NoDefault:
             return default
@@ -1648,11 +1648,11 @@ class InheritingObjectBase(Object):
         hashable=False,
     )
 
-    field_inh_map = SchemaField(
+    # Attributes that have been set locally as opposed to inherited.
+    inherited_fields = SchemaField(
         immu.Map,
         default=immu.Map(),
         inheritable=False,
-        introspectable=False,
         hashable=False,
     )
 

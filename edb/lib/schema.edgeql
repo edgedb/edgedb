@@ -108,6 +108,7 @@ CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
 CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
     CREATE MULTI LINK bases -> schema::InheritingObject;
     CREATE MULTI LINK ancestors -> schema::InheritingObject;
+    CREATE PROPERTY inherited_fields -> array<std::str>;
 
     CREATE REQUIRED PROPERTY is_abstract -> std::bool {
         SET default := false;

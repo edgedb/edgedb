@@ -202,8 +202,8 @@ class IntrospectionMech:
 
             scalar_data = {
                 'id': row['id'],
-                'field_inh_map': self._unpack_field_inh_map(
-                    row['field_inh_map']),
+                'inherited_fields': self._unpack_inherited_fields(
+                    row['inherited_fields']),
                 'name': name,
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
@@ -441,7 +441,8 @@ class IntrospectionMech:
             schema, constraint = s_constr.Constraint.create_in_schema(
                 schema,
                 id=r['id'],
-                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
+                inherited_fields=self._unpack_inherited_fields(
+                    r['inherited_fields']),
                 name=name,
                 subject=subject,
                 params=params,
@@ -473,7 +474,7 @@ class IntrospectionMech:
 
         return schema
 
-    def _unpack_field_inh_map(self, value):
+    def _unpack_inherited_fields(self, value):
         if value is None:
             return immu.Map()
         else:
@@ -643,7 +644,8 @@ class IntrospectionMech:
             schema, link = s_links.Link.create_in_schema(
                 schema,
                 id=r['id'],
-                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
+                inherited_fields=self._unpack_inherited_fields(
+                    r['inherited_fields']),
                 name=name,
                 source=source,
                 target=target,
@@ -715,7 +717,8 @@ class IntrospectionMech:
             schema, prop = s_props.Property.create_in_schema(
                 schema,
                 id=r['id'],
-                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
+                inherited_fields=self._unpack_inherited_fields(
+                    r['inherited_fields']),
                 name=name, source=source, target=target, required=required,
                 readonly=r['readonly'],
                 expr=(self.unpack_expr(r['expr'], schema)
@@ -764,7 +767,8 @@ class IntrospectionMech:
             schema, _ = s_anno.Annotation.create_in_schema(
                 schema,
                 id=r['id'],
-                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
+                inherited_fields=self._unpack_inherited_fields(
+                    r['inherited_fields']),
                 name=name,
                 inheritable=r['inheritable'],
             )
@@ -788,7 +792,8 @@ class IntrospectionMech:
             schema, anno = s_anno.AnnotationValue.create_in_schema(
                 schema,
                 id=r['id'],
-                field_inh_map=self._unpack_field_inh_map(r['field_inh_map']),
+                inherited_fields=self._unpack_inherited_fields(
+                    r['inherited_fields']),
                 name=name,
                 subject=subject,
                 annotation=anno,
@@ -818,8 +823,8 @@ class IntrospectionMech:
         for name, row in objtype_list.items():
             objtype = {
                 'id': row['id'],
-                'field_inh_map': self._unpack_field_inh_map(
-                    row['field_inh_map']),
+                'inherited_fields': self._unpack_inherited_fields(
+                    row['inherited_fields']),
                 'name': name,
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],

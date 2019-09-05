@@ -33,7 +33,7 @@ async def fetch(
                 a.id                    AS id,
                 a.name                  AS name,
                 a.inheritable           AS inheritable,
-                a.field_inh_map         AS field_inh_map
+                a.inherited_fields           AS inherited_fields
             FROM
                 edgedb.annotation a
             WHERE
@@ -64,7 +64,7 @@ async def fetch_values(
                                             AS annotation_name,
                 a.value                     AS value,
                 a.inheritable               AS inheritable,
-                a.field_inh_map             AS field_inh_map
+                a.inherited_fields               AS inherited_fields
             FROM
                 edgedb.AnnotationValue a
             WHERE

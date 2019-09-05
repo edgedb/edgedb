@@ -24,6 +24,8 @@ import collections
 import collections.abc
 import typing
 
+import immutables as immu
+
 from edb import errors
 
 from edb.common import adapter
@@ -777,13 +779,12 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         metaclass = self.get_schema_metaclass()
         return schema.get(name, type=metaclass)
 
-    def get_inheritance_map(self, schema, context):
+    def compute_inherited_fields(self, schema, context):
         result = {}
         for op in self.get_subcommands(type=AlterObjectProperty):
-            if op.source == 'inheritance':
-                result[op.property] = True
+            result[op.property] = op.source == 'inheritance'
 
-        return result
+        return immu.Map(result)
 
     def _prepare_field_updates(self, schema, context):
         result = {}

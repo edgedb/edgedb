@@ -40,7 +40,7 @@ async def fetch(
                 c.view_type AS view_type,
                 c.view_is_persistent AS view_is_persistent,
                 c.expr AS expr,
-                c.field_inh_map AS field_inh_map
+                c.inherited_fields AS inherited_fields
 
             FROM
                 edgedb.BaseObjectType c
@@ -68,7 +68,7 @@ async def fetch_derived(
                 c.view_type AS view_type,
                 c.view_is_persistent AS view_is_persistent,
                 c.expr AS expr,
-                c.field_inh_map AS field_inh_map
+                c.inherited_fields AS inherited_fields
             FROM
                 edgedb.DerivedObjectType c
             WHERE

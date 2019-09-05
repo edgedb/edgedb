@@ -52,7 +52,7 @@ async def fetch(
                                         AS params,
                 a.return_type           AS return_type,
                 a.return_typemod        AS return_typemod,
-                a.field_inh_map         AS field_inh_map
+                a.inherited_fields           AS inherited_fields
 
             FROM
                 edgedb.constraint a
