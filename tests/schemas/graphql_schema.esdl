@@ -84,21 +84,3 @@ type ScalarTest {
     property p_array_json -> array<json>;
     property p_array_bytes -> array<bytes>;
 }
-
-# Inheritance tests
-type Bar {
-    property q -> str
-}
-
-type Bar2 extending Bar {
-    property w -> str
-}
-
-type Rab {
-    # target type will be overridden
-    link blah -> Bar
-}
-
-type Rab2 extending Rab {
-    inherited link blah -> Bar2;
-}
