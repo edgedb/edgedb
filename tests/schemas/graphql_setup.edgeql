@@ -113,3 +113,24 @@ INSERT ScalarTest {
     p_array_json := [<json>'hello', <json>'world'],
     p_array_bytes := [b'hello', b'world'],
 };
+
+# Inheritance tests
+INSERT Bar {
+    q := 'bar'
+};
+
+
+INSERT Bar2 {
+    q := 'bar2',
+    w := 'special'
+};
+
+
+INSERT Rab {
+    blah := (SELECT Bar LIMIT 1)
+};
+
+
+INSERT Rab2 {
+    blah := (SELECT Bar2 LIMIT 1)
+};
