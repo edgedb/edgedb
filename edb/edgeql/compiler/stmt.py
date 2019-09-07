@@ -151,6 +151,12 @@ def compile_ForQuery(
             path_scope=iterator_scope_parent,
             ctx=sctx,
         )
+        # Iterator symbol is, by construction, outside of the scope
+        # of the UNION argument, but is perfectly legal to be referenced
+        # inside a factoring fence that is an immediate child of this
+        # scope.
+        iterator_scope_parent.factoring_whitelist.add(
+            stmt.iterator_stmt.path_id)
         node = iterator_scope_parent.find_descendant(iterator_stmt.path_id)
         if node is not None:
             node.attach_subtree(iterator_scope)
@@ -234,6 +240,13 @@ def compile_GroupQuery(
 @dispatch.compile.register(qlast.InsertQuery)
 def compile_InsertQuery(
         expr: qlast.InsertQuery, *, ctx: context.ContextLevel) -> irast.Set:
+
+    if ctx.in_conditional is not None:
+        raise errors.QueryError(
+            'INSERT statements cannot be used inside conditional expressions',
+            context=expr.context,
+        )
+
     with ctx.subquery() as ictx:
         stmt = irast.InsertStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -292,6 +305,13 @@ def compile_InsertQuery(
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
+
+    if ctx.in_conditional is not None:
+        raise errors.QueryError(
+            'UPDATE statements cannot be used inside conditional expressions',
+            context=expr.context,
+        )
+
     with ctx.subquery() as ictx:
         stmt = irast.UpdateStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
@@ -345,6 +365,13 @@ def compile_UpdateQuery(
 @dispatch.compile.register(qlast.DeleteQuery)
 def compile_DeleteQuery(
         expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Set:
+
+    if ctx.in_conditional is not None:
+        raise errors.QueryError(
+            'DELETE statements cannot be used inside conditional expressions',
+            context=expr.context,
+        )
+
     with ctx.subquery() as ictx:
         stmt = irast.DeleteStmt()
         # Expand the DELETE from sugar into full DELETE (SELECT ...)
@@ -575,6 +602,9 @@ def init_stmt(
             ctx.path_scope.unnest_fence = True
         if metadata.iterator_target:
             ctx.iterator_ctx = ctx
+
+    if isinstance(irstmt, irast.MutatingStmt):
+        ctx.path_scope.factoring_fence = True
 
     irstmt.parent_stmt = parent_ctx.stmt
 

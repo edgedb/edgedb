@@ -1615,3 +1615,63 @@ class TestInsert(tb.QueryTestCase):
                 },
             ]
         )
+
+    async def test_edgeql_insert_in_conditional_bad_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'INSERT statements cannot be used'):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT
+                    (SELECT Subordinate FILTER .name = 'foo')
+                    ??
+                    (INSERT Subordinate { name := 'no way' });
+            ''')
+
+    async def test_edgeql_insert_in_conditional_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'INSERT statements cannot be used'):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT
+                    (SELECT Subordinate FILTER .name = 'foo')
+                    IF EXISTS Subordinate
+                    ELSE (
+                        (SELECT Subordinate)
+                        UNION
+                        (INSERT Subordinate { name := 'no way' })
+                    );
+            ''')
+
+    async def test_edgeql_insert_correlated_bad_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "cannot reference correlated set 'Subordinate' here"):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT (
+                    Subordinate,
+                    (INSERT InsertTest {
+                        name := 'insert bad',
+                        l2 := 0,
+                        subordinates := Subordinate
+                    })
+                );
+            ''')
+
+    async def test_edgeql_insert_correlated_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "cannot reference correlated set 'Subordinate' here"):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT (
+                    (INSERT InsertTest {
+                        name := 'insert bad',
+                        l2 := 0,
+                        subordinates := Subordinate
+                    }),
+                    Subordinate,
+                );
+            ''')

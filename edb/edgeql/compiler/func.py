@@ -200,6 +200,14 @@ def compile_FunctionCall(
     return setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
 
 
+#: A dictionary of conditional callables and the indices
+#: of the arguments that are evaluated conditionally.
+CONDITIONAL_OPS = {
+    'std::IF': {0, 2},
+    'std::??': {1},
+}
+
+
 def compile_operator(
         qlexpr: qlast.Base, op_name: str, qlargs: typing.List[qlast.Base], *,
         ctx: context.ContextLevel) -> irast.Set:
@@ -213,12 +221,18 @@ def compile_operator(
             f'no operator matches the given name and argument types',
             context=qlexpr.context)
 
+    fq_op_name = next(iter(opers)).get_shortname(ctx.env.schema)
+    conditional_args = CONDITIONAL_OPS.get(fq_op_name)
+
     args = []
     for ai, qlarg in enumerate(qlargs):
         with ctx.newscope(fenced=True) as fencectx:
             # We put on a SET OF fence preemptively in case this is
             # a SET OF arg, which we don't know yet due to polymorphic
             # matching.  We will remove it if necessary in `finalize_args()`.
+            if conditional_args and ai in conditional_args:
+                fencectx.in_conditional = qlexpr.context
+
             arg_ir = setgen.ensure_set(
                 dispatch.compile(qlarg, ctx=fencectx),
                 ctx=fencectx)

@@ -1823,3 +1823,59 @@ class TestUpdate(tb.QueryTestCase):
                 },
             ]
         )
+
+    async def test_edgeql_update_in_conditional_bad_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'UPDATE statements cannot be used'):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT
+                    (SELECT UpdateTest)
+                    ??
+                    (UPDATE UpdateTest SET { name := 'no way' });
+            ''')
+
+    async def test_edgeql_update_in_conditional_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'UPDATE statements cannot be used'):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT
+                    (SELECT UpdateTest FILTER .name = 'foo')
+                    IF EXISTS UpdateTest
+                    ELSE (
+                        (SELECT UpdateTest)
+                        UNION
+                        (UPDATE UpdateTest SET { name := 'no way' })
+                    );
+            ''')
+
+    async def test_edgeql_update_correlated_bad_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "cannot reference correlated set 'Status' here"):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT (
+                    Status,
+                    (UPDATE UpdateTest SET {
+                        status := Status
+                    })
+                );
+            ''')
+
+    async def test_edgeql_update_correlated_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "cannot reference correlated set 'Status' here"):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT (
+                    (UPDATE UpdateTest SET {
+                        status := Status
+                    }),
+                    Status,
+                );
+            ''')
