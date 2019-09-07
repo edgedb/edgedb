@@ -89,7 +89,7 @@ class SQLBlock:
                  for cmd in self.commands)
         body = '\n\n'.join(stmt + ';' if stmt[-1] != ';' else stmt
                            for stmt in stmts).rstrip()
-        if body[-1] != ';':
+        if body and body[-1] != ';':
             body += ';'
 
         return body
