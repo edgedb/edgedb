@@ -37,6 +37,17 @@ class InvalidScopeConfiguration(Exception):
         self.existing_node = existing_node
 
 
+class FenceInfo(NamedTuple):
+    unnest_fence: bool
+    factoring_fence: bool
+
+    def __or__(self, other: FenceInfo) -> FenceInfo:
+        return FenceInfo(
+            unnest_fence=self.unnest_fence or other.unnest_fence,
+            factoring_fence=self.factoring_fence or other.factoring_fence,
+        )
+
+
 class ScopeTreeNode:
     unique_id: Optional[int]
     """A unique identifier used to map scopes on sets."""
@@ -52,6 +63,12 @@ class ScopeTreeNode:
 
     unnest_fence: bool
     """Prevent unnesting in parents."""
+
+    factoring_fence: bool
+    """Prevent prefix factoring across this node."""
+
+    factoring_whitelist: Set[pathid.PathId]
+    """A list of prefixes that are always allowed to be factored."""
 
     optional: bool
     """Whether this node represents an optional path."""
@@ -80,6 +97,8 @@ class ScopeTreeNode:
         self.fenced = fenced
         self.protect_parent = False
         self.unnest_fence = False
+        self.factoring_fence = False
+        self.factoring_whitelist = set()
         self.optional = False
         self.children = set()
         self.namespaces = set()
@@ -95,6 +114,7 @@ class ScopeTreeNode:
             fenced=self.fenced)
         cp.optional = self.optional
         cp.unnest_fence = self.unnest_fence
+        cp.factoring_fence = self.factoring_fence
         cp.namespaces = set(self.namespaces)
         cp.unique_id = self.unique_id
         cp._set_parent(parent)
@@ -123,8 +143,17 @@ class ScopeTreeNode:
             parts.append(','.join(self.namespaces))
         if self.unnest_fence:
             parts.append('no-unnest')
+        if self.factoring_fence:
+            parts.append('no-factor')
         parts.append(f'0x{id(self):0x}')
         return ' '.join(parts)
+
+    @property
+    def fence_info(self) -> FenceInfo:
+        return FenceInfo(
+            unnest_fence=self.unnest_fence,
+            factoring_fence=self.factoring_fence,
+        )
 
     @property
     def ancestors(self) -> Iterator[ScopeTreeNode]:
@@ -195,16 +224,27 @@ class ScopeTreeNode:
     @property
     def strict_descendants_and_namespaces(
         self,
-    ) -> Iterator[Tuple[ScopeTreeNode, AbstractSet[pathid.AnyNamespace]]]:
+    ) -> Iterator[
+        Tuple[
+            ScopeTreeNode,
+            AbstractSet[pathid.AnyNamespace],
+            FenceInfo
+        ]
+    ]:
         """An iterator of node's descendants and namespaces.
 
         Does not include self. Top-first.
         """
         for child in tuple(self.children):
-            yield child, child.namespaces
+            finfo = child.fence_info
+            yield child, child.namespaces, finfo
             desc_ns = child.strict_descendants_and_namespaces
-            for desc, desc_namespaces in desc_ns:
-                yield desc, child.namespaces | desc_namespaces
+            for desc, desc_namespaces, desc_finfo in desc_ns:
+                yield (
+                    desc,
+                    child.namespaces | desc_namespaces,
+                    finfo | desc_finfo,
+                )
 
     @property
     def descendant_namespaces(self) -> Set[pathid.AnyNamespace]:
@@ -362,8 +402,20 @@ class ScopeTreeNode:
 
         for descendant in node.path_descendants:
             path_id = descendant.path_id.strip_namespace(dns)
-            visible = self.find_visible(path_id)
+            visible, visible_finfo = self.find_visible_ex(path_id)
             if visible is not None:
+                if visible_finfo is not None and visible_finfo.factoring_fence:
+                    # This node is already present in the surrounding
+                    # scope and cannot be factored out, such as
+                    # a reference to a correlated set inside a DML
+                    # statement.
+                    raise InvalidScopeConfiguration(
+                        f'cannot reference correlated set '
+                        f'{path_id.pformat()!r} here',
+                        offending_node=descendant,
+                        existing_node=visible,
+                    )
+
                 # This path is already present in the tree, discard,
                 # but keep its OPTIONAL status, if any.
                 descendant.remove()
@@ -377,7 +429,21 @@ class ScopeTreeNode:
                 # any of our ancestors.
                 # If found, attach the node directly to its parent fence
                 # and remove all other occurrences.
-                existing, existing_ns = self.find_descendant_and_ns(path_id)
+                existing, existing_ns, existing_finfo = (
+                    self.find_descendant_and_ns(path_id))
+                if (existing is not None and existing_finfo is not None
+                        and existing_finfo.factoring_fence):
+                    # This node is already present in the surrounding
+                    # scope and cannot be factored out, such as
+                    # a reference to a correlated set inside a DML
+                    # statement.
+                    raise InvalidScopeConfiguration(
+                        f'cannot reference correlated set '
+                        f'{path_id.pformat()!r} here',
+                        offending_node=descendant,
+                        existing_node=existing,
+                    )
+
                 unnest_fence = False
                 parent_fence = None
                 if existing is None:
@@ -558,26 +624,53 @@ class ScopeTreeNode:
 
         return paths
 
-    def find_visible(
+    def find_visible_ex(
         self,
         path_id: pathid.PathId,
-    ) -> Optional[ScopeTreeNode]:
+    ) -> Tuple[Optional[ScopeTreeNode], Optional[FenceInfo]]:
         """Find the visible node with the given *path_id*."""
-        namespaces: Set[str] = set()
+        namespaces: Set[pathid.AnyNamespace] = set()
+        finfo = None
+        found = None
 
         for node, ans in self.ancestors_and_namespaces:
             if (node.path_id is not None
                     and _paths_equal(node.path_id, path_id, namespaces)):
-                return node
+                found = node
+                break
 
             for child in node.children:
                 if (child.path_id is not None
                         and _paths_equal(child.path_id, path_id, namespaces)):
-                    return child
+                    found = child
+                    break
+
+            if found is not None:
+                break
 
             namespaces |= ans
 
-        return None
+            if node is not self:
+                ans_finfo = node.fence_info
+                parent_fence = node.parent_fence
+                if (parent_fence is not None
+                        and any(_paths_equal(path_id, wl, namespaces)
+                                for wl in parent_fence.factoring_whitelist)):
+                    ans_finfo = FenceInfo(
+                        unnest_fence=ans_finfo.unnest_fence,
+                        factoring_fence=False,
+                    )
+
+                if finfo is None:
+                    finfo = ans_finfo
+                else:
+                    finfo = finfo | ans_finfo
+
+        return found, finfo
+
+    def find_visible(self, path_id: pathid.PathId) -> Optional[ScopeTreeNode]:
+        node, _ = self.find_visible_ex(path_id)
+        return node
 
     def is_visible(self, path_id: pathid.PathId) -> bool:
         return self.find_visible(path_id) is not None
@@ -601,25 +694,31 @@ class ScopeTreeNode:
 
         return None
 
-    def find_descendant(self, path_id: pathid.PathId) \
-            -> Optional[ScopeTreeNode]:
-        for descendant, dns in self.strict_descendants_and_namespaces:
+    def find_descendant(
+        self,
+        path_id: pathid.PathId,
+    ) -> Optional[ScopeTreeNode]:
+        for descendant, dns, _ in self.strict_descendants_and_namespaces:
             if (descendant.path_id is not None
                     and _paths_equal(descendant.path_id, path_id, dns)):
                 return descendant
 
         return None
 
-    def find_descendant_and_ns(self, path_id: pathid.PathId) \
-            -> Tuple[
-                Optional[ScopeTreeNode],
-                AbstractSet[str]]:
-        for descendant, dns in self.strict_descendants_and_namespaces:
+    def find_descendant_and_ns(
+        self,
+        path_id: pathid.PathId
+    ) -> Tuple[
+        Optional[ScopeTreeNode],
+        AbstractSet[pathid.AnyNamespace],
+        Optional[FenceInfo],
+    ]:
+        for descendant, dns, finfo in self.strict_descendants_and_namespaces:
             if (descendant.path_id is not None
                     and _paths_equal(descendant.path_id, path_id, dns)):
-                return descendant, dns
+                return descendant, dns, finfo
 
-        return None, frozenset()
+        return None, frozenset(), None
 
     def find_unfenced(self, path_id: pathid.PathId) \
             -> Tuple[Optional[ScopeTreeNode], bool]:

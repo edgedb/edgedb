@@ -463,3 +463,31 @@ class TestDelete(tb.QueryTestCase):
                 'name': 'not delete union 2'
             }],
         )
+
+    async def test_edgeql_delete_in_conditional_bad_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'DELETE statements cannot be used'):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT
+                    (SELECT DeleteTest2)
+                    ??
+                    (DELETE DeleteTest2);
+            ''')
+
+    async def test_edgeql_update_in_conditional_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                'DELETE statements cannot be used'):
+            await self.con.execute(r'''
+                WITH MODULE test
+                SELECT
+                    (SELECT DeleteTest FILTER .name = 'foo')
+                    IF EXISTS DeleteTest
+                    ELSE (
+                        (SELECT DeleteTest)
+                        UNION
+                        (DELETE DeleteTest)
+                    );
+            ''')

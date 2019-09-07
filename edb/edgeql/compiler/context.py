@@ -435,6 +435,9 @@ class ContextLevel(compiler.ContextLevel):
     defining_view: bool
     """Whether a view is currently being defined (as opposed to be compiled)"""
 
+    in_conditional: Optional[parsing.ParserContext]
+    """Whether currently in a conditional branch."""
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -442,6 +445,7 @@ class ContextLevel(compiler.ContextLevel):
         *,
         env: Optional[Environment] = None,
     ) -> None:
+
         self.mode = mode
 
         if prevlevel is None:
@@ -488,6 +492,7 @@ class ContextLevel(compiler.ContextLevel):
             self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
             self.defining_view = False
+            self.in_conditional = None
 
         else:
             self.env = prevlevel.env
@@ -526,6 +531,7 @@ class ContextLevel(compiler.ContextLevel):
                 prevlevel.special_computables_in_mutation_shape
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
             self.defining_view = prevlevel.defining_view
+            self.in_conditional = prevlevel.in_conditional
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

@@ -417,7 +417,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             # along with the view scope.
             continue
 
-        fuse_scope_branch(ir_set, node, scope, ctx=ctx)
+        node.fuse_subtree(scope)
         if ir_set.path_scope_id is None:
             pathctx.assign_set_scope(ir_set, node, ctx=ctx)
 
@@ -453,28 +453,6 @@ def resolve_special_anchor(
         )
 
     return path_tip
-
-
-def fuse_scope_branch(
-        ir_set: irast.Set, parent: irast.ScopeTreeNode,
-        branch: irast.ScopeTreeNode, *,
-        ctx: context.ContextLevel) -> None:
-    if parent.path_id is None:
-        parent.attach_subtree(branch)
-    else:
-        if branch.path_id is None and len(branch.children) == 1:
-            target_branch = next(iter(branch.children))
-        else:
-            target_branch = branch
-
-        if parent.path_id == target_branch.path_id:
-            new_root = irast.new_scope_tree()
-            for child in tuple(target_branch.children):
-                new_root.attach_child(child)
-
-            parent.attach_subtree(new_root)
-        else:
-            parent.attach_subtree(branch)
 
 
 def ptr_step_set(
