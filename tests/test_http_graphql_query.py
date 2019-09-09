@@ -5094,3 +5094,28 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 ]
             }
         })
+
+
+class TestGraphQLInit(tb.GraphQLTestCase):
+    """Test GraphQL initialization on an empty database."""
+
+    # GraphQL queries cannot run in a transaction
+    ISOLATED_METHODS = False
+
+    def test_graphql_init_type_01(self):
+        # An empty database should still have an "Object" interface.
+        self.assert_graphql_query_result(r"""
+            query {
+                __type(name: "Object") {
+                    __typename
+                    name
+                    kind
+                }
+            }
+        """, {
+            "__type": {
+                "kind": "INTERFACE",
+                "name": "Object",
+                "__typename": "__Type"
+            }
+        })
