@@ -132,10 +132,19 @@ class GQLCoreSchema:
             fields=self.get_fields('Query'),
         )
 
-        mutation = self._gql_objtypes['Mutation'] = GraphQLObjectType(
-            name='Mutation',
-            fields=self.get_fields('Mutation'),
-        )
+        # If a database only has abstract types and scalars, no
+        # mutations will be possible (such as in a blank database),
+        # but we would still want the reflection to work without
+        # error, even if all that can be discovered through GraphQL
+        # then is the schema.
+        fields = self.get_fields('Mutation')
+        if fields:
+            mutation = self._gql_objtypes['Mutation'] = GraphQLObjectType(
+                name='Mutation',
+                fields=fields,
+            )
+        else:
+            mutation = None
 
         # get a sorted list of types relevant for the Schema
         types = [
