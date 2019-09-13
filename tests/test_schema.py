@@ -29,6 +29,7 @@ from edb.schema import delta as s_delta
 from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
+from edb.tools import test
 
 
 class TestSchema(tb.BaseSchemaLoadTest):
@@ -593,6 +594,35 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 f'DDL text was:\n{ddl_text}'
             )
 
+    def _assert_migration_equivalence(self, migrations):
+        # Compare 2 schemas obtained by multiple-step migration to a
+        # single-step migration.
+
+        # Validate that the final schema state has consistent migration.
+        self._assert_migration_consistency(migrations[-1])
+
+        # Jump to final schema state in a single migration.
+        single_migration = self.load_schema(migrations[-1])
+
+        # Evolve a schema in a series of migrations.
+        multi_migration = self.load_schema(migrations[0])
+        for i, state in enumerate(migrations[1:]):
+            multi_migration = self.run_ddl(multi_migration, f'''
+                CREATE MIGRATION m{i} TO {{
+                    {state}
+                }};
+                COMMIT MIGRATION m{i};
+            ''', 'test')
+
+        diff = s_ddl.delta_modules(single_migration, multi_migration, ['test'])
+
+        if list(diff.get_subcommands()):
+            self.fail(
+                f'unexpected difference in schema produced by\n'
+                f'alternative migration paths:\n'
+                f'{markup.dumps(diff)}\n'
+            )
+
     def test_get_migration_01(self):
 
         schema = '''
@@ -688,3 +718,663 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         '''
 
         self._assert_migration_consistency(schema)
+
+    def test_migrations_equivalence_01(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            type Base {
+                property name -> str;
+            }
+        """, r"""
+            type Base {
+                property name -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property name -> str;
+            }
+        """])
+
+    def test_migrations_equivalence_02(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """, r"""
+            type Base {
+                # rename 'foo'
+                property foo2 -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo2 -> str;
+            }
+        """])
+
+    @test.xfail('''
+        edb.errors.SchemaError: cannot drop inherited property 'foo'
+        of object type 'test::Derived'
+
+        DETAILS: property 'foo' of object type 'test::Derived' is
+        inherited from:
+        - object type 'test::Base'
+    ''')
+    def test_migrations_equivalence_03(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """, r"""
+            type Base;
+                # drop 'foo'
+
+            type Derived extending Base {
+                # completely different property
+                property foo2 -> str;
+            }
+        """])
+
+    @test.xfail('''
+        edb.errors.SchemaError: cannot drop inherited property 'foo'
+        of object type 'test::Further'
+
+        DETAILS: property 'foo' of object type 'test::Further' is
+        inherited from:
+        - object type 'test::Derived'
+    ''')
+    def test_migrations_equivalence_04(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+
+            type Derived extending Base;
+
+            type Further extending Derived {
+                inherited required property foo -> str;
+            }
+        """, r"""
+            type Base;
+                # drop 'foo'
+
+            type Derived extending Base;
+
+            type Further extending Derived {
+                # completely different property
+                required property foo2 -> str;
+            };
+        """])
+
+    @test.xfail('''
+        edb.errors.SchemaError: cannot drop property 'foo' of object
+        type 'test::Base' because other objects in the schema depend
+        on it
+
+        DETAILS: property 'foo' of object type 'test::Derived' depends on foo
+    ''')
+    def test_migrations_equivalence_05(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """, r"""
+            type Base;
+                # drop foo
+
+            type Derived extending Base {
+                # completely different property, but with the same old
+                # name 'foo'
+                property foo -> str;
+            }
+        """])
+
+    def test_migrations_equivalence_06(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """, r"""
+            type Base {
+                # change property type
+                property foo -> int64;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> int64;
+            }
+        """])
+
+    def test_migrations_equivalence_07(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link bar -> Child;
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                required link bar -> Child {
+                    # add a constraint
+                    constraint exclusive;
+                }
+            }
+        """])
+
+    @test.xfail('''
+        Fails in _assert_migration_consistency for the final state:
+
+        edb.errors.InvalidReferenceError: object type or view 'max'
+        does not exist
+    ''')
+    def test_migrations_equivalence_08(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+        """, r"""
+            type Base {
+                required property foo -> str {
+                    # add a constraint
+                    constraint max_len_value(10);
+                }
+            }
+        """])
+
+    @test.xfail('''
+        Fails in _assert_migration_consistency for the final state:
+
+        edb.errors.InvalidReferenceError: object type or view 'max'
+        does not exist
+    ''')
+    def test_migrations_equivalence_09(self):
+        self._assert_migration_equivalence([r"""
+            scalar type constraint_length extending str {
+                constraint max_len_value(10);
+            }
+        """, r"""
+            scalar type constraint_length extending str {
+                constraint max_len_value(10);
+                # add a constraint
+                constraint min_len_value(5);
+            }
+        """])
+
+    def test_migrations_equivalence_10(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                # change property to link with same name
+                link foo -> Child;
+            }
+        """])
+
+    def test_migrations_equivalence_11(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                # change property to link with same name
+                link foo -> Child {
+                    # add a constraint
+                    constraint exclusive;
+                }
+            }
+        """])
+
+    def test_migrations_equivalence_12(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                property foo -> str {
+                    constraint exclusive;
+                }
+
+                link bar -> Child {
+                    constraint exclusive;
+                }
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                # drop constraints
+                property foo -> str;
+                link bar -> Child;
+            }
+        """])
+
+    @test.xfail('''
+        edb.errors.SchemaError: cannot drop link 'bar' of object type
+        'test::Base' because other objects in the schema depend on
+        it
+
+        DETAILS: link 'bar' of object type 'test::Derived' depends on bar
+    ''')
+    def test_migrations_equivalence_13(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link bar -> Child;
+            }
+
+            type Derived extending Base {
+                inherited required link bar -> Child;
+            }
+        """, r"""
+            type Child;
+
+            type Base;
+                # drop 'bar'
+
+            type Derived extending Base {
+                # completely different link
+                link bar -> Child;
+            }
+        """])
+
+    def test_migrations_equivalence_14(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+
+            type Derived extending Base {
+                property foo -> str;
+            }
+        """, r"""
+            type Base {
+                # move the property earlier in the inheritance
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """])
+
+    def test_migrations_equivalence_15(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base;
+
+            type Derived extending Base {
+                link bar -> Child;
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                # move the link earlier in the inheritance
+                link bar -> Child;
+            }
+
+            type Derived extending Base;
+        """])
+
+    @test.xfail('''
+        Fails in _assert_migration_consistency for the final state
+    ''')
+    def test_migrations_equivalence_16(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base;
+
+            type Derived extending Base {
+                link bar -> Child;
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                # move the link earlier in the inheritance
+                link bar -> Child;
+            }
+
+            type Derived extending Base;
+        """, r"""
+            type Child;
+
+            type Base {
+                link bar -> Child;
+            }
+
+            type Derived extending Base {
+                # also make the link 'required'
+                inherited required link bar -> Child;
+            }
+        """])
+
+    @test.xfail('''
+        Fails in python:
+        AttributeError: 'NoneType' object has no attribute 'text'
+    ''')
+    def test_migrations_equivalence_17(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name := 'computable'
+            }
+        """, r"""
+            type Base {
+                # change a property from a computable to regular
+                property name -> str
+            }
+        """])
+
+    @test.xfail('''
+        Fails in python:
+        AttributeError: 'NoneType' object has no attribute 'text'
+    ''')
+    def test_migrations_equivalence_18(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name := 'something'
+            }
+        """, r"""
+            type Base {
+                # change a property from a computable to regular with a default
+                property name -> str {
+                    default := 'something'
+                }
+            }
+        """])
+
+    def test_migrations_equivalence_19(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str
+            }
+        """, r"""
+            type Base {
+                # change a regular property to a computable
+                property name := 'computable'
+            }
+        """])
+
+    @test.xfail('''
+        Fails in python:
+        AttributeError: 'NoneType' object has no attribute 'text'
+    ''')
+    def test_migrations_equivalence_20(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str {
+                    default := 'something'
+                }
+            }
+        """, r"""
+            type Base {
+                # change a regular property to a computable
+                property name := 'something'
+            }
+        """])
+
+    def test_migrations_equivalence_21(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+        """, r"""
+            type Base {
+                property foo -> str;
+                # add a property
+                property bar -> int64;
+            }
+        """, r"""
+            type Base {
+                # make the old property into a computable
+                property foo := <str>__source__.bar;
+                property bar -> int64;
+            }
+        """])
+
+    def test_migrations_equivalence_22(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> str;
+            }
+        """, r"""
+            # rename the type, although this test doesn't ensure that
+            # renaming actually took place
+            type NewBase {
+                property foo -> str;
+            }
+        """, r"""
+            type NewBase {
+                property foo -> str;
+                # add a property
+                property bar -> int64;
+            }
+        """, r"""
+            type NewBase {
+                # drop 'foo'
+                property bar -> int64;
+            }
+
+            # add a view to emulate the original
+            view Base := (
+                SELECT NewBase {
+                    foo := <str>.bar
+                }
+            );
+        """])
+
+    @test.xfail('''
+        Fails in _assert_migration_consistency for the final state:
+
+        edb.errors.InvalidReferenceError: schema item 'std::Base'
+        does not exist
+    ''')
+    def test_migrations_equivalence_23(self):
+        self._assert_migration_equivalence([r"""
+            type Child {
+                property foo -> str;
+            }
+
+            type Base {
+                link bar -> Child;
+            }
+
+            view View01 := (
+                SELECT Base {
+                    child_foo := .bar.foo
+                }
+            );
+        """, r"""
+            type Child {
+                property foo -> str;
+            }
+
+            # exchange a type for a view
+            view Base := (
+                SELECT Child {
+                    # bar is the same as the root object
+                    bar := Child
+                }
+            );
+
+            view View01 := (
+                # now this view refers to another view
+                SELECT Base {
+                    child_foo := .bar.foo
+                }
+            );
+        """])
+
+    def test_migrations_equivalence_24(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link bar -> Child;
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                # increase link cardinality
+                multi link bar -> Child;
+            }
+        """])
+
+    def test_migrations_equivalence_25(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                multi link bar -> Child;
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                # reduce link cardinality
+                link bar -> Child;
+            }
+        """, r"""
+            type Child;
+
+            type Base {
+                link bar -> Child {
+                    # further restrict the link
+                    constraint exclusive
+                }
+            }
+        """])
+
+    def test_migrations_equivalence_26(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Parent {
+                link bar -> Child;
+            }
+        """, r"""
+            type Child;
+
+            type Parent {
+                link bar -> Child;
+            }
+
+            # derive a type
+            type DerivedParent extending Parent;
+        """, r"""
+            type Child;
+
+            type DerivedChild extending Child;
+
+            type Parent {
+                link bar -> Child;
+            }
+
+            # derive a type with a more restrictive link
+            type DerivedParent extending Parent {
+                inherited link bar -> DerivedChild;
+            }
+        """])
+
+    def test_migrations_equivalence_27(self):
+        self._assert_migration_equivalence([r"""
+            abstract type Named {
+                property name -> str;
+            }
+
+            type Foo extending Named;
+            type Bar extending Named;
+        """, r"""
+            abstract type Named {
+                property name -> str;
+            }
+
+            # the types stop extending named, but retain the property
+            # 'name'
+            type Foo {
+                property name -> str;
+            };
+
+            type Bar {
+                property name -> str;
+            };
+        """, r"""
+            abstract type Named {
+                property name -> str;
+            }
+
+            type Foo {
+                property name -> str;
+            };
+
+            type Bar {
+                # rename 'name' to 'title'
+                property title -> str;
+            };
+        """])
+
+    @test.xfail('''
+        edb.errors.SchemaError: cannot drop inherited link '__type__'
+        of object type 'test::Child'
+
+        DETAILS: link '__type__' of object type 'test::Child' is
+        inherited from:
+        - object type 'std::Object'
+    ''')
+    def test_migrations_equivalence_28(self):
+        self._assert_migration_equivalence([r"""
+            type Child {
+                property foo -> str;
+            }
+        """, r"""
+            # drop everything
+        """])
+
+    @test.xfail('''
+        edb.errors.SchemaError: cannot drop inherited link '__type__'
+        of object type 'test::Base'
+
+        DETAILS: link '__type__' of object type 'test::Base' is
+        inherited from:
+        - object type 'test::Child'
+    ''')
+    def test_migrations_equivalence_29(self):
+        self._assert_migration_equivalence([r"""
+            type Child {
+                property foo -> str;
+            }
+
+            view Base := (
+                SELECT Child {
+                    bar := .foo
+                }
+            );
+        """, r"""
+            # drop everything
+        """])

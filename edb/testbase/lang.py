@@ -223,7 +223,7 @@ class BaseSchemaTest(BaseDocTest):
             cls.schema = cls.run_ddl(_load_std_schema(), script)
 
     @classmethod
-    def run_ddl(cls, schema, ddl):
+    def run_ddl(cls, schema, ddl, default_module=defines.DEFAULT_MODULE_ALIAS):
         statements = edgeql.parse_block(ddl)
 
         current_schema = schema
@@ -237,7 +237,7 @@ class BaseSchemaTest(BaseDocTest):
 
                 ddl_plan = s_ddl.cmd_from_ddl(
                     stmt, schema=current_schema,
-                    modaliases={None: defines.DEFAULT_MODULE_ALIAS},
+                    modaliases={None: default_module},
                     testmode=True)
 
                 ddl_plan = s_ddl.compile_migration(
@@ -247,7 +247,7 @@ class BaseSchemaTest(BaseDocTest):
                 # APPLY MIGRATION
                 delta_cmd = s_ddl.cmd_from_ddl(
                     stmt, schema=current_schema,
-                    modaliases={None: defines.DEFAULT_MODULE_ALIAS},
+                    modaliases={None: default_module},
                     testmode=True)
                 delta = current_schema.get(delta_cmd.classname)
                 ddl_plan = sd.DeltaRoot(canonical=True)
@@ -257,7 +257,7 @@ class BaseSchemaTest(BaseDocTest):
                 # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)
                 ddl_plan = s_ddl.delta_from_ddl(
                     stmt, schema=current_schema,
-                    modaliases={None: defines.DEFAULT_MODULE_ALIAS},
+                    modaliases={None: default_module},
                     testmode=True)
 
             else:
