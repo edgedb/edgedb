@@ -102,6 +102,9 @@ INSERT User {
         FILTER .element IN {'Fire', 'Water'}
     ),
     awards := Award,
+    avatar := (
+        SELECT Card {@text := 'Best'} FILTER .name = 'Dragon'
+    ),
 };
 
 WITH MODULE test

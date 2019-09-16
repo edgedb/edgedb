@@ -101,6 +101,7 @@ constraint_res = {
     'cardinality': re.compile(r'^.*".*_cardinality_idx".*$'),
     'link_target': re.compile(r'^.*link target constraint$'),
     'constraint': re.compile(r'^.*;schemaconstr(?:#\d+)?".*$'),
+    'newconstraint': re.compile(r'^.*violate the new constraint.*$'),
     'id': re.compile(r'^.*"(?:\w+)_data_pkey".*$'),
     'link_target_del': re.compile(r'^.*link target policy$'),
 }
@@ -255,6 +256,18 @@ def static_interpret_backend_error(fields):
 
             return SchemaRequired
 
+        elif error_type == 'newconstraint':
+            # We can reconstruct what went wrong from the schema_name,
+            # table_name, and column_name. But we don't expect
+            # constraint_name to be present (because the constraint is
+            # not yet present in the schema?).
+            if (err_details.schema_name and err_details.table_name and
+                    err_details.column_name):
+                return SchemaRequired
+
+            else:
+                return errors.InternalServerError(err_details.message)
+
         elif error_type == 'id':
             return errors.ConstraintViolationError(
                 'unique link constraint violation')
@@ -321,8 +334,6 @@ def interpret_backend_error(schema, fields):
         # no need for else clause since it would have been handled by
         # the static version
 
-        # so far 'constraint' is the only expected error_type here,
-        # but in the future that might change, so we leave the if
         if error_type == 'constraint':
             # similarly, if we're here it's because we have a constraint_id
             constraint_id, _, _ = err_details.constraint_name.rpartition(';')
@@ -332,6 +343,17 @@ def interpret_backend_error(schema, fields):
 
             return errors.ConstraintViolationError(
                 constraint.format_error_message(schema))
+        elif error_type == 'newconstraint':
+            # If we're here, it means that we already validated that
+            # schema_name, table_name and column_name all exist.
+            tabname = (err_details.schema_name, err_details.table_name)
+            source = common.get_object_from_backend_name(
+                schema, s_objtypes.ObjectType, tabname)
+            source_name = source.get_displayname(schema)
+            pname = f'{source_name}.{err_details.column_name}'
+
+            return errors.ConstraintViolationError(
+                f'Existing {pname} values violate the new constraint')
 
     elif err_details.code == PGErrorCode.InvalidTextRepresentation:
         return errors.InvalidValueError(

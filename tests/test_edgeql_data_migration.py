@@ -1,0 +1,2526 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+import edgedb
+
+from edb.testbase import server as tb
+from edb.tools import test
+
+
+class TestEdgeQLDataMigration(tb.DDLTestCase):
+    """Test that migrations preserve data under certain circumstances.
+
+    Renaming, changing constraints, increasing cardinality should not
+    destroy data.
+
+    The test cases here use the same migrations as
+    `test_migrations_equivalence`, therefore the test numbers should
+    match for easy reference, even if it means skipping some.
+    """
+
+    _counter = 0
+
+    @property
+    def migration_name(self):
+        self._counter += 1
+        return f'm{self._counter}'
+
+    async def _migrate(self, migration):
+        async with self.con.transaction():
+            mname = self.migration_name
+            await self.con.execute(f"""
+                CREATE MIGRATION {mname} TO {{
+                    {migration}
+                }};
+                COMMIT MIGRATION {mname};
+            """)
+
+    async def test_edgeql_migration_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate("""
+            type Base;
+        """)
+        await self.con.execute("""
+            INSERT Base;
+        """)
+
+        # Try altering the schema to a state inconsistent with current
+        # data.
+        with self.assertRaisesRegex(
+                edgedb.MissingRequiredError,
+                r"missing value for required property test::Base.name"):
+            await self._migrate("""
+                type Base {
+                    required property name -> str;
+                }
+            """)
+        # Migration without making the property required.
+        await self._migrate("""
+            type Base {
+                property name -> str;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    name
+                };
+            """,
+            [{
+                'name': None,
+            }],
+        )
+
+        await self.con.execute("""
+            UPDATE
+                Base
+            SET {
+                name := 'base_01'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    name
+                };
+            """,
+            [{
+                'name': 'base_01',
+            }],
+        )
+
+        # Inherit from the Base, making name required.
+        await self._migrate("""
+            type Base {
+                property name -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property name -> str;
+            }
+        """)
+        await self.con.execute("""
+            INSERT Derived {
+                name := 'derived_01'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base.name;
+            """,
+            {'base_01', 'derived_01'},
+        )
+
+    async def test_edgeql_migration_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """)
+        await self.con.execute("""
+            INSERT Base {
+                foo := 'base_02',
+            };
+            INSERT Derived {
+                foo := 'derived_02',
+            };
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                # rename 'foo'
+                property foo2 -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo2 -> str;
+            }
+        """)
+
+        # the data still persists
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    __type__: {name},
+                    foo2,
+                } ORDER BY .foo2;
+            """,
+            [{
+                '__type__': {'name': 'test::Base'},
+                'foo2': 'base_02',
+            }, {
+                '__type__': {'name': 'test::Derived'},
+                'foo2': 'derived_02',
+            }],
+        )
+
+    async def test_edgeql_migration_03(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """)
+        await self.con.execute("""
+            INSERT Base {
+                foo := 'base_03',
+            };
+            INSERT Derived {
+                foo := 'derived_03',
+            };
+        """)
+
+        await self._migrate(r"""
+            type Base;
+                # drop 'foo'
+
+            type Derived extending Base {
+                # completely different property
+                property foo2 -> str;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    __type__: {name},
+                    [IS Derived].foo2,
+                } ORDER BY .foo2;
+            """,
+            [{
+                '__type__': {'name': 'test::Base'},
+                'foo2': None,
+            }, {
+                '__type__': {'name': 'test::Derived'},
+                'foo2': None,
+            }],
+        )
+
+    async def test_edgeql_migration_04(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> str;
+            }
+
+            type Derived extending Base;
+
+            type Further extending Derived {
+                inherited required property foo -> str;
+            }
+        """)
+        await self.con.execute("""
+            INSERT Base {
+                foo := 'base_04',
+            };
+            INSERT Derived {
+                foo := 'derived_04',
+            };
+            INSERT Further {
+                foo := 'further_04',
+            };
+        """)
+
+        await self._migrate(r"""
+            type Base;
+                # drop 'foo'
+
+            type Derived extending Base;
+
+            type Further extending Derived {
+                # completely different property
+                property foo2 -> str;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    __type__: {name},
+                    [IS Further].foo2,
+                } ORDER BY .foo2;
+            """,
+            [{
+                '__type__': {'name': 'test::Base'},
+                'foo2': None,
+            }, {
+                '__type__': {'name': 'test::Derived'},
+                'foo2': None,
+            }, {
+                '__type__': {'name': 'test::Further'},
+                'foo2': None,
+            }],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: cannot alter inherited
+        column "foo"
+
+        Oddly enough, when prop was changing from str to int64, the
+        error was about casting. And the pure schema migration test
+        works just fine either way see (`test_migrations_equivalence_06`).
+    ''')
+    async def test_edgeql_migration_06(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> int64;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> int64;
+            }
+        """)
+        await self.con.execute("""
+            INSERT Base {
+                foo := 6,
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    __type__: {name},
+                    foo,
+                };
+            """,
+            [{
+                '__type__': {'name': 'test::Base'},
+                # the value was correctly inserted
+                'foo': 6,
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                # change property type (can't preserve value)
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    __type__: {name},
+                    foo,
+                };
+            """,
+            [{
+                '__type__': {'name': 'test::Base'},
+                'foo': '6',
+            }],
+        )
+
+    async def test_edgeql_migration_07(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link bar -> Child;
+            }
+        """)
+        res = await self.con.fetchall(r"""
+            SELECT (
+                INSERT Base {
+                    bar := (INSERT Child),
+                }
+            ) {
+                bar: {id}
+            }
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                required link bar -> Child {
+                    # add a constraint
+                    constraint exclusive;
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    bar: {id},
+                };
+            """,
+            [{
+                'bar': {'id': res[0].bar.id},
+            }],
+        )
+
+    async def test_edgeql_migration_08(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> str;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := 'very_long_test_str_base_08',
+            };
+        """)
+
+        # Try altering the schema to a state inconsistent with current
+        # data.
+        new_state = r"""
+            type Base {
+                required property foo -> str {
+                    # add a constraint
+                    constraint max_len_value(10);
+                }
+            }
+        """
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r"foo must be no longer than 10 characters"):
+            await self._migrate(new_state)
+
+        # Fix the data.
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                foo := 'base_08',
+            };
+        """)
+
+        # Migrate to same state as before now that the data is fixed.
+        await self._migrate(new_state)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo,
+                };
+            """,
+            [{
+                'foo': 'base_08',
+            }],
+        )
+
+    async def test_edgeql_migration_09(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            scalar type constraint_length extending str {
+                constraint max_len_value(10);
+            }
+            type Base {
+                property foo -> constraint_length;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := 'b09',
+            };
+        """)
+
+        # Try altering the schema to a state inconsistent with current
+        # data.
+        new_state = r"""
+            scalar type constraint_length extending str {
+                constraint max_len_value(10);
+                # add a constraint
+                constraint min_len_value(5);
+            }
+            type Base {
+                property foo -> constraint_length;
+            }
+        """
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'Existing test::Base\.foo values violate the new constraint'):
+            await self._migrate(new_state)
+
+        # Fix the data.
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                foo := 'base_09',
+            };
+        """)
+
+        # Migrate to same state as before now that the data is fixed.
+        await self._migrate(new_state)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo,
+                };
+            """,
+            [{
+                'foo': 'base_09',
+            }],
+        )
+
+    async def test_edgeql_migration_11(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> str;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := 'base_11',
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                # change property to link with same name
+                link foo -> Child {
+                    # add a constraint
+                    constraint exclusive;
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo,
+                };
+            """,
+            [{
+                'foo': None,
+            }],
+        )
+
+    async def test_edgeql_migration_12(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                property foo -> str {
+                    constraint exclusive;
+                }
+
+                link bar -> Child {
+                    constraint exclusive;
+                }
+            }
+        """)
+        data = await self.con.fetchall(r"""
+            SELECT (
+                INSERT Base {
+                    foo := 'base_12',
+                    bar := (INSERT Child)
+                })
+            {
+                foo,
+                bar: {id}
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                # drop constraints
+                property foo -> str;
+                link bar -> Child;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo,
+                    bar: {id}
+                };
+            """,
+            [{
+                'foo': 'base_12',
+                'bar': {'id': data[0].bar.id}
+            }],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: column Derived~2.bar does
+        not exist
+
+        A problem arises when a link was inherited, but then needs to
+        be moved towards the derived types in the inheritance
+        hierarchy. This is the opposite of factoring out common link.
+
+        See also `test_edgeql_migration_27`
+    ''')
+    async def test_edgeql_migration_13(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link bar -> Child;
+            }
+
+            type Derived extending Base {
+                inherited required link bar -> Child;
+            }
+        """)
+        data = await self.con.fetchall(r"""
+            SELECT (
+                INSERT Derived {
+                    bar := (INSERT Child)
+                })
+            {
+                bar: {id}
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base;
+                # drop 'bar'
+
+            type Derived extending Base {
+                # no longer inherit link 'bar'
+                link bar -> Child;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Derived {
+                    bar: {id}
+                };
+            """,
+            [{
+                'bar': {'id': data[0].bar.id}
+            }],
+        )
+
+    async def test_edgeql_migration_14(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+
+            type Derived extending Base {
+                property foo -> str;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Derived {
+                foo := 'derived_14',
+            };
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                # move the property earlier in the inheritance
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Derived {
+                    foo,
+                };
+            """,
+            [{
+                'foo': 'derived_14',
+            }],
+        )
+
+    async def test_edgeql_migration_16(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base;
+
+            type Derived extending Base {
+                link bar -> Child;
+            }
+        """)
+        data = await self.con.fetchall(r"""
+            SELECT (
+                INSERT Derived {
+                    bar := (INSERT Child),
+                }
+            ) {
+                bar: {id}
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                # move the link earlier in the inheritance
+                link bar -> Child;
+            }
+
+            type Derived extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Derived {
+                    bar,
+                };
+            """,
+            [{
+                'bar': {'id': data[0].bar.id},
+            }],
+        )
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link bar -> Child;
+            }
+
+            type Derived extending Base {
+                # also make the link 'required'
+                inherited required link bar -> Child;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Derived {
+                    bar,
+                };
+            """,
+            [{
+                'bar': {'id': data[0].bar.id},
+            }],
+        )
+
+    async def test_edgeql_migration_18(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name := 'computable'
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                # change a property from a computable to regular with a default
+                property name -> str {
+                    default := 'something'
+                }
+            }
+        """)
+
+        # Insert a new object, this one should have a new default name.
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    name,
+                } ORDER BY .name EMPTY LAST;
+            """,
+            [{
+                'name': 'something',
+            }, {
+                'name': None,
+            }],
+        )
+
+    async def test_edgeql_migration_19(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base {
+                name := 'base_19'
+            };
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                # change a regular property to a computable
+                property name := 'computable'
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    name,
+                };
+            """,
+            [{
+                'name': 'computable',
+            }],
+        )
+
+    async def test_edgeql_migration_21(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> str;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := 'base_21'
+            };
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                property foo -> str;
+                # add a property
+                property bar -> int64;
+            }
+        """)
+
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                bar := 21
+            };
+        """)
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo,
+                    bar
+                };
+            """,
+            [{
+                'foo': 'base_21',
+                'bar': 21,
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                # make the old property into a computable
+                property foo := <str>__source__.bar;
+                property bar -> int64;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo,
+                    bar
+                };
+            """,
+            [{
+                'foo': '21',
+                'bar': 21,
+            }],
+        )
+
+    async def test_edgeql_migration_22(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> str;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := 'base_22'
+            };
+        """)
+
+        await self._migrate(r"""
+            # rename the type, although this test doesn't ensure that
+            # renaming actually took place
+            type NewBase {
+                property foo -> str;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT NewBase {
+                    foo,
+                };
+            """,
+            [{
+                'foo': 'base_22',
+            }],
+        )
+
+        await self._migrate(r"""
+            type NewBase {
+                property foo -> str;
+                # add a property
+                property bar -> int64;
+            }
+        """)
+
+        await self.con.execute(r"""
+            UPDATE NewBase
+            SET {
+                bar := 22
+            };
+        """)
+        await self.assert_query_result(
+            r"""
+                SELECT NewBase {
+                    foo,
+                    bar
+                };
+            """,
+            [{
+                'foo': 'base_22',
+                'bar': 22,
+            }],
+        )
+
+        await self._migrate(r"""
+            type NewBase {
+                # drop 'foo'
+                property bar -> int64;
+            }
+
+            # add a view to emulate the original
+            view Base := (
+                SELECT NewBase {
+                    foo := <str>.bar
+                }
+            );
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo,
+                };
+            """,
+            [{
+                'foo': '22',
+            }],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: reference to a
+        non-existent schema item 9a576552-d980-11e9-ab34-4b202b90ea53
+        in schema <Schema gen:4923 at 0x7f074da5b198>
+
+        Note that the `test_migrations_equivalence_23` works fine.
+    ''')
+    async def test_edgeql_migration_23(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child {
+                property foo -> str;
+            }
+
+            type Base {
+                link bar -> Child;
+            }
+
+            view View01 := (
+                SELECT Base {
+                    child_foo := .bar.foo
+                }
+            );
+        """)
+        await self.con.execute(r"""
+            INSERT Base {
+                bar := (
+                    INSERT Child {
+                        foo := 'child_23'
+                    }
+                )
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child {
+                property foo -> str;
+            }
+
+            # exchange a type for a view
+            view Base := (
+                SELECT Child {
+                    # bar is the same as the root object
+                    bar := Child
+                }
+            );
+
+            view View01 := (
+                # now this view refers to another view
+                SELECT Base {
+                    child_foo := .bar.foo
+                }
+            );
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT View01 {
+                    child_foo,
+                };
+            """,
+            [{
+                'child_foo': 'child_23',
+            }],
+        )
+
+    async def test_edgeql_migration_24(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link bar -> Child;
+            }
+        """)
+        data = await self.con.fetchall(r"""
+            SELECT (
+                INSERT Base {
+                    bar := (INSERT Child)
+                }
+            ) {
+                bar: {id}
+            }
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                # increase link cardinality
+                multi link bar -> Child;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    bar: {id},
+                };
+            """,
+            [{
+                'bar': [{'id': data[0].bar.id}],
+            }],
+        )
+
+    async def test_edgeql_migration_25(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                multi link bar -> Child;
+            }
+        """)
+        data = await self.con.fetchall(r"""
+            SELECT (
+                INSERT Base {
+                    bar := (INSERT Child)
+                }
+            ) {
+                bar: {id}
+            }
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                # reduce link cardinality
+                link bar -> Child;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    bar: {id},
+                };
+            """,
+            [{
+                'bar': {'id': data[0].bar[0].id},
+            }],
+        )
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link bar -> Child {
+                    # further restrict the link
+                    constraint exclusive
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    bar: {id},
+                };
+            """,
+            [{
+                'bar': {'id': data[0].bar[0].id},
+            }],
+        )
+
+    async def test_edgeql_migration_26(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Parent {
+                link bar -> Child;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Parent {
+                bar := (INSERT Child)
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Parent {
+                link bar -> Child;
+            }
+
+            # derive a type
+            type DerivedParent extending Parent;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Parent {
+                    type := .__type__.name,
+                    bar_type := .bar.__type__.name
+                };
+            """,
+            [{
+                'type': 'test::Parent',
+                'bar_type': 'test::Child',
+            }],
+        )
+
+        await self._migrate(r"""
+            type Child;
+
+            type DerivedChild extending Child;
+
+            type Parent {
+                link bar -> Child;
+            }
+
+            # derive a type with a more restrictive link
+            type DerivedParent extending Parent {
+                inherited link bar -> DerivedChild;
+            }
+        """)
+
+        await self.con.execute(r"""
+            INSERT DerivedParent {
+                bar := (INSERT DerivedChild)
+            }
+        """)
+        await self.assert_query_result(
+            r"""
+                SELECT Parent {
+                    type := .__type__.name,
+                    bar_type := .bar.__type__.name
+                } ORDER BY .bar_type;
+            """,
+            [{
+                'type': 'test::Parent',
+                'bar_type': 'test::Child',
+            }, {
+                'type': 'test::DerivedParent',
+                'bar_type': 'test::DerivedChild',
+            }],
+        )
+
+    async def test_edgeql_migration_27(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            abstract type Named {
+                property name -> str;
+            }
+
+            type Foo extending Named;
+            type Bar extending Named;
+        """)
+        await self.con.execute(r"""
+            INSERT Foo {
+                name := 'foo_27',
+            };
+            INSERT Bar {
+                name := 'bar_27',
+            };
+        """)
+
+        await self._migrate(r"""
+            abstract type Named {
+                property name -> str;
+            }
+
+            # the types stop extending named, but retain the property
+            # 'name'
+            type Foo {
+                property name -> str;
+            };
+
+            type Bar {
+                property name -> str;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo.name;
+            """,
+            [
+                'foo_27',
+            ],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT Bar.name;
+            """,
+            [
+                'bar_27',
+            ],
+        )
+
+        await self._migrate(r"""
+            abstract type Named {
+                property name -> str;
+            }
+
+            type Foo {
+                property name -> str;
+            };
+
+            type Bar {
+                # rename 'name' to 'title'
+                property title -> str;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo.name;
+            """,
+            [
+                'foo_27',
+            ],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT Bar.title;
+            """,
+            [
+                'bar_27',
+            ],
+        )
+
+    async def test_edgeql_migration_29(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child {
+                property foo -> str;
+            }
+
+            view Base := (
+                SELECT Child {
+                    bar := .foo
+                }
+            );
+        """)
+        await self.con.execute(r"""
+            INSERT Child {
+                foo := 'child_29',
+            };
+        """)
+
+        await self._migrate(r"""
+            # drop everything
+        """)
+
+    async def test_edgeql_migration_30(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Foo {
+                property name -> str;
+            };
+
+            type Bar {
+                property title -> str;
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Foo {
+                name := 'foo_30',
+            };
+            INSERT Bar {
+                title := 'bar_30',
+            };
+        """)
+
+        await self._migrate(r"""
+            type Foo {
+                property name -> str;
+            };
+
+            type Bar {
+                # rename 'title' to 'name'
+                property name -> str;
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo.name;
+            """,
+            [
+                'foo_30',
+            ],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT Bar.name;
+            """,
+            [
+                'bar_30',
+            ],
+        )
+
+        await self._migrate(r"""
+            # both types have a name, so the name prop is factored out
+            # into a more basic type.
+            abstract type Named {
+                property name -> str;
+            }
+
+            type Foo extending Named;
+            type Bar extending Named;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo.name;
+            """,
+            [
+                'foo_30',
+            ],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT Bar.name;
+            """,
+            [
+                'bar_30',
+            ],
+        )
+
+    @test.xfail('''
+        See `test_edgeql_calls_35` and
+        `test_migrations_equivalence_function_01` first.
+    ''')
+    async def test_edgeql_migration_function_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello01(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello01(1);""",
+            ['hello1'],
+        )
+
+        # add an extra parameter with a default (so it can be omitted
+        # in principle)
+        await self._migrate(r"""
+            function hello01(a: int64, b: int64=42) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>(a + b)
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello01(1);""",
+            ['hello43'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT hello01(1, 2);""",
+            ['hello3'],
+        )
+
+    @test.xfail('''
+        See `test_edgeql_calls_35` and
+        `test_migrations_equivalence_function_01` first.
+    ''')
+    async def test_edgeql_migration_function_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello02(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello02(1);""",
+            ['hello1'],
+        )
+
+        # add an extra parameter with a default (so it can be omitted
+        # in principle)
+        await self._migrate(r"""
+            function hello02(a: int64, b: OPTIONAL int64=42) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>(a + b)
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello02(1);""",
+            ['hello43'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT hello02(1, 2);""",
+            ['hello3'],
+        )
+
+    @test.xfail('''
+        See `test_edgeql_calls_35` and
+        `test_migrations_equivalence_function_01` first.
+    ''')
+    async def test_edgeql_migration_function_03(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello03(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello03(1);""",
+            ['hello1'],
+        )
+
+        # add an extra parameter with a default (so it can be omitted
+        # in principle)
+        await self._migrate(r"""
+            function hello03(a: int64, NAMED ONLY b: int64=42) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>(a + b)
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello03(1);""",
+            ['hello43'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT hello03(1, b := 2);""",
+            ['hello3'],
+        )
+
+    async def test_edgeql_migration_function_04(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello04(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello04(1);""",
+            ['hello1'],
+        )
+
+        # same parameters, different return type
+        await self._migrate(r"""
+            function hello04(a: int64) -> int64
+                from edgeql $$
+                    SELECT -a
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello04(1);""",
+            [-1],
+        )
+
+    async def test_edgeql_migration_function_05(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello05(a: int64) -> str
+                from edgeql $$
+                    SELECT <str>a
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello05(1);""",
+            ['1'],
+        )
+
+        # same parameters, different return type (array)
+        await self._migrate(r"""
+            function hello05(a: int64) -> array<int64>
+                from edgeql $$
+                    SELECT [a]
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello05(1);""",
+            [[1]],
+        )
+
+    @test.xfail('''
+        It should be possible to change the underlying function (to a
+        compatible one) of a default value without explicitly dropping
+        the default first.
+
+        edgedb.errors.InternalServerError: cannot drop function
+        "edgedb_06261450-db74-11e9-9e9a-9520733a1c54".hello06(bigint)
+        because other objects depend on it
+    ''')
+    async def test_edgeql_migration_function_06(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello06(a: int64) -> str
+                from edgeql $$
+                    SELECT <str>a
+                $$;
+
+            type Base {
+                property foo -> int64 {
+                    # use the function in default value computation
+                    default := len(hello06(2) ++ hello06(123))
+                }
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            {4},
+        )
+
+        # same parameters, different return type (array)
+        await self._migrate(r"""
+            function hello06(a: int64) -> array<int64>
+                from edgeql $$
+                    SELECT [a]
+                $$;
+
+            type Base {
+                property foo -> int64 {
+                    # use the function in default value computation
+                    default := len(hello06(2) ++ hello06(123))
+                }
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            {4, 2},
+        )
+
+    async def test_edgeql_migration_function_07(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello07(a: int64) -> str
+                from edgeql $$
+                    SELECT <str>a
+                $$;
+
+            type Base {
+                # use the function in computable value
+                property foo := len(hello07(2) ++ hello07(123))
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            {4},
+        )
+
+        # same parameters, different return type (array)
+        await self._migrate(r"""
+            function hello07(a: int64) -> array<int64>
+                from edgeql $$
+                    SELECT [a]
+                $$;
+
+            type Base {
+                # use the function in computable value
+                property foo := len(hello07(2) ++ hello07(123))
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            {2},
+        )
+
+    async def test_edgeql_migration_function_08(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello08(a: int64) -> str
+                from edgeql $$
+                    SELECT <str>a
+                $$;
+
+            # use the function in a view directly
+            view foo := len(hello08(2) ++ hello08(123));
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT foo;""",
+            {4},
+        )
+
+        # same parameters, different return type (array)
+        await self._migrate(r"""
+            function hello08(a: int64) -> array<int64>
+                from edgeql $$
+                    SELECT [a]
+                $$;
+
+            # use the function in a view directly
+            view foo := len(hello08(2) ++ hello08(123));
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT foo;""",
+            {2},
+        )
+
+    async def test_edgeql_migration_function_09(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello09(a: int64) -> str
+                from edgeql $$
+                    SELECT <str>a
+                $$;
+
+            type Base;
+
+            # use the function in a view directly
+            view BaseView := (
+                SELECT Base {
+                    foo := len(hello09(2) ++ hello09(123))
+                }
+            );
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView.foo;""",
+            {4},
+        )
+
+        # same parameters, different return type (array)
+        await self._migrate(r"""
+            function hello09(a: int64) -> array<int64>
+                from edgeql $$
+                    SELECT [a]
+                $$;
+
+            type Base;
+
+            # use the function in a view directly
+            view BaseView := (
+                SELECT Base {
+                    foo := len(hello09(2) ++ hello09(123))
+                }
+            );
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView.foo;""",
+            {2},
+        )
+
+    @test.xfail('''
+        See `test_migrations_equivalence_function_10` first.
+    ''')
+    async def test_edgeql_migration_function_10(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello10(a: int64) -> str
+                from edgeql $$
+                    SELECT <str>a
+                $$;
+
+            type Base {
+                required property foo -> int64 {
+                    # use the function in a constraint expression
+                    constraint expression on (len(hello10(__subject__)) < 2)
+                }
+            }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid foo'):
+            await self.con.execute(r"""
+                INSERT Base {foo := 42};
+            """)
+
+        # same parameters, different return type (array)
+        await self._migrate(r"""
+            function hello10(a: int64) -> array<int64>
+                from edgeql $$
+                    SELECT [a]
+                $$;
+
+            type Base {
+                required property foo -> int64 {
+                    # use the function in a constraint expression
+                    constraint expression on (len(hello10(__subject__)) < 2)
+                }
+            }
+        """)
+
+        # no problem with the constraint now
+        await self.con.execute(r"""
+            INSERT Base {foo := 42};
+        """)
+
+    async def test_edgeql_migration_linkprops_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child;
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := (INSERT Child)
+            };
+        """)
+
+        # Migration adding a link property.
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    property bar -> str
+                }
+            };
+        """)
+
+        # actually record a link property
+        await self.con.execute(r"""
+            UPDATE
+                Base
+            SET {
+                foo: {
+                    @bar := 'lp01'
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: { @bar }
+                };
+            """,
+            [{'foo': {'@bar': 'lp01'}}],
+        )
+
+    async def test_edgeql_migration_linkprops_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    property bar -> str
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Base {foo := (INSERT Child)};
+            UPDATE Base
+            SET {
+                foo: {@bar := 'lp02'},
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    # change the link property name
+                    property bar2 -> str
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: { @bar2 }
+                };
+            """,
+            [{'foo': {'@bar2': 'lp02'}}],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: column "bar" of relation
+        "f24ff0f4-db8f-11e9-a887-356e9f41deb7" does not exist
+    ''')
+    async def test_edgeql_migration_linkprops_03(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    property bar -> int64
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Base {foo := (INSERT Child)};
+            UPDATE Base
+            SET {
+                foo: {@bar := 3},
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    # change the link property type
+                    property bar -> str
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: { @bar }
+                };
+            """,
+            [{'foo': {'@bar2': '3'}}],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: duplicate key value
+        violates unique constraint
+        "68d4c708-db91-11e9-9b69-4fe8032d0_source_target_ptr_item_id_key"
+    ''')
+    async def test_edgeql_migration_linkprops_04(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    property bar -> str
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Base {foo := (INSERT Child)};
+            UPDATE Base
+            SET {
+                foo: {@bar := 'lp04'},
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                # change the link cardinality
+                multi link foo -> Child {
+                    property bar -> str
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: { @bar }
+                };
+            """,
+            [{'foo': [{'@bar': 'lp04'}]}],
+        )
+
+    async def test_edgeql_migration_linkprops_05(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                multi link foo -> Child {
+                    property bar -> str
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Base {foo := (INSERT Child)};
+            UPDATE Base
+            SET {
+                foo: {@bar := 'lp05'},
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                # change the link cardinality
+                link foo -> Child {
+                    property bar -> str
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: { @bar }
+                };
+            """,
+            [{'foo': {'@bar': 'lp05'}}],
+        )
+
+    async def test_edgeql_migration_linkprops_06(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link child -> Child {
+                    property foo -> str;
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Base {child := (INSERT Child)};
+            UPDATE Base
+            SET {
+                child: {
+                    @foo := 'lp06',
+                },
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link child -> Child {
+                    property foo -> str;
+                    # add another link prop
+                    property bar -> int64;
+                }
+            };
+        """)
+        # update the existing data with a new link prop 'bar'
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                child: {
+                    @bar := 111,
+                },
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    child: {
+                        @foo,
+                        @bar
+                    }
+                };
+            """,
+            [{
+                'child': {
+                    '@foo': 'lp06',
+                    '@bar': 111
+                }
+            }],
+        )
+
+    async def test_edgeql_migration_linkprops_07(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                inherited link child -> Child {
+                    property foo -> str
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Derived {child := (INSERT Child)};
+            UPDATE Derived
+            SET {
+                child: {
+                    @foo := 'lp07',
+                },
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                # move the link property earlier in the inheritance tree
+                link child -> Child {
+                    property foo -> str
+                }
+            };
+
+            type Derived extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    child: {
+                        @foo,
+                    }
+                };
+            """,
+            [{
+                'child': {
+                    '@foo': 'lp07',
+                }
+            }],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: relation
+        "edgedb_f1a94eb6-dbf2-11e9-a3fb-214b780369d9.f20ba958-dbf2-11e9-8884-5764a7d0627a"
+        does not exist
+
+        See `test_edgeql_insert_derived_02` first.
+    ''')
+    async def test_edgeql_migration_linkprops_08(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link child -> Child {
+                    property foo -> str
+                }
+            };
+
+            type Derived extending Base;
+        """)
+        await self.con.execute(r"""
+            INSERT Derived {child := (INSERT Child)};
+        """)
+        await self.con.execute(r"""
+            UPDATE Derived
+            SET {
+                child: {
+                    @foo := 'lp08',
+                },
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                inherited link child -> Child {
+                    # move the link property later in the inheritance tree
+                    property foo -> str
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    child: {
+                        @foo,
+                    }
+                };
+            """,
+            [{
+                'child': {
+                    '@foo': 'lp08',
+                }
+            }],
+        )
+
+    async def test_edgeql_migration_linkprops_09(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                inherited link child -> Child {
+                    property foo -> str
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Derived {child := (INSERT Child)};
+            UPDATE Derived
+            SET {
+                child: {
+                    @foo := 'lp09',
+                },
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            # factor out link property all the way to an abstract link
+            abstract link base_child {
+                property foo -> str;
+            }
+
+            type Base {
+                link child extending base_child -> Child;
+            };
+
+            type Derived extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    child: {
+                        @foo,
+                    }
+                };
+            """,
+            [{
+                'child': {
+                    '@foo': 'lp09',
+                }
+            }],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: relation
+        "edgedb_510fbc78-dbf5-11e9-a939-c1e7446a8fdd.543b5dfe-dbf5-11e9-b1c7-a3ddec71fbde"
+        does not exist
+
+        See `test_edgeql_insert_derived_02` first.
+    ''')
+    async def test_edgeql_migration_linkprops_10(self):
+        # reverse of the test_edgeql_migration_linkprops_09 refactoring
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            abstract link base_child {
+                property foo -> str;
+            }
+
+            type Base {
+                link child extending base_child -> Child;
+            };
+
+            type Derived extending Base;
+        """)
+        await self.con.execute(r"""
+            INSERT Derived {child := (INSERT Child)};
+            UPDATE Derived
+            SET {
+                child: {
+                    @foo := 'lp10',
+                },
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                inherited link child -> Child {
+                    # move the link property later in the inheritance tree
+                    property foo -> str
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    child: {
+                        @foo,
+                    }
+                };
+            """,
+            [{
+                'child': {
+                    '@foo': 'lp10',
+                }
+            }],
+        )
+
+    async def test_edgeql_migration_linkprops_11(self):
+        # merging a link with the same properties
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Thing;
+
+            type Owner {
+                link item -> Thing {
+                    property foo -> str;
+                }
+            };
+
+            type Renter {
+                link item -> Thing {
+                    property foo -> str;
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Owner {item := (INSERT Thing)};
+            UPDATE Owner
+            SET {
+                item: {
+                    @foo := 'owner_lp11',
+                },
+            };
+
+            INSERT Renter {item := (INSERT Thing)};
+            UPDATE Renter
+            SET {
+                item: {
+                    @foo := 'renter_lp11',
+                },
+            };
+        """)
+
+        await self._migrate(r"""
+            type Thing;
+
+            type Base {
+                link item -> Thing {
+                    property foo -> str;
+                }
+            };
+
+            type Owner extending Base;
+
+            type Renter extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Owner {
+                    item: {
+                        @foo,
+                    }
+                };
+            """,
+            [{
+                'item': {
+                    '@foo': 'owner_lp11',
+                }
+            }],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT Renter {
+                    item: {
+                        @foo,
+                    }
+                };
+            """,
+            [{
+                'item': {
+                    '@foo': 'renter_lp11',
+                }
+            }],
+        )
+
+    @test.xfail('''
+        This appears to fail to find the link property 'foo' or 'bar'
+        when applying the delta of the second migration.
+    ''')
+    async def test_edgeql_migration_linkprops_12(self):
+        # merging a link with different properties
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Thing;
+
+            type Owner {
+                link item -> Thing {
+                    property foo -> str;
+                }
+            };
+
+            type Renter {
+                link item -> Thing {
+                    property bar -> str;
+                }
+            };
+        """)
+        await self.con.execute(r"""
+            INSERT Owner {item := (INSERT Thing)};
+            UPDATE Owner
+            SET {
+                item: {
+                    @foo := 'owner_lp11',
+                },
+            };
+
+            INSERT Renter {item := (INSERT Thing)};
+            UPDATE Renter
+            SET {
+                item: {
+                    @bar := 'renter_lp11',
+                },
+            };
+        """)
+
+        await self._migrate(r"""
+            type Thing;
+
+            type Base {
+                link item -> Thing {
+                    property foo -> str;
+                    property bar -> str;
+                }
+            };
+
+            type Owner extending Base;
+
+            type Renter extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Owner {
+                    item: {
+                        @foo,
+                        @bar,
+                    }
+                };
+            """,
+            [{
+                'item': {
+                    '@foo': 'owner_lp11',
+                    '@bar': None,
+                }
+            }],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT Renter {
+                    item: {
+                        @foo,
+                        @bar,
+                    }
+                };
+            """,
+            [{
+                'item': {
+                    '@foo': None,
+                    '@bar': 'renter_lp11',
+                }
+            }],
+        )

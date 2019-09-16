@@ -1437,6 +1437,73 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP FUNCTION test::ddlf_21(str: std::str);
         """)
 
+    @test.xfail('''
+        InvalidFunctionDefinitionError not raised
+
+        Currently we implicitly cast the function result into the
+        declared type. This *might* be useful for SQL functions, but
+        gets really weird for EdgeQL functions. As this implicit
+        casting is by no means obvious and is error-prone in "user
+        land".
+    ''')
+    async def test_edgeql_ddl_function_22(self):
+        with self.assertRaisesRegex(edgedb.InvalidFunctionDefinitionError,
+                                    # FIXME: add specific wording
+                                    r''):
+            await self.con.execute(r"""
+                CREATE FUNCTION test::broken_edgeql_func22(
+                    a: std::str) -> std::int64
+                # This cast sometimes fails in runtime.
+                FROM EdgeQL $$
+                    SELECT a
+                $$;
+            """)
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: cannot cast type text[] to
+        bigint
+
+        At least this fails at compile time, but the SQL error is leaking.
+    ''')
+    async def test_edgeql_ddl_function_23(self):
+        with self.assertRaisesRegex(edgedb.InvalidFunctionDefinitionError,
+                                    # FIXME: add specific wording
+                                    r''):
+            await self.con.execute(r"""
+                CREATE FUNCTION test::broken_edgeql_func23(
+                    a: std::str) -> std::int64
+                # This cast is invalid.
+                FROM EdgeQL $$
+                    SELECT [a]
+                $$;
+            """)
+
+    @test.xfail('''
+        InvalidFunctionDefinitionError not raised
+
+        Currently we implicitly cast the function result into the
+        declared type. This *might* be useful for SQL functions, but
+        gets really weird for EdgeQL functions. As this implicit
+        casting is by no means obvious and is error-prone in "user
+        land".
+    ''')
+    async def test_edgeql_ddl_function_24(self):
+        with self.assertRaisesRegex(edgedb.InvalidFunctionDefinitionError,
+                                    # FIXME: add specific wording
+                                    r''):
+            await self.con.execute(r"""
+                CREATE FUNCTION test::broken_edgeql_func24(
+                    a: std::str) -> std::str
+                # This never fails, because everything is castable to str,
+                # but it results in an utterly unexpected result:
+                #
+                # edgeqb> SELECT test::broken_edgeql_func24('q');
+                # {'{q}'}
+                FROM EdgeQL $$
+                    SELECT [a]
+                $$;
+            """)
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,

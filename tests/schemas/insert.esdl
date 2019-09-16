@@ -31,7 +31,12 @@ type InsertTest {
     multi link subordinates -> Subordinate {
         property comment -> str;
     }
+    link sub -> Subordinate {
+        property note -> str;
+    }
 }
+
+type DerivedTest extending InsertTest;
 
 type Note {
     required property name -> str;

@@ -421,6 +421,90 @@ class TestInsert(tb.QueryTestCase):
             'subordinates': [{'name': 'nested sub 8.1'}]
         }])
 
+    @test.xfail('''
+        edgedb.errors.InternalServerError: could not find std::target
+        in insert computable
+
+        Probably related to `test_edgeql_insert_derived_02`.
+    ''')
+    async def test_edgeql_insert_nested_09(self):
+        # test a single link with a link property
+        await self.con.execute(r'''
+            WITH MODULE test
+            INSERT InsertTest {
+                name := 'insert nested 9',
+                l2 := 0,
+                sub := (
+                    INSERT Subordinate {
+                        name := 'nested sub 9',
+                        @note := 'sub note 9',
+                    }
+                )
+            }
+        ''')
+
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT InsertTest {
+                name,
+                sub: {
+                    name,
+                    @note
+                }
+            } FILTER
+                .name = 'insert nested 9'
+        ''', [{
+            'name': 'insert nested 9',
+            'sub': {
+                'name': 'nested sub 9',
+                '@note': 'sub note 9',
+            }
+        }])
+
+    @test.xfail('''
+        edgedb.errors.QueryError: invalid reference to link property
+        in top level shape
+    ''')
+    async def test_edgeql_insert_nested_10(self):
+        # test a single link with a link property
+        await self.con.execute(r'''
+            SET MODULE test;
+
+            INSERT Subordinate {
+                name := 'nested sub 10',
+            };
+
+            INSERT InsertTest {
+                name := 'insert nested 10',
+                l2 := 0,
+                sub := (
+                    SELECT Subordinate {
+                        @note := 'sub note 10',
+                    }
+                    FILTER .name = 'nested sub 10'
+                    LIMIT 1
+                )
+            }
+        ''')
+
+        await self.assert_query_result(r'''
+            WITH MODULE test
+            SELECT InsertTest {
+                name,
+                sub: {
+                    name,
+                    @note
+                }
+            } FILTER
+                .name = 'insert nested 10'
+        ''', [{
+            'name': 'insert nested 10',
+            'sub': {
+                'name': 'nested sub 10',
+                '@note': 'sub note 10',
+            }
+        }])
+
     async def test_edgeql_insert_returning_01(self):
         await self.con.execute('''
             WITH MODULE test
@@ -1339,3 +1423,108 @@ class TestInsert(tb.QueryTestCase):
                     )
                 };
             ''')
+
+    async def test_edgeql_insert_derived_01(self):
+        await self.con.execute(r"""
+            INSERT test::DerivedTest {
+                name := 'insert derived 01',
+                l2 := 0,
+            };
+
+            INSERT test::DerivedTest {
+                name := 'insert derived 01',
+                l3 := "Test\"1\"",
+                l2 := 1
+            };
+
+            INSERT test::DerivedTest {
+                name := 'insert derived 01',
+                l3 := 'Test\'2\'',
+                l2 := 2
+            };
+
+            INSERT test::DerivedTest {
+                name := 'insert derived 01',
+                l3 := '\"Test\'3\'\"',
+                l2 := 3
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    test::DerivedTest {
+                        l2, l3
+                    }
+                FILTER
+                    test::DerivedTest.name = 'insert derived 01'
+                ORDER BY
+                    test::DerivedTest.l2;
+            """,
+            [
+                {
+                    'l2': 0,
+                    'l3': 'test',
+                },
+                {
+                    'l2': 1,
+                    'l3': 'Test"1"',
+                },
+                {
+                    'l2': 2,
+                    'l3': "Test'2'",
+                },
+                {
+                    'l2': 3,
+                    'l3': '''"Test'3'"''',
+                }
+            ]
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: relation
+        "edgedb_cf30b32c-dbf7-11e9-a772-0fb6315b40c8.cf535282-dbf7-11e9-9870-dda602d7da1c"
+        does not exist
+
+        Probably related to `test_edgeql_insert_nested_09`.
+    ''')
+    async def test_edgeql_insert_derived_02(self):
+        await self.con.execute(r"""
+            WITH MODULE test
+            INSERT DerivedTest {
+                name := 'insert derived 02',
+                l2 := 0,
+                sub :=  (
+                    INSERT Subordinate {
+                        name := 'nested derived sub 02'
+                    }
+                )
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    DerivedTest {
+                        name,
+                        sub: {
+                            name,
+                            @note
+                        }
+                    }
+                FILTER
+                    .name = 'insert derived 02'
+                ORDER BY
+                    .l2;
+            """,
+            [
+                {
+                    'name': 'insert derived 02',
+                    'sub': {
+                        'name': 'nested derived sub 02',
+                        '@note': None,
+                    },
+                },
+            ]
+        )

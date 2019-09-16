@@ -31,6 +31,7 @@ import os
 import pprint
 import re
 import unittest
+import uuid
 
 import click.testing
 
@@ -455,6 +456,10 @@ class ConnectedTestCaseMixin:
             elif isinstance(shape, float):
                 if not math.isclose(data, shape, rel_tol=1e-04):
                     self.fail(f'{message}: not isclose({data}, {shape})')
+            elif isinstance(shape, uuid.UUID):
+                # since the data comes from JSON, it will only have a str
+                if data != str(shape):
+                    self.fail(f'{message}: {data!r} != {shape!r}')
             elif isinstance(shape, (str, int)):
                 if data != shape:
                     self.fail(f'{message}: {data!r} != {shape!r}')

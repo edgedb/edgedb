@@ -39,6 +39,10 @@ type User extending Named {
     multi link awards -> Award {
         constraint exclusive;
     }
+
+    link avatar -> Card {
+        property text -> str;
+    }
 }
 
 type Card extending Named {
