@@ -1211,3 +1211,37 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                         SELECT [(a,)]
                     $$;
             ''')
+
+    @test.xfail('''
+        We have other examples of function definitions using defaults
+        successfully, but not this innocuous-looking one.
+
+        edgedb.errors.InternalServerError: column "__defaults_mask__"
+        does not exist
+    ''')
+    async def test_edgeql_calls_35(self):
+        # define a function with positional arguments with defaults
+        await self.con.execute('''
+            CREATE FUNCTION test::call35(
+                a: int64 = 1,
+                b: int64 = 2
+            ) -> int64
+                FROM EdgeQL $$
+                    SELECT a + b
+                $$;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call35();''',
+            [3],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::call35(2);''',
+            [4],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT test::call35(2, 3);''',
+            [5],
+        )

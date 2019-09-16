@@ -30,6 +30,8 @@ from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 
+from edb.tools import test
+
 
 class TestSchema(tb.BaseSchemaLoadTest):
     def test_schema_inherited_01(self):
@@ -793,7 +795,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Further extending Derived {
                 # completely different property
-                required property foo2 -> str;
+                property foo2 -> str;
             };
         """])
 
@@ -811,8 +813,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 # drop foo
 
             type Derived extending Base {
-                # completely different property, but with the same old
-                # name 'foo'
+                # no longer inherited property 'foo'
                 property foo -> str;
             }
         """])
@@ -820,20 +821,20 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_06(self):
         self._assert_migration_equivalence([r"""
             type Base {
-                property foo -> str;
-            }
-
-            type Derived extending Base {
-                inherited required property foo -> str;
-            }
-        """, r"""
-            type Base {
-                # change property type
                 property foo -> int64;
             }
 
             type Derived extending Base {
                 inherited required property foo -> int64;
+            }
+        """, r"""
+            type Base {
+                # change property type
+                property foo -> str;
+            }
+
+            type Derived extending Base {
+                inherited required property foo -> str;
             }
         """])
 
@@ -954,7 +955,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 # drop 'bar'
 
             type Derived extending Base {
-                # completely different link
+                # no longer inherit link 'bar'
                 link bar -> Child;
             }
         """])
@@ -1297,4 +1298,304 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """, r"""
             # drop everything
+        """])
+
+    def test_migrations_equivalence_30(self):
+        # This is the inverse of the test_migrations_equivalence_27
+        # scenario. We're trying to merge and refactor common
+        # property.
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                property name -> str;
+            };
+
+            type Bar {
+                property title -> str;
+            };
+        """, r"""
+            type Foo {
+                property name -> str;
+            };
+
+            type Bar {
+                # rename 'title' to 'name'
+                property name -> str;
+            };
+        """, r"""
+            # both types have a name, so the name prop is factored out
+            # into a more basic type.
+            abstract type Named {
+                property name -> str;
+            }
+
+            type Foo extending Named;
+            type Bar extending Named;
+        """])
+
+    @test.xfail('''
+        Fails on `_assert_migration_consistency` step:
+
+        ...
+        File "/home/victor/dev/magicstack/edgedb/edb/schema/functions.py",
+            line 908, in _apply_fields_ast default=default.qlast if
+            default is not None else None,
+        AttributeError: 'str' object has no attribute 'qlast'
+    ''')
+    def test_migrations_equivalence_function_01(self):
+        self._assert_migration_equivalence([r"""
+            function hello01(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$
+        """, r"""
+            function hello01(a: int64, b: int64=42) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>(a + b)
+                $$
+        """])
+
+    def test_migrations_equivalence_function_06(self):
+        self._assert_migration_equivalence([r"""
+            function hello06(a: int64) -> str
+                from edgeql $$
+                    SELECT <str>a
+                $$;
+
+            type Base {
+                property foo -> int64 {
+                    # use the function in default value computation
+                    default := len(hello06(2) ++ hello06(123))
+                }
+            }
+        """, r"""
+            function hello06(a: int64) -> array<int64>
+                from edgeql $$
+                    SELECT [a]
+                $$;
+
+            type Base {
+                property foo -> int64 {
+                    # use the function in default value computation
+                    default := len(hello06(2) ++ hello06(123))
+                }
+            }
+        """])
+
+    @test.xfail('''
+        edb.errors.InvalidConstraintDefinitionError: std::expression
+        constraint expression expected to return a bool value, got
+        'int64'
+    ''')
+    def test_migrations_equivalence_function_10(self):
+        self._assert_migration_equivalence([r"""
+            function hello10(a: int64) -> str
+                from edgeql $$
+                    SELECT <str>a
+                $$;
+
+            type Base {
+                required property foo -> int64 {
+                    # use the function in a constraint expression
+                    constraint expression on (len(hello10(__subject__)) < 2)
+                }
+            }
+        """, r"""
+            function hello10(a: int64) -> array<int64>
+                from edgeql $$
+                    SELECT [a]
+                $$;
+
+            type Base {
+                required property foo -> int64 {
+                    # use the function in a constraint expression
+                    constraint expression on (len(hello10(__subject__)) < 2)
+                }
+            }
+        """])
+
+    def test_migrations_equivalence_linkprops_03(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    property bar -> int64
+                }
+            };
+        """, r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    # change the link property type
+                    property bar -> str
+                }
+            };
+        """])
+
+    def test_migrations_equivalence_linkprops_07(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                inherited link child -> Child {
+                    property foo -> str
+                }
+            };
+        """, r"""
+            type Child;
+
+            type Base {
+                # move the link property earlier in the inheritance tree
+                link child -> Child {
+                    property foo -> str
+                }
+            };
+
+            type Derived extending Base;
+        """])
+
+    def test_migrations_equivalence_linkprops_08(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link child -> Child {
+                    property foo -> str
+                }
+            };
+
+            type Derived extending Base;
+        """, r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                inherited link child -> Child {
+                    # move the link property later in the inheritance tree
+                    property foo -> str
+                }
+            };
+        """])
+
+    def test_migrations_equivalence_linkprops_09(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                inherited link child -> Child {
+                    property foo -> str
+                }
+            };
+        """, r"""
+            type Child;
+
+            # factor out link property all the way to an abstract link
+            abstract link base_child {
+                property foo -> str;
+            }
+
+            type Base {
+                link child extending base_child -> Child;
+            };
+
+            type Derived extending Base;
+        """])
+
+    def test_migrations_equivalence_linkprops_10(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            abstract link base_child {
+                property foo -> str;
+            }
+
+            type Base {
+                link child extending base_child -> Child;
+            };
+
+            type Derived extending Base;
+        """, r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                inherited link child -> Child {
+                    # move the link property later in the inheritance tree
+                    property foo -> str
+                }
+            };
+        """])
+
+    def test_migrations_equivalence_linkprops_11(self):
+        self._assert_migration_equivalence([r"""
+            type Thing;
+
+            type Owner {
+                link item -> Thing {
+                    property foo -> str;
+                }
+            };
+
+            type Renter {
+                link item -> Thing {
+                    property foo -> str;
+                }
+            };
+        """, r"""
+            type Thing;
+
+            type Base {
+                link item -> Thing {
+                    property foo -> str;
+                }
+            };
+
+            type Owner extending Base;
+
+            type Renter extending Base;
+        """])
+
+    def test_migrations_equivalence_linkprops_12(self):
+        self._assert_migration_equivalence([r"""
+            type Thing;
+
+            type Owner {
+                link item -> Thing {
+                    property foo -> str;
+                }
+            };
+
+            type Renter {
+                link item -> Thing {
+                    property bar -> str;
+                }
+            };
+        """, r"""
+            type Thing;
+
+            type Base {
+                link item -> Thing {
+                    property foo -> str;
+                    property bar -> str;
+                }
+            };
+
+            type Owner extending Base;
+
+            type Renter extending Base;
         """])

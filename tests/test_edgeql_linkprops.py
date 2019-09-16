@@ -18,9 +18,9 @@
 
 
 import os.path
-import unittest  # NOQA
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLLinkproperties(tb.QueryTestCase):
@@ -389,6 +389,35 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                         {'name': 'Dave', '@nickname': 'Grumpy'},
                     ]
                 }
+            ]
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: column avatar~1.avatar does
+        not exist
+    ''')
+    async def test_edgeql_props_basic_06(self):
+        await self.assert_query_result(
+            r'''
+                SELECT test::User.avatar@text;
+            ''',
+            [
+                'Best'
+            ]
+        )
+
+    async def test_edgeql_props_basic_07(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    avatar: {
+                        @text
+                    }
+                } FILTER EXISTS .avatar@text;
+            ''',
+            [
+                {'avatar': {'@text': 'Best'}},
             ]
         )
 

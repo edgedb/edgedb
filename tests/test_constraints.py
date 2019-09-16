@@ -921,6 +921,82 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     };
                 """)
 
+    async def test_constraints_ddl_05(self):
+        # Test that constraint expression returns a boolean.
+
+        await self.con.execute(r"""
+            CREATE FUNCTION con05(a: int64) -> str
+                FROM EdgeQL $$
+                    SELECT <str>a
+                $$;
+        """)
+
+        # create a type with a constraint
+        await self.con.execute(r"""
+            CREATE TYPE test::ConstraintOnTest5 {
+                CREATE REQUIRED PROPERTY foo -> int64 {
+                    # Use the function in a constraint expression,
+                    # s.t. it will effectively fail for any int
+                    # outside 0-9 range.
+                    CREATE CONSTRAINT
+                        std::expression on (len(con05(__subject__)) < 2);
+                }
+            }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.errors.ConstraintViolationError,
+                r'invalid foo'):
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest5 {
+                    foo := 42
+                };
+            """)
+
+        async with self._run_and_rollback():
+            # constraint should not fail
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest5 {
+                    foo := 2
+                };
+            """)
+
+    async def test_constraints_ddl_06(self):
+        # Test that constraint expression returns a boolean.
+
+        await self.con.execute(r"""
+            CREATE FUNCTION con06(a: int64) -> array<int64>
+                FROM EdgeQL $$
+                    SELECT [a]
+                $$;
+        """)
+
+        # create a type with a constraint
+        await self.con.execute(r"""
+            CREATE TYPE test::ConstraintOnTest6 {
+                CREATE REQUIRED PROPERTY foo -> int64 {
+                    # Use the function in a constraint expression,
+                    # s.t. it will never fail.
+                    CREATE CONSTRAINT
+                        std::expression on (len(con06(__subject__)) < 2);
+                }
+            }
+        """)
+
+        async with self._run_and_rollback():
+            # constraint should not fail
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest6 {
+                    foo := 42
+                };
+            """)
+
+            await self.con.execute("""
+                INSERT test::ConstraintOnTest6 {
+                    foo := 2
+                };
+            """)
+
     async def test_constraints_ddl_error_02(self):
         # testing that subjectexpr cannot be overridden after it is
         # specified explicitly
