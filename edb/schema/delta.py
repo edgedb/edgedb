@@ -145,7 +145,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             value = ftype.create(schema, value.objects(schema))
 
         elif issubclass(ftype, s_expr.Expression):
-            value = ftype.from_expr(value, schema)
+            if value is not None:
+                value = ftype.from_expr(value, schema)
 
         else:
             value = field.coerce_value(schema, value)
@@ -781,8 +782,11 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
 
     def compute_inherited_fields(self, schema, context):
         result = {}
+        mcls = self.get_schema_metaclass()
         for op in self.get_subcommands(type=AlterObjectProperty):
-            result[op.property] = op.source == 'inheritance'
+            field = mcls.get_field(op.property)
+            if field.inheritable:
+                result[op.property] = op.source == 'inheritance'
 
         return immu.Map(result)
 
@@ -1261,24 +1265,25 @@ class DeleteObject(ObjectCommand):
     def _delete_finalize(self, schema, context, scls):
         ref_strs = []
 
-        refs = schema.get_referrers(self.scls)
-        if refs:
-            for ref in refs:
-                if (not context.is_deleting(ref)
-                        and ref.is_blocking_ref(schema, scls)):
-                    ref_strs.append(
-                        ref.get_verbosename(schema, with_parent=True))
+        if not context.canonical:
+            refs = schema.get_referrers(self.scls)
+            if refs:
+                for ref in refs:
+                    if (not context.is_deleting(ref)
+                            and ref.is_blocking_ref(schema, scls)):
+                        ref_strs.append(
+                            ref.get_verbosename(schema, with_parent=True))
 
-        if ref_strs:
-            vn = self.scls.get_verbosename(schema, with_parent=True)
-            dn = self.scls.get_displayname(schema)
-            detail = '; '.join(f'{ref_str} depends on {dn}'
-                               for ref_str in ref_strs)
-            raise errors.SchemaError(
-                f'cannot drop {vn} because '
-                f'other objects in the schema depend on it',
-                details=detail,
-            )
+            if ref_strs:
+                vn = self.scls.get_verbosename(schema, with_parent=True)
+                dn = self.scls.get_displayname(schema)
+                detail = '; '.join(f'{ref_str} depends on {dn}'
+                                   for ref_str in ref_strs)
+                raise errors.SchemaError(
+                    f'cannot drop {vn} because '
+                    f'other objects in the schema depend on it',
+                    details=detail,
+                )
 
         schema = schema.delete(scls)
         return schema

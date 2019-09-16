@@ -268,7 +268,14 @@ class CreateProperty(PropertyCommand,
         elif op.property == 'cardinality':
             node.cardinality = op.new_value
         elif op.property == 'target' and link:
-            node.target = utils.typeref_to_ast(schema, op.new_value)
+            if isinstance(node, qlast.CreateConcreteProperty):
+                node.target = utils.typeref_to_ast(schema, op.new_value)
+            else:
+                node.commands.append(
+                    qlast.SetPropertyType(
+                        type=utils.typeref_to_ast(schema, op.new_value)
+                    )
+                )
         else:
             super()._apply_field_ast(schema, context, node, op)
 

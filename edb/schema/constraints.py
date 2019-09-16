@@ -601,6 +601,8 @@ class CreateConstraint(ConstraintCommand,
                         value=op.new_value,
                     )
                 )
+        elif op.property == 'args':
+            node.args = [arg.qlast for arg in op.new_value]
         else:
             super()._apply_field_ast(schema, context, node, op)
 

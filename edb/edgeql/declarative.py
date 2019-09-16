@@ -112,7 +112,8 @@ def sdl_to_ddl(schema, declarations):
         for decl_ast in schema_ast.declarations:
             if isinstance(decl_ast, qlast.CreateObject):
                 fq_name = f'{module_name}::{decl_ast.name.name}'
-                if isinstance(decl_ast, qlast.CreateObjectType):
+                if isinstance(decl_ast, (qlast.CreateObjectType,
+                                         qlast.CreateView)):
                     ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
 
                 elif isinstance(decl_ast, qlast.CreateScalarType):

@@ -279,7 +279,15 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         objtype = context.get(LinkSourceCommandContext)
 
         if op.property == 'required':
-            node.is_required = op.new_value
+            if isinstance(node, qlast.CreateConcreteLink):
+                node.is_required = op.new_value
+            else:
+                node.commands.append(
+                    qlast.SetSpecialField(
+                        name=qlast.ObjectRef(name='required'),
+                        value=op.new_value,
+                    )
+                )
         elif op.property == 'cardinality':
             node.cardinality = op.new_value
         elif op.property == 'target' and objtype:

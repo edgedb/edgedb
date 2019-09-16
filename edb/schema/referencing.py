@@ -384,7 +384,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         refname = reftype.get_key_for(schema, self.scls)
 
         if (not context.in_deletion(offset=1)
-                and not context.disable_dep_verification):
+                and not context.disable_dep_verification
+                and not context.canonical):
             implicit_bases = set(self._get_implicit_ref_bases(
                 schema, context, referrer, refdict, refname))
 

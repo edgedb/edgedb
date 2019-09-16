@@ -29,7 +29,6 @@ from edb.schema import delta as s_delta
 from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
-from edb.tools import test
 
 
 class TestSchema(tb.BaseSchemaLoadTest):
@@ -756,14 +755,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        edb.errors.SchemaError: cannot drop inherited property 'foo'
-        of object type 'test::Derived'
-
-        DETAILS: property 'foo' of object type 'test::Derived' is
-        inherited from:
-        - object type 'test::Base'
-    ''')
     def test_migrations_equivalence_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -783,14 +774,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        edb.errors.SchemaError: cannot drop inherited property 'foo'
-        of object type 'test::Further'
-
-        DETAILS: property 'foo' of object type 'test::Further' is
-        inherited from:
-        - object type 'test::Derived'
-    ''')
     def test_migrations_equivalence_04(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -814,13 +797,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
-        edb.errors.SchemaError: cannot drop property 'foo' of object
-        type 'test::Base' because other objects in the schema depend
-        on it
-
-        DETAILS: property 'foo' of object type 'test::Derived' depends on foo
-    ''')
     def test_migrations_equivalence_05(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -879,12 +855,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        Fails in _assert_migration_consistency for the final state:
-
-        edb.errors.InvalidReferenceError: object type or view 'max'
-        does not exist
-    ''')
     def test_migrations_equivalence_08(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -899,12 +869,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        Fails in _assert_migration_consistency for the final state:
-
-        edb.errors.InvalidReferenceError: object type or view 'max'
-        does not exist
-    ''')
     def test_migrations_equivalence_09(self):
         self._assert_migration_equivalence([r"""
             scalar type constraint_length extending str {
@@ -972,13 +936,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        edb.errors.SchemaError: cannot drop link 'bar' of object type
-        'test::Base' because other objects in the schema depend on
-        it
-
-        DETAILS: link 'bar' of object type 'test::Derived' depends on bar
-    ''')
     def test_migrations_equivalence_13(self):
         self._assert_migration_equivalence([r"""
             type Child;
@@ -1040,9 +997,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    @test.xfail('''
-        Fails in _assert_migration_consistency for the final state
-    ''')
     def test_migrations_equivalence_16(self):
         self._assert_migration_equivalence([r"""
             type Child;
@@ -1074,10 +1028,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        Fails in python:
-        AttributeError: 'NoneType' object has no attribute 'text'
-    ''')
     def test_migrations_equivalence_17(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -1090,10 +1040,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        Fails in python:
-        AttributeError: 'NoneType' object has no attribute 'text'
-    ''')
     def test_migrations_equivalence_18(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -1120,10 +1066,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        Fails in python:
-        AttributeError: 'NoneType' object has no attribute 'text'
-    ''')
     def test_migrations_equivalence_20(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -1188,12 +1130,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xfail('''
-        Fails in _assert_migration_consistency for the final state:
-
-        edb.errors.InvalidReferenceError: schema item 'std::Base'
-        does not exist
-    ''')
     def test_migrations_equivalence_23(self):
         self._assert_migration_equivalence([r"""
             type Child {
@@ -1339,14 +1275,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
-        edb.errors.SchemaError: cannot drop inherited link '__type__'
-        of object type 'test::Child'
-
-        DETAILS: link '__type__' of object type 'test::Child' is
-        inherited from:
-        - object type 'std::Object'
-    ''')
     def test_migrations_equivalence_28(self):
         self._assert_migration_equivalence([r"""
             type Child {
@@ -1356,14 +1284,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # drop everything
         """])
 
-    @test.xfail('''
-        edb.errors.SchemaError: cannot drop inherited link '__type__'
-        of object type 'test::Base'
-
-        DETAILS: link '__type__' of object type 'test::Base' is
-        inherited from:
-        - object type 'test::Child'
-    ''')
     def test_migrations_equivalence_29(self):
         self._assert_migration_equivalence([r"""
             type Child {

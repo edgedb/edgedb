@@ -170,6 +170,28 @@ class ExpressionList(typed.FrozenTypedList, type=Expression):
 
         return result
 
+    @classmethod
+    def compare_values(cls, ours, theirs, *,
+                       our_schema, their_schema, context, compcoef):
+        """See the comment in Object.compare_values""".
+        if not ours and not theirs:
+            basecoef = 1.0
+        elif (not ours or not theirs) or (len(ours) != len(theirs)):
+            basecoef = 0.2
+        else:
+            similarity = []
+
+            for expr1, expr2 in zip(ours, theirs):
+                similarity.append(
+                    Expression.compare_values(
+                        expr1, expr2, our_schema=our_schema,
+                        their_schema=their_schema, context=context,
+                        compcoef=compcoef))
+
+            basecoef = sum(similarity) / len(similarity)
+
+        return basecoef + (1 - basecoef) * compcoef
+
 
 def imprint_expr_context(qltree, modaliases):
     # Imprint current module aliases as explicit

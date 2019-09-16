@@ -805,6 +805,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     @classmethod
     def compare_values(cls, ours, theirs, *,
                        our_schema, their_schema, context, compcoef):
+        """Compare two values and return a coefficient of similarity.
+
+        This is a common callback that is used when we do schema comparisons.
+        *ours* and *theirs* are instances of this class, and *our_schema* and
+        *their_schema* are the corresponding schemas in which the values are
+        defined.  *compcoef* is whatever was specified for the field. The
+        method returns a coefficient of similarity of the values, from ``0``
+        to ``1``.
+        """
         similarity = 1.0
 
         if (ours is None) != (theirs is None):
