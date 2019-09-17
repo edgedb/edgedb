@@ -10,6 +10,11 @@ Glossary
 
 .. glossary::
 
+   DDL
+      Data Definition Language. DDL is a type of database-specific
+      syntax used to define the structuring of schemas. Common DDL
+      statements include ``CREATE``, ``DROP``, and ``ALTER``.
+
    set reference
       A *name* (a simple identifier or a qualified schema name)
       that represents a set of values.  It can be the name of an
