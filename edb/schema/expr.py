@@ -173,7 +173,7 @@ class ExpressionList(typed.FrozenTypedList, type=Expression):
     @classmethod
     def compare_values(cls, ours, theirs, *,
                        our_schema, their_schema, context, compcoef):
-        """See the comment in Object.compare_values""".
+        """See the comment in Object.compare_values"""
         if not ours and not theirs:
             basecoef = 1.0
         elif (not ours or not theirs) or (len(ours) != len(theirs)):
