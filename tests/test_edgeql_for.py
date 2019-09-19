@@ -20,6 +20,7 @@
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLFor(tb.QueryTestCase):
@@ -189,30 +190,14 @@ class TestEdgeQLFor(tb.QueryTestCase):
             [3] * 13
         )
 
-    async def test_edgeql_for_filter_01(self):
-        await self.assert_query_result(
-            r'''
-                WITH MODULE test
-                FOR X IN {User.name}
-                UNION X
-                # this FILTER should have no impact
-                FILTER Card.element = 'Air';
-            ''',
-            {
-                'Alice',
-                'Bob',
-                'Carol',
-                'Dave',
-            }
-        )
-
     async def test_edgeql_for_limit_01(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
-                FOR X IN {User.name}
-                UNION X
-                ORDER BY X
+                SELECT _ := (
+                    FOR X IN {User.name} UNION X
+                )
+                ORDER BY _
                 OFFSET 2
                 LIMIT 1
             ''',
@@ -225,8 +210,10 @@ class TestEdgeQLFor(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
-                FOR X IN {Card.name}
-                UNION X
+                SELECT _ := (
+                    FOR X IN {Card.name}
+                    UNION X
+                )
                 # this FILTER should have no impact
                 FILTER Card.element = 'Air';
             ''',
@@ -248,8 +235,10 @@ class TestEdgeQLFor(tb.QueryTestCase):
             r'''
                 WITH MODULE test
                 # get a combination of names from different object types
-                FOR X IN {Card.name, User.name}
-                UNION X
+                SELECT _ := (
+                    FOR X IN {Card.name, User.name}
+                    UNION X
+                )
                 # this FILTER should have no impact
                 FILTER Card.element = 'Air';
             ''',
@@ -270,19 +259,22 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         )
 
+    @test.xfail('Nested shapes in FOR are currently broken')
     async def test_edgeql_for_in_computable_01(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
                 SELECT User {
                     select_deck := (
-                        FOR letter IN {'I', 'B'}
-                        UNION _ := (
-                            SELECT User.deck {
-                                name,
-                                @letter := letter
-                            }
-                            FILTER User.deck.name[0] = letter
+                        SELECT _ := (
+                            FOR letter IN {'I', 'B'}
+                            UNION (
+                                SELECT User.deck {
+                                    name,
+                                    @letter := letter
+                                }
+                                FILTER User.deck.name[0] = letter
+                            )
                         )
                         ORDER BY _.name
                     )

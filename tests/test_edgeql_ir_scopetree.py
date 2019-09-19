@@ -639,7 +639,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         SELECT User {
             select_deck := (
                 FOR letter IN {'I', 'B'}
-                UNION foo := (
+                UNION (
                     SELECT User.deck {
                         name,
                         @letter := letter
@@ -653,17 +653,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(__derived__::__derived__|foo@@w~2)": {
-                    "FENCE": {
-                        "(test::User).>deck[IS test::Card]",
-                        "FENCE": {
-                            "(test::User).>deck[IS test::Card]\
-.>name[IS std::str]"
-                        }
-                    }
-                },
                 "(__derived__::__derived__|letter@@w~1)",
-                "(test::User).>select_deck[IS test::Card]"
+                "(test::User).>select_deck[IS test::Card]",
+                "FENCE": {
+                    "(test::User).>deck[IS test::Card]",
+                    "FENCE": {
+                        "(test::User).>deck[IS test::Card].>name[IS std::str]"
+                    }
+                }
             },
             "FENCE": {
                 "(test::User).>name[IS std::str]"

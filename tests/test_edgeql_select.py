@@ -4857,39 +4857,22 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_select_for_01(self):
-        await self.assert_query_result(
-            r'''
-            WITH MODULE test
-            FOR x IN {1, 4}
-            UNION Issue {
-                name
-            }
-            FILTER
-                Issue.number = <str>x
-            ORDER BY
-                Issue.number;
-            ''',
-            [
-                {'name': 'Release EdgeDB'},
-                {'name': 'Regression.'},
-            ]
-        )
-
     async def test_edgeql_select_for_02(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
-            FOR x IN {1, 3, 4}
-            UNION I := (
-                SELECT Issue {
-                    name,
-                    number,
-                }
-                FILTER
-                    Issue.number > <str>x
-                ORDER BY
-                    Issue.number
+            SELECT I := (
+                FOR x IN {1, 3, 4}
+                UNION (
+                    SELECT Issue {
+                        name,
+                        number,
+                    }
+                    FILTER
+                        Issue.number > <str>x
+                    ORDER BY
+                        Issue.number
+                )
             )
             ORDER BY I.number;
             ''',

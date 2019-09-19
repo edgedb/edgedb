@@ -2151,24 +2151,6 @@ class TestExpressions(tb.QueryTestCase):
                 };
             """)
 
-    @unittest.expectedFailure
-    async def test_edgeql_expr_paths_07(self):
-        # `Issue.number` in FILTER is illegal because it shares a
-        # prefix `Issue` with `Issue.owner` which is defined in an
-        # outer scope.
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"'Issue.number' changes the interpretation of 'Issue'"):
-            await self.con.execute(r"""
-                WITH MODULE test
-                FOR x IN {'Elvis', 'Yury'}
-                UNION (
-                    SELECT Issue.owner
-                    FILTER Issue.owner.name = x
-                )
-                FILTER Issue.number > '2';
-            """)
-
     async def test_edgeql_expr_paths_08(self):
         # `Issue.number` in FILTER is illegal because it shares a
         # prefix `Issue` with `Issue.owner` which is defined in an
@@ -4267,19 +4249,17 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 FOR x IN {1, 3, 5, 7}
-                UNION x
-                ORDER BY x;
+                UNION x;
             """,
-            [1, 3, 5, 7],
+            {1, 3, 5, 7},
         )
 
         await self.assert_query_result(
             r"""
                 FOR x IN {1, 3, 5, 7}
-                UNION x + 1
-                ORDER BY x;
+                UNION x + 1;
             """,
-            [2, 4, 6, 8],
+            {2, 4, 6, 8},
         )
 
     async def test_edgeql_expr_for_02(self):
