@@ -259,8 +259,73 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         )
 
-    @test.xfail('Nested shapes in FOR are currently broken')
     async def test_edgeql_for_in_computable_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    select_deck := (
+                        SELECT _ := (
+                            FOR letter IN {'I', 'B'}
+                            UNION (
+                                SELECT User.deck {
+                                    name,
+                                    letter := letter
+                                }
+                                FILTER User.deck.name[0] = letter
+                            )
+                        )
+                        ORDER BY _.name
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', 'letter': 'B'},
+                        {'name': 'Imp', 'letter': 'I'},
+                    ]
+                }
+            ]
+        )
+
+    async def test_edgeql_for_in_computable_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    select_deck := (
+                        SELECT _ := (
+                            FOR letter IN {'I', 'B'}
+                            UNION (
+                                FOR copy IN {'1', '2'}
+                                UNION (
+                                    SELECT User.deck {
+                                        name,
+                                        letter := letter ++ copy
+                                    }
+                                    FILTER User.deck.name[0] = letter
+                                )
+                            )
+                        )
+                        ORDER BY _.name, _.letter
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', 'letter': 'B1'},
+                        {'name': 'Bog monster', 'letter': 'B2'},
+                        {'name': 'Imp', 'letter': 'I1'},
+                        {'name': 'Imp', 'letter': 'I2'},
+                    ]
+                }
+            ]
+        )
+
+    @test.xfail('deeply nested linkprop hoisting is currently broken')
+    async def test_edgeql_for_in_computable_03(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test

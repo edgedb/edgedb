@@ -72,6 +72,7 @@ class ViewRPtr:
 @dataclasses.dataclass
 class StatementMetadata:
     is_unnest_fence: bool = False
+    iterator_target: bool = False
 
 
 class PendingCardinality(typing.NamedTuple):
@@ -323,6 +324,9 @@ class ContextLevel(compiler.ContextLevel):
     path_scope_map: typing.Dict[irast.Set, irast.ScopeTreeNode]
     """A forest of scope trees used for views."""
 
+    iterator_ctx: typing.Optional[ContextLevel]
+    """The context of the statement where all iterators should be placed."""
+
     scope_id_ctr: compiler.Counter
     """Path scope id counter."""
 
@@ -386,6 +390,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_map = collections.ChainMap()
             self.path_scope = None
             self.path_scope_map = {}
+            self.iterator_ctx = None
             self.scope_id_ctr = compiler.Counter()
             self.view_scls = None
             self.expr_exposed = False
@@ -415,6 +420,7 @@ class ContextLevel(compiler.ContextLevel):
             self.expr_view_cache = prevlevel.expr_view_cache
             self.shape_type_cache = prevlevel.shape_type_cache
 
+            self.iterator_ctx = prevlevel.iterator_ctx
             self.path_id_namespace = prevlevel.path_id_namespace
             self.pending_stmt_own_path_id_namespace = \
                 prevlevel.pending_stmt_own_path_id_namespace
@@ -469,6 +475,8 @@ class ContextLevel(compiler.ContextLevel):
                 self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
                 self.banned_paths = set()
+
+                self.iterator_ctx = None
 
                 self.view_rptr = None
                 self.view_scls = None

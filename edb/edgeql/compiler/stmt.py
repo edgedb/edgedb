@@ -109,20 +109,42 @@ def compile_ForQuery(
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
         with sctx.newscope(fenced=True) as scopectx:
+            iterator_ctx = None
+            if (ctx.expr_exposed and ctx.iterator_ctx is not None
+                    and ctx.iterator_ctx is not sctx):
+                iterator_ctx = ctx.iterator_ctx
+
+            if iterator_ctx is not None:
+                iterator_scope_parent = iterator_ctx.path_scope
+                path_id_ns = iterator_ctx.path_id_namespace
+            else:
+                iterator_scope_parent = sctx.path_scope
+                path_id_ns = sctx.path_id_namespace
+
             iterator = qlstmt.iterator
             if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
                 iterator = iterator.elements[0]
 
             iterator_view = stmtctx.declare_view(
-                iterator, qlstmt.iterator_alias, ctx=scopectx)
+                iterator, qlstmt.iterator_alias,
+                path_id_namespace=path_id_ns, ctx=scopectx)
 
-            stmt.iterator_stmt = setgen.new_set_from_set(
-                iterator_view, ctx=scopectx)
+            iterator_stmt = setgen.new_set_from_set(
+                iterator_view, preserve_scope_ns=True, ctx=scopectx)
+
+            if iterator_ctx is not None:
+                iterator_ctx.stmt.hoisted_iterators.append(iterator_stmt)
+
+            stmt.iterator_stmt = iterator_stmt
 
             iterator_scope = scopectx.path_scope_map.get(iterator_view)
 
-        pathctx.register_set_in_scope(stmt.iterator_stmt, ctx=sctx)
-        node = sctx.path_scope.find_descendant(stmt.iterator_stmt.path_id)
+        pathctx.register_set_in_scope(
+            iterator_stmt,
+            path_scope=iterator_scope_parent,
+            ctx=sctx,
+        )
+        node = iterator_scope_parent.find_descendant(iterator_stmt.path_id)
         node.attach_subtree(iterator_scope)
 
         output = astutils.ensure_qlstmt(qlstmt.result)
@@ -419,8 +441,11 @@ def init_stmt(
         ctx.path_id_namespace |= pending_full_ns
 
     metadata = ctx.stmt_metadata.get(qlstmt)
-    if metadata is not None and metadata.is_unnest_fence:
-        ctx.path_scope.unnest_fence = True
+    if metadata is not None:
+        if metadata.is_unnest_fence:
+            ctx.path_scope.unnest_fence = True
+        if metadata.iterator_target:
+            ctx.iterator_ctx = ctx
 
     irstmt.parent_stmt = parent_ctx.stmt
 

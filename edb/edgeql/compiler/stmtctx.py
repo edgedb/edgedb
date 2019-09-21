@@ -355,9 +355,13 @@ def declare_view(
         expr: qlast.Base, alias: str, *,
         fully_detached: bool=False,
         temporary_scope: bool=True,
+        path_id_namespace: typing.Optional[typing.FrozenSet[str]]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
     with ctx.newscope(temporary=temporary_scope, fenced=True) as subctx:
+        if path_id_namespace is not None:
+            subctx.path_id_namespace = path_id_namespace
+
         if not fully_detached:
             cached_view_set = ctx.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
@@ -396,8 +400,10 @@ def declare_view(
         if not fully_detached:
             # The view path id _itself_ should not be in the nested namespace.
             # The fully_detached case should be handled by the caller.
+            if path_id_namespace is None:
+                path_id_namespace = ctx.path_id_namespace
             view_set.path_id = view_set.path_id.replace_namespace(
-                ctx.path_id_namespace)
+                path_id_namespace)
 
         ctx.aliased_views[alias] = setgen.get_set_type(view_set, ctx=ctx)
         ctx.path_scope_map[view_set] = subctx.path_scope

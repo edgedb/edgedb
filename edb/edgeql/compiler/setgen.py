@@ -531,6 +531,7 @@ def extend_path(
         target: typing.Optional[s_types.Type]=None, *,
         ignore_computable: bool=False,
         is_mut_assign: bool=False,
+        hoist_iterators: bool=False,
         unnest_fence: bool=False,
         same_computable_scope: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -572,6 +573,7 @@ def extend_path(
         target_set = computable_ptr_set(
             ptr,
             unnest_fence=unnest_fence,
+            hoist_iterators=hoist_iterators,
             from_default_expr=is_mut_assign,
             same_computable_scope=same_computable_scope,
             ctx=ctx,
@@ -780,6 +782,7 @@ def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
 def computable_ptr_set(
         rptr: irast.Pointer, *,
         unnest_fence: bool=False,
+        hoist_iterators: bool=False,
         same_computable_scope: bool=False,
         from_default_expr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -898,9 +901,11 @@ def computable_ptr_set(
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
 
-        if isinstance(qlexpr, qlast.Statement) and unnest_fence:
+        if isinstance(qlexpr, qlast.Statement):
             subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
-                is_unnest_fence=True)
+                is_unnest_fence=unnest_fence,
+                iterator_target=True,
+            )
 
         comp_ir_set = ensure_set(
             dispatch.compile(qlexpr, ctx=subctx), ctx=subctx)
