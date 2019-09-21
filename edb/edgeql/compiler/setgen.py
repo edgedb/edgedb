@@ -229,8 +229,12 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
-                    path_tip = new_set_from_set(view_set, ctx=ctx)
-                    path_scope = ctx.path_scope_map[view_set]
+                    path_scope, path_scope_ns = ctx.path_scope_map[view_set]
+                    path_tip = new_set_from_set(
+                        view_set,
+                        preserve_scope_ns=path_scope_ns is not None,
+                        ctx=ctx,
+                    )
                     extra_scopes[path_tip] = path_scope.copy()
                 else:
                     path_tip = class_set(stype, ctx=ctx)
@@ -579,6 +583,7 @@ def extend_path(
         *,
         ignore_computable: bool=False,
         is_mut_assign: bool=False,
+        hoist_iterators: bool=False,
         unnest_fence: bool=False,
         same_computable_scope: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -619,6 +624,7 @@ def extend_path(
         target_set = computable_ptr_set(
             ptr,
             unnest_fence=unnest_fence,
+            hoist_iterators=hoist_iterators,
             from_default_expr=is_mut_assign,
             same_computable_scope=same_computable_scope,
             ctx=ctx,
@@ -863,6 +869,7 @@ def ensure_stmt(
 def computable_ptr_set(
         rptr: irast.Pointer, *,
         unnest_fence: bool=False,
+        hoist_iterators: bool=False,
         same_computable_scope: bool=False,
         from_default_expr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -962,9 +969,11 @@ def computable_ptr_set(
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
 
-        if isinstance(qlexpr, qlast.Statement) and unnest_fence:
+        if isinstance(qlexpr, qlast.Statement):
             subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
-                is_unnest_fence=True)
+                is_unnest_fence=unnest_fence,
+                iterator_target=True,
+            )
 
         comp_ir_set = ensure_set(
             dispatch.compile(qlexpr, ctx=subctx), ctx=subctx)
@@ -1015,7 +1024,6 @@ def _get_computable_ctx(
                 subctx.aliased_views[scls_name] = None
             subctx.source_map = qlctx.source_map.copy()
             subctx.view_nodes = qlctx.view_nodes.copy()
-            subctx.view_sets = qlctx.view_sets.copy()
             subctx.view_map = qlctx.view_map.new_child()
 
             source_scope = pathctx.get_set_scope(rptr.source, ctx=ctx)

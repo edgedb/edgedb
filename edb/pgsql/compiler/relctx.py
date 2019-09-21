@@ -608,16 +608,17 @@ def update_scope(
         assert p.path_id is not None
         ctx.path_scope[p.path_id] = stmt
 
-    iter_path_id = None
-    if (isinstance(ir_set.expr, irast.Stmt) and
-            ir_set.expr.iterator_stmt is not None):
-        iter_path_id = ir_set.expr.iterator_stmt.path_id
+    if isinstance(ir_set.expr, irast.Stmt):
+        iterators = irutils.get_iterator_sets(ir_set.expr)
+        iter_paths = {it.path_id for it in iterators}
+    else:
+        iter_paths = set()
 
     for child_path in scope_tree.get_all_paths():
         parent_scope = scope_tree.parent
         if ((parent_scope is None or
                 not parent_scope.is_visible(child_path)) and
-                child_path != iter_path_id):
+                child_path not in iter_paths):
             stmt.path_id_mask.add(child_path)
 
 

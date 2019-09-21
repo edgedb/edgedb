@@ -642,6 +642,7 @@ class Stmt(Expr):
     cardinality: qltypes.Cardinality
     parent_stmt: typing.Optional[Stmt]
     iterator_stmt: typing.Optional[Set]
+    hoisted_iterators: typing.List[Set]
 
 
 class FilteredStmt(Stmt):

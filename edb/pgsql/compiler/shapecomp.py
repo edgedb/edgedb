@@ -45,8 +45,8 @@ def compile_shape(
     with ctx.newscope() as shapectx:
         shapectx.disable_semi_join.add(ir_set.path_id)
 
-        if (isinstance(ir_set.expr, irast.Stmt) and
-                ir_set.expr.iterator_stmt is not None):
+        if isinstance(ir_set.expr, irast.Stmt):
+            iterators = irutils.get_iterator_sets(ir_set.expr)
             # The source set for this shape is a FOR statement,
             # which is special in that besides set path_id it
             # should also expose the path_id of the FOR iterator
@@ -60,8 +60,9 @@ def compile_shape(
             #
             # the path scope when processing the shape of Bar.foo
             # should be {'Bar.foo', 'x'}.
-            iter_path_id = ir_set.expr.iterator_stmt.path_id
-            shapectx.path_scope[iter_path_id] = ctx.rel
+            if iterators:
+                for iterator in iterators:
+                    shapectx.path_scope[iterator.path_id] = ctx.rel
 
         for el in shape:
             rptr = el.rptr

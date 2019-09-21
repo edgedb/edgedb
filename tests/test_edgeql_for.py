@@ -291,18 +291,43 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         )
 
-    @test.xfail('''
-        One important use of FOR is to associate link props with targets.
-
-        The test attempts to define a computable with an ad-hoc link
-        prop. The matters are complicated by the ORDER clause applied
-        ot the computable link. The wrapping SELECT makes it
-        impossible to define a link prop directly in FOR and it causes
-        an error in how "letter" is interpreted.
-
-        _letter and @letter become {'I', 'B'}, instead of being singletons.
-    ''')
     async def test_edgeql_for_in_computable_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    select_deck := (
+                        SELECT _ := (
+                            FOR letter IN {'I', 'B'}
+                            UNION (
+                                FOR copy IN {'1', '2'}
+                                UNION (
+                                    SELECT User.deck {
+                                        name,
+                                        letter := letter ++ copy
+                                    }
+                                    FILTER User.deck.name[0] = letter
+                                )
+                            )
+                        )
+                        ORDER BY _.name THEN _.letter
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', 'letter': 'B1'},
+                        {'name': 'Bog monster', 'letter': 'B2'},
+                        {'name': 'Imp', 'letter': 'I1'},
+                        {'name': 'Imp', 'letter': 'I2'},
+                    ]
+                }
+            ]
+        )
+
+    @test.xfail('deeply nested linkprop hoisting is currently broken')
+    async def test_edgeql_for_in_computable_03(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -313,11 +338,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
                             UNION (
                                 SELECT User.deck {
                                     name,
-                                    # Can't create a link property
-                                    # because it is not used directly
-                                    # in a computable link, but
-                                    # there's an intermediate clause.
-                                    _letter := letter
+                                    @letter := letter
                                 }
                                 FILTER User.deck.name[0] = letter
                             )
@@ -350,7 +371,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         See `test_edgeql_scope_tuple_13` for a shorter version of the
         same issue.
     ''')
-    async def test_edgeql_for_in_computable_03(self):
+    async def test_edgeql_for_in_computable_04(self):
         # This is trying to compute the same result as in previous
         # example, but without using a FOR. Instead relying on
         # property of tuples and cross-products to get the same

@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 
 from edb.pgsql import ast as pgast
 
@@ -49,11 +50,11 @@ def compile_SelectStmt(
 
         query = ctx.stmt
 
-        iterator_set = stmt.iterator_stmt
-        if (iterator_set is not None and
-                not isinstance(stmt.result.expr, irast.MutatingStmt)):
-            # Process FOR clause.
-            clauses.compile_iterator_expr(query, iterator_set, ctx=ctx)
+        if not isinstance(stmt.result.expr, irast.MutatingStmt):
+            iterators = irutils.get_iterator_sets(stmt)
+            for iterator_set in iterators:
+                # Process FOR clause.
+                clauses.compile_iterator_expr(query, iterator_set, ctx=ctx)
 
         # Process the result expression;
         outvar = clauses.compile_output(stmt.result, ctx=ctx)

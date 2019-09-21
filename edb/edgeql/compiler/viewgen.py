@@ -474,6 +474,9 @@ def _normalize_view_ptr_expr(
                 shape_expr_ctx.empty_result_type_hint = \
                     ptrcls.get_target(ctx.env.schema)
 
+            shape_expr_ctx.stmt_metadata[qlexpr] = context.StatementMetadata(
+                iterator_target=True,
+            )
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
 
             irexpr.context = compexpr.context
@@ -897,7 +900,8 @@ def _compile_view_shapes_in_set(
         for path_tip, ptr in shape_ptrs:
             element = setgen.extend_path(
                 path_tip, ptr, is_mut_assign=is_mutation,
-                unnest_fence=True, same_computable_scope=True, ctx=ctx)
+                unnest_fence=True, same_computable_scope=True,
+                hoist_iterators=True, ctx=ctx)
 
             element_scope = pathctx.get_set_scope(element, ctx=ctx)
 

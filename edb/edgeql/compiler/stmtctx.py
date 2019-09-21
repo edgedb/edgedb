@@ -351,9 +351,15 @@ def declare_view(
         fully_detached: bool=False,
         temporary_scope: bool=True,
         must_be_used: bool=False,
+        path_id_namespace: Optional[FrozenSet[str]]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
+    pinned_pid_ns = path_id_namespace
+
     with ctx.newscope(temporary=temporary_scope, fenced=True) as subctx:
+        if path_id_namespace is not None:
+            subctx.path_id_namespace = path_id_namespace
+
         if not fully_detached:
             cached_view_set = ctx.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
@@ -389,15 +395,18 @@ def declare_view(
         view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
         assert isinstance(view_set, irast.Set)
 
+        ctx.path_scope_map[view_set] = subctx.path_scope, pinned_pid_ns
+
         if not fully_detached:
             # The view path id _itself_ should not be in the nested namespace.
             # The fully_detached case should be handled by the caller.
+            if path_id_namespace is None:
+                path_id_namespace = ctx.path_id_namespace
             view_set.path_id = view_set.path_id.replace_namespace(
-                ctx.path_id_namespace)
+                path_id_namespace)
 
         view_type = setgen.get_set_type(view_set, ctx=ctx)
         ctx.aliased_views[alias] = view_type
-        ctx.path_scope_map[view_set] = subctx.path_scope
         ctx.expr_view_cache[expr, alias] = view_set
 
         if must_be_used:
