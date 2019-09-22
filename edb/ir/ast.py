@@ -411,6 +411,7 @@ class Statement(Command):
     views: typing.Dict[sn.Name, s_types.Type]
     params: typing.Dict[str, s_types.Type]
     cardinality: qltypes.Cardinality
+    volatility: qltypes.Volatility
     stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     view_shapes_metadata: typing.Dict[so.Object, ViewShapeMetadata]

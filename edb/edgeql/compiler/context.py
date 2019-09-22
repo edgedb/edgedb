@@ -187,6 +187,11 @@ class Environment:
         qltypes.Cardinality]
     """A dictionary of all expressions and their inferred cardinality."""
 
+    inferred_volatility: Dict[
+        irast.Base,
+        qltypes.Volatility]
+    """A dictionary of expressions and their inferred volatility."""
+
     view_shapes: Dict[
         Union[s_types.Type, s_pointers.PointerLike],
         List[s_pointers.Pointer]
@@ -225,6 +230,7 @@ class Environment:
         self.type_origins = {}
         self.inferred_types = {}
         self.inferred_cardinality = {}
+        self.inferred_volatility = {}
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)
