@@ -587,6 +587,19 @@ class ScopeTreeNode:
 
         return None, unnest_fence_seen
 
+    def find_common_parent(self, path_id: pathid.PathId) \
+            -> typing.Optional[ScopeTreeNode]:
+
+        namespaces = set()
+        for node, ans in self.ancestors_and_namespaces:
+            for descendant in node.strict_descendants:
+                if _paths_equal(descendant.path_id, path_id, namespaces):
+                    return node
+
+            namespaces |= ans
+
+        return None
+
     def find_by_unique_id(self, unique_id: int) \
             -> typing.Optional['ScopeTreeNode']:
         for node in self.descendants:
