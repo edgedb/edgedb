@@ -137,6 +137,8 @@ def fini_expression(
     else:
         cardinality = qltypes.Cardinality.AT_MOST_ONE
 
+    volatility = inference.infer_volatility(ir, env=ctx.env)
+
     if ctx.env.options.schema_view_mode:
         for view in ctx.view_nodes.values():
             if view.is_collection():
@@ -201,6 +203,7 @@ def fini_expression(
         source_map=ctx.source_map,
         scope_tree=ctx.path_scope,
         cardinality=cardinality,
+        volatility=volatility,
         stype=expr_type,
         view_shapes=ctx.env.view_shapes,
         view_shapes_metadata=ctx.env.view_shapes_metadata,

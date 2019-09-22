@@ -19,7 +19,13 @@
 
 from __future__ import annotations
 
-__all__ = ('amend_empty_set_type', 'infer_cardinality', 'infer_type',)
+__all__ = (
+    'amend_empty_set_type',
+    'infer_cardinality',
+    'infer_type',
+    'infer_volatility',
+)
 
 from .cardinality import infer_cardinality  # NOQA
 from .types import amend_empty_set_type, infer_type  # NOQA
+from .volatility import infer_volatility  # NOQA
