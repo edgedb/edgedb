@@ -121,6 +121,11 @@ class Environment:
         qltypes.Cardinality]
     """A dictionary of all expressions and their inferred cardinality."""
 
+    inferred_volatility: typing.Dict[
+        irast.Base,
+        qltypes.Volatility]
+    """A dictionary of expressions and their inferred volatility."""
+
     constant_folding: bool
     """Enables constant folding optimization (enabled by default)."""
 
@@ -168,6 +173,7 @@ class Environment:
         self.type_origins = {}
         self.inferred_types = {}
         self.inferred_cardinality = {}
+        self.inferred_volatility = {}
         self.constant_folding = constant_folding
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
