@@ -480,6 +480,14 @@ def fini_stmt(
     if view is not None:
         parent_ctx.view_sets[view] = result
 
+    for mat_set in irstmt.materialized_sets:
+        stmtctx.get_expr_cardinality_later(
+            target=mat_set.expr,
+            field='cardinality',
+            irexpr=setgen.ensure_set(mat_set.expr, ctx=ctx),
+            ctx=ctx,
+        )
+
     return result
 
 

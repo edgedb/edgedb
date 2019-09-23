@@ -921,6 +921,15 @@ def computable_ptr_set(
 
     rptr.target = comp_ir_set
 
+    common_parent = ctx.path_scope.find_common_parent(result_path_id)
+    if common_parent is not None:
+        materialize_in_stmt = ctx.materialized_sets.get(ptrcls)
+        if materialize_in_stmt is not None:
+            materialize_in_stmt.materialized_sets.add(comp_ir_set)
+            ctx.source_map[ptrcls] = (
+                None, qlctx, inner_source_path_id, path_id_ns
+            )
+
     return comp_ir_set
 
 
@@ -1004,3 +1013,8 @@ def _get_computable_ctx(
             yield subctx
 
     return newctx
+
+
+def should_materialize(ir: irast.Base, *, ctx: context.ContextLevel) -> bool:
+    volatility = inference.infer_volatility(ir, ctx.env)
+    return volatility is qltypes.Volatility.VOLATILE

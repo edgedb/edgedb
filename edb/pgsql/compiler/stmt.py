@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import typing
 
+from edb.edgeql import qltypes
+
 from edb.ir import ast as irast
 
 from edb.pgsql import ast as pgast
@@ -32,6 +34,7 @@ from . import dispatch
 from . import dml
 from . import pathctx
 from . import relctx
+from . import relgen
 
 
 @dispatch.compile.register(irast.SelectStmt)
@@ -54,6 +57,36 @@ def compile_SelectStmt(
                 not isinstance(stmt.result.expr, irast.MutatingStmt)):
             # Process FOR clause.
             clauses.compile_iterator_expr(query, iterator_set, ctx=ctx)
+
+        with ctx.new() as matctx:
+            matctx.expr_exposed = True
+            orig_output_format = matctx.env.output_format
+            matctx.env.output_format = context.OutputFormat.NATIVE
+
+            for materialized in stmt.materialized_sets:
+                is_singleton = (
+                    materialized.expr.cardinality is qltypes.Cardinality.ONE)
+
+                mat_qry = relgen.set_as_subquery(
+                    materialized, as_value=not is_singleton, ctx=matctx
+                )
+
+                if not is_singleton:
+                    mat_qry = relgen.set_to_array(
+                        ir_set=materialized, query=mat_qry, ctx=matctx)
+
+                mat_rvar = relctx.rvar_for_rel(
+                    mat_qry, lateral=True, ctx=matctx)
+
+                if not is_singleton:
+                    relctx.rel_join(query, mat_rvar, ctx=matctx)
+                else:
+                    relctx.include_rvar(
+                        query, mat_rvar, path_id=materialized.path_id,
+                        ctx=matctx
+                    )
+
+            matctx.env.output_format = orig_output_format
 
         # Process the result expression;
         outvar = clauses.compile_output(stmt.result, ctx=ctx)

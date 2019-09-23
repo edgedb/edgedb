@@ -352,7 +352,8 @@ def set_to_array(
     )
 
     result = pgast.SelectStmt()
-    relctx.include_rvar(result, subrvar, path_id=ir_set.path_id, ctx=ctx)
+    relctx.include_rvar(result, subrvar, pull_namespace=False,
+                        path_id=ir_set.path_id, ctx=ctx)
 
     val: typing.Optional[pgast.BaseExpr] = (
         pathctx.maybe_get_path_serialized_var(
@@ -364,8 +365,6 @@ def set_to_array(
             result, ir_set.path_id, env=ctx.env)
         val = output.serialize_expr(
             value_var, path_id=ir_set.path_id, env=ctx.env)
-        pathctx.put_path_serialized_var(
-            result, ir_set.path_id, val, force=True, env=ctx.env)
 
     pg_type = output.get_pg_type(ir_set.typeref, ctx=ctx)
     orig_val = val
@@ -407,6 +406,8 @@ def set_to_array(
             ser_safe=array_agg.ser_safe,
         )
     ]
+
+    result.path_rvar_map.clear()
 
     return result
 

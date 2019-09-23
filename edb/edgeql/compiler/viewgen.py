@@ -224,6 +224,7 @@ def _normalize_view_ptr_expr(
     is_linkprop = False
     is_polymorphic = False
     is_mutation = is_insert or is_update
+    materialized = False
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
     plen = len(steps)
@@ -456,8 +457,10 @@ def _normalize_view_ptr_expr(
                     ptrcls.get_target(ctx.env.schema)
 
             irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
-
             irexpr.context = compexpr.context
+
+            materialized = setgen.should_materialize(
+                irexpr, ctx=shape_expr_ctx)
 
             if base_ptrcls is None:
                 base_ptrcls = shape_expr_ctx.view_rptr.base_ptrcls
@@ -598,6 +601,9 @@ def _normalize_view_ptr_expr(
 
     if qlexpr is not None:
         ctx.source_map[ptrcls] = (qlexpr, ctx, path_id, path_id_namespace)
+
+    if materialized:
+        ctx.materialized_sets[ptrcls] = ctx.stmt
 
     if not is_mutation:
         if ptr_cardinality is None:

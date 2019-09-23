@@ -530,6 +530,7 @@ class Stmt(Base):
     cardinality: qltypes.Cardinality
     parent_stmt: Stmt
     iterator_stmt: Set
+    materialized_sets: typing.Set[Set]
 
 
 class FilteredStmt(Stmt):

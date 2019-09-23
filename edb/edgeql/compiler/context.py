@@ -257,6 +257,12 @@ class ContextLevel(compiler.ContextLevel):
     ]
     """A mapping of computable pointers to QL source AST and context."""
 
+    materialized_sets: typing.Dict[
+        s_pointers.PointerLike,
+        irast.Stmt,
+    ]
+    """A mapping of computed sets that must be computed only once."""
+
     view_nodes: typing.Dict[s_name.SchemaName, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
@@ -374,6 +380,7 @@ class ContextLevel(compiler.ContextLevel):
             self.pointer_derivation_map = collections.defaultdict(list)
 
             self.source_map = {}
+            self.materialized_sets = {}
             self.view_nodes = {}
             self.view_sets = {}
             self.aliased_views = collections.ChainMap()
@@ -416,6 +423,7 @@ class ContextLevel(compiler.ContextLevel):
             self.pointer_derivation_map = prevlevel.pointer_derivation_map
 
             self.source_map = prevlevel.source_map
+            self.materialized_sets = prevlevel.materialized_sets
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
             self.expr_view_cache = prevlevel.expr_view_cache
