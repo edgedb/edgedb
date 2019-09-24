@@ -113,6 +113,18 @@ type DefaultTest7 {
     }
 }
 
+# self incrementing integer sequence
+scalar type int_seq8_t extending sequence;
+
+type DefaultTest8 {
+    required property number -> int_seq8_t {
+        # The number values are automatically
+        # generated, and are not supposed to be
+        # directly writable.
+        readonly := true;
+    }
+}
+
 # types to test some inheritance issues
 type InputValue {
     property val -> str;

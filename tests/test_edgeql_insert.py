@@ -1024,6 +1024,24 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_insert_default_05(self):
+        # Issue #730
+        await self.con.execute(r'''
+            # The 'number' property is supposed to be
+            # self-incrementing and read-only.
+            INSERT test::DefaultTest8;
+            INSERT test::DefaultTest8;
+            INSERT test::DefaultTest8;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT DefaultTest8.number;
+            ''',
+            {1, 2, 3}
+        )
+
     @unittest.expectedFailure
     async def test_edgeql_insert_as_expr_01(self):
         await self.con.execute(r'''
