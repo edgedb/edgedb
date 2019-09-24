@@ -1218,19 +1218,11 @@ class DeleteObject(ObjectCommand):
 
         self._validate_legal_command(schema, context)
 
-        if not context.canonical and self._is_top_deletion(schema, context):
+        if not context.canonical:
             self._canonicalize(schema, context, scls)
             ordering.linearize_delta(self, schema, schema)
 
         return schema
-
-    def _is_top_deletion(self, schema, context):
-        for ctx in context.stack:
-            if isinstance(ctx.op, DeleteObject):
-                del_op = ctx.op
-                break
-
-        return del_op is self
 
     def _canonicalize(self, schema, context, scls):
         mcls = self.get_schema_metaclass()

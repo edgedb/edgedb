@@ -2901,6 +2901,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
         ])
 
+    async def test_edgeql_ddl_drop_inherited_link(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::Target;
+            CREATE TYPE test::Parent {
+                CREATE LINK dil_foo -> test::Target;
+            };
+
+            CREATE TYPE test::Child EXTENDING test::Parent;
+            CREATE TYPE test::GrandChild EXTENDING test::Child;
+       """)
+
+        await self.con.execute("""
+            ALTER TYPE test::Parent DROP LINK dil_foo;
+        """)
+
     async def test_edgeql_ddl_tuple_properties(self):
         await self.con.execute(r"""
             CREATE TYPE test::TupProp01 {
