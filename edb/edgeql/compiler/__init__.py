@@ -25,6 +25,7 @@ from __future__ import annotations
 from edb import errors
 
 from edb.edgeql import parser as ql_parser
+from edb.edgeql import qltypes
 
 from edb.common import debug
 from edb.common import markup  # NOQA
@@ -278,6 +279,27 @@ def compile_func_to_ir(func, schema, *,
         # the body of a session_only function can contain calls to
         # other session_only functions
         session_mode=func.get_session_only(schema))
+
+    return_type = func.get_return_type(schema)
+    if (not ir.stype.issubclass(schema, return_type)
+            and not ir.stype.implicitly_castable_to(return_type, schema)):
+        raise errors.InvalidFunctionDefinitionError(
+            f'return type mismatch in function declared to return '
+            f'{return_type.get_verbosename(schema)}',
+            details=f'Actual return type is '
+                    f'{ir.stype.get_verbosename(schema)}',
+            context=tree.context,
+        )
+
+    return_typemod = func.get_return_typemod(schema)
+    if (return_typemod is not qltypes.TypeModifier.SET_OF
+            and ir.cardinality is qltypes.Cardinality.MANY):
+        raise errors.InvalidFunctionDefinitionError(
+            f'return cardinality mismatch in function declared to return '
+            f'a singleton',
+            details=f'Function may return a set with more than one element.',
+            context=tree.context,
+        )
 
     return ir
 

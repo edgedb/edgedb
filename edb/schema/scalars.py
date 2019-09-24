@@ -131,12 +131,16 @@ class ScalarType(s_types.Type, constraints.ConsistencySubject,
     def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
         if not isinstance(other, ScalarType):
             return False
+        if self.is_polymorphic(schema) or other.is_polymorphic(schema):
+            return False
         left = self.get_topmost_concrete_base(schema)
         right = other.get_topmost_concrete_base(schema)
         return s_casts.is_implicitly_castable(schema, left, right)
 
     def get_implicit_cast_distance(self, other: s_types.Type, schema) -> int:
         if not isinstance(other, ScalarType):
+            return -1
+        if self.is_polymorphic(schema) or other.is_polymorphic(schema):
             return -1
         left = self.get_topmost_concrete_base(schema)
         right = other.get_topmost_concrete_base(schema)
