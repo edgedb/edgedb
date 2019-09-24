@@ -119,6 +119,19 @@ def get_set_rvar(
     if rvar is not None:
         return rvar
 
+    packed_rvar = relctx.find_packed_rvar(ctx.rel, source_stmt=scope_stmt,
+                                          path_id=path_id, ctx=ctx)
+
+    if packed_rvar is not None:
+        rvar = relctx.unpack_rvar(
+            scope_stmt or ctx.rel, path_id, packed_rvar=packed_rvar, ctx=ctx)
+
+        pathctx.put_path_rvar_if_not_exists(
+            ctx.rel, path_id, rvar,
+            aspect='value', env=ctx.env)
+
+        return rvar
+
     if ctx.toplevel_stmt is None:
         # Top level query
         return _process_toplevel_query(ir_set, ctx=ctx)
@@ -331,7 +344,10 @@ def set_as_subquery(
                 value = output.output_as_value(var, env=ctx.env)
 
                 wrapper.target_list = [
-                    pgast.ResTarget(val=value)
+                    pgast.ResTarget(
+                        val=value,
+                        name=ctx.env.aliases.get('v'),
+                    ),
                 ]
         else:
             pathctx.get_path_value_output(
@@ -403,6 +419,7 @@ def set_to_array(
     result.target_list = [
         pgast.ResTarget(
             val=agg_expr,
+            name=ctx.env.aliases.get('v'),
             ser_safe=array_agg.ser_safe,
         )
     ]

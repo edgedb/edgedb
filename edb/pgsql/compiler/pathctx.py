@@ -513,6 +513,18 @@ def get_rvar_output_var_as_col_list(
     return cols
 
 
+def get_rvar_path_packed_var(
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str, *,
+        env: context.Environment) -> pgast.OutputVar:
+    """Return ColumnRef for a given *path_id* in a given *range var*."""
+
+    outvar = rvar.query.packed_path_outputs.get((path_id, aspect))
+    if outvar is None:
+        raise LookupError(
+            f'there is no packed var for {path_id} {aspect} in {rvar.query}')
+    return astutils.get_rvar_var(rvar, outvar)
+
+
 def put_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         aspect: str, env: context.Environment) -> None:
@@ -591,6 +603,48 @@ def maybe_get_path_value_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         env: context.Environment) -> typing.Optional[pgast.BaseRangeVar]:
     return maybe_get_path_rvar(stmt, path_id, aspect='value', env=env)
+
+
+def put_path_packed_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
+        aspect: str, env: context.Environment) -> None:
+    assert isinstance(path_id, irast.PathId)
+    stmt.path_packed_rvar_map[path_id, aspect] = rvar
+
+
+def put_path_packed_rvar_if_not_exists(
+        stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
+        aspect: str, env: context.Environment) -> None:
+    if (path_id, aspect) not in stmt.path_packed_rvar_map:
+        put_path_packed_rvar(stmt, path_id, rvar, aspect=aspect, env=env)
+
+
+def has_packed_rvar(
+        stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
+        env: context.Environment) -> bool:
+    return rvar in set(stmt.path_packed_rvar_map.values())
+
+
+def get_path_packed_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, env: context.Environment) -> pgast.PathRangeVar:
+    rvar = stmt.path_packed_rvar_map.get((path_id, aspect))
+    if rvar is None:
+        if aspect == 'identity':
+            rvar = stmt.path_packed_rvar_map.get((path_id, 'value'))
+        if rvar is None:
+            raise LookupError(
+                f'there is no range var for {path_id} {aspect} in {stmt}')
+    return rvar
+
+
+def maybe_get_path_packed_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *, aspect: str,
+        env: context.Environment) -> typing.Optional[pgast.PathRangeVar]:
+    try:
+        return get_path_packed_rvar(stmt, path_id, aspect=aspect, env=env)
+    except LookupError:
+        return None
 
 
 def _same_expr(expr1, expr2):

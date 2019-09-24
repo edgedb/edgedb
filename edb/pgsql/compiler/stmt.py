@@ -75,11 +75,20 @@ def compile_SelectStmt(
                     mat_qry = relgen.set_to_array(
                         ir_set=materialized, query=mat_qry, ctx=matctx)
 
+                mat_qry.packed_path_outputs[materialized.path_id, 'value'] = (
+                    pgast.ColumnRef(
+                        name=[mat_qry.target_list[0].name],
+                    )
+                )
+
                 mat_rvar = relctx.rvar_for_rel(
                     mat_qry, lateral=True, ctx=matctx)
 
                 if not is_singleton:
-                    relctx.rel_join(query, mat_rvar, ctx=matctx)
+                    relctx.include_packed_rvar(
+                        query, mat_rvar, path_id=materialized.path_id,
+                        ctx=matctx,
+                    )
                 else:
                     relctx.include_rvar(
                         query, mat_rvar, path_id=materialized.path_id,

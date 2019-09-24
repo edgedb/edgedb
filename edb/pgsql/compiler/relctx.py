@@ -268,6 +268,213 @@ def get_path_rvar(
     return rvar
 
 
+def maybe_get_path_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel
+) -> typing.Optional[pgast.PathRangeVar]:
+    try:
+        return get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    except LookupError:
+        return None
+
+
+def find_packed_rvar(
+        stmt: pgast.Query, *,
+        source_stmt: typing.Optional[pgast.Query]=None,
+        path_id: irast.PathId,
+        ctx: context.CompilerContextLevel) -> \
+        typing.Optional[pgast.PathRangeVar]:
+    """Find an existing range var for a given *path_id* in stmt hierarchy.
+
+    If a range var is visible in a given SQL scope denoted by *stmt*, or,
+    optionally, *source_stmt*, record it on *stmt* for future reference.
+
+    :param stmt:
+        The statement to ensure range var visibility in.
+
+    :param source_stmt:
+        An optional statement object which is used as the starting SQL scope
+        for range var search.  If not specified, *stmt* is used as the
+        starting scope.
+
+    :param path_id:
+        The path ID of the range var being searched.
+
+    :param ctx:
+        Compiler context.
+
+    :return:
+        A range var instance if found, ``None`` otherwise.
+    """
+
+    if source_stmt is None:
+        source_stmt = stmt
+
+    rvar = maybe_get_path_packed_rvar(source_stmt, path_id=path_id,
+                                      aspect='value', ctx=ctx)
+    if rvar is not None:
+        pathctx.put_path_packed_rvar_if_not_exists(
+            stmt, path_id, rvar, aspect='value', env=ctx.env)
+
+        src_rvar = maybe_get_path_packed_rvar(source_stmt, path_id=path_id,
+                                              aspect='source', ctx=ctx)
+
+        if src_rvar is not None:
+            pathctx.put_path_packed_rvar_if_not_exists(
+                stmt, path_id, src_rvar, aspect='source', env=ctx.env)
+
+    return rvar
+
+
+def include_packed_rvar(
+        stmt: pgast.SelectStmt,
+        rvar: pgast.PathRangeVar,
+        path_id: irast.PathId, *,
+        overwrite_path_rvar: bool=False,
+        pull_namespace: bool=True,
+        aspects: typing.Optional[typing.Iterable[str]]=None,
+        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    """Ensure that packed *rvar* is visible in *stmt* as a value/source aspect.
+
+    :param stmt:
+        The statement to include *rel* in.
+
+    :param rvar:
+        The range var node to join.
+
+    :param aspect:
+        The reference aspect of the range var.
+
+    :param ctx:
+        Compiler context.
+    """
+    if aspects is None:
+        if path_id.is_objtype_path():
+            aspects = ('source', 'value')
+        else:
+            aspects = ('value',)
+
+    rel_join(stmt, rvar, ctx=ctx)
+
+    for aspect in aspects:
+        if overwrite_path_rvar:
+            pathctx.put_path_packed_rvar(
+                stmt, path_id, rvar, aspect=aspect, env=ctx.env)
+        else:
+            pathctx.put_path_packed_rvar_if_not_exists(
+                stmt, path_id, rvar, aspect=aspect, env=ctx.env)
+
+    return rvar
+
+
+def has_packed_rvar(
+        stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
+        ctx: context.CompilerContextLevel) -> bool:
+    while stmt is not None:
+        if pathctx.has_packed_rvar(stmt, rvar, env=ctx.env):
+            return True
+        stmt = ctx.rel_hierarchy.get(stmt)
+    return False
+
+
+def _get_path_packed_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel,
+) -> typing.Tuple[pgast.PathRangeVar, irast.PathId]:
+    qry = stmt
+    while qry is not None:
+        rvar = pathctx.maybe_get_path_packed_rvar(
+            qry, path_id, aspect=aspect, env=ctx.env)
+        if rvar is not None:
+            if qry is not stmt:
+                # Cache the rvar reference.
+                pathctx.put_path_packed_rvar(
+                    stmt, path_id, rvar, aspect=aspect, env=ctx.env)
+            return rvar, path_id
+        if qry.view_path_id_map:
+            path_id = pathctx.reverse_map_path_id(
+                path_id, qry.view_path_id_map)
+        qry = ctx.rel_hierarchy.get(qry)
+
+    raise LookupError(
+        f'there is no packed range var for {path_id} in {stmt}')
+
+
+def get_path_packed_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    rvar, _ = _get_path_packed_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    return rvar
+
+
+def maybe_get_path_packed_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, ctx: context.CompilerContextLevel
+) -> typing.Optional[pgast.PathRangeVar]:
+    try:
+        return get_path_packed_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    except LookupError:
+        return None
+
+
+def unpack_rvar(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        packed_rvar: pgast.PathRangeVar,
+        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+
+    qry = pgast.SelectStmt()
+
+    ref = pathctx.get_rvar_path_packed_var(
+        packed_rvar, path_id, 'value', env=ctx.env)
+
+    coldeflist = []
+    coldeflist.append(
+        pgast.ColumnDef(
+            name='q',
+            typename=pgast.TypeName(
+                name=pg_types.pg_type_from_ir_typeref(path_id.target)
+            )
+        )
+    )
+
+    alias = ctx.env.aliases.get('q')
+
+    qry.from_clause = [
+        pgast.RangeFunction(
+            alias=pgast.Alias(
+                aliasname=alias,
+            ),
+            is_rowsfrom=True,
+            functions=[
+                pgast.FuncCall(
+                    name=('unnest',),
+                    args=[ref],
+                    # coldeflist=coldeflist,
+                )
+            ]
+        )
+    ]
+
+    pathctx.put_path_value_var(
+        qry, path_id, pgast.ColumnRef(name=[alias]), env=ctx.env,
+    )
+
+    cte = pgast.CommonTableExpr(
+        query=qry,
+        name=ctx.env.aliases.get('c')
+    )
+
+    stmt.ctes.append(cte)
+
+    rvar = rvar_for_rel(cte, lateral=True, ctx=ctx)
+    include_rvar(
+        stmt, rvar, path_id=path_id,
+        ctx=ctx
+    )
+
+    return rvar
+
+
 def get_path_var(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
@@ -279,16 +486,6 @@ def get_path_var(
         rvar, path_id = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
         return pathctx.get_rvar_path_var(
             rvar, path_id, aspect=aspect, env=ctx.env)
-
-
-def maybe_get_path_rvar(
-        stmt: pgast.Query, path_id: irast.PathId, *,
-        aspect: str, ctx: context.CompilerContextLevel
-) -> typing.Optional[pgast.PathRangeVar]:
-    try:
-        return get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
-    except LookupError:
-        return None
 
 
 def maybe_get_path_var(

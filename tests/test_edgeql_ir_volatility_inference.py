@@ -147,3 +147,13 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         VOLATILE
         """
+
+    def test_edgeql_ir_volatility_inference_09(self):
+        """
+        WITH
+            MODULE test
+        SELECT
+            Card { foo := (SELECT User { foo := random() }) }
+% OK %
+        VOLATILE
+        """

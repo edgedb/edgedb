@@ -134,6 +134,12 @@ class EdgeQLPathInfo(Base):
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[typing.Tuple[irast.PathId, str], OutputVar]
 
+    # Map of res target names corresponding to materialized paths.
+    packed_path_outputs: typing.Dict[
+        typing.Tuple[irast.PathId, str],
+        OutputVar
+    ]
+
     path_id_mask: typing.Set[irast.PathId]
 
     # Map of col refs corresponding to paths.
@@ -352,14 +358,17 @@ class Query(BaseExpr, BaseRelation):
     """Generic superclass representing a query."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'ptr_join_map', 'path_rvar_map',
+    __ast_meta__ = {'path_rvar_map', 'path_packed_rvar_map',
                     'view_path_id_map', 'argnames', 'nullable'}
 
     view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
-    # Map of RangeVars corresponding to pointer relations.
-    ptr_join_map: dict
     # Map of RangeVars corresponding to paths.
     path_rvar_map: typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
+    # Map of materialized RangeVars corresponding to paths.
+    path_packed_rvar_map: typing.Dict[
+        typing.Tuple[irast.PathId, str],
+        PathRangeVar,
+    ]
 
     argnames: typing.Dict[str, int]
 
