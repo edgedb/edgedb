@@ -1421,6 +1421,202 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    async def test_edgeql_migration_31(self):
+        # Issue 727.
+        #
+        # Starting with the sample schema (from frontpage) migrate to
+        # a schema with only type User.
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            # This is an abstract object containing
+            # text.
+            abstract type Text {
+              required property body -> str {
+                # Maximum length of text is 10000
+                # characters.
+                constraint max_len_value(10000);
+              }
+            }
+
+            type User {
+              required property name -> str;
+            }
+
+            abstract type Owned {
+              # By default links are optional.
+              required link owner -> User;
+            }
+
+            # UniquelyNamed is a an abstract type that
+            # enforces name uniqueness across all
+            # instances of its subtype.
+            abstract type UniquelyNamed {
+              required property name -> str {
+                delegated constraint exclusive;
+              }
+            }
+
+            type Status extending UniquelyNamed;
+
+            type Priority extending UniquelyNamed;
+
+            # LogEntry is an Owned and a Text,
+            # so it will have all of their links
+            # and properties, in particular, the
+            # "owner" link and the "body" property.
+            type LogEntry extending Owned, Text {
+              required property spent_time -> int64;
+            }
+
+            type Comment extending Text, Owned {
+              required link issue -> Issue;
+              link parent -> Comment;
+            }
+            # issue_num_t is defined as a concrete
+            # sequence type, used to generate
+            # sequential issue numbers.
+            scalar type issue_num_t extending sequence;
+
+            type Issue extending Owned, Text {
+              required property title -> str;
+
+              required property number -> issue_num_t {
+                # The number values are automatically
+                # generated, and are not supposed to be
+                # directly writable.
+                readonly := true;
+              }
+
+              property time_estimate -> int64;
+
+              property start_date -> datetime {
+                # The default value of start_date will be a
+                # result of the EdgeQL expression above.
+                default := (SELECT datetime_current());
+              }
+
+              property due_date -> datetime;
+
+              required link status -> Status;
+
+              link priority -> Priority;
+
+              # The watchers link is mapped to User
+              # type in many-to-many relation.
+              multi link watchers -> User;
+
+              multi link time_spent_log -> LogEntry {
+                # Exclusive multi-link represents
+                # a one-to-many relation.
+                constraint exclusive;
+              }
+
+              multi link related_to -> Issue;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Status {
+                name := 'Open'
+            };
+            INSERT Status {
+                name := 'Closed'
+            };
+
+            INSERT User {
+                name := 'cosmophile'
+            };
+        """)
+
+        await self._migrate(r"""
+            type User {
+              required property name -> str;
+            }
+        """)
+
+        # there's only the User left
+        await self.assert_query_result(
+            r"""
+                SELECT User.name;
+            """,
+            [
+                'cosmophile',
+            ],
+        )
+
+    async def test_edgeql_migration_32(self):
+        # Issue 727.
+        #
+        # Starting with a small schema migrate to remove its elements.
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+
+        # There are non-zero default Objects existing in a fresh blank
+        # database because of placeholder objects used for GraphQL.
+        start_objects = await self.con.fetchone(r"""
+            SELECT count(Object);
+        """)
+
+        await self._migrate(r"""
+            type LogEntry {
+              required property spent_time -> int64;
+            }
+            type Issue {
+              multi link time_spent_log -> LogEntry {
+                constraint exclusive;
+              }
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT LogEntry {
+                spent_time := 100
+            };
+
+            INSERT Issue {
+                time_spent_log := LogEntry
+            };
+        """)
+
+        await self._migrate(r"""
+            type LogEntry {
+              required property spent_time -> int64;
+            }
+        """)
+
+        # there's only the LogEntry left
+        await self.assert_query_result(
+            r"""
+                SELECT LogEntry.spent_time;
+            """,
+            [
+                100,
+            ],
+        )
+        await self.assert_query_result(
+            r"""
+                SELECT count(Object);
+            """,
+            [
+                start_objects + 1,
+            ],
+        )
+
+        await self._migrate(r"""
+            # empty schema
+        """)
+
+        # no more additional objects
+        await self.assert_query_result(
+            r"""
+                SELECT count(Object);
+            """,
+            [
+                start_objects,
+            ],
+        )
+
     @test.xfail('''
         See `test_edgeql_calls_35` and
         `test_migrations_equivalence_function_01` first.
