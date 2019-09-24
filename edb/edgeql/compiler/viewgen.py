@@ -163,6 +163,13 @@ def _process_view(
             if not ptrcls.get_default(ctx.env.schema):
                 if ptrcls.get_required(ctx.env.schema):
                     if ptrcls.is_property(ctx.env.schema):
+                        # If the target is a sequence, there's no need
+                        # for an explicit value.
+                        if ptrcls.get_target(ctx.env.schema).issubclass(
+                                ctx.env.schema,
+                                ctx.env.schema.get('std::sequence')):
+                            continue
+
                         what = 'property'
                     else:
                         what = 'link'
