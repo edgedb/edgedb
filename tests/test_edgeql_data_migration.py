@@ -288,14 +288,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: cannot alter inherited
-        column "foo"
-
-        Oddly enough, when prop was changing from str to int64, the
-        error was about casting. And the pure schema migration test
-        works just fine either way see (`test_migrations_equivalence_06`).
-    ''')
     async def test_edgeql_migration_06(self):
         await self.con.execute("""
             SET MODULE test;

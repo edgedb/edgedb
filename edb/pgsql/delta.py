@@ -2908,18 +2908,6 @@ class AlterProperty(
                         column_name=ptr_stor_info.column_name,
                         null=not prop.get_required(schema)))
 
-            new_type = None
-            for op in self.get_subcommands(type=sd.AlterObjectProperty):
-                if (op.property == 'target' and
-                        not prop.is_endpoint_pointer(schema)):
-                    new_type = op.new_value.name \
-                        if op.new_value is not None else None
-                    break
-
-            if new_type:
-                self.alter_host_table_column(
-                    prop, schema, orig_schema, context)
-
             self.alter_pointer_default(prop, schema, context)
 
             if not prop.generic(schema):
