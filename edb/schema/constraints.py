@@ -356,7 +356,7 @@ class ConstraintCommand(
                 params = self.scls.get_params(schema)
             anchors, _ = (
                 qlcompiler.get_param_anchors_for_callable(
-                    params, schema)
+                    params, schema, inlined_defaults=False)
             )
             referrer_ctx = self.get_referrer_context(context)
             if referrer_ctx is not None:

@@ -200,13 +200,15 @@ def evaluate_ast_to_python_val(tree, schema, *, modaliases=None) -> object:
     return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)
 
 
-def get_param_anchors_for_callable(params, schema):
+def get_param_anchors_for_callable(params, schema, *, inlined_defaults: bool):
     anchors = {}
     aliases = []
 
-    anchors['__defaults_mask__'] = irast.Parameter(
-        name='__defaults_mask__',
-        typeref=irtyputils.type_to_typeref(schema, schema.get('std::bytes')))
+    if inlined_defaults:
+        anchors['__defaults_mask__'] = irast.Parameter(
+            name='__defaults_mask__',
+            typeref=irtyputils.type_to_typeref(
+                schema, schema.get('std::bytes')))
 
     pg_params = s_func.PgParams.from_params(schema, params)
     for pi, p in enumerate(pg_params.params):
@@ -216,6 +218,9 @@ def get_param_anchors_for_callable(params, schema):
             typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
 
         if p.get_default(schema) is None:
+            continue
+
+        if not inlined_defaults:
             continue
 
         aliases.append(
@@ -263,7 +268,8 @@ def compile_func_to_ir(func, schema, *,
         ql_parser.append_module_aliases(tree, modaliases)
 
     param_anchors, param_aliases = get_param_anchors_for_callable(
-        func.get_params(schema), schema)
+        func.get_params(schema), schema,
+        inlined_defaults=func.has_inlined_defaults(schema))
 
     if anchors is None:
         anchors = {}
