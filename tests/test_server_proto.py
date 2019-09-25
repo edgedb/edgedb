@@ -1703,12 +1703,15 @@ class TestServerProto(tb.QueryTestCase):
                     }}
                 ''')
 
-                await tx.commit()
+            await asyncio.gather(
+                worker(con1, tx1, 1), worker(con2, tx2, 2)
+            )
+
+            await tx1.commit()
 
             with self.assertRaises(edgedb.TransactionSerializationError):
-                await asyncio.gather(
-                    worker(con1, tx1, 1), worker(con2, tx2, 2)
-                )
+                await tx2.commit()
+
         finally:
             if tx1.is_active():
                 await tx1.rollback()
