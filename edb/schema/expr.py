@@ -77,19 +77,21 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
             return compcoef
 
     @classmethod
-    def from_ast(cls, qltree, schema, modaliases):
+    def from_ast(cls, qltree, schema, modaliases, *, as_fragment=False):
         orig_text = qlcodegen.generate_source(qltree, pretty=False)
-        norm_tree = imprint_expr_context(qltree, modaliases)
-        norm_text = qlcodegen.generate_source(norm_tree, pretty=False)
+        if not as_fragment:
+            qltree = imprint_expr_context(qltree, modaliases)
+        norm_text = qlcodegen.generate_source(qltree, pretty=False)
 
         return cls(
             text=norm_text,
             origtext=orig_text,
-            _qlast=norm_tree,
+            _qlast=qltree,
         )
 
     @classmethod
     def compiled(cls, expr, schema, *,
+                 as_fragment=False,
                  modaliases=None,
                  parent_object_type=None,
                  anchors=None,
@@ -100,17 +102,26 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
 
         from edb.edgeql import compiler as qlcompiler
 
-        ir = qlcompiler.compile_ast_to_ir(
-            expr.qlast,
-            schema=schema,
-            modaliases=modaliases,
-            anchors=anchors,
-            path_prefix_anchor=path_prefix_anchor,
-            func_params=func_params,
-            parent_object_type=parent_object_type,
-            allow_generic_type_output=allow_generic_type_output,
-            singletons=singletons,
-        )
+        if as_fragment:
+            ir = qlcompiler.compile_ast_fragment_to_ir(
+                expr.qlast,
+                schema=schema,
+                modaliases=modaliases,
+                anchors=anchors,
+                path_prefix_anchor=path_prefix_anchor,
+            )
+        else:
+            ir = qlcompiler.compile_ast_to_ir(
+                expr.qlast,
+                schema=schema,
+                modaliases=modaliases,
+                anchors=anchors,
+                path_prefix_anchor=path_prefix_anchor,
+                func_params=func_params,
+                parent_object_type=parent_object_type,
+                allow_generic_type_output=allow_generic_type_output,
+                singletons=singletons,
+            )
 
         return cls(
             text=expr.text,
@@ -199,6 +210,8 @@ def imprint_expr_context(qltree, modaliases):
 
     if (isinstance(qltree, qlast.BaseConstant)
             or qltree is None
+            or (isinstance(qltree, qlast.Set)
+                and not qltree.elements)
             or (isinstance(qltree, qlast.Array)
                 and all(isinstance(el, qlast.BaseConstant)
                         for el in qltree.elements))):

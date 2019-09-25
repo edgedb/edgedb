@@ -1450,15 +1450,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # empty schema
         """])
 
-    @test.xfail('''
-        Fails on `_assert_migration_consistency` step:
-
-        ...
-        File "/home/victor/dev/magicstack/edgedb/edb/schema/functions.py",
-            line 908, in _apply_fields_ast default=default.qlast if
-            default is not None else None,
-        AttributeError: 'str' object has no attribute 'qlast'
-    ''')
     def test_migrations_equivalence_function_01(self):
         self._assert_migration_equivalence([r"""
             function hello01(a: int64) -> str

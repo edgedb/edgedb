@@ -483,11 +483,16 @@ class FunctionCommand:
                 f'of function {func.get_shortname(schema)}',
                 context=self.source_context) from None
 
-    def compile_default(self, func: s_funcs.Function, default: str, schema):
+    def compile_default(self, func: s_funcs.Function,
+                        default: s_expr.Expression, schema):
         try:
-            ir = ql_compiler.compile_fragment_to_ir(
-                default, schema, location='parameter-default')
+            comp = s_expr.Expression.compiled(
+                default,
+                schema=schema,
+                as_fragment=True,
+            )
 
+            ir = comp.irast
             if not irutils.is_const(ir.expr):
                 raise ValueError('expression not constant')
 

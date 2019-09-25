@@ -25,7 +25,6 @@ import typing
 from edb import errors
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import codegen
 from edb.edgeql import qltypes as ft
 
 from . import abc as s_abc
@@ -57,7 +56,7 @@ def param_as_str(schema, param):
     ret.append(param.get_type(schema).get_name(schema))
 
     if default is not None:
-        ret.append(f'={default}')
+        ret.append(f'={default.origtext}')
 
     return ''.join(ret)
 
@@ -67,7 +66,7 @@ class ParameterDesc(typing.NamedTuple):
 
     num: int
     name: str
-    default: str
+    default: expr.Expression
     type: s_types.Type
     typemod: ft.TypeModifier
     kind: ft.ParameterKind
@@ -77,7 +76,10 @@ class ParameterDesc(typing.NamedTuple):
                  num: int, astnode) -> 'ParameterDesc':
         paramd = None
         if astnode.default is not None:
-            paramd = codegen.generate_source(astnode.default)
+            defexpr = expr.Expression.from_ast(
+                astnode.default, schema, modaliases, as_fragment=True)
+            paramd = expr.Expression.compiled(
+                defexpr, schema, modaliases=modaliases, as_fragment=True)
 
         paramt = utils.resolve_typeref(
             utils.ast_to_typeref(
@@ -190,7 +192,7 @@ class Parameter(so.Object, s_abc.Parameter):
         int, compcoef=0.4)
 
     default = so.SchemaField(
-        str, default=None, compcoef=0.4)
+        expr.Expression, default=None, compcoef=0.4)
 
     type = so.SchemaField(
         s_types.Type, compcoef=0.4)
@@ -231,25 +233,17 @@ class Parameter(so.Object, s_abc.Parameter):
         return self.paramname_from_fullname(fullname)
 
     def get_ql_default(self, schema):
-        from edb.edgeql import parser as ql_parser
-        return ql_parser.parse_fragment(self.get_default(schema))
+        return self.get_default(schema).qlast
 
     def get_ir_default(self, *, schema):
-        if self.get_default(schema) is None:
-            return None
-
-        from edb.edgeql import compiler as ql_compiler
         from edb.ir import utils as irutils
 
-        ql_default = self.get_ql_default(schema)
-
-        ir = ql_compiler.compile_ast_fragment_to_ir(
-            ql_default, schema,
-            location=f'default of the {self.get_name(schema)} parameter')
-
+        defexpr = self.get_default(schema)
+        defexpr = expr.Expression.compiled(
+            defexpr, as_fragment=True, schema=schema)
+        ir = defexpr.irast
         if not irutils.is_const(ir.expr):
             raise ValueError('expression not constant')
-
         return ir
 
     def as_str(self, schema) -> str:
@@ -837,7 +831,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
             except Exception as ex:
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the `{signature}` function: '
-                    f'invalid default value {p_default} of parameter '
+                    f'invalid default value {p_default.text!r} of parameter '
                     f'{p.get_displayname(schema)!r}: {ex}',
                     context=self.source_context)
 
