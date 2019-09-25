@@ -1687,10 +1687,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ['hello3'],
         )
 
-    @test.xfail('''
-        See `test_edgeql_calls_35` and
-        `test_migrations_equivalence_function_01` first.
-    ''')
     async def test_edgeql_migration_function_03(self):
         await self.con.execute("""
             SET MODULE test;

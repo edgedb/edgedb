@@ -24,7 +24,9 @@ import collections
 from edb.common import topological
 
 from . import delta as sd
+from . import functions as s_func
 from . import inheriting
+from . import name as sn
 from . import objects as so
 from . import referencing
 
@@ -293,6 +295,13 @@ def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
             # In a delete/create cycle, deletion must obviously
             # happen first.
             deps.add(('delete', op.classname))
+
+            if isinstance(obj, s_func.Function):
+                old_funcs = old_schema.get_functions(
+                    sn.shortname_from_fullname(op.classname),
+                    default=[])
+                for old_func in old_funcs:
+                    deps.add(('delete', old_func.get_name(old_schema)))
 
         if tag == 'alter':
             # Alteration must happen after creation, if any.
