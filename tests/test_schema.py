@@ -602,20 +602,29 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Validate that the final schema state has consistent migration.
         self._assert_migration_consistency(migrations[-1])
 
+        # Generate a base schema with 'test' module already created to
+        # avoid having two different instances of 'test' module in
+        # different evolution branches.
+        base_schema = self.load_schema('')
+
         # Jump to final schema state in a single migration.
-        single_migration = self.load_schema(migrations[-1])
+        single_migration = self.run_ddl(base_schema, f'''
+            CREATE MIGRATION m TO {{
+                {migrations[-1]}
+            }};
+            COMMIT MIGRATION m;
+        ''', 'test')
 
         # Evolve a schema in a series of migrations.
-        multi_migration = self.load_schema(migrations[0])
-        for i, state in enumerate(migrations[1:]):
-            multi_migration = self.run_ddl(multi_migration, f'''
+        for i, state in enumerate(migrations):
+            multi_migration = self.run_ddl(base_schema, f'''
                 CREATE MIGRATION m{i} TO {{
                     {state}
                 }};
                 COMMIT MIGRATION m{i};
             ''', 'test')
 
-        diff = s_ddl.delta_modules(single_migration, multi_migration, ['test'])
+        diff = s_ddl.delta_schemas(single_migration, multi_migration)
 
         if list(diff.get_subcommands()):
             self.fail(
