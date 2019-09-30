@@ -63,6 +63,9 @@ class Query(BaseQuery):
     out_type_id: bytes
     in_type_data: bytes
     in_type_id: bytes
+    in_array_backend_tids: typing.Optional[
+        typing.Mapping[int, int]
+    ] = None
 
     # Set only when a query is compiled with "json_parameters=True"
     in_type_args: typing.Optional[typing.Tuple[str, ...]] = None
@@ -85,7 +88,8 @@ class SessionStateQuery(BaseQuery):
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
-    pass
+
+    new_types: typing.FrozenSet[str] = frozenset()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -121,6 +125,9 @@ class QueryUnit:
     # True if this unit contains DDL commands.
     has_ddl: bool = False
 
+    # A set of ids of types added by this unit.
+    new_types: typing.FrozenSet[str] = frozenset()
+
     # True if this unit contains SET commands.
     has_set: bool = False
 
@@ -155,6 +162,12 @@ class QueryUnit:
 
     # Set only when a query is compiled with "json_parameters=True"
     in_type_args: typing.Optional[typing.Tuple[str, ...]] = None
+
+    # A tuple of <index, element_backend_type_id> pairs for parameters
+    # that are of an array type.
+    in_array_backend_tids: typing.Optional[
+        typing.Mapping[int, int]
+    ] = None
 
     # Set only when this unit contains a CONFIGURE SYSTEM command.
     system_config: bool = False

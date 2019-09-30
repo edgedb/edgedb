@@ -215,6 +215,7 @@ class IntrospectionMech:
                 'expr': (self.unpack_expr(row['expr'], schema)
                          if row['expr'] else None),
                 'enum_values': row['enum_values'],
+                'backend_id': row['backend_id'],
             }
 
             schema, scalar = s_scalars.ScalarType.create_in_schema(

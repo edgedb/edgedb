@@ -2201,3 +2201,31 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
 
         finally:
             await self.con.execute('ROLLBACK')
+
+    async def test_server_proto_backend_tid_propagation_01(self):
+        async with self._run_and_rollback():
+            await self.con.execute('''
+                CREATE SCALAR TYPE tid_prop_01 EXTENDING str;
+            ''')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_01>>$input)[1]
+            ''', input=['a', 'b'])
+
+            self.assertEqual(result, 'b')
+
+    async def test_server_proto_backend_tid_propagation_02(self):
+        try:
+            await self.con.execute('''
+                CREATE SCALAR TYPE tid_prop_02 EXTENDING str;
+            ''')
+
+            result = await self.con.fetchone('''
+                SELECT (<array<tid_prop_02>>$input)[1]
+            ''', input=['a', 'b'])
+
+            self.assertEqual(result, 'b')
+        finally:
+            await self.con.execute('''
+                DROP SCALAR TYPE tid_prop_02;
+            ''')

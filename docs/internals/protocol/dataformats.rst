@@ -21,7 +21,9 @@ The array values are represented as the following structure:
         // always be 1.
         int32       ndims;
         // Reserved.
-        int32       reserved;
+        int32       reserved0;
+        // Reserved.
+        int32       reserved1;
         // Dimension data.
         Dimension   dimensions[ndims];
         // Element data, the number of elements
@@ -64,6 +66,8 @@ The tuple values are represented as the following structure:
     };
 
     struct Element {
+        // Reserved.
+        int32       reserved;
         // Encoded element data length in bytes.
         int32       length;
         // Element data.

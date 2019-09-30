@@ -24,6 +24,7 @@ import dataclasses
 import hashlib
 import pathlib
 import typing
+import uuid
 
 import asyncpg
 import immutables
@@ -316,23 +317,41 @@ class Compiler(BaseCompiler):
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
 
+            in_array_backend_tids: typing.Optional[
+                typing.Mapping[int, int]
+            ] = None
+
             if ir.params:
+                array_params = []
                 subtypes = [None] * len(ir.params)
                 first_param_name = next(iter(ir.params))
                 if first_param_name.isdecimal():
                     named = False
                     for param_name, param_type in ir.params.items():
-                        subtypes[int(param_name)] = (param_name, param_type)
+                        idx = int(param_name)
+                        subtypes[idx] = (param_name, param_type)
+                        if param_type.is_array():
+                            el_type = param_type.get_element_type(ir.schema)
+                            array_params.append(
+                                (idx, el_type.get_backend_id(ir.schema)))
                 else:
                     named = True
                     for param_name, param_type in ir.params.items():
-                        subtypes[argmap[param_name] - 1] = (
+                        idx = argmap[param_name] - 1
+                        subtypes[idx] = (
                             param_name, param_type
                         )
+                        if param_type.is_array():
+                            el_type = param_type.get_element_type(ir.schema)
+                            array_params.append(
+                                (idx, el_type.get_backend_id(ir.schema)))
+
                 params_type = s_types.Tuple.create(
                     ir.schema,
                     element_types=collections.OrderedDict(subtypes),
                     named=named)
+                if array_params:
+                    in_array_backend_tids = {p[0]: p[1] for p in array_params}
             else:
                 params_type = s_types.Tuple.create(
                     ir.schema, element_types={}, named=False)
@@ -359,6 +378,7 @@ class Compiler(BaseCompiler):
                 in_type_id=in_type_id.bytes,
                 in_type_data=in_type_data,
                 in_type_args=in_type_args,
+                in_array_backend_tids=in_array_backend_tids,
                 out_type_id=out_type_id.bytes,
                 out_type_data=out_type_data,
             )
@@ -438,8 +458,10 @@ class Compiler(BaseCompiler):
 
         if isinstance(plan, (s_db.CreateDatabase, s_db.DropDatabase)):
             block = pg_dbops.SQLBlock()
+            new_types = frozenset()
         else:
             block = pg_dbops.PLTopBlock()
+            new_types = frozenset(str(tid) for tid in plan.new_types)
 
         plan.generate(block)
         sql = block.to_string().encode('utf-8')
@@ -450,7 +472,7 @@ class Compiler(BaseCompiler):
             debug.header('Delta Script')
             debug.dump_code(sql, lexer='sql')
 
-        return dbstate.DDLQuery(sql=(sql,))
+        return dbstate.DDLQuery(sql=(sql,), new_types=new_types)
 
     def _compile_command(
             self, ctx: CompileContext, cmd) -> dbstate.BaseQuery:
@@ -854,6 +876,7 @@ class Compiler(BaseCompiler):
                     unit.in_type_data = comp.in_type_data
                     unit.in_type_args = comp.in_type_args
                     unit.in_type_id = comp.in_type_id
+                    unit.in_array_backend_tids = comp.in_array_backend_tids
 
                     unit.cacheable = True
 
@@ -868,6 +891,7 @@ class Compiler(BaseCompiler):
             elif isinstance(comp, dbstate.DDLQuery):
                 unit.sql += comp.sql
                 unit.has_ddl = True
+                unit.new_types = comp.new_types
 
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql
@@ -1113,3 +1137,12 @@ class Compiler(BaseCompiler):
         state = self._load_state(txid)
         return errormech.interpret_backend_error(
             state.current_tx().get_schema(), fields)
+
+    async def update_type_ids(self, txid, typemap):
+        state = self._load_state(txid)
+        tx = state.current_tx()
+        schema = tx.get_schema()
+        for tid, backend_tid in typemap.items():
+            t = schema.get_by_id(uuid.UUID(tid))
+            schema = t.set_field_value(schema, 'backend_id', backend_tid)
+        state.current_tx().update_schema(schema)

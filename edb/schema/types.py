@@ -83,6 +83,11 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         weak_ref=True,
         default=None, compcoef=0.909)
 
+    # The OID by which the backend refers to the type.
+    backend_id = so.SchemaField(
+        int,
+        default=None, inheritable=False, introspectable=False)
+
     def is_blocking_ref(self, schema, reference):
         return reference is not self.get_rptr(schema)
 
@@ -1386,6 +1391,13 @@ class TypeCommand(sd.ObjectCommand):
         cmd.canonical = True
 
         return cmd
+
+    def _create_begin(self, schema, context):
+        schema = super()._create_begin(schema, context)
+        if not self.scls.is_view(schema):
+            delta_root = context.top().op
+            delta_root.new_types.add(self.scls.id)
+        return schema
 
 
 class CollectionTypeCommandContext(sd.ObjectCommandContext):

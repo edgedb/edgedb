@@ -625,6 +625,8 @@ cdef class EdgeConnection:
                 raise
             else:
                 self.dbview.on_success(query_unit)
+                if query_unit.new_types and self.dbview.in_tx():
+                    await self._update_type_ids(query_unit)
 
         packet = WriteBuffer.new()
         packet.write_buffer(self.make_command_complete_msg(query_unit))
@@ -868,7 +870,8 @@ cdef class EdgeConnection:
             self.write(self.make_command_complete_msg(query_unit))
             return
 
-        bound_args_buf = self.recode_bind_args(bind_args)
+        bound_args_buf = self.recode_bind_args(
+            bind_args, query_unit.in_array_backend_tids)
 
         process_sync = False
         if self.buffer.take_message_type(b'S'):
@@ -930,6 +933,38 @@ cdef class EdgeConnection:
         else:
             if process_sync:
                 self.buffer.finish_message()
+
+            if query_unit.new_types and self.dbview.in_tx():
+                await self._update_type_ids(query_unit)
+
+    async def _update_type_ids(self, query_unit):
+        # Inform the compiler process about the newly
+        # appearing types, so type descriptors contain
+        # the necessary backend data.  We only do this
+        # when in a transaction, since otherwise the entire
+        # schema will reload anyway due to a bumped dbver.
+        try:
+            tids = ','.join(f"'{tid}'" for tid in query_unit.new_types)
+            ret = await self.backend.pgcon.simple_query(b'''
+                SELECT id, backend_id
+                FROM edgedb.type
+                WHERE id = any(ARRAY[%b]::uuid[])
+            ''' % (tids.encode(),), ignore_data=False)
+        except Exception:
+            if self.dbview.in_tx():
+                self.dbview.abort_tx()
+            raise
+        else:
+            typemap = {}
+            if ret:
+                for tid, backend_tid in ret:
+                    if backend_tid is not None:
+                        typemap[tid.decode()] = int(backend_tid.decode())
+            if typemap:
+                return await self.backend.compiler.call(
+                    'update_type_ids',
+                    self.dbview.txid,
+                    typemap)
 
     async def execute(self):
         cdef:
@@ -1297,12 +1332,15 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected message type {chr(mtype)!r}')
 
-    cdef WriteBuffer recode_bind_args(self, bytes bind_args):
+    cdef WriteBuffer recode_bind_args(self, bytes bind_args, dict array_tids):
         cdef:
             FRBuffer in_buf
             WriteBuffer out_buf = WriteBuffer.new()
             int32_t argsnum
             ssize_t in_len
+            ssize_t i
+            const char *data
+            object array_tid
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -1318,8 +1356,25 @@ cdef class EdgeConnection:
 
         out_buf.write_int16(<int16_t>argsnum)
 
-        in_len = frb_get_len(&in_buf)
-        out_buf.write_cstr(frb_read_all(&in_buf), in_len)
+        if array_tids:
+            # we have array parameters, ensure all of them
+            # have correct element OIDs as per Postgres' expectations.
+            for i in range(argsnum):
+                in_len = hton.unpack_int32(frb_read(&in_buf, 4))
+                out_buf.write_int32(in_len)
+                if in_len > 0:
+                    data = frb_read(&in_buf, in_len)
+                    array_tid = array_tids.get(i)
+                    if array_tid is not None:
+                        # ndimensions + flags
+                        out_buf.write_cstr(data, 8)
+                        out_buf.write_int32(<int32_t>array_tid)
+                        out_buf.write_cstr(&data[12], in_len - 12)
+                    else:
+                        out_buf.write_cstr(data, in_len)
+        else:
+            in_len = frb_get_len(&in_buf)
+            out_buf.write_cstr(frb_read_all(&in_buf), in_len)
 
         # All columns are in binary format
         out_buf.write_int32(0x00010001)

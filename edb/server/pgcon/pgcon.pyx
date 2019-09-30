@@ -627,9 +627,6 @@ cdef class PGProto:
         buf.write_bytestring(b'client_encoding')
         buf.write_bytestring(b'utf-8')
 
-        buf.write_bytestring(b'edgedb_use_typeoids')
-        buf.write_bytestring(b'false')
-
         buf.write_bytestring(b'search_path')
         buf.write_bytestring(b'edgedb')
 

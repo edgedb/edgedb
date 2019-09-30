@@ -43,11 +43,11 @@ from .common import quote_literal as ql
 
 base_type_name_map = {
     s_obj.get_known_type_id('std::str'): 'text',
-    s_obj.get_known_type_id('std::int64'): 'bigint',
-    s_obj.get_known_type_id('std::int32'): 'integer',
-    s_obj.get_known_type_id('std::int16'): 'smallint',
+    s_obj.get_known_type_id('std::int64'): 'int8',
+    s_obj.get_known_type_id('std::int32'): 'int4',
+    s_obj.get_known_type_id('std::int16'): 'int2',
     s_obj.get_known_type_id('std::decimal'): 'numeric',
-    s_obj.get_known_type_id('std::bool'): 'boolean',
+    s_obj.get_known_type_id('std::bool'): 'bool',
     s_obj.get_known_type_id('std::float64'): 'float8',
     s_obj.get_known_type_id('std::float32'): 'float4',
     s_obj.get_known_type_id('std::uuid'): 'uuid',
@@ -87,6 +87,10 @@ base_type_name_map_r = {
     'bytea': sn.Name('std::bytes'),
     'jsonb': sn.Name('std::json'),
 }
+
+
+def is_builtin_scalar(schema, scalar):
+    return scalar.id in base_type_name_map
 
 
 def get_scalar_base(schema, scalar):

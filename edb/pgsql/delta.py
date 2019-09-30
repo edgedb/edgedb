@@ -261,6 +261,20 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
 
         return schema, updates
 
+    def update_fields(self, schema, context, **kwargs):
+        table = self.get_table(schema)
+        rec = table.record()
+        for k, v in kwargs.items():
+            setattr(rec, k, v)
+
+        condition = [('id', self.scls.id)]
+        self.pgops.add(
+            dbops.Update(
+                table=self.get_table(schema),
+                record=rec,
+                condition=condition,
+                priority=self.op_priority))
+
     def rename(self, schema, orig_schema, context, obj):
         table = self.get_table(schema)
         new_name = obj.get_name(schema)
@@ -1142,8 +1156,12 @@ class CreateScalarType(ScalarTypeMetaCommand,
         if scalar.get_is_abstract(schema):
             return schema, scalar
 
-        new_domain_name = common.get_backend_name(
-            schema, scalar, catenate=False)
+        new_domain_name = types.pg_type_from_scalar(schema, scalar)
+
+        if types.is_builtin_scalar(schema, scalar):
+            self.update_fields(
+                schema, context, backend_id=dbops.type_oid(new_domain_name))
+            return schema, scalar
 
         enum_values = scalar.get_enum_values(schema)
         if enum_values:
@@ -1152,6 +1170,8 @@ class CreateScalarType(ScalarTypeMetaCommand,
             self.pgops.add(dbops.CreateEnum(
                 name=new_enum_name, values=enum_values))
             base = q(*new_enum_name)
+            self.update_fields(
+                schema, context, backend_id=dbops.type_oid(new_enum_name))
 
         else:
             base = types.get_scalar_base(schema, scalar)
@@ -1176,6 +1196,9 @@ class CreateScalarType(ScalarTypeMetaCommand,
                     self.pgops.add(
                         dbops.AlterDomainAlterDefault(
                             name=new_domain_name, default=default))
+
+            self.update_fields(
+                schema, context, backend_id=dbops.type_oid(new_domain_name))
 
         return schema, scalar
 

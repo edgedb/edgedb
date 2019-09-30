@@ -212,6 +212,7 @@ async def _make_stdlib(testmode: bool):
         std_texts.append(s_std.get_std_module_text('_testmode'))
 
     ddl_text = '\n'.join(std_texts)
+    new_types = set()
 
     for ddl_cmd in edgeql.parse_block(ddl_text):
         delta_command = s_ddl.delta_from_ddl(
@@ -235,6 +236,7 @@ async def _make_stdlib(testmode: bool):
                 current_block = dbops.SQLBlock()
 
         else:
+            new_types.update(plan.new_types)
             if (current_block is not None and
                     not isinstance(current_block, dbops.PLTopBlock)):
                 raise errors.QueryError(
@@ -247,7 +249,7 @@ async def _make_stdlib(testmode: bool):
 
     sql_text = current_block.to_string()
 
-    return schema, sql_text
+    return schema, sql_text, new_types
 
 
 async def _init_stdlib(cluster, conn, testmode):
@@ -275,11 +277,19 @@ async def _init_stdlib(cluster, conn, testmode):
             schema = devmode.read_dev_mode_cache(src_hash, schema_cache)
 
     if sql_text is None or schema is None:
-        schema, sql_text = await _make_stdlib(testmode)
+        schema, sql_text, new_types = await _make_stdlib(testmode)
     else:
         cache_hit = True
 
     await _execute_ddl(conn, sql_text)
+
+    if not cache_hit:
+        typemap = await conn.fetch('''
+            SELECT id, backend_id FROM edgedb.type WHERE id = any($1::uuid[])
+        ''', new_types)
+        for tid, backend_tid in typemap:
+            t = schema.get_by_id(tid)
+            schema = t.set_field_value(schema, 'backend_id', backend_tid)
 
     if not cache_hit and in_dev_mode:
         devmode.write_dev_mode_cache(schema, src_hash, schema_cache)

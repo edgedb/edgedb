@@ -41,7 +41,8 @@ async def fetch(
             edgedb._resolve_type_name(c.bases) AS bases,
             edgedb._resolve_type_name(c.ancestors) AS ancestors,
             c.default AS default,
-            c.inherited_fields AS inherited_fields
+            c.inherited_fields AS inherited_fields,
+            c.backend_id AS backend_id
         FROM
             edgedb.ScalarType c
         WHERE

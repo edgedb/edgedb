@@ -59,6 +59,28 @@ class TypeExists(base.Condition):
         ''')
 
 
+def type_oid(name):
+    if len(name) == 2:
+        typnamespace, typname = name
+    else:
+        typname = name[0]
+        typnamespace = 'pg_catalog'
+
+    qry = textwrap.dedent(f'''\
+        SELECT
+            typ.oid
+        FROM
+            pg_catalog.pg_type typ
+            INNER JOIN pg_catalog.pg_namespace nsp
+                ON nsp.oid = typ.typnamespace
+        WHERE
+            typ.typname = {ql(typname)}
+            AND nsp.nspname = {ql(typnamespace)}
+    ''')
+
+    return base.Query(qry)
+
+
 CompositeTypeExists = TypeExists
 
 
