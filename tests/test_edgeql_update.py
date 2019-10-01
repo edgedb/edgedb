@@ -24,6 +24,7 @@ import uuid
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestUpdate(tb.QueryTestCase):
@@ -1675,3 +1676,82 @@ class TestUpdate(tb.QueryTestCase):
         ''', [{
             'x0': [{'name': 'update-test1', 'status': None}]
         }])
+
+    async def test_edgeql_update_new_01(self):
+        # test and UPDATE with a new object
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER .name = 'update-test1'
+                SET {
+                    tags := (
+                        INSERT Tag {
+                            name := 'new tag'
+                        }
+                    )
+                };
+            """,
+            [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    tags: {
+                        name
+                    }
+                } FILTER .name = 'update-test1';
+            """,
+            [
+                {
+                    'name': 'update-test1',
+                    'tags': [{
+                        'name': 'new tag',
+                    }],
+                },
+            ]
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: relation "m~2" does not exist
+    ''')
+    async def test_edgeql_update_new_02(self):
+        # test and UPDATE with a new object
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER .name = 'update-test1'
+                SET {
+                    status := (
+                        INSERT Status {
+                            name := 'new status'
+                        }
+                    )
+                };
+            """,
+            [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT UpdateTest {
+                    name,
+                    status: {
+                        name
+                    }
+                } FILTER .name = 'update-test1';
+            """,
+            [
+                {
+                    'name': 'update-test1',
+                    'status': {
+                        'name': 'new tag',
+                    },
+                },
+            ]
+        )

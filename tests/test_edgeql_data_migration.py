@@ -1609,6 +1609,588 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    async def test_edgeql_migration_33(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Child;
+            INSERT Base {
+                foo := (SELECT Child LIMIT 1)
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: {
+                        __type__: {name},
+                    }
+                };
+            """,
+            [{
+                'foo': {
+                    '__type__': {'name': 'test::Child'},
+                }
+            }],
+        )
+
+        await self._migrate(r"""
+            type Child;
+            type Child2;
+
+            type Base {
+                # change link type
+                link foo -> Child2;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: {
+                        __type__: {name},
+                    }
+                };
+            """,
+            [{
+                # the link is empty because the target was changed
+                'foo': None
+            }],
+        )
+
+        await self.con.execute(r"""
+            INSERT Child2;
+
+            UPDATE Base
+            SET {
+                foo := (SELECT Child2 LIMIT 1)
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: {
+                        __type__: {name},
+                    }
+                };
+            """,
+            [{
+                'foo': {
+                    '__type__': {'name': 'test::Child2'},
+                }
+            }],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: column Base~2.foo does not exist
+
+        The migration succeeds, but the propertry 'foo' can't be selected.
+    ''')
+    async def test_edgeql_migration_34(self):
+        # this is the reverse of test_edgeql_migration_11
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    constraint exclusive;
+                }
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Child;
+            INSERT Base {
+                foo := (SELECT Child LIMIT 1)
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: {
+                        __type__: {name},
+                    }
+                };
+            """,
+            [{
+                'foo': {
+                    '__type__': {'name': 'test::Child'},
+                }
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                # change link to property with same name
+                property foo -> str;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo
+                };
+            """,
+            [{
+                # the property is empty now
+                'foo': None
+            }],
+        )
+
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                foo := 'base_foo_34'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo
+                };
+            """,
+            [{
+                'foo': 'base_foo_34'
+            }],
+        )
+
+    async def test_edgeql_migration_35(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child {
+                required property name -> str;
+            }
+
+            type Base {
+                link foo := (
+                    SELECT Child FILTER .name = 'computable_35'
+                )
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Child {
+                name := 'computable_35'
+            };
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: {
+                        name
+                    },
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'computable_35',
+                }]
+            }]
+        )
+
+        await self._migrate(r"""
+            type Child {
+                required property name -> str;
+            }
+
+            type Base {
+                # change a link from a computable to regular
+                multi link foo -> Child;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: {
+                        name
+                    },
+                };
+            """,
+            [{
+                'foo': []
+            }]
+        )
+
+        # Make sure that the new 'foo' can be updated.
+        await self.con.execute(r"""
+            INSERT Child {
+                name := 'child_35'
+            };
+            UPDATE Base
+            SET {
+                foo := (
+                    SELECT Child FILTER .name = 'child_35'
+                )
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: {
+                        name
+                    },
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'child_35'
+                }]
+            }]
+        )
+
+    async def test_edgeql_migration_36(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Child {
+                required property name -> str;
+            }
+
+            type Base {
+                multi link foo -> Child;
+            }
+        """)
+        await self.con.execute(r"""
+            INSERT Child {
+                name := 'computable_36'
+            };
+            INSERT Child {
+                name := 'child_36'
+            };
+            INSERT Base {
+                foo := (
+                    SELECT Child FILTER .name = 'child_36'
+                )
+            };
+        """)
+
+        await self._migrate(r"""
+            type Child {
+                required property name -> str;
+            }
+
+            type Base {
+                # change a regular link to a computable
+                link foo := (
+                    SELECT Child FILTER .name = 'computable_36'
+                )
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    foo: {
+                        name
+                    },
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'computable_36'
+                }]
+            }]
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: relation
+        "edgedb_b395491c-e402-11e9-89e9-61d04b39f30a.
+        b5441cbe-e402-11e9-847b-433bfe78aa8d"
+        does not exist
+
+        The second migration fails.
+    ''')
+    async def test_edgeql_migration_37(self):
+        # testing schema views
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+
+            view BaseView := (
+                SELECT Base {
+                    foo := 'base_view_37'
+                }
+            )
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo
+                };
+            """,
+            [{
+                'foo': 'base_view_37'
+            }]
+        )
+
+        await self._migrate(r"""
+            type Base;
+
+            view BaseView := (
+                SELECT Base {
+                    # "rename" a computable, since the value is given and
+                    # not stored, this is no different from dropping
+                    # original and creating a new property
+                    foo2 := 'base_view_37'
+                }
+            )
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo2
+                };
+            """,
+            [{
+                'foo2': 'base_view_37'
+            }]
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                r"object type 'test::Base' has no link or property 'foo'"):
+            await self.con.execute(r"""
+                SELECT BaseView {
+                    foo
+                };
+            """)
+
+    async def test_edgeql_migration_38(self):
+        # testing schema views
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+
+            view BaseView := (
+                SELECT Base {
+                    foo := 'base_view_38'
+                }
+            )
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo
+                };
+            """,
+            [{
+                'foo': 'base_view_38'
+            }]
+        )
+
+        await self._migrate(r"""
+            type Base;
+
+            view BaseView := (
+                SELECT Base {
+                    # keep the name, but change the type
+                    foo := 38
+                }
+            )
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo
+                };
+            """,
+            [{
+                'foo': 38
+            }]
+        )
+
+    async def test_edgeql_migration_39(self):
+        # testing schema views
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (SELECT Foo FILTER .name = 'base_view_39')
+                }
+            )
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+            INSERT Foo {name := 'base_view_39'};
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo: {
+                        name
+                    }
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'base_view_39'
+                }]
+            }]
+        )
+
+        await self._migrate(r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    # "rename" a computable, since the value is given and
+                    # not stored, this is no different from dropping
+                    # original and creating a new multi-link
+                    foo2 := (SELECT Foo FILTER .name = 'base_view_39')
+                }
+            )
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo2: {
+                        name
+                    }
+                };
+            """,
+            [{
+                'foo2': [{
+                    'name': 'base_view_39'
+                }]
+            }]
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                r"object type 'test::Base' has no link or property 'foo'"):
+            await self.con.execute(r"""
+                SELECT BaseView {
+                    foo: {
+                        name
+                    }
+                };
+            """)
+
+    async def test_edgeql_migration_40(self):
+        # testing schema views
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            type Bar {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (SELECT Foo FILTER .name = 'foo_40')
+                }
+            )
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+            INSERT Foo {name := 'foo_40'};
+            INSERT Bar {name := 'bar_40'};
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo: {
+                        name
+                    }
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'foo_40'
+                }]
+            }]
+        )
+
+        await self._migrate(r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            type Bar {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    # keep the name, but change the type
+                    foo := (SELECT Bar FILTER .name = 'bar_40')
+                }
+            )
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo: {
+                        name
+                    }
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'bar_40'
+                }]
+            }]
+        )
+
     async def test_edgeql_migration_function_01(self):
         await self.con.execute("""
             SET MODULE test;
@@ -2004,6 +2586,143 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute(r"""
             INSERT Base {foo := 42};
         """)
+
+    async def test_edgeql_migration_function_11(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello11(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello11(1);""",
+            ['hello1'],
+        )
+
+        await self._migrate(r"""
+            # replace the function with a new one by the same name
+            function hello11(a: str) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ a
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello11(' world');""",
+            ['hello world'],
+        )
+
+        # make sure that the old one is gone
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'could not find a function variant hello11'):
+            await self.con.execute(
+                r"""SELECT hello11(1);"""
+            )
+
+    @test.xfail('''
+        edgedb.errors.QueryError: could not find a function variant hello12
+
+        After the migration only one version of the function exists,
+        instead of two.
+    ''')
+    async def test_edgeql_migration_function_12(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello12(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$;
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello12(1);""",
+            ['hello1'],
+        )
+
+        await self._migrate(r"""
+            function hello12(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$;
+
+            # make the function polymorphic
+            function hello12(a: str) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ a
+                $$;
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello12(' world');""",
+            ['hello world'],
+        )
+
+        # make sure that the old one still works
+        await self.assert_query_result(
+            r"""SELECT hello12(1);""",
+            ['hello1'],
+        )
+
+    @test.xfail('''
+        edgedb.errors.QueryError: could not find a function variant hello13
+
+        The first migration ostensibly succeeds, but there's only one
+        version of the function instead of two.
+    ''')
+    async def test_edgeql_migration_function_13(self):
+        # this is the inverse of test_edgeql_migration_function_12
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            # start with a polymorphic function
+            function hello13(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$;
+
+            function hello13(a: str) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ a
+                $$;
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello13(' world');""",
+            ['hello world'],
+        )
+        await self.assert_query_result(
+            r"""SELECT hello13(1);""",
+            ['hello1'],
+        )
+
+        await self._migrate(r"""
+            # remove one of the 2 versions
+            function hello13(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$;
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello13(1);""",
+            ['hello1'],
+        )
+
+        # make sure that the other one is gone
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'could not find a function variant hello13'):
+            await self.con.execute(
+                r"""SELECT hello11(' world');"""
+            )
 
     async def test_edgeql_migration_linkprops_01(self):
         await self.con.execute("""
@@ -2698,5 +3417,632 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     '@foo': None,
                     '@bar': 'renter_lp11',
                 }
+            }],
+        )
+
+    async def test_edgeql_migration_annotation_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [],
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                # add a title annotation
+                annotation title := 'Base description 01'
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'std::title',
+                    '@value': 'Base description 01'
+                }],
+            }],
+        )
+
+        await self._migrate(r"""
+            # add inheritable and non-inheritable annotations
+            abstract annotation foo_anno;
+            abstract inheritable annotation bar_anno;
+
+            type Base {
+                annotation title := 'Base description 01';
+                annotation foo_anno := 'Base foo_anno 01';
+                annotation bar_anno := 'Base bar_anno 01';
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'std::title',
+                    '@value': 'Base description 01'
+                }, {
+                    'name': 'test::bar_anno',
+                    '@value': 'Base bar_anno 01'
+                }, {
+                    'name': 'test::foo_anno',
+                    '@value': 'Base foo_anno 01'
+                }],
+            }],
+        )
+
+        await self._migrate(r"""
+            abstract annotation foo_anno;
+            abstract inheritable annotation bar_anno;
+
+            type Base {
+                annotation title := 'Base description 01';
+                annotation foo_anno := 'Base foo_anno 01';
+                annotation bar_anno := 'Base bar_anno 01';
+            }
+
+            # extend Base
+            type Derived extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'std::title',
+                    '@value': 'Base description 01'
+                }, {
+                    'name': 'test::bar_anno',
+                    '@value': 'Base bar_anno 01'
+                }, {
+                    'name': 'test::foo_anno',
+                    '@value': 'Base foo_anno 01'
+                }],
+            }, {
+                'name': 'test::Derived',
+                'annotations': [{
+                    'name': 'test::bar_anno',
+                    '@value': 'Base bar_anno 01'
+                }],
+            }],
+        )
+
+    async def test_edgeql_migration_annotation_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [],
+            }],
+        )
+
+        await self._migrate(r"""
+            abstract annotation foo_anno;
+
+            type Base {
+                annotation title := 'Base description 02';
+                annotation foo_anno := 'Base foo_anno 02';
+            }
+
+            type Derived extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'std::title',
+                    '@value': 'Base description 02'
+                }, {
+                    'name': 'test::foo_anno',
+                    '@value': 'Base foo_anno 02'
+                }],
+            }, {
+                'name': 'test::Derived',
+                # annotation not inherited
+                'annotations': [],
+            }],
+        )
+
+        await self._migrate(r"""
+            # remove foo_anno
+            type Base {
+                annotation title := 'Base description 02';
+            }
+
+            type Derived extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'std::title',
+                    '@value': 'Base description 02'
+                }],
+            }, {
+                'name': 'test::Derived',
+                'annotations': [],
+            }],
+        )
+
+    async def test_edgeql_migration_annotation_03(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [],
+            }],
+        )
+
+        await self._migrate(r"""
+            abstract inheritable annotation bar_anno;
+
+            type Base {
+                annotation title := 'Base description 03';
+                annotation bar_anno := 'Base bar_anno 03';
+            }
+
+            type Derived extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'std::title',
+                    '@value': 'Base description 03'
+                }, {
+                    'name': 'test::bar_anno',
+                    '@value': 'Base bar_anno 03'
+                }],
+            }, {
+                'name': 'test::Derived',
+                # annotation inherited
+                'annotations': [{
+                    'name': 'test::bar_anno',
+                    '@value': 'Base bar_anno 03'
+                }],
+            }],
+        )
+
+        await self._migrate(r"""
+            # remove bar_anno
+            type Base {
+                annotation title := 'Base description 03';
+            }
+
+            type Derived extending Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    annotations: {
+                        name,
+                        @value
+                    } ORDER BY .name
+                }
+                FILTER .name LIKE 'test::%'
+                ORDER BY .name;
+            """,
+            [{
+                'name': 'test::Base',
+                'annotations': [{
+                    'name': 'std::title',
+                    '@value': 'Base description 03'
+                }],
+            }, {
+                'name': 'test::Derived',
+                'annotations': [],
+            }],
+        )
+
+    @test.xfail('''
+        Fails on the last migration that attempts to rename the
+        property being indexed.
+    ''')
+    async def test_edgeql_migration_index_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [],
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                # an index
+                index on (.name);
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [{
+                    'expr': '.name'
+                }]
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                # rename the indexed property
+                property title -> str;
+                index on (.title);
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [{
+                    'expr': '.title'
+                }]
+            }],
+        )
+
+    async def test_edgeql_migration_index_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                index on (.name);
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [{
+                    'expr': '.name'
+                }]
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                # remove the index
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [],
+            }],
+        )
+
+    async def test_edgeql_migration_index_03(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> int64;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [],
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> int64;
+                # an index
+                index on (.name);
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [{
+                    'expr': '.name'
+                }]
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                # change the indexed property type
+                property name -> str;
+                index on (.name);
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [{
+                    'expr': '.name'
+                }]
+            }],
+        )
+
+    async def test_edgeql_migration_index_04(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property first_name -> str;
+                property last_name -> str;
+                property name := .first_name ++ ' ' ++ .last_name;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [],
+            }],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property first_name -> str;
+                property last_name -> str;
+                property name := .first_name ++ ' ' ++ .last_name;
+                # an index on a computable
+                index on (.name);
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [{
+                    'expr': '.name'
+                }]
             }],
         )
