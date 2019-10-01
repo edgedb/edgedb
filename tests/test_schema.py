@@ -1459,6 +1459,196 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # empty schema
         """])
 
+    def test_migrations_equivalence_33(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link foo -> Child;
+            }
+        """, r"""
+            type Child;
+            type Child2;
+
+            type Base {
+                # change link type
+                link foo -> Child2;
+            }
+        """])
+
+    def test_migrations_equivalence_34(self):
+        # this is the reverse of test_migrations_equivalence_11
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link foo -> Child {
+                    constraint exclusive;
+                }
+            }
+        """, r"""
+            type Base {
+                # change link to property with same name
+                property foo -> str;
+            }
+        """])
+
+    def test_migrations_equivalence_35(self):
+        self._assert_migration_equivalence([r"""
+            type Child {
+                required property name -> str;
+            }
+
+            type Base {
+                link foo := (
+                    SELECT Child FILTER .name = 'computable_35'
+                )
+            }
+        """, r"""
+            type Child {
+                required property name -> str;
+            }
+
+            type Base {
+                # change a link from a computable to regular
+                multi link foo -> Child;
+            }
+        """])
+
+    def test_migrations_equivalence_36(self):
+        self._assert_migration_equivalence([r"""
+            type Child {
+                required property name -> str;
+            }
+
+            type Base {
+                multi link foo -> Child;
+            }
+        """, r"""
+            type Child {
+                required property name -> str;
+            }
+
+            type Base {
+                # change a regular link to a computable
+                link foo := (
+                    SELECT Child FILTER .name = 'computable_36'
+                )
+            }
+        """])
+
+    def test_migrations_equivalence_37(self):
+        # testing schema views
+        self._assert_migration_equivalence([r"""
+            type Base;
+
+            view BaseView := (
+                SELECT Base {
+                    foo := 'base_view_37'
+                }
+            )
+        """, r"""
+            type Base;
+
+            view BaseView := (
+                SELECT Base {
+                    # "rename" a computable, since the value is given and
+                    # not stored, this is no different from dropping
+                    # original and creating a new property
+                    foo2 := 'base_view_37'
+                }
+            )
+        """])
+
+    def test_migrations_equivalence_38(self):
+        # testing schema views
+        self._assert_migration_equivalence([r"""
+            type Base;
+
+            view BaseView := (
+                SELECT Base {
+                    foo := 'base_view_38'
+                }
+            )
+        """, r"""
+            type Base;
+
+            view BaseView := (
+                SELECT Base {
+                    # keep the name, but change the type
+                    foo := 38
+                }
+            )
+        """])
+
+    def test_migrations_equivalence_39(self):
+        # testing schema views
+        self._assert_migration_equivalence([r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (SELECT Foo FILTER .name = 'base_view_39')
+                }
+            )
+        """, r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    # "rename" a computable, since the value is given and
+                    # not stored, this is no different from dropping
+                    # original and creating a new multi-link
+                    foo2 := (SELECT Foo FILTER .name = 'base_view_39')
+                }
+            )
+        """])
+
+    def test_migrations_equivalence_40(self):
+        # testing schema views
+        self._assert_migration_equivalence([r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            type Bar {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (SELECT Foo FILTER .name = 'foo_40')
+                }
+            )
+        """, r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            type Bar {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    # keep the name, but change the type
+                    foo := (SELECT Bar FILTER .name = 'bar_40')
+                }
+            )
+        """])
+
     def test_migrations_equivalence_function_01(self):
         self._assert_migration_equivalence([r"""
             function hello01(a: int64) -> str
@@ -1529,6 +1719,60 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     constraint expression on (len(hello10(__subject__)) < 2)
                 }
             }
+        """])
+
+    def test_migrations_equivalence_function_11(self):
+        self._assert_migration_equivalence([r"""
+            function hello11(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$
+        """, r"""
+            # replace the function with a new one by the same name
+            function hello11(a: str) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ a
+                $$
+        """])
+
+    def test_migrations_equivalence_function_12(self):
+        self._assert_migration_equivalence([r"""
+            function hello12(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$;
+        """, r"""
+            function hello12(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$;
+
+            # make the function polymorphic
+            function hello12(a: str) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ a
+                $$;
+        """])
+
+    def test_migrations_equivalence_function_13(self):
+        # this is the inverse of test_migrations_equivalence_function_12
+        self._assert_migration_equivalence([r"""
+            # start with a polymorphic function
+            function hello13(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$;
+
+            function hello13(a: str) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ a
+                $$;
+        """, r"""
+            # remove one of the 2 versions
+            function hello13(a: int64) -> str
+                from edgeql $$
+                    SELECT 'hello' ++ <str>a
+                $$;
         """])
 
     def test_migrations_equivalence_linkprops_03(self):
@@ -1716,4 +1960,158 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Owner extending Base;
 
             type Renter extending Base;
+        """])
+
+    def test_migrations_equivalence_annotation_01(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            type Base {
+                # add a title annotation
+                annotation title := 'Base description 01'
+            }
+        """, r"""
+            # add inheritable and non-inheritable annotations
+            abstract annotation foo_anno;
+            abstract inheritable annotation bar_anno;
+
+            type Base {
+                annotation title := 'Base description 01';
+                annotation foo_anno := 'Base foo_anno 01';
+                annotation bar_anno := 'Base bar_anno 01';
+            }
+        """, r"""
+            abstract annotation foo_anno;
+            abstract inheritable annotation bar_anno;
+
+            type Base {
+                annotation title := 'Base description 01';
+                annotation foo_anno := 'Base foo_anno 01';
+                annotation bar_anno := 'Base bar_anno 01';
+            }
+
+            # extend Base
+            type Derived extending Base;
+        """])
+
+    def test_migrations_equivalence_annotation_02(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            abstract annotation foo_anno;
+
+            type Base {
+                annotation title := 'Base description 02';
+                annotation foo_anno := 'Base foo_anno 02';
+            }
+
+            type Derived extending Base;
+        """, r"""
+            # remove foo_anno
+            type Base {
+                annotation title := 'Base description 02';
+            }
+
+            type Derived extending Base;
+        """])
+
+    def test_migrations_equivalence_annotation_03(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            abstract inheritable annotation bar_anno;
+
+            type Base {
+                annotation title := 'Base description 03';
+                annotation bar_anno := 'Base bar_anno 03';
+            }
+
+            type Derived extending Base;
+        """, r"""
+            # remove bar_anno
+            type Base {
+                annotation title := 'Base description 03';
+            }
+
+            type Derived extending Base;
+        """])
+
+    @test.xfail('''
+        The `_assert_migration_consistency` of the final state fails,
+        never getting to the equivalence.
+    ''')
+    def test_migrations_equivalence_index_01(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str;
+            }
+        """, r"""
+            type Base {
+                property name -> str;
+                # an index
+                index on (.name);
+            }
+        """, r"""
+            type Base {
+                # rename the indexed property
+                property title -> str;
+                index on (.title);
+            }
+        """])
+
+    def test_migrations_equivalence_index_02(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str;
+                index on (.name);
+            }
+        """, r"""
+            type Base {
+                property name -> str;
+                # remove the index
+            }
+        """])
+
+    @test.xfail('''
+        The `_assert_migration_consistency` of the final state fails,
+        never getting to the equivalence.
+    ''')
+    def test_migrations_equivalence_index_03(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> int64;
+            }
+        """, r"""
+            type Base {
+                property name -> int64;
+                # an index
+                index on (.name);
+            }
+        """, r"""
+            type Base {
+                # change the indexed property type
+                property name -> str;
+                index on (.name);
+            }
+        """])
+
+    @test.xfail('''
+        The `_assert_migration_consistency` of the final state fails,
+        never getting to the equivalence.
+    ''')
+    def test_migrations_equivalence_index_04(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property first_name -> str;
+                property last_name -> str;
+                property name := .first_name ++ ' ' ++ .last_name;
+            }
+        """, r"""
+            type Base {
+                property first_name -> str;
+                property last_name -> str;
+                property name := .first_name ++ ' ' ++ .last_name;
+                # an index on a computable
+                index on (.name);
+            }
         """])
