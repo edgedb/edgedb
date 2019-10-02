@@ -338,6 +338,18 @@ def trace_View(
 
 
 @trace_dependencies.register
+def trace_Function(node: qlast.CreateFunction, *, ctx: DepTraceContext):
+    # Functions are defined by their name + call signature, so we need
+    # to add that to the "extra_name".
+    params = f'({qlcodegen.generate_source(node.params)})'
+    m = hashlib.sha1()
+    m.update(params.encode())
+    extra_name = m.hexdigest()
+
+    _register_item(node, ctx=ctx, extra_name=extra_name)
+
+
+@trace_dependencies.register
 def trace_default(node: qlast.CreateObject, *, ctx: DepTraceContext):
     # Generic DDL catchall
     _register_item(node, ctx=ctx)

@@ -2624,12 +2624,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 r"""SELECT hello11(1);"""
             )
 
-    @test.xfail('''
-        edgedb.errors.QueryError: could not find a function variant hello12
-
-        After the migration only one version of the function exists,
-        instead of two.
-    ''')
     async def test_edgeql_migration_function_12(self):
         await self.con.execute("""
             SET MODULE test;
@@ -2670,12 +2664,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ['hello1'],
         )
 
-    @test.xfail('''
-        edgedb.errors.QueryError: could not find a function variant hello13
-
-        The first migration ostensibly succeeds, but there's only one
-        version of the function instead of two.
-    ''')
     async def test_edgeql_migration_function_13(self):
         # this is the inverse of test_edgeql_migration_function_12
         await self.con.execute("""
@@ -2721,7 +2709,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 edgedb.QueryError,
                 r'could not find a function variant hello13'):
             await self.con.execute(
-                r"""SELECT hello11(' world');"""
+                r"""SELECT hello13(' world');"""
             )
 
     async def test_edgeql_migration_linkprops_01(self):
