@@ -269,12 +269,17 @@ class IntrospectionMech:
                 param_data = param_map.get(r)
                 param = schema.get(r, None)
                 if param is None:
+                    if param_data['default']:
+                        default = self.unpack_expr(
+                            param_data['default'], schema)
+                    else:
+                        default = None
                     schema, param = s_funcs.Parameter.create_in_schema(
                         schema,
                         id=param_data['id'],
                         num=param_data['num'],
                         name=sn.Name(param_data['name']),
-                        default=param_data['default'],
+                        default=default,
                         type=self.unpack_typeref(param_data['type'], schema),
                         typemod=param_data['typemod'],
                         kind=param_data['kind'])
