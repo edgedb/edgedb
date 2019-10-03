@@ -31,7 +31,6 @@ EdgeQL AST visitor.
 from __future__ import annotations
 
 import copy
-import hashlib
 import functools
 
 from edb import errors
@@ -292,10 +291,7 @@ def trace_ConcreteConstraint(
         loop_control = None
 
     if exprs:
-        texts = [qlcodegen.generate_source(e) for e in exprs]
-        m = hashlib.sha1()
-        m.update('|'.join(texts).encode())
-        extra_name = m.hexdigest()
+        extra_name = '|'.join(qlcodegen.generate_source(e) for e in exprs)
     else:
         extra_name = None
 
@@ -341,11 +337,7 @@ def trace_View(
 def trace_Function(node: qlast.CreateFunction, *, ctx: DepTraceContext):
     # Functions are defined by their name + call signature, so we need
     # to add that to the "extra_name".
-    params = f'({qlcodegen.generate_source(node.params)})'
-    m = hashlib.sha1()
-    m.update(params.encode())
-    extra_name = m.hexdigest()
-
+    extra_name = f'({qlcodegen.generate_source(node.params)})'
     _register_item(node, ctx=ctx, extra_name=extra_name)
 
 
