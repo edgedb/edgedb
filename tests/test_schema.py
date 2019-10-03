@@ -1649,6 +1649,95 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
+    @test.xfail('''
+        Eventually `trace_Path` fails with:
+        AttributeError: 'NoneType' object has no attribute 'getptr'
+    ''')
+    def test_migrations_equivalence_41(self):
+        # testing schema views
+        self._assert_migration_equivalence([r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (
+                        SELECT Foo {
+                            @bar := 'foo_bar_view_41'
+                        }
+                        FILTER .name = 'base_view_41'
+                    )
+                }
+            )
+        """, r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (
+                        SELECT Foo {
+                            # "rename" a computable link property, since
+                            # the value is given and not stored, this is
+                            # no different from dropping original and
+                            # creating a new multi-link
+                            @baz := 'foo_bar_view_41'
+                        }
+                        FILTER .name = 'base_view_41'
+                    )
+                }
+            )
+        """])
+
+    @test.xfail('''
+        Eventually `trace_Path` fails with:
+        AttributeError: 'NoneType' object has no attribute 'getptr'
+    ''')
+    def test_migrations_equivalence_42(self):
+        # testing schema views
+        self._assert_migration_equivalence([r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (
+                        SELECT Foo {
+                            @bar := 'foo_bar_view_42'
+                        }
+                        FILTER .name = 'base_view_42'
+                    )
+                }
+            )
+        """, r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (
+                        SELECT Foo {
+                            # keep the name, but change the type
+                            @bar := 42
+                        }
+                        FILTER .name = 'base_view_42'
+                    )
+                }
+            )
+        """])
+
     def test_migrations_equivalence_function_01(self):
         self._assert_migration_equivalence([r"""
             function hello01(a: int64) -> str

@@ -2191,6 +2191,191 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
+    @test.xfail('''
+        The error appears to be the same as for test_migrations_equivalence_41
+    ''')
+    async def test_edgeql_migration_41(self):
+        # testing schema views
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (
+                        SELECT Foo {
+                            @bar := 'foo_bar_view_41'
+                        }
+                        FILTER .name = 'base_view_41'
+                    )
+                }
+            )
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+            INSERT Foo {name := 'base_view_41'};
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo: {
+                        name,
+                        @bar
+                    }
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'base_view_41',
+                    '@bar': 'foo_bar_view_41',
+                }]
+            }]
+        )
+
+        await self._migrate(r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (
+                        SELECT Foo {
+                            # "rename" a computable link property, since
+                            # the value is given and not stored, this is
+                            # no different from dropping original and
+                            # creating a new multi-link
+                            @baz := 'foo_bar_view_41'
+                        }
+                        FILTER .name = 'base_view_41'
+                    )
+                }
+            )
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo: {
+                        name,
+                        @baz
+                    }
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'base_view_41',
+                    '@baz': 'foo_bar_view_41'
+                }]
+            }]
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                r"link 'fuu' has no property 'bar'"):
+            await self.con.execute(r"""
+                SELECT BaseView {
+                    foo: {
+                        name,
+                        @bar
+                    }
+                };
+            """)
+
+    @test.xfail('''
+        The error appears to be the same as for test_migrations_equivalence_42
+    ''')
+    async def test_edgeql_migration_42(self):
+        # testing schema views
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (
+                        SELECT Foo {
+                            @bar := 'foo_bar_view_42'
+                        }
+                        FILTER .name = 'base_view_42'
+                    )
+                }
+            )
+        """)
+        await self.con.execute(r"""
+            INSERT Base;
+            INSERT Foo {name := 'base_view_42'};
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo: {
+                        name,
+                        @bar
+                    }
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'base_view_42',
+                    '@bar': 'foo_bar_view_42',
+                }]
+            }]
+        )
+
+        await self._migrate(r"""
+            type Base;
+
+            type Foo {
+                property name -> str
+            }
+
+            view BaseView := (
+                SELECT Base {
+                    foo := (
+                        SELECT Foo {
+                            # keep the name, but change the type
+                            @bar := 42
+                        }
+                        FILTER .name = 'base_view_42'
+                    )
+                }
+            )
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT BaseView {
+                    foo: {
+                        name,
+                        @bar
+                    }
+                };
+            """,
+            [{
+                'foo': [{
+                    'name': 'base_view_42',
+                    '@bar': 42,
+                }]
+            }]
+        )
+
     async def test_edgeql_migration_function_01(self):
         await self.con.execute("""
             SET MODULE test;
