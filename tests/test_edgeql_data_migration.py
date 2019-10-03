@@ -1912,14 +1912,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }]
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: relation
-        "edgedb_b395491c-e402-11e9-89e9-61d04b39f30a.
-        b5441cbe-e402-11e9-847b-433bfe78aa8d"
-        does not exist
-
-        The second migration fails.
-    ''')
     async def test_edgeql_migration_37(self):
         # testing schema views
         await self.con.execute("""
