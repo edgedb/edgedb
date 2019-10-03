@@ -2097,50 +2097,74 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
     def rename_pointer(self, pointer, schema, context, old_name, new_name):
         if context:
+            # before proceeding with renaming, make sure that this is
+            # not a computable
+            pointer = self.get_object(schema, context)
+            source = pointer.get_source(schema)
+            if source is not None:
+                is_computable = source.get_is_derived(schema)
+
+                # potentially this is a link property, so source may
+                # be a link
+                if isinstance(source, s_links.Link):
+                    source = source.get_source(schema)
+
+                if source is not None:
+                    is_computable = (
+                        is_computable
+                        or source.is_view(schema)
+                        or source.get_union_of(schema)
+                    )
+            else:
+                is_computable = None
+
             old_name = sn.shortname_from_fullname(old_name)
             new_name = sn.shortname_from_fullname(new_name)
 
-            host = self.get_host(schema, context)
+            if not is_computable:
+                host = self.get_host(schema, context)
 
-            if host and old_name != new_name:
-                if (new_name.endswith('std::source') and
-                        not host.scls.generic(schema)):
-                    pass
-                else:
-                    old_col_name = common.edgedb_name_to_pg_name(old_name.name)
-                    new_col_name = common.edgedb_name_to_pg_name(new_name.name)
+                if host and old_name != new_name:
+                    if (new_name == 'std::source' and
+                            not host.scls.generic(schema)):
+                        pass
+                    else:
+                        old_col_name = common.edgedb_name_to_pg_name(
+                            old_name.name)
+                        new_col_name = common.edgedb_name_to_pg_name(
+                            new_name.name)
 
-                    ptr_stor_info = types.get_pointer_storage_info(
-                        pointer, schema=schema)
+                        ptr_stor_info = types.get_pointer_storage_info(
+                            pointer, schema=schema)
 
-                    is_a_column = ((
-                        ptr_stor_info.table_type == 'ObjectType' and
-                        isinstance(host.scls, s_objtypes.ObjectType)) or (
-                            ptr_stor_info.table_type == 'link' and
-                            isinstance(host.scls, s_links.Link)))
+                        is_a_column = ((
+                            ptr_stor_info.table_type == 'ObjectType' and
+                            isinstance(host.scls, s_objtypes.ObjectType)) or (
+                                ptr_stor_info.table_type == 'link' and
+                                isinstance(host.scls, s_links.Link)))
 
-                    if is_a_column:
-                        table_name = common.get_backend_name(
-                            schema, host.scls, catenate=False)
-                        cond = [
-                            dbops.ColumnExists(
-                                table_name=table_name,
-                                column_name=old_col_name)
-                        ]
-                        neg_cond = [
-                            dbops.ColumnIsInherited(
-                                table_name=table_name,
-                                column_name=old_col_name)
-                        ]
-                        rename = dbops.AlterTableRenameColumn(
-                            table_name, old_col_name, new_col_name,
-                            conditions=cond, neg_conditions=neg_cond)
-                        self.pgops.add(rename)
+                        if is_a_column:
+                            table_name = common.get_backend_name(
+                                schema, host.scls, catenate=False)
+                            cond = [
+                                dbops.ColumnExists(
+                                    table_name=table_name,
+                                    column_name=old_col_name)
+                            ]
+                            neg_cond = [
+                                dbops.ColumnIsInherited(
+                                    table_name=table_name,
+                                    column_name=old_col_name)
+                            ]
+                            rename = dbops.AlterTableRenameColumn(
+                                table_name, old_col_name, new_col_name,
+                                conditions=cond, neg_conditions=neg_cond)
+                            self.pgops.add(rename)
 
-                        tabcol = dbops.TableColumn(
-                            table_name=table_name, column=dbops.Column(
-                                name=new_col_name, type='str'))
-                        self.pgops.add(dbops.Comment(tabcol, new_name))
+                            tabcol = dbops.TableColumn(
+                                table_name=table_name, column=dbops.Column(
+                                    name=new_col_name, type='str'))
+                            self.pgops.add(dbops.Comment(tabcol, new_name))
 
         table = self.get_table(schema)
         rec = table.record()
