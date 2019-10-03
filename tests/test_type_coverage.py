@@ -146,9 +146,9 @@ class TypeCoverageTests(unittest.TestCase):
 
     def test_type_coverage_self(self) -> None:
         coverage = cover_file(Path(__file__))
-        self.assertEqual(coverage.typed_functions, 49)
+        self.assertTrue(coverage.typed_functions >= 49)
         self.assertEqual(coverage.untyped_functions, 0)
-        self.assertEqual(coverage.typed_lines, 184)
+        self.assertTrue(coverage.typed_lines >= 187)
         self.assertEqual(coverage.untyped_lines, 0)
 
     def test_type_coverage_cli(self) -> None:
