@@ -2022,6 +2022,42 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_annotation_04(self):
+        await self.con.execute('''
+            CREATE TYPE test::BaseAnno4;
+            CREATE TYPE test::DerivedAnno4 EXTENDING test::BaseAnno4;
+            CREATE ABSTRACT ANNOTATION test::noninh_anno;
+            CREATE ABSTRACT INHERITABLE ANNOTATION test::inh_anno;
+            ALTER TYPE test::BaseAnno4 SET ANNOTATION test::noninh_anno := '1';
+            ALTER TYPE test::BaseAnno4 SET ANNOTATION test::inh_anno := '2';
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    annotations: {
+                        name,
+                        inheritable,
+                        @value,
+                    }
+                    FILTER .name LIKE 'test::%_anno'
+                    ORDER BY .name
+                }
+                FILTER
+                    .name = 'test::DerivedAnno4'
+                ORDER BY
+                    .name;
+            ''',
+            [{
+                "annotations": [{
+                    "name": "test::inh_anno",
+                    "inheritable": True,
+                    "@value": "2",
+                }]
+            }]
+        )
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,

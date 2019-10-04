@@ -381,7 +381,7 @@ _123456789_123456789_123456789 -> str
             })
         )
 
-    def test_schema_annotation_inheritance(self):
+    def test_schema_annotation_inheritance_01(self):
         schema = self.load_schema("""
             abstract annotation noninh;
             abstract inheritable annotation inh;
@@ -405,6 +405,30 @@ _123456789_123456789_123456789 -> str
             Object1.get_annotation(schema, 'test::inh'), 'inherit me')
         self.assertEqual(
             Object2.get_annotation(schema, 'test::inh'), 'inherit me')
+
+    def test_schema_annotation_inheritance_02(self):
+        schema = tb._load_std_schema()
+
+        schema = self.run_ddl(schema, '''
+            CREATE MODULE default;
+            CREATE TYPE default::Base;
+            CREATE TYPE default::Derived EXTENDING default::Base;
+            CREATE ABSTRACT INHERITABLE ANNOTATION default::inh_anno;
+            CREATE ABSTRACT ANNOTATION default::noinh_anno;
+            ALTER TYPE default::Base
+                SET ANNOTATION default::noinh_anno := 'foo';
+            ALTER TYPE default::Base
+                SET ANNOTATION default::inh_anno := 'bar';
+        ''')
+
+        inh_anno = schema.get('default::inh_anno')
+        der = schema.get('default::Derived')
+        annos = der.get_annotations(schema)
+        anno = annos.get(schema, 'default::inh_anno')
+        self.assertEqual(anno.get_annotation(schema), inh_anno)
+
+        no_anno = annos.get(schema, 'default::noinh_anno', default=None)
+        self.assertIsNone(no_anno)
 
     def test_schema_object_verbosename(self):
         schema = self.load_schema("""

@@ -258,7 +258,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
 
         schema = referrer.add_classref(schema, refdict.attr, self.scls)
 
-        if isinstance(referrer, inheriting.InheritingObject):
+        if (not self.scls.get_is_final(schema)
+                and isinstance(referrer, inheriting.InheritingObject)):
             if not context.canonical:
                 # Propagate the creation of a new ref to descendants.
                 alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
