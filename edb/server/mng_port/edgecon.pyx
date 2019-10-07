@@ -680,7 +680,6 @@ cdef class EdgeConnection:
             self.dbview.cache_compiled_query(
                 eql, json_mode, expect_one, query_unit)
 
-        self._last_anon_compiled = query_unit
         return query_unit
 
     cdef parse_cardinality(self, bytes card):
@@ -769,6 +768,8 @@ cdef class EdgeConnection:
         buf.write_bytes(query_unit.in_type_id)
         buf.write_bytes(query_unit.out_type_id)
         buf.end_message()
+
+        self._last_anon_compiled = query_unit
 
         self.write(buf)
 
@@ -992,13 +993,15 @@ cdef class EdgeConnection:
 
         await self._execute(query_unit, bind_args, False, False)
 
-    async def opportunistic_execute(self):
+    async def optimistic_execute(self):
         cdef:
             WriteBuffer bound_args_buf
             bint process_sync
             bytes in_tid
             bytes out_tid
             bytes bound_args
+
+        self._last_anon_compiled = None
 
         self.reject_headers()
         json_mode = self.parse_json_mode(self.buffer.read_byte())
@@ -1018,21 +1021,31 @@ cdef class EdgeConnection:
             query, json_mode, expect_one)
         if query_unit is None:
             if self.debug:
-                self.debug_print('OPPORTUNISTIC EXECUTE /REPARSE', query)
+                self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
 
             query_unit = await self._parse(query, json_mode, expect_one)
+            self._last_anon_compiled = query_unit
 
         if (query_unit.in_type_id != in_tid or
                 query_unit.out_type_id != out_tid):
             # The client has outdated information about type specs.
             if self.debug:
-                self.debug_print('OPPORTUNISTIC EXECUTE /MISMATCH', query)
+                self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
 
             self.write(self.make_describe_msg(query_unit))
+
+            # We must re-parse the query so that it becomes
+            # "last anonymous statement" *in Postgres*.
+            # Otherwise the `await self._execute` below would execute
+            # some other query.
+            query_unit = await self._parse(query, json_mode, expect_one)
+            self._last_anon_compiled = query_unit
             return
 
         if self.debug:
-            self.debug_print('OPPORTUNISTIC EXECUTE', query)
+            self.debug_print('OPTIMISTIC EXECUTE', query)
+
+        self._last_anon_compiled = query_unit
 
         await self._execute(
             query_unit, bind_args, True, bool(query_unit.sql_hash))
@@ -1098,7 +1111,7 @@ cdef class EdgeConnection:
                         await self.execute()
 
                     elif mtype == b'O':
-                        await self.opportunistic_execute()
+                        await self.optimistic_execute()
 
                     elif mtype == b'Q':
                         flush_sync_on_error = True

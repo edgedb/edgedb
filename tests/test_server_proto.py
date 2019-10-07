@@ -18,6 +18,7 @@
 
 import asyncio
 import json
+import uuid
 
 import edgedb
 
@@ -1741,6 +1742,37 @@ class TestServerProto(tb.QueryTestCase):
 
                     SELECT <test::upper_str>'123_hello';
                 """)
+
+    async def test_server_proto_tx_19(self):
+        # A regression test ensuring that optimistic execute supports
+        # custom scalar types; unfortunately no way to test that if
+        # the Python driver is implemented correctly.  Still, this
+        # test might catch regressions in the python driver or
+        # detect new edge cases in the server implementation.
+
+        # Not using a transaction here because optimistic execute isn't
+        # enabled in transactions with DDL.
+
+        # Note: don't change this test.  If need be, copy/paste it and
+        # add new stuff to it.
+
+        typename = f'test_{uuid.uuid4().hex}'
+
+        await self.con.execute(f'''
+            CREATE SCALAR TYPE {typename} EXTENDING int64;
+        ''')
+
+        for _ in range(10):
+            result = await self.con.fetchone(f'''
+                SELECT <{typename}>100000
+            ''')
+            self.assertEqual(result, 100000)
+
+            result = await self.con.fetchone('''
+                SELECT "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ''')
+            self.assertEqual(
+                result, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
