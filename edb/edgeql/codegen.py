@@ -737,14 +737,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('}')
 
     def _visit_AlterObject(self, node, *object_keywords, allow_short=True,
-                           after_name=None, unqualified=False):
+                           after_name=None, unqualified=False, named=True):
         self._visit_aliases(node)
         self.write('ALTER', *object_keywords, delimiter=' ')
-        self.write(' ')
-        if unqualified:
-            self.write(ident_to_str(node.name.name))
-        else:
-            self.visit(node.name)
+        if named:
+            self.write(' ')
+            if unqualified:
+                self.write(ident_to_str(node.name.name))
+            else:
+                self.visit(node.name)
         if after_name:
             after_name()
         if node.commands:
@@ -1138,15 +1139,26 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateIndex(self, node):
         def after_name():
-            self.write(' ON (')
+            self._write_keywords(' ON ')
+            self.write('(')
             self.visit(node.expr)
             self.write(')')
         self._visit_CreateObject(
             node, 'INDEX', after_name=after_name, named=False)
 
+    def visit_AlterIndex(self, node):
+        def after_name():
+            self._write_keywords(' ON ')
+            self.write('(')
+            self.visit(node.expr)
+            self.write(')')
+        self._visit_AlterObject(
+            node, 'INDEX', after_name=after_name, named=False)
+
     def visit_DropIndex(self, node):
         def after_name():
-            self.write(' ON (')
+            self._write_keywords(' ON ')
+            self.write('(')
             self.visit(node.expr)
             self.write(')')
         self._visit_DropObject(

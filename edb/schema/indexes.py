@@ -24,6 +24,7 @@ from edb import errors
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
+from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -32,7 +33,7 @@ from . import objects as so
 from . import referencing
 
 
-class Index(referencing.ReferencedInheritingObject):
+class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
 
     subject = so.SchemaField(so.Object)
 
@@ -78,7 +79,8 @@ class IndexSourceCommand(inheriting.InheritingObjectCommand):
     pass
 
 
-class IndexCommandContext(sd.ObjectCommandContext):
+class IndexCommandContext(sd.ObjectCommandContext,
+                          s_anno.AnnotationSubjectCommandContext):
     pass
 
 
@@ -239,7 +241,7 @@ class RenameIndex(IndexCommand, referencing.RenameReferencedInheritingObject):
 
 
 class AlterIndex(IndexCommand, referencing.AlterReferencedInheritingObject):
-    pass
+    astnode = qlast.AlterIndex
 
 
 class DeleteIndex(IndexCommand, inheriting.DeleteInheritingObject):

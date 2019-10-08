@@ -116,9 +116,6 @@ class SDLShortStatement(Nonterm):
     def reduce_FunctionDeclarationShort(self, *kids):
         self.val = kids[0].val
 
-    def reduce_IndexDeclaration(self, *kids):
-        self.val = kids[0].val
-
 
 class DotName(Nonterm):
     def reduce_ModuleName(self, *kids):
@@ -473,7 +470,21 @@ class AnnotationDeclarationShort(Nonterm):
 #
 # Indexes
 #
-class IndexDeclaration(Nonterm):
+sdl_commands_block(
+    'CreateIndex',
+    SetAnnotation)
+
+
+class IndexDeclarationBlock(Nonterm):
+    def reduce_INDEX_OnExpr_CreateIndexSDLCommandsBlock(self, *kids):
+        self.val = qlast.CreateIndex(
+            name=qlast.ObjectRef(name='idx'),
+            expr=kids[1].val,
+            commands=kids[2].val,
+        )
+
+
+class IndexDeclarationShort(Nonterm):
     def reduce_INDEX_OnExpr(self, *kids):
         self.val = qlast.CreateIndex(
             name=qlast.ObjectRef(name='idx'),
@@ -603,7 +614,8 @@ sdl_commands_block(
     ConcreteConstraintShort,
     ConcretePropertyBlock,
     ConcretePropertyShort,
-    IndexDeclaration,
+    IndexDeclarationBlock,
+    IndexDeclarationShort,
 )
 
 
@@ -743,7 +755,8 @@ sdl_commands_block(
     ConcretePropertyShort,
     ConcreteLinkBlock,
     ConcreteLinkShort,
-    IndexDeclaration,
+    IndexDeclarationBlock,
+    IndexDeclarationShort,
 )
 
 

@@ -179,7 +179,7 @@ ALTER TYPE schema::Constraint {
 };
 
 
-CREATE TYPE schema::Index EXTENDING schema::Object {
+CREATE TYPE schema::Index EXTENDING schema::AnnotationSubject {
     CREATE PROPERTY expr -> std::str;
 };
 

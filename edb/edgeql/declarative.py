@@ -428,6 +428,14 @@ def _register_item(
             alter_cls = getattr(qlast, alter_name)
             alter_cmd = alter_cls(name=decl.name)
 
+            # indexes need to preserve their "on" expression
+            if alter_name == 'AlterIndex':
+                # find the original expr, which will be in non-normalized form
+                for sub in op.commands:
+                    if isinstance(sub, qlast.CreateIndex):
+                        alter_cmd.expr = sub.expr
+                        break
+
             if not ctx.depstack:
                 alter_cmd.aliases = [
                     qlast.ModuleAliasDecl(alias=None, module=ctx.module)

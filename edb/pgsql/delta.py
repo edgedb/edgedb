@@ -1722,11 +1722,7 @@ class RenameIndex(IndexCommand, RenameObject, adapts=s_indexes.RenameIndex):
 
 
 class AlterIndex(IndexCommand, AlterObject, adapts=s_indexes.AlterIndex):
-    def apply(self, schema, context=None):
-        schema, result = s_indexes.AlterIndex.apply(
-            self, schema, context)
-        schema, _ = AlterObject.apply(self, schema, context)
-        return schema, result
+    pass
 
 
 class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):

@@ -802,6 +802,10 @@ class CreateIndex(CreateObject, IndexOp):
     pass
 
 
+class AlterIndex(CreateObject, IndexOp):
+    pass
+
+
 class DropIndex(DropObject, IndexOp):
     pass
 

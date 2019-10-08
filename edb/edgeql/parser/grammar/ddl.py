@@ -200,12 +200,6 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropCastStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CreateIndexStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_DropIndexStmt(self, *kids):
-        self.val = kids[0].val
-
 
 class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt,
                         separator=Semicolons):
@@ -878,12 +872,32 @@ class DropAnnotationStmt(Nonterm):
         )
 
 
+commands_block(
+    'AlterIndex',
+    SetFieldStmt,
+    SetAnnotationValueStmt,
+    DropAnnotationValueStmt,
+    opt=False)
+
+
 #
 # CREATE INDEX
 #
 class CreateIndexStmt(Nonterm):
     def reduce_CREATE_INDEX_OnExpr_OptCreateCommandsBlock(self, *kids):
         self.val = qlast.CreateIndex(
+            name=qlast.ObjectRef(name='idx'),
+            expr=kids[2].val,
+            commands=kids[3].val,
+        )
+
+
+#
+# ALTER INDEX
+#
+class AlterIndexStmt(Nonterm):
+    def reduce_ALTER_INDEX_OnExpr_AlterIndexCommandsBlock(self, *kids):
+        self.val = qlast.AlterIndex(
             name=qlast.ObjectRef(name='idx'),
             expr=kids[2].val,
             commands=kids[3].val,
@@ -1125,6 +1139,7 @@ commands_block(
     AlterConcretePropertyStmt,
     DropConcretePropertyStmt,
     CreateIndexStmt,
+    AlterIndexStmt,
     DropIndexStmt,
     opt=False
 )
@@ -1270,7 +1285,8 @@ commands_block(
     AlterConcretePropertyStmt,
     CreateConcreteLinkStmt,
     AlterConcreteLinkStmt,
-    CreateIndexStmt
+    CreateIndexStmt,
+    AlterIndexStmt,
 )
 
 
@@ -1318,6 +1334,7 @@ commands_block(
     AlterConcreteLinkStmt,
     DropConcreteLinkStmt,
     CreateIndexStmt,
+    AlterIndexStmt,
     DropIndexStmt,
     opt=False
 )

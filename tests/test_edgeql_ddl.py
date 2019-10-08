@@ -2058,6 +2058,257 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_annotation_05(self):
+        await self.con.execute(r'''
+            CREATE TYPE test::BaseAnno05 {
+                CREATE PROPERTY name -> str;
+                CREATE INDEX ON (.name) {
+                    SET ANNOTATION title := 'name index'
+                }
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    indexes: {
+                        expr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::BaseAnno05';
+            ''',
+            [{
+                "indexes": [{
+                    "expr": ".name",
+                    "annotations": [{
+                        "name": "std::title",
+                        "@value": "name index",
+                    }]
+                }]
+            }]
+        )
+
+    async def test_edgeql_ddl_annotation_06(self):
+        await self.con.execute(r'''
+            CREATE TYPE test::BaseAnno06 {
+                CREATE PROPERTY name -> str;
+                CREATE INDEX ON (.name);
+            };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER TYPE test::BaseAnno06 {
+                ALTER INDEX ON (.name) {
+                    SET ANNOTATION title := 'name index'
+                }
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    indexes: {
+                        expr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::BaseAnno06';
+            ''',
+            [{
+                "indexes": [{
+                    "expr": ".name",
+                    "annotations": [{
+                        "name": "std::title",
+                        "@value": "name index",
+                    }]
+                }]
+            }]
+        )
+
+        await self.con.execute(r'''
+            ALTER TYPE test::BaseAnno06 {
+                ALTER INDEX ON (.name) {
+                    DROP ANNOTATION title;
+                }
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    indexes: {
+                        expr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::BaseAnno06';
+            ''',
+            [{
+                "indexes": [{
+                    "expr": ".name",
+                    "annotations": []
+                }]
+            }]
+        )
+
+    async def test_edgeql_ddl_annotation_07(self):
+        # Create index annotation using DDL, then drop annotation using SDL.
+        await self.con.execute(r'''
+            CREATE TYPE test::BaseAnno07 {
+                CREATE PROPERTY name -> str;
+                CREATE INDEX ON (.name) {
+                    SET ANNOTATION title := 'name index'
+                }
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    indexes: {
+                        expr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::BaseAnno07';
+            ''',
+            [{
+                "indexes": [{
+                    "expr": ".name",
+                    "annotations": [{
+                        "name": "std::title",
+                        "@value": "name index",
+                    }]
+                }]
+            }]
+        )
+
+        await self.con.execute(r'''
+            SET MODULE test;
+            CREATE MIGRATION m TO {
+                type BaseAnno07 {
+                    property name -> str;
+                    index ON (.name);
+                }
+            };
+            COMMIT MIGRATION m;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    indexes: {
+                        expr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::BaseAnno07';
+            ''',
+            [{
+                "indexes": [{
+                    "expr": ".name",
+                    "annotations": []
+                }]
+            }]
+        )
+
+    async def test_edgeql_ddl_annotation_08(self):
+        # Create index using DDL, then add annotation to it using SDL.
+        await self.con.execute(r'''
+            CREATE TYPE test::BaseAnno08 {
+                CREATE PROPERTY name -> str;
+                CREATE INDEX ON (.name);
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    indexes: {
+                        expr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::BaseAnno08';
+            ''',
+            [{
+                "indexes": [{
+                    "expr": ".name",
+                    "annotations": []
+                }]
+            }]
+        )
+
+        await self.con.execute(r'''
+            SET MODULE test;
+            CREATE MIGRATION m TO {
+                type BaseAnno08 {
+                    property name -> str;
+                    index ON (.name) {
+                        annotation title := 'name index';
+                    }
+                }
+            };
+            COMMIT MIGRATION m;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    indexes: {
+                        expr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::BaseAnno08';
+            ''',
+            [{
+                "indexes": [{
+                    "expr": ".name",
+                    "annotations": [{
+                        "name": "std::title",
+                        "@value": "name index",
+                    }]
+                }]
+            }]
+        )
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
