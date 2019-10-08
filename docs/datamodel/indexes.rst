@@ -58,6 +58,18 @@ The index expression must not reference any variables other than the
 properties of the index *subject*.  All functions used in the
 expression must not be set-returning.
 
+Typically the explicit ``__subject__`` can be omitted in favor of a
+short-form expression, since the index always appears nested inside
+its *subject*:
+
+.. code-block:: sdl
+
+    type User {
+        property name -> str;
+        index on (.name);
+    }
+
+
 .. note::
 
     While being beneficial to the speed of queries, indexes increase

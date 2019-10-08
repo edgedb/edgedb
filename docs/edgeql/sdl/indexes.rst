@@ -22,7 +22,9 @@ Declare an index for a "User" based on the "name" property:
         multi link friends -> User;
 
         # define an index for User based on name
-        index on (__subject__.name);
+        index on (.name) {
+            annotation title := 'User name index';
+        }
     }
 
 
@@ -34,7 +36,8 @@ commands <ref_eql_ddl_indexes>`.
 
 .. sdl:synopsis::
 
-    index on ( <index-expr> ) ;
+    index on ( <index-expr> )
+    [ "{" <annotation-declarations> "}" ] ;
 
 
 Description

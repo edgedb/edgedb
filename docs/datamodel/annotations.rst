@@ -19,6 +19,9 @@ The following are the annotations which can be set on any schema item:
 - ``title``
 - ``description``
 
+There's also a special ``schema::system`` annotation that should never
+be altered directly by the user, but can be useful in introspection.
+
 For example, consider the following declaration:
 
 .. code-block:: sdl
