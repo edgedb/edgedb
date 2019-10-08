@@ -130,6 +130,9 @@ def get_set_rvar(
             ctx.rel, path_id, rvar,
             aspect='value', env=ctx.env)
 
+        if path_id.is_objtype_path():
+            relctx.ensure_source_rvar(ir_set, ctx.rel, ctx=ctx)
+
         return rvar
 
     if ctx.toplevel_stmt is None:

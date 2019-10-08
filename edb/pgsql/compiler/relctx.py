@@ -469,6 +469,7 @@ def unpack_rvar(
     rvar = rvar_for_rel(cte, lateral=True, ctx=ctx)
     include_rvar(
         stmt, rvar, path_id=path_id,
+        aspects=('value',),
         ctx=ctx
     )
 
