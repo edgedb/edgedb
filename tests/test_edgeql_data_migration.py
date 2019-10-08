@@ -3937,6 +3937,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     @test.xfail('''
         Fails on the last migration that attempts to rename the
         property being indexed.
+
+        This is an example of a general problem that any renaming
+        needs to be done in such a way so that the existing
+        expressions are still valid.
     ''')
     async def test_edgeql_migration_index_01(self):
         await self.con.execute("""

@@ -2149,10 +2149,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    @test.xfail('''
-        The `_assert_migration_consistency` of the final state fails,
-        never getting to the equivalence.
-    ''')
     def test_migrations_equivalence_index_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -2185,10 +2181,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        The `_assert_migration_consistency` of the final state fails,
-        never getting to the equivalence.
-    ''')
     def test_migrations_equivalence_index_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -2208,10 +2200,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        The `_assert_migration_consistency` of the final state fails,
-        never getting to the equivalence.
-    ''')
     def test_migrations_equivalence_index_04(self):
         self._assert_migration_equivalence([r"""
             type Base {

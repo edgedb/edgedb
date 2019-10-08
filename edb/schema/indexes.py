@@ -24,6 +24,7 @@ from edb import errors
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
+from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
@@ -32,7 +33,7 @@ from . import objects as so
 from . import referencing
 
 
-class Index(referencing.ReferencedInheritingObject):
+class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
 
     subject = so.SchemaField(so.Object)
 
@@ -73,7 +74,8 @@ class IndexSourceCommand(inheriting.InheritingObjectCommand):
     pass
 
 
-class IndexCommandContext(sd.ObjectCommandContext):
+class IndexCommandContext(sd.ObjectCommandContext,
+                          s_anno.AnnotationSubjectCommandContext):
     pass
 
 
@@ -113,14 +115,25 @@ class IndexCommand(referencing.ReferencedInheritingObjectCommand,
     @classmethod
     def _classname_quals_from_ast(cls, schema, astnode, base_name,
                                   referrer_name, context):
-        subject = schema.get(referrer_name, None)
-        if subject is None:
-            return ()
+        expr_text = None
 
-        expr = s_expr.Expression.from_ast(
-            astnode.expr, schema, context.modaliases)
+        # check if we have annotation with original text
+        for node in astnode.commands:
+            if isinstance(node, qlast.CreateAnnotationValue):
+                if (node.name.module == 'schema' and
+                        node.name.name == 'system'):
+                    expr_text = node.value.value
+                    break
 
-        return (cls._name_qual_from_expr(schema, expr.origtext),)
+        if expr_text is None:
+            # if not, then use the origtext directly from the expression
+            expr = s_expr.Expression.from_ast(
+                astnode.expr, schema, context.modaliases)
+            expr_text = expr.origtext
+
+        name = (cls._name_qual_from_expr(schema, expr_text),)
+
+        return name
 
     def get_object(self, schema, context, *, name=None):
         try:
@@ -138,6 +151,37 @@ class IndexCommand(referencing.ReferencedInheritingObjectCommand,
 class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
     astnode = qlast.CreateIndex
     referenced_astnode = qlast.CreateIndex
+
+    def _create_begin(self, schema, context):
+        # We want to first create all the attributes and subcommands
+        # as per normal.
+        schema = super()._create_begin(schema, context)
+
+        is_canonical = context.canonical
+        # Potentially, the context is not marked as canonical, but the
+        # INDEX has been already made into a canonical form.
+        if not is_canonical:
+            for cmd in self.get_subcommands(type=s_anno.CreateAnnotationValue):
+                # Check if the 'schema::system' annotation is already present
+                anno = cmd.get_attribute_value('annotation')
+                if anno.get_name(schema) == 'schema::system':
+                    is_canonical = True
+                    break
+
+        if not is_canonical:
+            # Add annotation with the original expression.
+            expr = self.get_attribute_value('expr')
+            cmd = s_anno.CreateAnnotationValue.from_ast(
+                schema,
+                qlast.CreateAnnotationValue(
+                    name=qlast.ObjectRef(module='schema', name='system'),
+                    value=qlast.StringConstant.from_python(expr.origtext)
+                ),
+                context=context,
+            )
+            self.add(cmd)
+
+        return schema
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):

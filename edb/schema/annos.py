@@ -252,11 +252,7 @@ class AlterAnnotationValue(AnnotationValueCommand, sd.AlterObject):
 class DeleteAnnotationValue(AnnotationValueCommand, sd.DeleteObject):
     astnode = qlast.DropAnnotationValue
 
-    def apply(self, schema, context):
-        attrsubj = context.get(AnnotationSubjectCommandContext)
-        assert attrsubj, "Annotation commands must be run in " + \
-                         "AnnotationSubject context"
 
-        schema = self.del_annotation(schema, self.classname, attrsubj.scls)
-
-        return super().apply(schema, context)
+class RebaseAnnotationValue(AnnotationValueCommand,
+                            inheriting.RebaseInheritingObject):
+    pass

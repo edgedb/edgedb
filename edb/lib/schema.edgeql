@@ -22,6 +22,8 @@
 
 CREATE MODULE schema;
 
+CREATE ABSTRACT ANNOTATION schema::system;
+
 CREATE SCALAR TYPE schema::cardinality_t EXTENDING std::str {
     CREATE CONSTRAINT std::one_of ('ONE', 'MANY');
 };

@@ -3559,13 +3559,51 @@ aa';
 
     def test_edgeql_syntax_ddl_index_01(self):
         """
-        CREATE INDEX ON (Foo);
+        CREATE TYPE Foo {
+            CREATE INDEX ON (.title);
 
-        CREATE INDEX ON (.title);
+            CREATE INDEX ON (SELECT __subject__.title);
+        };
+        """
 
-        CREATE INDEX ON (SELECT __subject__.title);
+    def test_edgeql_syntax_ddl_index_02(self):
+        """
+        ALTER TYPE Foo {
+            DROP INDEX ON (.title);
 
-        DROP INDEX ON (.title);
+            CREATE INDEX ON (.title) {
+                SET ANNOTATION system := 'Foo';
+            };
+
+            ALTER INDEX ON (.title)
+                SET ANNOTATION system := 'Foo';
+
+            ALTER INDEX ON (.title)
+                DROP ANNOTATION system;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_index_03(self):
+        """
+        ALTER TYPE Foo {
+            ALTER INDEX ON (.title) {
+                SET ANNOTATION system := 'Foo'
+            };
+
+            ALTER INDEX ON (.title) {
+                DROP ANNOTATION system
+            };
+        };
+
+% OK %
+
+        ALTER TYPE Foo {
+            ALTER INDEX ON (.title)
+                SET ANNOTATION system := 'Foo';
+
+            ALTER INDEX ON (.title)
+                DROP ANNOTATION system;
+        };
         """
 
     def test_edgeql_transaction_01(self):

@@ -492,6 +492,25 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
+    def test_eschema_syntax_index_04(self):
+        """
+        type User {
+            property name -> str;
+            index on (.name);
+        };
+        """
+
+    def test_eschema_syntax_index_05(self):
+        """
+        type User {
+            property name -> str;
+
+            index on (.name) {
+                annotation title := 'User name index';
+            };
+        };
+        """
+
     def test_eschema_syntax_ws_01(self):
         """
 type LogEntry extending    OwnedObject,    Text {
