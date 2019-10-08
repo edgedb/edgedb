@@ -19,7 +19,12 @@ type or link.
 
 .. eql:synopsis::
 
-    CREATE INDEX ON ( <index-expr> );
+    CREATE INDEX ON ( <index-expr> )
+    [ "{" <subcommand>; [...] "}" ] ;
+
+    # where <subcommand> is one of
+
+      SET ANNOTATION <annotation-name> := <value>
 
 
 Description
@@ -36,20 +41,90 @@ Parameters
     The specific expression for which the index is made.  Note also
     that ``<index-expr>`` itself has to be parenthesized.
 
+The only subcommand that is allowed in the ``CREATE INDEX`` block:
+
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+    Set object type :eql:synopsis:`<annotation-name>` to
+    :eql:synopsis:`<value>`.
+
+    See :eql:stmt:`SET ANNOTATION` for details.
+
 
 Example
 -------
 
-Create an object type ``User`` with an indexed ``title`` property:
+Create an object type ``User`` with an indexed ``name`` property:
 
 .. code-block:: edgeql
 
     CREATE TYPE User {
-        CREATE PROPERTY title -> str {
+        CREATE PROPERTY name -> str {
             SET default := '';
         };
 
-        CREATE INDEX ON (.title);
+        CREATE INDEX ON (.name);
+    };
+
+
+ALTER INDEX
+===========
+
+:eql-statement:
+
+
+Alter the definition of an :ref:`index <ref_eql_sdl_indexes>`.
+
+.. eql:synopsis::
+
+    ALTER INDEX ON ( <index-expr> )
+    [ "{" <subcommand>; [...] "}" ] ;
+
+    # where <subcommand> is one of
+
+      SET ANNOTATION <annotation-name> := <value>
+      DROP ANNOTATION <annotation-name>
+
+
+Description
+-----------
+
+``ALTER INDEX`` is used to change the :ref:`annotations
+<ref_datamodel_annotations>` of an index. The *index-expr* is used to
+identify the index to be altered.
+
+
+Parameters
+----------
+
+:sdl:synopsis:`ON ( <index-expr> )`
+    The specific expression for which the index is made.  Note also
+    that ``<index-expr>`` itself has to be parenthesized.
+
+The following subcommands are allowed in the ``ALTER INDEX`` block:
+
+:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+    Set object type :eql:synopsis:`<annotation-name>` to
+    :eql:synopsis:`<value>`.
+
+    See :eql:stmt:`SET ANNOTATION` for details.
+
+:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+    Remove constraint :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
+
+
+Example
+-------
+
+Add an annotation to the index on the ``name`` property of object type
+``User``:
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        ALTER INDEX ON (.name) {
+            SET ANNOTATION title := "User name index";
+        };
     };
 
 
@@ -79,10 +154,10 @@ DDL statement.
 Example
 -------
 
-Drop the ``title`` index from the ``User`` object type:
+Drop the ``name`` index from the ``User`` object type:
 
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        DROP INDEX ON (.title);
+        DROP INDEX ON (.name);
     };
