@@ -39,6 +39,11 @@ class Index(referencing.ReferencedInheritingObject):
     expr = so.SchemaField(
         s_expr.Expression, coerce=True, compcoef=0.909)
 
+    # Text representation of the original expression that's been
+    # parsed and re-generated, but not normalized.
+    origexpr = so.SchemaField(
+        str, default=None, coerce=True, compcoef=0.909, allow_ddl_set=True)
+
     def __repr__(self):
         cls = self.__class__
         return '<{}.{} {!r} at 0x{:x}>'.format(
@@ -113,14 +118,25 @@ class IndexCommand(referencing.ReferencedInheritingObjectCommand,
     @classmethod
     def _classname_quals_from_ast(cls, schema, astnode, base_name,
                                   referrer_name, context):
-        subject = schema.get(referrer_name, None)
-        if subject is None:
-            return ()
+        expr_text = None
 
-        expr = s_expr.Expression.from_ast(
-            astnode.expr, schema, context.modaliases)
+        # check if "origexpr" field is already set
+        for node in astnode.commands:
+            if isinstance(node, qlast.SetField):
+                if (node.name.module is None and
+                        node.name.name == 'origexpr'):
+                    expr_text = node.value.value
+                    break
 
-        return (cls._name_qual_from_expr(schema, expr.origtext),)
+        if expr_text is None:
+            # if not, then use the origtext directly from the expression
+            expr = s_expr.Expression.from_ast(
+                astnode.expr, schema, context.modaliases)
+            expr_text = expr.origtext
+
+        name = (cls._name_qual_from_expr(schema, expr_text),)
+
+        return name
 
     def get_object(self, schema, context, *, name=None):
         try:
@@ -138,6 +154,25 @@ class IndexCommand(referencing.ReferencedInheritingObjectCommand,
 class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
     astnode = qlast.CreateIndex
     referenced_astnode = qlast.CreateIndex
+
+    def _create_begin(self, schema, context):
+        # First we need to apply the command as is in order to get
+        # access to the up-to-date state of the index.
+        schema = super()._create_begin(schema, context)
+        index = self.scls
+
+        # Check if the index doesn't have "origexpr" explicitly specified.
+        if index.get_field_value(schema, 'origexpr') is None:
+            # Add annotation with the original expression.
+            expr = self.get_attribute_value('expr')
+            self.set_attribute_value('origexpr', expr.origtext)
+            # Because we already called super()._create_begin, we need
+            # to manually reflect the attribute change into and actual
+            # field change.
+            schema = index.set_field_value(
+                schema, 'origexpr', expr.origtext)
+
+        return schema
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -221,3 +256,8 @@ class DeleteIndex(IndexCommand, inheriting.DeleteInheritingObject):
         )
 
         return cmd
+
+
+class RebaseIndex(IndexCommand,
+                  inheriting.RebaseInheritingObject):
+    pass

@@ -882,10 +882,11 @@ class DropAnnotationStmt(Nonterm):
 # CREATE INDEX
 #
 class CreateIndexStmt(Nonterm):
-    def reduce_CREATE_INDEX_OnExpr(self, *kids):
+    def reduce_CREATE_INDEX_OnExpr_OptCreateCommandsBlock(self, *kids):
         self.val = qlast.CreateIndex(
             name=qlast.ObjectRef(name='idx'),
             expr=kids[2].val,
+            commands=kids[3].val,
         )
 
 

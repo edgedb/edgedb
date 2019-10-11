@@ -1760,6 +1760,12 @@ class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
         return schema, index
 
 
+class RebaseIndex(
+        IndexCommand, RebaseObject,
+        adapts=s_indexes.RebaseIndex):
+    pass
+
+
 class ObjectTypeMetaCommand(ViewCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
     def get_table(self, schema):

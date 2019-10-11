@@ -603,6 +603,9 @@ class IntrospectionMech:
                 name=index_name,
                 subject=subj,
                 is_local=index_data['is_local'],
+                origexpr=index_data['origexpr'],
+                inherited_fields=self._unpack_inherited_fields(
+                    index_data['inherited_fields']),
                 expr=self.unpack_expr(index_data['expr'], schema))
 
             schema = subj.add_index(schema, index)

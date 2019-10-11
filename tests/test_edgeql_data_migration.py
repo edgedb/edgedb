@@ -3959,6 +3959,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         This is an example of a general problem that any renaming
         needs to be done in such a way so that the existing
         expressions are still valid.
+
+        See test_migrations_equivalence_index_01 first.
     ''')
     async def test_edgeql_migration_index_01(self):
         await self.con.execute("""
