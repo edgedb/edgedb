@@ -2184,6 +2184,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
+        Eventually `trace_Path` fails with:
+        AttributeError: 'NoneType' object has no attribute 'getptr'
+
         The error appears to be the same as for test_migrations_equivalence_41
     ''')
     async def test_edgeql_migration_41(self):
@@ -2284,6 +2287,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """)
 
     @test.xfail('''
+        Eventually `trace_Path` fails with:
+        AttributeError: 'NoneType' object has no attribute 'getptr'
+
         The error appears to be the same as for test_migrations_equivalence_42
     ''')
     async def test_edgeql_migration_42(self):
@@ -2539,6 +2545,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         edgedb.errors.InternalServerError: cannot drop function
         "edgedb_06261450-db74-11e9-9e9a-9520733a1c54".hello06(bigint)
         because other objects depend on it
+
+        This is similar to the problem with renaming property used in
+        an expression.
+
+        See also `test_edgeql_migration_function_10` and
+        `test_edgeql_migration_index_01`.
     ''')
     async def test_edgeql_migration_function_06(self):
         await self.con.execute("""
@@ -2717,7 +2729,16 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        See `test_migrations_equivalence_function_10` first.
+        edgedb.errors.InternalServerError: cannot drop function
+        "edgedb_bea19e4a-ec4b-11e9-9900-557227410171".hello10(bigint)
+        because other objects depend on it
+
+        This is similar to the problem with renaming property used in
+        an expression.
+
+        See also `test_migrations_equivalence_function_10`,
+        `test_edgeql_migration_function_06`,
+        `test_edgeql_migration_index_01`.
     ''')
     async def test_edgeql_migration_function_10(self):
         await self.con.execute("""
@@ -2740,9 +2761,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r'invalid foo'):
-            await self.con.execute(r"""
-                INSERT Base {foo := 42};
-            """)
+            async with self.con.transaction():
+                await self.con.execute(r"""
+                    INSERT Base {foo := 42};
+                """)
 
         # same parameters, different return type (array)
         await self._migrate(r"""
@@ -2978,10 +3000,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{'foo': {'@bar2': 'lp02'}}],
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: column "bar" of relation
-        "f24ff0f4-db8f-11e9-a887-356e9f41deb7" does not exist
-    ''')
     async def test_edgeql_migration_linkprops_03(self):
         await self.con.execute("""
             SET MODULE test;
@@ -3020,7 +3038,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     foo: { @bar }
                 };
             """,
-            [{'foo': {'@bar2': '3'}}],
+            [{'foo': {'@bar': '3'}}],
         )
 
     @test.xfail('''
@@ -3937,6 +3955,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     @test.xfail('''
         Fails on the last migration that attempts to rename the
         property being indexed.
+
+        This is an example of a general problem that any renaming
+        needs to be done in such a way so that the existing
+        expressions are still valid.
     ''')
     async def test_edgeql_migration_index_01(self):
         await self.con.execute("""

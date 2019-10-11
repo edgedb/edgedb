@@ -631,31 +631,29 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # different evolution branches.
         base_schema = self.load_schema('')
 
-        # Jump to final schema state in a single migration.
-        single_migration = self.run_ddl(base_schema, f'''
-            CREATE MIGRATION m TO {{
-                {migrations[-1]}
-            }};
-            COMMIT MIGRATION m;
-        ''', 'test')
-
         # Evolve a schema in a series of migrations.
+        multi_migration = base_schema
         for i, state in enumerate(migrations):
-            multi_migration = self.run_ddl(base_schema, f'''
+            mig_text = f'''
                 CREATE MIGRATION m{i} TO {{
                     {state}
                 }};
                 COMMIT MIGRATION m{i};
-            ''', 'test')
+            '''
 
-        diff = s_ddl.delta_schemas(single_migration, multi_migration)
+            # Jump to the current schema state directly from base.
+            cur_state = self.run_ddl(base_schema, mig_text, 'test')
+            # Perform incremental migration.
+            multi_migration = self.run_ddl(multi_migration, mig_text, 'test')
 
-        if list(diff.get_subcommands()):
-            self.fail(
-                f'unexpected difference in schema produced by\n'
-                f'alternative migration paths:\n'
-                f'{markup.dumps(diff)}\n'
-            )
+            diff = s_ddl.delta_schemas(cur_state, multi_migration)
+
+            if list(diff.get_subcommands()):
+                self.fail(
+                    f'unexpected difference in schema produced by\n'
+                    f'alternative migration paths on step {i}:\n'
+                    f'{markup.dumps(diff)}\n'
+                )
 
     def test_get_migration_01(self):
 
