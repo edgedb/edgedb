@@ -1371,11 +1371,6 @@ class AlterObjectProperty(Command):
             (value is None or
                 (isinstance(value, collections.abc.Container) and not value))
 
-        old_value_empty = \
-            (self.old_value is None or
-                (isinstance(self.old_value, collections.abc.Container) and
-                    not self.old_value))
-
         parent_ctx = context.current()
         parent_op = parent_ctx.op
         field = parent_op.get_schema_metaclass().get_field(self.property)
@@ -1390,7 +1385,7 @@ class AlterObjectProperty(Command):
         if self.source == 'inheritance':
             return
 
-        if new_value_empty and old_value_empty:
+        if new_value_empty:
             return
 
         if isinstance(value, s_expr.Expression):

@@ -2148,8 +2148,12 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     @test.xfail('''
-        The `_assert_migration_consistency` of the final state fails,
-        never getting to the equivalence.
+        Fails on the last migration that attempts to rename the
+        property being indexed.
+
+        This is an example of a general problem that any renaming
+        needs to be done in such a way so that the existing
+        expressions are still valid.
     ''')
     def test_migrations_equivalence_index_01(self):
         self._assert_migration_equivalence([r"""
@@ -2183,10 +2187,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        The `_assert_migration_consistency` of the final state fails,
-        never getting to the equivalence.
-    ''')
     def test_migrations_equivalence_index_03(self):
         self._assert_migration_equivalence([r"""
             type Base {
@@ -2206,10 +2206,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        The `_assert_migration_consistency` of the final state fails,
-        never getting to the equivalence.
-    ''')
     def test_migrations_equivalence_index_04(self):
         self._assert_migration_equivalence([r"""
             type Base {
