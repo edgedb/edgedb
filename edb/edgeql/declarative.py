@@ -435,6 +435,13 @@ def _register_item(
                     if isinstance(sub, qlast.CreateIndex):
                         alter_cmd.expr = sub.expr
                         break
+            # constraints need to preserve their "on" expression
+            elif alter_name == 'AlterConcreteConstraint':
+                # find the original expr, which will be in non-normalized form
+                for sub in op.commands:
+                    if isinstance(sub, qlast.CreateConcreteConstraint):
+                        alter_cmd.subjectexpr = sub.subjectexpr
+                        break
 
             if not ctx.depstack:
                 alter_cmd.aliases = [

@@ -1800,11 +1800,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        edb.errors.InvalidConstraintDefinitionError: std::expression
-        constraint expression expected to return a bool value, got
-        'int64'
-    ''')
     def test_migrations_equivalence_function_10(self):
         self._assert_migration_equivalence([r"""
             function hello10(a: int64) -> str

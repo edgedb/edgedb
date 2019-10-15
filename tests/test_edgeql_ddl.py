@@ -3174,6 +3174,221 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }
         ])
 
+    async def test_edgeql_ddl_constraint_alter_02(self):
+        # Create constraint, then add and drop annotation for it. This
+        # is similar to `test_edgeql_ddl_annotation_06`.
+        await self.con.execute(r'''
+            CREATE SCALAR TYPE test::contest2_t EXTENDING int64 {
+                CREATE CONSTRAINT expression ON (__subject__ > 0);
+            };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER SCALAR TYPE test::contest2_t {
+                ALTER CONSTRAINT expression ON (__subject__ > 0) {
+                    SET ANNOTATION title := 'my constraint 2'
+                }
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    constraints: {
+                        subjectexpr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::contest2_t';
+            ''',
+            [{
+                "constraints": [{
+                    "subjectexpr": "(__subject__ > 0)",
+                    "annotations": [{
+                        "name": "std::title",
+                        "@value": "my constraint 2",
+                    }]
+                }]
+            }]
+        )
+
+        await self.con.execute(r'''
+            ALTER SCALAR TYPE test::contest2_t {
+                ALTER CONSTRAINT expression ON (__subject__ > 0) {
+                    DROP ANNOTATION title;
+                }
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    constraints: {
+                        subjectexpr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::contest2_t';
+            ''',
+            [{
+                "constraints": [{
+                    "subjectexpr": "(__subject__ > 0)",
+                    "annotations": []
+                }]
+            }]
+        )
+
+    async def test_edgeql_ddl_constraint_alter_03(self):
+        # Create constraint annotation using DDL, then drop annotation
+        # using SDL. This is similar to `test_edgeql_ddl_annotation_07`.
+        await self.con.execute(r'''
+            CREATE SCALAR TYPE test::contest3_t EXTENDING int64 {
+                CREATE CONSTRAINT expression ON (__subject__ > 0) {
+                    SET ANNOTATION title := 'my constraint 3';
+                }
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    constraints: {
+                        subjectexpr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::contest3_t';
+            ''',
+            [{
+                "constraints": [{
+                    "subjectexpr": "(__subject__ > 0)",
+                    "annotations": [{
+                        "name": "std::title",
+                        "@value": "my constraint 3",
+                    }]
+                }]
+            }]
+        )
+
+        await self.con.execute(r'''
+            SET MODULE test;
+            CREATE MIGRATION m TO {
+                scalar type contest3_t extending int64 {
+                    constraint expression on (__subject__ > 0);
+                };
+            };
+            COMMIT MIGRATION m;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    constraints: {
+                        subjectexpr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::contest3_t';
+            ''',
+            [{
+                "constraints": [{
+                    "subjectexpr": "(__subject__ > 0)",
+                    "annotations": []
+                }]
+            }]
+        )
+
+    async def test_edgeql_ddl_constraint_alter_04(self):
+        # Create constraints using DDL, then add annotation to it
+        # using SDL. This tests how "on expr" is handled. This is
+        # similar to `test_edgeql_ddl_annotation_08`.
+        await self.con.execute(r'''
+            CREATE SCALAR TYPE test::contest4_t EXTENDING int64 {
+                CREATE CONSTRAINT expression ON (__subject__ > 0);
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    constraints: {
+                        subjectexpr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::contest4_t';
+            ''',
+            [{
+                "constraints": [{
+                    "subjectexpr": "(__subject__ > 0)",
+                    "annotations": []
+                }]
+            }]
+        )
+
+        await self.con.execute(r'''
+            SET MODULE test;
+            CREATE MIGRATION m TO {
+                scalar type contest4_t extending int64 {
+                    constraint expression on (__subject__ > 0) {
+                        annotation title := 'my constraint 5';
+                    }
+                };
+            };
+            COMMIT MIGRATION m;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ScalarType {
+                    constraints: {
+                        subjectexpr,
+                        annotations: {
+                            name,
+                            @value,
+                        }
+                    }
+                }
+                FILTER
+                    .name = 'test::contest4_t';
+            ''',
+            [{
+                "constraints": [{
+                    "subjectexpr": "(__subject__ > 0)",
+                    "annotations": [{
+                        "name": "std::title",
+                        "@value": "my constraint 5",
+                    }]
+                }]
+            }]
+        )
+
     async def test_edgeql_ddl_drop_inherited_link(self):
         await self.con.execute(r"""
             CREATE TYPE test::Target;

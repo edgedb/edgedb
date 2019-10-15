@@ -591,6 +591,11 @@ class CreateConstraint(ConstraintCommand,
         return cmd
 
     def _apply_field_ast(self, schema, context, node, op):
+        subjectexpr = self.get_attribute_value('subjectexpr')
+        if subjectexpr is not None:
+            # add subjectexpr to the node
+            node.subjectexpr = subjectexpr.qlast
+
         if op.property == 'delegated':
             if isinstance(node, qlast.CreateConcreteConstraint):
                 node.delegated = op.new_value
