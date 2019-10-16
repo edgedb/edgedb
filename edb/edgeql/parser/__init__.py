@@ -45,7 +45,7 @@ def append_module_aliases(tree, aliases):
 def parse(expr, module_aliases=None):
     tree = parse_fragment(expr)
 
-    if not isinstance(tree, qlast.Statement):
+    if not isinstance(tree, qlast.Command):
         tree = qlast.SelectQuery(result=tree)
 
     if module_aliases:

@@ -61,13 +61,14 @@ class SchemaItemClass(s_enum.StrEnum):
 
 
 class Base(ast.AST):
+    __abstract_node__ = True
     __ast_hidden__ = {'context'}
     context: parsing.ParserContext
 
 
 class Expr(Base):
     """Abstract parent for all query expressions."""
-    pass
+    __abstract_node__ = True
 
 
 class SubExpr(Base):
@@ -80,7 +81,7 @@ class SubExpr(Base):
 
 class Clause(Base):
     """Abstract parent for all query clauses."""
-    pass
+    __abstract_node__ = True
 
 
 class SortExpr(Clause):
@@ -90,6 +91,7 @@ class SortExpr(Clause):
 
 
 class BaseAlias(Clause):
+    __abstract_node__ = True
     alias: str
 
 
@@ -102,14 +104,15 @@ class ModuleAliasDecl(BaseAlias):
 
 
 class BaseSessionCommand(Base):
-    pass
+    __abstract_node__ = True
 
 
 class BaseSessionSet(BaseSessionCommand):
-    pass
+    __abstract_node__ = True
 
 
 class BaseSessionConfigSet(BaseSessionSet):
+    __abstract_node__ = True
     system: bool = False
 
 
@@ -118,7 +121,7 @@ class SessionSetAliasDecl(ModuleAliasDecl, BaseSessionSet):
 
 
 class BaseSessionReset(BaseSessionCommand):
-    pass
+    __abstract_node__ = True
 
 
 class SessionResetAliasDecl(BaseAlias, BaseSessionReset):
@@ -133,8 +136,8 @@ class SessionResetAllAliases(BaseSessionReset):
     pass
 
 
-class BaseObjectRef(Expr):
-    pass
+class BaseObjectRef(Base):
+    __abstract_node__ = True
 
 
 class ObjectRef(BaseObjectRef):
@@ -144,7 +147,7 @@ class ObjectRef(BaseObjectRef):
 
 
 class PseudoObjectRef(BaseObjectRef):
-    pass
+    __abstract_node__ = True
 
 
 class AnyType(PseudoObjectRef):
@@ -156,7 +159,7 @@ class AnyTuple(PseudoObjectRef):
 
 
 class SpecialAnchor(Expr):
-    pass
+    __abstract_node__ = True
 
 
 class Source(SpecialAnchor):  # __source__
@@ -204,6 +207,7 @@ class FunctionCall(Expr):
 
 
 class BaseConstant(Expr):
+    __abstract_node__ = True
     value: str
 
     @classmethod
@@ -247,6 +251,7 @@ class RawStringConstant(BaseConstant):
 
 
 class BaseRealConstant(BaseConstant):
+    __abstract_node__ = True
     is_negative: bool = False
 
 
@@ -334,7 +339,7 @@ class Ptr(Base):
 
 
 class Path(Expr):
-    steps: typing.List[typing.Union[Expr, Ptr, TypeIndirection]]
+    steps: typing.List[typing.Union[Expr, Ptr, TypeIndirection, ObjectRef]]
     quantifier: Expr
     partial: bool = False
 
@@ -352,14 +357,6 @@ class IfElse(Expr):
     condition: Expr
     if_expr: Expr
     else_expr: Expr
-
-
-class Coalesce(Expr):
-    args: typing.List[Expr]
-
-
-class RequiredExpr(Expr):
-    expr: Expr
 
 
 class TupleElement(Base):
@@ -388,7 +385,7 @@ class Set(Expr):
 
 class ByExprBase(Base):
     '''Abstract parent of all grouping sets.'''
-    pass
+    __abstract_node__ = True
 
 
 class ByExpr(ByExprBase):
@@ -401,30 +398,32 @@ class GroupBuiltin(ByExprBase):
     elements: typing.List[ByExpr]
 
 
-class GroupExpr(Expr):
-    subject: Expr
-    subject_alias: str
-    by: typing.List[ByExprBase]
-
-
 # Statements
 #
 
-class Statement(Expr):
+class Command(Base):
+    __abstract_node__ = True
     aliases: typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
 
 
-class SubjStatement(Statement):
+class Statement(Command, Expr):
+    __abstract_node__ = True
+
+
+class SubjectMixin(Base):
+    __abstract_node__ = True
     subject: Expr
     subject_alias: str
 
 
-class ReturningStatement(Statement):
+class ReturningMixin(Base):
+    __abstract_node__ = True
     result: Expr
     result_alias: str
 
 
-class SelectClauseStatement(Statement):
+class SelectClauseMixin(Base):
+    __abstract_node__ = True
     where: Expr
     orderby: typing.List[SortExpr]
     offset: Expr
@@ -449,27 +448,27 @@ class Shape(Expr):
     elements: typing.List[ShapeElement]
 
 
-class SelectQuery(ReturningStatement, SelectClauseStatement):
+class SelectQuery(Statement, ReturningMixin, SelectClauseMixin):
     pass
 
 
-class GroupQuery(SelectQuery, SubjStatement):
+class GroupQuery(SelectQuery, SubjectMixin):
     using: typing.List[AliasedExpr]
     by: typing.List[Expr]
     into: str
 
 
-class InsertQuery(SubjStatement):
+class InsertQuery(Statement, SubjectMixin):
     subject: Path
     shape: typing.List[ShapeElement]
 
 
-class UpdateQuery(SubjStatement):
+class UpdateQuery(Statement, SubjectMixin):
     shape: typing.List[ShapeElement]
     where: Expr
 
 
-class DeleteQuery(SubjStatement, SelectClauseStatement):
+class DeleteQuery(Statement, SubjectMixin, SelectClauseMixin):
     pass
 
 
@@ -483,7 +482,7 @@ class ForQuery(SelectQuery):
 
 class Transaction(Base):
     '''Abstract parent for all transaction operations.'''
-    pass
+    __abstract_node__ = True
 
 
 class StartTransaction(Transaction):
@@ -520,11 +519,11 @@ class ReleaseSavepoint(Transaction):
 
 class DDL(Base):
     '''Abstract parent for all DDL statements.'''
-    pass
+    __abstract_node__ = True
 
 
-class CompositeDDL(Statement, DDL):
-    pass
+class CompositeDDL(Command, DDL):
+    __abstract_node__ = True
 
 
 class Position(DDL):
@@ -593,7 +592,7 @@ class Rename(DDL):
 
 
 class Delta:
-    pass
+    __abstract_node__ = True
 
 
 class CreateDelta(CreateObject, Delta):
@@ -619,7 +618,7 @@ class CommitDelta(ObjectDDL, Delta):
 
 
 class Database:
-    pass
+    __abstract_node__ = True
 
 
 class CreateDatabase(CreateObject, Database):
@@ -811,6 +810,7 @@ class DropIndex(DropObject, IndexOp):
 
 
 class BaseSetField(DDL):
+    __abstract_node__ = True
     name: ObjectRef
     value: Expr
 
@@ -920,7 +920,7 @@ class _Optional(Expr):
 
 
 class ConfigOp(Expr):
-
+    __abstract_node__ = True
     name: ObjectRef
     system: bool
     backend_setting: str
@@ -947,7 +947,7 @@ class ConfigReset(ConfigOp):
 
 class SDL(Base):
     '''Abstract parent for all SDL statements.'''
-    pass
+    __abstract_node__ = True
 
 
 class Schema(SDL):
