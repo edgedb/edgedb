@@ -54,6 +54,8 @@ class MetaAST(type):
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
 
+        cls.__abstract_node__ = bool(dct.get('__abstract_node__'))
+
         if '__annotations__' not in dct:
             return cls
 
@@ -184,6 +186,11 @@ class AST(object, metaclass=MetaAST):
     __ast_frozen_fields__ = frozenset()
 
     def __init__(self, **kwargs):
+        if type(self).__abstract_node__:
+            raise ASTError(
+                f'cannot instantiate abstract AST node '
+                f'{self.__class__.__name__!r}')
+
         object.__setattr__(self, 'parent', None)
         self._init_fields(kwargs)
 

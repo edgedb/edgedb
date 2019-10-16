@@ -312,20 +312,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write(')')
 
-    def visit_GroupExpr(self, node):
-        # GROUP expression is always parenthesised
-        self.write('(')
-        self._block_ws(1)
-        self.write('GROUP ')
-        if node.subject_alias:
-            self.write(node.subject_alias, ' := ')
-        self.visit(node.subject)
-        self.write(' BY ')
-        self._block_ws(1)
-        self.visit_list(node.by)
-        self._block_ws(-2)
-        self.write(')')
-
     def visit_ByExpr(self, node):
         if node.each is not None:
             if node.each:

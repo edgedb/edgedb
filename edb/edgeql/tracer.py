@@ -23,6 +23,7 @@ import functools
 import typing
 
 from edb.schema import name as sn
+from edb.schema import objects as so
 
 from edb.edgeql import ast as qlast
 
@@ -115,71 +116,84 @@ class TracerContext:
 
 
 @functools.singledispatch
-def trace(node: qlast.Base, *, ctx: TracerContext):
+def trace(node: qlast.Base, *,
+          ctx: TracerContext) -> typing.Optional[so.Object]:
     raise NotImplementedError(f"do not know how to trace {node!r}")
 
 
 @trace.register
-def trace_none(node: type(None), *, ctx: TracerContext):
+def trace_none(node: type(None), *, ctx: TracerContext) -> None:
     pass
 
 
 @trace.register
-def trace_Constant(node: qlast.BaseConstant, *, ctx: TracerContext):
+def trace_Constant(node: qlast.BaseConstant, *, ctx: TracerContext) -> None:
     pass
 
 
 @trace.register
-def trace_Array(node: qlast.Array, *, ctx: TracerContext):
+def trace_Array(node: qlast.Array, *, ctx: TracerContext) -> None:
     for el in node.elements:
         trace(el, ctx=ctx)
 
 
 @trace.register
-def trace_Set(node: qlast.Set, *, ctx: TracerContext):
+def trace_Set(node: qlast.Set, *, ctx: TracerContext) -> None:
     for el in node.elements:
         trace(el, ctx=ctx)
 
 
 @trace.register
-def trace_Tuple(node: qlast.Tuple, *, ctx: TracerContext):
+def trace_Tuple(node: qlast.Tuple, *, ctx: TracerContext) -> None:
     for el in node.elements:
         trace(el, ctx=ctx)
 
 
 @trace.register
-def trace_NamedTuple(node: qlast.NamedTuple, *, ctx: TracerContext):
+def trace_NamedTuple(node: qlast.NamedTuple, *, ctx: TracerContext) -> None:
     for el in node.elements:
         trace(el.val, ctx=ctx)
 
 
 @trace.register
-def trace_BinOp(node: qlast.BinOp, *, ctx: TracerContext):
+def trace_BinOp(node: qlast.BinOp, *, ctx: TracerContext) -> None:
     trace(node.left, ctx=ctx)
     trace(node.right, ctx=ctx)
 
 
 @trace.register
-def trace_UnaryOp(node: qlast.UnaryOp, *, ctx: TracerContext):
+def trace_UnaryOp(node: qlast.UnaryOp, *, ctx: TracerContext) -> None:
     trace(node.operand, ctx=ctx)
 
 
 @trace.register
-def trace_TypeCast(node: qlast.TypeCast, *, ctx: TracerContext):
+def trace_Detached(node: qlast.DetachedExpr, *, ctx: TracerContext) -> None:
+    trace(node.expr, ctx=ctx)
+
+
+@trace.register
+def trace_TypeCast(node: qlast.TypeCast, *, ctx: TracerContext) -> None:
     trace(node.expr, ctx=ctx)
     if not node.type.subtypes:
         ctx.refs.add(ctx.get_ref_name(node.type.maintype))
 
 
 @trace.register
-def trace_IsOp(node: qlast.IsOp, *, ctx: TracerContext):
+def trace_IsOp(node: qlast.IsOp, *, ctx: TracerContext) -> None:
     trace(node.left, ctx=ctx)
     if not node.right.subtypes:
         ctx.refs.add(ctx.get_ref_name(node.right.maintype))
 
 
 @trace.register
-def trace_FunctionCall(node: qlast.FunctionCall, *, ctx: TracerContext):
+def trace_Introspect(node: qlast.Introspect, *, ctx: TracerContext) -> None:
+    if not node.type.subtypes:
+        ctx.refs.add(ctx.get_ref_name(node.type.maintype))
+
+
+@trace.register
+def trace_FunctionCall(node: qlast.FunctionCall, *,
+                       ctx: TracerContext) -> None:
     for arg in node.args:
         trace(arg, ctx=ctx)
     for arg in node.kwargs.values():
@@ -187,41 +201,32 @@ def trace_FunctionCall(node: qlast.FunctionCall, *, ctx: TracerContext):
 
 
 @trace.register
-def trace_Indirection(node: qlast.Indirection, *, ctx: TracerContext):
+def trace_Indirection(node: qlast.Indirection, *, ctx: TracerContext) -> None:
     for indirection in node.indirection:
         trace(indirection, ctx=ctx)
     trace(node.arg, ctx=ctx)
 
 
 @trace.register
-def trace_Index(node: qlast.Index, *, ctx: TracerContext):
+def trace_Index(node: qlast.Index, *, ctx: TracerContext) -> None:
     trace(node.index, ctx=ctx)
 
 
 @trace.register
-def trace_Slice(node: qlast.Slice, *, ctx: TracerContext):
+def trace_Slice(node: qlast.Slice, *, ctx: TracerContext) -> None:
     trace(node.start, ctx=ctx)
     trace(node.stop, ctx=ctx)
 
 
 @trace.register
-def trace_Path(node: qlast.Path, *, ctx: TracerContext):
+def trace_Path(node: qlast.Path, *,
+               ctx: TracerContext) -> typing.Optional[so.Object]:
     tip = None
     ptr = None
     plen = len(node.steps)
 
     for i, step in enumerate(node.steps):
-        if isinstance(step, qlast.Source):
-            if plen > 1:
-                tip = ctx.objects[ctx.source]
-
-        elif isinstance(step, qlast.Subject):
-            if plen > 1:
-                tip = ctx.objects[ctx.subject]
-                if isinstance(tip, Pointer):
-                    ptr = tip
-
-        elif isinstance(step, qlast.ObjectRef):
+        if isinstance(step, qlast.ObjectRef):
             refname = ctx.get_ref_name(step)
             if refname in ctx.objects:
                 ctx.refs.add(refname)
@@ -258,6 +263,9 @@ def trace_Path(node: qlast.Path, *, ctx: TracerContext):
                         # so bail.
                         return
                 else:
+                    if tip is None:
+                        # We can't reason about this path.
+                        return
                     ptr = tip.getptr(ctx.schema, step.ptr.name)
                     if ptr is None:
                         # Invalid pointer reference, bail.
@@ -285,12 +293,32 @@ def trace_Path(node: qlast.Path, *, ctx: TracerContext):
                 tip = ptr.get_target(ctx.schema)
 
         else:
-            trace(step, ctx=ctx)
+            tr = trace(step, ctx=ctx)
+            if tr is not None:
+                tip = tr
+                if isinstance(tip, Pointer):
+                    ptr = tip
 
     return tip
 
 
-def _resolve_type_expr(texpr: qlast.TypeExpr, *, ctx: TracerContext):
+@trace.register
+def trace_Source(node: qlast.Source, *, ctx: TracerContext) -> so.Object:
+    return ctx.objects[ctx.source]
+
+
+@trace.register
+def trace_Subject(node: qlast.Subject, *,
+                  ctx: TracerContext) -> typing.Optional[so.Object]:
+    # Apparently for some paths (of length 1) ctx.subject may be None.
+    if ctx.subject is not None:
+        return ctx.objects[ctx.subject]
+
+
+def _resolve_type_expr(
+    texpr: qlast.TypeExpr, *,
+    ctx: TracerContext
+) -> typing.Union[so.Object, UnionType]:
 
     if isinstance(texpr, qlast.TypeName):
         if texpr.subtypes:
@@ -324,17 +352,18 @@ def _resolve_type_expr(texpr: qlast.TypeExpr, *, ctx: TracerContext):
 
 
 @trace.register
-def trace_TypeIndirection(node: qlast.TypeIndirection, *, ctx: TracerContext):
+def trace_TypeIndirection(node: qlast.TypeIndirection, *,
+                          ctx: TracerContext) -> None:
     trace(node.type, ctx=ctx)
 
 
 @trace.register
-def trace_TypeOf(node: qlast.TypeOf, *, ctx: TracerContext):
+def trace_TypeOf(node: qlast.TypeOf, *, ctx: TracerContext) -> None:
     trace(node.expr, ctx=ctx)
 
 
 @trace.register
-def trace_TypeName(node: qlast.TypeName, *, ctx: TracerContext):
+def trace_TypeName(node: qlast.TypeName, *, ctx: TracerContext) -> None:
     if node.subtypes:
         for st in node.subtypes:
             trace(st, ctx=ctx)
@@ -346,20 +375,20 @@ def trace_TypeName(node: qlast.TypeName, *, ctx: TracerContext):
 
 
 @trace.register
-def trace_TypeOp(node: qlast.TypeOp, *, ctx: TracerContext):
+def trace_TypeOp(node: qlast.TypeOp, *, ctx: TracerContext) -> None:
     trace(node.left, ctx=ctx)
     trace(node.right, ctx=ctx)
 
 
 @trace.register
-def trace_IfElse(node: qlast.IfElse, *, ctx: TracerContext):
+def trace_IfElse(node: qlast.IfElse, *, ctx: TracerContext) -> None:
     trace(node.if_expr, ctx=ctx)
     trace(node.else_expr, ctx=ctx)
     trace(node.condition, ctx=ctx)
 
 
 @trace.register
-def trace_Shape(node: qlast.Shape, *, ctx: TracerContext):
+def trace_Shape(node: qlast.Shape, *, ctx: TracerContext) -> None:
     if isinstance(node.expr, qlast.Path):
         tip = trace(node.expr, ctx=ctx)
         orig_prefix = ctx.path_prefix
@@ -376,7 +405,8 @@ def trace_Shape(node: qlast.Shape, *, ctx: TracerContext):
 
 
 @trace.register
-def trace_ShapeElement(node: qlast.ShapeElement, *, ctx: TracerContext):
+def trace_ShapeElement(node: qlast.ShapeElement, *,
+                       ctx: TracerContext) -> None:
     trace(node.expr, ctx=ctx)
     for element in node.elements:
         trace(element, ctx=ctx)
@@ -389,7 +419,7 @@ def trace_ShapeElement(node: qlast.ShapeElement, *, ctx: TracerContext):
 
 
 @trace.register
-def trace_Select(node: qlast.SelectQuery, *, ctx: TracerContext):
+def trace_Select(node: qlast.SelectQuery, *, ctx: TracerContext) -> None:
     for alias in node.aliases:
         if isinstance(alias, qlast.AliasedExpr):
             trace(alias.expr, ctx=ctx)
@@ -407,12 +437,12 @@ def trace_Select(node: qlast.SelectQuery, *, ctx: TracerContext):
 
 
 @trace.register
-def trace_SortExpr(node: qlast.SortExpr, *, ctx: TracerContext):
+def trace_SortExpr(node: qlast.SortExpr, *, ctx: TracerContext) -> None:
     trace(node.path, ctx=ctx)
 
 
 @trace.register
-def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext):
+def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext) -> None:
 
     for alias in node.aliases:
         if isinstance(alias, qlast.AliasedExpr):
@@ -425,7 +455,7 @@ def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext):
 
 
 @trace.register
-def trace_UpdateQuery(node: qlast.UpdateQuery, *, ctx: TracerContext):
+def trace_UpdateQuery(node: qlast.UpdateQuery, *, ctx: TracerContext) -> None:
 
     for alias in node.aliases:
         if isinstance(alias, qlast.AliasedExpr):
@@ -437,3 +467,21 @@ def trace_UpdateQuery(node: qlast.UpdateQuery, *, ctx: TracerContext):
         trace(element, ctx=ctx)
 
     trace(node.where, ctx=ctx)
+
+
+@trace.register
+def trace_DeleteQuery(node: qlast.DeleteQuery, *, ctx: TracerContext) -> None:
+    for alias in node.aliases:
+        if isinstance(alias, qlast.AliasedExpr):
+            trace(alias.expr, ctx=ctx)
+
+    trace(node.subject, ctx=ctx)
+    if node.where is not None:
+        trace(node.where, ctx=ctx)
+    if node.orderby:
+        for expr in node.orderby:
+            trace(expr, ctx=ctx)
+    if node.offset is not None:
+        trace(node.offset, ctx=ctx)
+    if node.limit is not None:
+        trace(node.limit, ctx=ctx)

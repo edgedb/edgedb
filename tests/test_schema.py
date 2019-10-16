@@ -751,6 +751,46 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_get_migration_04(self):
+        # validate that we can trace DETACHED
+        schema = r'''
+            type Foo {
+                property bar -> int64;
+            };
+
+            view X := (SELECT Foo FILTER .bar > count(DETACHED Foo));
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_05(self):
+        # validate that we can trace INTROSPECT
+        schema = r'''
+            type Foo;
+
+            view X := (SELECT INTROSPECT Foo);
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_06(self):
+        # validate that we can trace DELETE
+        schema = r'''
+            type Bar {
+                property data -> str;
+            }
+
+            type Foo {
+                required property bar -> str {
+                    # if bar is not specified, grab it from Bar and
+                    # delete the object
+                    default := (DELETE Bar LIMIT 1).data
+                }
+            };
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;

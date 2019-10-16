@@ -218,7 +218,7 @@ def imprint_expr_context(qltree, modaliases):
         # Leave constants alone.
         return qltree
 
-    if not isinstance(qltree, qlast.Statement):
+    if not isinstance(qltree, qlast.Command):
         qltree = qlast.SelectQuery(result=qltree, implicit=True)
     else:
         qltree = copy.copy(qltree)
