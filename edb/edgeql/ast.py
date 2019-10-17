@@ -562,6 +562,7 @@ class OnTargetDelete(DDL):
 
 
 class ObjectDDL(CompositeDDL):
+    __abstract_node__ = True
     name: ObjectRef
     commands: typing.List[DDL]
 
@@ -572,10 +573,6 @@ class CreateObject(ObjectDDL, SDL):
 
 
 class AlterObject(ObjectDDL):
-    pass
-
-
-class CreateOrAlterObject(ObjectDDL):
     pass
 
 
@@ -765,6 +762,7 @@ class DropConcreteLink(DropObject):
 
 
 class CallableObject(ObjectDDL):
+    __abstract_node__ = True
     params: typing.List[FuncParam]
 
 
@@ -782,6 +780,7 @@ class DropConstraint(DropObject):
 
 
 class ConstraintOp(ObjectDDL):
+    __abstract_node__ = True
     args: typing.List[Expr]
     subjectexpr: typing.Optional[Expr]
 
@@ -799,6 +798,7 @@ class DropConcreteConstraint(DropObject, ConstraintOp):
 
 
 class IndexOp(ObjectDDL):
+    __abstract_node__ = True
     expr: Expr
 
 
@@ -871,6 +871,7 @@ class OperatorCode(Clause):
 
 
 class OperatorCommand(CallableObject):
+    __abstract_node__ = True
     kind: qltypes.OperatorKind
 
 
@@ -897,6 +898,7 @@ class CastCode(Clause):
 
 
 class CastCommand(ObjectDDL):
+    __abstract_node__ = True
     from_type: TypeName
     to_type: TypeName
 

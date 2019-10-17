@@ -23,6 +23,7 @@ import unittest
 from edb.edgeql import ast as qlast
 from edb.edgeql import declarative
 from edb.edgeql import tracer
+from edb.server.compiler import status
 
 
 class TestTracer(unittest.TestCase):
@@ -56,3 +57,15 @@ class TestTracer(unittest.TestCase):
                 if dispatcher.dispatch(astcls) is not_implemented:
                     self.fail(
                         f'trace_dependencies for {name} is not implemented')
+
+    def test_get_status_dispatch(self):
+        dispatcher = status.get_status
+        not_implemented = dispatcher.registry[object]
+
+        for name, astcls in inspect.getmembers(qlast, inspect.isclass):
+            # Every non-abstract Command AST node should have status
+            if (issubclass(astcls, qlast.Command)
+                    and not astcls.__abstract_node__):
+
+                if dispatcher.dispatch(astcls) is not_implemented:
+                    self.fail(f'get_status for {name} is not implemented')

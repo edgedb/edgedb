@@ -856,11 +856,6 @@ class GlobalObjectCommand(UnqualifiedObjectCommand):
     pass
 
 
-class CreateOrAlterObject(ObjectCommand):
-
-    astnode = qlast.CreateOrAlterObject
-
-
 class CreateObject(ObjectCommand):
     _delta_action = 'create'
 
