@@ -207,7 +207,7 @@ class BaseConstant(Expr):
     value: str
 
     @classmethod
-    def from_python(cls, val: object) -> 'BaseConstant':
+    def from_python(cls, val: typing.Any) -> 'BaseConstant':
         if isinstance(val, str):
             return StringConstant.from_python(val)
         elif isinstance(val, bool):
@@ -599,7 +599,7 @@ class Delta:
 class CreateDelta(CreateObject, Delta):
     parents: typing.List[ObjectRef]
     language: str
-    target: object
+    target: typing.Any
 
 
 class GetDelta(ObjectDDL, Delta):
@@ -820,7 +820,7 @@ class SetField(BaseSetField):
 
 
 class SetSpecialField(BaseSetField):
-    value: object
+    value: typing.Any
 
 
 class CreateAnnotationValue(CreateObject):

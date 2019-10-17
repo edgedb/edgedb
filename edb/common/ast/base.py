@@ -393,6 +393,9 @@ def _check_annotation(f_type, f_fullname, f_default):
                 f'{f_type!r} is not supported')
 
     elif f_type is not None:
+        if f_type is typing.Any:
+            f_type = object
+
         if not isinstance(f_type, type):
             raise RuntimeError(
                 f'invalid type annotation on {f_fullname}: '
@@ -488,6 +491,6 @@ def _check_type(type_, value, raise_error):
         elif ot is not None:
             raise TypeError(f'unsupported typing type: {type_!r}')
 
-    else:
+    elif type_ is not typing.Any:
         if value is not None and not isinstance(value, type_):
             raise_error(type_.__name__, value)

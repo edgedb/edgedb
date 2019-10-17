@@ -36,7 +36,7 @@ from ..common import quote_type as qt
 from ..common import qname as qn
 
 
-def encode_value(val: object) -> str:
+def encode_value(val: typing.Any) -> str:
     """Encode value into an appropriate SQL expression."""
     if hasattr(val, 'to_sql_expr'):
         val = val.to_sql_expr()

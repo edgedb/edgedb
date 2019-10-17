@@ -114,7 +114,7 @@ class Version(typing.NamedTuple):
         return ver
 
 
-def parse_version(ver: object) -> Version:
+def parse_version(ver: typing.Any) -> Version:
     v = ver._version
     local = []
     if v.pre:
