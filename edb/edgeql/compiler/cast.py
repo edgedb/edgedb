@@ -296,7 +296,7 @@ def _cast_tuple(
         # This is to trigger the downstream logic of casting
         # objects (in elements of the tuple).
         elements = []
-        for i, (n, st) in enumerate(orig_subtypes.items()):
+        for n, st in orig_subtypes.items():
             path_id = pathctx.get_tuple_indirection_path_id(
                 ir_set.path_id, n, st, ctx=ctx)
 
