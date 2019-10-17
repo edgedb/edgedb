@@ -43,6 +43,7 @@ RUNTIME_DEPS = [
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
     'setuptools_scm~=3.2.0',
+    'typing_inspect~=0.5.0',
     'uvloop~=0.13.0',
 
     'graphql-core~=2.2.1',
