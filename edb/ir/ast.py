@@ -312,7 +312,7 @@ class ConstExpr(Expr):
 
 class BaseConstant(ConstExpr):
 
-    value: object
+    value: typing.Any
 
     def __init__(self, *args, typeref, **kwargs):
         super().__init__(*args, typeref=typeref, **kwargs)

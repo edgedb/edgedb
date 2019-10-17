@@ -206,7 +206,7 @@ def spec_to_json(spec: spec.Spec):
     return json.dumps(dct)
 
 
-def value_to_json_value(setting: spec.Setting, value: object):
+def value_to_json_value(setting: spec.Setting, value: typing.Any):
     if setting.set_of:
         if issubclass(setting.type, types.ConfigType):
             return [v.to_json_value() for v in value]
@@ -219,7 +219,7 @@ def value_to_json_value(setting: spec.Setting, value: object):
             return value
 
 
-def value_from_json_value(setting: spec.Setting, value: object):
+def value_from_json_value(setting: spec.Setting, value: typing.Any):
     if setting.set_of:
         if issubclass(setting.type, types.ConfigType):
             return frozenset(setting.type.from_json_value(v) for v in value)

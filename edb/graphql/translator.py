@@ -75,27 +75,27 @@ class GraphQLTranslatorContext:
 
 
 class Step(typing.NamedTuple):
-    name: object
-    type: object
+    name: typing.Any
+    type: typing.Any
     eql_alias: str
 
 
 class Field(typing.NamedTuple):
-    name: object
-    value: object
+    name: typing.Any
+    value: typing.Any
 
 
 class Var(typing.NamedTuple):
-    val: object
+    val: typing.Any
     defn: gql_ast.VariableDefinition
     critical: bool
 
 
 class Operation(typing.NamedTuple):
-    name: object
-    stmt: object
-    critvars: object
-    vars: object
+    name: typing.Any
+    stmt: typing.Any
+    critvars: typing.Any
+    vars: typing.Any
 
 
 class TranspiledOperation(typing.NamedTuple):
@@ -1445,7 +1445,7 @@ class GraphQLTranslator:
             return results
 
 
-def value_node_from_pyvalue(val: object):
+def value_node_from_pyvalue(val: typing.Any):
     if isinstance(val, str):
         val = val.replace('\\', '\\\\')
         value = eql_quote.quote_literal(val)
