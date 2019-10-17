@@ -21,13 +21,15 @@ import inspect
 import unittest
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import declarative
 from edb.edgeql import tracer
 
 
 class TestTracer(unittest.TestCase):
 
-    def test_tracer(self):
-        not_implemented = tracer.trace.registry[object]
+    def test_tracer_dispatch(self):
+        dispatcher = tracer.trace
+        not_implemented = dispatcher.registry[object]
 
         for name, astcls in inspect.getmembers(qlast, inspect.isclass):
             if (issubclass(astcls, qlast.Expr)
@@ -40,5 +42,17 @@ class TestTracer(unittest.TestCase):
                     # ignore all config operations
                     and not issubclass(astcls, qlast.ConfigOp)):
 
-                if tracer.trace.dispatch(astcls) is not_implemented:
+                if dispatcher.dispatch(astcls) is not_implemented:
                     self.fail(f'trace for {name} is not implemented')
+
+    def test_trace_dependencies_dispatch(self):
+        dispatcher = declarative.trace_dependencies
+        not_implemented = dispatcher.registry[object]
+
+        for name, astcls in inspect.getmembers(qlast, inspect.isclass):
+            if (issubclass(astcls, qlast.SDL)
+                    and not astcls.__abstract_node__):
+
+                if dispatcher.dispatch(astcls) is not_implemented:
+                    self.fail(
+                        f'trace_dependencies for {name} is not implemented')

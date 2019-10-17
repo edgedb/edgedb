@@ -522,6 +522,11 @@ class DDL(Base):
     __abstract_node__ = True
 
 
+class SDL(Base):
+    '''Abstract parent for all SDL statements.'''
+    __abstract_node__ = True
+
+
 class CompositeDDL(Command, DDL):
     __abstract_node__ = True
 
@@ -561,7 +566,7 @@ class ObjectDDL(CompositeDDL):
     commands: typing.List[DDL]
 
 
-class CreateObject(ObjectDDL):
+class CreateObject(ObjectDDL, SDL):
     is_abstract: bool = False
     alter_if_exists: bool = False
 
@@ -815,7 +820,7 @@ class BaseSetField(DDL):
     value: Expr
 
 
-class SetField(BaseSetField):
+class SetField(BaseSetField, SDL):
     pass
 
 
@@ -944,11 +949,6 @@ class ConfigReset(ConfigOp):
 #
 # SDL
 #
-
-class SDL(Base):
-    '''Abstract parent for all SDL statements.'''
-    __abstract_node__ = True
-
 
 class Schema(SDL):
     declarations: typing.List[DDL]
