@@ -21,9 +21,11 @@ from __future__ import annotations
 
 from edb import edgeql
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
 
 from . import delta as sd
+from . import deltas
 from . import derivable
 from . import objects as so
 from . import ordering as s_ordering
@@ -32,23 +34,23 @@ from . import schema as s_schema
 # The below must be imported here to make sure we have all
 # necessary mappers from/to DDL AST.
 
-from . import scalars  # NOQA
-from . import annos  # NOQA
+from . import scalars
+from . import annos
 from . import casts  # NOQA
 from . import expr as s_expr
-from . import objtypes  # NOQA
-from . import constraints  # NOQA
-from . import functions  # NOQA
+from . import objtypes
+from . import constraints
+from . import functions
 from . import operators  # NOQA
 from . import indexes  # NOQA
-from . import links  # NOQA
-from . import lproperties  # NOQA
+from . import links 
+from . import lproperties
 from . import modules  # NOQA
 from . import std  # NOQA
 from . import views  # NOQA
 
 
-def get_global_dep_order():
+def get_global_dep_order() -> typing.Tuple[typing.Type[annos.Annotation], typing.Type[functions.Function], typing.Type[constraints.Constraint], typing.Type[scalars.ScalarType], typing.Type[lproperties.Property], typing.Type[links.Link], typing.Type[objtypes.BaseObjectType]]:
     return (
         annos.Annotation,
         functions.Function,
@@ -60,7 +62,7 @@ def get_global_dep_order():
     )
 
 
-def delta_schemas(schema1, schema2):
+def delta_schemas(schema1: s_schema.Schema, schema2: s_schema.Schema) -> sd.DeltaRoot:
     result = sd.DeltaRoot(canonical=True)
 
     my_modules = set(schema1.get_objects(type=modules.Module))
@@ -95,7 +97,7 @@ def delta_schemas(schema1, schema2):
     return result
 
 
-def delta_modules(schema1, schema2, modnames):
+def delta_modules(schema1: s_schema.Schema, schema2: s_schema.Schema, modnames: typing.Set[str]) -> sd.DeltaRoot:
     from . import derivable
 
     result = sd.DeltaRoot(canonical=True)
@@ -117,8 +119,8 @@ def delta_modules(schema1, schema2, modnames):
     return result
 
 
-def cmd_from_ddl(stmt, *, context=None, schema, modaliases,
-                 testmode: bool=False):
+def cmd_from_ddl(stmt: qlast.ObjectDDL, *, context=None, schema, modaliases,
+                 testmode: bool = False) -> sd.Command:
     ddl = s_expr.imprint_expr_context(stmt, modaliases)
 
     if context is None:
@@ -129,7 +131,7 @@ def cmd_from_ddl(stmt, *, context=None, schema, modaliases,
     return cmd
 
 
-def compile_migration(cmd, target_schema, current_schema):
+def compile_migration(cmd: deltas.CreateDelta, target_schema: s_schema.Schema, current_schema: s_schema.Schema) -> deltas.CreateDelta:
 
     declarations = cmd.get_attribute_value('target')
     if not declarations:
@@ -166,8 +168,8 @@ def compile_migration(cmd, target_schema, current_schema):
     return cmd
 
 
-def apply_sdl(documents, *, target_schema, current_schema,
-              stdmode: bool=False, testmode: bool=False):
+def apply_sdl(documents: typing.List[typing.Tuple[str, qlast.Schema]], *, target_schema, current_schema,
+              stdmode: bool = False, testmode: bool = False) -> s_schema.Schema:
     ddl_stmts = s_decl.sdl_to_ddl(current_schema, documents)
     context = sd.CommandContext(
         modaliases={},
@@ -190,22 +192,22 @@ def apply_sdl(documents, *, target_schema, current_schema,
     return target_schema
 
 
-def apply_ddl(ddl_stmt, *, schema, modaliases,
-              stdmode: bool=False, testmode: bool=False):
+def apply_ddl(ddl_stmt: qlast.ObjectDDL, *, schema, modaliases,
+              stdmode: bool = False, testmode: bool = False) -> s_schema.Schema:
     schema, _ = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
                                 stdmode=stdmode, testmode=testmode)
     return schema
 
 
-def delta_from_ddl(ddl_stmt, *, schema, modaliases,
-                   stdmode: bool=False, testmode: bool=False):
+def delta_from_ddl(ddl_stmt: qlast.ObjectDDL, *, schema, modaliases,
+                   stdmode: bool = False, testmode: bool = False) -> sd.DeltaRoot:
     _, cmd = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
                              stdmode=stdmode, testmode=testmode)
     return cmd
 
 
-def _delta_from_ddl(ddl_stmt, *, schema, modaliases,
-                    stdmode: bool=False, testmode: bool=False):
+def _delta_from_ddl(ddl_stmt: qlast.ObjectDDL, *, schema, modaliases,
+                    stdmode: bool = False, testmode: bool = False) -> typing.Tuple[s_schema.Schema, sd.DeltaRoot]:
     delta = sd.DeltaRoot()
     context = sd.CommandContext(
         modaliases=modaliases,
@@ -225,12 +227,12 @@ def _delta_from_ddl(ddl_stmt, *, schema, modaliases,
     return schema, delta
 
 
-def ddl_from_delta(schema, context, delta):
+def ddl_from_delta(schema: s_schema.Schema, context: sd.CommandContext, delta: sd.ObjectCommand) -> typing.Any:
     """Return DDL AST for a delta command tree."""
     return delta.get_ast(schema, context)
 
 
-def ddl_text_from_delta(schema, delta):
+def ddl_text_from_delta(schema: s_schema.Schema, delta: deltas.Delta) -> str:
     """Return DDL text for a delta object."""
 
     root = sd.DeltaRoot(canonical=True)
