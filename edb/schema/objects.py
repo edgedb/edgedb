@@ -1005,7 +1005,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             ref, val = value._reduce_to_ref(schema)
 
         elif isinstance(value, ObjectCollection):
-            raise TypeError(f'reduce_refs: cannot handle {type(value)} type')
+            ref, val = value._reduce_to_ref(schema, value)
 
         elif isinstance(value, s_abc.ObjectContainer):
             ref, val = value._reduce_to_ref(schema)
@@ -1418,6 +1418,9 @@ class ObjectCollection(s_abc.ObjectContainer):
         else:
             return 1.0
 
+    def _reduce_to_ref(self, schema):
+        raise NotImplementedError
+
 
 class ObjectIndexBase(ObjectCollection, container=tuple):
 
@@ -1579,7 +1582,7 @@ class ObjectDict(ObjectCollection, container=tuple):
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return self._ids == other._ids and self._keys == other.__keys
+        return self._ids == other._ids and self._keys == other._keys
 
     def __hash__(self):
         return hash((self._ids, self._keys))
@@ -1601,6 +1604,17 @@ class ObjectDict(ObjectCollection, container=tuple):
 
     def items(self, schema):
         return tuple(zip(self._keys, self.objects(schema)))
+
+    def _reduce_to_ref(self, schema, v):
+        result = {}
+        comparison_v = []
+
+        for key, scls in v.items(schema):
+            ref, comp = scls._reduce_to_ref(schema)
+            result[key] = ref
+            comparison_v.append((key, comp))
+
+        return type(v).create(schema, result), frozenset(comparison_v)
 
 
 class ObjectSet(ObjectCollection, container=frozenset):

@@ -17,6 +17,8 @@
 #
 
 
+import os.path
+
 import edgedb
 
 from edb.testbase import server as tb
@@ -50,6 +52,118 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 }};
                 COMMIT MIGRATION {mname};
             """)
+
+    async def test_edgeql_migration_simple_01(self):
+        # Base case, ensuring a single SDL migration from a clean
+        # state works.
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate("""
+            type NamedObject {
+                required property name -> str;
+                multi link related -> NamedObject {
+                    property lang -> str;
+                };
+            };
+        """)
+        await self.con.execute("""
+            INSERT NamedObject {
+                name := 'Test'
+            };
+
+            INSERT NamedObject {
+                name := 'Test 2',
+                related := (SELECT DETACHED NamedObject
+                            FILTER .name = 'Test')
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    NamedObject {
+                        related: {
+                            name,
+                            @lang
+                        }
+                    }
+                FILTER
+                    .name = 'Test 2';
+            """,
+            [
+                {
+                    'related': [{'name': 'Test', '@lang': None}],
+                }
+            ]
+        )
+
+    async def test_edgeql_migration_link_inheritance(self):
+        schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'links_1.esdl')
+
+        with open(schema_f) as f:
+            schema = f.read()
+
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(schema)
+
+        await self.con.execute('''
+            INSERT Target1 {
+                name := 'Target1_linkinh_2'
+            };
+
+            INSERT ObjectType01 {
+                target := (SELECT Target1
+                           FILTER .name = 'Target1_linkinh_2'
+                           LIMIT 1)
+            };
+
+            INSERT Target0 {
+                name := 'Target0_linkinh_2'
+            };
+
+            INSERT ObjectType23 {
+                target := (SELECT Target0
+                           FILTER .name = 'Target0_linkinh_2'
+                           LIMIT 1)
+            };
+        ''')
+
+        await self.con.execute('DECLARE SAVEPOINT t0;')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'target' of object type "
+                r"'test::ObjectType01': "
+                r"'test::Target0' \(expecting 'test::Target1'\)"):
+            # Target0 is not allowed to be targeted by ObjectType01, since
+            # ObjectType01 inherits from ObjectType1 which requires more
+            # specific Target1.
+            await self.con.execute('''
+                INSERT ObjectType01 {
+                    target := (
+                        SELECT
+                            Target0
+                        FILTER
+                            .name = 'Target0_linkinh_2'
+                        LIMIT 1
+                    )
+                };
+            ''')
+
+        schema_f = os.path.join(os.path.dirname(__file__), 'schemas',
+                                'links_1_migrated.esdl')
+
+        with open(schema_f) as f:
+            schema = f.read()
+
+        await self.con.execute('''
+            ROLLBACK TO SAVEPOINT t0;
+        ''')
+        await self._migrate(schema)
 
     async def test_edgeql_migration_01(self):
         await self.con.execute("""
@@ -2911,6 +3025,84 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 r"""SELECT hello13(' world');"""
             )
 
+    async def test_edgeql_migration_function_14(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello14(a: str, b: str) -> str
+                from edgeql $$
+                    SELECT a ++ b
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello14('hello', '14');""",
+            ['hello14'],
+        )
+
+        await self._migrate(r"""
+            # Replace the function with a new one by the same name,
+            # but working with arrays.
+            function hello14(a: array<str>, b: array<str>) -> array<str>
+                from edgeql $$
+                    SELECT a ++ b
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello14(['hello'], ['14']);""",
+            [['hello', '14']],
+        )
+
+        # make sure that the old one is gone
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'could not find a function variant hello14'):
+            await self.assert_query_result(
+                r"""SELECT hello14('hello', '14');""",
+                ['hello14'],
+            )
+
+    async def test_edgeql_migration_function_15(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            function hello15(a: str, b: str) -> str
+                from edgeql $$
+                    SELECT a ++ b
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello15('hello', '15');""",
+            ['hello15'],
+        )
+
+        await self._migrate(r"""
+            # Replace the function with a new one by the same name,
+            # but working with arrays.
+            function hello15(a: tuple<str, str>) -> str
+                from edgeql $$
+                    SELECT a.0 ++ a.1
+                $$
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT hello15(('hello', '15'));""",
+            ['hello15'],
+        )
+
+        # make sure that the old one is gone
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'could not find a function variant hello15'):
+            await self.assert_query_result(
+                r"""SELECT hello15('hello', '15');""",
+                ['hello15'],
+            )
+
     async def test_edgeql_migration_linkprops_01(self):
         await self.con.execute("""
             SET MODULE test;
@@ -4234,4 +4426,743 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'expr': '.name'
                 }]
             }],
+        )
+
+    async def test_edgeql_migration_collections_01(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                property foo -> array<float32>;
+            }
+        """)
+
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                foo := [1.2, 4.5]
+            };
+        """)
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [[1.2, 4.5]],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError:
+        subquery must return only one column
+
+        The error occurs on UPDATE.
+
+        See `test_edgeql_update_collection_01` for a minimal test.
+    ''')
+    async def test_edgeql_migration_collections_02(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                property foo -> tuple<str, int32>;
+            }
+        """)
+
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                foo := ('hello', 42)
+            };
+        """)
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [('hello', 42)],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError:
+        subquery must return only one column
+
+        The error occurs on UPDATE.
+
+        See `test_edgeql_update_collection_01` for a minimal test.
+    ''')
+    async def test_edgeql_migration_collections_03(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                # nested collection
+                property foo -> tuple<str, int32, array<float32>>;
+            }
+        """)
+
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                foo := ('test', 42, [1.2, 4.5])
+            };
+        """)
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [('test', 42, [1.2, 4.5])],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError:
+        subquery must return only one column
+
+        The error occurs on UPDATE.
+
+        See `test_edgeql_update_collection_01` for a minimal test.
+    ''')
+    async def test_edgeql_migration_collections_04(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                property foo -> tuple<a: str, b: int32>;
+            }
+        """)
+
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                foo := (a := 'hello', b := 42)
+            };
+        """)
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [{'a': 'hello', 'b': 42}],
+        )
+
+    async def test_edgeql_migration_collections_06(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> array<int32>;
+            }
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := [1, 2]
+            }
+        """)
+        # sanity check
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [[1, 2]],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property foo -> array<float32>;
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [[1, 2]],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: cannot cast type record to
+        "a1862b57-10bb-5a9a-949d-9642013c8bab_t"
+
+        The error occurs on INSERT.
+
+        See `test_edgeql_insert_collection_01` for a minimal test.
+    ''')
+    async def test_edgeql_migration_collections_07(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                # convert property type to tuple
+                property foo -> tuple<str, int32>;
+            }
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := ('test', 7)
+            }
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                # convert property type to a bigger tuple
+                property foo -> tuple<str, int32, int32>;
+            }
+        """)
+
+        # expect that the new value is simply empty
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [],
+        )
+
+        await self.con.execute(r"""
+            UPDATE Base
+            SET {
+                foo := ('new', 7, 1)
+            };
+        """)
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [('new', 7, 1)],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: cannot cast type record to
+        "eda91ff0-a332-5c78-8bc3-281d7944c887_t"
+
+        The error occurs on INSERT.
+
+        See `test_edgeql_insert_collection_01` for a minimal test.
+    ''')
+    async def test_edgeql_migration_collections_08(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> tuple<int32, int32>;
+            }
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := (0, 8)
+            }
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                # convert property type to a tuple with different (but
+                # cast-compatible) element types
+                property foo -> tuple<str, int32>;
+            }
+        """)
+
+        # In theory, since under normal circumstances we can cast one
+        # tuple into the other, it's reasonable to expect this
+        # migration to preserve data here.
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [('0', 8)],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: cannot cast type record to
+        "a1862b57-10bb-5a9a-949d-9642013c8bab_t"
+
+        The error occurs on INSERT.
+
+        See `test_edgeql_insert_collection_01` for a minimal test.
+    ''')
+    async def test_edgeql_migration_collections_09(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> tuple<str, int32>;
+            }
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := ('test', 9)
+            }
+        """)
+
+        await self._migrate(r"""
+            type Base {
+                # convert property type from unnamed to named tuple
+                property foo -> tuple<a: str, b: int32>;
+            }
+        """)
+
+        # In theory, since under normal circumstances we can cast an
+        # unnamed tuple into named, it's reasonable to expect this
+        # migration to preserve data here.
+        await self.assert_query_result(
+            r"""SELECT Base.foo;""",
+            [{'a': 'test', 'b': 9}],
+        )
+
+    async def test_edgeql_migration_collections_13(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> float32;
+            };
+
+            # views that don't have arrays
+            view BaseView := Base { bar := Base.foo };
+            view CollView := Base.foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := 13.5,
+            }
+        """)
+
+        # make sure that the views initialized correctly
+        await self.assert_query_result(
+            r"""SELECT BaseView{bar};""",
+            [{'bar': 13.5}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [13.5],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property foo -> float32;
+            };
+
+            # "same" views that now have arrays
+            view BaseView := Base { bar := [Base.foo] };
+            view CollView := [Base.foo];
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView{bar};""",
+            [{'bar': [13.5]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [[13.5]],
+        )
+
+    async def test_edgeql_migration_collections_14(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # views that don't have tuples
+            view BaseView := Base { bar := Base.foo };
+            view CollView := Base.foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                name := 'coll_14',
+                foo := 14.5,
+            }
+        """)
+
+        # make sure that the views initialized correctly
+        await self.assert_query_result(
+            r"""SELECT BaseView{bar};""",
+            [{'bar': 14.5}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [14.5],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # "same" views that now have tuples
+            view BaseView := Base { bar := (Base.name, Base.foo) };
+            view CollView := (Base.name, Base.foo);
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView{bar};""",
+            [{'bar': ['coll_14', 14.5]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [['coll_14', 14.5]],
+        )
+
+    async def test_edgeql_migration_collections_15(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views that don't have nested collections
+            view BaseView := Base { bar := Base.foo };
+            view CollView := Base.foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                name := 'coll_15',
+                number := 15,
+                foo := 15.5,
+            }
+        """)
+
+        # make sure that the views initialized correctly
+        await self.assert_query_result(
+            r"""SELECT BaseView{bar};""",
+            [{'bar': 15.5}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [15.5],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # "same" views that now have nested collections
+            view BaseView := Base {
+                bar := (Base.name, Base.number, [Base.foo])
+            };
+            view CollView := (Base.name, Base.number, [Base.foo]);
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView{bar};""",
+            [{'bar': ['coll_15', 15, [15.5]]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [['coll_15', 15, [15.5]]],
+        )
+
+    async def test_edgeql_migration_collections_16(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # views that don't have named tuples
+            view BaseView := Base { bar := Base.foo };
+            view CollView := Base.foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                name := 'coll_16',
+                foo := 16.5,
+            }
+        """)
+
+        # make sure that the views initialized correctly
+        await self.assert_query_result(
+            r"""SELECT BaseView{bar};""",
+            [{'bar': 16.5}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [16.5],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # "same" views that now have named tuples
+            view BaseView := Base {
+                bar := (a := Base.name, b := Base.foo)
+            };
+            view CollView := (a := Base.name, b := Base.foo);
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView{bar};""",
+            [{'bar': {'a': 'coll_16', 'b': 16.5}}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [{'a': 'coll_16', 'b': 16.5}],
+        )
+
+    async def test_edgeql_migration_collections_17(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property foo -> float32;
+                property bar -> int32;
+            };
+
+            # views with array<int32>
+            view BaseView := Base { data := [Base.bar] };
+            view CollView := [Base.bar];
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                foo := 17.5,
+                bar := 17,
+            }
+        """)
+
+        # make sure that the views initialized correctly
+        await self.assert_query_result(
+            r"""SELECT BaseView{data};""",
+            [{'data': [17]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [[17]],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property foo -> float32;
+                property bar -> int32;
+            };
+
+            # views with array<flaot32>
+            view BaseView := Base { data := [Base.foo] };
+            view CollView := [Base.foo];
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView{data};""",
+            [{'data': [17.5]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [[17.5]],
+        )
+
+    async def test_edgeql_migration_collections_18(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, int32>
+            view BaseView := Base {
+                data := (Base.name, Base.number)
+            };
+            view CollView := (Base.name, Base.number);
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                name := 'coll_18',
+                number := 18,
+                foo := 18.5,
+            }
+        """)
+
+        # make sure that the views initialized correctly
+        await self.assert_query_result(
+            r"""SELECT BaseView{data};""",
+            [{'data': ['coll_18', 18]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [['coll_18', 18]],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, int32, float32>
+            view BaseView := Base {
+                data := (Base.name, Base.number, Base.foo)
+            };
+            view CollView := (Base.name, Base.number, Base.foo);
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView{data};""",
+            [{'data': ['coll_18', 18, 18.5]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [['coll_18', 18, 18.5]],
+        )
+
+    async def test_edgeql_migration_collections_20(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, int32>
+            view BaseView := Base {
+                data := (Base.name, Base.number)
+            };
+            view CollView := (Base.name, Base.number);
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                name := 'test20',
+                number := 20,
+                foo := 123.5,
+            }
+        """)
+
+        # make sure that the views initialized correctly
+        await self.assert_query_result(
+            r"""SELECT BaseView{data};""",
+            [{'data': ['test20', 20]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [['test20', 20]],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, float32>
+            view BaseView := Base {
+                data := (Base.name, Base.foo)
+            };
+            view CollView := (Base.name, Base.foo);
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView {data};""",
+            [{'data': ['test20', 123.5]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [['test20', 123.5]],
+        )
+
+    async def test_edgeql_migration_collections_21(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, float32>
+            view BaseView := Base {
+                data := (Base.name, Base.foo)
+            };
+            view CollView := (Base.name, Base.foo);
+        """)
+
+        await self.con.execute(r"""
+            INSERT Base {
+                name := 'coll_21',
+                foo := 21.5,
+            }
+        """)
+
+        # make sure that the views initialized correctly
+        await self.assert_query_result(
+            r"""SELECT BaseView{data};""",
+            [{'data': ['coll_21', 21.5]}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [['coll_21', 21.5]],
+        )
+
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # views with named tuple<a: str, b: float32>
+            view BaseView := Base {
+                data := (a := Base.name, b := Base.foo)
+            };
+            view CollView := (a := Base.name, b := Base.foo);
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT BaseView{data};""",
+            [{'data': {'a': 'coll_21', 'b': 21.5}}],
+        )
+        await self.assert_query_result(
+            r"""SELECT CollView;""",
+            [{'a': 'coll_21', 'b': 21.5}],
         )

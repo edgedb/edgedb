@@ -2315,7 +2315,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
             else:
                 if old_target != new_target and not type_change_ok:
-                    if isinstance(old_target, s_scalars.ScalarType):
+                    if not isinstance(old_target, s_objtypes.ObjectType):
                         alter_table = source_op.get_alter_table(
                             schema, context, priority=1)
 
@@ -2324,7 +2324,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
                         alter_type = dbops.AlterTableAlterColumnType(
                             old_ptr_stor_info.column_name,
-                            common.qname(*new_type))
+                            common.quote_type(new_type))
 
                         inherited_cond = dbops.ColumnIsInherited(
                             table_name=old_ptr_stor_info.table_name,

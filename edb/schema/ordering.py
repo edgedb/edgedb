@@ -23,6 +23,7 @@ import collections
 
 from edb.common import topological
 
+from . import abc as s_abc
 from . import delta as sd
 from . import functions as s_func
 from . import inheriting
@@ -31,7 +32,11 @@ from . import objects as so
 from . import referencing
 
 
-def linearize_delta(delta, old_schema, new_schema):
+def linearize_delta(
+    delta: sd.Command,
+    old_schema: s_abc.Schema,
+    new_schema: s_abc.Schema
+) -> sd.Command:
     """Sort delta operations to dependency order."""
 
     opmap = {}
@@ -200,9 +205,9 @@ def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
     if tag == 'delete':
         # Things must be deleted _after_ their referrers have
         # been deleted or altered.
-        obj = old_schema.get(op.classname)
+        obj = get_object(old_schema, op, op.classname)
         refs = _get_referrers(
-            old_schema, old_schema.get(op.classname), strongrefs)
+            old_schema, get_object(old_schema, op, op.classname), strongrefs)
         for ref in refs:
             ref_name = ref.get_name(old_schema)
             if (isinstance(obj, referencing.ReferencedObject)
@@ -240,13 +245,9 @@ def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
         graph_key = (opstack[-2].classname, op.property)
 
     else:
-        obj = new_schema.get(op.classname, None)
-        if obj is None:
-            rename = renames.get(op.classname)
-            if rename is not None:
-                obj = new_schema.get(rename)
-            else:
-                obj = new_schema.get(op.classname)
+        # If the object was renamed, use the new name, else use regular.
+        name = renames.get(op.classname, op.classname)
+        obj = get_object(new_schema, op, name)
 
         refs = _get_referrers(new_schema, obj, strongrefs)
         for ref in refs:
@@ -329,6 +330,19 @@ def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
     item['op'] = op
     item['tag'] = tag
     item['deps'].update(deps)
+
+
+def get_object(
+    schema: s_abc.Schema,
+    op: sd.ObjectCommand,
+    name: str
+) -> s_abc.Object:
+    metaclass = op.get_schema_metaclass()
+
+    if issubclass(metaclass, so.UnqualifiedObject):
+        return schema.get_global(metaclass, name)
+    else:
+        return schema.get(name)
 
 
 def _get_referrers(schema, obj, strongrefs):

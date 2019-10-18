@@ -151,6 +151,45 @@ _123456789_123456789_123456789 -> str
             };
         """
 
+    @tb.must_fail(errors.InvalidPropertyTargetError,
+                  "expected a scalar type, or a scalar collection, "
+                  "got 'array<test::Foo>'",
+                  position=80)
+    def test_schema_bad_type_02(self):
+        """
+            type Foo;
+
+            type Base {
+                property foo -> array<Foo>;
+            }
+        """
+
+    @tb.must_fail(errors.InvalidPropertyTargetError,
+                  "expected a scalar type, or a scalar collection, "
+                  "got 'tuple<test::Foo>'",
+                  position=80)
+    def test_schema_bad_type_03(self):
+        """
+            type Foo;
+
+            type Base {
+                property foo -> tuple<Foo>;
+            }
+        """
+
+    @tb.must_fail(errors.InvalidPropertyTargetError,
+                  "expected a scalar type, or a scalar collection, "
+                  "got 'tuple<std::str, array<test::Foo>>'",
+                  position=80)
+    def test_schema_bad_type_04(self):
+        """
+            type Foo;
+
+            type Base {
+                property foo -> tuple<str, array<Foo>>;
+            }
+        """
+
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
@@ -607,7 +646,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             self.fail(markup.dumps(e))
 
         diff = s_ddl.delta_schemas(baseline_schema, test_schema)
-
         if list(diff.get_subcommands()):
             self.fail(
                 f'unexpected difference in schema produced by\n'
@@ -1948,6 +1986,36 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 $$;
         """])
 
+    def test_migrations_equivalence_function_14(self):
+        self._assert_migration_equivalence([r"""
+            function hello14(a: str, b: str) -> str
+                from edgeql $$
+                    SELECT a ++ b
+                $$
+        """, r"""
+            # Replace the function with a new one by the same name,
+            # but working with arrays.
+            function hello14(a: array<str>, b: array<str>) -> array<str>
+                from edgeql $$
+                    SELECT a ++ b
+                $$
+        """])
+
+    def test_migrations_equivalence_function_15(self):
+        self._assert_migration_equivalence([r"""
+            function hello15(a: str, b: str) -> str
+                from edgeql $$
+                    SELECT a ++ b
+                $$
+        """, r"""
+            # Replace the function with a new one by the same name,
+            # but working with arrays.
+            function hello15(a: tuple<str, str>) -> str
+                from edgeql $$
+                    SELECT a.0 ++ a.1
+                $$
+        """])
+
     def test_migrations_equivalence_linkprops_03(self):
         self._assert_migration_equivalence([r"""
             type Child;
@@ -2283,4 +2351,372 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 # an index on a computable
                 index on (.name);
             }
+        """])
+
+    # NOTE: array<str>, array<int16>, array<json> already exist in std
+    # schema, so it's better to use array<float32> or some other
+    # non-typical scalars in tests as a way of testing a collection
+    # that would actually be created/dropped.
+    def test_migrations_equivalence_collections_01(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            type Base {
+                property foo -> array<float32>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_02(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            type Base {
+                property foo -> tuple<str, int32>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_03(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            type Base {
+                # nested collection
+                property foo -> tuple<str, int32, array<float32>>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_04(self):
+        self._assert_migration_equivalence([r"""
+            type Base;
+        """, r"""
+            type Base {
+                property foo -> tuple<a: str, b: int32>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_05(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> float32;
+            }
+        """, r"""
+            type Base {
+                # convert property type to array
+                property foo -> array<float32>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_06(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> array<int32>;
+            }
+        """, r"""
+            type Base {
+                # change the array type (old type is castable into new)
+                property foo -> array<float32>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_07(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                # convert property type to tuple
+                property foo -> tuple<str, int32>;
+            }
+        """, r"""
+            type Base {
+                # convert property type to a bigger tuple
+                property foo -> tuple<str, int32, int32>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_08(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> tuple<int32, int32>;
+            }
+        """, r"""
+            type Base {
+                # convert property type to a tuple with different (but
+                # cast-compatible) element types
+                property foo -> tuple<str, int32>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_09(self):
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> tuple<str, int32>;
+            }
+        """, r"""
+            type Base {
+                # convert property type from unnamed to named tuple
+                property foo -> tuple<a: str, b: int32>;
+            }
+        """])
+
+    def test_migrations_equivalence_collections_10(self):
+        # This is trying to validate that the error message is
+        # sensible. There was a bug that caused an unhelpful error
+        # message to appear due to incomplete dependency resolution
+        # and incorrect DDL sorting for this migration.
+        with self.assertRaisesRegex(
+                errors.InvalidPropertyTargetError,
+                "expected a scalar type, or a scalar collection, "
+                "got 'array<default::Foo>'"):
+            self._assert_migration_equivalence([r"""
+                type Base;
+
+                type Foo;
+            """, r"""
+                type Base {
+                    property foo -> array<Foo>;
+                }
+
+                type Foo;
+            """])
+
+    def test_migrations_equivalence_collections_11(self):
+        # This is trying to validate that the error message is
+        # sensible. There was a bug that caused an unhelpful error
+        # message to appear due to incomplete dependency resolution
+        # and incorrect DDL sorting for this migration.
+        with self.assertRaisesRegex(
+                errors.InvalidPropertyTargetError,
+                "expected a scalar type, or a scalar collection, "
+                "got 'tuple<std::str, default::Foo>'"):
+
+            self._assert_migration_equivalence([r"""
+                type Base;
+
+                type Foo;
+            """, r"""
+                type Base {
+                    property foo -> tuple<str, Foo>;
+                }
+
+                type Foo;
+            """])
+
+    def test_migrations_equivalence_collections_12(self):
+        # This is trying to validate that the error message is
+        # sensible. There was a bug that caused an unhelpful error
+        # message to appear due to incomplete dependency resolution
+        # and incorrect DDL sorting for this migration.
+        with self.assertRaisesRegex(
+                errors.InvalidPropertyTargetError,
+                "expected a scalar type, or a scalar collection, "
+                "got 'array<default::Foo>'"):
+
+            self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> array<Foo>;
+            }
+
+            type Foo;
+        """, r"""
+            type Base {
+                property foo -> array<Foo>;
+                # nested collection
+                property bar -> tuple<str, array<Foo>>;
+            }
+
+            type Foo;
+        """])
+
+    def test_migrations_equivalence_collections_13(self):
+        # schema views & collection test
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> float32;
+            };
+
+            # views that don't have arrays
+            view BaseView := Base { bar := Base.foo };
+            view CollView := Base.foo;
+        """, r"""
+            type Base {
+                property foo -> float32;
+            };
+
+            # "same" views that now have arrays
+            view BaseView := Base { bar := [Base.foo] };
+            view CollView := [Base.foo];
+        """])
+
+    def test_migrations_equivalence_collections_14(self):
+        # schema views & collection test
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # views that don't have tuples
+            view BaseView := Base { bar := Base.foo };
+            view CollView := Base.foo;
+        """, r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # "same" views that now have tuples
+            view BaseView := Base { bar := (Base.name, Base.foo) };
+            view CollView := (Base.name, Base.foo);
+        """])
+
+    def test_migrations_equivalence_collections_15(self):
+        # schema views & collection test
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views that don't have nested collections
+            view BaseView := Base { bar := Base.foo };
+            view CollView := Base.foo;
+        """, r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # "same" views that now have nested collections
+            view BaseView := Base {
+                bar := (Base.name, Base.number, [Base.foo])
+            };
+            view CollView := (Base.name, Base.number, [Base.foo]);
+        """])
+
+    def test_migrations_equivalence_collections_16(self):
+        # schema views & collection test
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # views that don't have named tuples
+            view BaseView := Base { bar := Base.foo };
+            view CollView := Base.foo;
+        """, r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # "same" views that now have named tuples
+            view BaseView := Base {
+                bar := (a := Base.name, b := Base.foo)
+            };
+            view CollView := (a := Base.name, b := Base.foo);
+        """])
+
+    def test_migrations_equivalence_collections_17(self):
+        # schema views & collection test
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property foo -> float32;
+                property bar -> int32;
+            };
+
+            # views with array<int32>
+            view BaseView := Base { data := [Base.bar] };
+            view CollView := [Base.bar];
+        """, r"""
+            type Base {
+                property foo -> float32;
+                property bar -> int32;
+            };
+
+            # views with array<flaot32>
+            view BaseView := Base { data := [Base.foo] };
+            view CollView := [Base.foo];
+        """])
+
+    def test_migrations_equivalence_collections_18(self):
+        # schema views & collection test
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, int32>
+            view BaseView := Base {
+                data := (Base.name, Base.number)
+            };
+            view CollView := (Base.name, Base.number);
+        """, r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, int32, float32>
+            view BaseView := Base {
+                data := (Base.name, Base.number, Base.foo)
+            };
+            view CollView := (Base.name, Base.number, Base.foo);
+        """])
+
+    def test_migrations_equivalence_collections_20(self):
+        # schema views & collection test
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, int32>
+            view BaseView := Base {
+                data := (Base.name, Base.number)
+            };
+            view CollView := (Base.name, Base.number);
+        """, r"""
+            type Base {
+                property name -> str;
+                property number -> int32;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, float32>
+            view BaseView := Base {
+                data := (Base.name, Base.foo)
+            };
+            view CollView := (Base.name, Base.foo);
+        """])
+
+    def test_migrations_equivalence_collections_21(self):
+        # schema views & collection test
+        self._assert_migration_equivalence([r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # views with tuple<str, float32>
+            view BaseView := Base {
+                data := (Base.name, Base.foo)
+            };
+            view CollView := (Base.name, Base.foo);
+        """, r"""
+            type Base {
+                property name -> str;
+                property foo -> float32;
+            };
+
+            # views with named tuple<a: str, b: float32>
+            view BaseView := Base {
+                data := (a := Base.name, b := Base.foo)
+            };
+            view CollView := (a := Base.name, b := Base.foo);
         """])
