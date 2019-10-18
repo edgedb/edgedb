@@ -43,7 +43,7 @@ def new_scope_tree():
 
 
 class Base(ast.AST):
-
+    __abstract_node__ = True
     __ast_hidden__ = {'context'}
 
     context: parsing.ParserContext
@@ -55,7 +55,7 @@ class Base(ast.AST):
 
 
 class ImmutableBase(ast.ImmutableASTMixin, Base):
-    pass
+    __abstract_node__ = True
 
 
 class ViewShapeMetadata(Base):
@@ -112,6 +112,7 @@ class AnyTupleRef(TypeRef):
 
 
 class BasePointerRef(ImmutableBase):
+    __abstract_node__ = True
 
     # cardinality fields need to be mutable for lazy cardinality inference.
     __ast_mutable_fields__ = frozenset(('dir_cardinality', 'out_cardinality'))
@@ -253,11 +254,11 @@ class TypeIndirectionPointer(Pointer):
 
 
 class Expr(Base):
-    pass
+    __abstract_node__ = True
 
 
 class ImmutableExpr(Expr, ImmutableBase):
-    pass
+    __abstract_node__ = True
 
 
 class Set(Base):
@@ -282,7 +283,7 @@ class EmptySet(Set):
 
 
 class Command(Base):
-    pass
+    __abstract_node__ = True
 
 
 class Statement(Command):
@@ -310,12 +311,12 @@ class TypeIntrospection(ImmutableExpr):
 
 
 class ConstExpr(ImmutableExpr):
-
+    __abstract_node__ = True
     typeref: TypeRef
 
 
 class BaseConstant(ConstExpr):
-
+    __abstract_node__ = True
     value: typing.Any
 
     def __init__(self, *args, typeref, **kwargs):
@@ -327,7 +328,7 @@ class BaseConstant(ConstExpr):
 
 
 class BaseStrConstant(BaseConstant):
-
+    __abstract_node__ = True
     value: str
 
 
@@ -418,6 +419,7 @@ class CallArg(ImmutableBase):
 
 class Call(ImmutableExpr):
     """Operator or a function call."""
+    __abstract_node__ = True
 
     # Bound callable has polymorphic parameters and
     # a polymorphic return type.
@@ -528,7 +530,7 @@ class TypeCast(ImmutableExpr):
 
 
 class Stmt(Expr):
-
+    __abstract_node__ = True
     name: str
     result: Set
     cardinality: qltypes.Cardinality
@@ -537,7 +539,7 @@ class Stmt(Expr):
 
 
 class FilteredStmt(Stmt):
-
+    __abstract_node__ = True
     where: Set
     where_card: qltypes.Cardinality
 
@@ -558,6 +560,7 @@ class GroupStmt(Stmt):
 
 
 class MutatingStmt(Stmt):
+    __abstract_node__ = True
     subject: Set
 
 
@@ -580,7 +583,7 @@ class SessionStateCmd(Command):
 
 
 class ConfigCommand(Command):
-
+    __abstract_node__ = True
     name: str
     system: bool
     cardinality: qltypes.Cardinality
@@ -592,12 +595,6 @@ class ConfigCommand(Command):
 class ConfigSet(ConfigCommand):
 
     expr: Set
-
-
-class ConfigFilter(Base):
-
-    property_name: str
-    value: Set
 
 
 class ConfigReset(ConfigCommand):
