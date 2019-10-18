@@ -27,7 +27,7 @@ def find_edgedb_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-class TestFlake8(unittest.TestCase):
+class TestCodeQuality(unittest.TestCase):
 
     def test_flake8(self):
         edgepath = find_edgedb_root()
@@ -38,7 +38,7 @@ class TestFlake8(unittest.TestCase):
         try:
             import flake8  # NoQA
         except ImportError:
-            raise unittest.SkipTest('flake8 moudule is missing')
+            raise unittest.SkipTest('flake8 module is missing')
 
         for subdir in ['edb', 'tests']:  # ignore any top-level test files
             try:
@@ -52,3 +52,37 @@ class TestFlake8(unittest.TestCase):
                 output = ex.output.decode()
                 raise AssertionError(
                     f'flake8 validation failed:\n{output}') from None
+
+    def test_mypy(self):
+        edgepath = find_edgedb_root()
+        config_path = os.path.join(edgepath, 'mypy.ini')
+        if not os.path.exists(config_path):
+            raise RuntimeError('could not locate mypy.ini file')
+
+        try:
+            import mypy  # NoQA
+        except ImportError:
+            raise unittest.SkipTest('mypy module is missing')
+
+        for subdir in ['edb', 'tests']:  # ignore any top-level test files
+            try:
+                subprocess.run(
+                    [
+                        sys.executable,
+                        '-m',
+                        'mypy',
+                        '--config-file',
+                        config_path,
+                        subdir,
+                    ],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=edgepath,
+                )
+            except subprocess.CalledProcessError as ex:
+                output = ex.stdout.decode()
+                if ex.stderr:
+                    output += '\n\n' + ex.stderr.decode()
+                raise AssertionError(
+                    f'mypy validation failed:\n{output}') from None
