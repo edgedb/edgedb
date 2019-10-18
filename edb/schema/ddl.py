@@ -48,6 +48,7 @@ from . import links  # NOQA
 from . import lproperties  # NOQA
 from . import modules  # NOQA
 from . import std  # NOQA
+from . import types
 from . import views  # NOQA
 
 
@@ -57,6 +58,12 @@ def get_global_dep_order():
         functions.Function,
         constraints.Constraint,
         scalars.ScalarType,
+        # schema arrays and tuples are UnqualifiedObject
+        types.SchemaArray,
+        types.SchemaTuple,
+        # views are treated separately because they are not UnqualifiedObject
+        types.ArrayView,
+        types.TupleView,
         lproperties.Property,
         links.Link,
         objtypes.BaseObjectType,
@@ -124,12 +131,20 @@ def delta_schemas(
     objects = sd.DeltaRoot(canonical=True)
 
     for type in get_global_dep_order():
-        new = schema1.get_objects(
-            type=type, modules=included_modules,
-            excluded_modules=excluded_modules)
-        old = schema2.get_objects(
-            type=type, modules=included_modules,
-            excluded_modules=excluded_modules)
+        if issubclass(type, so.UnqualifiedObject):
+            # UnqualifiedObjects (like anonymous tuples and arrays)
+            # should not use an included_modules filter.
+            new = schema1.get_objects(
+                type=type, excluded_modules=excluded_modules)
+            old = schema2.get_objects(
+                type=type, excluded_modules=excluded_modules)
+        else:
+            new = schema1.get_objects(
+                type=type, modules=included_modules,
+                excluded_modules=excluded_modules)
+            old = schema2.get_objects(
+                type=type, modules=included_modules,
+                excluded_modules=excluded_modules)
 
         if issubclass(type, derivable.DerivableObject):
             new = filter(lambda i: i.generic(schema1), new)

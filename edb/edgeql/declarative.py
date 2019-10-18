@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import copy
 import functools
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -349,7 +350,7 @@ def trace_default(node: qlast.CreateObject, *, ctx: DepTraceContext):
 
 def _register_item(
     decl, *, deps=None, hard_dep_exprs=None, loop_control=None,
-    source=None, subject=None, extra_name=None, ctx
+    source=None, subject=None, extra_name=None, ctx: DepTraceContext
 ):
 
     if deps:
@@ -458,12 +459,7 @@ def _register_item(
     if hard_dep_exprs:
         for expr in hard_dep_exprs:
             if isinstance(expr, qlast.TypeExpr):
-                targets = qlast.get_targets(expr)
-                for target in targets:
-                    if not target.subtypes:
-                        name = ctx.get_ref_name(target.maintype)
-                        if name.module == ctx.module:
-                            deps.add(name)
+                deps |= _get_hard_deps(expr, ctx=ctx)
             else:
                 for dep in qltracer.trace_refs(
                     expr,
@@ -487,6 +483,33 @@ def _register_item(
             parent_node['loop-control'].add(fq_name)
 
     node["deps"].update(deps)
+
+
+def _get_hard_deps(
+    expr: qlast.TypeExpr, *,
+    ctx: DepTraceContext
+) -> MutableSet[s_name.Name]:
+    deps = set()
+
+    # If we have any type ops, get a flat list of their operands.
+    targets = qlast.get_targets(expr)
+    for target in targets:
+        # We care about subtypes dependencies, because
+        # they can either be custom scalars or illegal
+        # ObjectTypes (then error message will depend on
+        # dependency tracing)
+        if target.subtypes:
+            for subtype in target.subtypes:
+                # Recurse!
+                deps |= _get_hard_deps(subtype, ctx=ctx)
+
+        else:
+            # Base case.
+            name = ctx.get_ref_name(target.maintype)
+            if name.module == ctx.module:
+                deps.add(name)
+
+    return deps
 
 
 def _get_bases(decl, *, ctx):

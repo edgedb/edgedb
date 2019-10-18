@@ -51,3 +51,9 @@ type UpdateTest {
         property note -> str;
     }
 }
+
+type CollectionTest {
+    required property name -> str;
+    property some_tuple -> tuple<str, int64>;
+    property str_array -> array<str>;
+}

@@ -56,3 +56,8 @@ INSERT UpdateTest {
     comment := 'third',
     status := (SELECT Status FILTER Status.name = 'Closed')
 };
+
+WITH MODULE test
+INSERT CollectionTest {
+    name := 'collection-test1'
+};

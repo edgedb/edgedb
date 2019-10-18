@@ -639,7 +639,8 @@ class BaseArray(Collection, s_abc.Array):
             schema, other.get_element_type(schema))
 
     @classmethod
-    def from_subtypes(cls, schema, subtypes, typemods=None, *, name=None):
+    def from_subtypes(cls, schema, subtypes, typemods=None, *, name=None,
+                      id=so.NoDefault):
         if len(subtypes) != 1:
             raise errors.SchemaError(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
@@ -653,7 +654,8 @@ class BaseArray(Collection, s_abc.Array):
         dimensions = [-1]
 
         return cls.create(schema, element_type=stype,
-                          dimensions=dimensions, name=name)
+                          dimensions=dimensions, name=name,
+                          id=id)
 
     def material_type(self, schema):
         # We need to resolve material types based on the subtype recursively.
@@ -761,7 +763,12 @@ class SchemaCollectionMeta(type(Type)):
 
 
 class SchemaCollection(so.Object, metaclass=SchemaCollectionMeta):
-    pass
+    def __repr__(self):
+        return (
+            f'<{self.__class__.__name__} '
+            f'{self.id} '
+            f'at 0x{id(self):x}>'
+        )
 
 
 class CollectionView(SchemaCollection):
@@ -772,16 +779,40 @@ class CollectionView(SchemaCollection):
 
 
 class SchemaAnonymousCollection(so.UnqualifiedObject, SchemaCollection):
-    pass
+    name = so.SchemaField(
+        str,
+        inheritable=False,
+        # We want a low compcoef so that collections are *never* altered.
+        compcoef=0,
+    )
+
+
+class SchemaArrayRef(BaseArray, so.ObjectRef):
+    def _resolve_ref(self, schema):
+        return schema.get_global(SchemaArray, self.get_name(schema))
 
 
 class BaseSchemaArray(SchemaCollection, BaseArray):
 
-    element_type = so.SchemaField(so.Object)
-    dimensions = so.SchemaField(Dimensions, default=None, coerce=True)
+    element_type = so.SchemaField(
+        so.Object,
+        # We want a low compcoef so that tuples are *never* altered.
+        compcoef=0,
+    )
+    dimensions = so.SchemaField(
+        Dimensions, default=None, coerce=True,
+        # We want a low compcoef so that tuples are *never* altered.
+        compcoef=0,
+    )
 
     def get_subtypes(self, schema):
         return (self.get_element_type(schema),)
+
+    def _reduce_to_ref(self, schema):
+        # Since this is already a schema object, we should just create
+        # a reference by "name".
+        sa_ref = SchemaArrayRef(name=self.get_name(schema))
+        return (sa_ref, (self.__class__, sa_ref.name))
 
 
 class SchemaArray(SchemaAnonymousCollection, BaseSchemaArray):
@@ -908,7 +939,7 @@ class BaseTuple(Collection, s_abc.Tuple):
 
     @classmethod
     def from_subtypes(cls, schema, subtypes, typemods=None, *,
-                      name: str=None, **kwargs):
+                      name: str=None, id=so.NoDefault, **kwargs):
         named = False
         if typemods is not None:
             named = typemods.get('named', False)
@@ -921,7 +952,7 @@ class BaseTuple(Collection, s_abc.Tuple):
             types = subtypes
 
         return cls.create(schema, element_types=types, named=named,
-                          name=name, **kwargs)
+                          name=name, id=id, **kwargs)
 
     def implicitly_castable_to(self, other: Type, schema) -> bool:
         if not other.is_tuple():
@@ -1222,20 +1253,31 @@ class Tuple(EphemeralCollection, BaseTuple):
         self.__dict__.update(state)
 
 
+class SchemaTupleRef(BaseTuple, so.ObjectRef):
+    def _resolve_ref(self, schema):
+        return schema.get_global(SchemaTuple, self.get_name(schema))
+
+
 class BaseSchemaTuple(SchemaCollection, BaseTuple):
 
     named = so.SchemaField(
-        bool)
+        bool,
+        # We want a low compcoef so that tuples are *never* altered.
+        compcoef=0,
+    )
 
     element_types = so.SchemaField(
         so.ObjectDict,
-        coerce=True)
+        coerce=True,
+        # We want a low compcoef so that tuples are *never* altered.
+        compcoef=0,
+    )
 
     def is_named(self, schema) -> bool:
         return self.get_named(schema)
 
     def get_element_names(self, schema):
-        return tuple(self.get_element_types(schema).keys())
+        return tuple(self.get_element_types(schema).keys(schema))
 
     def iter_subtypes(self, schema):
         yield from self.get_element_types(schema).items(schema)
@@ -1247,6 +1289,12 @@ class BaseSchemaTuple(SchemaCollection, BaseTuple):
             return self.element_types.objects(schema)
         else:
             return []
+
+    def _reduce_to_ref(self, schema):
+        # Since this is already a schema object, we should just create
+        # a reference by "name".
+        sa_ref = SchemaTupleRef(name=self.get_name(schema))
+        return (sa_ref, (self.__class__, sa_ref.name))
 
 
 class SchemaTuple(SchemaAnonymousCollection, BaseSchemaTuple):
@@ -1407,7 +1455,11 @@ class CollectionTypeCommandContext(sd.ObjectCommandContext):
 class CollectionTypeCommand(sd.UnqualifiedObjectCommand,
                             TypeCommand,
                             context_class=CollectionTypeCommandContext):
-    pass
+
+    def get_ast(self, schema, context):
+        # CollectionTypeCommand cannot have its own AST because it is a
+        # side-effect of some other command.
+        return None
 
 
 class CollectionViewCommand(TypeCommand,
@@ -1440,7 +1492,10 @@ class CreateTuple(CreateCollectionType, schema_metaclass=SchemaTuple):
 
 
 class CreateTupleView(CreateCollectionView, schema_metaclass=TupleView):
-    pass
+    def _get_ast_node(self, schema, context):
+        # Can't just use class-level astnode because that creates a
+        # duplicate in ast -> command mapping.
+        return qlast.CreateView
 
 
 class CreateArray(CreateCollectionType, schema_metaclass=SchemaArray):
@@ -1448,7 +1503,10 @@ class CreateArray(CreateCollectionType, schema_metaclass=SchemaArray):
 
 
 class CreateArrayView(CreateCollectionView, schema_metaclass=ArrayView):
-    pass
+    def _get_ast_node(self, schema, context):
+        # Can't just use class-level astnode because that creates a
+        # duplicate in ast -> command mapping.
+        return qlast.CreateView
 
 
 class DeleteTuple(DeleteCollectionType, schema_metaclass=SchemaTuple):

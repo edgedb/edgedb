@@ -1755,3 +1755,65 @@ class TestUpdate(tb.QueryTestCase):
                 },
             ]
         )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError:
+        subquery must return only one column
+    ''')
+    async def test_edgeql_update_collection_01(self):
+        # test and UPDATE with a collection
+        await self.con.execute(
+            r"""
+                WITH MODULE test
+                UPDATE CollectionTest
+                FILTER .name = 'collection-test1'
+                SET {
+                    some_tuple := ('coll_01', 1)
+                };
+            """
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT CollectionTest {
+                    name,
+                    some_tuple,
+                } FILTER .name = 'collection-test1';
+            """,
+            [
+                {
+                    'name': 'collection-test1',
+                    'some_tuple': ['coll_01', 1],
+                },
+            ]
+        )
+
+    async def test_edgeql_update_collection_02(self):
+        # test and UPDATE with a collection
+        await self.con.execute(
+            r"""
+                WITH MODULE test
+                UPDATE CollectionTest
+                FILTER .name = 'collection-test1'
+                SET {
+                    str_array := ['coll_02', '2']
+                };
+            """
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT CollectionTest {
+                    name,
+                    str_array,
+                } FILTER .name = 'collection-test1';
+            """,
+            [
+                {
+                    'name': 'collection-test1',
+                    'str_array': ['coll_02', '2'],
+                },
+            ]
+        )

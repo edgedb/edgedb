@@ -672,7 +672,7 @@ class SchemaIterator:
             excluded_modules = frozenset(excluded_modules)
             filters.append(
                 lambda obj:
-                    not isinstance(obj, so.UnqualifiedObject) and
+                    isinstance(obj, so.UnqualifiedObject) or
                     obj.get_name(schema).module not in excluded_modules)
 
         self._filters = filters

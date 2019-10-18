@@ -669,6 +669,31 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    @test.xfail('''
+        This currently fails with:
+        edgedb.errors.SchemaError: SchemaArray
+        'bad732ad-4ba1-56f4-ac86-d4bf0f60f017' is already present in
+        the schema
+
+        However, this error about a dupliucate is unexpected. The real
+        issue is that DDL altering a property from a scalar to an
+        array [of that scalar] should be flagged as bad on grounds of
+        it being unclear of what the data migration should look like
+        (since simple cast won't work).
+    ''')
+    async def test_edgeql_ddl_property_alter_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::Foo {
+                CREATE PROPERTY bar -> float32;
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE test::Foo {
+                ALTER PROPERTY bar SET TYPE array<float32>;
+            };
+        """)
+
     async def test_edgeql_ddl_link_target_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::GrandParent01 {
@@ -3403,6 +3428,158 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             ALTER TYPE test::Parent DROP LINK dil_foo;
         """)
+
+    async def test_edgeql_ddl_drop_01(self):
+        # Check that constraints defined on scalars being dropped are
+        # dropped.
+        await self.con.execute("""
+            CREATE SCALAR TYPE test::a1 EXTENDING std::str;
+
+            ALTER SCALAR TYPE test::a1 {
+                CREATE CONSTRAINT std::one_of('a', 'b') {
+                    SET ANNOTATION description :=
+                        'test_delta_drop_01_constraint';
+                };
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Constraint {name}
+                FILTER
+                    .annotations.name = 'std::description'
+                    AND .annotations@value = 'test_delta_drop_01_constraint';
+            """,
+            [
+                {
+                    'name': 'std::one_of',
+                }
+            ],
+        )
+
+        await self.con.execute("""
+            DROP SCALAR TYPE test::a1;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Constraint {name}
+                FILTER
+                    .annotations.name = 'std::description'
+                    AND .annotations@value = 'test_delta_drop_01_constraint';
+            """,
+            []
+        )
+
+    async def test_edgeql_ddl_drop_02(self):
+        # Check that links defined on types being dropped are
+        # dropped.
+        await self.con.execute("""
+            CREATE TYPE test::C1 {
+                CREATE PROPERTY l1 -> std::str {
+                    SET ANNOTATION description := 'test_delta_drop_02_link';
+                };
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Property {name}
+                FILTER
+                    .annotations.name = 'std::description'
+                    AND .annotations@value = 'test_delta_drop_02_link';
+            """,
+            [
+                {
+                    'name': 'l1',
+                }
+            ],
+        )
+
+        await self.con.execute("""
+            DROP TYPE test::C1;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Property {name}
+                FILTER
+                    .annotations.name = 'std::description'
+                    AND .annotations@value = 'test_delta_drop_02_link';
+            """,
+            []
+        )
+
+    async def test_edgeql_ddl_drop_refuse_01(self):
+        # Check that the schema refuses to drop objects with live references
+        await self.con.execute("""
+            CREATE TYPE test::DropA;
+            CREATE ABSTRACT ANNOTATION test::dropattr;
+            CREATE ABSTRACT LINK test::l1_parent;
+            CREATE TYPE test::DropB {
+                CREATE LINK l1 EXTENDING test::l1_parent -> test::DropA {
+                    SET ANNOTATION test::dropattr := 'foo';
+                };
+            };
+            CREATE SCALAR TYPE test::dropint EXTENDING int64;
+            CREATE FUNCTION test::dropfunc(a: test::dropint) -> int64
+                FROM EdgeQL $$ SELECT a; $$;
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                'cannot drop object type.*test::DropA.*other objects'):
+            await self.con.execute('DROP TYPE test::DropA')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                'cannot drop abstract anno.*test::dropattr.*other objects'):
+            await self.con.execute('DROP ABSTRACT ANNOTATION test::dropattr')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                'cannot drop abstract link.*test::l1_parent.*other objects'):
+            await self.con.execute('DROP ABSTRACT LINK test::l1_parent')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                'cannot drop.*dropint.*other objects'):
+            await self.con.execute('DROP SCALAR TYPE test::dropint')
+
+    async def test_edgeql_ddl_unicode_01(self):
+        await self.con.execute(r"""
+            # setup delta
+            CREATE MIGRATION test::u1 TO {
+                type Пример {
+                    required property номер -> int16;
+                };
+            };
+            COMMIT MIGRATION test::u1;
+            SET MODULE test;
+
+            INSERT Пример {
+                номер := 987
+            };
+            INSERT Пример {
+                номер := 456
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    Пример {
+                        номер
+                    }
+                ORDER BY
+                    Пример.номер;
+            """,
+            [{'номер': 456}, {'номер': 987}]
+        )
 
     async def test_edgeql_ddl_tuple_properties(self):
         await self.con.execute(r"""

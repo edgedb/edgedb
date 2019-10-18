@@ -21,6 +21,7 @@ import json
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLViews(tb.QueryTestCase):
@@ -870,5 +871,100 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 {
                     'name': 'Imp'
                 },
+            ]
+        )
+
+    async def test_edgeql_views_collection_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT SpecialCardView {
+                    name,
+                    el_cost,
+                };
+            """,
+            [
+                {
+                    'name': 'Djinn',
+                    'el_cost': ['Air', 4],
+                },
+            ]
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: missing FROM-clause entry
+        for table "SpecialCard~8"
+
+        See `test_edgeql_views_collection_04` or
+        `test_edgeql_views_collection_05` for minimal setup.
+    ''')
+    async def test_edgeql_views_collection_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT SpecialCardView.el_cost;
+            """,
+            [
+                ['Air', 4],
+            ]
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: missing FROM-clause entry
+        for table "SpecialCard~8"
+
+        See `test_edgeql_views_collection_04` or
+        `test_edgeql_views_collection_05` for minimal setup.
+    ''')
+    async def test_edgeql_views_collection_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    X := SpecialCard {
+                        el_cost := (.element, .cost)
+                    }
+                SELECT X.el_cost;
+            """,
+            [
+                ['Air', 4],
+            ]
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: missing FROM-clause entry
+        for table "SpecialCard~4"
+    ''')
+    async def test_edgeql_views_collection_04(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    SpecialCard {
+                        el_cost := (.element,)
+                    }
+                ).el_cost;
+            """,
+            [
+                ['Air'],
+            ]
+        )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: missing FROM-clause entry
+        for table "SpecialCard~4"
+    ''')
+    async def test_edgeql_views_collection_05(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT (
+                    SpecialCard {
+                        el_cost := [.element]
+                    }
+                ).el_cost;
+            """,
+            [
+                ['Air'],
             ]
         )

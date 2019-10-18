@@ -147,3 +147,9 @@ type SelfRef {
     required property name -> str;
     multi link ref -> SelfRef;
 }
+
+type CollectionTest {
+    property some_tuple -> tuple<str, int64>;
+    property str_array -> array<str>;
+    property float_array -> array<float32>;
+}

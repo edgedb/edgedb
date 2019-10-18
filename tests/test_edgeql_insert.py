@@ -1546,3 +1546,79 @@ class TestInsert(tb.QueryTestCase):
                 },
             ]
         )
+
+    @test.xfail('''
+        edgedb.errors.InternalServerError: cannot cast type record to
+        "338fc9bb-51be-555d-b2f7-abe53ff0567f_t"
+    ''')
+    async def test_edgeql_insert_collection_01(self):
+        await self.con.execute(r"""
+            INSERT test::CollectionTest {
+                some_tuple := ('collection_01', 99),
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    CollectionTest {
+                        some_tuple
+                    }
+                FILTER
+                    .some_tuple.0 = 'collection_01';
+            """,
+            [
+                {
+                    'some_tuple': ['collection_01', 99],
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_collection_02(self):
+        await self.con.execute(r"""
+            INSERT test::CollectionTest {
+                str_array := ['collection_02', '99'],
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    CollectionTest {
+                        str_array
+                    }
+                FILTER
+                    .str_array[0] = 'collection_02';
+            """,
+            [
+                {
+                    'str_array': ['collection_02', '99'],
+                },
+            ]
+        )
+
+    async def test_edgeql_insert_collection_03(self):
+        await self.con.execute(r"""
+            INSERT test::CollectionTest {
+                float_array := [3, 1234.5],
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE test
+                SELECT
+                    CollectionTest {
+                        float_array
+                    }
+                FILTER
+                    .float_array[0] = 3;
+            """,
+            [
+                {
+                    'float_array': [3, 1234.5],
+                },
+            ]
+        )
