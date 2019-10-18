@@ -31,6 +31,11 @@ from . import objects as so
 from . import utils
 
 
+if typing.TYPE_CHECKING:
+    from . import objtypes as s_objtypes
+    from . import schema as s_schema
+
+
 class Annotation(inheriting.InheritingObject):
     # Annotations cannot be renamed, so make sure the name
     # has low compcoef.
@@ -40,7 +45,7 @@ class Annotation(inheriting.InheritingObject):
     inheritable = so.SchemaField(
         bool, default=False, compcoef=0.2)
 
-    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+    def get_verbosename(self, schema: s_schema.Schema, *, with_parent: bool = False) -> str:
         vn = super().get_verbosename(schema)
         return f"abstract {vn}"
 
@@ -59,16 +64,16 @@ class AnnotationValue(referencing.ReferencedInheritingObject):
     inheritable = so.SchemaField(
         bool, default=False, compcoef=0.2)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return '<{}: at 0x{:x}>'.format(self.__class__.__name__, id(self))
 
     __repr__ = __str__
 
     @classmethod
-    def get_schema_class_displayname(cls):
+    def get_schema_class_displayname(cls) -> str:
         return 'annotation'
 
-    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+    def get_verbosename(self, schema: s_schema.Schema, *, with_parent: bool = False) -> str:
         vn = super().get_verbosename(schema)
         if with_parent:
             subject = self.get_subject(schema)
@@ -94,11 +99,11 @@ class AnnotationSubject(so.Object):
             schema, 'annotations', annotation, replace=replace)
         return schema
 
-    def del_annotation(self, schema, annotation_name):
+    def del_annotation(self, schema: s_schema.Schema, annotation_name: sn.SchemaName) -> s_schema.Schema:
         shortname = sn.shortname_from_fullname(annotation_name)
         return self.del_classref(schema, 'annotations', shortname)
 
-    def get_annotation(self, schema, name: str) -> typing.Optional[str]:
+    def get_annotation(self, schema: s_schema.Schema, name: str) -> typing.Optional[str]:
         attrval = self.get_annotations(schema).get(schema, name, None)
         return attrval.get_value(schema) if attrval is not None else None
 
@@ -134,14 +139,14 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject):
     astnode = qlast.CreateAnnotation
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode: qlast.CreateAnnotation, context: sd.CommandContext) -> CreateAnnotation:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         cmd.set_attribute_value('inheritable', astnode.inheritable)
         cmd.set_attribute_value('is_abstract', True)
 
         return cmd
 
-    def _apply_field_ast(self, schema, context, node, op):
+    def _apply_field_ast(self, schema: s_schema.Schema, context: sd.CommandContext, node: qlast.CreateAnnotation, op: sd.AlterObjectProperty) -> None:
         if op.property == 'inheritable':
             node.inheritable = op.new_value
         else:
@@ -177,7 +182,7 @@ class AnnotationValueCommand(
     def add_annotation(self, schema, annotation, parent):
         return parent.add_annotation(schema, annotation, replace=True)
 
-    def del_annotation(self, schema, annotation_class, parent):
+    def del_annotation(self, schema: s_schema.Schema, annotation_class: sn.SchemaName, parent: s_objtypes.ObjectType) -> s_schema.Schema:
         return parent.del_annotation(schema, annotation_class)
 
 
@@ -187,7 +192,7 @@ class CreateAnnotationValue(AnnotationValueCommand,
     referenced_astnode = qlast.CreateAnnotationValue
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode: qlast.CreateAnnotationValue, context: sd.CommandContext) -> CreateAnnotationValue:
         from edb.edgeql import compiler as qlcompiler
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
@@ -223,13 +228,13 @@ class CreateAnnotationValue(AnnotationValueCommand,
 
         return cmd
 
-    def _apply_field_ast(self, schema, context, node, op):
+    def _apply_field_ast(self, schema: s_schema.Schema, context: sd.CommandContext, node: qlast.CreateAnnotationValue, op: sd.AlterObjectProperty) -> None:
         if op.property == 'value':
             node.value = qlast.BaseConstant.from_python(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
 
-    def apply(self, schema, context):
+    def apply(self, schema: s_schema.Schema, context: sd.CommandContext) -> typing.Tuple[s_schema.Schema, AnnotationValue]:
         attrsubj = context.get(AnnotationSubjectCommandContext)
         assert attrsubj, "Annotation commands must be run in " + \
                          "AnnotationSubject context"
@@ -252,7 +257,7 @@ class AlterAnnotationValue(AnnotationValueCommand, sd.AlterObject):
 class DeleteAnnotationValue(AnnotationValueCommand, sd.DeleteObject):
     astnode = qlast.DropAnnotationValue
 
-    def apply(self, schema, context):
+    def apply(self, schema: s_schema.Schema, context: sd.CommandContext) -> typing.Tuple[s_schema.Schema, AnnotationValue]:
         attrsubj = context.get(AnnotationSubjectCommandContext)
         assert attrsubj, "Annotation commands must be run in " + \
                          "AnnotationSubject context"
