@@ -23,11 +23,34 @@ import sys
 import unittest
 
 
+# The below files must not have any Python code in them;
+# there should be a comment in each of them explaining why.
+EMPTY_INIT_FILES = {
+    'edb/__init__.py',
+    'edb/tools/__init__.py',
+}
+
+
 def find_edgedb_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class TestCodeQuality(unittest.TestCase):
+
+    def test_empty_init(self):
+        edgepath = find_edgedb_root()
+        for sn in EMPTY_INIT_FILES:
+            fn = os.path.join(edgepath, sn)
+            if not os.path.exists(fn):
+                self.fail(f'not found an empty __init__.py file at {fn}')
+
+            with open(fn, 'rt') as f:
+                for line in f:
+                    if line.startswith('#') or not line.strip():
+                        continue
+
+                    self.fail(
+                        f'{fn} must be an empty file (except Python comments)')
 
     def test_flake8(self):
         edgepath = find_edgedb_root()

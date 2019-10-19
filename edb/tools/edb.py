@@ -45,3 +45,13 @@ def server(**kwargs):
     debug.init_debug_flags()
 
     srv_main.server_main(insecure=True, **kwargs)
+
+
+# Import at the end of the file so that "edb.tools.edb.edbcommands"
+# is defined for all of the below modules when they try to import it.
+from . import dflags  # noqa
+from . import gen_errors  # noqa
+from . import gen_types  # noqa
+from . import gen_meta_grammars  # noqa
+from . import inittestdb  # noqa
+from . import test  # noqa

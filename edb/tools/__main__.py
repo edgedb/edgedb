@@ -23,7 +23,8 @@ from __future__ import annotations
 
 import sys
 
-from edb.tools import edbcommands
+from edb.tools import edb
+
 
 if __name__ == '__main__':
-    sys.exit(edbcommands(prog_name='edb'))
+    sys.exit(edb.edbcommands(prog_name='edb'))
