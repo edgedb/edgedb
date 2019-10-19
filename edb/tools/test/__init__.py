@@ -27,7 +27,7 @@ import unittest
 
 import click
 
-from edb.tools import edbcommands
+from edb.tools.edb import edbcommands
 
 from .decorators import not_implemented
 from .decorators import xfail
