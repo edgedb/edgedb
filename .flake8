@@ -1,3 +1,7 @@
 [flake8]
 ignore = E402,E731,D100,D101,D102,D103,D104,D105,W503,W504,E252
 exclude = .git,__pycache__,build,dist,.eggs,postgres
+
+[flake8:local-plugins]
+extension =
+    FFF1 = edb.tools.flake8.typing:MonkeyPatchPyFlakesChecker
