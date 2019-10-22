@@ -36,7 +36,7 @@ class Database(Object):
     pass
 
 
-class Delta(Object):
+class Migration(Object):
     pass
 
 

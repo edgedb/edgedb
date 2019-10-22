@@ -48,7 +48,7 @@ from edb.ir import staeval as ireval
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
-from edb.schema import deltas as s_deltas
+from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
@@ -390,7 +390,7 @@ class Compiler(BaseCompiler):
 
             return dbstate.SimpleQuery(sql=(sql_bytes,))
 
-    def _compile_and_apply_delta_command(
+    def _compile_and_apply_migration_command(
             self, ctx: CompileContext, cmd) -> dbstate.BaseQuery:
 
         current_tx = ctx.state.current_tx()
@@ -398,35 +398,35 @@ class Compiler(BaseCompiler):
         context = self._new_delta_context(ctx)
 
         if current_tx.is_implicit():
-            if isinstance(cmd, s_deltas.CreateDelta):
+            if isinstance(cmd, s_migrations.CreateMigration):
                 command = 'CREATE MIGRATION'
-            elif isinstance(cmd, s_deltas.GetDelta):
+            elif isinstance(cmd, s_migrations.GetMigration):
                 command = 'GET MIGRATION'
             else:
                 command = 'COMMIT MIGRATION'
             raise errors.QueryError(
                 f'{command} must be executed in a transaction block')
 
-        if isinstance(cmd, s_deltas.CreateDelta):
+        if isinstance(cmd, s_migrations.CreateMigration):
             delta = None
         else:
             delta = schema.get(cmd.classname)
 
-        with context(s_deltas.DeltaCommandContext(schema, cmd, delta)):
-            if isinstance(cmd, s_deltas.CommitDelta):
+        with context(s_migrations.MigrationCommandContext(schema, cmd, delta)):
+            if isinstance(cmd, s_migrations.CommitMigration):
                 ddl_plan = s_delta.DeltaRoot(canonical=True)
                 ddl_plan.update(delta.get_commands(schema))
                 return self._compile_and_apply_ddl_command(ctx, ddl_plan)
 
-            elif isinstance(cmd, s_deltas.GetDelta):
-                delta_ql = s_ddl.ddl_text_from_delta(schema, delta)
+            elif isinstance(cmd, s_migrations.GetMigration):
+                ddl_text = s_ddl.ddl_text_from_migration(schema, delta)
                 query_ql = qlast.SelectQuery(
                     result=qlast.StringConstant(
                         quote="'",
-                        value=ql_quote.escape_string(delta_ql)))
+                        value=ql_quote.escape_string(ddl_text)))
                 return self._compile_ql_query(ctx, query_ql)
 
-            elif isinstance(cmd, s_deltas.CreateDelta):
+            elif isinstance(cmd, s_migrations.CreateMigration):
                 schema, _ = cmd.apply(schema, context)
                 current_tx.update_schema(schema)
                 # We must return *some* SQL; return a no-op command.
@@ -477,8 +477,8 @@ class Compiler(BaseCompiler):
     def _compile_command(
             self, ctx: CompileContext, cmd) -> dbstate.BaseQuery:
 
-        if isinstance(cmd, s_deltas.DeltaCommand):
-            return self._compile_and_apply_delta_command(ctx, cmd)
+        if isinstance(cmd, s_migrations.MigrationCommand):
+            return self._compile_and_apply_migration_command(ctx, cmd)
 
         elif isinstance(cmd, s_delta.Command):
             return self._compile_and_apply_ddl_command(ctx, cmd)
@@ -511,7 +511,7 @@ class Compiler(BaseCompiler):
             modaliases=current_tx.get_modaliases(),
             testmode=self._in_testmode(ctx))
 
-        if (isinstance(ql, qlast.CreateDelta) and
+        if (isinstance(ql, qlast.CreateMigration) and
                 cmd.get_attribute_value('target')):
 
             if current_tx.is_implicit():

@@ -85,19 +85,19 @@ class OptWithDDLStmt(Nonterm):
 
 
 class WithDDLStmt(Nonterm):
-    def reduce_CreateDeltaStmt(self, *kids):
+    def reduce_CreateMigrationStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AlterDeltaStmt(self, *kids):
+    def reduce_AlterMigrationStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DropDeltaStmt(self, *kids):
+    def reduce_DropMigrationStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CommitDeltaStmt(self, *kids):
+    def reduce_CommitMigrationStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_GetDeltaStmt(self, *kids):
+    def reduce_GetMigrationStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_InnerDDLStmt(self, *kids):
@@ -473,23 +473,23 @@ class SDLCommandBlock(Nonterm):
         self.val = qlast.Schema(declarations=kids[2].val)
 
 
-class CreateDeltaStmt(Nonterm):
-    def reduce_CreateDelta_SDL(self, *kids):
+class CreateMigrationStmt(Nonterm):
+    def reduce_CreateMigration_SDL(self, *kids):
         r"""%reduce CREATE MIGRATION NodeName \
                     OptDeltaParents TO SDLCommandBlock
         """
-        self.val = qlast.CreateDelta(
+        self.val = qlast.CreateMigration(
             name=kids[2].val,
             parents=kids[3].val,
             target=kids[5].val,
         )
 
-    def reduce_CreateDelta_Commands(self, *kids):
+    def reduce_CreateMigration_Commands(self, *kids):
         r"""%reduce CREATE MIGRATION NodeName \
                     OptDeltaParents LBRACE InnerDDLStmtBlock OptSemicolons \
                     RBRACE
         """
-        self.val = qlast.CreateDelta(
+        self.val = qlast.CreateMigration(
             name=kids[2].val,
             parents=kids[3].val,
             commands=kids[5].val,
@@ -500,18 +500,18 @@ class CreateDeltaStmt(Nonterm):
 # ALTER MIGRATION
 #
 commands_block(
-    'AlterDelta',
+    'AlterMigration',
     RenameStmt,
     opt=False
 )
 
 
-class AlterDeltaStmt(Nonterm):
-    def reduce_AlterDelta(self, *kids):
+class AlterMigrationStmt(Nonterm):
+    def reduce_AlterMigration(self, *kids):
         r"""%reduce ALTER MIGRATION NodeName \
-                    AlterDeltaCommandsBlock \
+                    AlterMigrationCommandsBlock \
         """
-        self.val = qlast.AlterDelta(
+        self.val = qlast.AlterMigration(
             name=kids[2].val,
             commands=kids[3].val
         )
@@ -520,25 +520,25 @@ class AlterDeltaStmt(Nonterm):
 #
 # DROP MIGRATION
 #
-class DropDeltaStmt(Nonterm):
+class DropMigrationStmt(Nonterm):
     def reduce_DROP_MIGRATION_NodeName(self, *kids):
-        self.val = qlast.DropDelta(
+        self.val = qlast.DropMigration(
             name=kids[2].val,
         )
 
 
 # COMMIT MIGRATION
-class CommitDeltaStmt(Nonterm):
+class CommitMigrationStmt(Nonterm):
     def reduce_COMMIT_MIGRATION_NodeName(self, *kids):
-        self.val = qlast.CommitDelta(
+        self.val = qlast.CommitMigration(
             name=kids[2].val,
         )
 
 
 # GET MIGRATION
-class GetDeltaStmt(Nonterm):
+class GetMigrationStmt(Nonterm):
     def reduce_GET_MIGRATION_NodeName(self, *kids):
-        self.val = qlast.GetDelta(
+        self.val = qlast.GetMigration(
             name=kids[2].val,
         )
 

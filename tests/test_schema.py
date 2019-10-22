@@ -602,7 +602,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         baseline_schema, _ = ddl_plan.apply(schema, context)
 
-        ddl_text = s_ddl.ddl_text_from_delta(schema, migration)
+        ddl_text = s_ddl.ddl_text_from_migration(schema, migration)
 
         try:
             test_schema = self.run_ddl(schema, ddl_text)

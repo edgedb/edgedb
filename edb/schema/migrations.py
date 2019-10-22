@@ -29,7 +29,7 @@ from . import delta as sd
 from . import objects as so
 
 
-class Delta(so.Object, s_abc.Delta):
+class Migration(so.Object, s_abc.Migration):
 
     parents = so.SchemaField(
         so.ObjectList,
@@ -45,17 +45,17 @@ class Delta(so.Object, s_abc.Delta):
         coerce=True, inheritable=False, introspectable=False)
 
 
-class DeltaCommandContext(sd.ObjectCommandContext):
+class MigrationCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class DeltaCommand(sd.ObjectCommand, schema_metaclass=Delta,
-                   context_class=DeltaCommandContext):
+class MigrationCommand(sd.ObjectCommand, schema_metaclass=Migration,
+                       context_class=MigrationCommandContext):
     pass
 
 
-class CreateDelta(DeltaCommand, sd.CreateObject):
-    astnode = qlast.CreateDelta
+class CreateMigration(MigrationCommand, sd.CreateObject):
+    astnode = qlast.CreateMigration
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -70,16 +70,16 @@ class CreateDelta(DeltaCommand, sd.CreateObject):
         return cmd
 
 
-class AlterDelta(DeltaCommand):
-    astnode = qlast.AlterDelta
+class AlterMigration(MigrationCommand):
+    astnode = qlast.AlterMigration
 
 
-class DeleteDelta(DeltaCommand):
-    astnode = qlast.DropDelta
+class DeleteMigration(MigrationCommand):
+    astnode = qlast.DropMigration
 
 
-class CommitDelta(DeltaCommand):
-    astnode = qlast.CommitDelta
+class CommitMigration(MigrationCommand):
+    astnode = qlast.CommitMigration
 
     def apply(self, schema, context):
         delta = schema.get(self.classname)
@@ -89,8 +89,8 @@ class CommitDelta(DeltaCommand):
         return schema, delta
 
 
-class GetDelta(DeltaCommand):
-    astnode = qlast.GetDelta
+class GetMigration(MigrationCommand):
+    astnode = qlast.GetMigration
 
     def apply(self, schema, context):
         delta = schema.get(self.classname)

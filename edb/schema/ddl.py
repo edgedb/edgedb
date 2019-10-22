@@ -230,11 +230,11 @@ def ddl_from_delta(schema, context, delta):
     return delta.get_ast(schema, context)
 
 
-def ddl_text_from_delta(schema, delta):
-    """Return DDL text for a delta object."""
+def ddl_text_from_migration(schema, migration):
+    """Return DDL text for a migration object."""
 
     root = sd.DeltaRoot(canonical=True)
-    root.update(delta.get_commands(schema))
+    root.update(migration.get_commands(schema))
 
     context = sd.CommandContext()
     schema, _ = root.apply(schema, context)

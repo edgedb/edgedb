@@ -823,7 +823,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropRole(self, node):
         self._visit_DropObject(node, 'ROLE')
 
-    def visit_CreateDelta(self, node):
+    def visit_CreateMigration(self, node):
         def after_name():
             if node.parents:
                 self.write(' FROM ')
@@ -845,24 +845,24 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self._visit_CreateObject(node, 'MIGRATION', after_name=after_name)
 
-    def visit_CommitDelta(self, node):
+    def visit_CommitMigration(self, node):
         self._visit_aliases(node)
         self.write('COMMIT MIGRATION')
         self.write(' ')
         self.visit(node.name)
         self.new_lines = 1
 
-    def visit_GetDelta(self, node):
+    def visit_GetMigration(self, node):
         self._visit_aliases(node)
         self.write('GET MIGRATION')
         self.write(' ')
         self.visit(node.name)
         self.new_lines = 1
 
-    def visit_AlterDelta(self, node):
+    def visit_AlterMigration(self, node):
         self._visit_AlterObject(node, 'MIGRATION')
 
-    def visit_DropDelta(self, node):
+    def visit_DropMigration(self, node):
         self._visit_DropObject(node, 'MIGRATION')
 
     def visit_CreateModule(self, node):

@@ -35,9 +35,9 @@ from edb.edgeql import qltypes
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constraints
 from edb.schema import database as s_db
-from edb.schema import deltas  # NoQA
 from edb.schema import expr as s_expr
 from edb.schema import inheriting as s_inheriting
+from edb.schema import migrations  # NoQA
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj

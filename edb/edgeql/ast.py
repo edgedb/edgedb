@@ -597,25 +597,25 @@ class Delta:
     __abstract_node__ = True
 
 
-class CreateDelta(CreateObject, Delta):
+class CreateMigration(CreateObject, Delta):
     parents: typing.List[ObjectRef]
     language: str
     target: typing.Any
 
 
-class GetDelta(ObjectDDL, Delta):
+class GetMigration(ObjectDDL, Delta):
     pass
 
 
-class AlterDelta(AlterObject, Delta):
+class AlterMigration(AlterObject, Delta):
     pass
 
 
-class DropDelta(DropObject, Delta):
+class DropMigration(DropObject, Delta):
     pass
 
 
-class CommitDelta(ObjectDDL, Delta):
+class CommitMigration(ObjectDDL, Delta):
     pass
 
 

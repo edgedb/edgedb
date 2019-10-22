@@ -34,7 +34,7 @@ from edb.server import defines
 
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
-from edb.schema import deltas as s_deltas  # noqa
+from edb.schema import migrations as s_migrations  # noqa
 from edb.schema import std as s_std
 
 
@@ -230,7 +230,7 @@ class BaseSchemaTest(BaseDocTest):
         target_schema = None
 
         for stmt in statements:
-            if isinstance(stmt, qlast.CreateDelta):
+            if isinstance(stmt, qlast.CreateMigration):
                 # CREATE MIGRATION
                 if target_schema is None:
                     target_schema = _load_std_schema()
