@@ -152,7 +152,7 @@ def new_tuple_set(
 
 
 def new_array_set(
-        elements: typing.List[irast.Base], *,
+        elements: typing.Sequence[irast.Base], *,
         ctx: context.ContextLevel,
         srcctx: typing.Optional[parsing.ParserContext]=None) -> irast.Set:
 
@@ -665,7 +665,7 @@ def class_set(
 
 
 def expression_set(
-        expr: irast.Base,
+        expr: irast.Expr,
         path_id: typing.Optional[irast.PathId]=None, *,
         type_override: typing.Optional[s_types.Type]=None,
         ctx: context.ContextLevel) -> irast.Set:
@@ -693,7 +693,7 @@ def expression_set(
 
 
 def scoped_set(
-        expr: irast.Base, *,
+        expr: typing.Union[irast.Set, irast.Expr], *,
         type_override: typing.Optional[s_types.Type]=None,
         typehint: typing.Optional[s_types.Type]=None,
         path_id: typing.Optional[irast.PathId]=None,
@@ -729,7 +729,7 @@ def scoped_set(
 
 
 def ensure_set(
-        expr: irast.Base, *,
+        expr: typing.Union[irast.Set, irast.Expr], *,
         type_override: typing.Optional[s_types.Type]=None,
         typehint: typing.Optional[s_types.Type]=None,
         path_id: typing.Optional[irast.PathId]=None,
@@ -768,7 +768,10 @@ def ensure_set(
     return ir_set
 
 
-def ensure_stmt(expr: irast.Base, *, ctx: context.ContextLevel) -> irast.Stmt:
+def ensure_stmt(
+    expr: typing.Union[irast.Set, irast.Expr], *,
+    ctx: context.ContextLevel
+) -> irast.Stmt:
     if not isinstance(expr, irast.Stmt):
         expr = irast.SelectStmt(
             result=ensure_set(expr, ctx=ctx),

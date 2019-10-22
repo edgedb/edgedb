@@ -121,7 +121,11 @@ def compile_DetachedExpr(
 
 
 @dispatch.compile.register(qlast.Set)
-def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Base:
+def compile_Set(
+    expr: qlast.Set,
+    *,
+    ctx: context.ContextLevel
+) -> typing.Union[irast.Set, irast.Expr]:
     # after flattening the set may still end up with 0 or 1 element,
     # which are treated as a special case
     elements = flatten_set(expr)
@@ -160,7 +164,7 @@ def compile_Set(expr: qlast.Set, *, ctx: context.ContextLevel) -> irast.Base:
 
 @dispatch.compile.register(qlast.BaseConstant)
 def compile_BaseConstant(
-        expr: qlast.BaseConstant, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.BaseConstant, *, ctx: context.ContextLevel) -> irast.Set:
     value = expr.value
 
     node_cls: typing.Type[irast.BaseConstant]
@@ -357,7 +361,7 @@ def compile_Array(
 
 @dispatch.compile.register(qlast.IfElse)
 def compile_IfElse(
-        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
 
     op_node = func.compile_operator(
         expr, op_name='std::IF',
@@ -471,7 +475,7 @@ def compile_TypeCast(
 
 @dispatch.compile.register(qlast.Introspect)
 def compile_Introspect(
-        expr: qlast.Introspect, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Introspect, *, ctx: context.ContextLevel) -> irast.Set:
 
     typeref = typegen.ql_typeexpr_to_ir_typeref(expr.type, ctx=ctx)
     if typeref.material_type and not irtyputils.is_object(typeref):
@@ -493,12 +497,12 @@ def compile_Introspect(
             f'cannot introspect generic types',
             context=expr.type.context)
 
-    return irast.TypeIntrospection(typeref=typeref)
+    return setgen.ensure_set(irast.TypeIntrospection(typeref=typeref), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Indirection)
 def compile_Indirection(
-        expr: qlast.Indirection, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Indirection, *, ctx: context.ContextLevel) -> irast.Set:
     node = dispatch.compile(expr.arg, ctx=ctx)
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):

@@ -57,7 +57,7 @@ class MissingArg(typing.NamedTuple):
 
 class BoundCall(typing.NamedTuple):
 
-    func: s_func.CallableObject
+    func: s_func.CallableLike
     args: typing.List[BoundArg]
     null_args: typing.Set[str]
     return_type: s_types.Type
@@ -74,7 +74,7 @@ _SINGLETON = ft.TypeModifier.SINGLETON
 
 
 def find_callable(
-        candidates: typing.Iterable[s_func.CallableObject], *,
+        candidates: typing.Iterable[s_func.CallableLike], *,
         args: typing.Sequence[typing.Tuple[s_types.Type, irast.Set]],
         kwargs: typing.Mapping[str, typing.Tuple[s_types.Type, irast.Set]],
         ctx: context.ContextLevel) -> typing.List[BoundCall]:
@@ -136,7 +136,7 @@ def find_callable(
 def try_bind_call_args(
         args: typing.Sequence[typing.Tuple[s_types.Type, irast.Set]],
         kwargs: typing.Mapping[str, typing.Tuple[s_types.Type, irast.Set]],
-        func: s_func.CallableObject, *,
+        func: s_func.CallableLike, *,
         ctx: context.ContextLevel) -> typing.Optional[BoundCall]:
 
     return_type = func.get_return_type(ctx.env.schema)

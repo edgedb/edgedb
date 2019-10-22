@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *  # noqa
+
 import functools
 
 from edb.edgeql import ast as qlast
@@ -28,6 +30,9 @@ from . import context
 
 
 @functools.singledispatch
-def compile(node: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+def compile(
+    node: qlast.Base, *,
+    ctx: context.ContextLevel
+) -> Union[irast.Expr, irast.Set]:
     raise NotImplementedError(
         f'no EdgeQL compiler handler for {node.__class__}')

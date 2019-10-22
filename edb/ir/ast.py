@@ -252,9 +252,12 @@ class TypeIndirectionPointer(Pointer):
     optional: bool
 
 
-class TypeIntrospection(ImmutableBase):
+class Expr(Base):
+    pass
 
-    typeref: TypeRef
+
+class ImmutableExpr(Expr, ImmutableBase):
+    pass
 
 
 class Set(Base):
@@ -264,7 +267,7 @@ class Set(Base):
     path_id: PathId
     path_scope_id: typing.Optional[int]
     typeref: TypeRef
-    expr: Base
+    expr: Expr
     rptr: Pointer
     anchor: typing.Union[str, ast.MetaAST]
     show_as_anchor: typing.Union[str, ast.MetaAST]
@@ -301,11 +304,12 @@ class Statement(Command):
                                          typing.Optional[WeakNamespace]]]
 
 
-class Expr(ImmutableBase):
-    pass
+class TypeIntrospection(ImmutableExpr):
+
+    typeref: TypeRef
 
 
-class ConstExpr(Expr):
+class ConstExpr(ImmutableExpr):
 
     typeref: TypeRef
 
@@ -361,7 +365,7 @@ class ConstantSet(ConstExpr):
     elements: typing.Tuple[BaseConstant, ...]
 
 
-class Parameter(Expr):
+class Parameter(ImmutableExpr):
 
     name: str
     typeref: TypeRef
@@ -374,20 +378,20 @@ class TupleElement(ImmutableBase):
     path_id: PathId
 
 
-class Tuple(Expr):
+class Tuple(ImmutableExpr):
 
     named: bool = False
     elements: typing.List[TupleElement]
     typeref: TypeRef
 
 
-class Array(Expr):
+class Array(ImmutableExpr):
 
     elements: typing.List[Set]
     typeref: TypeRef
 
 
-class TypeCheckOp(Expr):
+class TypeCheckOp(ImmutableExpr):
 
     left: Set
     right: TypeRef
@@ -412,7 +416,7 @@ class CallArg(ImmutableBase):
     cardinality: qltypes.Cardinality = qltypes.Cardinality.ONE
 
 
-class Call(Expr):
+class Call(ImmutableExpr):
     """Operator or a function call."""
 
     # Bound callable has polymorphic parameters and
@@ -489,20 +493,20 @@ class OperatorCall(Call):
     sql_operator: typing.Optional[typing.Tuple[str, ...]] = None
 
 
-class TupleIndirection(Expr):
+class TupleIndirection(ImmutableExpr):
 
     expr: Set
     name: str
     path_id: PathId
 
 
-class IndexIndirection(Expr):
+class IndexIndirection(ImmutableExpr):
 
     expr: Base
     index: Base
 
 
-class SliceIndirection(Expr):
+class SliceIndirection(ImmutableExpr):
 
     expr: Base
     start: Base
@@ -510,8 +514,8 @@ class SliceIndirection(Expr):
     step: Base
 
 
-class TypeCast(Expr):
-    """<Type>Expr"""
+class TypeCast(ImmutableExpr):
+    """<Type>ImmutableExpr"""
 
     expr: Set
     cast_module_id: uuid.UUID
@@ -523,7 +527,7 @@ class TypeCast(Expr):
     sql_expr: bool
 
 
-class Stmt(Base):
+class Stmt(Expr):
 
     name: str
     result: Set
@@ -601,6 +605,6 @@ class ConfigReset(ConfigCommand):
     selector: typing.Optional[Set] = None
 
 
-class ConfigInsert(ConfigCommand):
+class ConfigInsert(ConfigCommand, Expr):
 
     expr: Set

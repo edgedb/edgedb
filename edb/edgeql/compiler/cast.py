@@ -51,7 +51,8 @@ from . import viewgen
 
 
 def compile_cast(
-        ir_expr: irast.Base, new_stype: s_types.Type, *,
+        ir_expr: typing.Union[irast.Set, irast.Expr],
+        new_stype: s_types.Type, *,
         srcctx: typing.Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
@@ -128,7 +129,7 @@ def compile_cast(
 
 
 def _compile_cast(
-        ir_expr: irast.Base,
+        ir_expr: typing.Union[irast.Set, irast.Expr],
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
         srcctx: typing.Optional[parsing.ParserContext],
@@ -204,7 +205,7 @@ class CastParamListWrapper(list):
         return False
 
 
-class CastCallableWrapper:
+class CastCallableWrapper(s_func.CallableLike):
     # A wrapper around a cast object to make it quack like a callable
     # for the purposes of polymorphic resolution.
     def __init__(self, cast):
@@ -232,6 +233,12 @@ class CastCallableWrapper:
 
     def get_return_type(self, schema):
         return self._cast.get_to_type(schema)
+
+    def get_return_typemod(self, schema):
+        return ft.TypeModifier.SINGLETON
+
+    def get_verbosename(self, schema):
+        return self._cast.get_verbosename(schema)
 
     def get_is_abstract(self, schema):
         return False
@@ -262,7 +269,7 @@ def _find_cast(
         (CastCallableWrapper(c) for c in casts), args=args, kwargs={}, ctx=ctx)
 
     if len(matched) == 1:
-        return matched[0].func._cast
+        return typing.cast(CastCallableWrapper, matched[0].func)._cast
     elif len(matched) > 1:
         raise errors.QueryError(
             f'cannot unambiguously cast '

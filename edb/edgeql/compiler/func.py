@@ -55,7 +55,7 @@ from . import typegen
 
 @dispatch.compile.register(qlast.FunctionCall)
 def compile_FunctionCall(
-        expr: qlast.FunctionCall, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.FunctionCall, *, ctx: context.ContextLevel) -> irast.Set:
 
     env = ctx.env
 

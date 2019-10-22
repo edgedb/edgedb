@@ -50,7 +50,7 @@ from . import stmtctx
 
 @dispatch.compile.register(qlast.SelectQuery)
 def compile_SelectQuery(
-        expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Set:
     if astutils.is_degenerate_select(expr) and ctx.toplevel_stmt is not None:
         # Compile implicit "SELECT Path" as "Path"
         with ctx.new() as sctx:
@@ -103,7 +103,7 @@ def compile_SelectQuery(
 
 @dispatch.compile.register(qlast.ForQuery)
 def compile_ForQuery(
-        qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Base:
+        qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
@@ -162,7 +162,7 @@ def compile_ForQuery(
 
 @dispatch.compile.register(qlast.GroupQuery)
 def compile_GroupQuery(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
 
     raise errors.UnsupportedFeatureError(
         "'GROUP' statement is not currently implemented",
@@ -226,7 +226,7 @@ def compile_GroupQuery(
 
 @dispatch.compile.register(qlast.InsertQuery)
 def compile_InsertQuery(
-        expr: qlast.InsertQuery, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.InsertQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as ictx:
         ictx.implicit_id_in_shapes = False
         ictx.implicit_tid_in_shapes = False
@@ -282,7 +282,7 @@ def compile_InsertQuery(
 
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
-        expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as ictx:
         ictx.implicit_id_in_shapes = False
         ictx.implicit_tid_in_shapes = False
@@ -334,7 +334,7 @@ def compile_UpdateQuery(
 
 @dispatch.compile.register(qlast.DeleteQuery)
 def compile_DeleteQuery(
-        expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Base:
+        expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as ictx:
         ictx.implicit_id_in_shapes = False
         ictx.implicit_tid_in_shapes = False
@@ -409,7 +409,7 @@ def compile_DeleteQuery(
 
 @dispatch.compile.register(qlast.Shape)
 def compile_Shape(
-        shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Base:
+        shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
     expr = setgen.ensure_set(dispatch.compile(shape.expr, ctx=ctx), ctx=ctx)
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
     view_type = viewgen.process_view(
@@ -449,7 +449,8 @@ def init_stmt(
 
 
 def fini_stmt(
-        irstmt: irast.Base, qlstmt: qlast.Statement, *,
+        irstmt: typing.Union[irast.Stmt, irast.Set],
+        qlstmt: qlast.Statement, *,
         ctx: context.ContextLevel,
         parent_ctx: context.ContextLevel) -> irast.Set:
 

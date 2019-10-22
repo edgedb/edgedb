@@ -62,7 +62,7 @@ def param_as_str(schema, param):
 
 
 # Non-schema description of a parameter.
-class ParameterDesc(typing.NamedTuple):
+class ParameterDesc(typing.NamedTuple, s_abc.Parameter):
 
     num: int
     name: str
@@ -406,7 +406,29 @@ class VolatilitySubject(so.Object):
         compcoef=0.4, coerce=True, allow_ddl_set=True)
 
 
-class CallableObject(s_anno.AnnotationSubject):
+class CallableLike:
+    """A minimal callable object interface required by multidispatch."""
+
+    def has_inlined_defaults(self, schema) -> bool:
+        raise NotImplementedError
+
+    def get_params(self, schema) -> FuncParameterList:
+        raise NotImplementedError
+
+    def get_return_type(self, schema) -> s_types.Type:
+        raise NotImplementedError
+
+    def get_return_typemod(self, schema) -> ft.TypeModifier:
+        raise NotImplementedError
+
+    def get_verbosename(self, schema) -> str:
+        raise NotImplementedError
+
+    def get_is_abstract(self, schema) -> bool:
+        raise NotImplementedError
+
+
+class CallableObject(s_anno.AnnotationSubject, CallableLike):
 
     params = so.SchemaField(
         FuncParameterList,
