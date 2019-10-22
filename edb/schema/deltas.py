@@ -22,11 +22,16 @@
 
 from __future__ import annotations
 
+import typing
+
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
 from . import delta as sd
 from . import objects as so
+
+if typing.TYPE_CHECKING:
+    from . import schema as s_schema
 
 
 class Delta(so.Object, s_abc.Delta):
@@ -58,7 +63,7 @@ class CreateDelta(DeltaCommand, sd.CreateObject):
     astnode = qlast.CreateDelta
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode: qlast.CreateDelta, context: sd.CommandContext) -> qlast.CreateDelta:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if astnode.target is not None:
