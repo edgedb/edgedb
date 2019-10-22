@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *  # noqa
+
 from edb import edgeql
 
 from edb.edgeql import declarative as s_decl
@@ -60,59 +62,87 @@ def get_global_dep_order():
     )
 
 
-def delta_schemas(schema1, schema2):
+def delta_schemas(
+    schema1: s_schema.Schema,
+    schema2: s_schema.Schema,
+    *,
+    included_modules: Optional[Iterable[str]]=None,
+    excluded_modules: Optional[Iterable[str]]=None,
+) -> sd.DeltaRoot:
+    """Return difference between *schema1* and *schema2*.
+
+    The returned object is a delta tree that, when applied to
+    *schema2* results in *schema1*.
+
+    Args:
+        included_modules:
+            Optional list of modules to include in the delta.
+        excluded_modules:
+            Optional list of modules to exlude from the delta.
+            Takes precedence over *included_modules*.
+            NOTE: standard library modules are always excluded.
+
+    Returns:
+        A :class:`schema.delta.DeltaRoot` instances representing
+        the delta between *schema2* and *schema1*.
+    """
+
     result = sd.DeltaRoot(canonical=True)
 
-    my_modules = set(schema1.get_objects(type=modules.Module))
-    other_modules = set(schema2.get_objects(type=modules.Module))
+    my_modules = {m.get_name(schema1)
+                  for m in schema1.get_objects(type=modules.Module)}
+
+    other_modules = {m.get_name(schema2)
+                     for m in schema2.get_objects(type=modules.Module)}
 
     added_modules = my_modules - other_modules
     dropped_modules = other_modules - my_modules
 
+    if excluded_modules is None:
+        excluded_modules = set()
+    else:
+        excluded_modules = set(excluded_modules)
+
+    excluded_modules.update(s_schema.STD_MODULES)
+
+    if included_modules is not None:
+        included_modules = set(included_modules)
+
+        added_modules &= included_modules
+        dropped_modules &= included_modules
+
+    if excluded_modules:
+        added_modules -= excluded_modules
+        dropped_modules -= excluded_modules
+
     for added_module in added_modules:
         create = modules.CreateModule(classname=added_module)
-        create.add(sd.AlterObjectProperty(property='name', old_value=None,
-                                          new_value=added_module))
+        create.set_attribute_value('name', added_module)
         result.add(create)
 
+    objects = sd.DeltaRoot(canonical=True)
+
     for type in get_global_dep_order():
-        new = schema1.get_objects(type=type)
-        old = schema2.get_objects(type=type)
+        new = schema1.get_objects(
+            type=type, modules=included_modules,
+            excluded_modules=excluded_modules)
+        old = schema2.get_objects(
+            type=type, modules=included_modules,
+            excluded_modules=excluded_modules)
 
         if issubclass(type, derivable.DerivableObject):
             new = filter(lambda i: i.generic(schema1), new)
             old = filter(lambda i: i.generic(schema2), old)
 
-        result.update(so.Object.delta_sets(
+        objects.update(so.Object.delta_sets(
             old, new, old_schema=schema2, new_schema=schema1))
 
-    result = s_ordering.linearize_delta(
-        result, old_schema=schema2, new_schema=schema1)
+    result.update(s_ordering.linearize_delta(
+        objects, old_schema=schema2, new_schema=schema1))
 
     for dropped_module in dropped_modules:
-        result.add(modules.DeleteModule(classname=dropped_module))
-
-    return result
-
-
-def delta_modules(schema1, schema2, modnames):
-    from . import derivable
-
-    result = sd.DeltaRoot(canonical=True)
-
-    for type in get_global_dep_order():
-        new = schema1.get_objects(modules=modnames, type=type)
-        old = schema2.get_objects(modules=modnames, type=type)
-
-        if issubclass(type, derivable.DerivableObject):
-            new = filter(lambda i: i.generic(schema1), new)
-            old = filter(lambda i: i.generic(schema2), old)
-
-        result.update(so.Object.delta_sets(
-            old, new, old_schema=schema2, new_schema=schema1))
-
-    result = s_ordering.linearize_delta(
-        result, old_schema=schema2, new_schema=schema1)
+        result.add(modules.DeleteModule(
+            classname=dropped_module.get_name(schema2)))
 
     return result
 
@@ -150,7 +180,8 @@ def compile_migration(cmd, target_schema, current_schema):
     if len(modnames - {'__derived__'}) > 1:
         raise RuntimeError('unexpected delta module structure')
 
-    diff = delta_modules(target_schema, current_schema, modnames)
+    diff = delta_schemas(target_schema, current_schema,
+                         included_modules=modnames)
     cmd.set_attribute_value('delta', diff)
 
     return cmd

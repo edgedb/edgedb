@@ -637,8 +637,10 @@ class Schema(s_abc.Schema):
         return self.get_referrers(
             scls, scls_type=type(scls), field_name='ancestors')
 
-    def get_objects(self, *, modules=None, type=None):
-        return SchemaIterator(self, modules=modules, type=type)
+    def get_objects(self, *, modules=None, excluded_modules=None, type=None):
+        return SchemaIterator(
+            self, modules=modules,
+            excluded_modules=excluded_modules, type=type)
 
     def __repr__(self):
         return (
@@ -650,6 +652,7 @@ class SchemaIterator:
             self,
             schema, *,
             modules: typing.Optional[typing.Iterable[str]],
+            excluded_modules: typing.Optional[typing.Iterable[str]],
             type=None) -> None:
 
         filters = []
@@ -664,6 +667,13 @@ class SchemaIterator:
                 lambda obj:
                     not isinstance(obj, so.UnqualifiedObject) and
                     obj.get_name(schema).module in modules)
+
+        if excluded_modules is not None:
+            excluded_modules = frozenset(excluded_modules)
+            filters.append(
+                lambda obj:
+                    not isinstance(obj, so.UnqualifiedObject) and
+                    obj.get_name(schema).module not in excluded_modules)
 
         self._filters = filters
         self._schema = schema
