@@ -39,6 +39,15 @@ from . import objects as so
 from . import schema as s_schema
 from . import utils
 
+if typing.TYPE_CHECKING:
+    from . import constraints
+    from . import indexes
+    from . import inheriting
+    from . import links
+    from . import lproperties
+    from . import objtypes as s_objtypes
+    from . import scalars
+    from . import sources
 
 class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
                   markup.MarkupCapableMeta):
@@ -86,7 +95,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     _context_class = None
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.ops = ordered.OrderedSet()
         self.before_ops = ordered.OrderedSet()
@@ -106,10 +115,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             result.ops.add(type(cls).adapt(op))
         return result
 
-    def _resolve_type_ref(self, ref, schema):
+    def _resolve_type_ref(self, ref: so.Object, schema: s_schema.Schema) -> so.InheritingObjectBase:
         return utils.resolve_typeref(ref, schema)
 
-    def _resolve_attr_value(self, value, fname, field, schema):
+    def _resolve_attr_value(self, value: typing.Any, fname: str, field: typing.Union[so.SchemaField, so.Field], schema: s_schema.Schema) -> typing.Any:
         ftype = field.type
 
         if isinstance(ftype, so.ObjectMeta):
@@ -153,7 +162,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
         return value
 
-    def get_struct_properties(self, schema):
+    def get_struct_properties(self, schema: s_schema.Schema) -> typing.Dict[str, typing.Any]:
         result = {}
         metaclass = self.get_schema_metaclass()
 
@@ -177,19 +186,19 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 return True
         return False
 
-    def get_attribute_set_cmd(self, attr_name):
+    def get_attribute_set_cmd(self, attr_name: str) -> typing.Optional[AlterObjectProperty]:
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
                 return op
 
-    def get_attribute_value(self, attr_name):
+    def get_attribute_value(self, attr_name: str) -> typing.Any:
         op = self.get_attribute_set_cmd(attr_name)
         if op is not None:
             return op.new_value
         else:
             return None
 
-    def set_attribute_value(self, attr_name, value, *, inherited=False):
+    def set_attribute_value(self, attr_name: str, value: typing.Any, *, inherited=False) -> None:
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
                 op.new_value = value
@@ -209,18 +218,18 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 self.discard(op)
                 return
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[Command]:
         for op in self.ops:
             yield from op.before_ops
             yield op
 
-    def get_subcommands(self, *, type=None):
+    def get_subcommands(self, *, type=None) -> typing.Any:
         if type is not None:
             return filter(lambda i: isinstance(i, type), self)
         else:
             return list(self)
 
-    def has_subcommands(self):
+    def has_subcommands(self) -> bool:
         return bool(self.ops)
 
     def after(self, command):
@@ -230,39 +239,39 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             self.before_ops.add(command)
 
-    def prepend(self, command):
+    def prepend(self, command: CommandGroup) -> None:
         if isinstance(command, CommandGroup):
             for op in reversed(command.get_subcommands()):
                 self.ops.add(op, last=False)
         else:
             self.ops.add(command, last=False)
 
-    def add(self, command):
+    def add(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
             self.update(command)
         else:
             self.ops.add(command)
 
-    def update(self, commands):
+    def update(self, commands: typing.Any) -> None:
         for command in commands:
             self.add(command)
 
-    def replace(self, commands):
+    def replace(self, commands: typing.Any) -> None:
         self.ops.clear()
         self.ops.update(commands)
 
-    def discard(self, command):
+    def discard(self, command: inheriting.InheritingObjectCommand) -> None:
         self.ops.discard(command)
 
     def apply(self, schema, context):
         return schema, None
 
-    def get_ast(self, schema, context):
+    def get_ast(self, schema: s_schema.Schema, context: CommandContext):
         with self.new_context(schema, context):
             return self._get_ast(schema, context)
 
     @classmethod
-    def command_for_ast_node(cls, astnode, schema, context):
+    def command_for_ast_node(cls, astnode: qlast.DDL, schema: s_schema.Schema, context: CommandContext) -> typing.Any:
         cmdcls = type(cls)._astnode_map.get(type(astnode))
         if hasattr(cmdcls, '_command_for_ast_node'):
             # Delegate the choice of command class to the specific command.
@@ -271,7 +280,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return cmdcls
 
     @classmethod
-    def from_ast(cls, schema, astnode, *, context=None):
+    def from_ast(cls, schema: s_schema.Schema, astnode: qlast.DDL, *, context=None) -> typing.Any:
         if context is None:
             context = CommandContext()
 
@@ -279,7 +288,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             astnode, schema=schema, context=context)
 
         if cmdcls is None:
-            msg = 'cannot find command for ast node {!r}'.format(astnode)
+            msg = 'cannot find command for ast.node {!r}'.format(astnode)
             raise TypeError(msg)
 
         context_class = cmdcls.get_context_class()
@@ -294,7 +303,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return cmd
 
     @classmethod
-    def _modaliases_from_ast(cls, schema, astnode, context):
+    def _modaliases_from_ast(cls, schema: s_schema.Schema, astnode: qlast.ObjectDDL, context: CommandContext) -> typing.Dict[None, str]:
         modaliases = {}
         for alias in astnode.aliases:
             if isinstance(alias, qlast.ModuleAliasDecl):
@@ -303,7 +312,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return modaliases
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode: qlast.DDL, context: CommandContext) -> Command:
         cmd = cls._cmd_from_ast(schema, astnode, context)
         cmd.source_context = astnode.context
         ctx = context.current()
@@ -341,10 +350,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return node
 
     @classmethod
-    def get_context_class(cls):
+    def get_context_class(cls) -> typing.Any:
         return cls._context_class
 
-    def new_context(self, schema, context, scls=_void):
+    def new_context(self, schema: s_schema.Schema, context: CommandContext, scls: typing.Any = _void) -> CommandContextWrapper:
         if context is None:
             context = CommandContext()
 
@@ -376,7 +385,7 @@ class CommandGroup(Command):
 
 
 class CommandContextToken:
-    def __init__(self, schema, op=None, *, modaliases=None):
+    def __init__(self, schema: s_schema.Schema, op: typing.Optional[typing.Any] = None, *, modaliases=None) -> None:
         self.original_schema = schema
         self.op = op
         self.unresolved_refs = {}
@@ -389,22 +398,22 @@ class CommandContextToken:
 
 
 class CommandContextWrapper:
-    def __init__(self, context, token):
+    def __init__(self, context: CommandContext, token: CommandContextToken) -> None:
         self.context = context
         self.token = token
 
-    def __enter__(self):
+    def __enter__(self) -> CommandContextToken:
         self.context.push(self.token)
         return self.token
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: None, exc_value: None, traceback: None) -> None:
         self.context.pop()
 
 
 class CommandContext:
     def __init__(self, *, declarative=False, modaliases=None,
                  schema=None, stdmode=False, testmode=False,
-                 disable_dep_verification=False):
+                 disable_dep_verification=False) -> None:
         self.stack = []
         self._cache = {}
         self.declarative = declarative
@@ -424,31 +433,31 @@ class CommandContext:
         return collections.ChainMap(*maps)
 
     @property
-    def inheritance_merge(self):
+    def inheritance_merge(self) -> typing.Optional[bool]:
         for ctx in reversed(self.stack):
             if ctx.inheritance_merge is not None:
                 return ctx.inheritance_merge
 
     @property
-    def mark_derived(self):
+    def mark_derived(self) -> typing.Optional[bool]:
         for ctx in reversed(self.stack):
             if ctx.mark_derived is not None:
                 return ctx.mark_derived
 
     @property
-    def preserve_path_id(self):
+    def preserve_path_id(self) -> None:
         for ctx in reversed(self.stack):
             if ctx.preserve_path_id is not None:
                 return ctx.preserve_path_id
 
     @property
-    def inheritance_refdicts(self):
+    def inheritance_refdicts(self) -> typing.Optional[typing.Set[str]]:
         for ctx in reversed(self.stack):
             if ctx.inheritance_refdicts is not None:
                 return ctx.inheritance_refdicts
 
     @property
-    def enable_recursion(self):
+    def enable_recursion(self) -> bool:
         for ctx in reversed(self.stack):
             if ctx.enable_recursion is not None:
                 return ctx.enable_recursion
@@ -456,7 +465,7 @@ class CommandContext:
         return True
 
     @property
-    def canonical(self):
+    def canonical(self) -> bool:
         return any(ctx.op.canonical for ctx in self.stack)
 
     def in_deletion(self, offset: int = 0) -> bool:
@@ -484,13 +493,13 @@ class CommandContext:
         return any(isinstance(ctx.op, DeleteObject)
                    and ctx.op.scls is obj for ctx in self.stack)
 
-    def push(self, token):
+    def push(self, token: CommandContextToken) -> None:
         self.stack.append(token)
 
-    def pop(self):
+    def pop(self) -> CommandContextToken:
         return self.stack.pop()
 
-    def get(self, cls):
+    def get(self, cls: typing.Any) -> typing.Any:
         if issubclass(cls, Command):
             cls = cls.get_context_class()
 
@@ -498,7 +507,7 @@ class CommandContext:
             if isinstance(item, cls):
                 return item
 
-    def get_ancestor(self, cls, op=None):
+    def get_ancestor(self, cls: typing.Union[typing.Type[indexes.IndexSourceCommandContext], typing.Type[sources.SourceCommandContext]], op: typing.Optional[typing.Union[lproperties.CreateProperty, links.CreateLink, indexes.CreateIndex]] = None) -> s_objtypes.ObjectTypeCommandContext:
         if issubclass(cls, Command):
             cls = cls.get_context_class()
 
@@ -511,13 +520,13 @@ class CommandContext:
                 if isinstance(item, cls):
                     return item
 
-    def top(self):
+    def top(self) -> DeltaRootContext:
         if self.stack:
             return self.stack[0]
         else:
             return None
 
-    def current(self):
+    def current(self) -> CommandContextToken:
         if self.stack:
             return self.stack[-1]
         else:
@@ -539,16 +548,16 @@ class CommandContext:
         ctx.stack = ctx.stack[:1]
         return ctx
 
-    def cache_value(self, key, value):
+    def cache_value(self, key: typing.Any, value: typing.Any) -> None:
         self._cache[key] = value
 
-    def get_cached(self, key):
+    def get_cached(self, key: typing.Any) -> typing.Any:
         return self._cache.get(key)
 
     def drop_cache(self, key):
         self._cache.pop(key, None)
 
-    def __call__(self, token):
+    def __call__(self, token: CommandContextToken) -> CommandContextWrapper:
         return CommandContextWrapper(self, token)
 
 
@@ -956,7 +965,7 @@ class CreateObject(ObjectCommand):
 
 class AlterObjectFragment(ObjectCommand):
 
-    def apply(self, schema, context):
+    def apply(self, schema: s_schema.Schema, context: CommandContext) -> typing.Union[typing.Tuple[s_schema.Schema, lproperties.Property], typing.Tuple[s_schema.Schema, links.Link]]:
         # AlterObjectFragment must be executed in the context
         # of a parent AlterObject command.
         scls = context.current().op.scls
@@ -967,15 +976,15 @@ class AlterObjectFragment(ObjectCommand):
 
         return schema, scls
 
-    def _alter_begin(self, schema, context, scls):
+    def _alter_begin(self, schema: s_schema.Schema, context: CommandContext, scls: typing.Union[lproperties.Property, links.Link]) -> s_schema.Schema:
         schema, props = self._get_field_updates(schema, context)
         schema = scls.update(schema, props)
         return schema
 
-    def _alter_innards(self, schema, context, scls):
+    def _alter_innards(self, schema: s_schema.Schema, context: CommandContext, scls: typing.Union[lproperties.Property, links.Link]) -> s_schema.Schema:
         return schema
 
-    def _alter_finalize(self, schema, context, scls):
+    def _alter_finalize(self, schema: s_schema.Schema, context: CommandContext, scls: typing.Union[lproperties.Property, links.Link]) -> s_schema.Schema:
         return schema
 
 
@@ -1079,7 +1088,7 @@ class AlterObject(ObjectCommand):
     _delta_action = 'alter'
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode: qlast.ObjectDDL, context: CommandContext) -> typing.Union[links.AlterLink, s_objtypes.AlterObjectType, scalars.AlterScalarType, constraints.AlterConstraint, lproperties.AlterProperty]:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if getattr(astnode, 'is_abstract', False):
@@ -1158,7 +1167,7 @@ class AlterObject(ObjectCommand):
         else:
             super()._apply_field_ast(schema, context, node, op)
 
-    def _get_ast(self, schema, context):
+    def _get_ast(self, schema: s_schema.Schema, context: CommandContext) -> typing.Optional[qlast.AlterObjectType]:
         node = super()._get_ast(schema, context)
         if (node is not None and hasattr(node, 'commands') and
                 not node.commands):
@@ -1168,7 +1177,7 @@ class AlterObject(ObjectCommand):
             node = None
         return node
 
-    def _alter_begin(self, schema, context, scls):
+    def _alter_begin(self, schema: s_schema.Schema, context: CommandContext, scls: inheriting.InheritingObject) -> s_schema.Schema:
         from . import types as s_types
 
         self._validate_legal_command(schema, context)
@@ -1183,17 +1192,17 @@ class AlterObject(ObjectCommand):
         schema = scls.update(schema, props)
         return schema
 
-    def _alter_innards(self, schema, context, scls):
+    def _alter_innards(self, schema: s_schema.Schema, context: CommandContext, scls: inheriting.InheritingObject) -> s_schema.Schema:
         for op in self.get_subcommands():
             if not isinstance(op, (AlterObjectFragment, AlterObjectProperty)):
                 schema, _ = op.apply(schema, context=context)
 
         return schema
 
-    def _alter_finalize(self, schema, context, scls):
+    def _alter_finalize(self, schema: s_schema.Schema, context: CommandContext, scls: inheriting.InheritingObject) -> s_schema.Schema:
         return schema
 
-    def apply(self, schema, context):
+    def apply(self, schema: s_schema.Schema, context: CommandContext) -> typing.Any:
         scls = self.get_object(schema, context)
         self.scls = scls
 
@@ -1291,7 +1300,7 @@ class AlterSpecialObjectProperty(Command):
     astnode = qlast.SetSpecialField
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode: qlast.SetSpecialField, context: CommandContext) -> AlterObjectProperty:
         return AlterObjectProperty(
             property=astnode.name.name,
             new_value=astnode.value
@@ -1307,7 +1316,7 @@ class AlterObjectProperty(Command):
     source = struct.Field(str, None)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode: qlast.SetField, context: CommandContext) -> AlterObjectProperty:
         from edb.edgeql import compiler as qlcompiler
 
         propname = astnode.name.name
@@ -1359,7 +1368,7 @@ class AlterObjectProperty(Command):
         return cls(property=propname, new_value=new_value,
                    source_context=astnode.context)
 
-    def _get_ast(self, schema, context):
+    def _get_ast(self, schema: s_schema.Schema, context: CommandContext) -> typing.Optional[qlast.SetField]:
         value = self.new_value
 
         new_value_empty = \
