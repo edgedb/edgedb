@@ -599,8 +599,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         ddl_plan = migration.get_delta(schema)
         baseline_schema, _ = ddl_plan.apply(schema, context)
-
-        ddl_text = s_ddl.ddl_text_from_migration(schema, migration)
+        ddl_text = s_ddl.ddl_text_from_delta(baseline_schema, ddl_plan)
 
         try:
             test_schema = self.run_ddl(schema, ddl_text)
@@ -613,6 +612,25 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             self.fail(
                 f'unexpected difference in schema produced by\n'
                 f'COMMIT MIGRATION and DDL obtained from GET MIGRATION:\n'
+                f'{markup.dumps(diff)}\n'
+                f'DDL text was:\n{ddl_text}'
+            )
+
+        # Now, dump the final schema into DDL and see if reapplying
+        # the DDL results in the same schema.
+        ddl_text = s_ddl.ddl_text_from_schema(baseline_schema)
+
+        try:
+            test_schema = self.run_ddl(self.std_schema, ddl_text)
+        except errors.EdgeDBError as e:
+            self.fail(markup.dumps(e))
+
+        diff = s_ddl.delta_schemas(baseline_schema, test_schema)
+
+        if list(diff.get_subcommands()):
+            self.fail(
+                f'unexpected difference in schema produced by\n'
+                f'COMMIT MIGRATION and DDL obtained from dumping the schema:\n'
                 f'{markup.dumps(diff)}\n'
                 f'DDL text was:\n{ddl_text}'
             )

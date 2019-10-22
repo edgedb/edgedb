@@ -41,6 +41,7 @@ from . import expr as s_expr
 from . import objtypes  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA
+from . import migrations
 from . import operators  # NOQA
 from . import indexes  # NOQA
 from . import links  # NOQA
@@ -246,21 +247,55 @@ def _delta_from_ddl(ddl_stmt, *, schema, modaliases,
     return schema, delta
 
 
-def ddl_text_from_migration(schema, migration):
-    """Return DDL text for a migration object."""
+def ddl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
+    """Return DDL text corresponding to a delta plan.
 
-    root = migration.get_delta(schema)
+    Args:
+        schema:
+            The schema to which the *delta* has **already** been
+            applied.
+        delta:
+            The delta plan.
 
-    context = sd.CommandContext()
-    schema, _ = root.apply(schema, context)
-
+    Returns:
+        DDL text corresponding to *delta*.
+    """
     context = sd.CommandContext()
     text = []
-    for command in root.get_subcommands():
-        with context(sd.DeltaRootContext(schema=schema, op=root)):
+    for command in delta.get_subcommands():
+        with context(sd.DeltaRootContext(schema=schema, op=delta)):
             delta_ast = command.get_ast(schema, context)
             if delta_ast:
                 stmt_text = edgeql.generate_source(delta_ast)
                 text.append(stmt_text + ';')
 
     return '\n'.join(text)
+
+
+def ddl_text_from_migration(
+    schema: s_schema.Schema,
+    migration: migrations.Migration
+) -> str:
+    """Return DDL text corresponding to a migration.
+
+    Args:
+        schema:
+            Unlike :func:`ddl_text_from_schema`, this is the schema
+            to which the *migration* has **not** already been
+            applied.
+        migration:
+            The migration object.
+
+    Returns:
+        DDL text corresponding to the delta in *migration*.
+    """
+    delta = migration.get_delta(schema)
+    context = sd.CommandContext()
+    migrated_schema, _ = delta.apply(schema, context)
+    return ddl_text_from_delta(migrated_schema, delta)
+
+
+def ddl_text_from_schema(schema) -> str:
+    empty_schema = std.load_std_schema()
+    diff = delta_schemas(schema, empty_schema)
+    return ddl_text_from_delta(schema, diff)
