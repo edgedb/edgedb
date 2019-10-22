@@ -151,17 +151,7 @@ def compile_migration(cmd, target_schema, current_schema):
         raise RuntimeError('unexpected delta module structure')
 
     diff = delta_modules(target_schema, current_schema, modnames)
-    migration = list(diff.get_subcommands())
-
-    for op in cmd.get_subcommands(type=sd.AlterObjectProperty):
-        if op.property == 'commands':
-            op.new_value = migration + op.new_value
-            break
-    else:
-        cmd.add(sd.AlterObjectProperty(
-            property='commands',
-            new_value=migration
-        ))
+    cmd.set_attribute_value('delta', diff)
 
     return cmd
 
@@ -225,16 +215,10 @@ def _delta_from_ddl(ddl_stmt, *, schema, modaliases,
     return schema, delta
 
 
-def ddl_from_delta(schema, context, delta):
-    """Return DDL AST for a delta command tree."""
-    return delta.get_ast(schema, context)
-
-
 def ddl_text_from_migration(schema, migration):
     """Return DDL text for a migration object."""
 
-    root = sd.DeltaRoot(canonical=True)
-    root.update(migration.get_commands(schema))
+    root = migration.get_delta(schema)
 
     context = sd.CommandContext()
     schema, _ = root.apply(schema, context)
@@ -243,7 +227,7 @@ def ddl_text_from_migration(schema, migration):
     text = []
     for command in root.get_subcommands():
         with context(sd.DeltaRootContext(schema=schema, op=root)):
-            delta_ast = ddl_from_delta(schema, context, command)
+            delta_ast = command.get_ast(schema, context)
             if delta_ast:
                 stmt_text = edgeql.generate_source(delta_ast)
                 text.append(stmt_text + ';')

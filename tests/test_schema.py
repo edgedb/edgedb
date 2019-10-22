@@ -597,9 +597,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         context = s_delta.CommandContext()
         schema, migration = migration_cmd.apply(self.schema, context)
 
-        ddl_plan = s_delta.DeltaRoot(canonical=True)
-        ddl_plan.update(migration.get_commands(schema))
-
+        ddl_plan = migration.get_delta(schema)
         baseline_schema, _ = ddl_plan.apply(schema, context)
 
         ddl_text = s_ddl.ddl_text_from_migration(schema, migration)

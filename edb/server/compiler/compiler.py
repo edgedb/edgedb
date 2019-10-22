@@ -408,18 +408,18 @@ class Compiler(BaseCompiler):
                 f'{command} must be executed in a transaction block')
 
         if isinstance(cmd, s_migrations.CreateMigration):
-            delta = None
+            migration = None
         else:
-            delta = schema.get(cmd.classname)
+            migration = schema.get(cmd.classname)
 
-        with context(s_migrations.MigrationCommandContext(schema, cmd, delta)):
+        with context(s_migrations.MigrationCommandContext(
+                schema, cmd, migration)):
             if isinstance(cmd, s_migrations.CommitMigration):
-                ddl_plan = s_delta.DeltaRoot(canonical=True)
-                ddl_plan.update(delta.get_commands(schema))
+                ddl_plan = migration.get_delta(schema)
                 return self._compile_and_apply_ddl_command(ctx, ddl_plan)
 
             elif isinstance(cmd, s_migrations.GetMigration):
-                ddl_text = s_ddl.ddl_text_from_migration(schema, delta)
+                ddl_text = s_ddl.ddl_text_from_migration(schema, migration)
                 query_ql = qlast.SelectQuery(
                     result=qlast.StringConstant(
                         quote="'",

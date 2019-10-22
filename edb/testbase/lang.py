@@ -245,13 +245,12 @@ class BaseSchemaTest(BaseDocTest):
 
             elif isinstance(stmt, qlast.Delta):
                 # APPLY MIGRATION
-                delta_cmd = s_ddl.cmd_from_ddl(
+                migration_cmd = s_ddl.cmd_from_ddl(
                     stmt, schema=current_schema,
                     modaliases={None: default_module},
                     testmode=True)
-                delta = current_schema.get(delta_cmd.classname)
-                ddl_plan = sd.DeltaRoot(canonical=True)
-                ddl_plan.update(delta.get_commands(current_schema))
+                migration = current_schema.get(migration_cmd.classname)
+                ddl_plan = migration.get_delta(current_schema)
 
             elif isinstance(stmt, qlast.DDL):
                 # CREATE/DELETE/ALTER (FUNCTION, TYPE, etc)

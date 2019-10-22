@@ -39,9 +39,9 @@ class Migration(so.Object, s_abc.Migration):
         qlast.Schema,
         inheritable=False, default=None, introspectable=False)
 
-    commands = so.SchemaField(
-        sd.CommandList,
-        default=sd.CommandList,
+    delta = so.SchemaField(
+        sd.DeltaRoot,
+        default=None,
         coerce=True, inheritable=False, introspectable=False)
 
 
@@ -82,11 +82,9 @@ class CommitMigration(MigrationCommand):
     astnode = qlast.CommitMigration
 
     def apply(self, schema, context):
-        delta = schema.get(self.classname)
-        for cmd in delta.get_commands(schema):
-            schema, _ = cmd.apply(schema, context)
-
-        return schema, delta
+        migration = schema.get(self.classname)
+        schema, _ = migration.get_delta(schema).apply(schema, context)
+        return schema, migration
 
 
 class GetMigration(MigrationCommand):
