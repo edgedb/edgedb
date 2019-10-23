@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import re
-import typing
+from typing import *  # NoQA
 
 
 keyword_types = range(1, 4)
@@ -215,7 +215,7 @@ edgeql_keywords.update({k: (tok_name(k), RESERVED_KEYWORD)
                         for k in reserved_keywords})
 
 
-by_type: typing.Dict[int, dict] = {typ: {} for typ in keyword_types}
+by_type: Dict[int, dict] = {typ: {} for typ in keyword_types}
 
 for val, spec in edgeql_keywords.items():
     by_type[spec[1]][val] = spec[0]

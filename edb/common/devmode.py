@@ -27,17 +27,17 @@ import os
 import pathlib
 import pickle
 import tempfile
-import typing
+from typing import *  # NoQA
 
 
 logger = logging.getLogger('edb.devmode.cache')
 
 
-class CoverageConfig(typing.NamedTuple):
+class CoverageConfig(NamedTuple):
 
     config: str
     datadir: str
-    paths: typing.List[str]
+    paths: List[str]
 
     def to_json(self) -> str:
         return json.dumps(self._asdict())
@@ -53,7 +53,7 @@ class CoverageConfig(typing.NamedTuple):
         })
 
     @classmethod
-    def from_environ(cls) -> typing.Optional['CoverageConfig']:
+    def from_environ(cls) -> Optional['CoverageConfig']:
         config = os.environ.get('EDGEDB_TEST_COVERAGE')
         if config is None:
             return None
@@ -146,7 +146,7 @@ def write_dev_mode_cache(obj, cache_key, path):
         os.rename(f.name, full_path)
 
 
-def hash_dirs(dirs: typing.Tuple[str, str]) -> bytes:
+def hash_dirs(dirs: Tuple[str, str]) -> bytes:
     def hash_dir(dirname, ext, paths):
         with os.scandir(dirname) as it:
             for entry in it:

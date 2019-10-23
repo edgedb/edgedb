@@ -24,7 +24,7 @@ from __future__ import annotations
 import collections
 import dataclasses
 import enum
-import typing
+from typing import *  # NoQA
 import uuid
 
 from edb.common import compiler
@@ -74,11 +74,11 @@ class StatementMetadata:
     is_unnest_fence: bool = False
 
 
-class PendingCardinality(typing.NamedTuple):
+class PendingCardinality(NamedTuple):
 
-    specified_cardinality: typing.Optional[qltypes.Cardinality]
-    source_ctx: typing.Optional[parsing.ParserContext]
-    callbacks: typing.List[typing.Callable]
+    specified_cardinality: Optional[qltypes.Cardinality]
+    source_ctx: Optional[parsing.ParserContext]
+    callbacks: List[Callable]
 
 
 class Environment:
@@ -87,52 +87,52 @@ class Environment:
     schema: s_schema.Schema
     """A Schema instance to use for class resolution."""
 
-    parent_object_type: typing.Optional[s_obj.ObjectMeta]
+    parent_object_type: Optional[s_obj.ObjectMeta]
     """The type of a schema object, if the expression is part of its def."""
 
     path_scope: irast.ScopeTreeNode
     """Overrall expression path scope tree."""
 
-    schema_view_cache: typing.Dict[s_types.Type, s_types.Type]
+    schema_view_cache: Dict[s_types.Type, s_types.Type]
     """Type cache used by schema-level views."""
 
-    query_parameters: typing.Dict[str, s_types.Type]
+    query_parameters: Dict[str, s_types.Type]
     """A mapping of query parameters to their types.  Gets populated during
     the compilation."""
 
     schema_view_mode: bool
     """Use material types for pointer targets in schema views."""
 
-    set_types: typing.Dict[irast.Set, s_types.Type]
+    set_types: Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
-    type_origins: typing.Dict[s_types.Type, parsing.ParserContext]
+    type_origins: Dict[s_types.Type, parsing.ParserContext]
     """A dictionary of notable types and their source origins.
 
     This is used to trace where a particular type instance originated in
     order to provide useful diagnostics for type errors.
     """
 
-    inferred_types: typing.Dict[irast.Base, s_types.Type]
+    inferred_types: Dict[irast.Base, s_types.Type]
     """A dictionary of all expressions and their inferred schema types."""
 
-    inferred_cardinality: typing.Dict[
-        typing.Tuple[irast.Base, irast.ScopeTreeNode],
+    inferred_cardinality: Dict[
+        Tuple[irast.Base, irast.ScopeTreeNode],
         qltypes.Cardinality]
     """A dictionary of all expressions and their inferred cardinality."""
 
     constant_folding: bool
     """Enables constant folding optimization (enabled by default)."""
 
-    view_shapes: typing.Dict[
-        typing.Union[s_types.Type, s_pointers.PointerLike],
-        typing.List[s_pointers.Pointer]
+    view_shapes: Dict[
+        Union[s_types.Type, s_pointers.PointerLike],
+        List[s_pointers.Pointer]
     ]
     """Object output or modification shapes."""
 
-    view_shapes_metadata: typing.Dict[s_types.Type, irast.ViewShapeMetadata]
+    view_shapes_metadata: Dict[s_types.Type, irast.ViewShapeMetadata]
 
-    func_params: typing.Optional[s_func.FuncParameterList]
+    func_params: Optional[s_func.FuncParameterList]
     """If compiling a function body, a list of function parameters."""
 
     json_parameters: bool
@@ -144,21 +144,21 @@ class Environment:
     allow_abstract_operators: bool
     """Whether to allow the use of abstract operators."""
 
-    schema_refs: typing.Set[s_obj.Object]
+    schema_refs: Set[s_obj.Object]
     """A set of all schema objects referenced by an expression."""
 
     allow_generic_type_output: bool
     """Whether to allow the expression to be of a generic type."""
 
     def __init__(self, *, schema, path_scope,
-                 parent_object_type: typing.Optional[s_obj.ObjectMeta]=None,
+                 parent_object_type: Optional[s_obj.ObjectMeta]=None,
                  schema_view_mode: bool=False,
                  constant_folding: bool=True,
                  json_parameters: bool=False,
                  session_mode: bool=False,
                  allow_abstract_operators: bool=True,
                  allow_generic_type_output: bool=False,
-                 func_params: typing.Optional[s_func.FuncParameterList]=None):
+                 func_params: Optional[s_func.FuncParameterList]=None):
         self.schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
@@ -186,8 +186,8 @@ class Environment:
         modaliases=None,
         type=None,
         default=s_schema._void,
-        label: typing.Optional[str]=None,
-        condition: typing.Optional[typing.Callable[[s_types.Type], bool]]=None,
+        label: Optional[str]=None,
+        condition: Optional[Callable[[s_types.Type], bool]]=None,
     ) -> s_obj.Object:
         sobj = self.schema.get(name, module_aliases=modaliases, type=type,
                                condition=condition, label=label,
@@ -201,8 +201,8 @@ class Environment:
         name, *,
         modaliases=None,
         default=s_schema._void,
-        label: typing.Optional[str]=None,
-        condition: typing.Optional[typing.Callable[[s_types.Type], bool]]=None,
+        label: Optional[str]=None,
+        condition: Optional[Callable[[s_types.Type], bool]]=None,
     ) -> s_types.Type:
 
         stype = self.get_track_schema_object(
@@ -210,7 +210,7 @@ class Environment:
             condition=condition, type=(s_types.Type,),
         )
 
-        return typing.cast(s_types.Type, stype)
+        return cast(s_types.Type, stype)
 
 
 class ContextLevel(compiler.ContextLevel):
@@ -218,61 +218,61 @@ class ContextLevel(compiler.ContextLevel):
     env: Environment
     """Compilation environment common for all context levels."""
 
-    derived_target_module: typing.Optional[str]
+    derived_target_module: Optional[str]
     """The name of the module for classes derived by views."""
 
-    anchors: typing.Dict[
-        typing.Union[str, typing.Type[qlast.SpecialAnchor]],
+    anchors: Dict[
+        Union[str, Type[qlast.SpecialAnchor]],
         irast.Set,
     ]
     """A mapping of anchor variables (aliases to path expressions passed
     to the compiler programmatically).
     """
 
-    modaliases: typing.Dict[typing.Optional[str], str]
+    modaliases: Dict[Optional[str], str]
     """A combined list of module name aliases declared in the WITH block,
     or passed to the compiler programmatically.
     """
 
-    func: typing.Optional[s_func.Function]
+    func: Optional[s_func.Function]
     """Schema function object required when compiling functions bodies."""
 
-    stmt_metadata: typing.Dict[qlast.Statement, StatementMetadata]
+    stmt_metadata: Dict[qlast.Statement, StatementMetadata]
     """Extra statement metadata needed by the compiler, but not in AST."""
 
-    source_map: typing.Dict[
+    source_map: Dict[
         s_pointers.PointerLike,
-        typing.Tuple[
+        Tuple[
             qlast.Expr,
             ContextLevel,
             irast.PathId,
-            typing.Optional[irast.WeakNamespace],
+            Optional[irast.WeakNamespace],
         ],
     ]
     """A mapping of computable pointers to QL source AST and context."""
 
-    view_nodes: typing.Dict[s_name.SchemaName, s_types.Type]
+    view_nodes: Dict[s_name.SchemaName, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
-    view_sets: typing.Dict[s_types.Type, irast.Set]
+    view_sets: Dict[s_types.Type, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
 
-    aliased_views: typing.ChainMap[str, s_types.Type]
+    aliased_views: ChainMap[str, s_types.Type]
     """A dictionary of views aliased in a statement body."""
 
-    expr_view_cache: typing.Dict[typing.Tuple[qlast.Base, str], irast.Set]
+    expr_view_cache: Dict[Tuple[qlast.Base, str], irast.Set]
     """Type cache used by expression-level views."""
 
-    shape_type_cache: typing.Dict[
-        typing.Tuple[
+    shape_type_cache: Dict[
+        Tuple[
             s_types.Type,
-            typing.Tuple[qlast.ShapeElement, ...],
+            Tuple[qlast.ShapeElement, ...],
         ],
         s_types.Type,
     ]
     """Type cache for shape expressions."""
 
-    class_view_overrides: typing.Dict[uuid.UUID, s_types.Type]
+    class_view_overrides: Dict[uuid.UUID, s_types.Type]
     """Object mapping used by implicit view override in SELECT."""
 
     clause: str
@@ -287,40 +287,40 @@ class ContextLevel(compiler.ContextLevel):
     stmt: irast.Stmt
     """Statement node currently being built."""
 
-    path_id_namespace: typing.FrozenSet[str]
+    path_id_namespace: FrozenSet[str]
     """A namespace to use for all path ids."""
 
-    pending_stmt_own_path_id_namespace: typing.FrozenSet[str]
+    pending_stmt_own_path_id_namespace: FrozenSet[str]
     """A path id namespace to add to the fence of the next statement."""
 
-    pending_stmt_full_path_id_namespace: typing.FrozenSet[str]
+    pending_stmt_full_path_id_namespace: FrozenSet[str]
     """A set of path id namespaces to use in path ids in the next statement."""
 
-    banned_paths: typing.Set[irast.PathId]
+    banned_paths: Set[irast.PathId]
     """A set of path ids that are considered invalid in this context."""
 
-    view_map: typing.Dict[irast.PathId, irast.Set]
+    view_map: Dict[irast.PathId, irast.Set]
     """Set translation map.  Used for views."""
 
-    completion_work: typing.List[typing.Callable]
+    completion_work: List[Callable]
     """A list of callbacks to execute when the whole query has been seen."""
 
-    pending_cardinality: typing.Dict[
+    pending_cardinality: Dict[
         s_pointers.PointerLike,
         PendingCardinality,
     ]
     """A set of derived pointers for which the cardinality is not yet known."""
 
-    pointer_derivation_map: typing.Dict[
+    pointer_derivation_map: Dict[
         s_pointers.Pointer,
-        typing.List[s_pointers.Pointer],
+        List[s_pointers.Pointer],
     ]
     """A parent: children mapping of derived pointer classes."""
 
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
 
-    path_scope_map: typing.Dict[irast.Set, irast.ScopeTreeNode]
+    path_scope_map: Dict[irast.Set, irast.ScopeTreeNode]
     """A forest of scope trees used for views."""
 
     scope_id_ctr: compiler.Counter
@@ -344,7 +344,7 @@ class ContextLevel(compiler.ContextLevel):
     implicit_tid_in_shapes: bool
     """Whether to include the type id property in object shapes implicitly."""
 
-    special_computables_in_mutation_shape: typing.FrozenSet[str]
+    special_computables_in_mutation_shape: FrozenSet[str]
     """A set of "special" compiutable pointers allowed in mutation shape."""
 
     empty_result_type_hint: s_types.Type

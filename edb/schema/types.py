@@ -190,7 +190,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def is_enum(self, schema):
         return False
 
-    def test_polymorphic(self, schema, poly: 'Type') -> bool:
+    def test_polymorphic(self, schema, poly: Type) -> bool:
         """Check if this type can be matched by a polymorphic type.
 
         Examples:
@@ -210,7 +210,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
 
         return self._test_polymorphic(schema, poly)
 
-    def resolve_polymorphic(self, schema, other: 'Type') -> 'Type':
+    def resolve_polymorphic(self, schema, other: Type) -> Type:
         """Resolve the polymorphic type component.
 
         Examples:
@@ -223,7 +223,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
 
         return self._resolve_polymorphic(schema, other)
 
-    def to_nonpolymorphic(self, schema, concrete_type: 'Type') -> 'Type':
+    def to_nonpolymorphic(self, schema, concrete_type: Type) -> Type:
         """Produce an non-polymorphic version of self.
 
         Example:
@@ -235,34 +235,34 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
 
         return self._to_nonpolymorphic(schema, concrete_type)
 
-    def _test_polymorphic(self, schema, other: 'Type'):
+    def _test_polymorphic(self, schema, other: Type):
         return False
 
-    def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
+    def _resolve_polymorphic(self, schema, concrete_type: Type):
         raise NotImplementedError(
             f'{type(self)} does not support resolve_polymorphic()')
 
-    def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
+    def _to_nonpolymorphic(self, schema, concrete_type: Type):
         raise NotImplementedError(
             f'{type(self)} does not support to_nonpolymorphic()')
 
     def is_view(self, schema):
         return self.get_view_type(schema) is not None
 
-    def assignment_castable_to(self, other: 'Type', schema) -> bool:
+    def assignment_castable_to(self, other: Type, schema) -> bool:
         return self.implicitly_castable_to(other, schema)
 
-    def implicitly_castable_to(self, other: 'Type', schema) -> bool:
+    def implicitly_castable_to(self, other: Type, schema) -> bool:
         return False
 
-    def get_implicit_cast_distance(self, other: 'Type', schema) -> int:
+    def get_implicit_cast_distance(self, other: Type, schema) -> int:
         return -1
 
     def find_common_implicitly_castable_type(
-            self, other: 'Type', schema) -> typing.Optional['Type']:
+            self, other: Type, schema) -> typing.Optional[Type]:
         return
 
-    def explicitly_castable_to(self, other: 'Type', schema) -> bool:
+    def explicitly_castable_to(self, other: Type, schema) -> bool:
         if self.implicitly_castable_to(other, schema):
             return True
 
@@ -590,7 +590,7 @@ class BaseArray(Collection, s_abc.Array):
         return self.get_element_type(schema).implicitly_castable_to(
             other.get_element_type(schema), schema)
 
-    def get_implicit_cast_distance(self, other: 'Type', schema) -> int:
+    def get_implicit_cast_distance(self, other: Type, schema) -> int:
         if not other.is_array():
             return -1
 
@@ -620,16 +620,16 @@ class BaseArray(Collection, s_abc.Array):
         if subtype is not None:
             return Array.from_subtypes(schema, [subtype])
 
-    def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
+    def _resolve_polymorphic(self, schema, concrete_type: Type):
         if not concrete_type.is_array():
             return None
         return self.get_element_type(schema).resolve_polymorphic(
             schema, concrete_type.get_element_type(schema))
 
-    def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
+    def _to_nonpolymorphic(self, schema, concrete_type: Type):
         return Array.from_subtypes(schema, (concrete_type,))
 
-    def _test_polymorphic(self, schema, other: 'Type'):
+    def _test_polymorphic(self, schema, other: Type):
         if other.is_any():
             return True
         if not other.is_array():
@@ -1022,7 +1022,7 @@ class BaseTuple(Collection, s_abc.Tuple):
             for st in self.get_subtypes(schema)
         )
 
-    def _resolve_polymorphic(self, schema, concrete_type: 'Type'):
+    def _resolve_polymorphic(self, schema, concrete_type: Type):
         if not concrete_type.is_tuple():
             return None
 
@@ -1038,7 +1038,7 @@ class BaseTuple(Collection, s_abc.Tuple):
 
         return None
 
-    def _to_nonpolymorphic(self, schema, concrete_type: 'Type'):
+    def _to_nonpolymorphic(self, schema, concrete_type: Type):
         new_types = []
         for st in self.get_subtypes(schema):
             if st.is_polymorphic(schema):
@@ -1055,7 +1055,7 @@ class BaseTuple(Collection, s_abc.Tuple):
 
         return Tuple.from_subtypes(schema, new_types, typemods)
 
-    def _test_polymorphic(self, schema, other: 'Type'):
+    def _test_polymorphic(self, schema, other: Type):
         if other.is_any() or other.is_anytuple():
             return True
         if not other.is_tuple():

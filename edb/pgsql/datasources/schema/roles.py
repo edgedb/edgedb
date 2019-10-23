@@ -20,11 +20,11 @@
 from __future__ import annotations
 
 import asyncpg
-import typing
+from typing import *  # NoQA
 
 
 async def fetch(
-        conn: asyncpg.connection.Connection) -> typing.List[asyncpg.Record]:
+        conn: asyncpg.connection.Connection) -> List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 ((d.description)->>'id')::uuid AS id,

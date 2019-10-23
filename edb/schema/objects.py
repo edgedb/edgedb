@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections
 import collections.abc
 import itertools
-import typing
+from typing import *  # NoQA
 import uuid
 
 import immutables as immu
@@ -55,7 +55,7 @@ def get_known_type_id(typename, default=...):
     return default
 
 
-def default_field_merge(target: 'Object', sources: typing.List['Object'],
+def default_field_merge(target: Object, sources: List[Object],
                         field_name: str, *, schema) -> object:
     ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is None:
@@ -150,8 +150,8 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
     weak_ref: bool
     #: A callable used to merge the value of the field from
     #: multiple objects.  Most oftenly used by inheritance.
-    merge_fn: typing.Callable[
-        [Object, typing.List[Object], str], Object
+    merge_fn: Callable[
+        [Object, List[Object], str], Object
     ]
 
     def __init__(self, type_, *, coerce=False,
@@ -247,7 +247,7 @@ class SchemaField(Field):
     __slots__ = ('default', 'hashable')
 
     #: The default value to use for the field.
-    default: typing.Any
+    default: Any
     #: Whether the field participates in object hash.
     hashable: bool
 
@@ -284,8 +284,8 @@ class RefDict(struct.Struct):
 
 class ObjectMeta(type):
 
-    _schema_metaclasses: typing.List[ObjectMeta] = []
-    _schema_types: typing.Set[ObjectMeta] = set()
+    _schema_metaclasses: List[ObjectMeta] = []
+    _schema_types: Set[ObjectMeta] = set()
 
     def __new__(mcls, name, bases, clsdict):
         fields = {}
@@ -451,8 +451,8 @@ class FieldValueNotFoundError(Exception):
     pass
 
 
-Object_T = typing.TypeVar('Object_T', bound='Object')
-Schema_T = typing.TypeVar('Schema_T')
+Object_T = TypeVar('Object_T', bound='Object')
+Schema_T = TypeVar('Schema_T')
 
 
 class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
@@ -482,7 +482,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         inheritable=False, ephemeral=True,
         introspectable=False, default=None)
 
-    _fields: typing.Dict[str, SchemaField]
+    _fields: Dict[str, SchemaField]
 
     def get_shortname(self, schema) -> sn.Name:
         return sn.shortname_from_fullname(self.get_name(schema))
@@ -511,7 +511,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return cls.__name__.lower()
 
     @classmethod
-    def _prepare_id(cls, id: typing.Optional[uuid.UUID],
+    def _prepare_id(cls, id: Optional[uuid.UUID],
                     data: dict) -> uuid.UUID:
         if id is None:
             type_id = get_known_type_id(data.get('name'), None)
@@ -530,11 +530,11 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     @classmethod
     def create_in_schema(
-        cls: typing.Type[Object_T],
+        cls: Type[Object_T],
         schema: Schema_T, *,
         id=None,
         **data,
-    ) -> typing.Tuple[Schema_T, Object_T]:
+    ) -> Tuple[Schema_T, Object_T]:
 
         if not cls.is_schema_object:
             raise TypeError(f'{cls.__name__} type cannot be created in schema')
@@ -566,7 +566,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return schema, scls
 
     @classmethod
-    def _create(cls, schema, *, id=None, **data) -> 'Object':
+    def _create(cls, schema, *, id=None, **data) -> Object:
         if cls.is_schema_object:
             raise TypeError(
                 f'{cls.__name__} type cannot be created outside of a schema')
@@ -1337,7 +1337,7 @@ class ObjectCollection(s_abc.ObjectContainer):
         return cls(cls._container(ids), _private_init=True)
 
     @classmethod
-    def create_empty(cls) -> 'ObjectCollection':
+    def create_empty(cls) -> ObjectCollection:
         return cls(cls._container(), _private_init=True)
 
     @classmethod
@@ -1431,7 +1431,7 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
         return name
 
     @classmethod
-    def create(cls, schema, data: typing.Iterable[Object]):
+    def create(cls, schema, data: Iterable[Object]):
         coll = super().create(schema, data)
         coll._check_duplicates(schema)
         return coll
@@ -1475,7 +1475,7 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return basecoef + (1 - basecoef) * compcoef
 
-    def add(self, schema, item) -> 'ObjectIndexBase':
+    def add(self, schema, item) -> ObjectIndexBase:
         """Return a copy of this collection containing the given item.
 
         If the item is already present in the collection, an
@@ -1489,7 +1489,7 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return self.update(schema, [item])
 
-    def update(self, schema, reps: typing.Iterable[Object]):
+    def update(self, schema, reps: Iterable[Object]):
         items = dict(self.items(schema))
         keyfunc = type(self)._key
 
@@ -1501,8 +1501,8 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
     def delete(
         self,
         schema,
-        names: typing.Iterable[str],
-    ) -> typing.Tuple[s_abc.Schema, ObjectIndexBase]:
+        names: Iterable[str],
+    ) -> Tuple[s_abc.Schema, ObjectIndexBase]:
         items = dict(self.items(schema))
         for name in names:
             items.pop(name)
@@ -1567,7 +1567,7 @@ class ObjectDict(ObjectCollection, container=tuple):
     def create(
         cls,
         schema,
-        data: typing.Mapping[object, Object]
+        data: Mapping[object, Object]
     ) -> ObjectDict:
 
         result = super().create(schema, data.values())

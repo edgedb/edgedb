@@ -22,7 +22,7 @@ from __future__ import annotations
 import contextlib
 import json
 import re
-import typing
+from typing import *  # NoQA
 
 import graphql
 from graphql.language import ast as gql_ast
@@ -74,31 +74,31 @@ class GraphQLTranslatorContext:
         return val
 
 
-class Step(typing.NamedTuple):
-    name: typing.Any
-    type: typing.Any
+class Step(NamedTuple):
+    name: Any
+    type: Any
     eql_alias: str
 
 
-class Field(typing.NamedTuple):
-    name: typing.Any
-    value: typing.Any
+class Field(NamedTuple):
+    name: Any
+    value: Any
 
 
-class Var(typing.NamedTuple):
-    val: typing.Any
+class Var(NamedTuple):
+    val: Any
     defn: gql_ast.VariableDefinition
     critical: bool
 
 
-class Operation(typing.NamedTuple):
-    name: typing.Any
-    stmt: typing.Any
-    critvars: typing.Any
-    vars: typing.Any
+class Operation(NamedTuple):
+    name: Any
+    stmt: Any
+    critvars: Any
+    vars: Any
 
 
-class TranspiledOperation(typing.NamedTuple):
+class TranspiledOperation(NamedTuple):
 
     edgeql_ast: qlast.Base
     cacheable: bool
@@ -1445,7 +1445,7 @@ class GraphQLTranslator:
             return results
 
 
-def value_node_from_pyvalue(val: typing.Any):
+def value_node_from_pyvalue(val: Any):
     if isinstance(val, str):
         val = val.replace('\\', '\\\\')
         value = eql_quote.quote_literal(val)

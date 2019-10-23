@@ -22,7 +22,7 @@
 from __future__ import annotations
 
 import textwrap
-import typing
+from typing import *  # NoQA
 import weakref
 
 from . import pathid
@@ -30,18 +30,18 @@ from . import pathid
 
 class InvalidScopeConfiguration(Exception):
     def __init__(self, msg: str, *,
-                 offending_node: 'ScopeTreeNode',
-                 existing_node: 'ScopeTreeNode') -> None:
+                 offending_node: ScopeTreeNode,
+                 existing_node: ScopeTreeNode) -> None:
         super().__init__(msg)
         self.offending_node = offending_node
         self.existing_node = existing_node
 
 
 class ScopeTreeNode:
-    unique_id: typing.Optional[int]
+    unique_id: Optional[int]
     """A unique identifier used to map scopes on sets."""
 
-    path_id: typing.Optional[pathid.PathId]
+    path_id: Optional[pathid.PathId]
     """Node path id, or None for branch nodes."""
 
     fenced: bool
@@ -56,10 +56,10 @@ class ScopeTreeNode:
     optional: bool
     """Whether this node represents an optional path."""
 
-    children: typing.Set['ScopeTreeNode']
+    children: Set[ScopeTreeNode]
     """A set of child nodes."""
 
-    namespaces: typing.Set[str]
+    namespaces: Set[str]
     """A set of namespaces used by paths in this branch.
 
     When a path node is pulled up from this branch,
@@ -68,8 +68,8 @@ class ScopeTreeNode:
     implement "semi-detached" semantics used by
     views declared in a WITH block."""
 
-    def __init__(self, *, path_id: typing.Optional[pathid.PathId]=None,
-                 fenced: bool=False, unique_id: typing.Optional[int]=None):
+    def __init__(self, *, path_id: Optional[pathid.PathId]=None,
+                 fenced: bool=False, unique_id: Optional[int]=None):
         self.unique_id = unique_id
         self.path_id = path_id
         self.fenced = fenced
@@ -84,7 +84,7 @@ class ScopeTreeNode:
         name = 'ScopeFenceNode' if self.fenced else 'ScopeTreeNode'
         return (f'<{name} {self.path_id!r} at {id(self):0x}>')
 
-    def _copy(self, parent: 'ScopeTreeNode') -> 'ScopeTreeNode':
+    def _copy(self, parent: ScopeTreeNode) -> ScopeTreeNode:
         cp = self.__class__(
             path_id=self.path_id,
             fenced=self.fenced)
@@ -122,7 +122,7 @@ class ScopeTreeNode:
         return ' '.join(parts)
 
     @property
-    def ancestors(self) -> typing.Iterator['ScopeTreeNode']:
+    def ancestors(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's ancestors, including self."""
         node = self
         while node is not None:
@@ -130,7 +130,7 @@ class ScopeTreeNode:
             node = node.parent
 
     @property
-    def strict_ancestors(self) -> typing.Iterator['ScopeTreeNode']:
+    def strict_ancestors(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's ancestors, not including self."""
         node = self.parent
         while node is not None:
@@ -139,8 +139,7 @@ class ScopeTreeNode:
 
     @property
     def ancestors_and_namespaces(self) \
-            -> typing.Iterator[typing.Tuple['ScopeTreeNode',
-                                            typing.FrozenSet[str]]]:
+            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[str]]]:
         """An iterator of node's ancestors and namespaces, including self."""
         namespaces = frozenset()
         node = self
@@ -150,7 +149,7 @@ class ScopeTreeNode:
             node = node.parent
 
     @property
-    def path_children(self) -> typing.Iterator['ScopeTreeNode']:
+    def path_children(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's children that have path ids."""
         return filter(lambda p: p.path_id is not None, self.children)
 
@@ -165,13 +164,13 @@ class ScopeTreeNode:
         return paths
 
     @property
-    def descendants(self) -> typing.Iterator['ScopeTreeNode']:
+    def descendants(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's descendants including self top-first."""
         yield self
         yield from self.strict_descendants
 
     @property
-    def strict_descendants(self) -> typing.Iterator['ScopeTreeNode']:
+    def strict_descendants(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's descendants not including self top-first."""
         for child in tuple(self.children):
             yield child
@@ -179,8 +178,7 @@ class ScopeTreeNode:
 
     @property
     def strict_descendants_and_namespaces(self) \
-            -> typing.Iterator[typing.Tuple['ScopeTreeNode',
-                                            typing.FrozenSet[str]]]:
+            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[str]]]:
         """An iterator of node's descendants and namespaces.
 
         Does not include self. Top-first.
@@ -192,7 +190,7 @@ class ScopeTreeNode:
                 yield desc, child.namespaces | desc_namespaces
 
     @property
-    def path_descendants(self) -> typing.Iterator['ScopeTreeNode']:
+    def path_descendants(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's descendants that have path ids."""
         return filter(lambda p: p.path_id is not None, self.descendants)
 
@@ -200,7 +198,7 @@ class ScopeTreeNode:
         return list(self.path_descendants)
 
     @property
-    def descendant_namespaces(self) -> typing.Set[str]:
+    def descendant_namespaces(self) -> Set[str]:
         """An set of namespaces declared by descendants."""
         namespaces = set()
         for child in self.descendants:
@@ -209,7 +207,7 @@ class ScopeTreeNode:
         return namespaces
 
     @property
-    def unfenced_descendants(self) -> typing.Iterator['ScopeTreeNode']:
+    def unfenced_descendants(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's unfenced descendants including self."""
         yield self
         for child in tuple(self.children):
@@ -217,14 +215,14 @@ class ScopeTreeNode:
                 yield from child.unfenced_descendants
 
     @property
-    def strict_unfenced_descendants(self) -> typing.Iterator['ScopeTreeNode']:
+    def strict_unfenced_descendants(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's unfenced descendants."""
         for child in tuple(self.children):
             if not child.fenced:
                 yield from child.unfenced_descendants
 
     @property
-    def fence(self) -> 'ScopeTreeNode':
+    def fence(self) -> ScopeTreeNode:
         """The nearest ancestor fence (or self, if fence)."""
         if self.fenced:
             return self
@@ -232,7 +230,7 @@ class ScopeTreeNode:
             return self.parent_fence
 
     @property
-    def parent(self) -> typing.Optional['ScopeTreeNode']:
+    def parent(self) -> Optional[ScopeTreeNode]:
         """The parent node."""
         if self._parent is None:
             return None
@@ -240,7 +238,7 @@ class ScopeTreeNode:
             return self._parent()
 
     @property
-    def parent_fence(self) -> typing.Optional['ScopeTreeNode']:
+    def parent_fence(self) -> Optional[ScopeTreeNode]:
         """The nearest strict ancestor fence."""
         for ancestor in self.strict_ancestors:
             if ancestor.fenced:
@@ -249,14 +247,14 @@ class ScopeTreeNode:
         return None
 
     @property
-    def root(self) -> 'ScopeTreeNode':
+    def root(self) -> ScopeTreeNode:
         """The root of this tree."""
         node = self
         while node.parent is not None:
             node = node.parent
         return node
 
-    def attach_child(self, node: 'ScopeTreeNode') -> None:
+    def attach_child(self, node: ScopeTreeNode) -> None:
         """Attach a child node to this node.
 
         This is a low-level operation, no tree validation is
@@ -275,13 +273,13 @@ class ScopeTreeNode:
 
         node._set_parent(self)
 
-    def attach_fence(self) -> 'ScopeTreeNode':
+    def attach_fence(self) -> ScopeTreeNode:
         """Create and attach an empty fenced node."""
         fence = ScopeTreeNode(fenced=True)
         self.attach_child(fence)
         return fence
 
-    def attach_branch(self) -> 'ScopeTreeNode':
+    def attach_branch(self) -> ScopeTreeNode:
         """Create and attach an empty branch node."""
         fence = ScopeTreeNode()
         self.attach_child(fence)
@@ -308,7 +306,7 @@ class ScopeTreeNode:
 
         self.attach_subtree(subtree)
 
-    def attach_subtree(self, node: 'ScopeTreeNode') -> None:
+    def attach_subtree(self, node: ScopeTreeNode) -> None:
         """Attach a subtree to this node.
 
         *node* is expected to be a balanced scope tree and may be modified
@@ -501,7 +499,7 @@ class ScopeTreeNode:
                 all(c.is_empty() for c in self.children)
             )
 
-    def get_all_visible(self) -> typing.Set[pathid.PathId]:
+    def get_all_visible(self) -> Set[pathid.PathId]:
         paths = set()
 
         for node in self.ancestors:
@@ -515,7 +513,7 @@ class ScopeTreeNode:
         return paths
 
     def find_visible(self, path_id: pathid.PathId) \
-            -> typing.Optional['ScopeTreeNode']:
+            -> Optional[ScopeTreeNode]:
         """Find the visible node with the given *path_id*."""
         namespaces = set()
 
@@ -542,7 +540,7 @@ class ScopeTreeNode:
         return False
 
     def find_child(self, path_id: pathid.PathId, in_branches: bool = False) \
-            -> typing.Optional['ScopeTreeNode']:
+            -> Optional[ScopeTreeNode]:
         for child in self.children:
             if child.path_id == path_id:
                 return child
@@ -554,7 +552,7 @@ class ScopeTreeNode:
         return None
 
     def find_descendant(self, path_id: pathid.PathId) \
-            -> typing.Optional['ScopeTreeNode']:
+            -> Optional[ScopeTreeNode]:
         for descendant, dns in self.strict_descendants_and_namespaces:
             if _paths_equal(descendant.path_id, path_id, dns):
                 return descendant
@@ -562,9 +560,9 @@ class ScopeTreeNode:
         return None
 
     def find_descendant_and_ns(self, path_id: pathid.PathId) \
-            -> typing.Tuple[
-                typing.Optional['ScopeTreeNode'],
-                typing.FrozenSet[str]]:
+            -> Tuple[
+                Optional[ScopeTreeNode],
+                FrozenSet[str]]:
         for descendant, dns in self.strict_descendants_and_namespaces:
             if _paths_equal(descendant.path_id, path_id, dns):
                 return descendant, dns
@@ -572,7 +570,7 @@ class ScopeTreeNode:
         return None, frozenset()
 
     def find_unfenced(self, path_id: pathid.PathId) \
-            -> typing.Tuple[typing.Optional['ScopeTreeNode'], bool]:
+            -> Tuple[Optional[ScopeTreeNode], bool]:
         """Find the unfenced node with the given *path_id*."""
         namespaces = set()
         unnest_fence_seen = False
@@ -588,14 +586,14 @@ class ScopeTreeNode:
         return None, unnest_fence_seen
 
     def find_by_unique_id(self, unique_id: int) \
-            -> typing.Optional['ScopeTreeNode']:
+            -> Optional[ScopeTreeNode]:
         for node in self.descendants:
             if node.unique_id == unique_id:
                 return node
 
         return None
 
-    def copy(self) -> 'ScopeTreeNode':
+    def copy(self) -> ScopeTreeNode:
         """Return a complete copy of this subtree."""
         return self._copy(parent=None)
 
@@ -648,7 +646,7 @@ class ScopeTreeNode:
 
 
 def _paths_equal(path_id_1: pathid.PathId, path_id_2: pathid.PathId,
-                 namespaces: typing.Set[str]) -> bool:
+                 namespaces: Set[str]) -> bool:
     if path_id_1 is None or path_id_2 is None:
         return False
 

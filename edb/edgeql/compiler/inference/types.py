@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import functools
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -45,7 +45,7 @@ def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, env) -> None:
     es.path_id = irast.PathId.from_type(env.schema, t, typename=typename)
 
 
-def _infer_common_type(irs: typing.List[irast.Base], env):
+def _infer_common_type(irs: List[irast.Base], env):
     if not irs:
         raise errors.QueryError(
             'cannot determine common type of an empty set',
@@ -103,7 +103,7 @@ def _infer_common_type(irs: typing.List[irast.Base], env):
 
     for i in empties:
         amend_empty_set_type(
-            typing.cast(irast.EmptySet, irs[i]), common_type, env)
+            cast(irast.EmptySet, irs[i]), common_type, env)
 
     return common_type
 

@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -33,7 +33,7 @@ from . import context
 
 
 def _get_json_func(name: str, *,
-                   env: context.Environment) -> typing.Tuple[str, ...]:
+                   env: context.Environment) -> Tuple[str, ...]:
     if env.output_format is context.OutputFormat.JSON:
         prefix_suffix = 'json'
     else:
@@ -318,8 +318,8 @@ def output_as_value(
 
     val = expr
     if isinstance(expr, pgast.TupleVar):
-        RowCls: typing.Union[typing.Type[pgast.ImplicitRowExpr],
-                             typing.Type[pgast.RowExpr]]
+        RowCls: Union[Type[pgast.ImplicitRowExpr],
+                      Type[pgast.RowExpr]]
         if len(expr.elements) > 1:
             RowCls = pgast.ImplicitRowExpr
         else:
@@ -394,7 +394,7 @@ def serialize_expr(
 
 def get_pg_type(
         typeref: irast.TypeRef, *,
-        ctx: context.CompilerContextLevel) -> typing.Tuple[str, ...]:
+        ctx: context.CompilerContextLevel) -> Tuple[str, ...]:
 
     if in_serialization_ctx(ctx):
         if ctx.env.output_format is context.OutputFormat.JSONB:

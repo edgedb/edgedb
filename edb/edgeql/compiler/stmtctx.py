@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import functools
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -57,14 +57,14 @@ from . import setgen
 def init_context(
         *,
         schema: s_schema.Schema,
-        func_params: typing.Optional[s_func.FuncParameterList]=None,
-        parent_object_type: typing.Optional[s_obj.ObjectMeta]=None,
-        modaliases: typing.Optional[typing.Dict[str, str]]=None,
-        anchors: typing.Optional[typing.Dict[str, s_obj.Object]]=None,
-        singletons: typing.Optional[typing.Iterable[s_types.Type]]=None,
-        security_context: typing.Optional[str]=None,
-        derived_target_module: typing.Optional[str]=None,
-        result_view_name: typing.Optional[str]=None,
+        func_params: Optional[s_func.FuncParameterList]=None,
+        parent_object_type: Optional[s_obj.ObjectMeta]=None,
+        modaliases: Optional[Dict[str, str]]=None,
+        anchors: Optional[Dict[str, s_obj.Object]]=None,
+        singletons: Optional[Iterable[s_types.Type]]=None,
+        security_context: Optional[str]=None,
+        derived_target_module: Optional[str]=None,
+        result_view_name: Optional[str]=None,
         schema_view_mode: bool=False,
         disable_constant_folding: bool=False,
         allow_generic_type_output: bool=False,
@@ -198,7 +198,7 @@ def fini_expression(
 
 
 def _elide_derived_ancestors(
-    obj: typing.Union[s_types.Type, s_pointers.Pointer], *,
+    obj: Union[s_types.Type, s_pointers.Pointer], *,
     ctx: context.ContextLevel
 ) -> None:
     """Collapse references to derived objects in bases.
@@ -252,7 +252,7 @@ def _derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
 
 
 def compile_anchor(
-        name: str, anchor: typing.Union[qlast.Expr, s_obj.Object], *,
+        name: str, anchor: Union[qlast.Expr, s_obj.Object], *,
         ctx: context.ContextLevel) -> irast.Set:
 
     show_as_anchor = True
@@ -344,7 +344,7 @@ def compile_anchor(
 
 
 def populate_anchors(
-        anchors: typing.Dict[str, s_obj.Object], *,
+        anchors: Dict[str, s_obj.Object], *,
         ctx: context.ContextLevel) -> None:
 
     for name, val in anchors.items():
@@ -450,8 +450,8 @@ def _infer_pointer_cardinality(
         *,
         ptrcls: s_pointers.Pointer,
         irexpr: irast.Set,
-        specified_card: typing.Optional[qltypes.Cardinality] = None,
-        source_ctx: typing.Optional[parsing.ParserContext] = None,
+        specified_card: Optional[qltypes.Cardinality] = None,
+        source_ctx: Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
     inferred_card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
@@ -505,8 +505,8 @@ def _update_cardinality_callbacks(
 def pend_pointer_cardinality_inference(
         *,
         ptrcls: s_pointers.Pointer,
-        specified_card: typing.Optional[qltypes.Cardinality] = None,
-        source_ctx: typing.Optional[parsing.ParserContext] = None,
+        specified_card: Optional[qltypes.Cardinality] = None,
+        source_ctx: Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
     existing = ctx.pending_cardinality.get(ptrcls)
@@ -524,7 +524,7 @@ def pend_pointer_cardinality_inference(
 
 def once_pointer_cardinality_is_inferred(
         ptrcls: s_pointers.PointerLike,
-        cb: typing.Callable, *,
+        cb: Callable, *,
         ctx: context.ContextLevel) -> None:
 
     pending = ctx.pending_cardinality.get(ptrcls)
@@ -540,8 +540,8 @@ def get_pointer_cardinality_later(
         *,
         ptrcls: s_pointers.PointerLike,
         irexpr: irast.Set,
-        specified_card: typing.Optional[qltypes.Cardinality] = None,
-        source_ctx: typing.Optional[parsing.ParserContext] = None,
+        specified_card: Optional[qltypes.Cardinality] = None,
+        source_ctx: Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> None:
 
     at_stmt_fini(
@@ -637,6 +637,6 @@ def enforce_pointer_cardinality(
 
 
 def at_stmt_fini(
-        cb: typing.Callable, *,
+        cb: Callable, *,
         ctx: context.ContextLevel) -> None:
     ctx.completion_work.append(cb)

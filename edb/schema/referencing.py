@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import hashlib
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 
@@ -35,7 +35,7 @@ from . import name as sn
 from . import utils
 
 
-ReferencedT = typing.TypeVar('ReferencedT', bound='ReferencedObject')
+ReferencedT = TypeVar('ReferencedT', bound='ReferencedObject')
 
 
 class ReferencedObject(so.Object, derivable.DerivableObjectBase):
@@ -77,7 +77,7 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
         refdict_whitelist=None,
         name=None,
         **kwargs,
-    ) -> typing.Tuple[s_schema.Schema, ReferencedT]:
+    ) -> Tuple[s_schema.Schema, ReferencedT]:
         if name is None:
             derived_name = self.get_derived_name(
                 schema, referrer, *qualifiers,
@@ -90,7 +90,7 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
             raise errors.SchemaError(
                 f'cannot derive {self!r}({derived_name}) from itself')
 
-        derived_attrs: typing.Dict[str, object] = {}
+        derived_attrs: Dict[str, object] = {}
 
         if attrs is not None:
             derived_attrs.update(attrs)

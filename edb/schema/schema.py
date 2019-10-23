@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import functools
 import itertools
-import typing
+from typing import *  # NoQA
 
 import immutables as immu
 
@@ -360,7 +360,7 @@ class Schema(s_abc.Schema):
 
             return mm.finish()
 
-    def _add(self, id, scls, data) -> 'Schema':
+    def _add(self, id, scls, data) -> Schema:
         name = data['name']
 
         if name in self._name_to_id:
@@ -415,13 +415,13 @@ class Schema(s_abc.Schema):
 
         return self._replace(**updates)
 
-    def discard(self, obj) -> 'Schema':
+    def discard(self, obj) -> Schema:
         if obj.id in self._id_to_data:
             return self._delete(obj)
         else:
             return self
 
-    def delete(self, obj) -> 'Schema':
+    def delete(self, obj) -> Schema:
         return self._delete(obj)
 
     def _get(self, name, *, getter, default, module_aliases):
@@ -476,7 +476,7 @@ class Schema(s_abc.Schema):
             self, stype: s_types.Type, *,
             disposition: str,
             implicit: bool=False,
-            assignment: bool=False) -> typing.FrozenSet[s_casts.Cast]:
+            assignment: bool=False) -> FrozenSet[s_casts.Cast]:
 
         all_casts = self.get_referrers(
             stype, scls_type=s_casts.Cast, field_name=disposition)
@@ -494,22 +494,22 @@ class Schema(s_abc.Schema):
     def get_casts_to_type(
             self, to_type: s_types.Type, *,
             implicit: bool=False,
-            assignment: bool=False) -> typing.FrozenSet[s_casts.Cast]:
+            assignment: bool=False) -> FrozenSet[s_casts.Cast]:
         return self._get_casts(to_type, disposition='to_type',
                                implicit=implicit, assignment=assignment)
 
     def get_casts_from_type(
             self, from_type: s_types.Type, *,
             implicit: bool=False,
-            assignment: bool=False) -> typing.FrozenSet[s_casts.Cast]:
+            assignment: bool=False) -> FrozenSet[s_casts.Cast]:
         return self._get_casts(from_type, disposition='from_type',
                                implicit=implicit, assignment=assignment)
 
     @functools.lru_cache()
     def get_referrers(
             self, scls: so.Object, *,
-            scls_type: typing.Optional[so.ObjectMeta]=None,
-            field_name: typing.Optional[str]=None):
+            scls_type: Optional[so.ObjectMeta]=None,
+            field_name: Optional[str]=None):
 
         try:
             refs = self._refs_to[scls.id]
@@ -651,8 +651,8 @@ class SchemaIterator:
     def __init__(
             self,
             schema, *,
-            modules: typing.Optional[typing.Iterable[str]],
-            excluded_modules: typing.Optional[typing.Iterable[str]],
+            modules: Optional[Iterable[str]],
+            excluded_modules: Optional[Iterable[str]],
             type=None) -> None:
 
         filters = []

@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -449,7 +449,7 @@ def init_stmt(
 
 
 def fini_stmt(
-        irstmt: typing.Union[irast.Stmt, irast.Set],
+        irstmt: Union[irast.Stmt, irast.Set],
         qlstmt: qlast.Statement, *,
         ctx: context.ContextLevel,
         parent_ctx: context.ContextLevel) -> irast.Set:
@@ -485,7 +485,7 @@ def fini_stmt(
 
 
 def process_with_block(
-        edgeql_tree: qlast.Stmt, *,
+        edgeql_tree: qlast.Statement, *,
         ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
@@ -504,10 +504,10 @@ def process_with_block(
 
 def compile_result_clause(
         result: qlast.Base, *,
-        view_scls: typing.Optional[s_types.Type]=None,
-        view_rptr: typing.Optional[context.ViewRPtr]=None,
-        view_name: typing.Optional[s_name.SchemaName]=None,
-        result_alias: typing.Optional[str]=None,
+        view_scls: Optional[s_types.Type]=None,
+        view_rptr: Optional[context.ViewRPtr]=None,
+        view_name: Optional[s_name.SchemaName]=None,
+        result_alias: Optional[str]=None,
         forward_rptr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     with ctx.new() as sctx:
@@ -521,7 +521,7 @@ def compile_result_clause(
             # sctx.view_scls = view_scls
 
         result_expr: qlast.Base
-        shape: typing.Optional[typing.Sequence[qlast.ShapeElement]]
+        shape: Optional[Sequence[qlast.ShapeElement]]
 
         if isinstance(result, qlast.Shape):
             result_expr = result.expr
@@ -594,11 +594,11 @@ def compile_result_clause(
 
 def compile_query_subject(
         expr: irast.Set, *,
-        shape: typing.Optional[typing.List[qlast.ShapeElement]]=None,
-        view_rptr: typing.Optional[context.ViewRPtr]=None,
-        view_name: typing.Optional[s_name.SchemaName]=None,
-        result_alias: typing.Optional[str]=None,
-        view_scls: typing.Optional[s_types.Type]=None,
+        shape: Optional[List[qlast.ShapeElement]]=None,
+        view_rptr: Optional[context.ViewRPtr]=None,
+        view_name: Optional[s_name.SchemaName]=None,
+        result_alias: Optional[str]=None,
+        view_scls: Optional[s_types.Type]=None,
         compile_views: bool=True,
         is_insert: bool=False,
         is_update: bool=False,
@@ -668,9 +668,9 @@ def compile_query_subject(
 
 
 def compile_groupby_clause(
-        groupexprs: typing.Iterable[qlast.Base], *,
-        ctx: context.ContextLevel) -> typing.List[irast.Set]:
-    result: typing.List[irast.Set] = []
+        groupexprs: Iterable[qlast.Base], *,
+        ctx: context.ContextLevel) -> List[irast.Set]:
+    result: List[irast.Set] = []
     if not groupexprs:
         return result
 

@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -26,7 +26,7 @@ from edb import errors
 class GraphQLError(errors.QueryError):
 
     def __init__(self, msg, *,
-                 loc: typing.Optional[typing.Tuple[int, int]]=None):
+                 loc: Optional[Tuple[int, int]]=None):
 
         super().__init__(msg)
 

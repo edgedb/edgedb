@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections.abc
 import dataclasses
 import json
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -38,7 +38,7 @@ class Setting:
 
     name: str
     type: type
-    default: typing.Any
+    default: Any
     set_of: bool = False
     system: bool = False
     internal: bool = False

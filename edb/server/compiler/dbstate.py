@@ -22,7 +22,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import time
-import typing
+from typing import *  # NoQA
 
 import immutables
 
@@ -49,7 +49,7 @@ class TxAction(enum.IntEnum):
 @dataclasses.dataclass(frozen=True)
 class BaseQuery:
 
-    sql: typing.Tuple[bytes, ...]
+    sql: Tuple[bytes, ...]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -63,18 +63,18 @@ class Query(BaseQuery):
     out_type_id: bytes
     in_type_data: bytes
     in_type_id: bytes
-    in_array_backend_tids: typing.Optional[
-        typing.Mapping[int, int]
+    in_array_backend_tids: Optional[
+        Mapping[int, int]
     ] = None
 
     # Set only when a query is compiled with "json_parameters=True"
-    in_type_args: typing.Optional[typing.Tuple[str, ...]] = None
+    in_type_args: Optional[Tuple[str, ...]] = None
 
 
 @dataclasses.dataclass(frozen=True)
 class SimpleQuery(BaseQuery):
 
-    sql: typing.Tuple[bytes, ...]
+    sql: Tuple[bytes, ...]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -83,13 +83,13 @@ class SessionStateQuery(BaseQuery):
     is_system_setting: bool = False
     is_backend_setting: bool = False
     requires_restart: bool = False
-    config_op: typing.Optional[config.Operation] = None
+    config_op: Optional[config.Operation] = None
 
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
-    new_types: typing.FrozenSet[str] = frozenset()
+    new_types: FrozenSet[str] = frozenset()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -99,7 +99,7 @@ class TxControlQuery(BaseQuery):
     single_unit: bool
     cacheable: bool
 
-    modaliases: typing.Optional[immutables.Map]
+    modaliases: Optional[immutables.Map]
 
 
 #############################
@@ -110,7 +110,7 @@ class QueryUnit:
 
     dbver: int
 
-    sql: typing.Tuple[bytes, ...]
+    sql: Tuple[bytes, ...]
 
     # Status-line for the compiled command; returned to front-end
     # in a CommandComplete protocol message if the command is
@@ -126,14 +126,14 @@ class QueryUnit:
     has_ddl: bool = False
 
     # A set of ids of types added by this unit.
-    new_types: typing.FrozenSet[str] = frozenset()
+    new_types: FrozenSet[str] = frozenset()
 
     # True if this unit contains SET commands.
     has_set: bool = False
 
     # If tx_id is set, it means that the unit
     # starts a new transaction.
-    tx_id: typing.Optional[int] = None
+    tx_id: Optional[int] = None
 
     # True if this unit is single 'COMMIT' command.
     # 'COMMIT' is always compiled to a separate QueryUnit.
@@ -161,12 +161,12 @@ class QueryUnit:
     in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
 
     # Set only when a query is compiled with "json_parameters=True"
-    in_type_args: typing.Optional[typing.Tuple[str, ...]] = None
+    in_type_args: Optional[Tuple[str, ...]] = None
 
     # A tuple of <index, element_backend_type_id> pairs for parameters
     # that are of an array type.
-    in_array_backend_tids: typing.Optional[
-        typing.Mapping[int, int]
+    in_array_backend_tids: Optional[
+        Mapping[int, int]
     ] = None
 
     # Set only when this unit contains a CONFIGURE SYSTEM command.
@@ -175,14 +175,14 @@ class QueryUnit:
     # Set only when this unit contains a CONFIGURE command which
     # alters a backend configuration setting.
     backend_config: bool = False
-    config_ops: typing.Optional[typing.List[config.Operation]] = None
-    modaliases: typing.Optional[immutables.Map] = None
+    config_ops: Optional[List[config.Operation]] = None
+    modaliases: Optional[immutables.Map] = None
 
 
 #############################
 
 
-class TransactionState(typing.NamedTuple):
+class TransactionState(NamedTuple):
 
     id: int
     name: str
@@ -334,7 +334,7 @@ class Transaction:
 
 class CompilerConnectionState:
 
-    _savepoints_log: typing.Mapping[int, Transaction]
+    _savepoints_log: Mapping[int, Transaction]
 
     __slots__ = ('_savepoints_log', '_dbver', '_current_tx', '_capability')
 

@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from mypy import exprtotype
 import mypy.plugin as mypy_plugin
@@ -58,7 +58,7 @@ class DeferException(Exception):
     pass
 
 
-class SchemaField(typing.NamedTuple):
+class SchemaField(NamedTuple):
 
     name: str
     is_optional: bool
@@ -165,15 +165,15 @@ class SchemaClassTransformer:
         metadata['fields'] = {f.name: f.serialize() for f in fields}
         metadata['processed'] = True
 
-    def _collect_fields(self) -> typing.List[SchemaField]:
+    def _collect_fields(self) -> List[SchemaField]:
         """Collect all fields declared in a schema class and its ancestors."""
 
         ctx = self._ctx
         cls = self._ctx.cls
 
-        fields: typing.List[SchemaField] = []
+        fields: List[SchemaField] = []
 
-        known_fields: typing.Set[str] = set()
+        known_fields: Set[str] = set()
 
         for stmt in cls.defs.body:
             if not isinstance(stmt, nodes.AssignmentStmt):

@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import types
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -62,7 +62,7 @@ def param_as_str(schema, param):
 
 
 # Non-schema description of a parameter.
-class ParameterDesc(typing.NamedTuple, s_abc.Parameter):
+class ParameterDesc(NamedTuple, s_abc.Parameter):
 
     num: int
     name: str
@@ -73,7 +73,7 @@ class ParameterDesc(typing.NamedTuple, s_abc.Parameter):
 
     @classmethod
     def from_ast(cls, schema, modaliases,
-                 num: int, astnode) -> 'ParameterDesc':
+                 num: int, astnode) -> ParameterDesc:
         paramd = None
         if astnode.default is not None:
             defexpr = expr.Expression.from_ast(
@@ -291,9 +291,9 @@ class DeleteParameter(ParameterCommand, sd.DeleteObject):
     pass
 
 
-class PgParams(typing.NamedTuple):
+class PgParams(NamedTuple):
 
-    params: typing.Tuple[Parameter, ...]
+    params: Tuple[Parameter, ...]
     has_param_wo_default: bool
 
     @classmethod
@@ -351,7 +351,7 @@ class FuncParameterList(so.ObjectList, type=Parameter):
         return any(p.get_type(schema).is_polymorphic(schema)
                    for p in self.objects(schema))
 
-    def find_named_only(self, schema) -> typing.Mapping[str, Parameter]:
+    def find_named_only(self, schema) -> Mapping[str, Parameter]:
         named = {}
         for param in self.objects(schema):
             if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
@@ -359,14 +359,14 @@ class FuncParameterList(so.ObjectList, type=Parameter):
 
         return types.MappingProxyType(named)
 
-    def find_variadic(self, schema) -> typing.Optional[Parameter]:
+    def find_variadic(self, schema) -> Optional[Parameter]:
         for param in self.objects(schema):
             if param.get_kind(schema) is ft.ParameterKind.VARIADIC:
                 return param
 
     @classmethod
     def from_ast(cls, schema, astnode, modaliases, *, func_fqname,
-                 prepend: typing.Optional[typing.List[qlast.FuncParam]]=None):
+                 prepend: Optional[List[qlast.FuncParam]]=None):
         if not getattr(astnode, 'params', None):
             return cls.create(schema, [])
 
@@ -480,7 +480,7 @@ class CallableObject(s_anno.AnnotationSubject, CallableLike):
     @classmethod
     def _get_fqname_quals(
             cls, schema,
-            params: typing.List[ParameterDesc]) -> typing.Tuple[str, ...]:
+            params: List[ParameterDesc]) -> Tuple[str, ...]:
         pgp = PgParams.from_params(schema, params)
 
         quals = []
@@ -504,7 +504,7 @@ class CallableObject(s_anno.AnnotationSubject, CallableLike):
 
     @classmethod
     def get_fqname(cls, schema, shortname: sn.Name,
-                   params: typing.List[ParameterDesc],
+                   params: List[ParameterDesc],
                    *extra_quals: str) -> sn.Name:
 
         quals = cls._get_fqname_quals(schema, params)

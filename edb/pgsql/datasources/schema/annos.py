@@ -20,14 +20,14 @@
 from __future__ import annotations
 
 import asyncpg
-import typing
+from typing import *  # NoQA
 
 
 async def fetch(
         conn: asyncpg.connection.Connection, *,
         name: str=None,
         modules=None,
-        exclude_modules=None) -> typing.List[asyncpg.Record]:
+        exclude_modules=None) -> List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 a.id                    AS id,
@@ -49,7 +49,7 @@ async def fetch_values(
         conn: asyncpg.connection.Connection, *,
         name: str=None,
         modules=None,
-        exclude_modules=None) -> typing.List[asyncpg.Record]:
+        exclude_modules=None) -> List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 a.id                        AS id,

@@ -24,7 +24,7 @@ import collections.abc
 import functools
 import re
 import sys
-import typing
+from typing import *  # NoQA
 
 import typing_inspect
 
@@ -65,7 +65,7 @@ class MetaAST(type):
         try:
             while True:
                 try:
-                    annos = typing.get_type_hints(cls, globalns)
+                    annos = get_type_hints(cls, globalns)
                 except NameError as e:
                     # Forward type declaration.  Generally, we try
                     # to avoid these as much as possible, but when
@@ -386,13 +386,13 @@ def _check_annotation(f_type, f_fullname, f_default):
             raise RuntimeError(
                 f'cannot find origin of a generic type {f_type}')
 
-        if ot in (list, typing.List, collections.abc.Sequence):
+        if ot in (list, List, collections.abc.Sequence):
             f_default = list
-        elif ot in (set, typing.Set):
+        elif ot in (set, Set):
             f_default = set
-        elif ot in (frozenset, typing.FrozenSet):
+        elif ot in (frozenset, FrozenSet):
             f_default = frozenset
-        elif ot in (dict, typing.Dict):
+        elif ot in (dict, Dict):
             f_default = dict
         else:
             raise RuntimeError(
@@ -400,7 +400,7 @@ def _check_annotation(f_type, f_fullname, f_default):
                 f'{f_type!r} is not supported')
 
     elif f_type is not None:
-        if f_type is typing.Any:
+        if f_type is Any:
             f_type = object
 
         if not isinstance(f_type, type):
@@ -483,21 +483,21 @@ def _check_type(type_, value, raise_error):
     elif typing_inspect.is_generic_type(type_):
         ot = typing_inspect.get_origin(type_)
 
-        if ot in (list, typing.List, collections.abc.Sequence):
+        if ot in (list, List, collections.abc.Sequence):
             _check_container_type(type_, value, raise_error, list)
 
-        elif ot in (set, typing.Set):
+        elif ot in (set, Set):
             _check_container_type(type_, value, raise_error, set)
 
-        elif ot in (frozenset, typing.FrozenSet):
+        elif ot in (frozenset, FrozenSet):
             _check_container_type(type_, value, raise_error, frozenset)
 
-        elif ot in (dict, typing.Dict):
+        elif ot in (dict, Dict):
             _check_mapping_type(type_, value, raise_error, dict)
 
         elif ot is not None:
             raise TypeError(f'unsupported typing type: {type_!r}')
 
-    elif type_ is not typing.Any:
+    elif type_ is not Any:
         if value is not None and not isinstance(value, type_):
             raise_error(type_.__name__, value)

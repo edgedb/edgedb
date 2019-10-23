@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import collections
 import functools
-import typing
+from typing import *  # NoQA
 import uuid
 
 from edb.edgeql import qltypes
@@ -115,7 +115,7 @@ def get_scalar_base(schema, scalar):
 
 def pg_type_from_scalar(
         schema: s_schema.Schema,
-        scalar: s_scalars.ScalarType) -> typing.Tuple[str, ...]:
+        scalar: s_scalars.ScalarType) -> Tuple[str, ...]:
 
     if scalar.is_polymorphic(schema):
         return ('anynonarray',)
@@ -140,7 +140,7 @@ def pg_type_from_scalar(
 def pg_type_from_object(
         schema: s_schema.Schema,
         obj: s_obj.Object,
-        persistent_tuples: bool=False) -> typing.Tuple[str, ...]:
+        persistent_tuples: bool=False) -> Tuple[str, ...]:
 
     if isinstance(obj, s_scalars.ScalarType):
         return pg_type_from_scalar(schema, obj)
@@ -179,7 +179,7 @@ def pg_type_from_object(
 def pg_type_from_ir_typeref(
         ir_typeref: irast.TypeRef, *,
         serialized: bool = False,
-        persistent_tuples: bool = False) -> typing.Tuple[str, ...]:
+        persistent_tuples: bool = False) -> Tuple[str, ...]:
 
     if irtyputils.is_array(ir_typeref):
         if (irtyputils.is_generic(ir_typeref)
@@ -361,12 +361,12 @@ def get_pointer_storage_info(
         link_bias=link_bias)
 
 
-class PointerStorageInfo(typing.NamedTuple):
+class PointerStorageInfo(NamedTuple):
 
-    table_name: typing.Tuple[str, str]
+    table_name: Tuple[str, str]
     table_type: str
     column_name: str
-    column_type: typing.Tuple[str, str]
+    column_type: Tuple[str, str]
 
 
 @functools.lru_cache()
@@ -514,7 +514,7 @@ class TypeDescNode(_TypeDescNode):
 
 class TypeDesc:
 
-    def __init__(self, types: typing.List[TypeDescNode]) -> None:
+    def __init__(self, types: List[TypeDescNode]) -> None:
         self.types = types
 
     def to_sql_expr(self):
@@ -525,7 +525,7 @@ class TypeDesc:
         )
 
     @classmethod
-    def from_type(cls, schema, type: s_abc.Type) -> 'TypeDesc':
+    def from_type(cls, schema, type: s_abc.Type) -> TypeDesc:
         nodes = []
         cls._get_typedesc(schema, [(None, type)], nodes)
         return cls(nodes)

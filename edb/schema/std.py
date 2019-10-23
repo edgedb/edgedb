@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import pathlib
-import typing
+from typing import *  # NoQA
 
 from edb import lib as stdlib
 from edb import errors
@@ -111,7 +111,7 @@ def load_std_schema() -> s_schema.Schema:
 
 
 def load_graphql_schema(
-        schema: typing.Optional[s_schema.Schema]=None) -> s_schema.Schema:
+        schema: Optional[s_schema.Schema]=None) -> s_schema.Schema:
     if schema is None:
         schema = s_schema.Schema()
 

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import copy
 import itertools
-import typing
+from typing import *  # NoQA
 
 from edb.common import ast
 
@@ -49,12 +49,12 @@ class ParameterInliner(ast.NodeTransformer):
         return arg
 
 
-def inline_parameters(ql_expr: qlast.Base, args: typing.Dict[str, qlast.Base]):
+def inline_parameters(ql_expr: qlast.Base, args: Dict[str, qlast.Base]):
     inliner = ParameterInliner(args)
     inliner.visit(ql_expr)
 
 
-def index_parameters(ql_args: typing.List[qlast.Base], *,
+def index_parameters(ql_args: List[qlast.Base], *,
                      parameters, schema):
     result = {}
     varargs = None
@@ -101,6 +101,6 @@ class AnchorInliner(ast.NodeTransformer):
 
 
 def inline_anchors(ql_expr: qlast.Base,
-                   anchors: typing.Dict[object, qlast.Base]):
+                   anchors: Dict[object, qlast.Base]):
     inliner = AnchorInliner(anchors)
     inliner.visit(ql_expr)

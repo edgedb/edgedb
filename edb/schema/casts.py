@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import functools
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -79,7 +79,7 @@ def is_implicitly_castable(
 @functools.lru_cache()
 def find_common_castable_type(
         schema, source: s_types.Type,
-        target: s_types.Type) -> typing.Optional[s_types.Type]:
+        target: s_types.Type) -> Optional[s_types.Type]:
 
     if get_implicit_cast_distance(schema, target, source) >= 0:
         return source

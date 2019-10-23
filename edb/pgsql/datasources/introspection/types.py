@@ -20,13 +20,13 @@
 from __future__ import annotations
 
 import asyncpg
-import typing
+from typing import *  # NoQA
 
 
 async def fetch(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None, type_pattern: str=None,
-        include_arrays: bool=True) -> typing.List[asyncpg.Record]:
+        include_arrays: bool=True) -> List[asyncpg.Record]:
 
     qry = """
         SELECT
@@ -53,7 +53,7 @@ async def fetch(
 async def fetch_attributes(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None,
-        type_pattern: str=None) -> typing.List[asyncpg.Record]:
+        type_pattern: str=None) -> List[asyncpg.Record]:
 
     qry = """
         SELECT

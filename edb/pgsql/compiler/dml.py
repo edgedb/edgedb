@@ -33,7 +33,7 @@
 from __future__ import annotations
 
 import collections
-import typing
+from typing import *  # NoQA
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -55,9 +55,9 @@ def init_dml_stmt(
         ir_stmt: irast.MutatingStmt, dml_stmt: pgast.DMLQuery, *,
         ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) \
-        -> typing.Tuple[pgast.Query, pgast.CommonTableExpr,
-                        pgast.PathRangeVar,
-                        typing.Optional[pgast.CommonTableExpr]]:
+        -> Tuple[pgast.Query, pgast.CommonTableExpr,
+                 pgast.PathRangeVar,
+                 Optional[pgast.CommonTableExpr]]:
     """Prepare the common structure of the query representing a DML stmt.
 
     :param ir_stmt:
@@ -185,7 +185,7 @@ def fini_dml_stmt(
 
 def get_dml_stmt_stack(
         ir_stmt: irast.MutatingStmt, *,
-        ctx: context.CompilerContextLevel) -> typing.List[irast.MutatingStmt]:
+        ctx: context.CompilerContextLevel) -> List[irast.MutatingStmt]:
     stack = []
     stmt: irast.Stmt = ir_stmt
     while stmt is not None:
@@ -197,7 +197,7 @@ def get_dml_stmt_stack(
 
 
 def get_dml_range(
-        ir_stmt: typing.Union[irast.UpdateStmt, irast.DeleteStmt],
+        ir_stmt: Union[irast.UpdateStmt, irast.DeleteStmt],
         dml_stmt: pgast.DMLQuery, *,
         ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
     """Create a range CTE for the given DML statement.
@@ -543,7 +543,7 @@ def process_update_body(
     if not update_stmt.targets:
         # No updates directly to the set target table,
         # so convert the UPDATE statement into a SELECT.
-        from_clause: typing.List[pgast.BaseRangeVar] = [update_stmt.relation]
+        from_clause: List[pgast.BaseRangeVar] = [update_stmt.relation]
         from_clause.extend(update_stmt.from_clause)
         update_cte.query = pgast.SelectStmt(
             ctes=update_stmt.ctes,
@@ -590,7 +590,7 @@ def process_link_update(
         is_insert: bool,
         wrapper: pgast.Query,
         dml_cte: pgast.CommonTableExpr,
-        iterator_cte: typing.Optional[pgast.CommonTableExpr],
+        iterator_cte: Optional[pgast.CommonTableExpr],
         ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
     """Perform updates to a link relation as part of a DML statement.
 
@@ -854,7 +854,7 @@ def process_link_values(
         ir_stmt, ir_expr, target_tab, col_data,
         dml_rvar, sources, props_only, target_is_scalar, iterator_cte, *,
         ctx=context.CompilerContext) -> \
-        typing.Tuple[pgast.CommonTableExpr, typing.List[str]]:
+        Tuple[pgast.CommonTableExpr, List[str]]:
     """Unpack data from an update expression into a series of selects.
 
     :param ir_expr:
@@ -918,7 +918,7 @@ def process_link_values(
         )
     )
 
-    source_data: typing.Dict[str, pgast.BaseExpr] = {}
+    source_data: Dict[str, pgast.BaseExpr] = {}
 
     if input_stmt.op is not None:
         # UNION

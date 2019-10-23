@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -40,26 +40,26 @@ from . import dispatch
 from . import setgen
 
 
-class BoundArg(typing.NamedTuple):
+class BoundArg(NamedTuple):
 
-    param: typing.Optional[s_func.Parameter]
+    param: Optional[s_func.Parameter]
     param_type: s_types.Type
     val: irast.Set
     valtype: s_types.Type
     cast_distance: int
 
 
-class MissingArg(typing.NamedTuple):
+class MissingArg(NamedTuple):
 
-    param: typing.Optional[s_func.Parameter]
+    param: Optional[s_func.Parameter]
     param_type: s_types.Type
 
 
-class BoundCall(typing.NamedTuple):
+class BoundCall(NamedTuple):
 
     func: s_func.CallableLike
-    args: typing.List[BoundArg]
-    null_args: typing.Set[str]
+    args: List[BoundArg]
+    null_args: Set[str]
     return_type: s_types.Type
     has_empty_variadic: bool
 
@@ -74,10 +74,10 @@ _SINGLETON = ft.TypeModifier.SINGLETON
 
 
 def find_callable(
-        candidates: typing.Iterable[s_func.CallableLike], *,
-        args: typing.Sequence[typing.Tuple[s_types.Type, irast.Set]],
-        kwargs: typing.Mapping[str, typing.Tuple[s_types.Type, irast.Set]],
-        ctx: context.ContextLevel) -> typing.List[BoundCall]:
+        candidates: Iterable[s_func.CallableLike], *,
+        args: Sequence[Tuple[s_types.Type, irast.Set]],
+        kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
+        ctx: context.ContextLevel) -> List[BoundCall]:
 
     implicit_cast_distance = None
     matched = []
@@ -134,14 +134,14 @@ def find_callable(
 
 
 def try_bind_call_args(
-        args: typing.Sequence[typing.Tuple[s_types.Type, irast.Set]],
-        kwargs: typing.Mapping[str, typing.Tuple[s_types.Type, irast.Set]],
+        args: Sequence[Tuple[s_types.Type, irast.Set]],
+        kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
         func: s_func.CallableLike, *,
-        ctx: context.ContextLevel) -> typing.Optional[BoundCall]:
+        ctx: context.ContextLevel) -> Optional[BoundCall]:
 
     return_type = func.get_return_type(ctx.env.schema)
     is_abstract = func.get_is_abstract(ctx.env.schema)
-    resolved_poly_base_type: typing.Optional[s_types.Type] = None
+    resolved_poly_base_type: Optional[s_types.Type] = None
 
     def _get_cast_distance(arg, arg_type, param_type) -> int:
         nonlocal resolved_poly_base_type
@@ -209,7 +209,7 @@ def try_bind_call_args(
         if no_args_call:
             # Match: `func` is a function without parameters
             # being called with no arguments.
-            bargs: typing.List[BoundArg] = []
+            bargs: List[BoundArg] = []
             if has_inlined_defaults:
                 bytes_t = ctx.env.get_track_schema_type('std::bytes')
                 argval = setgen.ensure_set(
@@ -235,7 +235,7 @@ def try_bind_call_args(
         # one parameter without default.
         return None
 
-    bound_args_prep: typing.List[typing.Union[MissingArg, BoundArg]] = []
+    bound_args_prep: List[Union[MissingArg, BoundArg]] = []
 
     params = pg_params.params
     nparams = len(params)
@@ -354,8 +354,8 @@ def try_bind_call_args(
 
     # Populate defaults.
     defaults_mask = 0
-    null_args: typing.Set[str] = set()
-    bound_param_args: typing.List[BoundArg] = []
+    null_args: Set[str] = set()
+    bound_param_args: List[BoundArg] = []
     if has_missing_args:
         if has_inlined_defaults or named_only:
             for i, barg in enumerate(bound_args_prep):
@@ -422,7 +422,7 @@ def try_bind_call_args(
                 barg for barg in bound_args_prep if isinstance(barg, BoundArg)
             ]
     else:
-        bound_param_args = typing.cast(typing.List[BoundArg], bound_args_prep)
+        bound_param_args = cast(List[BoundArg], bound_args_prep)
 
     if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults

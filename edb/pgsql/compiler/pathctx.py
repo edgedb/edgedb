@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import functools
-import typing
+from typing import *  # NoQA
 
 from edb.common import enum as s_enum
 
@@ -71,7 +71,7 @@ def get_less_specific_aspect(path_id: irast.PathId, aspect: str):
 
 def map_path_id(
         path_id: irast.PathId,
-        path_id_map: typing.Dict[irast.PathId, irast.PathId]) -> irast.PathId:
+        path_id_map: Dict[irast.PathId, irast.PathId]) -> irast.PathId:
     for outer_id, inner_id in path_id_map.items():
         new_path_id = path_id.replace_prefix(outer_id, inner_id)
         if new_path_id != path_id:
@@ -83,7 +83,7 @@ def map_path_id(
 
 def reverse_map_path_id(
         path_id: irast.PathId,
-        path_id_map: typing.Dict[irast.PathId, irast.PathId]) -> irast.PathId:
+        path_id_map: Dict[irast.PathId, irast.PathId]) -> irast.PathId:
     for outer_id, inner_id in path_id_map.items():
         new_path_id = path_id.replace_prefix(inner_id, outer_id)
         if new_path_id != path_id:
@@ -161,7 +161,7 @@ def get_path_var(
         src_path_id = None
         ptr_dir = None
 
-    var: typing.Optional[pgast.BaseExpr]
+    var: Optional[pgast.BaseExpr]
 
     if astutils.is_set_op_query(rel):
         cb = functools.partial(
@@ -325,7 +325,7 @@ def is_values_relation(
 
 def maybe_get_path_var(
         rel: pgast.Query, path_id: irast.PathId, *, aspect: str,
-        env: context.Environment) -> typing.Optional[pgast.BaseExpr]:
+        env: context.Environment) -> Optional[pgast.BaseExpr]:
     try:
         return get_path_var(rel, path_id, aspect=aspect, env=env)
     except LookupError:
@@ -335,7 +335,7 @@ def maybe_get_path_var(
 def maybe_get_path_identity_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.BaseExpr]:
+        env: context.Environment) -> Optional[pgast.BaseExpr]:
     try:
         return get_path_var(rel, path_id, aspect='identity', env=env)
     except LookupError:
@@ -345,7 +345,7 @@ def maybe_get_path_identity_var(
 def maybe_get_path_value_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.BaseExpr]:
+        env: context.Environment) -> Optional[pgast.BaseExpr]:
     try:
         return get_path_var(rel, path_id, aspect='value', env=env)
     except LookupError:
@@ -355,7 +355,7 @@ def maybe_get_path_value_var(
 def maybe_get_path_serialized_var(
         rel: pgast.Query,
         path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.BaseExpr]:
+        env: context.Environment) -> Optional[pgast.BaseExpr]:
     try:
         return get_path_var(rel, path_id, aspect='serialized', env=env)
     except LookupError:
@@ -472,7 +472,7 @@ def get_rvar_path_identity_var(
 
 def maybe_get_rvar_path_identity_var(
         rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+        env: context.Environment) -> Optional[pgast.OutputVar]:
     try:
         return get_rvar_path_var(rvar, path_id, aspect='identity', env=env)
     except LookupError:
@@ -487,7 +487,7 @@ def get_rvar_path_value_var(
 
 def maybe_get_rvar_path_value_var(
         rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+        env: context.Environment) -> Optional[pgast.OutputVar]:
     try:
         return get_rvar_path_var(rvar, path_id, aspect='value', env=env)
     except LookupError:
@@ -496,9 +496,9 @@ def maybe_get_rvar_path_value_var(
 
 def get_rvar_output_var_as_col_list(
         rvar: pgast.PathRangeVar, outvar: pgast.OutputVar, aspect: str, *,
-        env: context.Environment) -> typing.List[pgast.OutputVar]:
+        env: context.Environment) -> List[pgast.OutputVar]:
 
-    cols: typing.List[pgast.OutputVar]
+    cols: List[pgast.OutputVar]
 
     if isinstance(outvar, pgast.ColumnRef):
         cols = [outvar]
@@ -567,7 +567,7 @@ def get_path_rvar(
 
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *, aspect: str,
-        env: context.Environment) -> typing.Optional[pgast.PathRangeVar]:
+        env: context.Environment) -> Optional[pgast.PathRangeVar]:
     try:
         return get_path_rvar(stmt, path_id, aspect=aspect, env=env)
     except LookupError:
@@ -576,7 +576,7 @@ def maybe_get_path_rvar(
 
 def list_path_rvar_aspects(
         stmt: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Set[str]:
+        env: context.Environment) -> Set[str]:
 
     aspects = set()
 
@@ -589,7 +589,7 @@ def list_path_rvar_aspects(
 
 def maybe_get_path_value_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> typing.Optional[pgast.BaseRangeVar]:
+        env: context.Environment) -> Optional[pgast.BaseRangeVar]:
     return maybe_get_path_rvar(stmt, path_id, aspect='value', env=env)
 
 
@@ -611,7 +611,7 @@ def _put_path_output_var(
 def _get_rel_object_id_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str,
-        ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
+        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
     var = rel.path_outputs.get((path_id, aspect))
@@ -642,7 +642,7 @@ def _get_rel_object_id_output(
 def _get_rel_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str,
-        ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
+        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
     if path_id.is_objtype_path():
@@ -720,7 +720,7 @@ def _get_rel_path_output(
 
 def find_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, ref: pgast.Base, *,
-        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+        env: context.Environment) -> Optional[pgast.OutputVar]:
     if isinstance(ref, pgast.TupleVarBase):
         return None
 
@@ -734,7 +734,7 @@ def find_path_output(
 def get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
-        ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
+        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
     view_path_id_map = getattr(rel, 'view_path_id_map', None)
@@ -749,7 +749,7 @@ def get_path_output(
 def _get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
-        ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
+        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
     result = rel.path_outputs.get((path_id, aspect))
@@ -859,8 +859,8 @@ def _get_path_output(
 def maybe_get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str,
-        ptr_info: typing.Optional[pg_types.PointerStorageInfo]=None,
-        env: context.Environment) -> typing.Optional[pgast.OutputVar]:
+        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
+        env: context.Environment) -> Optional[pgast.OutputVar]:
     try:
         return get_path_output(rel, path_id=path_id, aspect=aspect,
                                ptr_info=ptr_info, env=env)
@@ -921,7 +921,7 @@ def get_path_serialized_output(
 def get_path_output_or_null(
         rel: pgast.Query, path_id: irast.PathId, *,
         aspect: str, env: context.Environment) -> \
-        typing.Tuple[pgast.OutputVar, bool]:
+        Tuple[pgast.OutputVar, bool]:
 
     path_id = map_path_id(path_id, rel.view_path_id_map)
 

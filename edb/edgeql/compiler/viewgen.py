@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import functools
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -52,9 +52,9 @@ def process_view(
         *,
         stype: s_types.Type,
         path_id: irast.PathId,
-        elements: typing.List[qlast.ShapeElement],
-        view_rptr: typing.Optional[context.ViewRPtr]=None,
-        view_name: typing.Optional[sn.SchemaName]=None,
+        elements: List[qlast.ShapeElement],
+        view_rptr: Optional[context.ViewRPtr]=None,
+        view_name: Optional[sn.SchemaName]=None,
         is_insert: bool=False,
         is_update: bool=False,
         ctx: context.ContextLevel) -> s_types.Type:
@@ -88,10 +88,10 @@ def _process_view(
         *,
         stype: s_types.Type,
         path_id: irast.PathId,
-        path_id_namespace: typing.Optional[irast.WeakNamespace]=None,
-        elements: typing.List[qlast.ShapeElement],
-        view_rptr: typing.Optional[context.ViewRPtr]=None,
-        view_name: typing.Optional[sn.SchemaName]=None,
+        path_id_namespace: Optional[irast.WeakNamespace]=None,
+        elements: List[qlast.ShapeElement],
+        view_rptr: Optional[context.ViewRPtr]=None,
+        view_name: Optional[sn.SchemaName]=None,
         is_insert: bool=False,
         is_update: bool=False,
         ctx: context.ContextLevel) -> s_types.Type:
@@ -215,10 +215,10 @@ def _normalize_view_ptr_expr(
         shape_el: qlast.ShapeElement,
         view_scls: s_types.Type, *,
         path_id: irast.PathId,
-        path_id_namespace: typing.Optional[irast.WeakNamespace]=None,
+        path_id_namespace: Optional[irast.WeakNamespace]=None,
         is_insert: bool=False,
         is_update: bool=False,
-        view_rptr: typing.Optional[context.ViewRPtr]=None,
+        view_rptr: Optional[context.ViewRPtr]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
     steps = shape_el.expr.steps
     is_linkprop = False
@@ -497,7 +497,7 @@ def _normalize_view_ptr_expr(
                     repr(str(base_target.get_displayname(ctx.env.schema)))
                 ]
 
-                ercls: typing.Type[errors.EdgeDBError]
+                ercls: Type[errors.EdgeDBError]
                 if ptrcls.is_property(ctx.env.schema):
                     ercls = errors.InvalidPropertyTargetError
                 else:
@@ -716,18 +716,18 @@ def has_implicit_tid(
 
 def _get_shape_configuration(
         ir_set: irast.Set, *,
-        rptr: typing.Optional[irast.Pointer]=None,
-        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        rptr: Optional[irast.Pointer]=None,
+        parent_view_type: Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) \
-        -> typing.List[typing.Tuple[irast.Set, s_pointers.Pointer]]:
+        -> List[Tuple[irast.Set, s_pointers.Pointer]]:
 
     """Return a list of (source_set, ptrcls) pairs as a shape for a given set.
     """
 
     stype = setgen.get_set_type(ir_set, ctx=ctx)
 
-    sources: typing.List[
-        typing.Union[s_types.Type, s_pointers.PointerLike]] = []
+    sources: List[
+        Union[s_types.Type, s_pointers.PointerLike]] = []
     link_view = False
     is_objtype = ir_set.path_id.is_objtype_path()
 
@@ -847,8 +847,8 @@ def _get_shape_configuration(
 @functools.singledispatch
 def compile_view_shapes(
         expr: irast.Base, *,
-        rptr: typing.Optional[irast.Pointer]=None,
-        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        rptr: Optional[irast.Pointer]=None,
+        parent_view_type: Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
     pass
 
@@ -856,8 +856,8 @@ def compile_view_shapes(
 @compile_view_shapes.register(irast.Set)
 def _compile_view_shapes_in_set(
         ir_set: irast.Set, *,
-        rptr: typing.Optional[irast.Pointer]=None,
-        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        rptr: Optional[irast.Pointer]=None,
+        parent_view_type: Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
 
     shape_ptrs = _get_shape_configuration(
@@ -908,8 +908,8 @@ def _compile_view_shapes_in_set(
 @compile_view_shapes.register(irast.SelectStmt)
 def _compile_view_shapes_in_select(
         stmt: irast.SelectStmt, *,
-        rptr: typing.Optional[irast.Pointer]=None,
-        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        rptr: Optional[irast.Pointer]=None,
+        parent_view_type: Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
     compile_view_shapes(stmt.result, ctx=ctx)
 
@@ -917,8 +917,8 @@ def _compile_view_shapes_in_select(
 @compile_view_shapes.register(irast.FunctionCall)
 def _compile_view_shapes_in_fcall(
         expr: irast.FunctionCall, *,
-        rptr: typing.Optional[irast.Pointer]=None,
-        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        rptr: Optional[irast.Pointer]=None,
+        parent_view_type: Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
 
     if expr.func_polymorphic:
@@ -936,8 +936,8 @@ def _compile_view_shapes_in_fcall(
 @compile_view_shapes.register(irast.Tuple)
 def _compile_view_shapes_in_tuple(
         expr: irast.Tuple, *,
-        rptr: typing.Optional[irast.Pointer]=None,
-        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        rptr: Optional[irast.Pointer]=None,
+        parent_view_type: Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
     for element in expr.elements:
         compile_view_shapes(element.val, ctx=ctx)
@@ -946,8 +946,8 @@ def _compile_view_shapes_in_tuple(
 @compile_view_shapes.register(irast.Array)
 def _compile_view_shapes_in_array(
         expr: irast.Array, *,
-        rptr: typing.Optional[irast.Pointer]=None,
-        parent_view_type: typing.Optional[s_types.ViewType]=None,
+        rptr: Optional[irast.Pointer]=None,
+        parent_view_type: Optional[s_types.ViewType]=None,
         ctx: context.ContextLevel) -> None:
     for element in expr.elements:
         compile_view_shapes(element, ctx=ctx)

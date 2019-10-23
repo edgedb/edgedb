@@ -24,7 +24,7 @@ import collections
 import hashlib
 import numbers
 import textwrap
-import typing
+from typing import *  # NoQA
 
 from edb.common import markup
 from edb.common import struct
@@ -36,7 +36,7 @@ from ..common import quote_type as qt
 from ..common import qname as qn
 
 
-def encode_value(val: typing.Any) -> str:
+def encode_value(val: Any) -> str:
     """Encode value into an appropriate SQL expression."""
     if hasattr(val, 'to_sql_expr'):
         val = val.to_sql_expr()
@@ -125,7 +125,7 @@ class PLBlock(SQLBlock):
     def has_statements(self) -> bool:
         return bool(self.commands)
 
-    def get_top_block(self) -> 'PLTopBlock':
+    def get_top_block(self) -> PLTopBlock:
         return self.top_block
 
     def add_block(self, attach: bool=True):
@@ -189,7 +189,7 @@ class PLBlock(SQLBlock):
 
     def declare_var(
         self,
-        type_name: typing.Union[str, typing.Tuple[str, str]],
+        type_name: Union[str, Tuple[str, str]],
         var_name_prefix: str='v',
         shared: bool=False,
     ) -> str:
@@ -219,7 +219,7 @@ class PLTopBlock(PLBlock):
         body = super().to_string()
         return f'DO LANGUAGE plpgsql $__$\n{body}\n$__$;'
 
-    def get_top_block(self) -> 'PLTopBlock':
+    def get_top_block(self) -> PLTopBlock:
         return self
 
 
@@ -257,7 +257,7 @@ class Command(BaseCommand):
 
         block.add_command(self_block, **kwargs)
 
-    def generate_self_block(self, block: PLBlock) -> typing.Optional[PLBlock]:
+    def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
         # Default implementation simply calls self.code()
         self_block = block.add_block()
         self_block.add_command(self.code(block))
@@ -283,7 +283,7 @@ class CommandGroup(Command):
     def add_commands(self, cmds):
         self.commands.extend(cmds)
 
-    def generate_self_block(self, block: PLBlock) -> typing.Optional[PLBlock]:
+    def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
         if not self.commands:
             return None
 
@@ -314,7 +314,7 @@ class CommandGroup(Command):
 
 
 class CompositeCommandGroup(CommandGroup):
-    def generate_self_block(self, block: PLBlock) -> typing.Optional[PLBlock]:
+    def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:
         if not self.commands:
             return None
 

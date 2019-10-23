@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -54,17 +54,17 @@ def pull_path_namespace(
         replace_bonds: bool=True, ctx: context.CompilerContextLevel):
 
     squery = source.query
-    source_qs: typing.List[pgast.BaseRelation]
+    source_qs: List[pgast.BaseRelation]
 
     if astutils.is_set_op_query(squery):
         # Set op query
-        squery = typing.cast(pgast.SelectStmt, squery)
+        squery = cast(pgast.SelectStmt, squery)
         source_qs = [squery, squery.larg, squery.rarg]
     else:
         source_qs = [squery]
 
     for source_q in source_qs:
-        s_paths: typing.Set[typing.Tuple[irast.PathId, str]] = set()
+        s_paths: Set[Tuple[irast.PathId, str]] = set()
         if hasattr(source_q, 'value_scope'):
             s_paths.update((p, 'value') for p in source_q.value_scope)
         if hasattr(source_q, 'path_outputs'):
@@ -90,10 +90,10 @@ def pull_path_namespace(
 
 def find_rvar(
         stmt: pgast.Query, *,
-        source_stmt: typing.Optional[pgast.Query]=None,
+        source_stmt: Optional[pgast.Query]=None,
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> \
-        typing.Optional[pgast.PathRangeVar]:
+        Optional[pgast.PathRangeVar]:
     """Find an existing range var for a given *path_id* in stmt hierarchy.
 
     If a range var is visible in a given SQL scope denoted by *stmt*, or,
@@ -142,7 +142,7 @@ def include_rvar(
         path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
         pull_namespace: bool=True,
-        aspects: typing.Optional[typing.Iterable[str]]=None,
+        aspects: Optional[Iterable[str]]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Ensure that *rvar* is visible in *stmt* as a value/source aspect.
 
@@ -181,7 +181,7 @@ def include_specific_rvar(
         path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
         pull_namespace: bool=True,
-        aspects: typing.Iterable[str]=('value',),
+        aspects: Iterable[str]=('value',),
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Make the *aspect* of *path_id* visible in *stmt* as *rvar*.
 
@@ -241,7 +241,7 @@ def has_rvar(
 def _get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel,
-) -> typing.Tuple[pgast.PathRangeVar, irast.PathId]:
+) -> Tuple[pgast.PathRangeVar, irast.PathId]:
     qry = stmt
     while qry is not None:
         rvar = pathctx.maybe_get_path_rvar(
@@ -284,7 +284,7 @@ def get_path_var(
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel
-) -> typing.Optional[pgast.PathRangeVar]:
+) -> Optional[pgast.PathRangeVar]:
     try:
         return get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
     except LookupError:
@@ -294,7 +294,7 @@ def maybe_get_path_rvar(
 def maybe_get_path_var(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel
-) -> typing.Optional[pgast.OutputVar]:
+) -> Optional[pgast.OutputVar]:
     try:
         rvar, path_id = _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
     except LookupError:
@@ -319,7 +319,7 @@ def new_empty_rvar(
 
 def new_root_rvar(
         ir_set: irast.Set, *,
-        typeref: typing.Optional[irast.TypeRef]=None,
+        typeref: Optional[irast.TypeRef]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     if not ir_set.path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
@@ -572,7 +572,7 @@ def ensure_transient_identity_for_set(
 def get_scope(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> \
-        typing.Optional[irast.ScopeTreeNode]:
+        Optional[irast.ScopeTreeNode]:
     if ir_set.path_scope_id is None:
         return None
     else:
@@ -618,7 +618,7 @@ def get_scope_stmt(
 def maybe_get_scope_stmt(
         path_id: irast.PathId, *,
         ctx: context.CompilerContextLevel
-) -> typing.Optional[pgast.SelectStmt]:
+) -> Optional[pgast.SelectStmt]:
     try:
         return get_scope_stmt(path_id, ctx=ctx)
     except LookupError:
@@ -667,7 +667,7 @@ def range_for_material_objtype(
         typeref: irast.TypeRef,
         path_id: irast.PathId, *,
         include_overlays: bool=True,
-        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        dml_source: Optional[irast.MutatingStmt]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
     env = ctx.env
@@ -756,7 +756,7 @@ def range_for_typeref(
         typeref: irast.TypeRef,
         path_id: irast.PathId, *,
         include_overlays: bool=True,
-        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        dml_source: Optional[irast.MutatingStmt]=None,
         common_parent: bool=False,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
@@ -811,7 +811,7 @@ def range_for_typeref(
 
 
 def range_from_queryset(
-        set_ops: typing.Sequence[typing.Tuple[str, pgast.SelectStmt]],
+        set_ops: Sequence[Tuple[str, pgast.SelectStmt]],
         objname: sn.Name, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
@@ -873,7 +873,7 @@ def table_from_ptrref(
 
 def range_for_ptrref(
         ptrref: irast.BasePointerRef, *,
-        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        dml_source: Optional[irast.MutatingStmt]=None,
         include_overlays: bool=True,
         only_self: bool=False,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
@@ -948,7 +948,7 @@ def range_for_ptrref(
 
 def range_for_pointer(
         pointer: irast.Pointer, *,
-        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        dml_source: Optional[irast.MutatingStmt]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     ptrref = pointer.ptrref
     if ptrref.material_ptr is not None:
@@ -958,8 +958,8 @@ def range_for_pointer(
 
 
 def rvar_for_rel(
-        rel: typing.Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        lateral: bool=False, colnames: typing.List[str]=[],
+        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+        lateral: bool=False, colnames: List[str]=[],
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
     rvar: pgast.PathRangeVar
@@ -986,8 +986,8 @@ def rvar_for_rel(
 def add_type_rel_overlay(
         typeref: irast.TypeRef,
         op: str,
-        rel: typing.Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        dml_stmts: typing.Iterable[irast.MutatingStmt] = (),
+        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+        dml_stmts: Iterable[irast.MutatingStmt] = (),
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
     if typeref.material_type is not None:
@@ -1004,7 +1004,7 @@ def add_type_rel_overlay(
 
 def get_type_rel_overlays(
         typeref: irast.TypeRef, *,
-        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        dml_source: Optional[irast.MutatingStmt]=None,
         ctx: context.CompilerContextLevel):
     if typeref.material_type is not None:
         typeref = typeref.material_type
@@ -1015,8 +1015,8 @@ def get_type_rel_overlays(
 def add_ptr_rel_overlay(
         ptrref: irast.PointerRef,
         op: str,
-        rel: typing.Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        dml_stmts: typing.Iterable[irast.MutatingStmt] = (),
+        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+        dml_stmts: Iterable[irast.MutatingStmt] = (),
         ctx: context.CompilerContextLevel) -> None:
 
     if dml_stmts:
@@ -1030,7 +1030,7 @@ def add_ptr_rel_overlay(
 
 def get_ptr_rel_overlays(
         ptrref: irast.PointerRef, *,
-        dml_source: typing.Optional[irast.MutatingStmt]=None,
+        dml_source: Optional[irast.MutatingStmt]=None,
         ctx: context.CompilerContextLevel):
 
     return ctx.rel_overlays.get((ptrref.shortname, dml_source))

@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -39,7 +39,7 @@ from . import stmtctx
 
 
 def get_path_id(stype: s_obj.Object, *,
-                typename: typing.Optional[str]=None,
+                typename: Optional[str]=None,
                 ctx: context.ContextLevel) -> irast.PathId:
     return irast.PathId.from_type(
         ctx.env.schema, stype,
@@ -76,7 +76,7 @@ def get_type_indirection_path_id(
 
 
 def get_expression_path_id(
-        stype: s_types.Type, alias: typing.Optional[str] = None, *,
+        stype: s_types.Type, alias: Optional[str] = None, *,
         ctx: context.ContextLevel) -> irast.PathId:
     if alias is None:
         alias = ctx.aliases.get('expr')
@@ -99,7 +99,7 @@ def register_set_in_scope(
 
 
 def assign_set_scope(
-        ir_set: irast.Set, scope: typing.Optional[irast.ScopeTreeNode], *,
+        ir_set: irast.Set, scope: Optional[irast.ScopeTreeNode], *,
         ctx: context.ContextLevel) -> irast.Set:
     if scope is None:
         ir_set.path_scope_id = None
@@ -115,7 +115,7 @@ def assign_set_scope(
 
 def get_set_scope(
         ir_set: irast.Set, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.ScopeTreeNode]:
+        ctx: context.ContextLevel) -> Optional[irast.ScopeTreeNode]:
     if ir_set.path_scope_id is None:
         return None
     else:

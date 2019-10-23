@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -148,7 +148,7 @@ class ScalarType(s_types.Type, constraints.ConsistencySubject,
 
     def find_common_implicitly_castable_type(
             self, other: s_types.Type,
-            schema) -> typing.Optional[s_types.Type]:
+            schema) -> Optional[s_types.Type]:
 
         if not isinstance(other, ScalarType):
             return
@@ -167,7 +167,7 @@ class ScalarType(s_types.Type, constraints.ConsistencySubject,
 
 class AnonymousEnumTypeRef(so.ObjectRef):
 
-    def __init__(self, *, name: str, elements: typing.List[str]):
+    def __init__(self, *, name: str, elements: List[str]):
         super().__init__(name=name)
         self.__dict__['elements'] = elements
 

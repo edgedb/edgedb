@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import qltypes
 
@@ -38,7 +38,7 @@ from . import relgen
 
 
 def compile_shape(
-        ir_set: irast.Set, shape: typing.List[irast.Set], *,
+        ir_set: irast.Set, shape: List[irast.Set], *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
     elements = []
 

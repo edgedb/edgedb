@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import json
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -44,7 +44,7 @@ from . import dispatch
 from . import setgen
 
 
-class SettingInfo(typing.NamedTuple):
+class SettingInfo(NamedTuple):
     param_name: str
     param_type: s_types.Type
     cardinality: qltypes.Cardinality
@@ -324,9 +324,9 @@ def _validate_op(
 
 
 def get_config_type_shape(
-        schema, stype, path) -> typing.List[qlast.ShapeElement]:
+        schema, stype, path) -> List[qlast.ShapeElement]:
     shape = []
-    seen: typing.Set[str] = set()
+    seen: Set[str] = set()
 
     stypes = [stype] + list(stype.descendants(schema))
 
@@ -337,7 +337,7 @@ def get_config_type_shape(
             if pn in ('id', '__type__') or pn in seen:
                 continue
 
-            elem_path: typing.List[qlast.Base] = []
+            elem_path: List[qlast.Base] = []
 
             if t is not stype:
                 elem_path.append(

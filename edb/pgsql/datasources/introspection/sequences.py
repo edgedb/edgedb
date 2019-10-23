@@ -20,13 +20,13 @@
 from __future__ import annotations
 
 import asyncpg
-import typing
+from typing import *  # NoQA
 
 
 async def fetch(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None,
-        sequence_pattern: str=None) -> typing.List[asyncpg.Record]:
+        sequence_pattern: str=None) -> List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 c.oid                                 AS oid,

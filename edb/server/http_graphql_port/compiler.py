@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import dataclasses
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 from edb import graphql
@@ -43,11 +43,11 @@ class CompiledOperation:
 
     sql: bytes
     sql_hash: bytes
-    sql_args: typing.List[str]
+    sql_args: List[str]
     dbver: int
     cacheable: bool
-    cache_deps_vars: typing.Dict
-    variables: typing.Dict
+    cache_deps_vars: Dict
+    variables: Dict
 
 
 class Compiler(compiler.BaseCompiler):
@@ -65,7 +65,7 @@ class Compiler(compiler.BaseCompiler):
             dbver: int,
             gql: str,
             operation_name: str=None,
-            variables: typing.Optional[typing.Mapping[str, object]]=None):
+            variables: Optional[Mapping[str, object]]=None):
 
         db = await self._get_database(dbver)
 

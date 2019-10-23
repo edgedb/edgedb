@@ -22,7 +22,7 @@ from __future__ import annotations
 import enum
 import os
 import pathlib
-import typing
+from typing import *  # NoQA
 
 import edb
 from edb.common import devmode
@@ -95,13 +95,13 @@ class VersionStage(enum.IntEnum):
     FINAL = 40
 
 
-class Version(typing.NamedTuple):
+class Version(NamedTuple):
 
     major: int
     minor: int
     stage: VersionStage
     stage_no: int
-    local: typing.Tuple[str, ...]
+    local: Tuple[str, ...]
 
     def __str__(self):
         ver = f'{self.major}.{self.minor}'
@@ -114,7 +114,7 @@ class Version(typing.NamedTuple):
         return ver
 
 
-def parse_version(ver: typing.Any) -> Version:
+def parse_version(ver: Any) -> Version:
     v = ver._version
     local = []
     if v.pre:

@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import json
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -215,7 +215,7 @@ def wrap_stmt_set(ir_set):
 
 def get_source_context_as_json(
         expr: irast.Base,
-        exctype=errors.InternalServerError) -> typing.Optional[str]:
+        exctype=errors.InternalServerError) -> Optional[str]:
     if expr.context:
         details = json.dumps({
             'line': expr.context.start.line,
@@ -252,7 +252,7 @@ def is_type_indirection_reference(ir_expr):
     return source_is_type_indirection
 
 
-def get_nearest_dml_stmt(ir_set) -> typing.Optional[irast.MutatingStmt]:
+def get_nearest_dml_stmt(ir_set) -> Optional[irast.MutatingStmt]:
     while ir_set is not None:
         if isinstance(ir_set.expr, irast.MutatingStmt):
             return ir_set.expr
