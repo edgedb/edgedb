@@ -49,11 +49,17 @@ def __init__(self, tree, filename='(none)', builtins=None, *args, **kwargs):
     except FileNotFoundError:
         pass
     else:
+        typing_all = set(typing.__all__)
+        # Travis runs Python 3.7.1 which has a typing module with missing
+        # entries in __all__.  See BPO-36983.  Fix 'em manually here:
+        typing_all.add("ChainMap")  # added: 3.5.4; in __all__ since 3.7.4
+        typing_all.add("ForwardRef")  # added: 3.7.0; in __all__ since 3.7.4
+        typing_all.add("OrderedDict")  # added: 3.7.2
         if typing_star_import_re.search(source):
             if builtins:
-                builtins = set(builtins) | set(typing.__all__)
+                builtins = set(builtins) | typing_all
             else:
-                builtins = set(typing.__all__)
+                builtins = typing_all
 
     old_init(self, tree, filename, builtins, *args, **kwargs)
 
