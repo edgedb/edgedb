@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -72,7 +72,7 @@ def ql_typeexpr_to_type(
 
 def _ql_typeexpr_to_type(
         ql_t: qlast.TypeExpr, *,
-        ctx: context.ContextLevel) -> typing.List[s_types.Type]:
+        ctx: context.ContextLevel) -> List[s_types.Type]:
 
     if isinstance(ql_t, qlast.TypeOf):
         with ctx.newscope(fenced=True, temporary=True) as subctx:

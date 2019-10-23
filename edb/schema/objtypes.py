@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 
@@ -110,7 +110,7 @@ class BaseObjectType(sources.Source,
 
     def find_common_implicitly_castable_type(
             self, other: s_types.Type,
-            schema) -> typing.Optional[s_types.Type]:
+            schema) -> Optional[s_types.Type]:
         return utils.get_class_nearest_common_ancestor(schema, [self, other])
 
     @classmethod
@@ -154,8 +154,8 @@ class DerivedObjectType(BaseObjectType):
 
 def get_union_type_attrs(
         schema,
-        components: typing.Iterable[ObjectType], *,
-        module: typing.Optional[str]=None):
+        components: Iterable[ObjectType], *,
+        module: Optional[str]=None):
 
     name = sn.Name(
         name='|'.join(sorted(str(t.id) for t in components)),
@@ -174,10 +174,10 @@ def get_union_type_attrs(
 
 def get_or_create_union_type(
         schema,
-        components: typing.Iterable[ObjectType],
+        components: Iterable[ObjectType],
         *,
         opaque: bool=False,
-        module: typing.Optional[str]=None) -> ObjectType:
+        module: Optional[str]=None) -> ObjectType:
 
     name = sn.Name(
         name='|'.join(sorted(str(t.id) for t in components)),

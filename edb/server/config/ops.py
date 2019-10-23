@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import typing
+from typing import *  # NoQA
 
 import immutables
 
@@ -50,12 +50,12 @@ class OpCode(enum.StrEnum):
     CONFIG_RESET = 'RESET'
 
 
-class Operation(typing.NamedTuple):
+class Operation(NamedTuple):
 
     opcode: OpCode
     level: OpLevel
     setting_name: str
-    value: typing.Union[str, int, bool]
+    value: Union[str, int, bool]
 
     def get_setting(self, spec: spec.Spec):
         try:
@@ -98,7 +98,7 @@ class Operation(typing.NamedTuple):
                     f'invalid value type for the {setting.name!r} setting')
 
     def apply(self, spec: spec.Spec,
-              storage: typing.Mapping) -> typing.Mapping:
+              storage: Mapping) -> Mapping:
 
         setting = self.get_setting(spec)
         allow_missing = (
@@ -206,7 +206,7 @@ def spec_to_json(spec: spec.Spec):
     return json.dumps(dct)
 
 
-def value_to_json_value(setting: spec.Setting, value: typing.Any):
+def value_to_json_value(setting: spec.Setting, value: Any):
     if setting.set_of:
         if issubclass(setting.type, types.ConfigType):
             return [v.to_json_value() for v in value]
@@ -219,7 +219,7 @@ def value_to_json_value(setting: spec.Setting, value: typing.Any):
             return value
 
 
-def value_from_json_value(setting: spec.Setting, value: typing.Any):
+def value_from_json_value(setting: spec.Setting, value: Any):
     if setting.set_of:
         if issubclass(setting.type, types.ConfigType):
             return frozenset(setting.type.from_json_value(v) for v in value)
@@ -236,7 +236,7 @@ def value_from_json(setting, value: str):
     return value_from_json_value(setting, json.loads(value))
 
 
-def to_json(spec: spec.Spec, storage: typing.Mapping) -> str:
+def to_json(spec: spec.Spec, storage: Mapping) -> str:
     dct = {}
     for name, value in storage.items():
         setting = spec[name]
@@ -244,7 +244,7 @@ def to_json(spec: spec.Spec, storage: typing.Mapping) -> str:
     return json.dumps(dct)
 
 
-def from_json(spec: spec.Spec, js: str) -> typing.Mapping:
+def from_json(spec: spec.Spec, js: str) -> Mapping:
     with immutables.Map().mutate() as mm:
         dct = json.loads(js)
 
@@ -263,7 +263,7 @@ def from_json(spec: spec.Spec, js: str) -> typing.Mapping:
     return mm.finish()
 
 
-def lookup(spec: spec.Spec, name: str, *configs: typing.Mapping,
+def lookup(spec: spec.Spec, name: str, *configs: Mapping,
            allow_unrecognized: bool = False):
     try:
         setting = spec[name]

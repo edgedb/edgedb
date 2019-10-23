@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.ir import ast as irast
 
@@ -121,7 +121,7 @@ def compile_GroupStmt(
 
             group_paths = set()
 
-            part_clause: typing.List[pgast.BaseExpr] = []
+            part_clause: List[pgast.BaseExpr] = []
 
             for ir_gexpr in stmt.groupby:
                 with gctx.new() as subctx:
@@ -154,7 +154,7 @@ def compile_GroupStmt(
                     relctx.pull_path_namespace(
                         target=wrapper, source=gquery_rvar, ctx=subctx)
 
-                    new_part_clause: typing.List[pgast.BaseExpr] = []
+                    new_part_clause: List[pgast.BaseExpr] = []
 
                     for i, expr in enumerate(part_clause):
                         path_id = stmt.groupby[i].path_id

@@ -23,7 +23,7 @@ import collections
 import dataclasses
 import hashlib
 import pathlib
-import typing
+from typing import *  # NoQA
 import uuid
 
 import asyncpg
@@ -142,8 +142,8 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
 class BaseCompiler:
 
     _connect_args: dict
-    _dbname: typing.Optional[str]
-    _cached_db: typing.Optional[CompilerDatabaseState]
+    _dbname: Optional[str]
+    _cached_db: Optional[CompilerDatabaseState]
 
     def __init__(self, connect_args: dict, data_dir: str):
         self._connect_args = connect_args
@@ -317,8 +317,8 @@ class Compiler(BaseCompiler):
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
 
-            in_array_backend_tids: typing.Optional[
-                typing.Mapping[int, int]
+            in_array_backend_tids: Optional[
+                Mapping[int, int]
             ] = None
 
             if ir.params:
@@ -501,7 +501,7 @@ class Compiler(BaseCompiler):
         return self._compile_command(ctx, cmd)
 
     def _compile_ql_migration(self, ctx: CompileContext,
-                              ql: typing.Union[qlast.Database, qlast.Delta]):
+                              ql: Union[qlast.Database, qlast.Delta]):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema()
 
@@ -817,7 +817,7 @@ class Compiler(BaseCompiler):
 
     def _compile(self, *,
                  ctx: CompileContext,
-                 eql: bytes) -> typing.List[dbstate.QueryUnit]:
+                 eql: bytes) -> List[dbstate.QueryUnit]:
 
         # When True it means that we're compiling for "connection.fetchall()".
         # That means that the returned QueryUnit has to have the in/out codec
@@ -985,8 +985,8 @@ class Compiler(BaseCompiler):
     async def _ctx_new_con_state(
             self, *, dbver: int, json_mode: bool, expect_one: bool,
             modaliases,
-            session_config: typing.Optional[immutables.Map],
-            stmt_mode: typing.Optional[enums.CompileStatementMode],
+            session_config: Optional[immutables.Map],
+            stmt_mode: Optional[enums.CompileStatementMode],
             capability: enums.Capability,
             json_parameters: bool=False):
 
@@ -1092,13 +1092,13 @@ class Compiler(BaseCompiler):
             self,
             dbver: int,
             eql: bytes,
-            sess_modaliases: typing.Optional[immutables.Map],
-            sess_config: typing.Optional[immutables.Map],
+            sess_modaliases: Optional[immutables.Map],
+            sess_config: Optional[immutables.Map],
             json_mode: bool,
             expect_one: bool,
             stmt_mode: enums.CompileStatementMode,
             capability: enums.Capability,
-            json_parameters: bool=False) -> typing.List[dbstate.QueryUnit]:
+            json_parameters: bool=False) -> List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
@@ -1119,7 +1119,7 @@ class Compiler(BaseCompiler):
             json_mode: bool,
             expect_one: bool,
             stmt_mode: enums.CompileStatementMode
-    ) -> typing.List[dbstate.QueryUnit]:
+    ) -> List[dbstate.QueryUnit]:
 
         ctx = await self._ctx_from_con_state(
             txid=txid,

@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import functools
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -210,7 +210,7 @@ def extract_filters(
         result_set: irast.Set,
         filter_set: irast.Set,
         scope_tree: irast.ScopeTreeNode,
-        env) -> typing.Sequence[typing.Tuple[s_pointers.Pointer, irast.Set]]:
+        env) -> Sequence[Tuple[s_pointers.Pointer, irast.Set]]:
 
     schema = env.schema
     scope_tree = _get_set_scope(filter_set, scope_tree)
@@ -289,7 +289,7 @@ def _analyse_filter_clause(
 
 
 def _infer_stmt_cardinality(
-        result_set: irast.Set, filter_clause: typing.Optional[irast.Set],
+        result_set: irast.Set, filter_clause: Optional[irast.Set],
         scope_tree: irast.ScopeTreeNode,
         env) -> qltypes.Cardinality:
     result_card = infer_cardinality(result_set, scope_tree, env)

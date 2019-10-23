@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import textwrap
-import typing
+from typing import *  # NoQA
 
 from ..common import qname as qn
 from ..common import quote_ident as qi
@@ -352,8 +352,8 @@ class DDLTriggerBase:
     def get_inherited_triggers(
         cls,
         block: base.PLBlock,
-        bases: typing.List[typing.Tuple[str, str]]
-    ) -> typing.Tuple[str, str]:
+        bases: List[Tuple[str, str]]
+    ) -> Tuple[str, str]:
         bases = [ql('{}.{}'.format(*base.name)) for base in bases]
         var = block.declare_var(
             ('edgedb', 'intro_trigger_desc_t'), 't', shared=True)

@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -48,7 +48,7 @@ class PointerDirection(enum.StrEnum):
 MAX_NAME_LENGTH = 63
 
 
-def merge_cardinality(target: Pointer, sources: typing.List[so.Object],
+def merge_cardinality(target: Pointer, sources: List[so.Object],
                       field_name: str, *, schema) -> object:
     current = None
     current_from = None
@@ -88,7 +88,7 @@ def merge_cardinality(target: Pointer, sources: typing.List[so.Object],
     return current
 
 
-def merge_target(ptr: Pointer, bases: typing.List[so.Pointer],
+def merge_target(ptr: Pointer, bases: List[so.Pointer],
                  field_name: str, *, schema) -> Pointer:
 
     target = None
@@ -485,7 +485,7 @@ class PseudoPointer(s_abc.Pointer):
         return False
 
 
-PointerLike = typing.Union[Pointer, PseudoPointer]
+PointerLike = Union[Pointer, PseudoPointer]
 
 
 class PointerCommandContext(sd.ObjectCommandContext,
@@ -862,9 +862,9 @@ def get_or_create_union_pointer(
     ptrname: str,
     source,
     direction: PointerDirection,
-    components: typing.Iterable[Pointer], *,
-    modname: typing.Optional[str]=None,
-) -> typing.Tuple[s_schema.Schema, Pointer]:
+    components: Iterable[Pointer], *,
+    modname: Optional[str]=None,
+) -> Tuple[s_schema.Schema, Pointer]:
 
     targets = [p.get_far_endpoint(schema, direction) for p in components]
     schema, target = utils.get_union_type(

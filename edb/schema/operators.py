@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 from edb.common import typed
@@ -118,7 +118,7 @@ class OperatorCommand(s_func.CallableCommand,
 
     def _qualify_operator_refs(
             self, schema, kind: ft.OperatorKind,
-            params: typing.List[s_func.ParameterDesc], context):
+            params: List[s_func.ParameterDesc], context):
 
         self_shortname = sn.shortname_from_fullname(self.classname)
         commutator = self.get_attribute_value('commutator')

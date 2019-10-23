@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import qltypes
 from edb.ir import ast as irast
@@ -98,9 +98,9 @@ def compile_output(
 
 
 def compile_filter_clause(
-        ir_set: typing.Optional[irast.Set],
+        ir_set: Optional[irast.Set],
         cardinality: qltypes.Cardinality, *,
-        ctx: context.CompilerContextLevel) -> typing.Optional[pgast.BaseExpr]:
+        ctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
     if ir_set is None:
         return None
 
@@ -132,8 +132,8 @@ def compile_filter_clause(
 
 
 def compile_orderby_clause(
-        ir_exprs: typing.Sequence[irast.SortExpr], *,
-        ctx: context.CompilerContextLevel) -> typing.Sequence[pgast.SortBy]:
+        ir_exprs: Sequence[irast.SortExpr], *,
+        ctx: context.CompilerContextLevel) -> Sequence[pgast.SortBy]:
 
     sort_clause = []
 
@@ -159,8 +159,8 @@ def compile_orderby_clause(
 
 
 def compile_limit_offset_clause(
-        ir_set: typing.Optional[irast.Set], *,
-        ctx: context.CompilerContextLevel) -> typing.Optional[pgast.BaseExpr]:
+        ir_set: Optional[irast.Set], *,
+        ctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
     if ir_set is None:
         return None
 

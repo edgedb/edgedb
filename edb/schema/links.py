@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -43,7 +43,7 @@ from . import utils
 LinkTargetDeleteAction = qlast.LinkTargetDeleteAction
 
 
-def merge_actions(target: so.Object, sources: typing.List[so.Object],
+def merge_actions(target: so.Object, sources: List[so.Object],
                   field_name: str, *, schema) -> object:
     ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is None:

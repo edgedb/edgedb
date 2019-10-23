@@ -25,7 +25,7 @@ from __future__ import annotations
 import dataclasses
 import decimal
 import functools
-import typing
+from typing import *  # NoQA
 import uuid
 
 from edb import errors
@@ -254,8 +254,8 @@ def scalar_type_to_python_type(
 def object_type_to_python_type(
         objtype: s_types.Type,
         schema: s_schema.Schema, *,
-        base_class: typing.Optional[type] = None,
-        _memo: typing.Optional[typing.Mapping[s_types.Type, type]]=None
+        base_class: Optional[type] = None,
+        _memo: Optional[Mapping[s_types.Type, type]]=None
 ) -> type:
 
     if _memo is None:
@@ -287,7 +287,7 @@ def object_type_to_python_type(
 
         is_multi = p.get_cardinality(schema) is qltypes.Cardinality.MANY
         if is_multi:
-            pytype = typing.FrozenSet[pytype]
+            pytype = FrozenSet[pytype]
 
         default = p.get_default(schema)
         if default is None:

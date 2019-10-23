@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -43,9 +43,9 @@ from .context import OutputFormat  # NOQA
 
 def compile_ir_to_sql_tree(
         ir_expr: irast.Base, *,
-        output_format: typing.Optional[OutputFormat]=None,
+        output_format: Optional[OutputFormat]=None,
         ignore_shapes: bool=False,
-        explicit_top_cast: typing.Optional[irast.TypeRef]=None,
+        explicit_top_cast: Optional[irast.TypeRef]=None,
         singleton_mode: bool=False,
         use_named_params: bool=False,
         expected_cardinality_one: bool=False) -> pgast.Base:
@@ -79,13 +79,13 @@ def compile_ir_to_sql_tree(
 
 def compile_ir_to_sql(
         ir_expr: irast.Base, *,
-        output_format: typing.Optional[OutputFormat]=None,
+        output_format: Optional[OutputFormat]=None,
         ignore_shapes: bool=False,
-        explicit_top_cast: typing.Optional[irast.TypeRef]=None,
+        explicit_top_cast: Optional[irast.TypeRef]=None,
         timer=None,
         use_named_params: bool=False,
         expected_cardinality_one: bool=False,
-        pretty: bool=True) -> typing.Tuple[str, typing.Dict[str, int]]:
+        pretty: bool=True) -> Tuple[str, Dict[str, int]]:
 
     if timer is None:
         qtree = compile_ir_to_sql_tree(

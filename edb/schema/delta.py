@@ -22,7 +22,7 @@ from __future__ import annotations
 import base64
 import collections
 import collections.abc
-import typing
+from typing import *  # NoQA
 
 import immutables as immu
 
@@ -418,7 +418,7 @@ class CommandContext:
         self.altered_targets = set()
 
     @property
-    def modaliases(self) -> typing.Mapping[typing.Optional[str], str]:
+    def modaliases(self) -> Mapping[Optional[str], str]:
         maps = [t.modaliases for t in reversed(self.stack)]
         maps.append(self._modaliases)
         return collections.ChainMap(*maps)

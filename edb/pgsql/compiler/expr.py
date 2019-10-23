@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -528,7 +528,7 @@ def compile_FunctionCall(
 def _tuple_to_row_expr(
         tuple_set: irast.Set, *,
         ctx: context.CompilerContextLevel,
-) -> typing.Union[pgast.ImplicitRowExpr, pgast.RowExpr]:
+) -> Union[pgast.ImplicitRowExpr, pgast.RowExpr]:
     tuple_val = dispatch.compile(tuple_set, ctx=ctx)
     if not isinstance(tuple_val, (pgast.RowExpr, pgast.ImplicitRowExpr)):
         raise RuntimeError('tuple compilation unexpectedly did '
@@ -548,7 +548,7 @@ def _compile_set(
 
 
 def _compile_shape(
-        ir_set: irast.Set, shape: typing.List[irast.Set], *,
+        ir_set: irast.Set, shape: List[irast.Set], *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
 
     result = shapecomp.compile_shape(ir_set, shape, ctx=ctx)

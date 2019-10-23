@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import contextlib
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -53,7 +53,7 @@ class SetRVar:
     def __init__(self,
                  rvar: pgast.PathRangeVar,
                  path_id: irast.PathId,
-                 aspects: typing.Iterable[str]=('value',)) -> None:
+                 aspects: Iterable[str]=('value',)) -> None:
         self.aspects = aspects
         self.path_id = path_id
         self.rvar = rvar
@@ -62,14 +62,14 @@ class SetRVar:
 class SetRVars:
     __slots__ = ('main', 'new')
 
-    def __init__(self, main: SetRVar, new: typing.List[SetRVar]) -> None:
+    def __init__(self, main: SetRVar, new: List[SetRVar]) -> None:
         self.main = main
         self.new = new
 
 
 def new_simple_set_rvar(
         ir_set: irast.Set, rvar: pgast.PathRangeVar,
-        aspects: typing.Optional[typing.Iterable[str]]=None) -> SetRVars:
+        aspects: Optional[Iterable[str]]=None) -> SetRVars:
 
     if aspects is None:
         if ir_set.path_id.is_objtype_path():
@@ -354,7 +354,7 @@ def set_to_array(
     result = pgast.SelectStmt()
     relctx.include_rvar(result, subrvar, path_id=ir_set.path_id, ctx=ctx)
 
-    val: typing.Optional[pgast.BaseExpr] = (
+    val: Optional[pgast.BaseExpr] = (
         pathctx.maybe_get_path_serialized_var(
             result, ir_set.path_id, env=ctx.env)
     )
@@ -414,7 +414,7 @@ def set_to_array(
 def prepare_optional_rel(
         *, ir_set: irast.Set, stmt: pgast.SelectStmt,
         ctx: context.CompilerContextLevel) \
-        -> typing.Tuple[pgast.Query, OptionalRel]:
+        -> Tuple[pgast.Query, OptionalRel]:
 
     # For OPTIONAL sets we compute a UNION of both sides and annotate
     # each side with a marker.  We then select only rows that match
@@ -676,7 +676,7 @@ def process_set_as_path(
     rvars = []
 
     if is_type_indirection:
-        ptrref = typing.cast(irast.TypeIndirectionPointerRef, ptrref)
+        ptrref = cast(irast.TypeIndirectionPointerRef, ptrref)
         if ptrref.ancestral:
             # This is an ancestral type indirection, i.e. the
             # target type is an ancestor of the current type,
@@ -1402,7 +1402,7 @@ def process_set_as_type_cast(
         if implicit_cast:
             set_expr = dispatch.compile(inner_set, ctx=subctx)
 
-            serialized: typing.Optional[pgast.BaseExpr] = (
+            serialized: Optional[pgast.BaseExpr] = (
                 pathctx.maybe_get_path_serialized_var(
                     stmt, inner_set.path_id, env=subctx.env)
             )
@@ -1560,8 +1560,8 @@ def process_set_as_enumerate(
 def _process_set_func_with_ordinality(
         ir_set: irast.Set, *,
         outer_func_set: irast.Set,
-        func_name: typing.Tuple[str, ...],
-        args: typing.List[pgast.BaseExpr],
+        func_name: Tuple[str, ...],
+        args: List[pgast.BaseExpr],
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     rtype = outer_func_set.typeref
@@ -1671,8 +1671,8 @@ def _process_set_func_with_ordinality(
 
 def _process_set_func(
         ir_set: irast.Set, *,
-        func_name: typing.Tuple[str, ...],
-        args: typing.List[pgast.BaseExpr],
+        func_name: Tuple[str, ...],
+        args: List[pgast.BaseExpr],
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
@@ -1766,7 +1766,7 @@ def _compile_func_epilogue(
     pathctx.put_path_var_if_not_exists(
         func_rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
-    aspects: typing.Tuple[str, ...] = ('value',)
+    aspects: Tuple[str, ...] = ('value',)
 
     func_rvar = relctx.new_rel_rvar(ir_set, func_rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
@@ -1789,7 +1789,7 @@ def _compile_func_epilogue(
 def _compile_func_args(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel
-) -> typing.List[pgast.BaseExpr]:
+) -> List[pgast.BaseExpr]:
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
@@ -2125,7 +2125,7 @@ def process_set_as_exists_expr(
 
 def build_array_expr(
         ir_expr: irast.Base,
-        elements: typing.List[pgast.BaseExpr], *,
+        elements: List[pgast.BaseExpr], *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     array = astutils.safe_array_expr(elements)
@@ -2140,7 +2140,7 @@ def build_array_expr(
             # to a generic function, e.g. `count(array_agg({}))`.  In this
             # case, amend the array type to a concrete type,
             # since Postgres balks at `[]::anyarray`.
-            pg_type: typing.Tuple[str, ...] = ('text[]',)
+            pg_type: Tuple[str, ...] = ('text[]',)
         else:
             serialized = output.in_serialization_ctx(ctx=ctx)
             pg_type = pg_types.pg_type_from_ir_typeref(
@@ -2171,7 +2171,7 @@ def process_set_as_array_expr(
         elements.append(element)
 
         if serializing:
-            s_var: typing.Optional[pgast.BaseExpr]
+            s_var: Optional[pgast.BaseExpr]
 
             s_var = pathctx.maybe_get_path_serialized_var(
                 stmt, ir_element.path_id, env=ctx.env)

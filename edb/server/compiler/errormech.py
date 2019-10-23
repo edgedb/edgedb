@@ -22,7 +22,7 @@ from __future__ import annotations
 import enum
 import json
 import re
-import typing
+from typing import *  # NoQA
 import uuid
 
 from edb import errors
@@ -74,7 +74,7 @@ SCHEMA_CODES = frozenset({
 })
 
 
-class ErrorDetails(typing.NamedTuple):
+class ErrorDetails(NamedTuple):
     message: str
     detail: str = None
     detail_json: dict = None

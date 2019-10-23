@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
@@ -176,7 +176,7 @@ def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
 
 
 def safe_array_expr(
-    elements: typing.List[pgast.BaseExpr],
+    elements: List[pgast.BaseExpr],
     **kwargs,
 ) -> pgast.BaseExpr:
     result: pgast.BaseExpr = pgast.ArrayExpr(elements=elements, **kwargs)
@@ -206,7 +206,7 @@ def find_column_in_subselect_rvar(
 
 def get_column(
         rvar: pgast.BaseRangeVar,
-        colspec: typing.Union[str, pgast.ColumnRef], *,
+        colspec: Union[str, pgast.ColumnRef], *,
         nullable: bool=None) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
@@ -280,8 +280,8 @@ def get_rvar_var(
 
 def strip_output_var(
         var: pgast.OutputVar, *,
-        optional: typing.Optional[bool]=None,
-        nullable: typing.Optional[bool]=None) -> pgast.OutputVar:
+        optional: Optional[bool]=None,
+        nullable: Optional[bool]=None) -> pgast.OutputVar:
 
     if isinstance(var, pgast.TupleVarBase):
         elements = []

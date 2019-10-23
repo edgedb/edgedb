@@ -36,7 +36,7 @@ import tempfile
 import threading
 import time
 import types
-import typing
+from typing import *  # NoQA
 import unittest.case
 import unittest.result
 import unittest.runner
@@ -56,7 +56,7 @@ from . import styles
 
 class TestSuiteCache:
 
-    cache: typing.Mapping[unittest.TestCase, unittest.TestSuite] = {}
+    cache: Mapping[unittest.TestCase, unittest.TestSuite] = {}
 
 
 suite_cache = TestSuiteCache()

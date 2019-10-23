@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import collections
 import itertools
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -35,8 +35,8 @@ from . import objects as so
 
 def ast_objref_to_objref(
         node: qlast.ObjectRef, *,
-        metaclass: typing.Optional[so.ObjectMeta] = None,
-        modaliases: typing.Dict[typing.Optional[str], str],
+        metaclass: Optional[so.ObjectMeta] = None,
+        modaliases: Dict[Optional[str], str],
         schema) -> so.Object:
 
     if metaclass is not None and issubclass(metaclass, so.GlobalObject):
@@ -71,8 +71,8 @@ def ast_objref_to_objref(
 
 def ast_to_typeref(
         node: qlast.TypeName, *,
-        metaclass: typing.Optional[so.ObjectMeta] = None,
-        modaliases: typing.Dict[typing.Optional[str], str],
+        metaclass: Optional[so.ObjectMeta] = None,
+        modaliases: Dict[Optional[str], str],
         schema) -> so.ObjectRef:
 
     if node.subtypes is not None and node.maintype.name == 'enum':
@@ -360,7 +360,7 @@ def enrich_schema_lookup_error(
 
 
 def get_union_type(schema, types, *, opaque: bool = False,
-                   module: typing.Optional[str] = None):
+                   module: Optional[str] = None):
     from edb.schema import objtypes as s_objtypes
 
     components = set()

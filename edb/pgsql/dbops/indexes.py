@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import textwrap
-import typing
+from typing import *  # NoQA
 
 from edb.common import ordered
 
@@ -357,8 +357,8 @@ class DDLTriggerBase:
     def get_inherited_indexes(
         cls,
         block: base.PLBlock,
-        bases: typing.List[typing.Tuple[str, str]],
-    ) -> typing.Tuple[str, str]:
+        bases: List[Tuple[str, str]],
+    ) -> Tuple[str, str]:
         bases = [ql('{}.{}'.format(*base.name)) for base in bases]
         var = block.declare_var(
             ('edgedb', 'intro_index_desc_t'), 'idx', shared=True)

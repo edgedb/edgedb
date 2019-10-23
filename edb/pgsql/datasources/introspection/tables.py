@@ -20,13 +20,13 @@
 from __future__ import annotations
 
 import asyncpg
-import typing
+from typing import *  # NoQA
 
 
 async def fetch_tables(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None,
-        table_pattern: str=None) -> typing.List[asyncpg.Record]:
+        table_pattern: str=None) -> List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 c.oid                                 AS oid,
@@ -59,7 +59,7 @@ async def fetch_tables(
 async def fetch_columns(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None, table_pattern: str=None,
-        include_inherited: bool=True) -> typing.List[asyncpg.Record]:
+        include_inherited: bool=True) -> List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 ns.nspname                              AS table_schema,
@@ -97,7 +97,7 @@ async def fetch_columns(
 async def fetch_inheritance(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None, table_pattern: str=None,
-        max_depth: int=None) -> typing.List[asyncpg.Record]:
+        max_depth: int=None) -> List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 *
@@ -152,7 +152,7 @@ async def fetch_inheritance(
 async def fetch_descendants(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None, table_pattern: str=None,
-        max_depth: int=None) -> typing.List[asyncpg.Record]:
+        max_depth: int=None) -> List[asyncpg.Record]:
     return await conn.fetch("""
         SELECT
                 *
@@ -206,9 +206,9 @@ async def fetch_descendants(
 async def fetch_indexes(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None, table_pattern: str=None,
-        table_list: typing.Optional[typing.List[str]]=None,
+        table_list: Optional[List[str]]=None,
         index_pattern: str=None, inheritable_only: bool=False,
-        include_inherited: bool=False) -> typing.List[asyncpg.Record]:
+        include_inherited: bool=False) -> List[asyncpg.Record]:
 
     qry = """
         SELECT
@@ -287,9 +287,9 @@ async def fetch_indexes(
 async def fetch_constraints(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None, table_pattern: str=None,
-        table_list: typing.Optional[typing.List[str]]=None,
+        table_list: Optional[List[str]]=None,
         constraint_pattern: str=None,
-        include_inherited: bool=False) -> typing.List[asyncpg.Record]:
+        include_inherited: bool=False) -> List[asyncpg.Record]:
 
     qry = """
         SELECT
@@ -398,9 +398,9 @@ async def fetch_constraints(
 async def fetch_triggers(
         conn: asyncpg.connection.Connection, *,
         schema_pattern: str=None, table_pattern: str=None,
-        table_list: typing.Optional[typing.List[str]]=None,
+        table_list: Optional[List[str]]=None,
         trigger_pattern: str=None,
-        inheritable_only: bool=False) -> typing.List[asyncpg.Record]:
+        inheritable_only: bool=False) -> List[asyncpg.Record]:
 
     qry = """
         SELECT

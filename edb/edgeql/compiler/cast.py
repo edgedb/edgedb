@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -51,9 +51,9 @@ from . import viewgen
 
 
 def compile_cast(
-        ir_expr: typing.Union[irast.Set, irast.Expr],
+        ir_expr: Union[irast.Set, irast.Expr],
         new_stype: s_types.Type, *,
-        srcctx: typing.Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     if isinstance(ir_expr, irast.EmptySet):
@@ -129,10 +129,10 @@ def compile_cast(
 
 
 def _compile_cast(
-        ir_expr: typing.Union[irast.Set, irast.Expr],
+        ir_expr: Union[irast.Set, irast.Expr],
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: typing.Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     ir_set = setgen.ensure_set(ir_expr, ctx=ctx)
@@ -247,8 +247,8 @@ class CastCallableWrapper(s_func.CallableLike):
 def _find_cast(
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: typing.Optional[parsing.ParserContext],
-        ctx: context.ContextLevel) -> typing.Optional[s_casts.Cast]:
+        srcctx: Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> Optional[s_casts.Cast]:
 
     casts = ctx.env.schema.get_casts_to_type(new_stype)
     if not casts and not new_stype.is_collection():
@@ -269,7 +269,7 @@ def _find_cast(
         (CastCallableWrapper(c) for c in casts), args=args, kwargs={}, ctx=ctx)
 
     if len(matched) == 1:
-        return typing.cast(CastCallableWrapper, matched[0].func)._cast
+        return cast(CastCallableWrapper, matched[0].func)._cast
     elif len(matched) > 1:
         raise errors.QueryError(
             f'cannot unambiguously cast '
@@ -284,7 +284,7 @@ def _cast_tuple(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: typing.Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.Tuple)
@@ -372,7 +372,7 @@ def _cast_array(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: typing.Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(orig_stype, s_types.Array)
@@ -442,7 +442,7 @@ def _cast_array_literal(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
-        srcctx: typing.Optional[parsing.ParserContext],
+        srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(ir_set.expr, irast.Array)

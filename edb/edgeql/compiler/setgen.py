@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import contextlib
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -70,9 +70,9 @@ def new_set(*, stype: s_types.Type, ctx: context.ContextLevel,
     return ir_set
 
 
-def new_empty_set(*, stype: typing.Optional[s_types.Type]=None, alias: str,
+def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str,
                   ctx: context.ContextLevel,
-                  srcctx: typing.Optional[
+                  srcctx: Optional[
                       parsing.ParserContext]=None) -> irast.Set:
     if stype is None:
         stype = s_pseudo.Any.create()
@@ -95,9 +95,9 @@ def get_set_type(
 def new_set_from_set(
         ir_set: irast.Set, *,
         preserve_scope_ns: bool=False,
-        path_id: typing.Optional[irast.PathId]=None,
-        stype: typing.Optional[s_types.Type]=None,
-        rptr: typing.Optional[irast.Pointer]=None,
+        path_id: Optional[irast.PathId]=None,
+        stype: Optional[s_types.Type]=None,
+        rptr: Optional[irast.Pointer]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
@@ -126,7 +126,7 @@ def new_set_from_set(
 
 
 def new_tuple_set(
-        elements: typing.List[irast.TupleElement], *,
+        elements: List[irast.TupleElement], *,
         named: bool,
         ctx: context.ContextLevel) -> irast.Set:
 
@@ -152,9 +152,9 @@ def new_tuple_set(
 
 
 def new_array_set(
-        elements: typing.Sequence[irast.Base], *,
+        elements: Sequence[irast.Base], *,
         ctx: context.ContextLevel,
-        srcctx: typing.Optional[parsing.ParserContext]=None) -> irast.Set:
+        srcctx: Optional[parsing.ParserContext]=None) -> irast.Set:
 
     arr = irast.Array(elements=elements)
     if elements:
@@ -245,7 +245,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
             ptr_name = ptr_expr.ptr.name
 
-            source: typing.Union[s_types.Type, s_pointers.PointerLike]
+            source: Union[s_types.Type, s_pointers.PointerLike]
 
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
@@ -434,7 +434,7 @@ def fuse_scope_branch(
 
 def ptr_step_set(
         path_tip: irast.Set, *,
-        source: typing.Union[s_types.Type, s_pointers.PointerLike],
+        source: Union[s_types.Type, s_pointers.PointerLike],
         ptr_name: str,
         direction: PtrDir,
         source_context: parsing.ParserContext,
@@ -455,12 +455,12 @@ def ptr_step_set(
 
 
 def resolve_ptr(
-        near_endpoint: typing.Union[s_types.Type, s_pointers.PointerLike],
+        near_endpoint: Union[s_types.Type, s_pointers.PointerLike],
         pointer_name: str, *,
         direction: s_pointers.PointerDirection=(
             s_pointers.PointerDirection.Outbound
         ),
-        source_context: typing.Optional[parsing.ParserContext]=None,
+        source_context: Optional[parsing.ParserContext]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
 
     if not isinstance(near_endpoint, s_sources.Source):
@@ -528,7 +528,7 @@ def extend_path(
         source_set: irast.Set,
         ptrcls: s_pointers.Pointer,
         direction: PtrDir=PtrDir.Outbound,
-        target: typing.Optional[s_types.Type]=None, *,
+        target: Optional[s_types.Type]=None, *,
         ignore_computable: bool=False,
         is_mut_assign: bool=False,
         unnest_fence: bool=False,
@@ -656,7 +656,7 @@ def class_indirection_set(
 
 def class_set(
         stype: s_types.Type, *,
-        path_id: typing.Optional[irast.PathId]=None,
+        path_id: Optional[irast.PathId]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
     if path_id is None:
@@ -666,8 +666,8 @@ def class_set(
 
 def expression_set(
         expr: irast.Expr,
-        path_id: typing.Optional[irast.PathId]=None, *,
-        type_override: typing.Optional[s_types.Type]=None,
+        path_id: Optional[irast.PathId]=None, *,
+        type_override: Optional[s_types.Type]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
     if isinstance(expr, irast.Set):  # pragma: no cover
@@ -693,10 +693,10 @@ def expression_set(
 
 
 def scoped_set(
-        expr: typing.Union[irast.Set, irast.Expr], *,
-        type_override: typing.Optional[s_types.Type]=None,
-        typehint: typing.Optional[s_types.Type]=None,
-        path_id: typing.Optional[irast.PathId]=None,
+        expr: Union[irast.Set, irast.Expr], *,
+        type_override: Optional[s_types.Type]=None,
+        typehint: Optional[s_types.Type]=None,
+        path_id: Optional[irast.PathId]=None,
         force_reassign: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
 
@@ -729,10 +729,10 @@ def scoped_set(
 
 
 def ensure_set(
-        expr: typing.Union[irast.Set, irast.Expr], *,
-        type_override: typing.Optional[s_types.Type]=None,
-        typehint: typing.Optional[s_types.Type]=None,
-        path_id: typing.Optional[irast.PathId]=None,
+        expr: Union[irast.Set, irast.Expr], *,
+        type_override: Optional[s_types.Type]=None,
+        typehint: Optional[s_types.Type]=None,
+        path_id: Optional[irast.PathId]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
@@ -769,7 +769,7 @@ def ensure_set(
 
 
 def ensure_stmt(
-    expr: typing.Union[irast.Set, irast.Expr], *,
+    expr: Union[irast.Set, irast.Expr], *,
     ctx: context.ContextLevel
 ) -> irast.Stmt:
     if not isinstance(expr, irast.Stmt):
@@ -831,8 +831,8 @@ def computable_ptr_set(
                     stmtctx.ensure_ptrref_cardinality(
                         base, source_set.rptr.ptrref, ctx=ctx)
 
-    qlctx: typing.Optional[context.ContextLevel]
-    inner_source_path_id: typing.Optional[irast.PathId]
+    qlctx: Optional[context.ContextLevel]
+    inner_source_path_id: Optional[irast.PathId]
 
     try:
         qlexpr, qlctx, inner_source_path_id, path_id_ns = \
@@ -932,12 +932,12 @@ def _get_computable_ctx(
     rptr: irast.Pointer,
     source: irast.Set,
     source_scls: s_types.Type,
-    inner_source_path_id: typing.Optional[irast.PathId],
-    path_id_ns: typing.Optional[irast.WeakNamespace],
+    inner_source_path_id: Optional[irast.PathId],
+    path_id_ns: Optional[irast.WeakNamespace],
     same_scope: bool,
     qlctx: context.ContextLevel,
     ctx: context.ContextLevel
-) -> typing.Callable[[], typing.ContextManager]:
+) -> Callable[[], ContextManager]:
 
     @contextlib.contextmanager
     def newctx():

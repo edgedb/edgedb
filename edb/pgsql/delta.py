@@ -23,7 +23,7 @@ import collections.abc
 import itertools
 import json
 import textwrap
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -643,7 +643,7 @@ class OperatorCommand(FunctionCommand):
         return self._table
 
     def get_pg_name(self, schema,
-                    oper: s_opers.Operator) -> typing.Tuple[str, str]:
+                    oper: s_opers.Operator) -> Tuple[str, str]:
         return common.get_backend_name(schema, oper, catenate=False)
 
     def get_pg_operands(self, schema, oper: s_opers.Operator):
@@ -3472,7 +3472,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             self,
             schema,
             objtype: s_objtypes.ObjectType,
-            links: typing.List[s_links.Link], *,
+            links: List[s_links.Link], *,
             disposition: str,
             deferred: bool=False,
             inline: bool=False) -> None:

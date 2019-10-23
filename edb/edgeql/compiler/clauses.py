@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
@@ -61,10 +61,10 @@ def compile_where_clause(
 
 
 def compile_orderby_clause(
-        sortexprs: typing.Iterable[qlast.SortExpr], *,
-        ctx: context.ContextLevel) -> typing.List[irast.SortExpr]:
+        sortexprs: Iterable[qlast.SortExpr], *,
+        ctx: context.ContextLevel) -> List[irast.SortExpr]:
 
-    result: typing.List[irast.SortExpr] = []
+    result: List[irast.SortExpr] = []
     if not sortexprs:
         return result
 
@@ -131,7 +131,7 @@ def compile_orderby_clause(
 
 def compile_limit_offset_clause(
         expr: qlast.Base, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
+        ctx: context.ContextLevel) -> Optional[irast.Set]:
     if expr is not None:
         with ctx.newscope(fenced=True) as subctx:
             subctx.clause = 'offsetlimit'

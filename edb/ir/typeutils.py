@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import qltypes
 
@@ -211,7 +211,7 @@ def ptrref_from_ptrcls(
         target_ref: irast.TypeRef,
         ptrcls: s_pointers.PointerLike,
         direction: s_pointers.PointerDirection,
-        parent_ptr: typing.Optional[irast.PointerRef]=None,
+        parent_ptr: Optional[irast.PointerRef]=None,
         include_descendants: bool=True,
         schema) -> irast.BasePointerRef:
 

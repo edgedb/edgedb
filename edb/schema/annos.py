@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 
@@ -98,7 +98,7 @@ class AnnotationSubject(so.Object):
         shortname = sn.shortname_from_fullname(annotation_name)
         return self.del_classref(schema, 'annotations', shortname)
 
-    def get_annotation(self, schema, name: str) -> typing.Optional[str]:
+    def get_annotation(self, schema, name: str) -> Optional[str]:
         attrval = self.get_annotations(schema).get(schema, name, None)
         return attrval.get_value(schema) if attrval is not None else None
 

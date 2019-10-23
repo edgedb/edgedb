@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -47,13 +47,13 @@ from . import stmtctx
 
 
 def get_schema_object(
-        name: typing.Union[str, qlast.BaseObjectRef],
-        module: typing.Optional[str]=None, *,
-        item_types: typing.Optional[typing.Sequence[s_obj.ObjectMeta]],
-        condition: typing.Optional[typing.Callable[[s_types.Type], bool]]=None,
-        label: typing.Optional[str]=None,
+        name: Union[str, qlast.BaseObjectRef],
+        module: Optional[str]=None, *,
+        item_types: Optional[Sequence[s_obj.ObjectMeta]],
+        condition: Optional[Callable[[s_types.Type], bool]]=None,
+        label: Optional[str]=None,
         ctx: context.ContextLevel,
-        srcctx: typing.Optional[parsing.ParserContext] = None) -> s_obj.Object:
+        srcctx: Optional[parsing.ParserContext] = None) -> s_obj.Object:
 
     if isinstance(name, qlast.ObjectRef):
         if srcctx is None:
@@ -94,15 +94,15 @@ def get_schema_object(
 
 
 def get_schema_type(
-        name: typing.Union[str, qlast.BaseObjectRef],
-        module: typing.Optional[str]=None, *,
+        name: Union[str, qlast.BaseObjectRef],
+        module: Optional[str]=None, *,
         ctx: context.ContextLevel,
-        label: typing.Optional[str]=None,
-        condition: typing.Optional[typing.Callable[[s_types.Type], bool]]=None,
-        item_types: typing.Optional[
-            typing.Sequence[typing.Type[s_types.Type]]
+        label: Optional[str]=None,
+        condition: Optional[Callable[[s_types.Type], bool]]=None,
+        item_types: Optional[
+            Sequence[Type[s_types.Type]]
         ] = None,
-        srcctx: typing.Optional[parsing.ParserContext] = None) -> s_types.Type:
+        srcctx: Optional[parsing.ParserContext] = None) -> s_types.Type:
     if item_types is None:
         item_types = (s_types.Type,)
     obj = get_schema_object(name, module, item_types=item_types,
@@ -114,7 +114,7 @@ def get_schema_type(
 
 def resolve_schema_name(
         name: str, module: str, *,
-        ctx: context.ContextLevel) -> typing.Optional[sn.Name]:
+        ctx: context.ContextLevel) -> Optional[sn.Name]:
     schema_module = ctx.modaliases.get(module)
     if schema_module is None:
         return None
@@ -124,15 +124,15 @@ def resolve_schema_name(
 
 def derive_view(
         stype: s_types.Type, *,
-        derived_name: typing.Optional[sn.SchemaName]=None,
-        derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
-        derived_name_base: typing.Optional[str]=None,
+        derived_name: Optional[sn.SchemaName]=None,
+        derived_name_quals: Optional[Sequence[str]]=(),
+        derived_name_base: Optional[str]=None,
         preserve_shape: bool=False,
         preserve_path_id: bool=False,
         is_insert: bool=False,
         is_update: bool=False,
         inheritance_merge: bool=True,
-        attrs: typing.Optional[dict]=None,
+        attrs: Optional[dict]=None,
         ctx: context.ContextLevel) -> s_types.Type:
 
     if derived_name is None:
@@ -200,17 +200,17 @@ def derive_view(
 def derive_ptr(
         ptr: s_pointers.Pointer,
         source: s_sources.Source,
-        target: typing.Optional[s_types.Type]=None,
+        target: Optional[s_types.Type]=None,
         *qualifiers,
-        derived_name: typing.Optional[sn.SchemaName]=None,
-        derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
-        derived_name_base: typing.Optional[str]=None,
+        derived_name: Optional[sn.SchemaName]=None,
+        derived_name_quals: Optional[Sequence[str]]=(),
+        derived_name_base: Optional[str]=None,
         preserve_shape: bool=False,
         preserve_path_id: bool=False,
         is_insert: bool=False,
         is_update: bool=False,
         inheritance_merge: bool=True,
-        attrs: typing.Optional[dict]=None,
+        attrs: Optional[dict]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
 
     if derived_name is None and ctx.derived_target_module:
@@ -235,7 +235,7 @@ def derive_ptr(
 
     if not ptr.generic(ctx.env.schema):
         if isinstance(derived, s_sources.Source):
-            ptr = typing.cast(s_links.Link, ptr)
+            ptr = cast(s_links.Link, ptr)
             scls_pointers = ptr.get_pointers(ctx.env.schema)
             derived_own_pointers = derived.get_pointers(ctx.env.schema)
 
@@ -255,8 +255,8 @@ def derive_ptr(
 
 def derive_view_name(
         stype: s_obj.Object,
-        derived_name_quals: typing.Optional[typing.Sequence[str]]=(),
-        derived_name_base: typing.Optional[str]=None, *,
+        derived_name_quals: Optional[Sequence[str]]=(),
+        derived_name_base: Optional[str]=None, *,
         ctx: context.ContextLevel) -> sn.Name:
 
     if not derived_name_quals:

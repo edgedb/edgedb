@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *  # NoQA
 
 from edb.common import context as pctx
 from edb.common import exceptions as ex
@@ -61,7 +61,7 @@ class EdgeDBMessage(Warning):
 class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     _code = None
-    _attrs: typing.Mapping[str, str]
+    _attrs: Mapping[str, str]
 
     def __init__(self, msg: str=None, *,
                  hint: str=None, details: str=None, context=None,
