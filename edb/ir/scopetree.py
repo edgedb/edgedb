@@ -139,8 +139,7 @@ class ScopeTreeNode:
 
     @property
     def ancestors_and_namespaces(self) \
-            -> Iterator[Tuple['ScopeTreeNode',
-                                            FrozenSet[str]]]:
+            -> Iterator[Tuple['ScopeTreeNode', FrozenSet[str]]]:
         """An iterator of node's ancestors and namespaces, including self."""
         namespaces = frozenset()
         node = self
@@ -179,8 +178,7 @@ class ScopeTreeNode:
 
     @property
     def strict_descendants_and_namespaces(self) \
-            -> Iterator[Tuple['ScopeTreeNode',
-                                            FrozenSet[str]]]:
+            -> Iterator[Tuple['ScopeTreeNode', FrozenSet[str]]]:
         """An iterator of node's descendants and namespaces.
 
         Does not include self. Top-first.

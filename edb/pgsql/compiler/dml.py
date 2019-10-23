@@ -56,8 +56,8 @@ def init_dml_stmt(
         ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) \
         -> Tuple[pgast.Query, pgast.CommonTableExpr,
-                        pgast.PathRangeVar,
-                        Optional[pgast.CommonTableExpr]]:
+                 pgast.PathRangeVar,
+                 Optional[pgast.CommonTableExpr]]:
     """Prepare the common structure of the query representing a DML stmt.
 
     :param ir_stmt:

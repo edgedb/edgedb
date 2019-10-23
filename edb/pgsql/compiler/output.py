@@ -319,7 +319,7 @@ def output_as_value(
     val = expr
     if isinstance(expr, pgast.TupleVar):
         RowCls: Union[Type[pgast.ImplicitRowExpr],
-                             Type[pgast.RowExpr]]
+                      Type[pgast.RowExpr]]
         if len(expr.elements) > 1:
             RowCls = pgast.ImplicitRowExpr
         else:
