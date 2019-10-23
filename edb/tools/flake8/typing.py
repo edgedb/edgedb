@@ -28,7 +28,7 @@ the `typing` module (if it was imported with `from typing import *`).
 
 
 import re
-import typing
+import typing  # NoQA
 
 from pyflakes import checker
 
