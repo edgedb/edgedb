@@ -87,7 +87,7 @@ class BaseExpr(Base):
 
     def _infer_nullability(self, kwargs: typing.Dict[str, object]) -> bool:
         nullable = False
-        for k, v in kwargs.items():
+        for v in kwargs.values():
             if typeutils.is_container(v):
                 items = typing.cast(typing.Iterable, v)
                 nullable = all(getattr(vv, 'nullable', False) for vv in items)

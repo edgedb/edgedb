@@ -893,7 +893,7 @@ class TestExpressions(tb.QueryTestCase):
 
         for left in uuids[:-1]:
             for right in uuids[1:]:
-                for op, not_op in [('>=', '<'), ('<=', '>')]:
+                for op, _not_op in [('>=', '<'), ('<=', '>')]:
                     query = f'''
                         SELECT (b'{left}' {op} b'{right}') =
                             ('{left}' {op} '{right}');
@@ -925,7 +925,7 @@ class TestExpressions(tb.QueryTestCase):
         # bytes and str
         for left in raw_ascii[:-1]:
             for right in raw_ascii[1:]:
-                for op, not_op in [('>=', '<'), ('<=', '>')]:
+                for op, _not_op in [('>=', '<'), ('<=', '>')]:
                     query = f'''
                         SELECT (b'{left}' {op} b'{right}') =
                             ('{left}' {op} '{right}');
@@ -1140,7 +1140,7 @@ class TestExpressions(tb.QueryTestCase):
         str_numbers = ', '.join([str(n) for n in numbers])
 
         # ensure that unorderable scalars cannot be used in 'ORDER BY'
-        for val, vdesc in get_test_items(anyreal=True):
+        for _val, vdesc in get_test_items(anyreal=True):
             query = f'''
                 WITH X := <{vdesc.typename}>{{ {str_numbers} }}
                 SELECT X ORDER BY X DESC;

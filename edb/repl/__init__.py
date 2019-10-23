@@ -113,8 +113,9 @@ class Cli:
     TOOLBAR_SEP = '   '
 
     exit_commands = {'exit', 'quit', R'\q', ':q'}
+    commands = {}
 
-    def _command(prefix, title, desc, *, _all_commands={}, dev=False):
+    def _command(prefix, title, desc, *, _all_commands=commands, dev=False):
         def wrap(func):
             _all_commands[prefix] = title, desc, func, dev
             return func
@@ -129,7 +130,6 @@ class Cli:
         self._password_prompted = False
         self.conn_args = immutables.Map(conn_args)
         self.context = context.ReplContext()
-        self.commands = type(self)._command.__kwdefaults__['_all_commands']
 
     def get_prompt(self):
         return '{}>'.format(self.connection.dbname)

@@ -212,7 +212,7 @@ def named_tuple_as_json_object(expr, *, styperef, env):
     keyvals = []
 
     if styperef.in_schema:
-        for el_idx, el_type in enumerate(styperef.subtypes):
+        for el_type in styperef.subtypes:
             keyvals.append(pgast.StringConstant(val=el_type.element_name))
             val = pgast.Indirection(
                 arg=expr,
@@ -234,7 +234,7 @@ def named_tuple_as_json_object(expr, *, styperef, env):
     else:
         coldeflist = []
 
-        for el_idx, el_type in enumerate(styperef.subtypes):
+        for el_type in styperef.subtypes:
             keyvals.append(pgast.StringConstant(val=el_type.element_name))
 
             coldeflist.append(pgast.ColumnDef(

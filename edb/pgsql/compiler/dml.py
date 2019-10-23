@@ -559,7 +559,7 @@ def process_update_body(
         )
 
     # Process necessary updates to the link tables.
-    for expr, props_only in external_updates:
+    for expr, _props_only in external_updates:
         process_link_update(
             ir_stmt=ir_stmt, ir_set=expr, props_only=False,
             wrapper=wrapper, dml_cte=update_cte, iterator_cte=None,

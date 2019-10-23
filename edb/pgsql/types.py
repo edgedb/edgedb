@@ -534,7 +534,7 @@ class TypeDesc:
     def _get_typedesc(cls, schema, types, typedesc, *, is_root=True):
         result = []
         indexes = []
-        for tn, t in types:
+        for _ in types:
             # Fill the result with placeholders as we want the
             # parent types to go first.
             typedesc.append(())

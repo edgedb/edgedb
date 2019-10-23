@@ -149,7 +149,7 @@ def cover_file(file: Path) -> TypeCoverage:
 
 def cover_directory(directory: Path) -> TypeCoverage:
     type_coverage = TypeCoverage(directory)
-    for root, dirs, files in os.walk(directory):
+    for root, _dirs, files in os.walk(directory):
         for file in files:
             if not file.endswith(".py"):
                 continue

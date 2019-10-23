@@ -182,7 +182,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
             schema, context, refdict, refs)
         group = sd.CommandGroup()
 
-        for fqname, (create_cmd, astnode, bases) in refs.items():
+        for create_cmd, astnode, bases in refs.values():
             cmd = create_cmd.as_inherited_ref_cmd(
                 schema, context, astnode, bases)
 
@@ -357,7 +357,7 @@ def delta_bases(old_bases, new_bases):
     added_base_refs = []
 
     if common_bases:
-        for i, base in enumerate(new_bases):
+        for base in new_bases:
             if common_bases[j] == base:
                 # Found common base, insert the accumulated
                 # list of new bases and continue
@@ -511,7 +511,7 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
         refs = self.get_inherited_ref_layout(schema, context, refdict)
         group = sd.CommandGroup()
 
-        for fqname, (create_cmd, astnode, parents) in refs.items():
+        for create_cmd, astnode, parents in refs.values():
             cmd = create_cmd.as_inherited_ref_cmd(
                 schema, context, astnode, parents)
 

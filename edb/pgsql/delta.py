@@ -1122,7 +1122,7 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
         elif intent == 'create':
             self.pgops.add(dbops.CreateDomain(name=domain_name, base=base))
 
-        for host_class, item_class in users:
+        for _host_class, item_class in users:
             ptr_stor_info = types.get_pointer_storage_info(
                 item_class, schema=schema)
 
@@ -1370,7 +1370,9 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
 
     def _get_multicommand(
             self, context, cmdtype, object_name, *, priority=0,
-            force_new=False, manual=False, cmdkwargs={}):
+            force_new=False, manual=False, cmdkwargs=None):
+        if cmdkwargs is None:
+            cmdkwargs = {}
         key = (object_name, priority, frozenset(cmdkwargs.items()))
 
         try:
@@ -2443,7 +2445,7 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
         link_ops = endpoint_delete_actions.link_ops
 
         if isinstance(self, sd.DeleteObject):
-            for i, (op, ex_link, _) in enumerate(link_ops):
+            for i, (_, ex_link, _) in enumerate(link_ops):
                 if ex_link == link:
                     link_ops.pop(i)
                     break
@@ -3666,7 +3668,7 @@ class RebaseRole(ObjectMetaCommand, adapts=s_roles.RebaseRole):
                 member=role.get_name(schema),
             ))
 
-        for bases, pos in self.added_bases:
+        for bases, _pos in self.added_bases:
             for added in bases:
                 self.pgops.add(dbops.AlterRoleAddMember(
                     name=added.get_name(schema),

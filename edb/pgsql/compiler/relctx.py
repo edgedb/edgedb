@@ -959,10 +959,13 @@ def range_for_pointer(
 
 def rvar_for_rel(
         rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        lateral: bool=False, colnames: List[str]=[],
+        lateral: bool=False, colnames: Optional[List[str]]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
     rvar: pgast.PathRangeVar
+
+    if colnames is None:
+        colnames = []
 
     if isinstance(rel, pgast.Query):
         alias = ctx.env.aliases.get(rel.name or 'q')
