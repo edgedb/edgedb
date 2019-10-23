@@ -893,7 +893,7 @@ class TestExpressions(tb.QueryTestCase):
 
         for left in uuids[:-1]:
             for right in uuids[1:]:
-                for op, _not_op in [('>=', '<'), ('<=', '>')]:
+                for op in ('>=', '<', '<=', '>'):
                     query = f'''
                         SELECT (b'{left}' {op} b'{right}') =
                             ('{left}' {op} '{right}');
@@ -925,7 +925,7 @@ class TestExpressions(tb.QueryTestCase):
         # bytes and str
         for left in raw_ascii[:-1]:
             for right in raw_ascii[1:]:
-                for op, _not_op in [('>=', '<'), ('<=', '>')]:
+                for op in ('>=', '<', '<=', '>'):
                     query = f'''
                         SELECT (b'{left}' {op} b'{right}') =
                             ('{left}' {op} '{right}');
