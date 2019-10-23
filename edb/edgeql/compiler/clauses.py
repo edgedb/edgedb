@@ -107,14 +107,14 @@ def compile_orderby_clause(
                     sort_type_name = sort_type.material_type(env.schema) \
                                               .get_displayname(env.schema)
                     if len(matched) == 0:
-                        raise errors.EdgeQLError(
+                        raise errors.QueryError(
                             f'type {sort_type_name!r} cannot be used in '
                             f'ORDER BY clause because ordering is not '
                             f'defined for it',
                             context=sortexpr.context)
 
                     elif len(matched) > 1:
-                        raise errors.EdgeQLError(
+                        raise errors.QueryError(
                             f'type {sort_type_name!r} cannot be used in '
                             f'ORDER BY clause because ordering is '
                             f'ambiguous for it',

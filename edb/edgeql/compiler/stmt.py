@@ -485,7 +485,7 @@ def fini_stmt(
 
 
 def process_with_block(
-        edgeql_tree: qlast.Stmt, *,
+        edgeql_tree: qlast.Statement, *,
         ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
