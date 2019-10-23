@@ -20,7 +20,8 @@ class TypeCoverage(ast.NodeVisitor):
     typed_lines: int
     untyped_lines: int
 
-    def __init__(self) -> None:
+    def __init__(self, path: Path) -> None:
+        self.path = path
         self.typed_functions = 0
         self.untyped_functions = 0
         self.typed_lines = 0
@@ -51,22 +52,27 @@ class TypeCoverage(ast.NodeVisitor):
         for index, arg in enumerate(args.args):
             arg_count += 1
             if arg.annotation:
+                self.assert_no_strings(arg.annotation)
                 typed_count += 1
             elif index == 0 and self._classdefs and arg.arg in {"self", "cls"}:
                 typed_count += 1
         for arg in args.kwonlyargs:
             arg_count += 1
             if arg.annotation:
+                self.assert_no_strings(arg.annotation)
                 typed_count += 1
         if args.vararg:
             arg_count += 1
             if args.vararg.annotation:
+                self.assert_no_strings(args.vararg.annotation)
                 typed_count += 1
         if args.kwarg:
             arg_count += 1
             if args.kwarg.annotation:
+                self.assert_no_strings(args.kwarg.annotation)
                 typed_count += 1
         if node.returns:
+            self.assert_no_strings(node.returns)
             typed_count += 1
         start_line = node.lineno
         self.generic_visit(node)
@@ -86,6 +92,13 @@ class TypeCoverage(ast.NodeVisitor):
             self._last_seen_lineno = max(self._last_seen_lineno, node.lineno)
         super().visit(node)
 
+    def assert_no_strings(self, annotation: ast.AST) -> None:
+        if isinstance(annotation, ast.Str):
+            raise AssertionError(
+                f"String annotation at {self.path}:"
+                f"{annotation.lineno}:{annotation.col_offset}"
+            )
+
     def __iadd__(self, other: TypeCoverage) -> TypeCoverage:
         if not isinstance(other, TypeCoverage):
             return NotImplemented
@@ -100,13 +113,13 @@ class TypeCoverage(ast.NodeVisitor):
 def cover_file(file: Path) -> TypeCoverage:
     with tokenize.open(file) as f:
         parsed = ast.parse(f.read())
-    type_coverage = TypeCoverage()
+    type_coverage = TypeCoverage(file)
     type_coverage.visit(parsed)
     return type_coverage
 
 
 def cover_directory(directory: Path) -> TypeCoverage:
-    type_coverage = TypeCoverage()
+    type_coverage = TypeCoverage(directory)
     for root, dirs, files in os.walk(directory):
         for file in files:
             if not file.endswith(".py"):
