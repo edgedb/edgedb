@@ -442,7 +442,7 @@ class ScopeTreeNode:
     def get_effective_namespaces(self):
         namespaces = set()
 
-        for node, ans in self.ancestors_and_namespaces:
+        for _node, ans in self.ancestors_and_namespaces:
             namespaces |= ans
 
         return namespaces

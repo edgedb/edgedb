@@ -368,7 +368,7 @@ def _register_item(
         op.alter_if_exists = True
         top_parent = parent = copy.copy(ctx.depstack[0][0])
         parent.commands = []
-        for entry, entry_name in ctx.depstack[1:]:
+        for entry, _entry_name in ctx.depstack[1:]:
             entry_op = copy.copy(entry)
             entry_op.commands = []
             parent.commands.append(entry_op)

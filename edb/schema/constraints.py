@@ -105,7 +105,7 @@ class Constraint(referencing.ReferencedInheritingObject,
     @classmethod
     def get_concrete_constraint_attrs(
             cls, schema, subject, *, name, subjectexpr=None,
-            sourcectx=None, args=[], modaliases=None, **kwargs):
+            sourcectx=None, args=None, modaliases=None, **kwargs):
         from edb.edgeql import parser as qlparser
         from edb.edgeql import utils as qlutils
 

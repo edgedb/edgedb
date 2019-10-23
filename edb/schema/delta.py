@@ -226,7 +226,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def after(self, command):
         if isinstance(command, CommandGroup):
             for op in command:
-                self.before_ops.add(command)
+                self.before_ops.add(op)
         else:
             self.before_ops.add(command)
 

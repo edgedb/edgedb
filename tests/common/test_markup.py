@@ -130,13 +130,13 @@ class MarkupTests(unittest.TestCase):
 
     def test_utils_markup_overflow_wide(self):
         obj3 = []
-        for i in range(10):
+        for _ in range(10):
             obj2 = []
-            for j in range(10):
+            for _ in range(10):
                 obj1 = []
-                for k in range(10):
+                for _ in range(10):
                     obj = []
-                    for l in range(20):
+                    for _ in range(20):
                         obj.append(list(1 for _ in range(10)))
                     obj1.append(obj)
                 obj2.append(obj1)

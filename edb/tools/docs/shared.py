@@ -48,7 +48,11 @@ class InlineCodeRole:
         self.lang = lang
 
     def __call__(self, role, rawtext, text, lineno, inliner,
-                 options={}, content=[]):
+                 options=None, content=None):
+        if options is None:
+            options = {}
+        if content is None:
+            content = []
         d_roles.set_classes(options)
         node = d_nodes.literal(rawtext, d_utils.unescape(text), **options)
         node['eql-lang'] = self.lang

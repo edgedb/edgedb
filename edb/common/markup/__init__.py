@@ -33,7 +33,7 @@ class MarkupCapableMeta(type):
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
         if 'as_markup' in dct:
-            serializer.serializer.register(cls)(getattr(cls, 'as_markup'))
+            serializer.serializer.register(cls)(cls.as_markup)
         return cls
 
 

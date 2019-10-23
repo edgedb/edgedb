@@ -1228,7 +1228,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         try:
-            for i in range(5):
+            for _ in range(5):
                 self.assertEqual(
                     await self.con.fetchall(query),
                     [1])

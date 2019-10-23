@@ -932,7 +932,7 @@ class EdgeQLDomain(s_domains.Domain):
                 self.data['objects'][fullname] = (fn, objtype, desc)
 
     def get_objects(self):
-        for refname, (docname, type, desc) in self.data['objects'].items():
+        for refname, (docname, type, _desc) in self.data['objects'].items():
             yield (refname, refname, type, docname, refname, 1)
 
     def get_full_qualified_name(self, node):

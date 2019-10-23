@@ -1466,7 +1466,7 @@ class KeywordMeta(parsing.NontermMeta):
 
         assert type in keywords.keyword_types
 
-        for val, token in keywords.by_type[type].items():
+        for token in keywords.by_type[type].values():
             def method(inst, *kids):
                 inst.val = kids[0].val
             method = context.has_context(method)

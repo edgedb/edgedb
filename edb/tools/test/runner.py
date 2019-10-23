@@ -82,7 +82,7 @@ def init_worker(param_queue, result_queue):
 
 
 def finalize_result_testcases():
-    for case, suite in suite_cache.cache.items():
+    for _case, suite in suite_cache.cache.items():
         suite._tearDownPreviousClass(None, result)
         suite._handleModuleTearDown(result)
 

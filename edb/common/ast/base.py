@@ -315,7 +315,7 @@ def is_ast_node(obj):
 
 
 def fix_parent_links(node):
-    for field, value in iter_fields(node):
+    for _field, value in iter_fields(node):
         if isinstance(value, dict):
             for n in value.values():
                 if is_ast_node(n):

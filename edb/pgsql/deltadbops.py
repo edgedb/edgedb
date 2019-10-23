@@ -265,7 +265,7 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
         constr_name = self.constraint.raw_constraint_name()
 
         if isinstance(exprs, list) and len(exprs) > 1:
-            for i, expr in enumerate(exprs):
+            for i, _expr in enumerate(exprs):
                 constraint = MultiConstraintItem(self.constraint, i)
 
                 comment = dbops.Comment(constraint, constr_name)
@@ -301,7 +301,7 @@ class AlterTableRenameMultiConstraint(
         exprs = self.constraint.constraint_code(block)
 
         if isinstance(exprs, list) and len(exprs) > 1:
-            for i, expr in enumerate(exprs):
+            for i, _expr in enumerate(exprs):
                 old_name = c.numbered_constraint_name(i, quote=False)
                 new_name = nc.numbered_constraint_name(i, quote=False)
 
@@ -327,7 +327,7 @@ class AlterTableRenameMultiConstraint(
         constr_name = self.new_constraint.raw_constraint_name()
 
         if isinstance(exprs, list) and len(exprs) > 1:
-            for i, expr in enumerate(exprs):
+            for i, _expr in enumerate(exprs):
                 constraint = MultiConstraintItem(self.new_constraint, i)
 
                 comment = dbops.Comment(constraint, constr_name)
@@ -347,7 +347,7 @@ class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
         if isinstance(exprs, list) and len(exprs) > 1:
             chunks = []
 
-            for i, expr in enumerate(exprs):
+            for i, _expr in enumerate(exprs):
                 name = self.constraint.numbered_constraint_name(i)
                 chunk = f'DROP CONSTRAINT {name}'
                 chunks.append(chunk)

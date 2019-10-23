@@ -175,7 +175,7 @@ class NodeVisitor:
     def generic_visit(self, node, *, combine_results=None):
         field_results = []
 
-        for field, value in base.iter_fields(node, include_meta=False):
+        for _field, value in base.iter_fields(node, include_meta=False):
             if typeutils.is_container(value):
                 for item in value:
                     if base.is_ast_node(item):
@@ -200,7 +200,7 @@ def nodes_equal(n1, n2):
     if type(n1) is not type(n2):
         return False
 
-    for field, value in base.iter_fields(n1, include_meta=False):
+    for field, _value in base.iter_fields(n1, include_meta=False):
         if not n1._fields[field].hidden:
             n1v = getattr(n1, field)
             n2v = getattr(n2, field)

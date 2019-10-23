@@ -186,7 +186,9 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
 _default_cluster = None
 
 
-def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings={}):
+def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings=None):
+    if init_settings is None:
+        init_settings = {}
     if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
             not os.environ.get('EDGEDB_LOG_LEVEL')):
         _env = {'EDGEDB_LOG_LEVEL': 'silent'}
@@ -395,8 +397,8 @@ class ConnectedTestCaseMixin:
 
             shape_iter = _list_shape_iter(shape)
 
-            i = 0
-            for i, el in enumerate(data):
+            _data_count = 0
+            for _data_count, el in enumerate(data):
                 try:
                     el_shape = next(shape_iter)
                 except StopIteration:
@@ -406,8 +408,8 @@ class ConnectedTestCaseMixin:
 
                 _assert_generic_shape(el, el_shape)
 
-            if len(shape) > i + 1:
-                if shape[i + 1] is not Ellipsis:
+            if len(shape) > _data_count + 1:
+                if shape[_data_count + 1] is not Ellipsis:
                     self.fail(
                         '{}: expecting more elements in list'.format(
                             message))
@@ -421,8 +423,8 @@ class ConnectedTestCaseMixin:
 
             shape_iter = _list_shape_iter(sorted(shape))
 
-            i = 0
-            for i, el in enumerate(sorted(data)):
+            _data_count = 0
+            for _data_count, el in enumerate(sorted(data)):
                 try:
                     el_shape = next(shape_iter)
                 except StopIteration:
@@ -432,7 +434,7 @@ class ConnectedTestCaseMixin:
 
                 _assert_generic_shape(el, el_shape)
 
-            if len(shape) > i + 1:
+            if len(shape) > _data_count + 1:
                 if Ellipsis not in shape:
                     self.fail(
                         '{}: expecting more elements in set'.format(
@@ -785,7 +787,7 @@ def setup_test_cases(cases, conn, num_jobs):
     async def _run():
         if num_jobs == 1:
             # Special case for --jobs=1
-            for case, dbname, setup_script in setup:
+            for _case, dbname, setup_script in setup:
                 await _setup_database(dbname, setup_script, conn)
         else:
             async with taskgroup.TaskGroup(name='setup test cases') as g:
@@ -799,7 +801,7 @@ def setup_test_cases(cases, conn, num_jobs):
                     async with sem:
                         await coro(*args)
 
-                for case, dbname, setup_script in setup:
+                for _case, dbname, setup_script in setup:
                     g.create_task(controller(
                         _setup_database, dbname, setup_script, conn))
 

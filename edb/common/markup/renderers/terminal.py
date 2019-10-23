@@ -187,7 +187,7 @@ class Buffer:
                     result.append(item[2].apply(item[1]))
                 offset += len(item[1])
             else:
-                assert False
+                raise AssertionError(f"Unexpected element: {el}")
 
         return ''.join(result)
 

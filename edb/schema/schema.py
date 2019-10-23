@@ -682,7 +682,7 @@ class SchemaIterator:
         filters = self._filters
         index = self._schema._id_to_type
 
-        for obj_id, obj in index.items():
+        for obj in index.values():
             if all(f(obj) for f in filters):
                 yield obj
 

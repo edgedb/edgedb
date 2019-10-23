@@ -65,7 +65,7 @@ def linearize_delta(delta, old_schema, new_schema):
     offsets = {}
     ops = []
 
-    for key, info in ordered:
+    for _key, info in ordered:
         op = info['op']
         opstack = opmap[op]
         parent = opstack[1]
@@ -80,7 +80,7 @@ def linearize_delta(delta, old_schema, new_schema):
                     != (info['tag'], parent.classname)):
                 dependencies[op].add(dep_op)
 
-    for key, info in ordered:
+    for _key, info in ordered:
         op = info['op']
         if (isinstance(op, sd.AlterObject)
                 and not len(op.get_subcommands())):
