@@ -110,11 +110,40 @@ class TypeCoverage(ast.NodeVisitor):
         return self
 
 
+def assert_from_future_annotations(code: ast.AST, file: Path) -> None:
+    """Raises AssertionError unless the "annotations" future-import is present.
+
+    Only raises for modules.
+    """
+    if not isinstance(code, ast.Module):
+        return
+
+    for top_level_statement in code.body:
+        if isinstance(top_level_statement, ast.ImportFrom):
+            import_from = top_level_statement
+            if import_from.module == "__future__":
+                for alias in import_from.names:
+                    if not isinstance(alias, ast.alias):
+                        raise ValueError(
+                            f"Unsupported from-import name type in {file}"
+                        )
+
+                    if alias.name == "annotations":
+                        return
+
+    raise AssertionError(
+        f"Missing `from __future__ import annotations` "
+        f"in type-annotated file {file}"
+    )
+
+
 def cover_file(file: Path) -> TypeCoverage:
     with tokenize.open(file) as f:
         parsed = ast.parse(f.read())
     type_coverage = TypeCoverage(file)
     type_coverage.visit(parsed)
+    if type_coverage.typed_lines > 0:
+        assert_from_future_annotations(parsed, file)
     return type_coverage
 
 
