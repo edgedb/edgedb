@@ -68,7 +68,7 @@ EXTRA_DEPS = {
     'test': [
         'black~=19.3b0',
         'flake8~=3.7.5',
-        'flake8~=19.8.0',
+        'flake8-bugbear~=19.8.0',
         'mypy~=0.740',
         'pycodestyle~=2.5.0',
         'coverage~=4.5.2',
