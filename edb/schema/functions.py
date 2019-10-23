@@ -73,7 +73,7 @@ class ParameterDesc(NamedTuple, s_abc.Parameter):
 
     @classmethod
     def from_ast(cls, schema, modaliases,
-                 num: int, astnode) -> 'ParameterDesc':
+                 num: int, astnode) -> ParameterDesc:
         paramd = None
         if astnode.default is not None:
             defexpr = expr.Expression.from_ast(

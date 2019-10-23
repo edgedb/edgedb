@@ -125,7 +125,7 @@ class PLBlock(SQLBlock):
     def has_statements(self) -> bool:
         return bool(self.commands)
 
-    def get_top_block(self) -> 'PLTopBlock':
+    def get_top_block(self) -> PLTopBlock:
         return self.top_block
 
     def add_block(self, attach: bool=True):
@@ -219,7 +219,7 @@ class PLTopBlock(PLBlock):
         body = super().to_string()
         return f'DO LANGUAGE plpgsql $__$\n{body}\n$__$;'
 
-    def get_top_block(self) -> 'PLTopBlock':
+    def get_top_block(self) -> PLTopBlock:
         return self
 
 

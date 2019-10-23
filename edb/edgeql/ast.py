@@ -211,7 +211,7 @@ class BaseConstant(Expr):
     value: str
 
     @classmethod
-    def from_python(cls, val: typing.Any) -> 'BaseConstant':
+    def from_python(cls, val: typing.Any) -> BaseConstant:
         if isinstance(val, str):
             return StringConstant.from_python(val)
         elif isinstance(val, bool):

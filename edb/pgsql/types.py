@@ -525,7 +525,7 @@ class TypeDesc:
         )
 
     @classmethod
-    def from_type(cls, schema, type: s_abc.Type) -> 'TypeDesc':
+    def from_type(cls, schema, type: s_abc.Type) -> TypeDesc:
         nodes = []
         cls._get_typedesc(schema, [(None, type)], nodes)
         return cls(nodes)

@@ -360,7 +360,7 @@ class Schema(s_abc.Schema):
 
             return mm.finish()
 
-    def _add(self, id, scls, data) -> 'Schema':
+    def _add(self, id, scls, data) -> Schema:
         name = data['name']
 
         if name in self._name_to_id:
@@ -415,13 +415,13 @@ class Schema(s_abc.Schema):
 
         return self._replace(**updates)
 
-    def discard(self, obj) -> 'Schema':
+    def discard(self, obj) -> Schema:
         if obj.id in self._id_to_data:
             return self._delete(obj)
         else:
             return self
 
-    def delete(self, obj) -> 'Schema':
+    def delete(self, obj) -> Schema:
         return self._delete(obj)
 
     def _get(self, name, *, getter, default, module_aliases):

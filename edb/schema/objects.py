@@ -55,7 +55,7 @@ def get_known_type_id(typename, default=...):
     return default
 
 
-def default_field_merge(target: 'Object', sources: List['Object'],
+def default_field_merge(target: Object, sources: List[Object],
                         field_name: str, *, schema) -> object:
     ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is None:
@@ -566,7 +566,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return schema, scls
 
     @classmethod
-    def _create(cls, schema, *, id=None, **data) -> 'Object':
+    def _create(cls, schema, *, id=None, **data) -> Object:
         if cls.is_schema_object:
             raise TypeError(
                 f'{cls.__name__} type cannot be created outside of a schema')
@@ -1337,7 +1337,7 @@ class ObjectCollection(s_abc.ObjectContainer):
         return cls(cls._container(ids), _private_init=True)
 
     @classmethod
-    def create_empty(cls) -> 'ObjectCollection':
+    def create_empty(cls) -> ObjectCollection:
         return cls(cls._container(), _private_init=True)
 
     @classmethod
@@ -1475,7 +1475,7 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return basecoef + (1 - basecoef) * compcoef
 
-    def add(self, schema, item) -> 'ObjectIndexBase':
+    def add(self, schema, item) -> ObjectIndexBase:
         """Return a copy of this collection containing the given item.
 
         If the item is already present in the collection, an
