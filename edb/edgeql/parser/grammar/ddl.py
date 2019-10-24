@@ -284,18 +284,6 @@ def commands_block(parent, *commands, opt=True):
         _new_nonterm('Opt' + parent + 'CommandsBlock', clsdict=clsdict)
 
 
-class SchemaItemClassValue(typing.NamedTuple):
-
-    itemclass: qlast.SchemaItemClass
-
-
-class SchemaItemClass(Nonterm):
-
-    def reduce_OPERATOR(self, *kids):
-        self.val = SchemaItemClassValue(
-            itemclass=qlast.SchemaItemClass.OPERATOR)
-
-
 class SetFieldStmt(Nonterm):
     # field := <expr>
     def reduce_SET_NodeName_ASSIGN_Expr(self, *kids):
@@ -304,12 +292,10 @@ class SetFieldStmt(Nonterm):
             value=kids[3].val,
         )
 
-    def reduce_SET_NodeName_AS_SchemaItemClass_NodeName(self, *kids):
-        ref = kids[4].val
-        ref.itemclass = kids[3].val.itemclass
+    def reduce_SET_NodeName_AS_SchemaItem(self, *kids):
         self.val = qlast.SetField(
             name=kids[1].val,
-            value=ref
+            value=kids[3].val,
         )
 
 

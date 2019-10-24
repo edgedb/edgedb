@@ -3606,7 +3606,7 @@ aa';
         };
         """
 
-    def test_edgeql_transaction_01(self):
+    def test_edgeql_syntax_transaction_01(self):
         """
         START TRANSACTION;
         ROLLBACK;
@@ -3617,7 +3617,7 @@ aa';
         RELEASE SAVEPOINT foo;
         """
 
-    def test_edgeql_transaction_02(self):
+    def test_edgeql_syntax_transaction_02(self):
         """
         START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY, DEFERRABLE;
         START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY;
@@ -3632,7 +3632,7 @@ aa';
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'only one isolation level can be specified',
                   line=2, col=51)
-    def test_edgeql_transaction_03(self):
+    def test_edgeql_syntax_transaction_03(self):
         """
         START TRANSACTION ISOLATION SERIALIZABLE, ISOLATION REPEATABLE READ;
         """
@@ -3640,7 +3640,7 @@ aa';
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'deferrable mode can only be specified once',
                   line=2, col=39)
-    def test_edgeql_transaction_04(self):
+    def test_edgeql_syntax_transaction_04(self):
         """
         START TRANSACTION DEFERRABLE, NOT DEFERRABLE;
         """
@@ -3648,7 +3648,22 @@ aa';
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'only one access mode can be specified',
                   line=2, col=51)
-    def test_edgeql_transaction_05(self):
+    def test_edgeql_syntax_transaction_05(self):
         """
         START TRANSACTION READ WRITE, DEFERRABLE, READ ONLY;
+        """
+
+    def test_edgeql_syntax_describe_01(self):
+        """
+        DESCRIBE SCHEMA AS DDL;
+        """
+
+    def test_edgeql_syntax_describe_02(self):
+        """
+        DESCRIBE TYPE foo::Bar AS SDL;
+        """
+
+    def test_edgeql_syntax_describe_03(self):
+        """
+        DESCRIBE TYPE foo::Bar AS TEXT VERBOSE;
         """

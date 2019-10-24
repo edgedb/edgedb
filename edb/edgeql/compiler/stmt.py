@@ -29,12 +29,17 @@ from edb import errors
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import ddl as s_ddl
+from edb.schema import links as s_links
+from edb.schema import lproperties as s_lprops
 from edb.schema import name as s_name
+from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import astutils
 from . import clauses
@@ -403,6 +408,82 @@ def compile_DeleteQuery(
             ctx=ictx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+
+    return result
+
+
+@dispatch.compile.register
+def compile_DescribeStmt(
+        ql: qlast.DescribeStmt, *, ctx: context.ContextLevel) -> irast.Set:
+    with ctx.subquery() as ictx:
+        stmt = irast.SelectStmt()
+        init_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
+
+        if not ql.object:
+            if ql.language is qltypes.DescribeLanguage.DDL:
+                # DESCRIBE SCHEMA
+                text = s_ddl.ddl_text_from_schema(ctx.env.schema)
+            else:
+                raise errors.QueryError(
+                    f'cannot describe full schema as {ql.language}')
+        else:
+            modules = []
+            items = []
+            referenced_classes: List[s_obj.ObjectMeta] = []
+
+            objref = ql.object
+
+            if objref.itemclass is qltypes.SchemaObjectClass.MODULE:
+                modules.append(objref.name)
+            else:
+                itemtypes = None
+
+                if objref.itemclass is not None:
+                    itemtypes = (
+                        s_obj.ObjectMeta.get_schema_metaclass_for_ql_class(
+                            objref.itemclass),
+                    )
+
+                obj = schemactx.get_schema_object(
+                    objref,
+                    item_types=itemtypes,
+                    ctx=ictx,
+                )
+                items.append(obj.get_name(ictx.env.schema))
+
+            if ql.language is qltypes.DescribeLanguage.DDL:
+                method = s_ddl.ddl_text_from_schema
+            elif ql.language is qltypes.DescribeLanguage.SDL:
+                method = s_ddl.sdl_text_from_schema
+            elif ql.language is qltypes.DescribeLanguage.TEXT:
+                method = s_ddl.descriptive_text_from_schema
+                if not ql.verbose:
+                    referenced_classes = [s_links.Link, s_lprops.Property]
+            else:
+                raise errors.InternalServerError(
+                    f'cannot handle describe language {ql.language}'
+                )
+
+            text = method(
+                ctx.env.schema,
+                included_modules=modules,
+                included_items=items,
+                included_ref_classes=referenced_classes,
+                include_module_ddl=False,
+                include_std_ddl=True,
+            )
+
+        ct = irtyputils.type_to_typeref(
+            ctx.env.schema,
+            ctx.env.get_track_schema_type('std::str'),
+        )
+
+        stmt.result = setgen.ensure_set(
+            irast.StringConstant(value=text, typeref=ct),
+            ctx=ictx,
+        )
+
+        result = fini_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
 
     return result
 

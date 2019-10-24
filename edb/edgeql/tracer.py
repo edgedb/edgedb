@@ -485,3 +485,16 @@ def trace_DeleteQuery(node: qlast.DeleteQuery, *, ctx: TracerContext) -> None:
         trace(node.offset, ctx=ctx)
     if node.limit is not None:
         trace(node.limit, ctx=ctx)
+
+
+@trace.register
+def trace_DescribeStmt(
+    node: qlast.DescribeStmt, *,
+    ctx: TracerContext,
+) -> None:
+
+    if node.object:
+        fq_name = node.object.name
+        if node.object.module:
+            fq_name = f'{node.object.module}::{fq_name}'
+        ctx.refs.add(fq_name)

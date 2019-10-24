@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import delta as sd
 from . import inheriting
@@ -31,7 +32,8 @@ from . import objects as so
 from . import utils
 
 
-class Annotation(inheriting.InheritingObject):
+class Annotation(inheriting.InheritingObject,
+                 qlkind=qltypes.SchemaObjectClass.ANNOTATION):
     # Annotations cannot be renamed, so make sure the name
     # has low compcoef.
     name = so.SchemaField(

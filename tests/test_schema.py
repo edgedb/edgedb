@@ -17,12 +17,15 @@
 #
 
 
+import re
+
 from edb import errors
 
 from edb.common import markup
 from edb.testbase import lang as tb
 
 from edb import edgeql
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
 from edb.schema import delta as s_delta
@@ -2739,3 +2742,139 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
             view CollView := (a := Base.name, b := Base.foo);
         """])
+
+
+class TestDescribe(tb.BaseSchemaLoadTest):
+    """Test the DESCRIBE command."""
+
+    re_filter = re.compile(r'[\s]+|(,(?=\s*[})]))')
+
+    def _assert_describe(
+        self,
+        schema_text,
+        *tests
+    ):
+        schema = self.load_schema(schema_text)
+
+        tests = [iter(tests)] * 2
+
+        for stmt_text, expected_output in zip(*tests):
+            stmt = qlcompiler.compile_to_ir(
+                stmt_text,
+                schema,
+                modaliases={None: 'test'},
+            )
+
+            output = stmt.expr.expr.result.expr.value
+
+            self.assert_equal(expected_output, output)
+
+    def test_describe_01(self):
+        self._assert_describe(
+            """
+            type Foo;
+            abstract annotation anno;
+            scalar type int_t extending int64 {
+                annotation anno := 'ext int';
+                constraint max_value(15);
+            }
+
+            abstract link f {
+                property p -> int_t {
+                    annotation anno := 'annotated link property';
+                    constraint max_value(10);
+                }
+            }
+
+            type Parent {
+                property name -> str;
+                index on (.name);
+            }
+
+            type Parent2 {
+                link foo -> Foo;
+            }
+
+            type Child extending Parent, Parent2 {
+                annotation anno := 'annotated';
+
+                inherited link foo extending f -> Foo {
+                    constraint exclusive {
+                        annotation anno := 'annotated constraint';
+                    }
+                    annotation anno := 'annotated link';
+                }
+            }
+            """,
+
+            'DESCRIBE TYPE Child AS SDL',
+
+            """
+            type test::Child extending test::Parent, test::Parent2 {
+                annotation test::anno := 'annotated';
+                inherited link foo extending test::f -> test::Foo {
+                    annotation test::anno := 'annotated link';
+                    constraint std::exclusive {
+                        annotation test::anno := 'annotated constraint';
+                    };
+                };
+            };
+            """,
+
+            'DESCRIBE TYPE Child AS TEXT VERBOSE',
+
+            """
+            type test::Child extending test::Parent, test::Parent2 {
+                annotation test::anno := 'annotated';
+                index on (.name);
+                link __type__ -> schema::Type;
+                inherited link foo extending test::f -> test::Foo {
+                    annotation test::anno := 'annotated link';
+                    constraint std::exclusive {
+                        annotation test::anno := 'annotated constraint';
+                    };
+                    property p -> test::int_t {
+                        constraint std::max_value(10) {
+                            errmessage := 'Maximum allowed value
+                                           for {__subject__} is 10.';
+                        };
+                    };
+                };
+                required property id -> std::uuid {
+                    constraint std::exclusive;
+                };
+                property name -> std::str;
+            };
+            """,
+
+            'DESCRIBE TYPE Child AS TEXT',
+
+            """
+            type test::Child extending test::Parent, test::Parent2 {
+                link __type__ -> schema::Type;
+                inherited link foo extending test::f -> test::Foo {
+                    property p -> test::int_t;
+                };
+                required property id -> std::uuid;
+                property name -> std::str;
+            };
+            """,
+
+            'DESCRIBE OBJECT int_t AS TEXT',
+
+            """
+            scalar type test::int_t extending std::int64;
+            """,
+
+            'DESCRIBE OBJECT int_t AS TEXT VERBOSE',
+
+            """
+            scalar type test::int_t extending std::int64 {
+                annotation test::anno := 'ext int';
+                constraint std::max_value(15) {
+                    errmessage := 'Maximum allowed value \
+                                   for {__subject__} is 15.';
+                };
+            };
+            """
+        )

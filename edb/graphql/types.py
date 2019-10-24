@@ -647,7 +647,7 @@ class GQLCoreSchema:
         )
 
         scalar_types = list(
-            self.edb_schema.get_objects(modules=self.modules,
+            self.edb_schema.get_objects(included_modules=self.modules,
                                         type=s_scalars.ScalarType))
         for st in scalar_types:
             if st.is_enum(self.edb_schema):
@@ -748,7 +748,7 @@ class GQLCoreSchema:
 
         # Every ObjectType is reflected as an interface.
         interface_types = list(
-            self.edb_schema.get_objects(modules=self.modules,
+            self.edb_schema.get_objects(included_modules=self.modules,
                                         type=s_objtypes.BaseObjectType))
 
         # concrete types are also reflected as Type (with a 'Type' postfix)

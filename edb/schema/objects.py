@@ -28,6 +28,7 @@ import uuid
 import immutables as immu
 
 from edb import errors
+from edb.edgeql import qltypes
 
 from edb.common import checked
 from edb.common import markup
@@ -284,10 +285,12 @@ class RefDict(struct.Struct):
 
 class ObjectMeta(type):
 
-    _schema_metaclasses: List[ObjectMeta] = []
+    _all_types: List[ObjectMeta] = []
     _schema_types: Set[ObjectMeta] = set()
+    _ql_map: Dict[qltypes.SchemaObjectClass, ObjectMeta] = {}
 
-    def __new__(mcls, name, bases, clsdict):
+    def __new__(mcls, name, bases, clsdict, *,
+                qlkind: Optional[qltypes.SchemaObjectClass]=None):
         fields = {}
         myfields = {}
         refdicts = collections.OrderedDict()
@@ -352,6 +355,8 @@ class ObjectMeta(type):
                              if not field.is_schema_field}
         if non_schema_fields == {'id'} and len(fields) > 1:
             mcls._schema_types.add(cls)
+            if qlkind is not None:
+                mcls._ql_map[qlkind] = cls
 
         cls._refdicts_by_refclass = {}
 
@@ -396,14 +401,10 @@ class ObjectMeta(type):
         setattr(cls, '{}.{}_refdicts'.format(cls.__module__, cls.__name__),
                      mydicts)
 
-        cls._ref_type = None
-        mcls._schema_metaclasses.append(cls)
+        cls._ql_class = qlkind
+        mcls._all_types.append(cls)
 
         return cls
-
-    @property
-    def is_schema_object(cls):
-        return cls in ObjectMeta._schema_types
 
     def get_object_fields(cls):
         if cls._object_fields is None:
@@ -442,9 +443,26 @@ class ObjectMeta(type):
         else:
             raise KeyError(f'{cls} has no refdict for {refcls}')
 
+    @property
+    def is_schema_object(cls) -> bool:
+        return cls in ObjectMeta._schema_types
+
     @classmethod
-    def get_schema_metaclasses(mcls):
-        return mcls._schema_metaclasses
+    def get_schema_metaclasses(mcls) -> Iterator[ObjectMeta]:
+        return iter(mcls._all_types)
+
+    @classmethod
+    def get_schema_metaclass_for_ql_class(
+        mcls,
+        qlkind: qltypes.SchemaObjectClass
+    ) -> ObjectMeta:
+        cls = mcls._ql_map.get(qlkind)
+        if cls is None:
+            raise LookupError(f'no schema metaclass for {qlkind}')
+        return cls
+
+    def get_ql_class(cls) -> qltypes.SchemaObjectClass:
+        return cls._ql_class
 
 
 class FieldValueNotFoundError(Exception):

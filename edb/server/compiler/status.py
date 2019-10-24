@@ -140,3 +140,8 @@ def _sess_set_config(ql):
         return b'CONFIGURE SYSTEM'
     else:
         return b'CONFIGURE SESSION'
+
+
+@get_status.register(qlast.DescribeStmt)
+def _describe(ql):
+    return f'DESCRIBE'.encode()

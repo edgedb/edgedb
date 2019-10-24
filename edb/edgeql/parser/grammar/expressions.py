@@ -1464,3 +1464,59 @@ class UnreservedKeyword(Nonterm, metaclass=KeywordMeta,
 class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
                       type=keywords.RESERVED_KEYWORD):
     pass
+
+
+class SchemaObjectClassValue(typing.NamedTuple):
+
+    itemclass: qltypes.SchemaObjectClass
+
+
+class SchemaObjectClass(Nonterm):
+
+    def reduce_ANNOTATION(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.ANNOTATION)
+
+    def reduce_CAST(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.CAST)
+
+    def reduce_CONSTRAINT(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.CONSTRAINT)
+
+    def reduce_FUNCTION(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.FUNCTION)
+
+    def reduce_LINK(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.LINK)
+
+    def reduce_MODULE(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.MODULE)
+
+    def reduce_OPERATOR(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.OPERATOR)
+
+    def reduce_PROPERTY(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.PROPERTY)
+
+    def reduce_SCALAR_TYPE(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.SCALAR_TYPE)
+
+    def reduce_TYPE(self, *kids):
+        self.val = SchemaObjectClassValue(
+            itemclass=qltypes.SchemaObjectClass.TYPE)
+
+
+class SchemaItem(Nonterm):
+
+    def reduce_SchemaObjectClass_NodeName(self, *kids):
+        ref = kids[1].val
+        ref.itemclass = kids[0].val.itemclass
+        self.val = ref

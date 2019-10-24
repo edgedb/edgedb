@@ -643,10 +643,22 @@ class Schema(s_abc.Schema):
         return self.get_referrers(
             scls, scls_type=type(scls), field_name='ancestors')
 
-    def get_objects(self, *, modules=None, excluded_modules=None, type=None):
+    def get_objects(
+        self, *,
+        included_modules: Optional[Iterable[str]]=None,
+        excluded_modules: Optional[Iterable[str]]=None,
+        included_items: Optional[Iterable[str]]=None,
+        excluded_items: Optional[Iterable[str]]=None,
+        type: Optional[so.ObjectMeta]=None,
+    ) -> Iterator[so.Object]:
         return SchemaIterator(
-            self, modules=modules,
-            excluded_modules=excluded_modules, type=type)
+            self,
+            included_modules=included_modules,
+            excluded_modules=excluded_modules,
+            included_items=included_items,
+            excluded_items=excluded_items,
+            type=type,
+        )
 
     def __repr__(self):
         return (
@@ -655,11 +667,15 @@ class Schema(s_abc.Schema):
 
 class SchemaIterator:
     def __init__(
-            self,
-            schema, *,
-            modules: Optional[Iterable[str]],
-            excluded_modules: Optional[Iterable[str]],
-            type=None) -> None:
+        self,
+        schema: Schema,
+        *,
+        included_modules: Optional[Iterable[str]],
+        excluded_modules: Optional[Iterable[str]],
+        included_items: Optional[Iterable[str]]=None,
+        excluded_items: Optional[Iterable[str]]=None,
+        type: Optional[so.ObjectMeta],
+    ) -> None:
 
         filters = []
 
@@ -667,19 +683,27 @@ class SchemaIterator:
             filters.append(
                 lambda obj: isinstance(obj, type))
 
-        if modules is not None:
-            modules = frozenset(modules)
+        if included_modules:
+            modules = frozenset(included_modules)
             filters.append(
                 lambda obj:
                     not isinstance(obj, so.UnqualifiedObject) and
                     obj.get_name(schema).module in modules)
 
-        if excluded_modules is not None:
+        if excluded_modules:
             excluded_modules = frozenset(excluded_modules)
             filters.append(
                 lambda obj:
                     isinstance(obj, so.UnqualifiedObject) or
                     obj.get_name(schema).module not in excluded_modules)
+
+        if included_items:
+            objs = frozenset(included_items)
+            filters.append(lambda obj: obj.get_name(schema) in objs)
+
+        if excluded_items:
+            objs = frozenset(excluded_items)
+            filters.append(lambda obj: obj.get_name(schema) not in objs)
 
         self._filters = filters
         self._schema = schema

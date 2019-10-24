@@ -93,7 +93,8 @@ class SourceGenerator(NodeVisitor):
     @classmethod
     def to_source(
             cls, node, indent_with=' ' * 4, add_line_information=False,
-            pretty=True):
-        generator = cls(indent_with, add_line_information, pretty=pretty)
+            pretty=True, **kwargs):
+        generator = cls(indent_with, add_line_information,
+                        pretty=pretty, **kwargs)
         generator.visit(node)
         return ''.join(generator.result)

@@ -206,8 +206,8 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
         )
 
     def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'expr':
-            node.expr = op.new_value.qlast
+        if op.property == 'origexpr':
+            node.expr = edgeql.parse_fragment(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
 

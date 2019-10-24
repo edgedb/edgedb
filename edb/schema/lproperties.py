@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from edb import errors
 
@@ -34,7 +35,8 @@ from . import sources
 from . import utils
 
 
-class Property(pointers.Pointer, s_abc.Property):
+class Property(pointers.Pointer, s_abc.Property,
+               qlkind=qltypes.SchemaObjectClass.PROPERTY):
 
     def derive_ref(self, schema, source, target=None, attrs=None, **kwargs):
         if target is None:

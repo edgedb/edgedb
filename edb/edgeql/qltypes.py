@@ -87,3 +87,23 @@ class Volatility(s_enum.StrEnum):
     IMMUTABLE = 'IMMUTABLE'
     STABLE = 'STABLE'
     VOLATILE = 'VOLATILE'
+
+
+class DescribeLanguage(s_enum.StrEnum):
+    DDL = 'DDL'
+    SDL = 'SDL'
+    TEXT = 'TEXT'
+
+
+class SchemaObjectClass(s_enum.StrEnum):
+
+    ANNOTATION = 'ANNOTATION'
+    CAST = 'CAST'
+    CONSTRAINT = 'CONSTRAINT'
+    FUNCTION = 'FUNCTION'
+    LINK = 'LINK'
+    MODULE = 'MODULE'
+    OPERATOR = 'OPERATOR'
+    PROPERTY = 'PROPERTY'
+    SCALAR_TYPE = 'SCALAR TYPE'
+    TYPE = 'TYPE'

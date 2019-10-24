@@ -53,7 +53,7 @@ from . import render
 
 STATUSES_WITH_OUTPUT = frozenset({
     'SELECT', 'INSERT', 'DELETE', 'UPDATE',
-    'GET MIGRATION',
+    'GET MIGRATION', 'DESCRIBE',
 })
 
 

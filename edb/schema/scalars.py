@@ -25,6 +25,7 @@ from edb import errors
 
 from edb.common import checked
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -39,7 +40,8 @@ from . import types as s_types
 
 
 class ScalarType(s_types.Type, constraints.ConsistencySubject,
-                 s_anno.AnnotationSubject, s_abc.ScalarType):
+                 s_anno.AnnotationSubject, s_abc.ScalarType,
+                 qlkind=qltypes.SchemaObjectClass.SCALAR_TYPE):
 
     default = so.SchemaField(
         expr.Expression, default=None,

@@ -76,6 +76,12 @@ def delta_schemas(
     *,
     included_modules: Optional[Iterable[str]]=None,
     excluded_modules: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[str]]=None,
+    excluded_items: Optional[Iterable[str]]=None,
+    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
+    include_module_diff: bool=True,
+    include_std_diff: bool=False,
+    linearize_delta: bool=True,
 ) -> sd.DeltaRoot:
     """Return difference between *schema1* and *schema2*.
 
@@ -89,6 +95,9 @@ def delta_schemas(
             Optional list of modules to exlude from the delta.
             Takes precedence over *included_modules*.
             NOTE: standard library modules are always excluded.
+        include_module_diff:
+            Whether to include create/drop module operations
+            in the delta diff.
 
     Returns:
         A :class:`schema.delta.DeltaRoot` instances representing
@@ -111,7 +120,11 @@ def delta_schemas(
     else:
         excluded_modules = set(excluded_modules)
 
-    excluded_modules.update(s_schema.STD_MODULES)
+    if not include_std_diff:
+        excluded_modules.update(s_schema.STD_MODULES)
+
+    # __derived__ is ephemeral and should never be included
+    excluded_modules.add('__derived__')
 
     if included_modules is not None:
         included_modules = set(included_modules)
@@ -123,10 +136,17 @@ def delta_schemas(
         added_modules -= excluded_modules
         dropped_modules -= excluded_modules
 
-    for added_module in added_modules:
-        create = modules.CreateModule(classname=added_module)
-        create.set_attribute_value('name', added_module)
-        result.add(create)
+    if included_items is not None:
+        included_items = set(included_items)
+
+    if excluded_items is not None:
+        excluded_items = set(excluded_items)
+
+    if include_module_diff:
+        for added_module in added_modules:
+            create = modules.CreateModule(classname=added_module)
+            create.set_attribute_value('name', added_module)
+            result.add(create)
 
     objects = sd.DeltaRoot(canonical=True)
 
@@ -135,16 +155,32 @@ def delta_schemas(
             # UnqualifiedObjects (like anonymous tuples and arrays)
             # should not use an included_modules filter.
             new = schema1.get_objects(
-                type=type, excluded_modules=excluded_modules)
+                type=type,
+                excluded_modules=excluded_modules,
+                included_items=included_items,
+                excluded_items=excluded_items,
+            )
             old = schema2.get_objects(
-                type=type, excluded_modules=excluded_modules)
+                type=type,
+                excluded_modules=excluded_modules,
+                included_items=included_items,
+                excluded_items=excluded_items,
+            )
         else:
             new = schema1.get_objects(
-                type=type, modules=included_modules,
-                excluded_modules=excluded_modules)
+                type=type,
+                included_modules=included_modules,
+                excluded_modules=excluded_modules,
+                included_items=included_items,
+                excluded_items=excluded_items,
+            )
             old = schema2.get_objects(
-                type=type, modules=included_modules,
-                excluded_modules=excluded_modules)
+                type=type,
+                included_modules=included_modules,
+                excluded_modules=excluded_modules,
+                included_items=included_items,
+                excluded_items=excluded_items,
+            )
 
         if issubclass(type, derivable.DerivableObject):
             new = filter(lambda i: i.generic(schema1), new)
@@ -153,12 +189,16 @@ def delta_schemas(
         objects.update(so.Object.delta_sets(
             old, new, old_schema=schema2, new_schema=schema1))
 
-    result.update(s_ordering.linearize_delta(
-        objects, old_schema=schema2, new_schema=schema1))
+    if linearize_delta:
+        objects = s_ordering.linearize_delta(
+            objects, old_schema=schema2, new_schema=schema1)
 
-    for dropped_module in dropped_modules:
-        result.add(modules.DeleteModule(
-            classname=dropped_module.get_name(schema2)))
+    result.update(objects)
+
+    if include_module_diff:
+        for dropped_module in dropped_modules:
+            result.add(modules.DeleteModule(
+                classname=dropped_module.get_name(schema2)))
 
     return result
 
@@ -262,6 +302,35 @@ def _delta_from_ddl(ddl_stmt, *, schema, modaliases,
     return schema, delta
 
 
+def _text_from_delta(
+    schema: s_schema.Schema,
+    delta: sd.DeltaRoot,
+    *,
+    sdlmode: bool,
+    descriptive_mode: bool = False,
+    limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+) -> str:
+
+    context = sd.CommandContext(descriptive_mode=descriptive_mode)
+    text = []
+    for command in delta.get_subcommands():
+        with context(sd.DeltaRootContext(schema=schema, op=delta)):
+            delta_ast = command.get_ast(schema, context)
+            if delta_ast:
+                ql_classes = [
+                    scls.get_ql_class() for scls in limit_ref_classes
+                ]
+
+                stmt_text = edgeql.generate_source(
+                    delta_ast, sdlmode=sdlmode,
+                    descmode=descriptive_mode,
+                    limit_ref_classes=ql_classes,
+                )
+                text.append(stmt_text + ';')
+
+    return '\n'.join(text)
+
+
 def ddl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
     """Return DDL text corresponding to a delta plan.
 
@@ -275,16 +344,49 @@ def ddl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
     Returns:
         DDL text corresponding to *delta*.
     """
-    context = sd.CommandContext()
-    text = []
-    for command in delta.get_subcommands():
-        with context(sd.DeltaRootContext(schema=schema, op=delta)):
-            delta_ast = command.get_ast(schema, context)
-            if delta_ast:
-                stmt_text = edgeql.generate_source(delta_ast)
-                text.append(stmt_text + ';')
+    return _text_from_delta(schema, delta, sdlmode=False)
 
-    return '\n'.join(text)
+
+def sdl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
+    """Return SDL text corresponding to a delta plan.
+
+    Args:
+        schema:
+            The schema to which the *delta* has **already** been
+            applied.
+        delta:
+            The delta plan.
+
+    Returns:
+        SDL text corresponding to *delta*.
+    """
+    return _text_from_delta(schema, delta, sdlmode=True)
+
+
+def descriptive_text_from_delta(
+    schema: s_schema.Schema,
+    delta: sd.DeltaRoot,
+    *,
+    limit_ref_classes: Iterable[so.ObjectMeta]=tuple(),
+) -> str:
+    """Return descriptive text corresponding to a delta plan.
+
+    Args:
+        schema:
+            The schema to which the *delta* has **already** been
+            applied.
+        delta:
+            The delta plan.
+        limit_ref_classes:
+            If specified, limit the output of referenced objects
+            to the specified classes.
+
+    Returns:
+        Descriptive text corresponding to *delta*.
+    """
+    return _text_from_delta(
+        schema, delta, sdlmode=True, descriptive_mode=True,
+        limit_ref_classes=limit_ref_classes)
 
 
 def ddl_text_from_migration(
@@ -310,7 +412,85 @@ def ddl_text_from_migration(
     return ddl_text_from_delta(migrated_schema, delta)
 
 
-def ddl_text_from_schema(schema) -> str:
-    empty_schema = std.load_std_schema()
-    diff = delta_schemas(schema, empty_schema)
+def ddl_text_from_schema(
+    schema: s_schema.Schema, *,
+    included_modules: Optional[Iterable[str]]=None,
+    excluded_modules: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[str]]=None,
+    excluded_items: Optional[Iterable[str]]=None,
+    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
+    include_module_ddl: bool=True,
+    include_std_ddl: bool=False,
+) -> str:
+    if include_std_ddl:
+        empty_schema = s_schema.Schema()
+    else:
+        empty_schema = std.load_std_schema()
+    diff = delta_schemas(
+        schema,
+        empty_schema,
+        included_modules=included_modules,
+        excluded_modules=excluded_modules,
+        included_items=included_items,
+        excluded_items=excluded_items,
+        include_module_diff=include_module_ddl,
+        include_std_diff=include_std_ddl,
+    )
     return ddl_text_from_delta(schema, diff)
+
+
+def sdl_text_from_schema(
+    schema: s_schema.Schema, *,
+    included_modules: Optional[Iterable[str]]=None,
+    excluded_modules: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[str]]=None,
+    excluded_items: Optional[Iterable[str]]=None,
+    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
+    include_module_ddl: bool=True,
+    include_std_ddl: bool=False,
+) -> str:
+    if include_std_ddl:
+        empty_schema = s_schema.Schema()
+    else:
+        empty_schema = std.load_std_schema()
+    diff = delta_schemas(
+        schema,
+        empty_schema,
+        included_modules=included_modules,
+        excluded_modules=excluded_modules,
+        included_items=included_items,
+        excluded_items=excluded_items,
+        include_module_diff=include_module_ddl,
+        include_std_diff=include_std_ddl,
+        linearize_delta=False,
+    )
+    return sdl_text_from_delta(schema, diff)
+
+
+def descriptive_text_from_schema(
+    schema: s_schema.Schema, *,
+    included_modules: Optional[Iterable[str]]=None,
+    excluded_modules: Optional[Iterable[str]]=None,
+    included_items: Optional[Iterable[str]]=None,
+    excluded_items: Optional[Iterable[str]]=None,
+    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
+    include_module_ddl: bool=True,
+    include_std_ddl: bool=False,
+) -> str:
+    if include_std_ddl:
+        empty_schema = s_schema.Schema()
+    else:
+        empty_schema = std.load_std_schema()
+    diff = delta_schemas(
+        schema,
+        empty_schema,
+        included_modules=included_modules,
+        excluded_modules=excluded_modules,
+        included_items=included_items,
+        excluded_items=excluded_items,
+        include_module_diff=include_module_ddl,
+        include_std_diff=include_std_ddl,
+        linearize_delta=False,
+    )
+    return descriptive_text_from_delta(
+        schema, diff, limit_ref_classes=included_ref_classes)

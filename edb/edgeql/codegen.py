@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import itertools
 import re
 
 from edb import errors
@@ -61,9 +62,13 @@ class EdgeSchemaSourceGeneratorError(errors.EdgeDBError):
 
 
 class EdgeQLSourceGenerator(codegen.SourceGenerator):
-    def __init__(self, *args, sdlmode=False, **kwargs):
+    def __init__(self, *args, sdlmode=False, descmode=False,
+                 unsorted=False, limit_ref_classes=frozenset(), **kwargs):
         super().__init__(*args, **kwargs)
         self.sdlmode = sdlmode
+        self.descmode = descmode
+        self.unsorted = unsorted
+        self.limit_ref_classes = limit_ref_classes
 
     def visit(self, node, **kwargs):
         method = 'visit_' + node.__class__.__name__
@@ -633,6 +638,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(']')
 
     def visit_ObjectRef(self, node):
+        if node.itemclass:
+            self.write(node.itemclass)
+            self.write(' ')
         if node.module:
             self.write(ident_to_str(node.module))
             self.write('::')
@@ -699,9 +707,54 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._write_keywords(' EXTENDING ')
             self.visit_list(node.bases, newlines=False)
 
+    def _ddl_visit_body(self, commands, group_by_system_comment, *,
+                        allow_short: bool = False):
+        if self.limit_ref_classes:
+            commands = filter(
+                lambda c: c.name.itemclass in self.limit_ref_classes,
+                commands,
+            )
+
+        commands = list(commands)
+
+        if len(commands) == 1 and allow_short:
+            self.write(' ')
+            self.visit(commands[0])
+        elif len(commands) > 0:
+            self.write(' {')
+            self._block_ws(1)
+
+            if group_by_system_comment:
+                sort_key = lambda c: (c.system_comment or '', c.name.name)
+                group_key = lambda c: c.system_comment or ''
+                if not self.unsorted:
+                    commands = sorted(commands, key=sort_key)
+                groups = itertools.groupby(commands, group_key)
+                for i, (comment, items) in enumerate(groups):
+                    if i > 0:
+                        self.new_lines = 2
+                    if comment:
+                        self.write('#')
+                        self.new_lines = 1
+                        self.write(f'# {comment}')
+                        self.new_lines = 1
+                        self.write('#')
+                        self.new_lines = 1
+                    self.visit_list(list(items), terminator=';')
+            elif self.descmode or self.sdlmode:
+                sort_key = lambda c: (c.name.itemclass or '', c.name.name)
+                if not self.unsorted:
+                    commands = sorted(commands, key=sort_key)
+                self.visit_list(list(commands), terminator=';')
+            else:
+                self.visit_list(list(commands), terminator=';')
+
+            self._block_ws(-1)
+            self.write('}')
+
     def _visit_CreateObject(self, node, *object_keywords, after_name=None,
                             render_commands=True, unqualified=False,
-                            named=True):
+                            named=True, group_by_system_comment=False):
         self._visit_aliases(node)
         if self.sdlmode:
             self.write(*[kw.lower() for kw in object_keywords], delimiter=' ')
@@ -709,41 +762,48 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('CREATE', *object_keywords, delimiter=' ')
         if named:
             self.write(' ')
-            if unqualified:
+            if unqualified or not node.name.module:
                 self.write(ident_to_str(node.name.name))
             else:
-                self.visit(node.name)
+                self.write(ident_to_str(node.name.module), '::',
+                           ident_to_str(node.name.name))
         if after_name:
             after_name()
-        if node.commands and render_commands:
-            self.write(' {')
-            self._block_ws(1)
-            self.visit_list(node.commands, terminator=';')
-            self.indentation -= 1
-            self.write('}')
+
+        commands = node.commands
+        if commands and render_commands:
+            self._ddl_visit_body(
+                commands,
+                group_by_system_comment=group_by_system_comment,
+            )
 
     def _visit_AlterObject(self, node, *object_keywords, allow_short=True,
-                           after_name=None, unqualified=False, named=True):
+                           after_name=None, unqualified=False, named=True,
+                           ignored_cmds=frozenset(),
+                           group_by_system_comment=False):
         self._visit_aliases(node)
-        self.write('ALTER', *object_keywords, delimiter=' ')
+        if self.sdlmode:
+            self.write(*[kw.lower() for kw in object_keywords], delimiter=' ')
+        else:
+            self.write('ALTER', *object_keywords, delimiter=' ')
         if named:
             self.write(' ')
-            if unqualified:
+            if unqualified or not node.name.module:
                 self.write(ident_to_str(node.name.name))
             else:
-                self.visit(node.name)
+                self.write(ident_to_str(node.name.module), '::',
+                           ident_to_str(node.name.name))
         if after_name:
             after_name()
-        if node.commands:
-            if len(node.commands) == 1 and allow_short:
-                self.write(' ')
-                self.visit(node.commands[0])
-            else:
-                self.write(' {')
-                self._block_ws(1)
-                self.visit_list(node.commands, terminator=';')
-                self._block_ws(-1)
-                self.write('}')
+
+        commands = [cmd for cmd in node.commands if cmd not in ignored_cmds]
+
+        if commands:
+            self._ddl_visit_body(
+                commands,
+                group_by_system_comment=group_by_system_comment,
+                allow_short=allow_short,
+            )
 
     def _visit_DropObject(self, node, *object_keywords, unqualified=False,
                           after_name=None, named=True):
@@ -751,10 +811,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('DROP', *object_keywords, delimiter=' ')
         if named:
             self.write(' ')
-            if unqualified:
+            if unqualified or not node.name.module:
                 self.write(ident_to_str(node.name.name))
             else:
-                self.visit(node.name)
+                self.write(ident_to_str(node.name.module), '::',
+                           ident_to_str(node.name.name))
         if after_name:
             after_name()
         if node.commands:
@@ -768,30 +829,38 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write('RENAME TO ')
         self.visit(node.new_name)
 
-    def visit_SetSpecialField(self, node):
+    def _process_SetSpecialField(self, node):
+        keywords = []
+
         if node.value:
-            self.write('SET ')
+            keywords.append('SET')
         else:
-            self.write('DROP ')
+            keywords.append('DROP')
 
         fname = node.name.name
 
         if fname == 'is_abstract':
-            self.write('ABSTRACT')
+            keywords.append('ABSTRACT')
         elif fname == 'delegated':
-            self.write('DELEGATED')
+            keywords.append('DELEGATED')
         elif fname == 'is_final':
-            self.write('FINAL')
+            keywords.append('FINAL')
         elif fname == 'required':
-            self.write('REQUIRED')
+            keywords.append('REQUIRED')
         elif fname == 'cardinality':
             if node.value is qltypes.Cardinality.ONE:
-                self.write('SINGLE')
+                keywords.append('SINGLE')
             else:
-                self.write('MULTI')
+                keywords.append('MULTI')
         else:
             raise EdgeQLSourceGeneratorError(
                 'unknown special field: {!r}'.format(fname))
+
+        return keywords
+
+    def visit_SetSpecialField(self, node):
+        keywords = self._process_SetSpecialField(node)
+        self.write(*keywords, delimiter=' ')
 
     def visit_AlterAddInherit(self, node):
         self.write('EXTENDING ')
@@ -915,7 +984,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateAnnotationValue(self, node):
         if self.sdlmode:
-            self.write('annotation')
+            self.write('annotation ')
         else:
             self.write('SET ANNOTATION ')
         self.visit(node.name)
@@ -1045,9 +1114,52 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_CreateObject(
             node, *keywords, after_name=after_name, unqualified=True)
 
+    def _process_AlterConcretePointer_for_SDL(self, node):
+        keywords = []
+        specials = set()
+
+        for command in node.commands:
+            if isinstance(command, qlast.SetSpecialField):
+                kw = self._process_SetSpecialField(command)
+                specials.add(command)
+                if kw[0] == 'SET':
+                    keywords.append(kw[1])
+
+        order = ['REQUIRED', 'SINGLE', 'MULTI']
+        keywords.sort(key=lambda i: order.index(i))
+
+        return keywords, specials
+
     def visit_AlterConcreteProperty(self, node):
-        self._visit_AlterObject(node, 'PROPERTY', allow_short=False,
-                                unqualified=True)
+        keywords = []
+        ignored_cmds = set()
+        if self.sdlmode:
+            if not self.descmode:
+                keywords.append('INHERITED')
+            quals, ignored_cmds = self._process_AlterConcretePointer_for_SDL(
+                node)
+            keywords.extend(quals)
+
+            type_cmd = None
+            for cmd in node.commands:
+                if isinstance(cmd, qlast.SetPropertyType):
+                    ignored_cmds.add(cmd)
+                    type_cmd = cmd
+                    break
+
+            def after_name():
+                self._ddl_visit_bases(node)
+                if type_cmd is not None:
+                    self.write(' -> ')
+                    self.visit(type_cmd.type)
+        else:
+            after_name = None
+
+        keywords.append('PROPERTY')
+        self._visit_AlterObject(
+            node, *keywords, ignored_cmds=ignored_cmds,
+            allow_short=False, unqualified=True,
+            after_name=after_name)
 
     def visit_DropConcreteProperty(self, node):
         self._visit_DropObject(node, 'PROPERTY', unqualified=True)
@@ -1090,8 +1202,40 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             node, *keywords, after_name=after_name, unqualified=True)
 
     def visit_AlterConcreteLink(self, node):
-        self._visit_AlterObject(node, 'LINK', allow_short=False,
-                                unqualified=True)
+        keywords = []
+        ignored_cmds = set()
+        if self.sdlmode:
+            if (not self.descmode
+                    or not node.system_comment
+                    or 'inherited from' not in node.system_comment):
+                keywords.append('INHERITED')
+            quals, ignored_cmds = self._process_AlterConcretePointer_for_SDL(
+                node)
+            keywords.extend(quals)
+
+            type_cmd = None
+            inherit_cmd = None
+            for cmd in node.commands:
+                if isinstance(cmd, qlast.SetLinkType):
+                    ignored_cmds.add(cmd)
+                    type_cmd = cmd
+                elif isinstance(cmd, qlast.AlterAddInherit):
+                    ignored_cmds.add(cmd)
+                    inherit_cmd = cmd
+
+            def after_name():
+                if inherit_cmd:
+                    self._ddl_visit_bases(inherit_cmd)
+                if type_cmd is not None:
+                    self.write(' -> ')
+                    self.visit(type_cmd.type)
+        else:
+            after_name = None
+
+        keywords.append('LINK')
+        self._visit_AlterObject(
+            node, *keywords, ignored_cmds=ignored_cmds,
+            allow_short=False, unqualified=True, after_name=after_name)
 
     def visit_DropConcreteLink(self, node):
         self._visit_DropObject(node, 'LINK', unqualified=True)
@@ -1117,7 +1261,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         keywords.append('TYPE')
 
         after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, *keywords, after_name=after_name)
+        self._visit_CreateObject(
+            node, *keywords, after_name=after_name)
 
     def visit_AlterObjectType(self, node):
         self._visit_AlterObject(node, 'TYPE')
@@ -1290,6 +1435,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_ReleaseSavepoint(self, node):
         self.write(f'RELEASE SAVEPOINT {node.name}')
 
+    def visit_DescribeStmt(self, node):
+        self.write(f'DESCRIBE ')
+        if node.object:
+            self.visit(node.object)
+        else:
+            self.write('SCHEMA')
+        if node.language:
+            self.write(' AS ', node.language)
+        if node.verbose:
+            self.write(' VERBOSE')
+
     # SDL nodes
 
     def visit_Schema(self, node):
@@ -1297,7 +1453,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             indent_with=self.indent_with,
             add_line_information=self.add_line_information,
             pretty=self.pretty,
-            sdlmode=True)
+            unsorted=self.unsorted,
+            sdlmode=True,
+            descmode=self.descmode,
+            limit_ref_classes=self.limit_ref_classes)
         sdl_codegen.indentation = self.indentation
         sdl_codegen.current_line = self.current_line
         sdl_codegen.visit_list(node.declarations, terminator=';')
@@ -1306,7 +1465,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     @classmethod
     def to_source(
             cls, node, indent_with=' ' * 4, add_line_information=False,
-            pretty=True):
+            pretty=True, sdlmode=False, descmode=False,
+            limit_ref_classes=frozenset(),
+            unsorted=False):
         # make sure that all the parents are properly set
         if isinstance(node, (list, tuple)):
             for n in node:
@@ -1315,7 +1476,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             base.fix_parent_links(node)
 
         return super().to_source(
-            node, indent_with, add_line_information, pretty)
+            node, indent_with, add_line_information, pretty,
+            sdlmode=sdlmode, descmode=descmode, unsorted=unsorted,
+            limit_ref_classes=limit_ref_classes)
 
 
 generate_source = EdgeQLSourceGenerator.to_source

@@ -25,6 +25,7 @@ from typing import *  # NoQA
 from edb import errors
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -143,7 +144,8 @@ def get_cast_fullname(
         name=sn.get_specialized_name(shortname, *quals))
 
 
-class Cast(s_anno.AnnotationSubject, s_func.VolatilitySubject, s_abc.Cast):
+class Cast(s_anno.AnnotationSubject, s_func.VolatilitySubject, s_abc.Cast,
+           qlkind=qltypes.SchemaObjectClass.CAST):
 
     from_type = so.SchemaField(
         s_types.Type, compcoef=0.5)

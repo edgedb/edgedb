@@ -20,13 +20,15 @@
 from __future__ import annotations
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import annos as s_anno
 from . import delta as sd
 from . import objects as so
 
 
-class Module(so.UnqualifiedObject, s_anno.AnnotationSubject):
+class Module(so.UnqualifiedObject, s_anno.AnnotationSubject,
+             qlkind=qltypes.SchemaObjectClass.MODULE):
     pass
 
 

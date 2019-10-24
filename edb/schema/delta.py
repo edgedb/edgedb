@@ -423,7 +423,7 @@ class CommandContextWrapper:
 class CommandContext:
     def __init__(self, *, declarative=False, modaliases=None,
                  schema=None, stdmode=False, testmode=False,
-                 disable_dep_verification=False):
+                 disable_dep_verification=False, descriptive_mode=False):
         self.stack = []
         self._cache = {}
         self.declarative = declarative
@@ -431,6 +431,7 @@ class CommandContext:
         self._modaliases = modaliases if modaliases is not None else {}
         self.stdmode = stdmode
         self.testmode = testmode
+        self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
         self.renames = {}
         self.renamed_objs = set()
@@ -719,11 +720,14 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
 
     def _get_ast(self, schema, context):
         astnode = self._get_ast_node(schema, context)
+        qlclass = self.get_schema_metaclass().get_ql_class()
         if isinstance(self.classname, sn.Name):
             nname = sn.shortname_from_fullname(self.classname)
-            name = qlast.ObjectRef(module=nname.module, name=nname.name)
+            name = qlast.ObjectRef(module=nname.module, name=nname.name,
+                                   itemclass=qlclass)
         else:
-            name = qlast.ObjectRef(module='', name=self.classname)
+            name = qlast.ObjectRef(module='', name=self.classname,
+                                   itemclass=qlclass)
 
         if astnode.get_field('name'):
             op = astnode(name=name)
@@ -741,7 +745,8 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         mcls = self.get_schema_metaclass()
 
         for op in self.get_subcommands(type=AlterObjectProperty):
-            self._apply_field_ast(schema, context, node, op)
+            if op.source != 'inheritance' or context.descriptive_mode:
+                self._apply_field_ast(schema, context, node, op)
 
         for refdict in mcls.get_refdicts():
             self._apply_refs_fields_ast(schema, context, node, refdict)

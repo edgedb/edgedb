@@ -39,7 +39,8 @@ from . import utils
 
 
 class Constraint(referencing.ReferencedInheritingObject,
-                 s_func.CallableObject, s_abc.Constraint):
+                 s_func.CallableObject, s_abc.Constraint,
+                 qlkind=ft.SchemaObjectClass.CONSTRAINT):
 
     expr = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.909,

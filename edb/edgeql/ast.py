@@ -55,15 +55,12 @@ class LinkTargetDeleteAction(s_enum.StrEnum):
     DEFERRED_RESTRICT = 'DEFERRED RESTRICT'
 
 
-class SchemaItemClass(s_enum.StrEnum):
-
-    OPERATOR = 'OPERATOR'
-
-
 class Base(ast.AST):
     __abstract_node__ = True
     __ast_hidden__ = {'context'}
     context: parsing.ParserContext
+    # System-generated comment.
+    system_comment: str
 
 
 class Expr(Base):
@@ -143,7 +140,7 @@ class BaseObjectRef(Base):
 class ObjectRef(BaseObjectRef):
     name: str
     module: str
-    itemclass: SchemaItemClass
+    itemclass: qltypes.SchemaObjectClass
 
 
 class PseudoObjectRef(BaseObjectRef):
@@ -946,6 +943,17 @@ class ConfigInsert(ConfigOp):
 class ConfigReset(ConfigOp):
 
     where: typing.Optional[Expr]
+
+
+#
+# Describe
+#
+
+class DescribeStmt(Statement):
+
+    language: qltypes.DescribeLanguage
+    object: ObjectRef
+    verbose: bool = False
 
 
 #

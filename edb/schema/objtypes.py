@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -147,7 +148,7 @@ class BaseObjectType(sources.Source,
                        for c in my_vchildren.objects(schema))
 
 
-class ObjectType(BaseObjectType):
+class ObjectType(BaseObjectType, qlkind=qltypes.SchemaObjectClass.TYPE):
     pass
 
 

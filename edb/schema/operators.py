@@ -35,7 +35,7 @@ from . import objects as so
 
 
 class Operator(s_func.CallableObject, s_func.VolatilitySubject,
-               s_abc.Operator):
+               s_abc.Operator, qlkind=ft.SchemaObjectClass.OPERATOR):
 
     operator_kind = so.SchemaField(
         ft.OperatorKind, coerce=True, compcoef=0.4)

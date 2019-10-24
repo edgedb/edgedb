@@ -17,6 +17,7 @@
 #
 
 
+import functools
 import re
 
 from edb import errors
@@ -30,7 +31,7 @@ class SchemaSyntaxTest(tb.BaseSyntaxTest):
     re_filter = re.compile(r'[\s\'"()]+|(#.*?(\n|$))|SELECT')
     parser_debug_flag = 'DEBUG_ESCHEMA'
     markup_dump_lexer = 'edgeschema'
-    ast_to_source = generate_source
+    ast_to_source = functools.partial(generate_source, unsorted=True)
 
     def get_parser(self, *, spec):
         return eql_parser.EdgeSDLParser()

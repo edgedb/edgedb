@@ -286,10 +286,12 @@ def find_item_suggestions(
         if modname:
             module = schema.get_global(s_mod.Module, modname, None)
             if module:
-                suggestions.extend(schema.get_objects(modules=[modname]))
+                suggestions.extend(
+                    schema.get_objects(included_modules=[modname]))
 
         if not orig_modname:
-            suggestions.extend(schema.get_objects(modules=['std']))
+            suggestions.extend(schema.get_objects(
+                included_modules=['std']))
 
     filters = []
 

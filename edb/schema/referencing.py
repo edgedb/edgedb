@@ -659,7 +659,26 @@ class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
     def _get_ast(self, schema, context):
         refctx = type(self).get_referrer_context(context)
         if refctx is not None and not self.get_attribute_value('is_local'):
-            return None
+            if context.descriptive_mode:
+                astnode = super()._get_ast(schema, context)
+                bases = [
+                    b.get_name(schema)
+                    for b in self.get_attribute_value('bases').objects(schema)
+                ]
+                inherited_from = []
+                for b in bases:
+                    if sn.shortname_from_fullname(b) == b:
+                        # Not an implicit base
+                        continue
+                    quals = sn.quals_from_fullname(b)
+                    inherited_from.append(quals[0])
+
+                astnode.system_comment = (
+                    f'inherited from {", ".join(inherited_from)}'
+                )
+                return astnode
+            else:
+                return None
         else:
             return super()._get_ast(schema, context)
 

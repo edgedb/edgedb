@@ -87,7 +87,8 @@ def merge_actions(target: so.Object, sources: List[so.Object],
         return ours
 
 
-class Link(sources.Source, pointers.Pointer, s_abc.Link):
+class Link(sources.Source, pointers.Pointer, s_abc.Link,
+           qlkind=qltypes.SchemaObjectClass.LINK):
 
     on_target_delete = so.SchemaField(
         LinkTargetDeleteAction,

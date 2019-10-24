@@ -650,7 +650,8 @@ class DeleteCallableObject(CallableCommand, sd.DeleteObject):
         return cmd
 
 
-class Function(CallableObject, VolatilitySubject, s_abc.Function):
+class Function(CallableObject, VolatilitySubject, s_abc.Function,
+               qlkind=ft.SchemaObjectClass.FUNCTION):
 
     code = so.SchemaField(
         str, default=None, compcoef=0.4)
