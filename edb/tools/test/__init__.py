@@ -19,9 +19,7 @@
 
 from __future__ import annotations
 
-import multiprocessing
 import os
-import platform
 import sys
 import unittest
 
@@ -34,6 +32,7 @@ from .decorators import xfail
 from .decorators import skip
 
 from . import loader
+from . import mproc_fixes
 from . import runner
 from . import styles
 
@@ -47,6 +46,8 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='increase verbosity')
 @click.option('-q', '--quiet', is_flag=True,
               help='decrease verbosity')
+@click.option('--debug', is_flag=True,
+              help='output internal debug logs')
 @click.option('--output-format',
               type=click.Choice(runner.OutputFormat.__members__),
               help='test progress output style',
@@ -65,8 +66,8 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='stop tests after a first failure/error')
 @click.option('--cov', type=str, multiple=True,
               help='file path or package name to measure code coverage for')
-def test(*, files, jobs, include, exclude, verbose, quiet, output_format,
-         warnings, failfast, cov):
+def test(*, files, jobs, include, exclude, verbose, quiet, debug,
+         output_format, warnings, failfast, cov):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -83,10 +84,7 @@ def test(*, files, jobs, include, exclude, verbose, quiet, output_format,
     else:
         verbosity = 1
 
-    if platform.system().lower() == 'darwin':
-        # A "fork" without "exec" is broken on macOS since 10.14:
-        # https://www.wefearchange.org/2018/11/forkmacos.rst.html
-        multiprocessing.set_start_method('spawn')
+    mproc_fixes.patch_multiprocessing(debug=debug)
 
     output_format = runner.OutputFormat(output_format)
     if verbosity > 1 and output_format is runner.OutputFormat.stacked:

@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import collections.abc
 import enum
@@ -36,7 +37,6 @@ import tempfile
 import threading
 import time
 import types
-from typing import *  # NoQA
 import unittest.case
 import unittest.result
 import unittest.runner
@@ -51,19 +51,26 @@ import edgedb
 from edb.common import devmode
 from edb.testbase import server as tb
 
+from . import mproc_fixes
 from . import styles
 
 
-class TestSuiteCache:
-
-    cache: Mapping[unittest.TestCase, unittest.TestSuite] = {}
+result: Optional[unittest.result.TestResult] = None
 
 
-suite_cache = TestSuiteCache()
-result = None
+def teardown_suite() -> None:
+    # The TestSuite methods are mutating the *result* object,
+    # and the suite itself does not hold any state whatsoever,
+    # and, in our case specifically, it doesn't even hold
+    # references to tests being run, so we can think of
+    # its methods as static.
+    suite = StreamingTestSuite()
+    suite._tearDownPreviousClass(None, result)
+    suite._handleModuleTearDown(result)
 
 
-def init_worker(param_queue, result_queue):
+def init_worker(param_queue: multiprocessing.SimpleQueue,
+                result_queue: multiprocessing.SimpleQueue) -> None:
     global result
 
     # Make sure the generator is re-seeded, as we have inherited
@@ -77,14 +84,9 @@ def init_worker(param_queue, result_queue):
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
 
-    multiprocessing.util.Finalize(suite_cache, finalize_result_testcases,
-                                  exitpriority=100)
 
-
-def finalize_result_testcases():
-    for _case, suite in suite_cache.cache.items():
-        suite._tearDownPreviousClass(None, result)
-        suite._handleModuleTearDown(result)
+def shutdown_worker() -> None:
+    teardown_suite()
 
 
 class StreamingTestSuite(unittest.TestSuite):
@@ -124,20 +126,15 @@ class StreamingTestSuite(unittest.TestSuite):
         return result
 
 
-def _run_test(case):
-    case_class = type(case)
+def _run_test(workload):
+    suite = StreamingTestSuite()
 
-    try:
-        suite = suite_cache.cache[case_class]
-    except KeyError:
-        suite = suite_cache.cache[case_class] = StreamingTestSuite()
-
-    if isinstance(case, collections.abc.Iterable):
+    if isinstance(workload, collections.abc.Iterable):
         # Got a test suite
-        for test in case:
+        for test in workload:
             suite.run(test, result)
     else:
-        suite.run(case, result)
+        suite.run(workload, result)
 
 
 def _is_exc_info(args):
@@ -239,7 +236,8 @@ class ParallelTestSuite(unittest.TestSuite):
         initargs = (worker_param_queue, result_queue)
 
         pool = multiprocessing.Pool(
-            self.num_workers, initializer=init_worker,
+            self.num_workers,
+            initializer=mproc_fixes.WorkerScope(init_worker, shutdown_worker),
             initargs=initargs)
 
         with pool:
@@ -250,9 +248,9 @@ class ParallelTestSuite(unittest.TestSuite):
                     ar.get(timeout=0.1)
                 except multiprocessing.TimeoutError:
                     if self.stop_requested:
-                        pool.terminate()
                         break
-                    continue
+                    else:
+                        continue
                 else:
                     break
 
@@ -265,6 +263,9 @@ class ParallelTestSuite(unittest.TestSuite):
             # goes wrong, the thread will be forcibly
             # joined by a timeout.
             result_thread.join(timeout=3)
+
+        # Wait for pool to shutdown, this includes test teardowns.
+        pool.join()
 
         return result
 
@@ -289,7 +290,10 @@ class SequentialTestSuite(unittest.TestSuite):
             if self.stop_requested:
                 break
 
-        finalize_result_testcases()
+        # Make sure the class and the module teardown methods are
+        # executed for the trailing test, _run_test() does not do
+        # this for us.
+        teardown_suite()
 
         return result
 

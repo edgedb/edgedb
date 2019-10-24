@@ -292,7 +292,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "testbase", 0)
 
     def test_type_coverage_tools(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "tools", 6.98)
+        self.assertFunctionCoverage(EDB_DIR / "tools", 8.43)
 
     def test_type_coverage_tools_docs(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tools" / "docs", 0)
@@ -301,7 +301,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "tools" / "mypy", 36.36)
 
     def test_type_coverage_tools_test(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "tools" / "test", 0)
+        self.assertFunctionCoverage(EDB_DIR / "tools" / "test", 4.23)
 
     def test_type_coverage_tests(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tests", 0)
