@@ -18,59 +18,62 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import collections
 import collections.abc
 
 
-class OrderedSet(collections.abc.MutableSet):
-    def __init__(self, iterable=None):
-        self.map = collections.OrderedDict()
+K = TypeVar("K", bound=Hashable)
+
+
+class OrderedSet(MutableSet[K]):
+    def __init__(self, iterable: Optional[Iterable[K]] = None) -> None:
+        self.map: collections.OrderedDict[K, K] = collections.OrderedDict()
         if iterable is not None:
-            self.update(iterable)
+            # The ignore below is because typing of collections.abc.MutableSet
+            # inherits a limitation of the built-in set that disallows |= with
+            # iterables that are not sets themselves.  However, the mixin
+            # *does* allow this and OrderedSet depends on this.
+            self.update(iterable)  # type: ignore
 
-    @staticmethod
-    def key(item):
-        return item
-
-    def add(self, key, *, last=None):
-        k = self.key(key)
-        self.map[k] = key
+    def add(self, item: K, *, last: Optional[bool] = None) -> None:
+        self.map[item] = item
         if last is not None:
-            self.map.move_to_end(k, last=last)
+            self.map.move_to_end(item, last=last)
 
-    def discard(self, key):
-        key = self.key(key)
-        self.map.pop(key, None)
+    def discard(self, item: K) -> None:
+        self.map.pop(item, item)
 
-    def popitem(self, last=True):
-        key, value = self.map.popitem(last)
-        return key
+    def popitem(self, last: bool = True) -> K:
+        key, item = self.map.popitem(last)
+        return item
 
     update = collections.abc.MutableSet.__ior__
     difference_update = collections.abc.MutableSet.__isub__
     symmetric_difference_update = collections.abc.MutableSet.__ixor__
     intersection_update = collections.abc.MutableSet.__iand__
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.map)
 
-    def __contains__(self, key):
-        key = self.key(key)
-        return key in self.map
+    def __contains__(self, item: Any) -> bool:
+        # The ignore below is because the __contains__ protocol has to
+        # accept any object.
+        return item in self.map
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[K]:
         return iter(list(self.map.values()))
 
-    def __reversed__(self):
+    def __reversed__(self) -> Iterator[K]:
         return reversed(self.map.values())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if not self:
             return '%s()' % (self.__class__.__name__, )
         return '%s(%r)' % (self.__class__.__name__, list(self))
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, self.__class__):
             return len(self) == len(other) and self.map == other.map
         elif other is None:
@@ -78,40 +81,8 @@ class OrderedSet(collections.abc.MutableSet):
         else:
             return not self.isdisjoint(other)
 
-    def copy(self):
+    def copy(self) -> OrderedSet[K]:
         return self.__class__(self)
 
-    def clear(self):
+    def clear(self) -> None:
         self.map.clear()
-
-
-class OrderedIndex(OrderedSet, collections.abc.MutableMapping):
-    def __init__(self, iterable=None, *, key=None):
-        self.key = key or hash
-        super().__init__(iterable)
-
-    def keys(self):
-        return self.map.keys()
-
-    def values(self):
-        return self.map.values()
-
-    def items(self):
-        return self.map.items()
-
-    def __getitem__(self, key):
-        try:
-            return self.map[key]
-        except KeyError:
-            return self.map[self.key(key)]
-
-    def __setitem__(self, item):
-        key = self.key(item)
-        self.map[key] = item
-
-    def __delitem__(self, item):
-        key = self.key(item)
-        del self.map[key]
-
-    def __mm_serialize__(self):
-        return list(self.map.values())

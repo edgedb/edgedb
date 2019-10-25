@@ -923,17 +923,19 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         def _delta_subdict(attr):
             if old:
                 oldcoll = old.get_field_value(old_schema, attr)
-                oldcoll_idx = ordered.OrderedIndex(
-                    oldcoll.objects(old_schema), key=old_idx_key)
+                oldcoll_idx = sorted(
+                    set(oldcoll.objects(old_schema)), key=old_idx_key
+                )
             else:
-                oldcoll_idx = {}
+                oldcoll_idx = []
 
             if new:
                 newcoll = new.get_field_value(new_schema, attr)
-                newcoll_idx = ordered.OrderedIndex(
-                    newcoll.objects(new_schema), key=new_idx_key)
+                newcoll_idx = sorted(
+                    set(newcoll.objects(new_schema)), key=new_idx_key
+                )
             else:
-                newcoll_idx = {}
+                newcoll_idx = []
 
             delta.update(cls.delta_sets(
                 oldcoll_idx, newcoll_idx, context,
