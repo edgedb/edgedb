@@ -24,10 +24,8 @@ import logging
 import multiprocessing.pool
 import multiprocessing.process
 import multiprocessing.util
-import platform
 
 
-_orig_pool_worker = None
 _orig_pool_worker_handler = None
 
 logger = logging.getLogger(__name__)
@@ -50,7 +48,11 @@ def multiprocessing_pool_worker(inqueue, outqueue, initializer=None,
     if isinstance(initializer, WorkerScope):
         destructor = initializer.destructor
 
-    _orig_pool_worker(inqueue, outqueue, initializer, *args, **kwargs)
+    # This function is executed in the context of a spawned
+    # worker process, so the pool.worker() function is the
+    # original unpatched version.
+    multiprocessing.pool.worker(
+        inqueue, outqueue, initializer, *args, **kwargs)
 
     if destructor is not None:
         destructor()
@@ -91,13 +93,13 @@ def patch_multiprocessing(debug: bool):
     if debug:
         multiprocessing.util.log_to_stderr(logging.DEBUG)
 
-    if platform.system().lower() == 'darwin':
-        # A "fork" without "exec" is broken on macOS since 10.14:
-        # https://www.wefearchange.org/2018/11/forkmacos.rst.html
-        multiprocessing.set_start_method('spawn')
+    # A "fork" without "exec" is broken on macOS since 10.14:
+    # https://www.wefearchange.org/2018/11/forkmacos.rst.html
+    # Since there is no apparent benefit of using fork for
+    # the test workers, use the "spawn" method on all platforms.
+    multiprocessing.set_start_method('spawn')
 
     # Add the ability to do clean shutdown of the worker.
-    _orig_pool_worker = multiprocessing.pool.worker
     multiprocessing.pool.worker = multiprocessing_pool_worker
 
     # Allow workers some time to shut down gracefully.
