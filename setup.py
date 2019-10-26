@@ -33,7 +33,7 @@ from setuptools.command import develop as setuptools_develop
 
 
 RUNTIME_DEPS = [
-    'asyncpg~=0.18.2',
+    'asyncpg~=0.19.0',
     'click~=6.7',
     'httptools>=0.0.13',
     'immutables>=0.9',
@@ -44,7 +44,7 @@ RUNTIME_DEPS = [
     'setproctitle~=1.1.10',
     'setuptools_scm~=3.2.0',
     'typing_inspect~=0.5.0',
-    'uvloop~=0.13.0',
+    'uvloop~=0.14.0rc1',
 
     'graphql-core~=2.2.1',
     'promise~=2.2.0',
@@ -52,7 +52,7 @@ RUNTIME_DEPS = [
     'edgedb>=0.7.0a1',
 ]
 
-CYTHON_DEPENDENCY = 'Cython==0.29.6'
+CYTHON_DEPENDENCY = 'Cython==0.29.13'
 
 DOCS_DEPS = [
     'Sphinx~=2.0.0',
