@@ -136,7 +136,7 @@ class IndexCommand(referencing.ReferencedInheritingObjectCommand,
                 astnode.expr, schema, context.modaliases)
             expr_text = expr.origtext
 
-        name = (cls._name_qual_from_expr(schema, expr_text),)
+        name = (cls._name_qual_from_exprs(schema, (expr_text,)),)
 
         return name
 

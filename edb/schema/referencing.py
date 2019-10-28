@@ -222,9 +222,10 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         return ()
 
     @classmethod
-    def _name_qual_from_expr(cls, schema, expr):
+    def _name_qual_from_exprs(cls, schema, exprs):
         m = hashlib.sha1()
-        m.update(expr.encode())
+        for expr in exprs:
+            m.update(expr.encode())
         return m.hexdigest()
 
     def _get_ast_node(self, schema, context):

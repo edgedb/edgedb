@@ -807,6 +807,17 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_get_migration_07(self):
+        schema = r'''
+            type Bar {
+                property data -> str {
+                    constraint min_value(10) on (len(<str>__subject__))
+                }
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;

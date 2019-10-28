@@ -189,6 +189,14 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             return None
 
+    def get_local_attribute_value(self, attr_name):
+        """Return the new value of field, if not inherited."""
+        op = self.get_attribute_set_cmd(attr_name)
+        if op is not None and op.source != 'inheritance':
+            return op.new_value
+        else:
+            return None
+
     def set_attribute_value(self, attr_name, value, *, inherited=False):
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:

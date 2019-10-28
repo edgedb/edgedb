@@ -460,6 +460,7 @@ class IntrospectionMech:
                       if r['expr'] else None),
                 subjectexpr=(self.unpack_expr(r['subjectexpr'], schema)
                              if r['subjectexpr'] else None),
+                orig_subjectexpr=r['orig_subjectexpr'],
                 finalexpr=(self.unpack_expr(r['finalexpr'], schema)
                            if r['finalexpr'] else None),
                 errmessage=r['errmessage'],

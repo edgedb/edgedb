@@ -49,6 +49,11 @@ class Constraint(referencing.ReferencedInheritingObject,
         s_expr.Expression,
         default=None, compcoef=0.833, coerce=True)
 
+    orig_subjectexpr = so.SchemaField(
+        str, default=None, coerce=True, compcoef=0.909,
+        allow_ddl_set=True
+    )
+
     finalexpr = so.SchemaField(
         s_expr.Expression,
         default=None, compcoef=0.909, coerce=True)
@@ -86,15 +91,6 @@ class Constraint(referencing.ReferencedInheritingObject,
 
     def generic(self, schema):
         return self.get_subject(schema) is None
-
-    def get_derived_quals(self, schema, source, attrs=None):
-        if attrs and attrs.get('finalexpr'):
-            finalexpr = attrs['finalexpr']
-        else:
-            finalexpr = self.get_field_value(schema, 'finalexpr')
-
-        return (referencing.ReferencedObjectCommand._name_qual_from_expr(
-            schema, finalexpr.origtext),)
 
     @classmethod
     def _dummy_subject(cls, schema):
@@ -148,6 +144,7 @@ class Constraint(referencing.ReferencedInheritingObject,
             base_subjectexpr = constr_base.get_subjectexpr(schema)
             if base_subjectexpr is not None:
                 attrs['subjectexpr'] = base_subjectexpr
+                inherited['subjectexpr'] = True
 
         errmessage = attrs.get('errmessage')
         if not errmessage:
@@ -314,25 +311,34 @@ class ConstraintCommand(
     @classmethod
     def _classname_quals_from_ast(cls, schema, astnode, base_name,
                                   referrer_name, context):
-        subject = schema.get(referrer_name, None)
-        if subject is None:
+        if isinstance(astnode, qlast.CreateConstraint):
             return ()
 
-        props = {}
+        exprs = []
         args = cls._constraint_args_from_ast(schema, astnode, context)
-        if args:
-            props['args'] = args
-        if astnode.subjectexpr:
-            props['subjectexpr'] = s_expr.Expression.from_ast(
+        for arg in args:
+            exprs.append(arg.text)
+
+        subjexpr_text = None
+
+        # check if "orig_subjectexpr" field is set
+        for node in astnode.commands:
+            if isinstance(node, qlast.SetField):
+                if (node.name.module is None and
+                        node.name.name == 'orig_subjectexpr'):
+                    subjexpr_text = node.value.value
+                    break
+
+        if subjexpr_text is None and astnode.subjectexpr:
+            # if not, then use the origtext directly from the expression
+            expr = s_expr.Expression.from_ast(
                 astnode.subjectexpr, schema, context.modaliases)
+            subjexpr_text = expr.origtext
 
-        _, attrs, _ = Constraint.get_concrete_constraint_attrs(
-            schema, subject, name=base_name,
-            sourcectx=astnode.context,
-            modaliases=context.modaliases, **props)
+        if subjexpr_text:
+            exprs.append(subjexpr_text)
 
-        return (cls._name_qual_from_expr(
-            schema, attrs['finalexpr'].origtext),)
+        return (cls._name_qual_from_exprs(schema, exprs),)
 
     @classmethod
     def _constraint_args_from_ast(cls, schema, astnode, context):
@@ -416,6 +422,11 @@ class CreateConstraint(ConstraintCommand,
                 context=self.source_context,
             )
 
+        if self.get_attribute_value('orig_subjectexpr') is None:
+            subjexpr = self.get_local_attribute_value('subjectexpr')
+            if subjexpr:
+                self.set_attribute_value('orig_subjectexpr', subjexpr.origtext)
+
         if not context.canonical:
             schema, props = self._get_create_fields(schema, context)
             props.pop('name')
@@ -434,43 +445,7 @@ class CreateConstraint(ConstraintCommand,
                 inherited = inh.get(k)
                 self.set_attribute_value(k, v, inherited=inherited)
 
-            quals = constr_base.get_derived_quals(schema, subject, attrs)
-
-            derived_name = constr_base.derive_name(
-                schema, subject, *quals)
-
-            self.set_attribute_value('name', derived_name)
             self.set_attribute_value('subject', subject)
-            self.classname = derived_name
-
-            for subcmd in self.get_subcommands():
-                if isinstance(subcmd, referencing.ReferencedObjectCommand):
-                    # Since we amended the full name of the constraint
-                    # object, we need to make sure that any subordinate
-                    # refs, such as annotations have the correct names
-                    # also.
-                    name = sn.shortname_from_fullname(subcmd.classname)
-                    astnode = subcmd.referenced_astnode(
-                        name=qlast.ObjectRef(
-                            name=name.name,
-                            module=name.module,
-                        ),
-                    )
-
-                    refdict = Constraint.get_refdict_for_class(
-                        subcmd.get_schema_metaclass())
-
-                    subcmd.set_attribute_value(
-                        refdict.backref_attr,
-                        so.ObjectRef(name=self.classname),
-                    )
-
-                    with subcmd.new_context(schema, context):
-                        new_classname = subcmd._classname_from_ast(
-                            schema, astnode, context)
-
-                        subcmd.classname = new_classname
-                        subcmd.set_attribute_value('name', new_classname)
 
         return super()._create_begin(schema, context)
 
@@ -591,7 +566,7 @@ class CreateConstraint(ConstraintCommand,
         return cmd
 
     def _apply_field_ast(self, schema, context, node, op):
-        subjectexpr = self.get_attribute_value('subjectexpr')
+        subjectexpr = self.get_local_attribute_value('subjectexpr')
         if subjectexpr is not None:
             # add subjectexpr to the node
             node.subjectexpr = subjectexpr.qlast
