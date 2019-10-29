@@ -197,17 +197,29 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         else:
             return None
 
-    def set_attribute_value(self, attr_name, value, *, inherited=False):
+    def get_attribute_source_context(self, attr_name):
+        op = self.get_attribute_set_cmd(attr_name)
+        if op is not None:
+            return op.source_context
+        else:
+            return None
+
+    def set_attribute_value(self, attr_name, value, *, inherited=False,
+                            source_context=None):
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
                 op.new_value = value
                 if inherited:
                     op.source = 'inheritance'
+                if source_context is not None:
+                    op.source_context = source_context
                 break
         else:
             op = AlterObjectProperty(property=attr_name, new_value=value)
             if inherited:
                 op.source = 'inheritance'
+            if source_context is not None:
+                op.source_context = source_context
 
             self.add(op)
 

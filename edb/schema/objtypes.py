@@ -61,6 +61,9 @@ class BaseObjectType(sources.Source,
     def is_object_type(self):
         return True
 
+    def is_union_type(self, schema) -> bool:
+        return bool(self.get_union_of(schema))
+
     def get_displayname(self, schema):
         if self.is_view(schema) and not self.get_view_is_persistent(schema):
             mtype = self.material_type(schema)

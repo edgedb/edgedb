@@ -157,6 +157,9 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def is_object_type(self):
         return False
 
+    def is_union_type(self, schema) -> bool:
+        return False
+
     def is_polymorphic(self, schema):
         return False
 
@@ -308,6 +311,35 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         else:
             ancestors = list(self.get_ancestors(schema).objects(schema))
             return ancestors.index(ancestor) + 1
+
+
+class UnionTypeRef(so.Object):
+
+    def __init__(
+        self,
+        components: typing.Iterable[so.ObjectRef], *,
+        module: str,
+    ) -> None:
+        super().__init__(_private_init=True)
+        self.__dict__['_components'] = tuple(components)
+        self.__dict__['module'] = module
+
+    def resolve_components(self, schema) -> typing.Tuple[Type, ...]:
+        return tuple(c._resolve_ref(schema) for c in self._components)
+
+    def __repr__(self):
+        return f'<UnionTypeRef {self._components!r} at 0x{id(self):x}>'
+
+    def __eq__(self, other):
+        if not isinstance(other, UnionTypeRef):
+            return NotImplemented
+        return self._components == other._components
+
+    def __hash__(self):
+        return hash((type(self), self._components))
+
+    def _reduce_to_ref(self, schema):
+        return self, self._components
 
 
 class Collection(Type, s_abc.Collection):
@@ -508,8 +540,9 @@ class EphemeralCollection(Collection):
     def get_shortname(self, schema):
         return self.name
 
-    def get_verbosename(self, schema, *, with_parent=False):
-        return self.get_displayname(schema)
+    @classmethod
+    def get_schema_class_displayname(cls):
+        return 'collection'
 
     def get_view_type(self, schema):
         return self.view_type
@@ -1307,6 +1340,66 @@ class TupleView(CollectionView, BaseSchemaTuple):
 
 def generate_type_id(id_str: str) -> uuid.UUID:
     return uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+
+
+def ensure_schema_union_type(schema, union_type_ref, parent_cmd, *,
+                             src_context=None, context):
+    from . import objtypes as s_objtypes
+
+    components = union_type_ref.resolve_components(schema)
+    module = union_type_ref.module
+
+    union_type_attrs = s_objtypes.get_union_type_attrs(
+        schema,
+        components,
+        module=module,
+    )
+
+    union_type = schema.get_by_id(union_type_attrs['id'], None)
+
+    if union_type is None:
+        schema, union_type = utils.get_union_type(
+            schema, components, module=module)
+
+        if union_type.is_object_type():
+            create_union = s_objtypes.CreateObjectType(
+                classname=union_type_attrs['name'],
+                metaclass=s_objtypes.ObjectType,
+            )
+
+            create_union.update((
+                sd.AlterObjectProperty(
+                    property='id',
+                    new_value=union_type_attrs['id'],
+                ),
+                sd.AlterObjectProperty(
+                    property='bases',
+                    new_value=so.ObjectList.create(
+                        schema, [
+                            so.ObjectRef(name=b.get_name(schema))
+                            for b in union_type_attrs['bases']
+                        ],
+                    ),
+                ),
+                sd.AlterObjectProperty(
+                    property='name',
+                    new_value=union_type_attrs['name'],
+                ),
+                sd.AlterObjectProperty(
+                    property='union_of',
+                    new_value=so.ObjectSet.create(
+                        schema, [
+                            so.ObjectRef(name=c.get_name(schema))
+                            for c in union_type_attrs['union_of'].objects(
+                                schema)
+                        ],
+                    ),
+                ),
+            ))
+
+            parent_cmd.add(create_union)
+
+    return schema, union_type
 
 
 class TypeCommand(sd.ObjectCommand):

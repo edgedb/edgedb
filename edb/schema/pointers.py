@@ -488,22 +488,144 @@ class PseudoPointer(s_abc.Pointer):
 PointerLike = Union[Pointer, PseudoPointer]
 
 
+class ComputableRef(so.Object):
+    """A shell for a computed target type."""
+
+    def __init__(self, expr: str) -> None:
+        super().__init__(_private_init=True)
+        self.__dict__['expr'] = expr
+
+
 class PointerCommandContext(sd.ObjectCommandContext,
                             s_anno.AnnotationSubjectCommandContext):
     pass
 
 
+class PointerCommandOrFragment:
+
+    def _resolve_refs_in_pointer_def(self, schema, context):
+        target_ref = self.get_local_attribute_value('target')
+
+        if target_ref is not None:
+            srcctx = self.get_attribute_source_context('target')
+
+            if isinstance(target_ref, s_types.UnionTypeRef):
+                schema, target = s_types.ensure_schema_union_type(
+                    schema, target_ref, parent_cmd=self,
+                    src_context=srcctx, context=context,
+                )
+
+            elif isinstance(target_ref, so.ObjectRef):
+                try:
+                    target = target_ref._resolve_ref(schema)
+                except errors.InvalidReferenceError as e:
+                    utils.enrich_schema_lookup_error(
+                        e, target_ref.get_refname(schema),
+                        modaliases=context.modaliases,
+                        schema=schema,
+                        item_types=(s_types.Type,),
+                        context=srcctx,
+                    )
+                    raise
+
+            elif isinstance(target_ref, ComputableRef):
+                target, base = self._parse_computable(
+                    target_ref.expr, schema, context)
+
+                if base is not None:
+                    self.set_attribute_value(
+                        'bases', so.ObjectList.create(schema, [base]),
+                    )
+
+                    self.set_attribute_value(
+                        'is_derived', True
+                    )
+
+                    if context.declarative:
+                        self.set_attribute_value(
+                            'declared_inherited', True
+                        )
+            else:
+                target = target_ref
+
+            self.set_attribute_value('target', target, source_context=srcctx)
+
+        return schema
+
+    def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
+        from edb.ir import ast as irast
+        from edb.ir import typeutils as irtyputils
+
+        # "source" attribute is set automatically as a refdict back-attr
+        parent_ctx = self.get_referrer_context(context)
+        source_name = parent_ctx.op.classname
+
+        source = schema.get(source_name)
+        expr = s_expr.Expression.compiled(
+            s_expr.Expression.from_ast(expr, schema, context.modaliases),
+            schema=schema,
+            modaliases=context.modaliases,
+            anchors={qlast.Source: source},
+            path_prefix_anchor=qlast.Source,
+            singletons=[source],
+        )
+
+        base = None
+        target = expr.irast.stype
+
+        result_expr = expr.irast.expr.expr
+
+        if (isinstance(result_expr, irast.SelectStmt)
+                and result_expr.result.rptr is not None):
+            expr_rptr = result_expr.result.rptr
+            while isinstance(expr_rptr, irast.TypeIndirectionPointer):
+                expr_rptr = expr_rptr.source.rptr
+
+            is_ptr_alias = (
+                expr_rptr.direction is PointerDirection.Outbound
+            )
+
+            if is_ptr_alias:
+                base = irtyputils.ptrcls_from_ptrref(
+                    expr_rptr.ptrref, schema=schema
+                )
+
+        self.add(
+            sd.AlterObjectProperty(
+                property='expr',
+                new_value=expr,
+            )
+        )
+
+        self.add(
+            sd.AlterObjectProperty(
+                property='cardinality',
+                new_value=expr.irast.cardinality
+            )
+        )
+
+        return target, base
+
+
 class PointerCommand(constraints.ConsistencySubjectCommand,
                      s_anno.AnnotationSubjectCommand,
-                     referencing.ReferencedInheritingObjectCommand):
+                     referencing.ReferencedInheritingObjectCommand,
+                     PointerCommandOrFragment):
 
     def _create_begin(self, schema, context):
+        if not context.canonical:
+            schema = self._resolve_refs_in_pointer_def(schema, context)
+
         schema = super()._create_begin(schema, context)
+
         if not context.canonical:
             self._validate_pointer_def(schema, context)
         return schema
 
     def _alter_begin(self, schema, context, scls):
+        if not context.canonical:
+            schema = self._resolve_refs_in_pointer_def(schema, context)
+
         schema = super()._alter_begin(schema, context, scls)
         if not context.canonical:
             self._validate_pointer_def(schema, context)
@@ -527,12 +649,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 default_expr = default_expr.compiled(default_expr, schema)
             default_type = default_expr.irast.stype
             ptr_target = scls.get_target(schema)
-            set_cmd = self.get_attribute_set_cmd('default')
-            if set_cmd:
-                source_context = set_cmd.source_context
-            else:
-                source_context = None
-
+            source_context = self.get_attribute_source_context('default')
             if not default_type.assignment_castable_to(ptr_target, schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression is of invalid type: '
@@ -592,6 +709,63 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                 cmd.set_attribute_value('declared_inherited', True)
         return cmd
 
+    def _process_create_or_alter_ast(self, schema, astnode, context):
+        """Handle the CREATE {PROPERTY|LINK} AST node.
+
+        This may be called in the context of either Create or Alter.
+        """
+        if astnode.is_required is not None:
+            self.set_attribute_value('required', astnode.is_required)
+
+        if astnode.cardinality is not None:
+            self.set_attribute_value('cardinality', astnode.cardinality)
+
+        parent_ctx = self.get_referrer_context(context)
+        source_name = parent_ctx.op.classname
+        self.set_attribute_value('source', so.ObjectRef(name=source_name))
+
+        # FIXME: this is an approximate solution
+        targets = qlast.get_targets(astnode.target)
+
+        if len(targets) > 1:
+            new_targets = [
+                utils.ast_to_typeref(
+                    t, modaliases=context.modaliases,
+                    schema=schema, metaclass=s_types.Type)
+                for t in targets
+            ]
+
+            target_ref = s_types.UnionTypeRef(
+                new_targets, module=source_name.module)
+        else:
+            target_expr = targets[0]
+            if isinstance(target_expr, qlast.TypeName):
+                target_ref = utils.ast_to_typeref(
+                    target_expr, modaliases=context.modaliases, schema=schema,
+                    metaclass=s_types.Type)
+            else:
+                # computable
+                target_ref = ComputableRef(
+                    s_expr.imprint_expr_context(
+                        target_expr,
+                        context.modaliases,
+                    )
+                )
+
+        if isinstance(self, sd.CreateObject):
+            self.set_attribute_value(
+                'target', target_ref, source_context=astnode.target.context)
+
+            if self.get_attribute_value('cardinality') is None:
+                self.set_attribute_value(
+                    'cardinality', qltypes.Cardinality.ONE)
+
+            if self.get_attribute_value('required') is None:
+                self.set_attribute_value(
+                    'required', False)
+        else:
+            self._set_pointer_type(schema, astnode, context, target_ref)
+
     @classmethod
     def _extract_union_operands(cls, expr, operands):
         if expr.op == 'UNION':
@@ -599,10 +773,6 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             cls._extract_union_operands(expr.op_rarg, operands)
         else:
             operands.append(expr)
-
-    @classmethod
-    def _parse_default(cls, cmd):
-        return
 
     def compile_expr_field(self, schema, context, field, value):
         from . import sources as s_sources
@@ -634,126 +804,16 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         else:
             return super().compile_expr_field(schema, context, field, value)
 
-    def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
-        from edb.ir import ast as irast
-        from edb.ir import typeutils as irtyputils
-        from . import sources as s_sources
-
-        # "source" attribute is set automatically as a refdict back-attr
-        parent_ctx = context.get_ancestor(s_sources.SourceCommandContext, self)
-        source_name = parent_ctx.op.classname
-
-        source = schema.get(source_name)
-        expr = s_expr.Expression.compiled(
-            s_expr.Expression.from_ast(expr, schema, context.modaliases),
-            schema=schema,
-            modaliases=context.modaliases,
-            anchors={qlast.Source: source},
-            path_prefix_anchor=qlast.Source,
-            singletons=[source],
-        )
-
-        base = None
-        target = utils.reduce_to_typeref(schema, expr.irast.stype)
-
-        result_expr = expr.irast.expr.expr
-
-        if (isinstance(result_expr, irast.SelectStmt)
-                and result_expr.result.rptr is not None):
-            expr_rptr = result_expr.result.rptr
-            while isinstance(expr_rptr, irast.TypeIndirectionPointer):
-                expr_rptr = expr_rptr.source.rptr
-
-            is_ptr_alias = (
-                expr_rptr.direction is PointerDirection.Outbound
-            )
-
-            if is_ptr_alias:
-                base = irtyputils.ptrcls_from_ptrref(
-                    expr_rptr.ptrref, schema=schema
-                )
-
-        self.add(
-            sd.AlterObjectProperty(
-                property='expr',
-                new_value=expr,
-            )
-        )
-
-        self.add(
-            sd.AlterObjectProperty(
-                property='cardinality',
-                new_value=expr.irast.cardinality
-            )
-        )
-
-        return target, base
-
-    @classmethod
-    def _create_union_target(cls, schema, context, targets, module):
-        from . import objtypes as s_objtypes
-
-        union_type_attrs = s_objtypes.get_union_type_attrs(
-            schema, [t._resolve_ref(schema) for t in targets],
-            module=module,
-        )
-
-        target = so.ObjectRef(name=union_type_attrs['name'])
-
-        if schema.get_by_id(union_type_attrs['id'], None) is None:
-
-            create_union = s_objtypes.CreateObjectType(
-                classname=union_type_attrs['name'],
-                metaclass=s_objtypes.ObjectType,
-            )
-
-            create_union.update((
-                sd.AlterObjectProperty(
-                    property='id',
-                    new_value=union_type_attrs['id'],
-                ),
-                sd.AlterObjectProperty(
-                    property='bases',
-                    new_value=so.ObjectList.create(
-                        schema, [
-                            so.ObjectRef(name=b.get_name(schema))
-                            for b in union_type_attrs['bases']
-                        ],
-                    ),
-                ),
-                sd.AlterObjectProperty(
-                    property='name',
-                    new_value=union_type_attrs['name'],
-                ),
-                sd.AlterObjectProperty(
-                    property='union_of',
-                    new_value=so.ObjectSet.create(
-                        schema, [
-                            so.ObjectRef(name=c.get_name(schema))
-                            for c in union_type_attrs['union_of'].objects(
-                                schema)
-                        ],
-                    ),
-                ),
-            ))
-
-            delta_ctx = context.get(sd.DeltaRootContext)
-
-            for cc in delta_ctx.op.get_subcommands(
-                    type=s_objtypes.CreateObjectType):
-                if cc.classname == create_union.classname:
-                    break
-            else:
-                delta_ctx.op.add(create_union)
-
-        return target
-
 
 class SetPointerType(
         referencing.ReferencedInheritingObjectCommand,
-        inheriting.AlterInheritingObjectFragment):
+        inheriting.AlterInheritingObjectFragment,
+        PointerCommandOrFragment):
 
     def _alter_begin(self, schema, context, scls):
+        if not context.canonical:
+            schema = self._resolve_refs_in_pointer_def(schema, context)
+
         schema = super()._alter_begin(schema, context, scls)
 
         context.altered_targets.add(scls)
@@ -770,7 +830,14 @@ class SetPointerType(
             implicit_bases = scls.get_implicit_bases(schema)
             non_altered_bases = []
 
-            tgt = self.get_attribute_value('target')._resolve_ref(schema)
+            tgt = self.get_attribute_value('target')
+            if tgt.is_collection():
+                srcctx = self.get_attribute_source_context('target')
+                sd.ensure_schema_collection(
+                    schema, tgt, self,
+                    src_context=srcctx,
+                    context=context,
+                )
 
             for base in set(implicit_bases) - context.altered_targets:
                 base_tgt = base.get_target(schema)
@@ -824,8 +891,6 @@ class SetPointerType(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         targets = qlast.get_targets(astnode.type)
-        alter_ptr_ctx = context.get(PointerCommandContext)
-        alter_ptr_op = alter_ptr_ctx.op
 
         if len(targets) > 1:
             new_targets = [
@@ -835,22 +900,12 @@ class SetPointerType(
                 for t in targets
             ]
 
-            target = alter_ptr_op._create_union_target(
-                schema, context, new_targets, module=cmd.classname.module)
-
-            target_ref = utils.reduce_to_typeref(schema, target)
+            target_ref = s_types.UnionTypeRef(
+                new_targets, module=cls.classname.module)
         else:
             target = targets[0]
             target_ref = utils.ast_to_typeref(
                 target, modaliases=context.modaliases, schema=schema)
-
-            target_obj = utils.resolve_typeref(target_ref, schema=schema)
-            if target_obj.is_collection():
-                sd.ensure_schema_collection(
-                    schema, target_obj, alter_ptr_ctx.op,
-                    src_context=astnode.type.context,
-                    context=context,
-                )
 
         cmd.set_attribute_value('target', target_ref)
 

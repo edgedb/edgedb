@@ -596,8 +596,10 @@ class Schema(s_abc.Schema):
                 f'{desc} {name!r} does not exist')
 
     def get(self, name, default=_void, *,
+            refname=None,
             module_aliases=None, type=None,
-            condition=None, label=None):
+            condition=None, label=None,
+            sourcectx=None):
         def getter(schema, name):
             obj = schema._get_by_name(name, type=type)
             if obj is not None and condition is not None:
@@ -623,8 +625,12 @@ class Schema(s_abc.Schema):
             else:
                 label = 'schema item'
 
+        if refname is None:
+            refname = name
+
         raise errors.InvalidReferenceError(
-            f'{label} {name!r} does not exist')
+            f'{label} {refname!r} does not exist',
+            context=sourcectx)
 
     def has_module(self, module):
         return self.get_global(s_mod.Module, module, None) is not None

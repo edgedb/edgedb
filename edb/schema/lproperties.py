@@ -20,7 +20,6 @@
 from __future__ import annotations
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import qltypes
 
 from edb import errors
 
@@ -29,11 +28,9 @@ from . import constraints
 from . import delta as sd
 from . import inheriting
 from . import name as sn
-from . import objects as so
 from . import pointers
 from . import referencing
 from . import sources
-from . import types as s_types
 from . import utils
 
 
@@ -143,91 +140,52 @@ class PropertyCommand(pointers.PointerCommand,
                       context_class=PropertyCommandContext,
                       referrer_context_class=PropertySourceContext):
 
-    @classmethod
-    def _process_create_ast(cls, schema, astnode, context, cmd):
-        """Handle the CREATE PROPERTY ast node.
+    def _set_pointer_type(self, schema, astnode, context, target_ref):
+        spt = SetPropertyType(classname=self.classname, type=target_ref)
+        spt.set_attribute_value(
+            'target', target_ref, source_context=astnode.target.context)
+        self.add(spt)
 
-        This may be called in the context of either Create or Alter.
-        """
+    def _validate_pointer_def(self, schema, context):
+        """Check that property definition is sound."""
+        super()._validate_pointer_def(schema, context)
 
-        if astnode.is_required is not None:
-            cmd.set_attribute_value('required', astnode.is_required)
+        scls = self.scls
+        if not scls.get_is_local(schema):
+            return
 
-        if astnode.cardinality is not None:
-            cmd.set_attribute_value('cardinality', astnode.cardinality)
+        if scls.is_special_pointer(schema):
+            return
 
-        parent_ctx = context.get(PropertySourceContext)
-        source_name = parent_ctx.op.classname
-        cmd.set_attribute_value('source', so.ObjectRef(name=source_name))
-
-        target = getattr(astnode, 'target', None)
-
-        if isinstance(target, qlast.TypeName):
-            target_ref = utils.ast_to_typeref(
-                target, modaliases=context.modaliases, schema=schema,
-                metaclass=s_types.Type)
-        else:
-            # computable
-            target_ref, base = cmd._parse_computable(
-                target, schema, context)
-
-            if base is not None:
-                cmd.set_attribute_value(
-                    'bases', so.ObjectList.create(schema, [base]),
-                )
-
-                cmd.set_attribute_value(
-                    'is_derived', True
-                )
-
-                if context.declarative:
-                    cmd.set_attribute_value(
-                        'declared_inherited', True
-                    )
-
-        target_type = utils.resolve_typeref(target_ref, schema=schema)
+        target_type = scls.get_target(schema)
 
         if target_type.is_polymorphic(schema):
+            srcctx = self.get_attribute_source_context('target')
             raise errors.InvalidPropertyTargetError(
                 f'invalid property type: '
-                f'{target_type.get_displayname(schema)!r} '
+                f'{target_type.get_verbosename(schema)} '
                 f'is a generic type',
-                context=target.context
+                context=srcctx,
             )
 
         if (target_type.is_object_type()
                 or (target_type.is_collection()
                     and target_type.contains_object(schema))):
+            srcctx = self.get_attribute_source_context('target')
             raise errors.InvalidPropertyTargetError(
                 f'invalid property type: expected a scalar type, '
                 f'or a scalar collection, got '
-                f'{target_type.get_displayname(schema)!r}',
-                context=target.context
+                f'{target_type.get_verbosename(schema)}',
+                context=srcctx,
             )
 
         if target_type.is_collection():
+            srcctx = self.get_attribute_source_context('target')
             sd.ensure_schema_collection(
-                schema, target_type, cmd,
-                src_context=target.context,
+                schema, target_type, self,
+                src_context=srcctx,
                 context=context,
             )
-
-        if isinstance(cmd, sd.CreateObject):
-            cmd.set_attribute_value('target', target_ref)
-
-            if cmd.get_attribute_value('cardinality') is None:
-                cmd.set_attribute_value(
-                    'cardinality', qltypes.Cardinality.ONE)
-
-            if cmd.get_attribute_value('required') is None:
-                cmd.set_attribute_value(
-                    'required', False)
-        else:
-            slt = SetPropertyType(classname=cmd.classname, type=target_ref)
-            slt.set_attribute_value('target', target_ref)
-            cmd.add(slt)
-
-        cls._parse_default(cmd)
 
 
 class CreateProperty(PropertyCommand,
@@ -242,12 +200,12 @@ class CreateProperty(PropertyCommand,
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteProperty):
-            cls._process_create_ast(schema, astnode, context, cmd)
+            cmd._process_create_or_alter_ast(schema, astnode, context)
         else:
             # this is an abstract property then
             if cmd.get_attribute_value('default') is not None:
                 raise errors.SchemaDefinitionError(
-                    f"'default' is not a valid field for an abstact property",
+                    f"'default' is not a valid field for an abstract property",
                     context=astnode.context)
 
         return cmd
@@ -308,7 +266,7 @@ class AlterProperty(PropertyCommand,
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteProperty):
-            cls._process_create_ast(schema, astnode, context, cmd)
+            cmd._process_create_or_alter_ast(schema, astnode, context)
 
         return cmd
 

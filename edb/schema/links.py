@@ -162,98 +162,11 @@ class LinkCommand(lproperties.PropertySourceCommand,
                   schema_metaclass=Link, context_class=LinkCommandContext,
                   referrer_context_class=LinkSourceCommandContext):
 
-    @classmethod
-    def _process_link_create_or_alter(cls, schema, astnode, context, cmd):
-        from . import objtypes as s_objtypes
-
-        parent_ctx = context.get(LinkSourceCommandContext)
-
-        if isinstance(astnode, qlast.CreateConcreteLink):
-            # "source" attribute is set automatically as a refdict back-attr
-            source_name = parent_ctx.op.classname
-
-            if astnode.is_required is not None:
-                cmd.set_attribute_value('required', astnode.is_required)
-
-            if astnode.cardinality is not None:
-                cmd.set_attribute_value('cardinality', astnode.cardinality)
-
-            # FIXME: this is an approximate solution
-            targets = qlast.get_targets(astnode.target)
-
-            if len(targets) > 1:
-                new_targets = [
-                    utils.ast_to_typeref(
-                        t, modaliases=context.modaliases,
-                        schema=schema)
-                    for t in targets
-                ]
-
-                target = cls._create_union_target(
-                    schema, context, new_targets, module=source_name.module)
-            else:
-                target_expr = targets[0]
-                if isinstance(target_expr, qlast.TypeName):
-                    target = utils.ast_to_typeref(
-                        target_expr, modaliases=context.modaliases,
-                        schema=schema)
-                else:
-                    # computable
-                    target, base = cmd._parse_computable(
-                        target_expr, schema, context)
-
-                    if base is not None:
-                        cmd.set_attribute_value(
-                            'bases', so.ObjectList.create(schema, [base]),
-                        )
-
-                        cmd.set_attribute_value(
-                            'is_derived', True
-                        )
-
-                        if context.declarative:
-                            cmd.set_attribute_value(
-                                'declared_inherited', True
-                            )
-
-                if (isinstance(target, so.ObjectRef) and
-                        target.name == source_name):
-                    # Special case for loop links.  Since the target
-                    # is the same as the source, we know it's a proper
-                    # type.
-                    pass
-                else:
-                    target_type = utils.resolve_typeref(target, schema=schema)
-                    if not isinstance(target_type, s_objtypes.ObjectType):
-                        raise errors.InvalidLinkTargetError(
-                            f'invalid link target, expected object type, got '
-                            f'{target_type.__class__.__name__}',
-                            context=astnode.target.context
-                        )
-
-            if isinstance(cmd, sd.CreateObject):
-                cmd.set_attribute_value('target', target)
-
-                if cmd.get_attribute_value('cardinality') is None:
-                    cmd.set_attribute_value(
-                        'cardinality', qltypes.Cardinality.ONE)
-
-                if cmd.get_attribute_value('required') is None:
-                    cmd.set_attribute_value(
-                        'required', False)
-            else:
-                slt = SetLinkType(classname=cmd.classname, type=target)
-                slt.set_attribute_value('target', target)
-                cmd.add(slt)
-
-            cls._parse_default(cmd)
-
-        if parent_ctx is None:
-            # this is an abstract link then
-            if cmd.get_attribute_value('default') is not None:
-                raise errors.SchemaDefinitionError(
-                    f"'default' is not a valid field for an abstact link",
-                    context=astnode.context)
+    def _set_pointer_type(self, schema, astnode, context, target_ref):
+        slt = SetLinkType(classname=self.classname, type=target_ref)
+        slt.set_attribute_value(
+            'target', target_ref, source_context=astnode.target.context)
+        self.add(slt)
 
     def _apply_refs_fields_ast(self, schema, context, node, refdict):
         if issubclass(refdict.ref_cls, pointers.Pointer):
@@ -264,6 +177,24 @@ class LinkCommand(lproperties.PropertySourceCommand,
         else:
             super()._apply_refs_fields_ast(schema, context, node, refdict)
 
+    def _validate_pointer_def(self, schema, context):
+        """Check that link definition is sound."""
+        super()._validate_pointer_def(schema, context)
+
+        scls = self.scls
+        if not scls.get_is_local(schema):
+            return
+
+        target = scls.get_target(schema)
+
+        if not target.is_object_type():
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.InvalidLinkTargetError(
+                f'invalid link target, expected object type, got '
+                f'{target.get_schema_class_displayname()}',
+                context=srcctx,
+            )
+
 
 class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
     astnode = [qlast.CreateConcreteLink, qlast.CreateLink]
@@ -272,7 +203,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        cls._process_link_create_or_alter(schema, astnode, context, cmd)
+        if isinstance(astnode, qlast.CreateConcreteLink):
+            cmd._process_create_or_alter_ast(schema, astnode, context)
+        else:
+            # this is an abstract property then
+            if cmd.get_attribute_value('default') is not None:
+                raise errors.SchemaDefinitionError(
+                    f"'default' is not a valid field for an abstract link",
+                    context=astnode.context)
         return cmd
 
     def _apply_field_ast(self, schema, context, node, op):
@@ -469,7 +407,8 @@ class AlterLink(LinkCommand, referencing.AlterReferencedInheritingObject):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        cls._process_link_create_or_alter(schema, astnode, context, cmd)
+        if isinstance(astnode, qlast.CreateConcreteLink):
+            cmd._process_create_or_alter_ast(schema, astnode, context)
 
         return cmd
 

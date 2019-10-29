@@ -50,23 +50,17 @@ def ast_objref_to_objref(
         lname = nqname
     obj = schema.get(lname, module_aliases=modaliases, default=None)
     if obj is not None:
-        return obj
+        actual_name = obj.get_name(schema)
+        module = actual_name.module
+    else:
+        aliased_module = modaliases.get(module)
+        if aliased_module is not None:
+            module = aliased_module
 
-    if module is None:
-        if metaclass is not None:
-            desc = metaclass.get_schema_class_displayname()
-        else:
-            desc = 'schema item'
-        err = errors.InvalidReferenceError(
-            f'{desc} {nqname!r} does not exist',
-            context=node.context,
-        )
-        enrich_schema_lookup_error(
-            err, lname, modaliases=modaliases, schema=schema,
-            item_types=(metaclass,) if metaclass is not None else None)
-        raise err
-
-    return so.ObjectRef(name=sn.Name(module=module, name=nqname))
+    return so.ObjectRef(name=sn.Name(module=module, name=nqname),
+                        origname=lname,
+                        schemaclass=metaclass,
+                        sourcectx=node.context)
 
 
 def ast_to_typeref(
@@ -109,7 +103,8 @@ def ast_to_typeref(
                     )
 
                 subtypes[type_name] = ast_to_typeref(
-                    st, modaliases=modaliases, schema=schema)
+                    st, modaliases=modaliases, metaclass=metaclass,
+                    schema=schema)
 
             try:
                 return coll.from_subtypes(
@@ -124,7 +119,8 @@ def ast_to_typeref(
             subtypes = []
             for st in node.subtypes:
                 subtypes.append(ast_to_typeref(
-                    st, modaliases=modaliases, schema=schema))
+                    st, modaliases=modaliases, metaclass=metaclass,
+                    schema=schema))
 
             try:
                 return coll.from_subtypes(schema, subtypes)

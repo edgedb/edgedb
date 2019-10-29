@@ -1265,9 +1265,19 @@ class GlobalObject(UnqualifiedObject):
 
 class ObjectRef(Object):
 
-    def __init__(self, *, name: str):
+    def __init__(
+        self,
+        *,
+        name: str,
+        origname: Optional[str]=None,
+        schemaclass: Optional[ObjectMeta]=None,
+        sourcectx=None,
+    ) -> None:
         super().__init__(_private_init=True)
         self.__dict__['_name'] = name
+        self.__dict__['_origname'] = origname
+        self.__dict__['_sourcectx'] = sourcectx
+        self.__dict__['_schemaclass'] = schemaclass
 
     @property
     def name(self):
@@ -1275,6 +1285,12 @@ class ObjectRef(Object):
 
     def get_name(self, schema):
         return self._name
+
+    def get_refname(self, schema):
+        return self._origname if self._origname is not None else self._name
+
+    def get_sourcectx(self, schema):
+        return self._sourcectx
 
     def __repr__(self):
         return '<ObjectRef "{}" at 0x{:x}>'.format(self._name, id(self))
@@ -1291,7 +1307,12 @@ class ObjectRef(Object):
         return self, self.get_name(schema)
 
     def _resolve_ref(self, schema):
-        return schema.get(self.get_name(schema))
+        return schema.get(
+            self.get_name(schema),
+            type=self._schemaclass,
+            refname=self._origname,
+            sourcectx=self.get_sourcectx(schema),
+        )
 
 
 class ObjectCollectionDuplicateNameError(Exception):

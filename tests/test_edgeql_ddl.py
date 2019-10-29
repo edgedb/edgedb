@@ -669,18 +669,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
-    @test.xfail('''
-        This currently fails with:
-        edgedb.errors.SchemaError: SchemaArray
-        'bad732ad-4ba1-56f4-ac86-d4bf0f60f017' is already present in
-        the schema
+    async def test_edgeql_ddl_default_circular(self):
+        await self.con.execute(r"""
+            CREATE TYPE test::TestDefaultCircular {
+                CREATE PROPERTY def01 -> int64 {
+                    SET default := (SELECT count(test::TestDefaultCircular));
+                };
+            };
+        """)
 
-        However, this error about a dupliucate is unexpected. The real
-        issue is that DDL altering a property from a scalar to an
-        array [of that scalar] should be flagged as bad on grounds of
-        it being unclear of what the data migration should look like
-        (since simple cast won't work).
-    ''')
     async def test_edgeql_ddl_property_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::Foo {
@@ -689,8 +686,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         await self.con.execute(r"""
-            ALTER TYPE test::Foo {
-                ALTER PROPERTY bar SET TYPE array<float32>;
+            CREATE TYPE test::TestDefaultCircular {
+                CREATE PROPERTY def01 -> int64 {
+                    SET default := (SELECT count(test::TestDefaultCircular));
+                };
             };
         """)
 
@@ -870,7 +869,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_link_bad_03(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                f"'default' is not a valid field for an abstact link"):
+                f"'default' is not a valid field for an abstract link"):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE ABSTRACT LINK test::bar {
@@ -913,7 +912,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_property_bad_03(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                f"'default' is not a valid field for an abstact property"):
+                f"'default' is not a valid field for an abstract property"):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE ABSTRACT PROPERTY test::bar {
@@ -1901,16 +1900,40 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_property_computable_circular(self):
+        await self.con.execute('''\
+            CREATE TYPE test::CompPropCircular {
+                CREATE PROPERTY prop := (SELECT count(test::CompPropCircular))
+            };
+        ''')
+
     async def test_edgeql_ddl_property_computable_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
-                r"invalid property type: expected.*, got 'std::Object'"):
+                r"invalid property type: expected.* got .* 'std::Object'"):
             await self.con.execute('''\
                 CREATE TYPE test::CompPropBad;
                 ALTER TYPE test::CompPropBad {
                     CREATE PROPERTY prop := (SELECT std::Object LIMIT 1);
                 };
             ''')
+
+    async def test_edgeql_ddl_link_computable_circular_01(self):
+        await self.con.execute('''\
+            CREATE TYPE test::CompLinkCircular {
+                CREATE LINK l := (SELECT test::CompLinkCircular LIMIT 1)
+            };
+        ''')
+
+    async def test_edgeql_ddl_link_target_circular_01(self):
+        # Circular target as part of a union.
+        await self.con.execute('''\
+            CREATE TYPE test::LinkCircularA;
+            CREATE TYPE test::LinkCircularB {
+                CREATE LINK l -> test::LinkCircularA
+                                 | test::LinkCircularB;
+            };
+        ''')
 
     async def test_edgeql_ddl_annotation_01(self):
         await self.con.execute("""
@@ -3649,7 +3672,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r"""
                 ALTER TYPE test::TupProp02 {
-                    CREATE PROPERTY p4 -> tuple<test::TupProp02>;
+                    CREATE PROPERTY p5 -> tuple<test::TupProp02>;
                 };
             """)
 
@@ -3662,7 +3685,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r"""
                 ALTER TYPE test::TupProp02 {
-                    CREATE PROPERTY p4 -> array<tuple<int64>>;
+                    CREATE PROPERTY p5 -> array<tuple<int64>>;
                 };
             """)
 

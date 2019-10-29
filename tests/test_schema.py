@@ -77,7 +77,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.InvalidLinkTargetError,
-                  'invalid link target, expected object type, got ScalarType',
+                  'invalid link target, expected object type, got scalar type',
                   position=55)
     def test_schema_bad_link_01(self):
         """
@@ -87,7 +87,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.InvalidLinkTargetError,
-                  'invalid link target, expected object type, got ScalarType',
+                  'invalid link target, expected object type, got scalar type',
                   position=55)
     def test_schema_bad_link_02(self):
         """
@@ -109,7 +109,7 @@ _123456789_123456789_123456789 -> Object
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
-                  "or a scalar collection, got 'test::Object'",
+                  "or a scalar collection, got object type 'test::Object'",
                   position=59)
     def test_schema_bad_prop_01(self):
         """
@@ -120,7 +120,7 @@ _123456789_123456789_123456789 -> Object
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
-                  "or a scalar collection, got 'test::Object'",
+                  "or a scalar collection, got object type 'test::Object'",
                   position=59)
     def test_schema_bad_prop_02(self):
         """
@@ -153,7 +153,7 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
-                  "got 'array<test::Foo>'",
+                  "got collection 'array<test::Foo>'",
                   position=80)
     def test_schema_bad_type_02(self):
         """
@@ -166,7 +166,7 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
-                  "got 'tuple<test::Foo>'",
+                  "got collection 'tuple<test::Foo>'",
                   position=80)
     def test_schema_bad_type_03(self):
         """
@@ -179,7 +179,7 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
-                  "got 'tuple<std::str, array<test::Foo>>'",
+                  "got collection 'tuple<std::str, array<test::Foo>>'",
                   position=80)
     def test_schema_bad_type_04(self):
         """
@@ -2464,7 +2464,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
                 errors.InvalidPropertyTargetError,
                 "expected a scalar type, or a scalar collection, "
-                "got 'array<default::Foo>'"):
+                "got collection 'array<default::Foo>'"):
             self._assert_migration_equivalence([r"""
                 type Base;
 
@@ -2485,7 +2485,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
                 errors.InvalidPropertyTargetError,
                 "expected a scalar type, or a scalar collection, "
-                "got 'tuple<std::str, default::Foo>'"):
+                "got collection 'tuple<std::str, default::Foo>'"):
 
             self._assert_migration_equivalence([r"""
                 type Base;
@@ -2507,7 +2507,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
                 errors.InvalidPropertyTargetError,
                 "expected a scalar type, or a scalar collection, "
-                "got 'array<default::Foo>'"):
+                "got collection 'array<default::Foo>'"):
 
             self._assert_migration_equivalence([r"""
             type Base {
