@@ -39,7 +39,7 @@ import os
 import time
 import warnings
 
-from . import markup as _markup
+# Don't import anything from "edb.*" as it will wreck coverage.
 
 
 __all__ = ()  # Don't.
@@ -125,10 +125,12 @@ def header(*args):
 
 
 def dump(*args, **kwargs):
+    from . import markup as _markup
     _markup.dump(*args, **kwargs)
 
 
 def dump_code(*args, **kwargs):
+    from . import markup as _markup
     _markup.dump_code(*args, **kwargs)
 
 
