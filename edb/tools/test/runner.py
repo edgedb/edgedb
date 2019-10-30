@@ -69,7 +69,8 @@ def teardown_suite() -> None:
     suite._handleModuleTearDown(result)
 
 
-def init_worker(param_queue: multiprocessing.SimpleQueue,
+def init_worker(status_queue: multiprocessing.SimpleQueue,
+                param_queue: multiprocessing.SimpleQueue,
                 result_queue: multiprocessing.SimpleQueue) -> None:
     global result
 
@@ -83,6 +84,8 @@ def init_worker(param_queue: multiprocessing.SimpleQueue,
 
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
+
+    status_queue.put(True)
 
 
 def shutdown_worker() -> None:
@@ -218,9 +221,10 @@ class ParallelTestSuite(unittest.TestSuite):
 
     def run(self, result):
         # We use SimpleQueues because they are more predictable.
-        # The do the necessary IO directly, without using a
+        # They do the necessary IO directly, without using a
         # helper thread.
         result_queue = multiprocessing.SimpleQueue()
+        status_queue = multiprocessing.SimpleQueue()
         worker_param_queue = multiprocessing.SimpleQueue()
 
         # Prepopulate the worker param queue with server connection
@@ -233,12 +237,16 @@ class ParallelTestSuite(unittest.TestSuite):
             args=(result_queue, result), daemon=True)
         result_thread.start()
 
-        initargs = (worker_param_queue, result_queue)
+        initargs = (status_queue, worker_param_queue, result_queue)
 
         pool = multiprocessing.Pool(
             self.num_workers,
             initializer=mproc_fixes.WorkerScope(init_worker, shutdown_worker),
             initargs=initargs)
+
+        # Wait for all workers to initialize.
+        for _ in range(self.num_workers):
+            status_queue.get()
 
         with pool:
             ar = pool.map_async(_run_test, iter(self.tests), chunksize=1)
