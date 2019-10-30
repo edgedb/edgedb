@@ -881,37 +881,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     sd.DeleteObject, type(old))
                 delta = delete_class(**command_args)
 
-            alter_class = sd.ObjectCommandMeta.get_command_class(
-                sd.AlterObject, type(new))
-
-            if isinstance(delta, sd.CreateObject) and alter_class is not None:
-                # If this is a CREATE delta, we need to make
-                # sure it is returned separately from the creation
-                # of references, which will go into a separate ALTER
-                # delta.  This is needed to avoid the hassle of
-                # sorting the delta order by dependencies or having
-                # to maintain ephemeral forward references.
-                #
-                # Generate an empty delta.
-                alter_delta = alter_class(classname=new.get_name(new_schema))
-                full_delta = sd.CommandGroup()
-                full_delta.add(delta)
-            else:
-                full_delta = alter_delta = delta
-
             for refdict in cls.get_refdicts():
                 cls._delta_refdict(
-                    old, new, delta=alter_delta,
+                    old, new, delta=delta,
                     refdict=refdict, context=context,
                     old_schema=old_schema, new_schema=new_schema)
 
-            if alter_delta is not full_delta:
-                if alter_delta.has_subcommands():
-                    full_delta.add(alter_delta)
-                else:
-                    full_delta = delta
-
-        return full_delta
+        return delta
 
     @classmethod
     def _delta_refdict(cls, old, new, *, delta, refdict, context,
