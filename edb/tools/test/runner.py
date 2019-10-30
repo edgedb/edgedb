@@ -29,11 +29,9 @@ import multiprocessing
 import multiprocessing.reduction
 import multiprocessing.util
 import os
-import pathlib
 import random
 import re
 import sys
-import tempfile
 import threading
 import time
 import types
@@ -45,7 +43,6 @@ import warnings
 
 import click
 
-import edb
 import edgedb
 
 from edb.common import devmode
@@ -56,6 +53,7 @@ from . import styles
 
 
 result: Optional[unittest.result.TestResult] = None
+coverage_run = None
 
 
 def teardown_suite() -> None:
@@ -73,6 +71,7 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
                 param_queue: multiprocessing.SimpleQueue,
                 result_queue: multiprocessing.SimpleQueue) -> None:
     global result
+    global coverage_run
 
     # Make sure the generator is re-seeded, as we have inherited
     # the seed from the parent process.
@@ -85,11 +84,18 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
 
+    coverage_run = devmode.CoverageConfig.start_coverage_if_requested()
+
     status_queue.put(True)
 
 
 def shutdown_worker() -> None:
+    global coverage_run
+
     teardown_suite()
+    if coverage_run is not None:
+        coverage_run.stop()
+        coverage_run.save()
 
 
 class StreamingTestSuite(unittest.TestSuite):
@@ -655,60 +661,15 @@ class ParallelTextTestRunner:
 
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
-                 failfast=False, coverage=()):
+                 failfast=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
         self.warnings = warnings
         self.failfast = failfast
         self.output_format = output_format
-        self.coverage = coverage
 
     def run(self, test):
-        if self.coverage:
-            import coverage
-
-            for path in edb.__path__:
-                cov_rc = pathlib.Path(path).parent / '.coveragerc'
-                if cov_rc.exists():
-                    break
-            else:
-                raise RuntimeError('cannot locate the .coveragerc file')
-
-            with tempfile.TemporaryDirectory() as td:
-                cov_config = devmode.CoverageConfig(
-                    paths=self.coverage,
-                    config=str(cov_rc),
-                    datadir=td)
-                cov_config.save_to_environ()
-
-                main_cov = cov_config.new_coverage_object()
-                main_cov.start()
-
-                try:
-                    return self._run(test)
-                finally:
-                    main_cov.stop()
-                    main_cov.save()
-
-                    data = coverage.CoverageData()
-
-                    with os.scandir(td) as it:
-                        for entry in it:
-                            new_data = coverage.CoverageData()
-                            new_data.read_file(entry.path)
-                            data.update(new_data)
-
-                    data.write_file('.coverage')
-
-                    report_cov = cov_config.new_custom_coverage_object(
-                        config_file=str(cov_rc))
-                    report_cov.load()
-                    report_cov.report()
-        else:
-            return self._run(test)
-
-    def _run(self, test):
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
         setup = tb.get_test_cases_setup(cases)

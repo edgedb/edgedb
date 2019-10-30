@@ -1,6 +1,7 @@
 [run]
 branch = False
 plugins = Cython.Coverage
+parallel = True
 
 [report]
 exclude_lines =

@@ -19,11 +19,18 @@
 
 from __future__ import annotations
 
+import contextlib
+import functools
 import os
+import pathlib
 import sys
+import tempfile
 import unittest
 
 import click
+
+import edb
+from edb.common import devmode
 
 from edb.tools.edb import edbcommands
 
@@ -65,7 +72,9 @@ __all__ = ('not_implemented', 'xfail', 'skip')
 @click.option('-x', '--failfast', is_flag=True,
               help='stop tests after a first failure/error')
 @click.option('--cov', type=str, multiple=True,
-              help='file path or package name to measure code coverage for')
+              help='package name to measure code coverage for, '
+                   'can be specified multiple times '
+                   '(e.g --cov edb.common --cov edb.server)')
 def test(*, files, jobs, include, exclude, verbose, quiet, debug,
          output_format, warnings, failfast, cov):
     """Run EdgeDB test suite.
@@ -109,6 +118,88 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
                 f'Error: test path {file!r} does not exist', fg='red')
             sys.exit(1)
 
+    run = functools.partial(
+        _run,
+        include=include,
+        exclude=exclude,
+        verbosity=verbosity,
+        files=files,
+        jobs=jobs,
+        output_format=output_format,
+        warnings=warnings,
+        failfast=failfast,
+    )
+
+    if cov:
+        for pkg in cov:
+            if '\\' in pkg or '/' in pkg or pkg.endswith('.py'):
+                click.secho(
+                    f'Error: --cov argument {pkg!r} looks like a path, '
+                    f'expected a Python package name', fg='red')
+                sys.exit(1)
+
+        with _coverage_wrapper(cov):
+            result = run()
+    else:
+        result = run()
+
+    sys.exit(result)
+
+
+@contextlib.contextmanager
+def _coverage_wrapper(paths):
+    try:
+        import coverage  # NoQA
+    except ImportError:
+        click.secho(
+            'Error: "coverage" package is missing, cannot run tests '
+            'with --cov')
+        sys.exit(1)
+
+    for path in edb.__path__:
+        cov_rc = pathlib.Path(path).parent / '.coveragerc'
+        if cov_rc.exists():
+            break
+    else:
+        raise RuntimeError('cannot locate the .coveragerc file')
+
+    with tempfile.TemporaryDirectory() as td:
+        cov_config = devmode.CoverageConfig(
+            paths=paths,
+            config=str(cov_rc),
+            datadir=td)
+        cov_config.save_to_environ()
+
+        main_cov = cov_config.new_coverage_object()
+        main_cov.start()
+
+        try:
+            yield
+        finally:
+            main_cov.stop()
+            main_cov.save()
+
+            data = coverage.CoverageData()
+
+            with os.scandir(td) as it:
+                for entry in it:
+                    new_data = coverage.CoverageData()
+                    new_data.read_file(entry.path)
+                    data.update(new_data)
+
+            covfile = str(pathlib.Path(td) / '.coverage')
+            data.write_file(covfile)
+            report_cov = cov_config.new_custom_coverage_object(
+                config_file=str(cov_rc),
+                data_file=covfile,
+            )
+            report_cov.load()
+            click.secho('Coverage:')
+            report_cov.report()
+
+
+def _run(*, include, exclude, verbosity, files, jobs, output_format,
+         warnings, failfast):
     suite = unittest.TestSuite()
 
     total = 0
@@ -146,22 +237,14 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
 
     if verbosity > 0:
         click.echo()
-        click.echo(styles.status(
-            f'Using up to {jobs} processes to run tests.'))
-
-    if cov:
-        try:
-            import coverage  # NoQA
-        except ImportError:
-            click.secho(
-                'Error: "coverage" package is missing, cannot run tests '
-                'with --cov')
-            sys.exit(1)
+        if jobs > 1:
+            click.echo(styles.status(
+                f'Using up to {jobs} processes to run tests.'))
 
     test_runner = runner.ParallelTextTestRunner(
         verbosity=verbosity, output_format=output_format,
-        warnings=warnings, num_workers=jobs, failfast=failfast,
-        coverage=cov)
+        warnings=warnings, num_workers=jobs, failfast=failfast)
+
     result = test_runner.run(suite)
 
-    sys.exit(0 if result.wasSuccessful() else 1)
+    return 0 if result.wasSuccessful() else 1

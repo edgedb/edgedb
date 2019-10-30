@@ -80,6 +80,16 @@ class CoverageConfig(NamedTuple):
         )
 
     @classmethod
+    def start_coverage_if_requested(cls):
+        cov_config = cls.from_environ()
+        if cov_config is not None:
+            cov = cov_config.new_coverage_object()
+            cov.start()
+            return cov
+        else:
+            return None
+
+    @classmethod
     @contextlib.contextmanager
     def enable_coverage_if_requested(cls):
         cov_config = cls.from_environ()
