@@ -72,8 +72,9 @@ class CheckedDictTests(unittest.TestCase):
         FooDict = CheckedDict[str, Foo]
 
         td = FooDict(bar=Bar(), foo=Foo())
+        module_path = self.__module__
         expected = (
-            f"edb.common.checked.CheckedDict[str, common.test_checked."
+            f"edb.common.checked.CheckedDict[str, {module_path}."
             "CheckedDictTests.test_common_checked_checkeddict_basics."
             "<locals>.Foo]({'bar': Bar, 'foo': Foo})"
         )
@@ -160,8 +161,9 @@ class CheckedListTestBase:
 
         tl = FooList([Bar(), Foo()])
         cls_name = self.BaseList.__name__
+        module_path = self.__module__
         expected = (
-            f"edb.common.checked.{cls_name}[common.test_checked."
+            f"edb.common.checked.{cls_name}[{module_path}."
             "CheckedListTestBase.test_common_checked_shared_list_basics."
             "<locals>.Foo]([Bar, Foo])"
         )
@@ -297,8 +299,9 @@ class CheckedSetTestBase:
         expected = {"{Bar, Foo}", "{Foo, Bar}"}
         assert str(tl) in expected
         cls_name = self.BaseSet.__name__
+        module_path = self.__module__
         expected_template = (
-            f"edb.common.checked.{cls_name}[common.test_checked."
+            f"edb.common.checked.{cls_name}[{module_path}."
             "CheckedSetTestBase.test_common_checked_shared_set_basics."
             "<locals>.Foo]({})"
         )
