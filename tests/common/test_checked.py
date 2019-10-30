@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 import pickle
+import sys
 import unittest
 
 from edb.common.checked import CheckedDict
@@ -111,7 +112,7 @@ class CheckedDictTests(unittest.TestCase):
         assert sd == sd2
 
 
-class BaseCheckedListTests(unittest.TestCase):
+class CheckedListTestBase:
     BaseList = FrozenCheckedList
 
     def test_common_checked_shared_list_basics(self) -> None:
@@ -161,7 +162,7 @@ class BaseCheckedListTests(unittest.TestCase):
         cls_name = self.BaseList.__name__
         expected = (
             f"edb.common.checked.{cls_name}[common.test_checked."
-            "BaseCheckedListTests.test_common_checked_shared_list_basics."
+            "CheckedListTestBase.test_common_checked_shared_list_basics."
             "<locals>.Foo]([Bar, Foo])"
         )
         assert repr(tl) == expected, repr(tl)
@@ -191,14 +192,16 @@ class BaseCheckedListTests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "expects one type parameter"):
             self.BaseList[int, int]()
 
-        with self.assertRaisesRegex(TypeError, "expects types"):
-            self.BaseList[1]()
-
         with self.assertRaisesRegex(TypeError, "already parametrized"):
             self.BaseList[int][int]
 
+    @unittest.skipUnless(sys.version_info >= (3, 7, 3), "BPO-35992")
+    def test_common_checked_shared_list_non_type_parameter(self):
+        with self.assertRaisesRegex(TypeError, "expects types"):
+            self.BaseList[1]()
 
-class FrozenCheckedListTests(BaseCheckedListTests):
+
+class FrozenCheckedListTests(CheckedListTestBase, unittest.TestCase):
     BaseList = FrozenCheckedList
 
     def test_common_checked_frozenlist_basics(self) -> None:
@@ -208,7 +211,7 @@ class FrozenCheckedListTests(BaseCheckedListTests):
             sl.append("3")
 
 
-class CheckedListTests(BaseCheckedListTests):
+class CheckedListTests(CheckedListTestBase, unittest.TestCase):
     BaseList = CheckedList
 
     def test_common_checked_checkedlist_basics(self) -> None:
@@ -254,7 +257,7 @@ class CheckedListTests(BaseCheckedListTests):
             tl = (42,) + tl
 
 
-class BaseCheckedSetTests(unittest.TestCase):
+class CheckedSetTestBase:
     BaseSet = FrozenCheckedSet
 
     def test_common_checked_shared_set_basics(self) -> None:
@@ -296,17 +299,17 @@ class BaseCheckedSetTests(unittest.TestCase):
         cls_name = self.BaseSet.__name__
         expected_template = (
             f"edb.common.checked.{cls_name}[common.test_checked."
-            "BaseCheckedSetTests.test_common_checked_shared_set_basics."
+            "CheckedSetTestBase.test_common_checked_shared_set_basics."
             "<locals>.Foo]({})"
         )
         assert repr(tl) in {expected_template.format(e) for e in expected}
 
 
-class FrozenCheckedSetTests(BaseCheckedSetTests):
+class FrozenCheckedSetTests(CheckedSetTestBase, unittest.TestCase):
     BaseSet = FrozenCheckedSet
 
 
-class CheckedSetTests(BaseCheckedSetTests):
+class CheckedSetTests(CheckedSetTestBase, unittest.TestCase):
     BaseSet = CheckedSet
 
     def test_common_checked_checkedset_basics(self) -> None:
