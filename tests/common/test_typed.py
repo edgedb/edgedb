@@ -20,57 +20,10 @@
 import pickle
 import unittest
 
-from edb.common.typed import TypedDict, TypedList, StrList, TypedSet
-
-
-# StrDict and StrList are declared here (not in tests that use them)
-# to test pickling support (classes have to be accessible from the module
-# where declared)
-#
-class StrDict(TypedDict, keytype=str, valuetype=int):
-    pass
+from edb.common.typed import TypedList, StrList, TypedSet
 
 
 class TypedTests(unittest.TestCase):
-
-    def test_common_typeddict_basics(self):
-        assert StrDict({'1': 2})['1'] == 2
-        assert StrDict(foo=1, initdict=2)['initdict'] == 2
-
-        sd = StrDict(**{'1': 2})
-        assert sd['1'] == 2
-
-        assert dict(sd) == {'1': 2}
-
-        sd['foo'] = 42
-
-        with self.assertRaises(ValueError):
-            sd['foo'] = 'bar'
-        assert sd['foo'] == 42
-
-        with self.assertRaises(ValueError):
-            sd.update({'spam': 'ham'})
-
-        sd.update({'spam': 12})
-        assert sd['spam'] == 12
-
-        with self.assertRaises(ValueError):
-            StrDict(**{'foo': 'bar'})
-
-        with self.assertRaisesRegex(TypeError, "'valuetype'"):
-
-            class InvalidTypedDict(TypedDict, keytype=int):
-                """no 'valuetype' arg -- this class cannot be instantiated."""
-
-    def test_common_typeddict_pickling(self):
-        sd = StrDict()
-        sd['foo'] = 123
-
-        sd = pickle.loads(pickle.dumps(sd))
-
-        assert sd.keytype is str and sd.valuetype is int
-        assert type(sd) is StrDict
-        assert sd['foo'] == 123
 
     def test_common_typedlist_basics(self):
         tl = StrList()

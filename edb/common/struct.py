@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import collections
 
+from . import checked
 from . import typed
 
 
@@ -352,7 +353,7 @@ class Struct(metaclass=StructMeta):
                             v = ftype.type(v)
                         casted_value.append(v)
                     value = casted_value
-                elif issubclass(ftype, typed.AbstractTypedMapping):
+                elif issubclass(ftype, checked.CheckedDict):
                     casted_value = {}
                     for k, v in value.items():
                         if k is not None and not isinstance(k, ftype.keytype):

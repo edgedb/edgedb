@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from edb.common.struct import Struct, Field
+from edb.common import checked
 from edb.common import typed
 
 
@@ -71,8 +72,7 @@ class MarkupList(typed.TypedList, type=Markup):
     """List of BaseMarkup elements."""
 
 
-class MarkupMapping(typed.OrderedTypedDict, keytype=str, valuetype=Markup):
-    """Mapping ``str -> BaseMarkup``."""
+MarkupMapping = checked.CheckedDict[str, Markup]
 
 
 class OverflowBarier(Markup):
