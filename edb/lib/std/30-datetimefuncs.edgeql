@@ -591,13 +591,13 @@ CREATE CAST FROM std::local_date TO std::local_datetime {
 # IMMUTABLE (as the corresponding casts from those types to text).
 CREATE CAST FROM std::str TO std::datetime {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'edgedb.timestamptz_in';
+    FROM SQL FUNCTION 'edgedb.datetime_in';
 };
 
 
 CREATE CAST FROM std::str TO std::local_datetime {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'edgedb.timestamp_in';
+    FROM SQL FUNCTION 'edgedb.local_datetime_in';
 };
 
 

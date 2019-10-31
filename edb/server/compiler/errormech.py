@@ -299,6 +299,10 @@ def static_interpret_backend_error(fields):
 
 def interpret_backend_error(schema, fields):
     err_details = get_error_details(fields)
+    hint = None
+    if err_details.detail_json:
+        hint = err_details.detail_json.get('hint')
+
     # all generic errors are static and have been handled by this point
 
     if err_details.code == PGErrorCode.NotNullViolationError:
@@ -366,6 +370,7 @@ def interpret_backend_error(schema, fields):
     elif err_details.code in {PGErrorCode.InvalidDatetimeFormatError,
                               PGErrorCode.DatetimeError}:
         return errors.InvalidValueError(
-            translate_pgtype(schema, err_details.message))
+            translate_pgtype(schema, err_details.message),
+            hint=hint)
 
     return errors.InternalServerError(err_details.message)

@@ -1317,6 +1317,79 @@ class JSONSliceFunction(dbops.Function):
             text=self.text)
 
 
+class DatetimeInFunction(dbops.Function):
+    """Cast text into timestamptz using ISO8601 spec."""
+    text = r'''
+        SELECT
+            CASE WHEN val !~ (
+                    '^\s*(' ||
+                        '(\d{4}-\d{2}-\d{2}|\d{8})' ||
+                        '[ tT]' ||
+                        '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
+                        '([zZ]|[-+](\d{2,4}|\d{2}:\d{2}))' ||
+                    ')\s*$'
+                )
+            THEN
+                edgedb._raise_specific_exception(
+                    'invalid_datetime_format',
+                    'invalid input syntax for type timestamptz: ' ||
+                    quote_literal(val),
+                    '{"hint":"Please use ISO8601 format. Alternatively ' ||
+                    '\"to_datetime\" function provides custom ' ||
+                    'formatting options."}',
+                    NULL::timestamptz
+                )
+            ELSE
+                val::timestamptz
+            END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'datetime_in'),
+            args=[('val', ('text',))],
+            returns=('timestamptz',),
+            # Same volatility as _raise_specific_exception (stable)
+            volatility='stable',
+            text=self.text)
+
+
+class LocalDatetimeInFunction(dbops.Function):
+    """Cast text into timestamp using ISO8601 spec."""
+    text = r'''
+        SELECT
+            CASE WHEN val !~ (
+                    '^\s*(' ||
+                        '(\d{4}-\d{2}-\d{2}|\d{8})' ||
+                        '[ tT]' ||
+                        '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
+                    ')\s*$'
+                )
+            THEN
+                edgedb._raise_specific_exception(
+                    'invalid_datetime_format',
+                    'invalid input syntax for type timestamp: ' ||
+                    quote_literal(val),
+                    '{"hint":"Please use ISO8601 format. Alternatively ' ||
+                    '\"to_local_datetime\" function provides custom ' ||
+                    'formatting options."}',
+                    NULL::timestamp
+                )
+            ELSE
+                val::timestamp
+            END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'local_datetime_in'),
+            args=[('val', ('text',))],
+            returns=('timestamp',),
+            # Same volatility as _raise_specific_exception (stable)
+            volatility='stable',
+            text=self.text)
+
+
 class SysConfigValueType(dbops.CompositeType):
     """Type of values returned by _read_sys_config."""
     def __init__(self) -> None:
@@ -1700,6 +1773,8 @@ async def bootstrap(conn):
         dbops.CreateFunction(JSONIndexByTextFunction()),
         dbops.CreateFunction(JSONIndexByIntFunction()),
         dbops.CreateFunction(JSONSliceFunction()),
+        dbops.CreateFunction(DatetimeInFunction()),
+        dbops.CreateFunction(LocalDatetimeInFunction()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateFunction(SysConfigFunction()),

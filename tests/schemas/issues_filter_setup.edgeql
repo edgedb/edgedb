@@ -61,7 +61,7 @@ INSERT Issue {
     body := 'Implicit path existence does not apply to NOT EXISTS.',
     owner := (SELECT User FILTER User.name = 'Elvis'),
     status := (SELECT Status FILTER Status.name = 'Open'),
-    due_date := <datetime>'2020/01/15T00:00:00+00:00',
+    due_date := <datetime>'2020-01-15T00:00:00+00:00',
 };
 
 WITH MODULE test
@@ -72,7 +72,7 @@ INSERT Issue {
     owner := (SELECT User FILTER User.name = 'Yury'),
     status := (SELECT Status FILTER Status.name = 'Open'),
     time_estimate := 9999,
-    due_date := <datetime>'2020/01/15T00:00:00+00:00',
+    due_date := <datetime>'2020-01-15T00:00:00+00:00',
 };
 
 WITH MODULE test
