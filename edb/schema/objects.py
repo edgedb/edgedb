@@ -726,29 +726,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return frozenset(sig)
 
-    def set_field_value_with_delta(self, schema, name, value, *,
-                                   dctx, source, source_context=None):
-        """Set the attribute `name` to `value`."""
-        from . import delta as sd
-
-        try:
-            current = self.get_explicit_field_value(schema, name)
-        except FieldValueNotFoundError:
-            changed = True
-        else:
-            changed = current != value
-
-        if changed:
-            schema = self.set_field_value(schema, name, value)
-            if dctx is not None:
-                dctx.current().op.add(sd.AlterObjectProperty(
-                    property=name,
-                    new_value=value,
-                    source=source
-                ))
-
-        return schema
-
     def compare(self, other, *, our_schema, their_schema, context=None):
         if (not isinstance(other, self.__class__) and
                 not isinstance(self, other.__class__)):

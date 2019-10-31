@@ -41,16 +41,25 @@ class InheritingObjectCommand(sd.ObjectCommand):
 
     def _create_begin(self, schema, context):
         schema = super()._create_begin(schema, context)
-        inherited_fields = self.compute_inherited_fields(schema, context)
-        schema = self.scls.set_field_value(
-            schema, 'inherited_fields', inherited_fields)
+
+        if not context.canonical:
+            schema = self._update_inherited_fields(schema, context)
+
         return schema
 
     def _alter_begin(self, schema, context, scls):
         schema = super()._alter_begin(schema, context, scls)
-        inherited_fields = self.scls.get_inherited_fields(schema)
-        inherited_fields = inherited_fields.update(
-            self.compute_inherited_fields(schema, context))
+
+        if not context.canonical:
+            schema = self._update_inherited_fields(schema, context)
+
+        return schema
+
+    def _update_inherited_fields(self, schema, context):
+        current_inh_fields = self.scls.get_inherited_fields(schema)
+        new_inh_fields = self.compute_inherited_fields(schema, context)
+        inherited_fields = current_inh_fields.update(new_inh_fields)
+        self.set_attribute_value('inherited_fields', inherited_fields)
         schema = self.scls.set_field_value(
             schema, 'inherited_fields', inherited_fields)
         return schema
@@ -78,16 +87,21 @@ class InheritingObjectCommand(sd.ObjectCommand):
             inherited = result is not None and ours is None
             inherited_fields_update[field_name] = inherited
 
-            if result is not None or ours is not None:
-                schema = scls.set_field_value_with_delta(
-                    schema, field_name, result, dctx=context,
-                    source='inheritance' if inherited else None)
+            if ((result is not None or ours is not None)
+                    and result != ours):
+                schema = scls.set_field_value(schema, field_name, result)
+                self.set_attribute_value(field_name, result,
+                                         inherited=inherited)
+
+        inherited_fields = inherited_fields.update(inherited_fields_update)
 
         schema = scls.set_field_value(
             schema,
             'inherited_fields',
-            inherited_fields.update(inherited_fields_update),
+            inherited_fields,
         )
+
+        self.set_attribute_value('inherited_fields', inherited_fields)
 
         return schema
 
@@ -592,16 +606,7 @@ class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
 
 class AlterInheritingObjectFragment(InheritingObjectCommand,
                                     sd.AlterObjectFragment):
-
-    def _alter_begin(self, schema, context, scls):
-
-        if not context.canonical:
-            inherited_fields = self.compute_inherited_fields(schema, context)
-            inherited_fields = (
-                scls.get_inherited_fields(schema).update(inherited_fields))
-            self.set_attribute_value('inherited_fields', inherited_fields)
-
-        return super()._alter_begin(schema, context, scls)
+    pass
 
 
 class DeleteInheritingObject(InheritingObjectCommand, sd.DeleteObject):

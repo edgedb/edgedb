@@ -209,10 +209,6 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
         else:
             schema, fields = self._get_field_updates(schema, context)
 
-        inherited_fields = self.compute_inherited_fields(schema, context)
-        if inherited_fields:
-            fields['inherited_fields'] = inherited_fields
-
         return schema, fields
 
     def fill_record(self, schema, context, *, use_defaults=False):
