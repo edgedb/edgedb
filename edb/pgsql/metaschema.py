@@ -66,7 +66,7 @@ class Context:
 
 
 class TypeDescNodeType(dbops.CompositeType):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=('edgedb', 'type_desc_node_t'))
 
         self.add_columns([
@@ -81,7 +81,7 @@ class TypeDescNodeType(dbops.CompositeType):
 
 
 class TypeDescType(dbops.CompositeType):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=('edgedb', 'typedesc_t'))
 
         self.add_columns([
@@ -90,7 +90,7 @@ class TypeDescType(dbops.CompositeType):
 
 
 class ExpressionType(dbops.CompositeType):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=('edgedb', 'expression_t'))
 
         self.add_columns([
@@ -112,7 +112,7 @@ class GetObjectMetadata(dbops.Function):
             obj_description("objoid", "objclass") AS d
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'obj_metadata'),
             args=[('objoid', ('oid',)), ('objclass', ('text',))],
@@ -133,7 +133,7 @@ class GetSharedObjectMetadata(dbops.Function):
             shobj_description("objoid", "objclass") AS d
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'shobj_metadata'),
             args=[('objoid', ('oid',)), ('objclass', ('text',))],
@@ -150,7 +150,7 @@ class RaiseExceptionFunction(dbops.Function):
     END;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_raise_exception'),
             args=[('msg', ('text',)), ('rtype', ('anyelement',))],
@@ -178,7 +178,7 @@ class RaiseSpecificExceptionFunction(dbops.Function):
     END;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_raise_specific_exception'),
             args=[('exc', ('text',)), ('msg', ('text',)), ('det', ('text',)),
@@ -198,7 +198,7 @@ class RaiseExceptionOnNullFunction(dbops.Function):
             coalesce(val, edgedb._raise_specific_exception(exc, msg, det, val))
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_raise_exception_on_null'),
             args=[('val', ('anyelement',)), ('exc', ('text',)),
@@ -220,7 +220,7 @@ class RaiseExceptionOnEmptyStringFunction(dbops.Function):
             END;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_raise_exception_on_empty'),
             args=[('val', ('anyelement',)), ('exc', ('text',)),
@@ -251,7 +251,7 @@ class AssertJSONTypeFunction(dbops.Function):
             END
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'jsonb_assert_type'),
             args=[('val', ('jsonb',)), ('typenames', ('text[]',)),
@@ -273,7 +273,7 @@ class ExtractJSONScalarFunction(dbops.Function):
             ])->>0)
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'jsonb_extract_scalar'),
             args=[('val', ('jsonb',)), ('json_typename', ('text',)),
@@ -306,7 +306,7 @@ class DeriveUUIDFunction(dbops.Function):
                 i, b
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_derive_uuid'),
             args=[('id', ('uuid',)), ('variant', ('smallint',))],
@@ -320,7 +320,7 @@ class ResolveTypeNameFunction(dbops.Function):
         SELECT edgedb._resolve_type_name((type.types[1]).maintype)
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_resolve_type_name'),
             args=[('type', ('edgedb', 'typedesc_t'))],
@@ -343,7 +343,7 @@ class ResolveSimpleTypeNameFunction(dbops.Function):
         )
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_resolve_type_name'),
             args=[('type', ('uuid',))],
@@ -363,7 +363,7 @@ class ResolveSimpleTypeNameListFunction(dbops.Function):
             UNNEST(type_data) WITH ORDINALITY AS t(id)
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_resolve_type_name'),
             args=[('type_data', ('uuid[]',))],
@@ -398,7 +398,7 @@ class EdgeDBNameToPGNameFunction(dbops.Function):
             END;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'edgedb_name_to_pg_name'),
             args=[('name', 'text')],
@@ -415,7 +415,7 @@ class ConvertNameFunction(dbops.Function):
                 quote_ident(edgedb.edgedb_name_to_pg_name(name || suffix));
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'convert_name'),
             args=[('module', 'text'), ('name', 'text'), ('suffix', 'text'),
@@ -430,7 +430,7 @@ class ObjectTypeNameToTableNameFunction(dbops.Function):
         SELECT convert_name(module, name, '_data', prefix);
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'objtype_name_to_table_name'),
             args=[('module', 'text'), ('name', 'text'),
@@ -445,7 +445,7 @@ class LinkNameToTableNameFunction(dbops.Function):
         SELECT convert_name(module, name, '_link', prefix);
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'link_name_to_table_name'),
             args=[('module', 'text'), ('name', 'text'),
@@ -465,7 +465,7 @@ class IssubclassFunction(dbops.Function):
             );
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'issubclass'),
             args=[('clsid', 'uuid'), ('classes', 'uuid[]')],
@@ -484,7 +484,7 @@ class IssubclassFunction2(dbops.Function):
             );
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'issubclass'),
             args=[('clsid', 'uuid'), ('pclsid', 'uuid')],
@@ -519,7 +519,7 @@ class IsinstanceFunction(dbops.Function):
     END;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'isinstance'),
             args=[('objid', 'uuid'), ('pclsid', 'uuid')],
@@ -548,7 +548,7 @@ class NormalizeNameFunction(dbops.Function):
             END;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'shortname_from_fullname'),
             args=[('name', 'text')],
@@ -560,7 +560,7 @@ class NormalizeNameFunction(dbops.Function):
 
 class NullIfArrayNullsFunction(dbops.Function):
     """Check if array contains NULLs and if so, return NULL."""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_nullif_array_nulls'),
             args=[('a', 'anyarray')],
@@ -575,7 +575,7 @@ class NullIfArrayNullsFunction(dbops.Function):
 
 class IndexDescType(dbops.CompositeType):
     """Introspected index description."""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=('edgedb', 'intro_index_desc_t'))
 
         self.add_columns([
@@ -657,7 +657,7 @@ class IntrospectIndexesFunction(dbops.Function):
             ) AS i
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'introspect_indexes'),
             args=[
@@ -677,7 +677,7 @@ class IntrospectIndexesFunction(dbops.Function):
 
 class TriggerDescType(dbops.CompositeType):
     """Introspected trigger description."""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=('edgedb', 'intro_trigger_desc_t'))
 
         self.add_columns([
@@ -792,7 +792,7 @@ class IntrospectTriggersFunction(dbops.Function):
             ) AS t
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'introspect_triggers'),
             args=[
@@ -812,7 +812,7 @@ class IntrospectTriggersFunction(dbops.Function):
 
 class TableInheritanceDescType(dbops.CompositeType):
     """Introspected table inheritance descriptor."""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=('edgedb', 'intro_tab_inh_t'))
 
         self.add_columns([
@@ -874,7 +874,7 @@ class GetTableDescendantsFunction(dbops.Function):
             depth
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'get_table_descendants'),
             args=[
@@ -932,7 +932,7 @@ class ParseTriggerConditionFunction(dbops.Function):
         END;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_parse_trigger_condition'),
             args=[
@@ -956,7 +956,7 @@ class NormalizeArrayIndexFunction(dbops.Function):
         )::int
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_normalize_array_index'),
             args=[('index', ('bigint',)), ('length', ('int',))],
@@ -977,7 +977,7 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
         )
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
             args=[('val', ('anyarray',)), ('index', ('bigint',)),
@@ -1008,7 +1008,7 @@ class ArraySliceFunction(dbops.Function):
             END
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_slice'),
             args=[('val', ('anyarray',)), ('start', ('bigint',)),
@@ -1032,7 +1032,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
         )
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
             args=[('val', ('text',)), ('index', ('bigint',)),
@@ -1058,7 +1058,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
         )
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
             args=[('val', ('bytea',)), ('index', ('bigint',)),
@@ -1080,7 +1080,7 @@ class SubstrProxyFunction(dbops.Function):
             END
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_substr'),
             args=[('val', ('anyelement',)), ('start', ('bigint',)),
@@ -1097,7 +1097,7 @@ class LengthStringProxyFunction(dbops.Function):
         SELECT char_length(val)
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_length'),
             args=[('val', ('text',))],
@@ -1113,7 +1113,7 @@ class LengthBytesProxyFunction(dbops.Function):
         SELECT length(val)
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_length'),
             args=[('val', ('bytea',))],
@@ -1154,7 +1154,7 @@ class StringSliceImplFunction(dbops.Function):
             END
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_str_slice'),
             args=[
@@ -1172,7 +1172,7 @@ class StringSliceFunction(dbops.Function):
         SELECT edgedb._str_slice(val, start, stop)
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_slice'),
             args=[
@@ -1190,7 +1190,7 @@ class BytesSliceFunction(dbops.Function):
         SELECT edgedb._str_slice(val, start, stop)
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_slice'),
             args=[
@@ -1236,7 +1236,7 @@ class JSONIndexByTextFunction(dbops.Function):
             END
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
             args=[('val', ('jsonb',)), ('index', ('text',)),
@@ -1281,7 +1281,7 @@ class JSONIndexByIntFunction(dbops.Function):
             END
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_index'),
             args=[('val', ('jsonb',)), ('index', ('bigint',)),
@@ -1306,7 +1306,7 @@ class JSONSliceFunction(dbops.Function):
         ))
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_slice'),
             args=[('val', ('jsonb',)), ('start', ('bigint',)),
@@ -1319,7 +1319,7 @@ class JSONSliceFunction(dbops.Function):
 
 class SysConfigValueType(dbops.CompositeType):
     """Type of values returned by _read_sys_config."""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name=('edgedb', '_sys_config_val_t'))
 
         self.add_columns([
@@ -1446,7 +1446,7 @@ class SysConfigFunction(dbops.Function):
         END;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_read_sys_config'),
             args=[],
@@ -1474,7 +1474,7 @@ class SysMetadataFunction(dbops.Function):
             )::jsonb) -> name;
     '''
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_read_sys_metadata'),
             args=[('name', ('text',))],
