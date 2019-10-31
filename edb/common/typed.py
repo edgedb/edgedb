@@ -24,7 +24,7 @@ import builtins
 import collections
 import collections.abc
 
-__all__ = 'TypedList', 'TypedDict', 'OrderedTypedDict'
+__all__ = ['TypedList']
 
 
 class TypedCollectionMeta(abc.ABCMeta):
@@ -103,75 +103,6 @@ class AbstractTypedSet(AbstractTypedCollection, type=None):
 
         for item in set:
             self._check_item(item)
-
-
-class AbstractTypedMapping(
-        AbstractTypedCollection, keytype=None, valuetype=None):
-    _TYPE_ARGS = ('keytype', 'valuetype')
-
-    def _check_key(self, key):
-        AbstractTypedCollection._check_type(self, key, self.keytype, 'keys')
-
-    def _check_value(self, value):
-        AbstractTypedCollection._check_type(
-            self, value, self.valuetype, 'values')
-
-    def _check_values(self, dct):
-        for key, value in dct.items():
-            self._check_key(key)
-            self._check_value(value)
-
-
-class _AbstractTypedDict(AbstractTypedMapping, keytype=None, valuetype=None):
-    _base_dict_cls = None
-
-    def __init__(self, *args, **kwargs):
-        """
-        :param kwargs: Initial values.
-        """
-
-        AbstractTypedCollection.__init__(self)
-        self.__class__._base_dict_cls.__init__(self)
-
-        if len(args) == 1:
-            self.update(args[0])
-        elif len(args) > 1:
-            msg = 'TypedDict expected at most 1 arguments, got {}'
-            raise TypeError(msg.format(len(args)))
-
-        if kwargs:
-            self.update(kwargs)
-
-    def __setitem__(self, key, value):
-        self._check_key(key)
-        self._check_value(value)
-        super().__setitem__(key, value)
-
-
-class TypedDict(
-        _AbstractTypedDict, collections.UserDict, keytype=None,
-        valuetype=None):
-    """Dict-like mapping with typed keys and values.
-
-    .. code-block:: pycon
-
-        >>> class StrIntMapping(TypedDict, keytype=str, valuetype=int):
-        ...    pass
-
-        >>> dct = StrIntMapping()
-        >>> dct['foo'] = 42
-
-        >>> dct['foo'] = 'spam'
-        ValueError
-    """
-
-    _base_dict_cls = collections.UserDict
-
-
-class OrderedTypedDict(
-        _AbstractTypedDict, collections.OrderedDict, keytype=None,
-        valuetype=None):
-    _base_dict_cls = collections.OrderedDict
 
 
 class FrozenTypedList(AbstractTypedSequence, collections.UserList, type=None):

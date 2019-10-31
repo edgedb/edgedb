@@ -31,7 +31,7 @@ from edb import errors
 from edb.common import adapter
 from edb.edgeql import ast as qlast
 
-from edb.common import markup, ordered, struct, typed
+from edb.common import checked, markup, ordered, struct, typed
 
 from . import expr as s_expr
 from . import name as sn
@@ -115,7 +115,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         if isinstance(ftype, so.ObjectMeta):
             value = self._resolve_type_ref(value, schema)
 
-        elif issubclass(ftype, typed.AbstractTypedMapping):
+        elif issubclass(ftype, checked.CheckedDict):
             if issubclass(ftype.valuetype, so.Object):
                 vals = {}
 

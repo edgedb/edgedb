@@ -29,6 +29,7 @@ import immutables as immu
 
 from edb import errors
 
+from edb.common import checked
 from edb.common import markup
 from edb.common import ordered
 from edb.common import parsing
@@ -202,7 +203,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
                 casted_value.append(v)
             return ftype(casted_value)
 
-        if issubclass(ftype, typed.AbstractTypedMapping):
+        if issubclass(ftype, checked.CheckedDict):
             casted_value = {}
             for k, v in value.items():
                 if k is not None and not isinstance(k, ftype.keytype):
