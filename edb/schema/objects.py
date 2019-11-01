@@ -195,7 +195,8 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
                 f'{self.name} field: expected {ftype} but got {value!r}')
 
         if issubclass(ftype, (typed.AbstractTypedSequence,
-                              typed.AbstractTypedSet)):
+                              checked.CheckedSet,
+                              checked.FrozenCheckedSet)):
             casted_value = []
             for v in value:
                 if v is not None and not isinstance(v, ftype.type):

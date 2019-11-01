@@ -127,7 +127,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 value = field.coerce_value(schema, value)
 
         elif issubclass(ftype, (typed.AbstractTypedSequence,
-                                typed.AbstractTypedSet)):
+                                checked.CheckedSet,
+                                checked.FrozenCheckedSet)):
             if issubclass(ftype.type, so.Object):
                 vals = []
 
