@@ -212,6 +212,13 @@ class FrozenCheckedListTests(CheckedListTestBase, unittest.TestCase):
         with self.assertRaises(AttributeError):
             sl.append("3")
 
+    def test_common_checked_frozenlist_hashable(self) -> None:
+        StrList = self.BaseList[str]
+        s1 = StrList(["1", "2"])
+        s2 = StrList(["1", "2"])
+        self.assertEqual(hash(s1), hash(tuple(s1)))
+        self.assertEqual(hash(s1), hash(s2))
+
 
 class CheckedListTests(CheckedListTestBase, unittest.TestCase):
     BaseList = CheckedList
@@ -326,6 +333,13 @@ class CheckedSetTestBase:
 
 class FrozenCheckedSetTests(CheckedSetTestBase, unittest.TestCase):
     BaseSet = FrozenCheckedSet
+
+    def test_common_checked_frozenset_hashable(self) -> None:
+        StrSet = self.BaseSet[str]
+        s1 = StrSet(["1", "2"])
+        s2 = StrSet(["2", "1"])
+        self.assertEqual(hash(s1), hash(frozenset(("1", "2"))))
+        self.assertEqual(hash(s1), hash(s2))
 
 
 class CheckedSetTests(CheckedSetTestBase, unittest.TestCase):

@@ -171,6 +171,12 @@ class FrozenCheckedList(
     def __init__(self, iterable: Iterable[T] = ()) -> None:
         super().__init__()
         self._container = [self._check_type(element) for element in iterable]
+        self._hash = -1
+
+    def __hash__(self) -> int:
+        if self._hash == -1:
+            self._hash = hash(tuple(self._container))
+        return self._hash
 
     #
     # Sequence
@@ -300,7 +306,7 @@ class CheckedList(
 
 class AbstractCheckedSet(AbstractSet[T]):
     type: type
-    _container: Set[T]
+    _container: AbstractSet[T]
 
     def _check_type(self, value: Any) -> T:
         """Ensure `value` is of type T and return it."""
@@ -359,6 +365,12 @@ class FrozenCheckedSet(ParametricType, SingleParameter, AbstractCheckedSet[T]):
     def __init__(self, iterable: Iterable[T] = ()) -> None:
         super().__init__()
         self._container = {self._check_type(element) for element in iterable}
+        self._hash = -1
+
+    def __hash__(self) -> int:
+        if self._hash == -1:
+            self._hash = hash(frozenset(self._container))
+        return self._hash
 
     #
     # Replaced mixins of collections.abc.Set
@@ -422,6 +434,8 @@ class FrozenCheckedSet(ParametricType, SingleParameter, AbstractCheckedSet[T]):
 class CheckedSet(
     ParametricType, SingleParameter, AbstractCheckedSet[T], MutableSet[T]
 ):
+    _container: Set[T]
+
     def __init__(self, iterable: Iterable[T] = ()) -> None:
         super().__init__()
         self._container = {self._check_type(element) for element in iterable}
