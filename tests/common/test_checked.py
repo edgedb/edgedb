@@ -307,6 +307,22 @@ class CheckedSetTestBase:
         )
         assert repr(tl) in {expected_template.format(e) for e in expected}
 
+    def test_common_checkedset_pickling(self):
+        StrSet = self.BaseSet[str]
+        sd = StrSet({"123", "456"})
+
+        self.assertIs(sd.type, str)
+        self.assertIs(type(sd), StrSet)
+        self.assertIn("123", sd)
+        self.assertIn("456", sd)
+
+        sd = pickle.loads(pickle.dumps(sd))
+
+        self.assertIs(sd.type, str)
+        self.assertIs(type(sd), StrSet)
+        self.assertIn("123", sd)
+        self.assertIn("456", sd)
+
 
 class FrozenCheckedSetTests(CheckedSetTestBase, unittest.TestCase):
     BaseSet = FrozenCheckedSet
@@ -359,18 +375,46 @@ class CheckedSetTests(CheckedSetTestBase, unittest.TestCase):
         with self.assertRaises(ValueError):
             tl ^= {42}
 
-    def test_common_checkedset_pickling(self):
-        StrSet = self.BaseSet[str]
-        sd = StrSet({"123", "456"})
 
-        assert sd.type is str
-        assert type(sd) is StrSet
-        assert "123" in sd
-        assert "456" in sd
+T = TypeVar("T")
 
-        sd = pickle.loads(pickle.dumps(sd))
 
-        assert sd.type is str
-        assert type(sd) is StrSet
-        assert "123" in sd
-        assert "456" in sd
+class ConcreteFrozenCheckedSetSubclass1(FrozenCheckedSet[int]):
+    def sum(self) -> int:
+        return sum(elem for elem in self)
+
+
+class GenericFrozenCheckedSetSubclass(FrozenCheckedSet[T]):
+    def sum(self) -> T:
+        return sum(elem for elem in self)
+
+
+ConcreteFrozenCheckedSetSubclass2 = GenericFrozenCheckedSetSubclass[int]
+
+
+class CheckedSubclassingTestBase:
+    BaseSet = GenericFrozenCheckedSetSubclass
+
+    def test_common_checked_checkedset_subclass_pickling(self):
+        cfcss = self.BaseSet([0, 2, 4, 6, 8])
+        self.assertIs(cfcss.type, int)
+        self.assertIs(type(cfcss), self.BaseSet)
+        self.assertEqual(cfcss, {0, 2, 4, 6, 8})
+        self.assertEqual(cfcss.sum(), 20)
+
+        pickled = pickle.dumps(cfcss)
+        cfcss2 = pickle.loads(pickled)
+
+        self.assertTrue(cfcss2.type, int)
+        self.assertIs(type(cfcss2), self.BaseSet)
+        self.assertIsNot(cfcss, cfcss2)
+        self.assertEqual(cfcss, cfcss2)
+        self.assertEqual(cfcss.sum(), 20)
+
+
+class CheckedSubclass1Tests(CheckedSubclassingTestBase, unittest.TestCase):
+    BaseSet = ConcreteFrozenCheckedSetSubclass1
+
+
+class CheckedSubclass2Tests(CheckedSubclassingTestBase, unittest.TestCase):
+    BaseSet = ConcreteFrozenCheckedSetSubclass2
