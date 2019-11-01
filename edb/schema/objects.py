@@ -35,7 +35,6 @@ from edb.common import ordered
 from edb.common import parsing
 from edb.common import struct
 from edb.common import topological
-from edb.common import typed
 from edb.common import uuidgen
 
 from . import abc as s_abc
@@ -194,8 +193,9 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
             raise TypeError(
                 f'{self.name} field: expected {ftype} but got {value!r}')
 
-        if issubclass(ftype, (typed.AbstractTypedSequence,
+        if issubclass(ftype, (checked.CheckedList,
                               checked.CheckedSet,
+                              checked.FrozenCheckedList,
                               checked.FrozenCheckedSet)):
             casted_value = []
             for v in value:

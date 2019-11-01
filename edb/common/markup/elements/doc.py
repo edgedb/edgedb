@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import difflib
 
-from edb.common import typed
+from edb.common import checked
 from edb.common.struct import Field
 from . import base
 
@@ -49,7 +49,7 @@ class SourceCode(DocMarkup):
 
 
 class Diff(DocMarkup):
-    lines = Field(typed.StrList, coerce=True)
+    lines = Field(checked.CheckedList[str], coerce=True)
 
     @classmethod
     def get_diff(

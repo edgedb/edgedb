@@ -27,7 +27,7 @@ import uuid
 
 from edb import errors
 
-from edb.common import typed
+from edb.common import checked
 
 from edb.edgeql import ast as qlast
 
@@ -554,8 +554,7 @@ class EphemeralCollection(Collection):
         return self.rptr
 
 
-class Dimensions(typed.FrozenTypedList, type=int):
-    pass
+Dimensions = checked.FrozenCheckedList[int]
 
 
 class BaseArray(Collection, s_abc.Array):

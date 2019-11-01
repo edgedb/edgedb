@@ -19,7 +19,8 @@
 
 from __future__ import annotations
 
-from edb.common import struct, typed
+from edb.common import checked
+from edb.common import struct
 from . import base
 
 
@@ -31,12 +32,10 @@ class Token(BaseCode):
     val = struct.Field(str)
 
 
-class TokenList(typed.TypedList, type=Token):
-    pass
-
-
 class Code(BaseCode):
-    tokens = struct.Field(TokenList, default=None, coerce=True)
+    tokens = struct.Field(
+        checked.CheckedList[Token], default=None, coerce=True
+    )
 
 
 class Whitespace(Token):

@@ -22,7 +22,6 @@ from __future__ import annotations
 import collections
 
 from . import checked
-from . import typed
 
 
 class NoDefault:
@@ -345,8 +344,9 @@ class Struct(metaclass=StructMeta):
             if field.coerce:
                 ftype = field.type[0]
 
-                if issubclass(ftype, (typed.AbstractTypedSequence,
+                if issubclass(ftype, (checked.CheckedList,
                                       checked.CheckedSet,
+                                      checked.FrozenCheckedList,
                                       checked.FrozenCheckedSet)):
                     casted_value = []
                     for v in value:

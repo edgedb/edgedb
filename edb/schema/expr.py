@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import copy
 
+from edb.common import checked
 from edb.common import struct
-from edb.common import typed
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -166,7 +166,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
         ), self
 
 
-class ExpressionList(typed.FrozenTypedList, type=Expression):
+class ExpressionList(checked.FrozenCheckedList[Expression]):
 
     @classmethod
     def merge_values(cls, target, sources, field_name, *, schema):

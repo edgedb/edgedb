@@ -22,7 +22,7 @@ from __future__ import annotations
 import linecache
 
 from edb.common.struct import Field
-from edb.common import typed
+from edb.common import checked
 from . import base
 
 
@@ -74,8 +74,7 @@ class TreeNodeChild(BaseObject):
     node = Field(base.Markup)
 
 
-class TreeNodeChildrenList(typed.TypedList, type=TreeNodeChild):
-    pass
+TreeNodeChildrenList = checked.CheckedList[TreeNodeChild]
 
 
 class TreeNode(BaseObject):
@@ -113,8 +112,8 @@ class TracebackPoint(BaseObject):
     address = Field(str, default=None)
     context = Field(bool, default=False)
 
-    lines = Field(typed.StrList, default=None, coerce=True)
-    line_numbers = Field(typed.IntList, default=None, coerce=True)
+    lines = Field(checked.CheckedList[str], default=None, coerce=True)
+    line_numbers = Field(checked.CheckedList[int], default=None, coerce=True)
 
     locals = Field(Dict, default=None)
 
@@ -143,12 +142,11 @@ class TracebackPoint(BaseObject):
                 line_numbers.append(i)
 
             if lines:
-                self.lines = typed.StrList(lines)
-                self.line_numbers = typed.IntList(line_numbers)
+                self.lines = checked.CheckedList[str](lines)
+                self.line_numbers = checked.CheckedList[int](line_numbers)
 
 
-class TracebackPointList(typed.TypedList, type=TracebackPoint):
-    pass
+TracebackPointList = checked.CheckedList[TracebackPoint]
 
 
 class Traceback(BaseObject):
@@ -160,8 +158,7 @@ class ExceptionContext(BaseObject):
     body = Field(base.MarkupList, coerce=True)
 
 
-class ExceptionContextList(typed.TypedList, type=ExceptionContext):
-    pass
+ExceptionContextList = checked.CheckedList[ExceptionContext]
 
 
 class _Exception(Object):
