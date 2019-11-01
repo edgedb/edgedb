@@ -26,7 +26,7 @@ import re
 import textwrap
 import uuid
 
-from edb.common import adapter, debug, typed
+from edb.common import adapter, checked, debug
 from edb.common import context as parser_context
 from edb.common import exceptions
 
@@ -1507,11 +1507,11 @@ def _field_to_column(field):
     elif issubclass(ftype, s_expr.ExpressionList):
         coltype = 'edgedb.expression_t[]'
 
-    elif (issubclass(ftype, (typed.TypedList, typed.FrozenTypedList))
+    elif (issubclass(ftype, (checked.CheckedList, checked.FrozenCheckedList))
             and issubclass(ftype.type, str)):
         coltype = 'text[]'
 
-    elif (issubclass(ftype, (typed.TypedList, typed.FrozenTypedList))
+    elif (issubclass(ftype, (checked.CheckedList, checked.FrozenCheckedList))
             and issubclass(ftype.type, int)):
         coltype = 'int[]'
 

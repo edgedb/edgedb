@@ -23,7 +23,7 @@ from typing import *  # NoQA
 
 from edb import errors
 
-from edb.common import typed
+from edb.common import checked
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
@@ -38,10 +38,6 @@ from . import objects as so
 from . import types as s_types
 
 
-class FrozenStrList(typed.FrozenTypedList, type=str):
-    pass
-
-
 class ScalarType(s_types.Type, constraints.ConsistencySubject,
                  s_anno.AnnotationSubject, s_abc.ScalarType):
 
@@ -51,7 +47,7 @@ class ScalarType(s_types.Type, constraints.ConsistencySubject,
     )
 
     enum_values = so.SchemaField(
-        FrozenStrList, default=None,
+        checked.FrozenCheckedList[str], default=None,
         coerce=True, compcoef=0.8,
     )
 

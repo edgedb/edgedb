@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from edb.common.struct import Struct, Field
 from edb.common import checked
-from edb.common import typed
 
 
 class MarkupMeta(type(Struct)):
@@ -50,7 +49,7 @@ class MarkupMeta(type(Struct)):
     def __instancecheck__(cls, inst):
         # We make OverflowBarier and SerializationError be instanceof
         # and subclassof any Markup class.  This avoids errors when
-        # they are being added to various TypedList & TypedMaps
+        # they are being added to various CheckedList & CheckedDict
         # collections.
         parent_check = type(Struct).__instancecheck__
         if parent_check(cls, inst):
@@ -68,10 +67,7 @@ class Markup(Struct, metaclass=MarkupMeta, use_slots=True):
     """Base class for all markup elements."""
 
 
-class MarkupList(typed.TypedList, type=Markup):
-    """List of BaseMarkup elements."""
-
-
+MarkupList = checked.CheckedList[Markup]
 MarkupMapping = checked.CheckedDict[str, Markup]
 
 

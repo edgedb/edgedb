@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 from edb import errors
-from edb.common import typed
+from edb.common import checked
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -44,7 +44,7 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
         qlast.Language, default=None, compcoef=0.4, coerce=True)
 
     from_operator = so.SchemaField(
-        typed.StrList, coerce=True,
+        checked.CheckedList[str], coerce=True,
         default=None, compcoef=0.4, introspectable=False)
 
     from_function = so.SchemaField(

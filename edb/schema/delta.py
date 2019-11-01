@@ -31,7 +31,7 @@ from edb import errors
 from edb.common import adapter
 from edb.edgeql import ast as qlast
 
-from edb.common import checked, markup, ordered, struct, typed
+from edb.common import checked, markup, ordered, struct
 
 from . import expr as s_expr
 from . import name as sn
@@ -126,8 +126,9 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             else:
                 value = field.coerce_value(schema, value)
 
-        elif issubclass(ftype, (typed.AbstractTypedSequence,
+        elif issubclass(ftype, (checked.CheckedList,
                                 checked.CheckedSet,
+                                checked.FrozenCheckedList,
                                 checked.FrozenCheckedSet)):
             if issubclass(ftype.type, so.Object):
                 vals = []
@@ -385,8 +386,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                                   (' ' + flds) if flds else '')
 
 
-class CommandList(typed.TypedList, type=Command):
-    pass
+CommandList = checked.CheckedList[Command]
 
 
 class CommandGroup(Command):
