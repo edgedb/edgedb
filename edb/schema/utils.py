@@ -266,6 +266,7 @@ def get_nq_name(schema, item) -> str:
 def find_item_suggestions(
         name, modaliases, schema, *, item_types=None, limit=3,
         collection=None, condition=None):
+    from . import functions as s_func
     from . import modules as s_mod
 
     if isinstance(name, sn.Name):
@@ -290,12 +291,23 @@ def find_item_suggestions(
         if not orig_modname:
             suggestions.extend(schema.get_objects(modules=['std']))
 
+    filters = []
+
     if item_types:
-        suggestions = list(
-            filter(lambda s: isinstance(s, item_types), suggestions))
+        filters.append(lambda s: isinstance(s, item_types))
 
     if condition is not None:
-        suggestions = list(filter(condition, suggestions))
+        filters.append(condition)
+
+    if not item_types:
+        # When schema class is not specified, only suggest generic objects.
+        filters.append(lambda s: not sn.is_fullname(s.get_name(schema)))
+        filters.append(lambda s: not isinstance(s, s_func.CallableObject))
+
+    # Never suggest object fragments.
+    filters.append(lambda s: not isinstance(s, so.ObjectFragment))
+
+    suggestions = filter(lambda s: all(f(s) for f in filters), suggestions)
 
     # Compute Levenshtein distance for each suggestion.
     with_distance = [

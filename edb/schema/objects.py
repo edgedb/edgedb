@@ -1202,6 +1202,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
 
 
+class ObjectFragment(Object):
+    """A part of another object that cannot exist independently."""
+
+
 class UnqualifiedObject(Object):
 
     name = SchemaField(

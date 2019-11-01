@@ -186,7 +186,7 @@ class ParameterDesc(NamedTuple, s_abc.Parameter):
         return cmd
 
 
-class Parameter(so.Object, s_abc.Parameter):
+class Parameter(so.ObjectFragment, s_abc.Parameter):
 
     num = so.SchemaField(
         int, compcoef=0.4)

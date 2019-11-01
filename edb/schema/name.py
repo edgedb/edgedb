@@ -119,3 +119,10 @@ def get_specialized_name(basename, *qualifiers) -> str:
             '@@' +
             '@'.join(mangle_name(qualifier)
                      for qualifier in qualifiers if qualifier))
+
+
+def is_fullname(name: str) -> bool:
+    return (
+        SchemaName.is_qualified(name)
+        and '@@' in name
+    )
