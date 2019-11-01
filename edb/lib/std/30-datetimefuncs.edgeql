@@ -603,13 +603,13 @@ CREATE CAST FROM std::str TO std::local_datetime {
 
 CREATE CAST FROM std::str TO std::local_date {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'edgedb.date_in';
+    FROM SQL FUNCTION 'edgedb.local_date_in';
 };
 
 
 CREATE CAST FROM std::str TO std::local_time {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'edgedb.time_in';
+    FROM SQL FUNCTION 'edgedb.local_time_in';
 };
 
 

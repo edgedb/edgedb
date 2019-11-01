@@ -230,7 +230,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "ir", 36.07)
 
     def test_type_coverage_pgsql(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "pgsql", 40.32)
+        self.assertFunctionCoverage(EDB_DIR / "pgsql", 40.43)
 
     def test_type_coverage_pgsql_compiler(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "pgsql" / "compiler", 100.00)

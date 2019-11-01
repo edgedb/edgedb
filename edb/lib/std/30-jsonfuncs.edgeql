@@ -280,7 +280,7 @@ CREATE CAST FROM std::json TO std::local_datetime {
 CREATE CAST FROM std::json TO std::local_date {
     SET volatility := 'STABLE';
     FROM SQL $$
-    SELECT edgedb.date_in(edgedb.jsonb_extract_scalar(val, 'string'));
+    SELECT edgedb.local_date_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 };
 
@@ -288,7 +288,7 @@ CREATE CAST FROM std::json TO std::local_date {
 CREATE CAST FROM std::json TO std::local_time {
     SET volatility := 'STABLE';
     FROM SQL $$
-    SELECT edgedb.time_in(edgedb.jsonb_extract_scalar(val, 'string'));
+    SELECT edgedb.local_time_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 };
 
