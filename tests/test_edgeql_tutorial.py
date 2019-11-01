@@ -27,241 +27,224 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
     ISOLATED_METHODS = False
 
     async def test_edgeql_tutorial(self):
-        await self.con.execute('''
+        await self.con.execute(r'''
             START TRANSACTION;
-
-            CREATE MIGRATION m1 TO {
-                type User {
-                    required property login -> str {
-                        constraint exclusive;
-                    };
-                    required property firstname -> str;
-                    required property lastname -> str;
-                };
-
-                type PullRequest {
-                    required property number -> int64 {
-                        constraint exclusive;
-                    };
+            CREATE MIGRATION movies TO {
+                type Movie {
                     required property title -> str;
-                    required property body -> str;
-                    required property status -> str;
-                    required property created_on -> datetime;
-                    required link author -> User;
-                    multi link assignees -> User {
-                        on target delete allow;
-                    };
-                    multi link comments -> Comment {
-                        on target delete allow;
-                    };
-                };
-
-                type Comment {
-                    required property body -> str;
-                    required link author -> User;
-                    required property created_on -> datetime;
-                };
+                    # the year of release
+                    property year -> int64;
+                    required link director -> Person;
+                    multi link cast -> Person;
+                }
+                type Person {
+                    required property first_name -> str;
+                    required property last_name -> str;
+                }
             };
-            COMMIT MIGRATION m1;
+            COMMIT MIGRATION movies;
+            COMMIT;
 
-            CREATE MIGRATION m2 TO {
-                type User {
-                    required property login -> str {
-                        constraint exclusive;
-                    };
-                    required property firstname -> str;
-                    required property lastname -> str;
-                };
-
-                abstract type AuthoredText {
-                    required property body -> str;
-                    required link author -> User;
-                    required property created_on -> datetime;
-                };
-
-                type PullRequest extending AuthoredText {
-                    required property number -> int64 {
-                        constraint exclusive;
-                    };
-                    required property title -> str;
-                    required property status -> str;
-                    multi link assignees -> User {
-                        on target delete allow;
-                    };
-                    multi link comments -> Comment {
-                        on target delete allow;
-                    };
-                };
-
-                type Comment extending AuthoredText;
-            };
-            COMMIT MIGRATION m2;
-
-            INSERT User {
-                login := 'alice',
-                firstname := 'Alice',
-                lastname := 'Liddell',
-            };
-
-            INSERT User {
-                login := 'bob',
-                firstname := 'Bob',
-                lastname := 'Sponge',
-            };
-
-            INSERT User {
-                login := 'carol',
-                firstname := 'Carol',
-                lastname := 'Danvers',
-            };
-
-            INSERT User {
-                login := 'dave',
-                firstname := 'Dave',
-                lastname := 'Bowman',
-            };
-
-            WITH
-                Alice := (SELECT User FILTER .login = "alice"),
-                Bob := (SELECT User FILTER .login = "bob")
-            INSERT PullRequest {
-                number := 1,
-                title := "Avoid attaching multiple scopes at once",
-                status := "Merged",
-                author := Alice,
-                assignees := Bob,
-                body := "Sublime Text and Atom handles multiple " ++
-                        "scopes differently.",
-                created_on := <datetime>"Feb 1, 2016, 5:29PM UTC",
-            };
-
-            WITH
-                Bob := (SELECT User FILTER .login = 'bob'),
-                NewComment := (INSERT Comment {
-                    author := Bob,
-                    body := "Thanks for catching that.",
-                    created_on :=
-                    <datetime>'Feb 2, 2016, 12:47 PM UTC',
-                })
-            UPDATE PullRequest
-            FILTER PullRequest.number = 1
-            SET {
-                comments := NewComment
-            };
-
-            WITH
-                Bob := (SELECT User FILTER .login = 'bob'),
-                Carol := (SELECT User FILTER .login = 'carol'),
-                Dave := (SELECT User FILTER .login = 'dave')
-            INSERT PullRequest {
-                number := 2,
-                title := 'Pyhton -> Python',
-                status := 'Open',
-                author := Carol,
-                assignees := {Bob, Dave},
-                body := "Several typos fixed.",
-                created_on :=
-                    <datetime>'Apr 25, 2016, 6:57 PM UTC',
-                comments := {
-                    (INSERT Comment {
-                        author := Carol,
-                        body := "Couple of typos are fixed. " ++
-                                "Updated VS count.",
-                        created_on := <datetime>'Apr 25, 2016, 6:58 PM UTC',
+            INSERT Movie {
+                title := 'Blade Runner 2049',
+                year := 2017,
+                director := (
+                    INSERT Person {
+                        first_name := 'Denis',
+                        last_name := 'Villeneuve',
+                    }
+                ),
+                cast := {
+                    (INSERT Person {
+                        first_name := 'Harrison',
+                        last_name := 'Ford',
                     }),
-                    (INSERT Comment {
-                        author := Bob,
-                        body := "Thanks for catching the typo.",
-                        created_on := <datetime>'Apr 25, 2016, 7:11 PM UTC',
+                    (INSERT Person {
+                        first_name := 'Ryan',
+                        last_name := 'Gosling',
                     }),
-                    (INSERT Comment {
-                        author := Dave,
-                        body := "Thanks!",
-                        created_on := <datetime>'Apr 25, 2016, 7:22 PM UTC',
+                    (INSERT Person {
+                        first_name := 'Ana',
+                        last_name := 'de Armas',
                     }),
                 }
             };
 
+            INSERT Movie {
+                title := 'Dune',
+                director := (
+                    SELECT Person
+                    FILTER
+                        # the last name is sufficient
+                        # to identify the right person
+                        .last_name = 'Villeneuve'
+                    # the LIMIT is needed to satisfy the single
+                    # link requirement validation
+                    LIMIT 1
+                )
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Movie {
+                    title,
+                    year
+                } ORDER BY .title;
+            ''',
+            [
+                {'title': 'Blade Runner 2049', 'year': 2017},
+                {'title': 'Dune', 'year': None},
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Movie {
+                    title,
+                    year
+                }
+                FILTER .title ILIKE 'blade runner%';
+            ''',
+            [
+                {'title': 'Blade Runner 2049', 'year': 2017},
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Movie {
+                    title,
+                    year,
+                    director: {
+                        first_name,
+                        last_name
+                    },
+                    cast: {
+                        first_name,
+                        last_name
+                    } ORDER BY .last_name
+                }
+                FILTER .title ILIKE 'blade runner%';
+            ''',
+            [{
+                'title': 'Blade Runner 2049',
+                'year': 2017,
+                'director': {
+                    'first_name': 'Denis',
+                    'last_name': 'Villeneuve',
+                },
+                'cast': [{
+                    'first_name': 'Harrison',
+                    'last_name': 'Ford',
+                }, {
+                    'first_name': 'Ryan',
+                    'last_name': 'Gosling',
+                }, {
+                    'first_name': 'Ana',
+                    'last_name': 'de Armas',
+                }],
+            }],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Movie {
+                    title,
+                    num_actors := count(Movie.cast)
+                } ORDER BY .title;
+            ''',
+            [
+                {'title': 'Blade Runner 2049', 'num_actors': 3},
+                {'title': 'Dune', 'num_actors': 0},
+            ],
+        )
+
+        await self.con.execute(r'''
+            INSERT Person {
+                first_name := 'Jason',
+                last_name := 'Momoa'
+            };
+            INSERT Person {
+                first_name := 'Oscar',
+                last_name := 'Isaac'
+            };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER TYPE Person {
+                ALTER PROPERTY first_name {
+                    DROP REQUIRED;
+                }
+            };
+        ''')
+
+        await self.con.execute(r'''
+            INSERT Person {
+                last_name := 'Zendaya'
+            };
+        ''')
+
+        await self.con.execute(r'''
+            UPDATE Movie
+            FILTER Movie.title = 'Dune'
+            SET {
+                cast := (
+                    SELECT Person
+                    FILTER .last_name IN {
+                        'Momoa',
+                        'Zendaya',
+                        'Isaac'
+                    }
+                )
+            };
+        ''')
+
+        await self.con.execute(r'''
+            START TRANSACTION;
+            CREATE MIGRATION movies TO {
+                type Movie {
+                    required property title -> str;
+                    # the year of release
+                    property year -> int64;
+                    required link director -> Person;
+                    multi link cast -> Person;
+                }
+                type Person {
+                    property first_name -> str;
+                    required property last_name -> str;
+                    property name :=
+                        .first_name ++ ' ' ++ .last_name
+                        IF EXISTS .first_name
+                        ELSE .last_name;
+                }
+            };
+            COMMIT MIGRATION movies;
             COMMIT;
         ''')
 
         await self.assert_query_result(
             r'''
-                SELECT
-                    PullRequest {
-                        title,
-                        created_on,
-                        author: {
-                        login
-                        },
-                        assignees: {
-                        login
-                        }
-                    }
-                FILTER
-                    .status = "Open"
-                ORDER BY
-                    .created_on DESC;
-            ''',
-            [{
-                'assignees': [{'login': 'bob'}, {'login': 'dave'}],
-                'author': {'login': 'carol'},
-                'created_on': '2016-04-25T18:57:00+00:00',
-                'title': 'Pyhton -> Python'
-            }],
-        )
-
-        await self.assert_query_result(
-            r'''
-                WITH
-                    name := 'bob'
-                SELECT
-                    PullRequest {
-                        title,
-                        created_on,
-                        num_comments := count(PullRequest.comments)
-                    }
-                FILTER
-                    .author.login = name OR
-                    .comments.author.login = name
-                ORDER BY
-                    .created_on DESC;
-            ''',
-            [{
-                'created_on': '2016-04-25T18:57:00+00:00',
-                'num_comments': 3,
-                'title': 'Pyhton -> Python'
-            }, {
-                'created_on': '2016-02-01T17:29:00+00:00',
-                'num_comments': 1,
-                'title': 'Avoid attaching multiple scopes at once'
-            }],
-        )
-
-        await self.assert_query_result(
-            r'''
-                SELECT AuthoredText {
-                    body,
-                    __type__: {
-                        name
-                    }
+                SELECT Movie {
+                    title,
+                    year,
+                    director: { name },
+                    cast: { name } ORDER BY .name
                 }
-                FILTER .author.login = 'carol'
-                ORDER BY .body;
-
+                FILTER .title = 'Dune';
             ''',
             [{
-                '__type__': {'name': 'default::Comment'},
-                'body': 'Couple of typos are fixed. Updated VS count.'
-            }, {
-                '__type__': {'name': 'default::PullRequest'},
-                'body': 'Several typos fixed.'
+                'title': 'Dune',
+                'year': None,
+                'director': {
+                    'name': 'Denis Villeneuve',
+                },
+                'cast': [{
+                    'name': 'Jason Momoa',
+                }, {
+                    'name': 'Oscar Isaac',
+                }, {
+                    'name': 'Zendaya',
+                }],
             }],
         )
-
-        await self.con.execute('''
-            DELETE (
-                SELECT AuthoredText
-                FILTER .author.login = 'carol'
-            );
-        ''')
