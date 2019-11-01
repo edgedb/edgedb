@@ -193,10 +193,8 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
             raise TypeError(
                 f'{self.name} field: expected {ftype} but got {value!r}')
 
-        if issubclass(ftype, (checked.CheckedList,
-                              checked.CheckedSet,
-                              checked.FrozenCheckedList,
-                              checked.FrozenCheckedSet)):
+        if issubclass(ftype, (checked.AbstractCheckedList,
+                              checked.AbstractCheckedSet)):
             casted_value = []
             for v in value:
                 if v is not None and not isinstance(v, ftype.type):

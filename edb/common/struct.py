@@ -344,10 +344,8 @@ class Struct(metaclass=StructMeta):
             if field.coerce:
                 ftype = field.type[0]
 
-                if issubclass(ftype, (checked.CheckedList,
-                                      checked.CheckedSet,
-                                      checked.FrozenCheckedList,
-                                      checked.FrozenCheckedSet)):
+                if issubclass(ftype, (checked.AbstractCheckedList,
+                                      checked.AbstractCheckedSet)):
                     casted_value = []
                     for v in value:
                         if v is not None and not isinstance(v, ftype.type):
