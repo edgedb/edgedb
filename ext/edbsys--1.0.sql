@@ -37,16 +37,6 @@ RETURNS timestamptz
 AS '$libdir/edbsys', 'edb_to_timestamptz'
 LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
 
-CREATE FUNCTION time_in(text)
-RETURNS time
-AS '$libdir/edbsys', 'edb_time_in'
-LANGUAGE C IMMUTABLE PARALLEL SAFE;
-
-CREATE FUNCTION date_in(text)
-RETURNS date
-AS '$libdir/edbsys', 'edb_date_in'
-LANGUAGE C IMMUTABLE PARALLEL SAFE;
-
 
 --
 -- Custom variant of the bool cast.

@@ -1390,6 +1390,74 @@ class LocalDatetimeInFunction(dbops.Function):
             text=self.text)
 
 
+class LocalDateInFunction(dbops.Function):
+    """Cast text into date using ISO8601 spec."""
+    text = r'''
+        SELECT
+            CASE WHEN val !~ (
+                    '^\s*(' ||
+                        '(\d{4}-\d{2}-\d{2}|\d{8})' ||
+                    ')\s*$'
+                )
+            THEN
+                edgedb._raise_specific_exception(
+                    'invalid_datetime_format',
+                    'invalid input syntax for type date: ' ||
+                    quote_literal(val),
+                    '{"hint":"Please use ISO8601 format. Alternatively ' ||
+                    '\"to_local_date\" function provides custom ' ||
+                    'formatting options."}',
+                    NULL::date
+                )
+            ELSE
+                val::date
+            END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'local_date_in'),
+            args=[('val', ('text',))],
+            returns=('date',),
+            # Same volatility as _raise_specific_exception (stable)
+            volatility='stable',
+            text=self.text)
+
+
+class LocalTimeInFunction(dbops.Function):
+    """Cast text into time using ISO8601 spec."""
+    text = r'''
+        SELECT
+            CASE WHEN val !~ (
+                    '^\s*(' ||
+                        '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
+                    ')\s*$'
+                )
+            THEN
+                edgedb._raise_specific_exception(
+                    'invalid_datetime_format',
+                    'invalid input syntax for type time: ' ||
+                    quote_literal(val),
+                    '{"hint":"Please use ISO8601 format. Alternatively ' ||
+                    '\"to_local_time\" function provides custom ' ||
+                    'formatting options."}',
+                    NULL::time
+                )
+            ELSE
+                val::time
+            END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'local_time_in'),
+            args=[('val', ('text',))],
+            returns=('time',),
+            # Same volatility as _raise_specific_exception (stable)
+            volatility='stable',
+            text=self.text)
+
+
 class SysConfigValueType(dbops.CompositeType):
     """Type of values returned by _read_sys_config."""
     def __init__(self) -> None:
@@ -1775,6 +1843,8 @@ async def bootstrap(conn):
         dbops.CreateFunction(JSONSliceFunction()),
         dbops.CreateFunction(DatetimeInFunction()),
         dbops.CreateFunction(LocalDatetimeInFunction()),
+        dbops.CreateFunction(LocalDateInFunction()),
+        dbops.CreateFunction(LocalTimeInFunction()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateFunction(SysConfigFunction()),
