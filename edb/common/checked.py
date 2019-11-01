@@ -73,9 +73,6 @@ class ParametricType:
         name = f"{cls.__name__}[{params_str}]"
         bases = (cls,)
         type_dict = {"types": params, "__module__": cls.__module__}
-        for param in params:
-            if not isinstance(param, type):
-                raise TypeError(f"{cls!r} expects types as type parameters")
         if issubclass(cls, SingleParameter):
             if len(params) != 1:
                 raise TypeError(f"{cls!r} expects one type parameter")
@@ -85,14 +82,29 @@ class ParametricType:
                 raise TypeError(f"{cls!r} expects two type parameters")
             type_dict["keytype"] = params[0]
             type_dict["valuetype"] = params[1]
+        if not all(isinstance(param, type) for param in params):
+            if not all(type(param) == TypeVar for param in params):
+                raise TypeError(f"{cls!r} expects types as type parameters")
+            # All parameters are type variables: return the regular generic
+            # alias to allow proper subclassing.
+            generic = super(ParametricType, cls)
+            return generic.__class_getitem__(params)  # type: ignore
+
         return type(name, bases, type_dict)
 
     def __reduce__(self) -> Tuple[Any, ...]:
         assert self.types is not None
-        base: Type[ParametricType] = self.__class__.__bases__[0]
+        cls: Type[ParametricType] = self.__class__
         container = getattr(self, "_container", ())
+        if cls.__name__.endswith("]"):
+            # Parametrized type.
+            cls = cls.__bases__[0]
+        else:
+            # A subclass of a parametrized type.
+            return cls, (container,)
+
         args = self.types[0] if len(self.types) == 1 else self.types
-        return base.__restore__, (args, container)
+        return cls.__restore__, (args, container)
 
     @classmethod
     def __restore__(
