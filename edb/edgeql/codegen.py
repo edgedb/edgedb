@@ -1039,8 +1039,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         def after_name():
             self._ddl_visit_bases(node)
-            self.write(' -> ')
-            self.visit(node.target)
+            if node.target is not None:
+                self.write(' -> ')
+                self.visit(node.target)
         self._visit_CreateObject(
             node, *keywords, after_name=after_name, unqualified=True)
 
@@ -1076,14 +1077,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         def after_name():
             self._ddl_visit_bases(node)
-            if isinstance(node.target, qlast.TypeExpr):
-                self.write(' -> ')
-                self.visit(node.target)
-            else:
-                # computable
-                self.write(' := (')
-                self.visit(node.target)
-                self.write(')')
+            if node.target is not None:
+                if isinstance(node.target, qlast.TypeExpr):
+                    self.write(' -> ')
+                    self.visit(node.target)
+                else:
+                    # computable
+                    self.write(' := (')
+                    self.visit(node.target)
+                    self.write(')')
         self._visit_CreateObject(
             node, *keywords, after_name=after_name, unqualified=True)
 

@@ -856,6 +856,25 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_get_migration_08(self):
+        schema = r'''
+            type Foo;
+            type Spam {
+                link foo -> Foo;
+                property name -> str;
+            };
+            type Ham extending Spam {
+                inherited link foo {
+                    constraint exclusive;
+                };
+                inherited property name {
+                    constraint exclusive;
+                };
+            };
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;

@@ -525,30 +525,60 @@ sdl_commands_block(
 )
 
 
+class PtrTarget(Nonterm):
+
+    def reduce_ARROW_FullTypeExpr(self, *kids):
+        self.val = kids[1].val
+        self.context = kids[1].val.context
+
+
+class OptPtrTarget(Nonterm):
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+    def reduce_PtrTarget(self, *kids):
+        self.val = kids[0].val
+
+
 class ConcretePropertyBlock(Nonterm):
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
             PROPERTY ShortNodeName OptExtendingSimple
-            ARROW FullTypeExpr CreateConcretePropertySDLCommandsBlock
+            PtrTarget CreateConcretePropertySDLCommandsBlock
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[1].val,
             bases=kids[2].val,
-            target=kids[4].val,
-            commands=kids[5].val,
+            target=kids[3].val,
+            commands=kids[4].val,
         )
 
-    def reduce_CreateQualifiedRegularProperty(self, *kids):
+    def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
             PtrQuals PROPERTY ShortNodeName OptExtendingSimple
-            ARROW FullTypeExpr CreateConcretePropertySDLCommandsBlock
+            PtrTarget CreateConcretePropertySDLCommandsBlock
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
             bases=kids[3].val,
-            declared_inherited=kids[0].val.inherited,
             is_required=kids[0].val.required,
             cardinality=kids[0].val.cardinality,
+            target=kids[4].val,
+            commands=kids[5].val,
+        )
+
+    def reduce_CreateOverloadedProperty(self, *kids):
+        """%reduce
+            INHERITED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
+            OptPtrTarget CreateConcretePropertySDLCommandsBlock
+        """
+        self.val = qlast.CreateConcreteProperty(
+            name=kids[3].val,
+            bases=kids[4].val,
+            declared_inherited=True,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
             target=kids[5].val,
             commands=kids[6].val,
         )
@@ -557,26 +587,37 @@ class ConcretePropertyBlock(Nonterm):
 class ConcretePropertyShort(Nonterm):
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
-            PROPERTY ShortNodeName OptExtendingSimple
-            ARROW FullTypeExpr
+            PROPERTY ShortNodeName OptExtendingSimple PtrTarget
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[1].val,
             bases=kids[2].val,
-            target=kids[4].val,
+            target=kids[3].val,
         )
 
-    def reduce_CreateQualifiedRegularProperty(self, *kids):
+    def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
-            PtrQuals PROPERTY ShortNodeName OptExtendingSimple
-            ARROW FullTypeExpr
+            PtrQuals PROPERTY ShortNodeName OptExtendingSimple PtrTarget
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
             bases=kids[3].val,
-            declared_inherited=kids[0].val.inherited,
             is_required=kids[0].val.required,
             cardinality=kids[0].val.cardinality,
+            target=kids[4].val,
+        )
+
+    def reduce_CreateOverloadedProperty(self, *kids):
+        """%reduce
+            INHERITED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
+            OptPtrTarget
+        """
+        self.val = qlast.CreateConcreteProperty(
+            name=kids[3].val,
+            bases=kids[4].val,
+            declared_inherited=True,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
             target=kids[5].val,
         )
 
@@ -595,7 +636,6 @@ class ConcretePropertyShort(Nonterm):
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
-            declared_inherited=kids[0].val.inherited,
             is_required=kids[0].val.required,
             cardinality=kids[0].val.cardinality,
             target=kids[4].val,
@@ -669,27 +709,42 @@ class ConcreteLinkBlock(Nonterm):
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
             LINK ShortNodeName OptExtendingSimple
-            ARROW FullTypeExpr CreateConcreteLinkSDLCommandsBlock
+            PtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[1].val,
             bases=kids[2].val,
+            target=kids[3].val,
+            commands=kids[4].val,
+        )
+        self._validate()
+
+    def reduce_CreateRegularQualifiedLink(self, *kids):
+        """%reduce
+            PtrQuals LINK ShortNodeName OptExtendingSimple
+            PtrTarget CreateConcreteLinkSDLCommandsBlock
+        """
+        self.val = qlast.CreateConcreteLink(
+            is_required=kids[0].val.required,
+            cardinality=kids[0].val.cardinality,
+            name=kids[2].val,
+            bases=kids[3].val,
             target=kids[4].val,
             commands=kids[5].val,
         )
         self._validate()
 
-    def reduce_CreateQualifiedRegularLink(self, *kids):
+    def reduce_CreateOverloadedLink(self, *kids):
         """%reduce
-            PtrQuals LINK ShortNodeName OptExtendingSimple
-            ARROW FullTypeExpr CreateConcreteLinkSDLCommandsBlock
+            INHERITED OptPtrQuals LINK ShortNodeName OptExtendingSimple
+            OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         self.val = qlast.CreateConcreteLink(
-            declared_inherited=kids[0].val.inherited,
-            is_required=kids[0].val.required,
-            cardinality=kids[0].val.cardinality,
-            name=kids[2].val,
-            bases=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            declared_inherited=True,
+            name=kids[3].val,
+            bases=kids[4].val,
             target=kids[5].val,
             commands=kids[6].val,
         )
@@ -697,28 +752,42 @@ class ConcreteLinkBlock(Nonterm):
 
 
 class ConcreteLinkShort(Nonterm):
+
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
             LINK ShortNodeName OptExtendingSimple
-            ARROW FullTypeExpr
+            PtrTarget
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[1].val,
             bases=kids[2].val,
-            target=kids[4].val,
+            target=kids[3].val,
         )
 
-    def reduce_CreateQualifiedRegularLink(self, *kids):
+    def reduce_CreateRegularQualifiedLink(self, *kids):
         """%reduce
             PtrQuals LINK ShortNodeName OptExtendingSimple
-            ARROW FullTypeExpr
+            PtrTarget
         """
         self.val = qlast.CreateConcreteLink(
-            declared_inherited=kids[0].val.inherited,
             is_required=kids[0].val.required,
             cardinality=kids[0].val.cardinality,
             name=kids[2].val,
             bases=kids[3].val,
+            target=kids[4].val,
+        )
+
+    def reduce_CreateOverloadedLink(self, *kids):
+        """%reduce
+            INHERITED OptPtrQuals LINK ShortNodeName OptExtendingSimple
+            OptPtrTarget
+        """
+        self.val = qlast.CreateConcreteLink(
+            declared_inherited=True,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            name=kids[3].val,
+            bases=kids[4].val,
             target=kids[5].val,
         )
 

@@ -737,7 +737,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
 
             target_ref = s_types.UnionTypeRef(
                 new_targets, module=source_name.module)
-        else:
+        elif targets:
             target_expr = targets[0]
             if isinstance(target_expr, qlast.TypeName):
                 target_ref = utils.ast_to_typeref(
@@ -751,6 +751,9 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
                         context.modaliases,
                     )
                 )
+        else:
+            # Target is inherited.
+            target_ref = None
 
         if isinstance(self, sd.CreateObject):
             self.set_attribute_value(
@@ -763,7 +766,7 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             if self.get_attribute_value('required') is None:
                 self.set_attribute_value(
                     'required', False)
-        else:
+        elif target_ref is not None:
             self._set_pointer_type(schema, astnode, context, target_ref)
 
     @classmethod

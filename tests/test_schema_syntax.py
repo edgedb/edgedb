@@ -349,6 +349,14 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             required multi link spam -> Spam;
             inherited required single link ham -> Ham;
             inherited required multi link eggs -> Egg;
+            inherited link knight;
+            inherited link clinic {
+                property argument -> int64;
+            };
+            inherited property castle;
+            inherited property tower {
+                constraint exclusive;
+            };
         };
         """
 

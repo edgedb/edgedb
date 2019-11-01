@@ -254,7 +254,10 @@ def has_context(func):
                     obj.val.context = obj.context
                 return result
 
-        obj.context = get_context(*args)
+        # Avoid mangling any existing context.
+        if getattr(obj, 'context', None) is None:
+            obj.context = get_context(*args)
+
         # we have the context for the nonterminal, but now we need to
         # enforce context in the obj.val, recursively, in case it was
         # a complex production with nested AST nodes
