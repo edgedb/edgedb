@@ -346,7 +346,8 @@ class Struct(metaclass=StructMeta):
                 ftype = field.type[0]
 
                 if issubclass(ftype, (typed.AbstractTypedSequence,
-                                      typed.AbstractTypedSet)):
+                                      checked.CheckedSet,
+                                      checked.FrozenCheckedSet)):
                     casted_value = []
                     for v in value:
                         if v is not None and not isinstance(v, ftype.type):
