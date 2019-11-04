@@ -23,6 +23,7 @@ import base64
 import collections
 import collections.abc
 from typing import *  # NoQA
+import uuid
 
 import immutables as immu
 
@@ -423,7 +424,8 @@ class CommandContextWrapper:
 class CommandContext:
     def __init__(self, *, declarative=False, modaliases=None,
                  schema=None, stdmode=False, testmode=False,
-                 disable_dep_verification=False, descriptive_mode=False):
+                 disable_dep_verification=False, descriptive_mode=False,
+                 emit_oids=False):
         self.stack = []
         self._cache = {}
         self.declarative = declarative
@@ -433,6 +435,7 @@ class CommandContext:
         self.testmode = testmode
         self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
+        self.emit_oids = emit_oids
         self.renames = {}
         self.renamed_objs = set()
         self.altered_targets = set()
@@ -1351,6 +1354,11 @@ class AlterObjectProperty(Command):
                 f'{propname!r} is not a valid field',
                 context=astnode.context)
 
+        if field.name == 'id' and not isinstance(parent_op, CreateObject):
+            raise errors.SchemaDefinitionError(
+                f'cannot alter object id',
+                context=astnode.context)
+
         if field.type is s_expr.Expression:
             new_value = s_expr.Expression.from_ast(
                 astnode.value,
@@ -1398,7 +1406,8 @@ class AlterObjectProperty(Command):
                 f'{self.property!r} is not a valid field',
                 context=self.context)
 
-        if not field.allow_ddl_set:
+        if (not field.allow_ddl_set
+                or (self.property == 'id' and not context.emit_oids)):
             return
 
         if self.source == 'inheritance':
@@ -1413,6 +1422,16 @@ class AlterObjectProperty(Command):
             value = qlast.Tuple(elements=[
                 qlast.BaseConstant.from_python(el) for el in value
             ])
+        elif isinstance(value, uuid.UUID):
+            value = qlast.TypeCast(
+                expr=qlast.BaseConstant.from_python(str(value)),
+                type=qlast.TypeName(
+                    maintype=qlast.ObjectRef(
+                        name='uuid',
+                        module='std',
+                    )
+                )
+            )
         else:
             value = qlast.BaseConstant.from_python(value)
 

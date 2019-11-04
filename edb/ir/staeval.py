@@ -36,6 +36,7 @@ from edb.edgeql import qltypes
 from edb.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.schema import types as s_types
@@ -55,7 +56,12 @@ class UnsupportedExpressionError(errors.QueryError):
 def evaluate_to_python_val(
         ir: irast.Base,
         schema: s_schema.Schema) -> object:
-    const = evaluate(ir, schema=schema)
+    if isinstance(ir, irast.Set) and isinstance(ir.expr, irast.TypeCast):
+        # Special case for type casts.
+        # We cannot fold them, but can eval to Python
+        const = ir.expr
+    else:
+        const = evaluate(ir, schema=schema)
     return const_to_python(const, schema=schema)
 
 
@@ -215,6 +221,17 @@ def bool_const_to_python(
         schema: s_schema.Schema) -> bool:
 
     return ir.value == 'true'
+
+
+@const_to_python.register(irast.TypeCast)
+def cast_const_to_python(
+        ir: irast.TypeCast,
+        schema: s_schema.Schema) -> Any:
+
+    stype = irtyputils.ir_typeref_to_type(schema, ir.to_type)
+    pytype = scalar_type_to_python_type(stype, schema)
+    sval = evaluate_to_python_val(ir.expr, schema=schema)
+    return pytype(sval)
 
 
 def schema_type_to_python_type(

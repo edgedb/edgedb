@@ -158,7 +158,8 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
     def __init__(self, type_, *, coerce=False,
                  compcoef=None, inheritable=True,
                  simpledelta=True, merge_fn=None, ephemeral=False,
-                 introspectable=True, weak_ref=False, **kwargs):
+                 introspectable=True, weak_ref=False,
+                 allow_ddl_set=False, **kwargs):
         """Schema item core attribute definition.
 
         """
@@ -167,7 +168,7 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
 
         self.type = type_
         self.coerce = coerce
-        self.allow_ddl_set = False
+        self.allow_ddl_set = allow_ddl_set
 
         self.compcoef = compcoef
         self.inheritable = inheritable
@@ -479,7 +480,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     # Unique ID for this schema item.
     id = Field(
         uuid.UUID,
-        inheritable=False, simpledelta=False)
+        inheritable=False, simpledelta=False, allow_ddl_set=True)
 
     # Schema source context for this object
     sourcectx = SchemaField(

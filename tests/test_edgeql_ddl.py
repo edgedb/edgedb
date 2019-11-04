@@ -3766,3 +3766,31 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''
             DROP SCALAR TYPE test::my_enum_3;
         ''')
+
+    async def test_edgeql_ddl_explicit_id(self):
+        await self.con.execute('''
+            CREATE TYPE test::ExID {
+                SET id := <uuid>'00000000-0000-0000-0000-0000feedbeef'
+            };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::ObjectType {
+                    id
+                }
+                FILTER .name = 'test::ExID';
+            """,
+            [{
+                'id': '00000000-0000-0000-0000-0000feedbeef',
+            }],
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                'cannot alter object id'):
+            await self.con.execute('''
+                ALTER TYPE test::ExID {
+                    SET id := <uuid>'00000000-0000-0000-0000-0000feedbeef'
+                }
+            ''')
