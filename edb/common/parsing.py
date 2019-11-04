@@ -163,11 +163,12 @@ class ListNontermMeta(NontermMeta):
 
             tokens.append(element)
 
-            prod = (
-                ListNonterm._reduce_list_separated
-                if separator else ListNonterm._reduce_list)
+            if separator:
+                prod = lambda self, lst, sep, el: self._reduce_list(lst, el)
+            else:
+                prod = lambda self, lst, el: self._reduce_list(lst, el)
             dct['reduce_' + '_'.join(tokens)] = prod
-            dct['reduce_' + element] = ListNonterm._reduce_el
+            dct['reduce_' + element] = lambda self, el: self._reduce_el(el)
 
         cls = super().__new__(mcls, name, bases, dct)
         return cls
@@ -177,13 +178,6 @@ class ListNontermMeta(NontermMeta):
 
 
 class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
-    def _reduce_list_separated(self, lst, sep, el):
-        if el.val is None:
-            tail = []
-        else:
-            tail = [el.val]
-
-        self.val = lst.val + tail
 
     def _reduce_list(self, lst, el):
         if el.val is None:
