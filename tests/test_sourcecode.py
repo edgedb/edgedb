@@ -27,6 +27,7 @@ import unittest
 # there should be a comment in each of them explaining why.
 EMPTY_INIT_FILES = {
     'edb/__init__.py',
+    'edb/common/__init__.py',
     'edb/tools/__init__.py',
 }
 
