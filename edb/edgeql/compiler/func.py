@@ -162,7 +162,7 @@ def compile_FunctionCall(
             elem_path_id = pathctx.get_tuple_indirection_path_id(
                 path_id, n, st, ctx=ctx).strip_weak_namespaces()
 
-            if st.is_tuple():
+            if isinstance(st, s_types.Tuple):
                 nested_path_ids.append([
                     pathctx.get_tuple_indirection_path_id(
                         elem_path_id, nn, sst, ctx=ctx).strip_weak_namespaces()
@@ -561,14 +561,20 @@ def finalize_args(
         param_material_type = paramtype.material_type(ctx.env.schema)
 
         # Check if we need to cast the argument value before passing
-        # it to the callable.  For tuples, we also check that the element
-        # names match.
-        compatible = (
-            val_material_type.issubclass(ctx.env.schema, param_material_type)
-            and (not param_material_type.is_tuple()
-                 or (param_material_type.get_element_names(ctx.env.schema) ==
-                     val_material_type.get_element_names(ctx.env.schema)))
+        # it to the callable.
+        compatible = val_material_type.issubclass(
+            ctx.env.schema, param_material_type
         )
+        if compatible:
+            if (
+                isinstance(param_material_type, s_types.Tuple)
+                and isinstance(val_material_type, s_types.Tuple)
+            ):
+                # For tuples, we also check that the element names match.
+                compatible = (
+                    param_material_type.get_element_names(ctx.env.schema) ==
+                    val_material_type.get_element_names(ctx.env.schema)
+                )
 
         if not compatible:
             # The callable form was chosen via an implicit cast,

@@ -585,7 +585,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return schema, scls
 
     @classmethod
-    def _create(cls, schema, *, id=None, **data) -> Object:
+    def _create(cls: Type[Object_T], schema, *, id=None, **data) -> Object_T:
         if cls.is_schema_object:
             raise TypeError(
                 f'{cls.__name__} type cannot be created outside of a schema')

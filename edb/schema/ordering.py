@@ -18,12 +18,13 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import collections
+import uuid
 
 from edb.common import topological
 
-from . import abc as s_abc
 from . import delta as sd
 from . import functions as s_func
 from . import inheriting
@@ -31,23 +32,27 @@ from . import name as sn
 from . import objects as so
 from . import referencing
 
+if TYPE_CHECKING:
+    from . import schema as s_schema
+    CommandT = TypeVar("CommandT", bound=sd.Command)
+
 
 def linearize_delta(
-    delta: sd.Command,
-    old_schema: s_abc.Schema,
-    new_schema: s_abc.Schema
-) -> sd.Command:
+    delta: CommandT,
+    old_schema: Optional[s_schema.Schema],
+    new_schema: s_schema.Schema
+) -> CommandT:
     """Sort delta operations to dependency order."""
 
-    opmap = {}
-    strongrefs = {}
+    opmap: Dict[sd.ObjectCommand, List[sd.ObjectCommand]] = {}
+    strongrefs: Dict[uuid.UUID, so.Object] = {}
 
     for op in delta.get_subcommands():
         _break_down(opmap, strongrefs, [delta, op])
 
-    depgraph = {}
-    renames = {}
-    renames_r = {}
+    depgraph: Dict[Tuple[str, sn.Name], Dict[str, Any]] = {}
+    renames: Dict[sn.Name, sn.Name] = {}
+    renames_r: Dict[sn.Name, sn.Name] = {}
 
     for op in opmap:
         if isinstance(op, sd.RenameObject):
@@ -64,11 +69,13 @@ def linearize_delta(
     ordered = list(topological.sort(depgraph, allow_unresolved=True,
                                     return_record=True))
 
+    parents: Dict[Tuple[Type[sd.ObjectCommand], sn.Name], sd.ObjectCommand]
+    dependencies: Dict[sd.ObjectCommand, Set[sd.ObjectCommand]]
     parents = {}
     dependencies = collections.defaultdict(set)
     max_offset = len(ordered)
-    offsets = {}
-    ops = []
+    offsets: Dict[sd.ObjectCommand, int] = {}
+    ops: List[sd.ObjectCommand] = []
 
     for _key, info in ordered:
         op = info['op']
@@ -181,8 +188,16 @@ def _break_down(opmap, strongrefs, opstack):
     opmap[op] = new_opstack
 
 
-def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
-              old_schema, new_schema):
+def _trace_op(
+    op: sd.ObjectCommand,
+    opstack: List[sd.ObjectCommand],
+    depgraph: Dict[Tuple[str, sn.Name], Dict[str, Any]],
+    renames: Dict[sn.Name, sn.Name],
+    renames_r: Dict[sn.Name, sn.Name],
+    strongrefs: Dict[uuid.UUID, so.Object],
+    old_schema: Optional[s_schema.Schema],
+    new_schema: s_schema.Schema,
+) -> None:
     deps = set()
 
     if isinstance(op, sd.CreateObject):
@@ -202,7 +217,8 @@ def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
             f'unexpected delta command type at top level: {op!r}'
         )
 
-    if tag == 'delete':
+    if isinstance(op, sd.DeleteObject):
+        assert old_schema is not None
         # Things must be deleted _after_ their referrers have
         # been deleted or altered.
         obj = get_object(old_schema, op, op.classname)
@@ -237,7 +253,7 @@ def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
 
         graph_key = op.classname
 
-    elif tag == 'field':
+    elif isinstance(op, sd.AlterObjectProperty):
         if isinstance(op.new_value, so.Object):
             deps.add(('create', op.new_value.name))
             deps.add(('alter', op.new_value.name))
@@ -297,7 +313,7 @@ def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
             # happen first.
             deps.add(('delete', op.classname))
 
-            if isinstance(obj, s_func.Function):
+            if isinstance(obj, s_func.Function) and old_schema is not None:
                 old_funcs = old_schema.get_functions(
                     sn.shortname_from_fullname(op.classname),
                     default=[])
@@ -333,10 +349,10 @@ def _trace_op(op, opstack, depgraph, renames, renames_r, strongrefs,
 
 
 def get_object(
-    schema: s_abc.Schema,
+    schema: s_schema.Schema,
     op: sd.ObjectCommand,
     name: str
-) -> s_abc.Object:
+) -> so.Object:
     metaclass = op.get_schema_metaclass()
 
     if issubclass(metaclass, so.UnqualifiedObject):
@@ -345,7 +361,11 @@ def get_object(
         return schema.get(name)
 
 
-def _get_referrers(schema, obj, strongrefs):
+def _get_referrers(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    strongrefs: Dict[uuid.UUID, so.Object],
+) -> Set[so.Object]:
     refs = schema.get_referrers(obj)
     result = set()
 
@@ -362,7 +382,7 @@ def _get_referrers(schema, obj, strongrefs):
     return result
 
 
-def _extract_op(stack):
+def _extract_op(stack: List[sd.ObjectCommand]) -> List[sd.ObjectCommand]:
     parent_op = stack[0]
     new_stack = [parent_op]
 
