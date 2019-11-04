@@ -31,7 +31,10 @@ from mypy.server import trigger as mypy_trigger
 
 
 METADATA_KEY = 'edbplugin'
-BASE_METACLASSES = {'edb.schema.objects.ObjectMeta'}
+BASE_METACLASSES = {
+    'edb.schema.objects.ObjectMeta',
+    'edb.schema.types.SchemaCollectionMeta',
+}
 FIELD_MAKERS = {'edb.schema.objects.SchemaField'}
 
 

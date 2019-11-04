@@ -18,11 +18,11 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import base64
 import collections
 import collections.abc
-from typing import *  # NoQA
 import uuid
 
 import immutables as immu
@@ -39,6 +39,10 @@ from . import name as sn
 from . import objects as so
 from . import schema as s_schema
 from . import utils
+
+
+if TYPE_CHECKING:
+    from . import types as s_types
 
 
 class CommandMeta(adapter.Adapter, struct.MixedStructMeta,
@@ -615,9 +619,9 @@ class DeltaRoot(CommandGroup):
         return schema, None
 
 
-class ObjectCommandMeta(type(Command)):
+class ObjectCommandMeta(CommandMeta):
     _transparent_adapter_subclass = True
-    _schema_metaclasses = {}
+    _schema_metaclasses: Dict[Tuple[str, type], ObjectCommandMeta] = {}
 
     def __new__(mcls, name, bases, dct, *, schema_metaclass=None, **kwargs):
         cls = super().__new__(mcls, name, bases, dct, **kwargs)
@@ -660,6 +664,8 @@ class ObjectCommandMeta(type(Command)):
 class ObjectCommand(Command, metaclass=ObjectCommandMeta):
     """Base class for all Object-related commands."""
     classname = struct.Field(sn.Name)
+
+    scls: s_types.Type
 
     @classmethod
     def _get_ast_name(cls, schema, astnode, context):
@@ -853,6 +859,11 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
             f'uncompiled expression in the field {field.name!r} of '
             f'{cdn} {self.classname!r}'
         )
+
+    def _create_begin(
+        self, schema: s_schema.Schema, context: CommandContext
+    ) -> s_schema.Schema:
+        raise NotImplementedError
 
 
 class ObjectCommandContext(CommandContextToken):
