@@ -4,7 +4,7 @@
 GraphQL over HTTP
 =================
 
-EdgeBD supports `GraphQL queries`__ natively out of the box. Not
+EdgeDB supports `GraphQL queries`__ natively out of the box. Not
 everything that can be expressed in EdgeQL can easily be queried using
 GraphQL, but generally for complex queries it is useful to set up
 Views and use GraphQL to query them.
