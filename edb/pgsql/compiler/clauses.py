@@ -48,7 +48,7 @@ def fini_stmt(
 
 
 def compile_iterator_expr(
-        query: pgast.Query, iterator_expr: irast.Set, *,
+        query: pgast.SelectStmt, iterator_expr: irast.Set, *,
         ctx: context.CompilerContextLevel) \
         -> pgast.PathRangeVar:
 
@@ -76,9 +76,6 @@ def compile_output(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.OutputVar:
     with ctx.new() as newctx:
-        newctx.clause = 'result'
-        if newctx.stmt is newctx.toplevel_stmt:
-            newctx.toplevel_clause = newctx.clause
         if newctx.expr_exposed is None:
             newctx.expr_exposed = True
 
@@ -98,18 +95,12 @@ def compile_output(
 
 
 def compile_filter_clause(
-        ir_set: Optional[irast.Set],
+        ir_set: irast.Set,
         cardinality: qltypes.Cardinality, *,
-        ctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
-    if ir_set is None:
-        return None
-
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
     where_clause: pgast.BaseExpr
 
     with ctx.new() as ctx1:
-        ctx1.clause = 'where'
-        if ctx1.stmt is ctx1.toplevel_stmt:
-            ctx1.toplevel_clause = ctx1.clause
         ctx1.expr_exposed = False
 
         if cardinality is qltypes.Cardinality.ONE:
@@ -133,15 +124,12 @@ def compile_filter_clause(
 
 def compile_orderby_clause(
         ir_exprs: Sequence[irast.SortExpr], *,
-        ctx: context.CompilerContextLevel) -> Sequence[pgast.SortBy]:
+        ctx: context.CompilerContextLevel) -> List[pgast.SortBy]:
 
     sort_clause = []
 
     for expr in ir_exprs:
         with ctx.new() as orderctx:
-            orderctx.clause = 'orderby'
-            if orderctx.stmt is orderctx.toplevel_stmt:
-                orderctx.toplevel_clause = orderctx.clause
             orderctx.expr_exposed = False
 
             # In OPDER BY we compile ir.Set as a subquery:
@@ -165,9 +153,6 @@ def compile_limit_offset_clause(
         return None
 
     with ctx.new() as ctx1:
-        ctx1.clause = 'offsetlimit'
-        if ctx1.stmt is ctx1.toplevel_stmt:
-            ctx1.toplevel_clause = ctx1.clause
         ctx1.expr_exposed = False
 
         # In OFFSET/LIMIT we compile ir.Set as a subquery:

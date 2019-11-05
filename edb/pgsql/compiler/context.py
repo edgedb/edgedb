@@ -20,6 +20,7 @@
 """IR compiler context."""
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import collections
 import enum
@@ -29,6 +30,9 @@ from edb.common import compiler
 from edb.pgsql import ast as pgast
 
 from . import aliases
+
+if TYPE_CHECKING:
+    from edb.ir import ast as irast
 
 
 class ContextSwitchMode(enum.Enum):
@@ -50,11 +54,102 @@ class OutputFormat(enum.Enum):
     JSONB = enum.auto()
 
 
-NO_VOLATILITY = object()
+class NoVolatilitySentinel:
+    pass
+
+
+NO_VOLATILITY = NoVolatilitySentinel()
 
 
 class CompilerContextLevel(compiler.ContextLevel):
-    def __init__(self, prevlevel, mode):
+    #: static compilation environment
+    env: Environment
+
+    #: mapping of named args to position
+    argmap: Dict[str, int]
+
+    #: whether compiling in singleton expression mode
+    singleton_mode: bool
+
+    #: the top-level SQL statement
+    toplevel_stmt: pgast.Query
+
+    #: SQL statement corresponding to the IR statement
+    #: currently being compiled.
+    stmt: pgast.SelectStmt
+
+    #: Current SQL subquery
+    rel: pgast.SelectStmt
+
+    #: SQL query hierarchy
+    rel_hierarchy: Dict[pgast.Query, pgast.Query]
+
+    #: The logical parent of the current query in the
+    #: query hierarchy
+    parent_rel: Optional[pgast.Query]
+
+    #: Query to become current in the next SUBSTMT switch.
+    pending_query: Optional[pgast.SelectStmt]
+
+    #: Whether the expression currently being processed is
+    #: directly exposed to the output of the statement.
+    expr_exposed: bool
+
+    #: Expression to use to force SQL expression volatility in this context
+    volatility_ref: Optional[Union[pgast.BaseExpr, NoVolatilitySentinel]]
+
+    group_by_rels: Dict[
+        Tuple[irast.PathId, irast.PathId],
+        Union[pgast.BaseRelation, pgast.CommonTableExpr]
+    ]
+
+    #: Paths, for which semi-join is banned in this context.
+    disable_semi_join: Set[irast.PathId]
+
+    #: Paths, which need to be explicitly wrapped into SQL
+    #: optionality scaffolding.
+    force_optional: Set[irast.PathId]
+
+    #: ir.TypeRef used to narrow the joined relation representing
+    #: the mapping key.
+    join_target_type_filter: Dict[irast.Set, irast.TypeRef]
+
+    #: Which SQL query holds the SQL scope for the given PathId
+    path_scope: ChainMap[irast.PathId, pgast.SelectStmt]
+
+    #: Relevant IR scope for this context.
+    scope_tree: irast.ScopeTreeNode
+
+    #: Relations used to "overlay" the main table for
+    #: the type.  Mostly used with DML statements.
+    type_rel_overlays: DefaultDict[
+        Tuple[str, Optional[irast.MutatingStmt]],
+        List[
+            Tuple[
+                str,
+                Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                irast.PathId,
+            ]
+        ]
+    ]
+
+    #: Relations used to "overlay" the main table for
+    #: the pointer.  Mostly used with DML statements.
+    ptr_rel_overlays: DefaultDict[
+        Tuple[str, Optional[irast.MutatingStmt]],
+        List[
+            Tuple[
+                str,
+                Union[pgast.BaseRelation, pgast.CommonTableExpr],
+            ]
+        ]
+    ]
+
+    def __init__(
+        self,
+        prevlevel: CompilerContextLevel,
+        mode: ContextSwitchMode,
+    ) -> None:
         if prevlevel is None:
             self.env = None
             self.argmap = collections.OrderedDict()
@@ -65,22 +160,21 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = None
             self.rel = None
             self.rel_hierarchy = {}
+            self.parent_rel = None
             self.pending_query = None
 
-            self.clause = None
-            self.toplevel_clause = None
             self.expr_exposed = None
             self.volatility_ref = None
             self.group_by_rels = {}
 
             self.disable_semi_join = set()
-            self.unique_paths = set()
             self.force_optional = set()
             self.join_target_type_filter = {}
 
             self.path_scope = collections.ChainMap()
             self.scope_tree = None
-            self.rel_overlays = collections.defaultdict(list)
+            self.type_rel_overlays = collections.defaultdict(list)
+            self.ptr_rel_overlays = collections.defaultdict(list)
 
         else:
             self.env = prevlevel.env
@@ -92,22 +186,21 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = prevlevel.stmt
             self.rel = prevlevel.rel
             self.rel_hierarchy = prevlevel.rel_hierarchy
+            self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
 
-            self.clause = prevlevel.clause
-            self.toplevel_clause = prevlevel.toplevel_clause
             self.expr_exposed = prevlevel.expr_exposed
             self.volatility_ref = prevlevel.volatility_ref
             self.group_by_rels = prevlevel.group_by_rels
 
             self.disable_semi_join = prevlevel.disable_semi_join.copy()
-            self.unique_paths = prevlevel.unique_paths.copy()
             self.force_optional = prevlevel.force_optional.copy()
             self.join_target_type_filter = prevlevel.join_target_type_filter
 
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree
-            self.rel_overlays = prevlevel.rel_overlays
+            self.type_rel_overlays = prevlevel.type_rel_overlays
+            self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
 
             if mode in {ContextSwitchMode.SUBREL, ContextSwitchMode.NEWREL,
                         ContextSwitchMode.SUBSTMT}:
@@ -116,10 +209,14 @@ class CompilerContextLevel(compiler.ContextLevel):
                 else:
                     self.rel = pgast.SelectStmt()
                     if mode != ContextSwitchMode.NEWREL:
-                        self.rel_hierarchy[self.rel] = prevlevel.rel
+                        if prevlevel.parent_rel is not None:
+                            parent_rel = prevlevel.parent_rel
+                        else:
+                            parent_rel = prevlevel.rel
+                        self.rel_hierarchy[self.rel] = parent_rel
 
                 self.pending_query = None
-                self.clause = 'result'
+                self.parent_rel = None
 
             if mode == ContextSwitchMode.SUBSTMT:
                 self.stmt = self.rel
@@ -127,20 +224,28 @@ class CompilerContextLevel(compiler.ContextLevel):
             if mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = prevlevel.path_scope.new_child()
 
-    def subrel(self):
+    def subrel(
+        self,
+    ) -> compiler.CompilerContextManager[CompilerContextLevel]:
         return self.new(ContextSwitchMode.SUBREL)
 
-    def newrel(self):
+    def newrel(
+        self,
+    ) -> compiler.CompilerContextManager[CompilerContextLevel]:
         return self.new(ContextSwitchMode.NEWREL)
 
-    def substmt(self):
+    def substmt(
+        self,
+    ) -> compiler.CompilerContextManager[CompilerContextLevel]:
         return self.new(ContextSwitchMode.SUBSTMT)
 
-    def newscope(self):
+    def newscope(
+        self,
+    ) -> compiler.CompilerContextManager[CompilerContextLevel]:
         return self.new(ContextSwitchMode.NEWSCOPE)
 
 
-class CompilerContext(compiler.CompilerContext):
+class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):
     ContextLevelClass = CompilerContextLevel
     default_mode = ContextSwitchMode.TRANSPARENT
 
@@ -148,13 +253,25 @@ class CompilerContext(compiler.CompilerContext):
 class Environment:
     """Static compilation environment."""
 
-    def __init__(self, *, output_format, use_named_params,
-                 expected_cardinality_one, ignore_object_shapes,
-                 explicit_top_cast):
+    aliases: aliases.AliasGenerator
+    output_format: Optional[OutputFormat]
+    use_named_params: bool
+    ptrref_source_visibility: Dict[irast.BasePointerRef, bool]
+    expected_cardinality_one: bool
+    ignore_object_shapes: bool
+    explicit_top_cast: Optional[irast.TypeRef]
+
+    def __init__(
+        self,
+        *,
+        output_format: Optional[OutputFormat],
+        use_named_params: bool,
+        expected_cardinality_one: bool,
+        ignore_object_shapes: bool,
+        explicit_top_cast: Optional[irast.TypeRef],
+    ) -> None:
         self.aliases = aliases.AliasGenerator()
-        self.root_rels = set()
         self.output_format = output_format
-        self.tuple_formats = {}
         self.use_named_params = use_named_params
         self.ptrref_source_visibility = {}
         self.expected_cardinality_one = expected_cardinality_one

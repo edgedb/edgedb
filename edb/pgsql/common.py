@@ -108,7 +108,7 @@ def get_module_backend_name(module, prefix='edgedb_'):
     return edgedb_name_to_pg_name(f'{prefix}{module}', len(prefix))
 
 
-def edgedb_name_to_pg_name(name, prefix_length=0):
+def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     """Convert EdgeDB name to a valid PostgresSQL column name.
 
     PostgreSQL has a limit of 63 characters for column names.

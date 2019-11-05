@@ -82,28 +82,17 @@ def compile_ir_to_sql(
         output_format: Optional[OutputFormat]=None,
         ignore_shapes: bool=False,
         explicit_top_cast: Optional[irast.TypeRef]=None,
-        timer=None,
         use_named_params: bool=False,
         expected_cardinality_one: bool=False,
         pretty: bool=True) -> Tuple[str, Dict[str, int]]:
 
-    if timer is None:
-        qtree = compile_ir_to_sql_tree(
-            ir_expr,
-            output_format=output_format,
-            ignore_shapes=ignore_shapes,
-            explicit_top_cast=explicit_top_cast,
-            use_named_params=use_named_params,
-            expected_cardinality_one=expected_cardinality_one)
-    else:
-        with timer.timeit('compile_ir_to_sql'):
-            qtree = compile_ir_to_sql_tree(
-                ir_expr,
-                output_format=output_format,
-                ignore_shapes=ignore_shapes,
-                explicit_top_cast=explicit_top_cast,
-                use_named_params=use_named_params,
-                expected_cardinality_one=expected_cardinality_one)
+    qtree = compile_ir_to_sql_tree(
+        ir_expr,
+        output_format=output_format,
+        ignore_shapes=ignore_shapes,
+        explicit_top_cast=explicit_top_cast,
+        use_named_params=use_named_params,
+        expected_cardinality_one=expected_cardinality_one)
 
     if debug.flags.edgeql_compile:  # pragma: no cover
         debug.header('SQL Tree')
@@ -113,12 +102,7 @@ def compile_ir_to_sql(
     argmap = qtree.argnames
 
     # Generate query text
-    if timer is None:
-        codegen = _run_codegen(qtree, pretty=pretty)
-    else:
-        with timer.timeit('compile_ir_to_sql'):
-            codegen = _run_codegen(qtree, pretty=pretty)
-
+    codegen = _run_codegen(qtree, pretty=pretty)
     sql_text = ''.join(codegen.result)
 
     if debug.flags.edgeql_compile:  # pragma: no cover
@@ -128,7 +112,11 @@ def compile_ir_to_sql(
     return sql_text, argmap
 
 
-def _run_codegen(qtree, *, pretty=True):
+def _run_codegen(
+    qtree: pgast.Base,
+    *,
+    pretty: bool=True,
+) -> pgcodegen.SQLSourceGenerator:
     codegen = pgcodegen.SQLSourceGenerator(pretty=pretty)
     try:
         codegen.visit(qtree)

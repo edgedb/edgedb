@@ -60,13 +60,20 @@ PRIMITIVE_ASPECT_SPECIFICITY_MAP = {
 }
 
 
-def get_less_specific_aspect(path_id: irast.PathId, aspect: str):
+def get_less_specific_aspect(
+    path_id: irast.PathId,
+    aspect: str,
+) -> Optional[str]:
     if path_id.is_objtype_path():
         mapping = OBJECT_ASPECT_SPECIFICITY_MAP
     else:
         mapping = PRIMITIVE_ASPECT_SPECIFICITY_MAP
 
-    return mapping.get(PathAspect(aspect))
+    less_specific_aspect = mapping.get(PathAspect(aspect))
+    if less_specific_aspect is not None:
+        return str(less_specific_aspect)
+    else:
+        return None
 
 
 def map_path_id(
@@ -115,6 +122,8 @@ def get_path_var(
 
     ptrref = path_id.rptr()
     is_type_indirection = path_id.is_type_indirection_path()
+
+    src_path_id: Optional[irast.PathId] = None
     if ptrref is not None and not is_type_indirection:
         ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=False, link_bias=False)
@@ -124,6 +133,7 @@ def get_path_var(
             src_path_id = path_id
         else:
             src_path_id = path_id.src_path()
+            assert src_path_id is not None
             src_rptr = src_path_id.rptr()
             if (irtyputils.is_id_ptrref(ptrref)
                     and (src_rptr is None
@@ -158,7 +168,6 @@ def get_path_var(
 
     else:
         ptr_info = None
-        src_path_id = None
         ptr_dir = None
 
     var: Optional[pgast.BaseExpr]
@@ -172,7 +181,7 @@ def get_path_var(
 
         outputs = astutils.for_each_query_in_set(rel, cb)
 
-        first = None
+        first: Optional[pgast.OutputVar] = None
         optional = False
         all_null = True
         nullable = False
@@ -191,6 +200,10 @@ def get_path_var(
             raise LookupError(
                 f'cannot find refs for '
                 f'path {path_id} {aspect} in {rel}')
+
+        if first is None:
+            raise AssertionError(
+                f'union did not produce any outputs')
 
         # Path vars produced by UNION expressions can be "optional",
         # i.e the record is accepted as-is when such var is NULL.
@@ -225,6 +238,8 @@ def get_path_var(
                 rel, path_id, aspect=alt_aspect, env=env)
     else:
         alt_aspect = None
+
+    assert src_path_id is not None
 
     if rel_rvar is None:
         if src_path_id.is_objtype_path():
@@ -264,19 +279,6 @@ def get_path_var(
     source_rel = rel_rvar.query
 
     drilldown_path_id = map_path_id(path_id, rel.view_path_id_map)
-
-    if source_rel in env.root_rels and len(source_rel.path_scope) == 1:
-        if not drilldown_path_id.is_objtype_path() and ptrref is not None:
-            outer_path_id = drilldown_path_id.src_path()
-        else:
-            outer_path_id = drilldown_path_id
-
-        path_id_map = {
-            outer_path_id: next(iter(source_rel.path_scope))
-        }
-
-        drilldown_path_id = map_path_id(
-            drilldown_path_id, path_id_map)
 
     outvar = get_path_output(
         source_rel, drilldown_path_id, ptr_info=ptr_info,
@@ -388,19 +390,19 @@ def put_path_identity_var(
 
 def put_path_value_var(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force=False, env: context.Environment) -> None:
+        force: bool = False, env: context.Environment) -> None:
     put_path_var(rel, path_id, var, aspect='value', force=force, env=env)
 
 
 def put_path_serialized_var(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force=False, env: context.Environment) -> None:
+        force: bool = False, env: context.Environment) -> None:
     put_path_var(rel, path_id, var, aspect='serialized', force=force, env=env)
 
 
 def put_path_value_var_if_not_exists(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force=False, env: context.Environment) -> None:
+        force: bool = False, env: context.Environment) -> None:
     try:
         put_path_var(rel, path_id, var, aspect='value', force=force, env=env)
     except KeyError:
@@ -409,7 +411,7 @@ def put_path_value_var_if_not_exists(
 
 def put_path_serialized_var_if_not_exists(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force=False, env: context.Environment) -> None:
+        force: bool = False, env: context.Environment) -> None:
     try:
         put_path_var(rel, path_id, var, aspect='serialized',
                      force=force, env=env)
@@ -593,7 +595,7 @@ def maybe_get_path_value_rvar(
     return maybe_get_path_rvar(stmt, path_id, aspect='value', env=env)
 
 
-def _same_expr(expr1, expr2):
+def _same_expr(expr1: pgast.BaseExpr, expr2: pgast.BaseExpr) -> bool:
     if (isinstance(expr1, pgast.ColumnRef) and
             isinstance(expr2, pgast.ColumnRef)):
         return expr1.name == expr2.name
@@ -719,7 +721,7 @@ def _get_rel_path_output(
 
 
 def find_path_output(
-        rel: pgast.BaseRelation, path_id: irast.PathId, ref: pgast.Base, *,
+        rel: pgast.BaseRelation, path_id: irast.PathId, ref: pgast.BaseExpr, *,
         env: context.Environment) -> Optional[pgast.OutputVar]:
     if isinstance(ref, pgast.TupleVarBase):
         return None
@@ -830,6 +832,8 @@ def _get_path_output(
                 optional = ref.optional
 
             if nullable and not allow_nullable:
+                assert isinstance(rel, pgast.SelectStmt), \
+                    "expected SelectStmt"
                 var = get_path_var(rel, path_id, aspect=aspect, env=env)
                 rel.where_clause = astutils.extend_binop(
                     rel.where_clause,

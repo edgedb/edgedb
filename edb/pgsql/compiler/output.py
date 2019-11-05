@@ -45,7 +45,12 @@ def _get_json_func(name: str, *,
         return (f'{prefix_suffix}_{name}',)
 
 
-def coll_as_json_object(expr, *, styperef, env):
+def coll_as_json_object(
+    expr: pgast.BaseExpr,
+    *,
+    styperef: irast.TypeRef,
+    env: context.Environment,
+) -> pgast.BaseExpr:
     if irtyputils.is_tuple(styperef):
         return tuple_as_json_object(expr, styperef=styperef, env=env)
     elif irtyputils.is_array(styperef):
@@ -54,12 +59,17 @@ def coll_as_json_object(expr, *, styperef, env):
         raise RuntimeError(f'{styperef!r} is not a collection')
 
 
-def array_as_json_object(expr, *, styperef, env):
+def array_as_json_object(
+    expr: pgast.BaseExpr,
+    *,
+    styperef: irast.TypeRef,
+    env: context.Environment,
+) -> pgast.BaseExpr:
     el_type = styperef.subtypes[0]
 
     if irtyputils.is_tuple(el_type):
         coldeflist = []
-        json_args = []
+        json_args: List[pgast.BaseExpr] = []
         is_named = any(st.element_name for st in el_type.subtypes)
 
         for i, st in enumerate(el_type.subtypes):
@@ -69,7 +79,7 @@ def array_as_json_object(expr, *, styperef, env):
             else:
                 colname = env.aliases.get(str(i))
 
-            val = pgast.ColumnRef(name=[colname])
+            val: pgast.BaseExpr = pgast.ColumnRef(name=[colname])
             if irtyputils.is_collection(st):
                 val = coll_as_json_object(val, styperef=st, env=env)
 
@@ -131,19 +141,29 @@ def array_as_json_object(expr, *, styperef, env):
             null_safe=True, ser_safe=True)
 
 
-def tuple_as_json_object(expr, *, styperef, env):
+def tuple_as_json_object(
+    expr: pgast.BaseExpr,
+    *,
+    styperef: irast.TypeRef,
+    env: context.Environment,
+) -> pgast.BaseExpr:
     if any(st.element_name for st in styperef.subtypes):
         return named_tuple_as_json_object(expr, styperef=styperef, env=env)
     else:
         return unnamed_tuple_as_json_object(expr, styperef=styperef, env=env)
 
 
-def unnamed_tuple_as_json_object(expr, *, styperef, env):
-    vals = []
+def unnamed_tuple_as_json_object(
+    expr: pgast.BaseExpr,
+    *,
+    styperef: irast.TypeRef,
+    env: context.Environment,
+) -> pgast.BaseExpr:
+    vals: List[pgast.BaseExpr] = []
 
     if styperef.in_schema:
         for el_idx, el_type in enumerate(styperef.subtypes):
-            val = pgast.Indirection(
+            val: pgast.BaseExpr = pgast.Indirection(
                 arg=expr,
                 indirection=[
                     pgast.ColumnRef(
@@ -208,13 +228,18 @@ def unnamed_tuple_as_json_object(expr, *, styperef, env):
         )
 
 
-def named_tuple_as_json_object(expr, *, styperef, env):
-    keyvals = []
+def named_tuple_as_json_object(
+    expr: pgast.BaseExpr,
+    *,
+    styperef: irast.TypeRef,
+    env: context.Environment,
+) -> pgast.BaseExpr:
+    keyvals: List[pgast.BaseExpr] = []
 
     if styperef.in_schema:
         for el_type in styperef.subtypes:
             keyvals.append(pgast.StringConstant(val=el_type.element_name))
-            val = pgast.Indirection(
+            val: pgast.BaseExpr = pgast.Indirection(
                 arg=expr,
                 indirection=[
                     pgast.ColumnRef(
@@ -280,7 +305,13 @@ def named_tuple_as_json_object(expr, *, styperef, env):
         )
 
 
-def tuple_var_as_json_object(tvar, *, path_id, env):
+def tuple_var_as_json_object(
+    tvar: pgast.TupleVar,
+    *,
+    path_id: irast.PathId,
+    env: context.Environment,
+) -> pgast.BaseExpr:
+
     if not tvar.named:
         return pgast.FuncCall(
             name=_get_json_func('build_array', env=env),
@@ -290,7 +321,7 @@ def tuple_var_as_json_object(tvar, *, path_id, env):
             ],
             null_safe=True, ser_safe=True, nullable=tvar.nullable)
     else:
-        keyvals = []
+        keyvals: List[pgast.BaseExpr] = []
 
         for element in tvar.elements:
             rptr = element.path_id.rptr()
@@ -349,6 +380,8 @@ def serialize_expr_to_json(
         path_id: irast.PathId,
         nested: bool=False,
         env: context.Environment) -> pgast.BaseExpr:
+
+    val: pgast.BaseExpr
 
     if isinstance(expr, pgast.TupleVar):
         val = tuple_var_as_json_object(expr, path_id=path_id, env=env)

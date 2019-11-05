@@ -51,7 +51,7 @@ def init_toplevel_query(
 
 def pull_path_namespace(
         *, target: pgast.Query, source: pgast.PathRangeVar,
-        replace_bonds: bool=True, ctx: context.CompilerContextLevel):
+        replace_bonds: bool=True, ctx: context.CompilerContextLevel) -> None:
 
     squery = source.query
     source_qs: List[pgast.BaseRelation]
@@ -231,10 +231,14 @@ def include_specific_rvar(
 def has_rvar(
         stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
         ctx: context.CompilerContextLevel) -> bool:
-    while stmt is not None:
-        if pathctx.has_rvar(stmt, rvar, env=ctx.env):
+
+    curstmt: Optional[pgast.Query] = stmt
+
+    while curstmt is not None:
+        if pathctx.has_rvar(curstmt, rvar, env=ctx.env):
             return True
-        stmt = ctx.rel_hierarchy.get(stmt)
+        curstmt = ctx.rel_hierarchy.get(curstmt)
+
     return False
 
 
@@ -242,7 +246,7 @@ def _get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         aspect: str, ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.PathRangeVar, irast.PathId]:
-    qry = stmt
+    qry: Optional[pgast.Query] = stmt
     while qry is not None:
         rvar = pathctx.maybe_get_path_rvar(
             qry, path_id, aspect=aspect, env=ctx.env)
@@ -349,6 +353,7 @@ def new_root_rvar(
                 aspect='identity', var=rref, env=ctx.env)
 
             if astutils.is_set_op_query(set_rvar.query):
+                assert isinstance(set_rvar.query, pgast.SelectStmt)
                 astutils.for_each_query_in_set(
                     set_rvar.query,
                     lambda qry:
@@ -539,7 +544,7 @@ def ensure_source_rvar(
 
 
 def ensure_bond_for_expr(
-        ir_set: irast.Set, stmt: pgast.BaseRelation, *, type='int',
+        ir_set: irast.Set, stmt: pgast.BaseRelation, *, type: str='int',
         ctx: context.CompilerContextLevel) -> None:
     if ir_set.path_id.is_objtype_path():
         # ObjectTypes have inherent identity
@@ -550,7 +555,7 @@ def ensure_bond_for_expr(
 
 def ensure_transient_identity_for_set(
         ir_set: irast.Set, stmt: pgast.BaseRelation, *,
-        ctx: context.CompilerContextLevel, type='int') -> None:
+        ctx: context.CompilerContextLevel, type: str='int') -> None:
 
     if type == 'uuid':
         id_expr = pgast.FuncCall(
@@ -570,17 +575,20 @@ def ensure_transient_identity_for_set(
 
 
 def get_scope(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> \
-        Optional[irast.ScopeTreeNode]:
-    if ir_set.path_scope_id is None:
-        return None
-    else:
-        return ctx.scope_tree.root.find_by_unique_id(ir_set.path_scope_id)
+    ir_set: irast.Set, *,
+    ctx: context.CompilerContextLevel,
+) -> Optional[irast.ScopeTreeNode]:
+
+    result: Optional[irast.ScopeTreeNode] = None
+
+    if ir_set.path_scope_id is not None:
+        result = ctx.scope_tree.root.find_by_unique_id(ir_set.path_scope_id)
+
+    return result
 
 
 def update_scope(
-        ir_set: irast.Set, stmt: pgast.Query, *,
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> None:
 
     scope_tree = get_scope(ir_set, ctx=ctx)
@@ -589,7 +597,10 @@ def update_scope(
 
     ctx.scope_tree = scope_tree
     ctx.path_scope = ctx.path_scope.new_child()
-    ctx.path_scope.update({p.path_id: stmt for p in scope_tree.path_children})
+
+    for p in scope_tree.path_children:
+        assert p.path_id is not None
+        ctx.path_scope[p.path_id] = stmt
 
     iter_path_id = None
     if (isinstance(ir_set.expr, irast.Stmt) and
@@ -998,21 +1009,29 @@ def add_type_rel_overlay(
     typeid = str(typeref.id)
     if dml_stmts:
         for dml_stmt in dml_stmts:
-            overlays = ctx.rel_overlays[typeid, dml_stmt]
+            overlays = ctx.type_rel_overlays[typeid, dml_stmt]
             overlays.append((op, rel, path_id))
     else:
-        overlays = ctx.rel_overlays[typeid, None]
+        overlays = ctx.type_rel_overlays[typeid, None]
         overlays.append((op, rel, path_id))
 
 
 def get_type_rel_overlays(
-        typeref: irast.TypeRef, *,
-        dml_source: Optional[irast.MutatingStmt]=None,
-        ctx: context.CompilerContextLevel):
+    typeref: irast.TypeRef,
+    *,
+    dml_source: Optional[irast.MutatingStmt]=None,
+    ctx: context.CompilerContextLevel,
+) -> List[
+    Tuple[
+        str,
+        Union[pgast.BaseRelation, pgast.CommonTableExpr],
+        irast.PathId,
+    ]
+]:
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
-    return ctx.rel_overlays.get((str(typeref.id), dml_source))
+    return ctx.type_rel_overlays[str(typeref.id), dml_source]
 
 
 def add_ptr_rel_overlay(
@@ -1024,16 +1043,21 @@ def add_ptr_rel_overlay(
 
     if dml_stmts:
         for dml_stmt in dml_stmts:
-            overlays = ctx.rel_overlays[ptrref.shortname, dml_stmt]
+            overlays = ctx.ptr_rel_overlays[ptrref.shortname, dml_stmt]
             overlays.append((op, rel))
     else:
-        overlays = ctx.rel_overlays[ptrref.shortname, None]
+        overlays = ctx.ptr_rel_overlays[ptrref.shortname, None]
         overlays.append((op, rel))
 
 
 def get_ptr_rel_overlays(
-        ptrref: irast.PointerRef, *,
-        dml_source: Optional[irast.MutatingStmt]=None,
-        ctx: context.CompilerContextLevel):
-
-    return ctx.rel_overlays.get((ptrref.shortname, dml_source))
+    ptrref: irast.PointerRef, *,
+    dml_source: Optional[irast.MutatingStmt]=None,
+    ctx: context.CompilerContextLevel,
+) -> List[
+    Tuple[
+        str,
+        Union[pgast.BaseRelation, pgast.CommonTableExpr],
+    ]
+]:
+    return ctx.ptr_rel_overlays[ptrref.shortname, dml_source]

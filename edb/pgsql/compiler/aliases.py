@@ -18,12 +18,13 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from edb.common import compiler
 from edb.pgsql import common
 
 
 class AliasGenerator(compiler.AliasGenerator):
-    def get(self, hint=None):
+    def get(self, hint: str = '') -> str:
         alias = super().get(hint)
         return common.edgedb_name_to_pg_name(alias)

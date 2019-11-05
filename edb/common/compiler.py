@@ -19,75 +19,113 @@
 
 from __future__ import annotations
 
+from typing import *  # NoQA
+
 import collections
 import re
 
 
+ContextLevel_T = TypeVar('ContextLevel_T', bound='ContextLevel')
+
+
 class ContextLevel:
-    def on_pop(self, prevlevel):
+    _stack: CompilerContext[ContextLevel]
+
+    def __init__(self, prevlevel: Optional[ContextLevel], mode: Any) -> None:
         pass
 
-    def new(self, mode=None):
-        return self._stack.new(mode, self)
+    def on_pop(self, prevlevel: Optional[ContextLevel]) -> None:
+        pass
+
+    def new(
+        self: ContextLevel_T,
+        mode: Any=None,
+    ) -> CompilerContextManager[ContextLevel_T]:
+        stack = cast(CompilerContext[ContextLevel_T], self._stack)
+        return stack.new(mode, self)
 
 
-class CompilerContextManager:
-    def __init__(self, context, mode, prevlevel):
+class CompilerContextManager(Generic[ContextLevel_T]):
+    def __init__(
+        self,
+        context: CompilerContext[ContextLevel_T],
+        mode: Any,
+        prevlevel: Optional[ContextLevel_T],
+    ) -> None:
         self.context = context
         self.mode = mode
         self.prevlevel = prevlevel
 
-    def __enter__(self):
-        self.context.push(self.mode, self.prevlevel)
-        return self.context.current
+    def __enter__(self) -> ContextLevel_T:
+        return self.context.push(self.mode, self.prevlevel)
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.context.pop()
 
 
-class CompilerContext:
-    def __init__(self):
-        self.stack = []
-        self.push(None)
+class CompilerContext(Generic[ContextLevel_T]):
+    stack: List[ContextLevel_T]
+    ContextLevelClass: Type[ContextLevel_T]
+    default_mode: Any
 
-    def push(self, mode, prevlevel=None):
-        if prevlevel is None:
+    def __init__(self) -> None:
+        self.stack = []
+        self._push(None, initial=True)
+
+    def push(
+        self,
+        mode: Any,
+        prevlevel: Optional[ContextLevel_T] = None,
+    ) -> ContextLevel_T:
+        return self._push(mode, prevlevel)
+
+    def _push(
+        self,
+        mode: Any,
+        prevlevel: Optional[ContextLevel_T] = None,
+        *,
+        initial: bool = False,
+    ) -> ContextLevel_T:
+        if prevlevel is None and not initial:
             prevlevel = self.current
         level = self.ContextLevelClass(prevlevel, mode)
-        level._stack = self
+        # XXX: typing fu
+        level._stack = cast(CompilerContext[ContextLevel], self)
         self.stack.append(level)
         return level
 
-    def pop(self):
+    def pop(self) -> None:
         level = self.stack.pop()
         level.on_pop(self.stack[-1] if self.stack else None)
 
-    def new(self, mode=None, prevlevel=None):
+    def new(
+        self,
+        mode: Any = None,
+        prevlevel: Optional[ContextLevel_T] = None,
+    ) -> CompilerContextManager[ContextLevel_T]:
         if mode is None:
             mode = self.default_mode
         return CompilerContextManager(self, mode, prevlevel)
 
-    def _current(self):
-        if len(self.stack) > 0:
-            return self.stack[-1]
-        else:
-            return None
-
-    current = property(_current)
+    @property
+    def current(self) -> ContextLevel_T:
+        return self.stack[-1]
 
 
-class Counter:
-    def __init__(self):
+class SimpleCounter:
+    counts: DefaultDict[str, int]
+
+    def __init__(self) -> None:
         self.counts = collections.defaultdict(int)
 
-    def nextval(self, name='default'):
+    def nextval(self, name: str = 'default') -> int:
         self.counts[name] += 1
         return self.counts[name]
 
 
-class AliasGenerator(Counter):
-    def get(self, hint=None):
-        if hint is None:
+class AliasGenerator(SimpleCounter):
+    def get(self, hint: str = '') -> str:
+        if not hint:
             hint = 'v'
         m = re.search(r'~\d+$', hint)
         if m:

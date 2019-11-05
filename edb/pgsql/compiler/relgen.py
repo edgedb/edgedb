@@ -91,16 +91,15 @@ def new_source_set_rvar(
     return new_simple_set_rvar(ir_set, rvar, aspects)
 
 
-class OptionalRel:
-    def __init__(self, scope_rel, target_rel, emptyrel,
-                 unionrel, wrapper, container, marker):
-        self.scope_rel = scope_rel
-        self.target_rel = target_rel
-        self.emptyrel = emptyrel
-        self.unionrel = unionrel
-        self.wrapper = wrapper
-        self.container = container
-        self.marker = marker
+class OptionalRel(NamedTuple):
+
+    scope_rel: pgast.SelectStmt
+    target_rel: pgast.SelectStmt
+    emptyrel: pgast.SelectStmt
+    unionrel: pgast.SelectStmt
+    wrapper: pgast.SelectStmt
+    container: pgast.SelectStmt
+    marker: str
 
 
 def get_set_rvar(
@@ -189,14 +188,14 @@ def get_set_rvar(
                 aspects=set_rvar.aspects,
                 ctx=subctx)
 
-        rvar = rvars.main.rvar
+        result_rvar = rvars.main.rvar
 
         for aspect in rvars.main.aspects:
             pathctx.put_path_rvar_if_not_exists(
-                ctx.rel, path_id, rvar,
+                ctx.rel, path_id, result_rvar,
                 aspect=aspect, env=subctx.env)
 
-    return rvar
+    return result_rvar
 
 
 def _process_toplevel_query(
@@ -414,7 +413,7 @@ def set_to_array(
 def prepare_optional_rel(
         *, ir_set: irast.Set, stmt: pgast.SelectStmt,
         ctx: context.CompilerContextLevel) \
-        -> Tuple[pgast.Query, OptionalRel]:
+        -> Tuple[pgast.SelectStmt, OptionalRel]:
 
     # For OPTIONAL sets we compute a UNION of both sides and annotate
     # each side with a marker.  We then select only rows that match
@@ -773,7 +772,6 @@ def process_set_as_path(
         with ctx.subrel() as srcctx:
             if is_linkprop:
                 srcctx.disable_semi_join.add(ir_source.path_id)
-                srcctx.unique_paths.add(ir_source.path_id)
 
             get_set_rvar(ir_source, ctx=srcctx)
 
@@ -894,6 +892,7 @@ def process_set_as_subquery(
             # Non-scalar computable pointer.  Check if path source is
             # visible in the outer scope.
             outer_fence = ctx.scope_tree.parent_fence
+            assert outer_fence is not None
             source_is_visible = outer_fence.is_visible(ir_source.path_id)
 
         if source_is_visible:
@@ -941,6 +940,7 @@ def process_set_as_subquery(
             src_ref = pathctx.maybe_get_path_identity_var(
                 stmt, path_id=ir_source.path_id, env=ctx.env)
 
+            cond_expr: pgast.BaseExpr
             if src_ref is not None:
                 cond_expr = astutils.new_binop(src_ref, subrel, 'IN')
             else:

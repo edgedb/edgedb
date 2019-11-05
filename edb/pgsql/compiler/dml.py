@@ -55,7 +55,7 @@ def init_dml_stmt(
         ir_stmt: irast.MutatingStmt, dml_stmt: pgast.DMLQuery, *,
         ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) \
-        -> Tuple[pgast.Query, pgast.CommonTableExpr,
+        -> Tuple[pgast.SelectStmt, pgast.CommonTableExpr,
                  pgast.PathRangeVar,
                  Optional[pgast.CommonTableExpr]]:
     """Prepare the common structure of the query representing a DML stmt.
@@ -261,7 +261,7 @@ def get_dml_range(
 
 def process_insert_body(
         ir_stmt: irast.MutatingStmt,
-        wrapper: pgast.Query,
+        wrapper: pgast.SelectStmt,
         insert_cte: pgast.CommonTableExpr,
         insert_rvar: pgast.PathRangeVar, *,
         ctx: context.CompilerContextLevel) -> None:
@@ -415,7 +415,7 @@ def process_insert_body(
                     shape_el, None, ctx=scopectx)
                 prop_elements.append(tuple_el)
 
-        valtuple = pgast.TupleVar(elements=prop_elements, named=True)
+        valtuple = pgast.TupleVarBase(elements=prop_elements, named=True)
         pathctx.put_path_value_var(
             wrapper, ir_stmt.subject.path_id,
             valtuple, force=True, env=ctx.env)
@@ -440,7 +440,6 @@ def compile_insert_shape_element(
             # anyway.
             insvalctx.volatility_ref = context.NO_VOLATILITY
 
-        insvalctx.path_scope[ir_stmt.subject.path_id] = insert_stmt
         dispatch.visit(shape_el, ctx=insvalctx)
 
     return insvalctx.rel
@@ -483,7 +482,7 @@ def process_update_body(
         ir_stmt: irast.MutatingStmt,
         wrapper: pgast.Query, update_cte: pgast.CommonTableExpr,
         range_cte: pgast.CommonTableExpr, *,
-        ctx: context.CompilerContextLevel):
+        ctx: context.CompilerContextLevel) -> None:
     """Generate SQL DML CTEs from an UpdateStmt IR.
 
     :param ir_stmt:
@@ -509,8 +508,7 @@ def process_update_body(
         # the UpdateStmt shape body in the context of the
         # UPDATE statement so that references to the current
         # values of the updated object are resolved correctly.
-        subctx.path_scope[ir_stmt.subject.path_id] = update_stmt
-        subctx.rel = update_stmt
+        subctx.parent_rel = update_stmt
         subctx.expr_exposed = False
 
         for shape_el in ir_stmt.subject.shape:
@@ -851,10 +849,18 @@ def process_linkprop_update(
 
 
 def process_link_values(
-        ir_stmt, ir_expr, target_tab, col_data,
-        dml_rvar, sources, props_only, target_is_scalar, iterator_cte, *,
-        ctx=context.CompilerContext) -> \
-        Tuple[pgast.CommonTableExpr, List[str]]:
+    ir_stmt: irast.MutatingStmt,
+    ir_expr: irast.Set,
+    target_tab: Tuple[str, ...],
+    col_data: Mapping[str, pgast.BaseExpr],
+    dml_rvar: pgast.PathRangeVar,
+    sources: Iterable[pgast.BaseRangeVar],
+    props_only: bool,
+    target_is_scalar: bool,
+    iterator_cte: Optional[pgast.CommonTableExpr],
+    *,
+    ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.CommonTableExpr, List[str]]:
     """Unpack data from an update expression into a series of selects.
 
     :param ir_expr:
@@ -908,7 +914,7 @@ def process_link_values(
                         input_rel_ctx.rel, element.path_id, element.val,
                         aspect='value', env=input_rel_ctx.env)
 
-    input_stmt = input_rel
+    input_stmt: pgast.Query = input_rel
 
     input_rvar = pgast.RangeSubselect(
         subquery=input_rel,
@@ -920,7 +926,7 @@ def process_link_values(
 
     source_data: Dict[str, pgast.BaseExpr] = {}
 
-    if input_stmt.op is not None:
+    if isinstance(input_stmt, pgast.SelectStmt) and input_stmt.op is not None:
         # UNION
         input_stmt = input_stmt.rarg
 

@@ -323,10 +323,10 @@ class ContextLevel(compiler.ContextLevel):
     path_scope_map: Dict[irast.Set, irast.ScopeTreeNode]
     """A forest of scope trees used for views."""
 
-    scope_id_ctr: compiler.Counter
+    scope_id_ctr: compiler.SimpleCounter
     """Path scope id counter."""
 
-    view_rptr: ViewRPtr
+    view_rptr: Optional[ViewRPtr]
     """Pointer information for the top-level view of the substatement."""
 
     view_scls: s_types.Type
@@ -386,7 +386,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_map = collections.ChainMap()
             self.path_scope = None
             self.path_scope_map = {}
-            self.scope_id_ctr = compiler.Counter()
+            self.scope_id_ctr = compiler.SimpleCounter()
             self.view_scls = None
             self.expr_exposed = False
 

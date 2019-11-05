@@ -83,7 +83,10 @@ def compile_shape(
             else:
                 value = dispatch.compile(el, ctx=shapectx)
 
-            elements.append(
-                astutils.tuple_element_for_shape_el(el, value, ctx=shapectx))
+            tuple_el = astutils.tuple_element_for_shape_el(
+                el, value, ctx=shapectx)
+
+            assert isinstance(tuple_el, pgast.TupleElement)
+            elements.append(tuple_el)
 
     return pgast.TupleVar(elements=elements, named=True)

@@ -27,8 +27,17 @@ from typing import *  # NoQA
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
 
+if TYPE_CHECKING:
+    from edb.ir import ast as irast
+    from . import context
 
-def tuple_element_for_shape_el(shape_el, value, *, ctx):
+
+def tuple_element_for_shape_el(
+    shape_el: irast.Set,
+    value: Optional[pgast.BaseExpr],
+    *,
+    ctx: context.CompilerContextLevel
+) -> pgast.TupleElementBase:
     if shape_el.path_id.is_type_indirection_path():
         rptr = shape_el.rptr.source.rptr
     else:
@@ -36,14 +45,25 @@ def tuple_element_for_shape_el(shape_el, value, *, ctx):
     ptrref = rptr.ptrref
     ptrname = ptrref.shortname
 
-    return pgast.TupleElement(
-        path_id=shape_el.path_id,
-        name=ptrname,
-        val=value,
-    )
+    if value is not None:
+        return pgast.TupleElement(
+            path_id=shape_el.path_id,
+            name=ptrname,
+            val=value,
+        )
+    else:
+        return pgast.TupleElementBase(
+            path_id=shape_el.path_id,
+            name=ptrname,
+        )
 
 
-def tuple_getattr(tuple_val, tuple_typeref, attr):
+def tuple_getattr(
+    tuple_val: pgast.BaseExpr,
+    tuple_typeref: irast.TypeRef,
+    attr: str,
+) -> pgast.BaseExpr:
+
     ttypes = []
     pgtypes = []
     for i, st in enumerate(tuple_typeref.subtypes):
@@ -56,6 +76,8 @@ def tuple_getattr(tuple_val, tuple_typeref, attr):
             ttypes.append(str(i))
 
     index = ttypes.index(attr)
+
+    set_expr: pgast.BaseExpr
 
     if tuple_typeref.in_schema:
         set_expr = pgast.Indirection(
@@ -103,28 +125,33 @@ def tuple_getattr(tuple_val, tuple_typeref, attr):
     return set_expr
 
 
-def is_null_const(expr):
+def is_null_const(expr: pgast.BaseExpr) -> bool:
     if isinstance(expr, pgast.TypeCast):
         expr = expr.arg
     return isinstance(expr, pgast.NullConstant)
 
 
-def is_set_op_query(query):
+def is_set_op_query(query: pgast.BaseExpr) -> bool:
     return (
         isinstance(query, pgast.SelectStmt)
         and query.op is not None
     )
 
 
-def get_leftmost_query(query):
+def get_leftmost_query(query: pgast.Query) -> pgast.Query:
     result = query
     while is_set_op_query(result):
+        result = cast(pgast.SelectStmt, result)
         result = result.larg
     return result
 
 
-def for_each_query_in_set(qry, cb):
-    if qry.op:
+def for_each_query_in_set(
+    qry: pgast.Query,
+    cb: Callable[[pgast.Query], Any],
+) -> List[Any]:
+    if is_set_op_query(qry):
+        qry = cast(pgast.SelectStmt, qry)
         result = for_each_query_in_set(qry.larg, cb)
         result.extend(for_each_query_in_set(qry.rarg, cb))
     else:
@@ -133,7 +160,11 @@ def for_each_query_in_set(qry, cb):
     return result
 
 
-def new_binop(lexpr, rexpr, op):
+def new_binop(
+    lexpr: pgast.BaseExpr,
+    rexpr: pgast.BaseExpr,
+    op: str,
+) -> pgast.Expr:
     return pgast.Expr(
         kind=pgast.ExprKind.OP,
         name=op,
@@ -142,18 +173,27 @@ def new_binop(lexpr, rexpr, op):
     )
 
 
-def extend_binop(binop, *exprs, op='AND'):
-    exprs = list(exprs)
-    binop = binop or exprs.pop(0)
+def extend_binop(
+    binop: Optional[pgast.BaseExpr],
+    *exprs: pgast.BaseExpr,
+    op: str = 'AND',
+) -> pgast.BaseExpr:
+    exprlist = list(exprs)
+    result: pgast.BaseExpr
 
-    for expr in exprs:
-        if expr is not None and expr is not binop:
-            binop = new_binop(lexpr=binop, op=op, rexpr=expr)
+    if binop is None:
+        result = exprlist.pop(0)
+    else:
+        result = binop
 
-    return binop
+    for expr in exprlist:
+        if expr is not None and expr is not result:
+            result = new_binop(lexpr=result, op=op, rexpr=expr)
+
+    return result
 
 
-def new_unop(op, expr):
+def new_unop(op: str, expr: pgast.BaseExpr) -> pgast.Expr:
     return pgast.Expr(
         kind=pgast.ExprKind.OP,
         name=op,
@@ -161,8 +201,11 @@ def new_unop(op, expr):
     )
 
 
-def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
-    path_cond = new_binop(lref, rref, op='=')
+def join_condition(
+    lref: pgast.ColumnRef,
+    rref: pgast.ColumnRef,
+) -> pgast.BaseExpr:
+    path_cond: pgast.BaseExpr = new_binop(lref, rref, op='=')
 
     if lref.optional:
         opt_cond = pgast.NullTest(arg=lref)
@@ -177,14 +220,18 @@ def join_condition(lref: pgast.ColumnRef, rref: pgast.ColumnRef) -> pgast.Base:
 
 def safe_array_expr(
     elements: List[pgast.BaseExpr],
-    **kwargs,
+    *,
+    ser_safe: bool = False,
 ) -> pgast.BaseExpr:
-    result: pgast.BaseExpr = pgast.ArrayExpr(elements=elements, **kwargs)
+    result: pgast.BaseExpr = pgast.ArrayExpr(
+        elements=elements,
+        ser_safe=ser_safe,
+    )
     if any(el.nullable for el in elements):
         result = pgast.FuncCall(
             name=('edgedb', '_nullif_array_nulls'),
             args=[result],
-            **kwargs,
+            ser_safe=ser_safe,
         )
     return result
 
@@ -229,12 +276,12 @@ def get_column(
             if is_set_op_query(rvar.subquery):
                 nullables = []
                 ser_safes = []
-                for_each_query_in_set(
-                    rvar.subquery,
-                    lambda q:
-                        (nullables.append(q.target_list[col_idx].nullable),
-                         ser_safes.append(q.target_list[col_idx].ser_safe))
-                )
+
+                def _cb(q: pgast.Query) -> None:
+                    nullables.append(q.target_list[col_idx].nullable)
+                    ser_safes.append(q.target_list[col_idx].ser_safe)
+
+                for_each_query_in_set(rvar.subquery, _cb)
                 nullable = any(nullables)
                 ser_safe = all(ser_safes)
             else:
@@ -260,20 +307,25 @@ def get_rvar_var(
         rvar: pgast.BaseRangeVar,
         var: pgast.OutputVar) -> pgast.OutputVar:
 
-    assert isinstance(var, pgast.OutputVar)
+    fieldref: pgast.OutputVar
 
     if isinstance(var, pgast.TupleVarBase):
         elements = []
 
         for el in var.elements:
+            assert isinstance(el.name, pgast.OutputVar)
             val = get_rvar_var(rvar, el.name)
             elements.append(
                 pgast.TupleElement(
                     path_id=el.path_id, name=el.name, val=val))
 
         fieldref = pgast.TupleVar(elements, named=var.named)
-    else:
+
+    elif isinstance(var, pgast.ColumnRef):
         fieldref = get_column(rvar, var)
+
+    else:
+        raise AssertionError(f'unexpected OutputVar subclass: {var!r}')
 
     return fieldref
 
@@ -283,25 +335,37 @@ def strip_output_var(
         optional: Optional[bool]=None,
         nullable: Optional[bool]=None) -> pgast.OutputVar:
 
+    result: pgast.OutputVar
+
     if isinstance(var, pgast.TupleVarBase):
         elements = []
 
         for el in var.elements:
-            if isinstance(el.name, str):
-                val = pgast.ColumnRef(name=[el.name])
+            val: pgast.OutputVar
+            el_name = el.name
+
+            if isinstance(el_name, str):
+                val = pgast.ColumnRef(name=[el_name])
+            elif isinstance(el_name, pgast.OutputVar):
+                val = strip_output_var(el_name)
             else:
-                val = strip_output_var(el.name)
+                raise AssertionError(
+                    f'unexpected tuple element class: {el_name!r}')
 
             elements.append(
                 pgast.TupleElement(
-                    path_id=el.path_id, name=el.name, val=val))
+                    path_id=el.path_id, name=el_name, val=val))
 
         result = pgast.TupleVar(elements, named=var.named)
-    else:
+
+    elif isinstance(var, pgast.ColumnRef):
         result = pgast.ColumnRef(
             name=[var.name[-1]],
             optional=optional if optional is not None else var.optional,
             nullable=nullable if nullable is not None else var.nullable,
         )
+
+    else:
+        raise AssertionError(f'unexpected OutputVar subclass: {var!r}')
 
     return result

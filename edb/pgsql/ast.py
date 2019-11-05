@@ -146,7 +146,7 @@ class BaseRangeVar(ImmutableBaseExpr):
     alias: Alias
 
 
-class BaseRelation(EdgeQLPathInfo):
+class BaseRelation(EdgeQLPathInfo, BaseExpr):
     name: str
     nullable: bool              # Whether the result can be NULL.
 
@@ -307,7 +307,7 @@ class ResTarget(ImmutableBaseExpr):
     # subscripts, field names and '*'
     indirection: list
     # value expression to compute
-    val: Base
+    val: BaseExpr
 
 
 class UpdateTarget(ImmutableBaseExpr):
@@ -316,7 +316,7 @@ class UpdateTarget(ImmutableBaseExpr):
     # column name (optional)
     name: str
     # value expression to assign
-    val: Base
+    val: BaseExpr
 
 
 class InferClause(ImmutableBaseExpr):
@@ -324,7 +324,7 @@ class InferClause(ImmutableBaseExpr):
     # IndexElems to infer unique index
     index_elems: list
     # Partial-index predicate
-    where_clause: Base
+    where_clause: BaseExpr
     # Constraint name
     conname: str
 
@@ -334,7 +334,7 @@ class OnConflictClause(ImmutableBaseExpr):
     action: str
     infer: InferClause
     target_list: list
-    where: Base
+    where: BaseExpr
 
 
 class ReturningQuery(BaseRelation):
@@ -345,10 +345,10 @@ class ReturningQuery(BaseRelation):
 class NullRelation(ReturningQuery):
     """Special relation that produces nulls for all its attributes."""
 
-    where_clause: Base
+    where_clause: BaseExpr
 
 
-class Query(BaseExpr, BaseRelation):
+class Query(ReturningQuery):
     """Generic superclass representing a query."""
 
     # Ignore the below fields in AST visitor/transformer.
@@ -370,7 +370,7 @@ class Query(BaseExpr, BaseRelation):
         return all(t.ser_safe for t in self.target_list)
 
 
-class DMLQuery(Query, ReturningQuery):
+class DMLQuery(Query):
     """Generic superclass for INSERT/UPDATE/DELETE statements."""
 
     # Target relation to perform the operation on.
@@ -398,19 +398,19 @@ class UpdateStmt(DMLQuery):
     # The UPDATE target list
     targets: typing.List[UpdateTarget]
     # WHERE clause
-    where_clause: Base
+    where_clause: BaseExpr
     # optional FROM clause
     from_clause: typing.List[BaseRangeVar]
 
 
 class DeleteStmt(DMLQuery):
     # WHERE clause
-    where_clause: Base
+    where_clause: BaseExpr
     # optional USING clause
     using_clause: typing.List[BaseRangeVar]
 
 
-class SelectStmt(Query, ReturningQuery):
+class SelectStmt(Query):
 
     # List of DISTINCT ON expressions, empty list for DISTINCT ALL
     distinct_clause: list
@@ -419,11 +419,11 @@ class SelectStmt(Query, ReturningQuery):
     # The FROM clause
     from_clause: typing.List[BaseRangeVar]
     # The WHERE clause
-    where_clause: Base
+    where_clause: BaseExpr
     # GROUP BY clauses
     group_clause: typing.List[Base]
     # HAVING expression
-    having: Base
+    having: BaseExpr
     # WINDOW window_name AS(...),
     window_clause: typing.List[Base]
     # List of ImplicitRow's in a VALUES query
@@ -431,9 +431,9 @@ class SelectStmt(Query, ReturningQuery):
     # ORDER BY clause
     sort_clause: typing.List[SortBy]
     # OFFSET expression
-    limit_offset: Base
+    limit_offset: typing.Optional[BaseExpr]
     # LIMIT expression
-    limit_count: Base
+    limit_count: typing.Optional[BaseExpr]
     # FOR UPDATE clause
     locking_clause: list
 
@@ -459,9 +459,9 @@ class Expr(ImmutableBaseExpr):
     # Possibly-qualified name of operator
     name: str
     # Left argument, if any
-    lexpr: Base
+    lexpr: BaseExpr
     # Right argument, if any
-    rexpr: Base
+    rexpr: BaseExpr
 
 
 class BaseConstant(ImmutableBaseExpr):
@@ -517,7 +517,7 @@ class TypeCast(ImmutableBaseExpr):
     """A CAST expression."""
 
     # Expression being casted.
-    arg: Base
+    arg: BaseExpr
     # Target type.
     type_name: TypeName
 
@@ -526,14 +526,14 @@ class CollateClause(ImmutableBaseExpr):
     """A COLLATE expression."""
 
     # Input expression
-    arg: Base
+    arg: BaseExpr
     # Possibly-qualified collation name
     collname: str
 
 
 class VariadicArgument(ImmutableBaseExpr):
 
-    expr: Base
+    expr: BaseExpr
     nullable: bool = False
 
 
@@ -544,9 +544,9 @@ class ColumnDef(ImmutableBase):
     # type of column
     typename: TypeName
     # default value, if any
-    default_expr: Base
+    default_expr: BaseExpr
     # COLLATE clause, if any
-    coll_clause: Base
+    coll_clause: BaseExpr
 
 
 class FuncCall(ImmutableBaseExpr):
@@ -554,17 +554,17 @@ class FuncCall(ImmutableBaseExpr):
     # Function name
     name: typing.Tuple[str, ...]
     # List of arguments
-    args: typing.List[Base]
+    args: typing.List[BaseExpr]
     # ORDER BY
-    agg_order: typing.List[Base]
+    agg_order: typing.List[BaseExpr]
     # FILTER clause
-    agg_filter: Base
+    agg_filter: BaseExpr
     # Argument list is '*'
     agg_star: bool
     # Arguments were labeled DISTINCT
     agg_distinct: bool
     # OVER clause, if any
-    over: Base
+    over: typing.Optional[WindowDef]
     # WITH ORDINALITY
     with_ordinality: bool = False
     # list of ColumnDef nodes to describe result of
@@ -587,7 +587,7 @@ class FuncCall(ImmutableBaseExpr):
 class NamedFuncArg(ImmutableBaseExpr):
 
     name: str
-    val: Base
+    val: BaseExpr
 
 
 class Indices(ImmutableBase):
@@ -596,16 +596,16 @@ class Indices(ImmutableBase):
     # True, if slice
     is_slice: bool
     # Lower bound, if any
-    lidx: Base
+    lidx: BaseExpr
     # Upper bound if any
-    ridx: Base
+    ridx: BaseExpr
 
 
 class Indirection(ImmutableBaseExpr):
     """Field and/or array element indirection."""
 
     # Indirection subject
-    arg: Base
+    arg: BaseExpr
     # Subscripts and/or field names and/or '*'
     indirection: list
 
@@ -614,14 +614,14 @@ class ArrayExpr(ImmutableBaseExpr):
     """ARRAY[] construct."""
 
     # array element expressions
-    elements: typing.List[Base]
+    elements: typing.List[BaseExpr]
 
 
 class MultiAssignRef(ImmutableBase):
     """UPDATE (a, b, c) = row-valued-expr."""
 
     # row-valued expression
-    source: Base
+    source: BaseExpr
     # list of columns to assign to
     columns: typing.List[ColumnRef]
 
@@ -630,7 +630,7 @@ class SortBy(ImmutableBase):
     """ORDER BY clause element."""
 
     # expression to sort on
-    node: Base
+    node: BaseExpr
     # ASC/DESC/USING/default
     dir: qlast.SortOrder
     # NULLS FIRST/LAST
@@ -645,15 +645,15 @@ class WindowDef(ImmutableBase):
     # referenced window name, if any
     refname: str
     # PARTITION BY expr list
-    partition_clause: typing.List[Base]
+    partition_clause: typing.List[BaseExpr]
     # ORDER BY
     order_clause: typing.List[SortBy]
     # Window frame options
     frame_options: list
     # expression for starting bound, if any
-    start_offset: Base
+    start_offset: BaseExpr
     # expression for ending ound, if any
-    end_offset: Base
+    end_offset: BaseExpr
 
 
 class RangeSubselect(PathRangeVar):
@@ -683,13 +683,13 @@ class JoinExpr(BaseRangeVar):
     type: str
 
     # Left subtree
-    larg: Base
+    larg: BaseExpr
     # Right subtree
-    rarg: Base
+    rarg: BaseExpr
     # USING clause, if any
-    using_clause: typing.List[Base]
+    using_clause: typing.List[BaseExpr]
     # Qualifiers on join, if any
-    quals: Base
+    quals: BaseExpr
 
     def copy(self):
         result = self.__class__()
@@ -715,7 +715,7 @@ class SubLink(ImmutableBaseExpr):
     # Type of sublink
     type: SubLinkType
     # Sublink expression
-    expr: Base
+    expr: BaseExpr
     # Sublink is never NULL
     nullable: bool = False
 
@@ -749,7 +749,7 @@ class NullTest(ImmutableBaseExpr):
     """IS [NOT] NULL."""
 
     # Input expression,
-    arg: Base
+    arg: BaseExpr
     # NOT NULL?
     negated: bool
     # NullTest is never NULL
@@ -759,19 +759,19 @@ class NullTest(ImmutableBaseExpr):
 class CaseWhen(ImmutableBase):
 
     # Condition expression
-    expr: Base
+    expr: BaseExpr
     # subsitution result
-    result: Base
+    result: BaseExpr
 
 
 class CaseExpr(ImmutableBaseExpr):
 
     # Equality comparison argument
-    arg: Base
+    arg: BaseExpr
     # List of WHEN clauses
     args: typing.List[CaseWhen]
     # ELSE clause
-    defresult: Base
+    defresult: BaseExpr
 
 
 SortAsc = qlast.SortAsc

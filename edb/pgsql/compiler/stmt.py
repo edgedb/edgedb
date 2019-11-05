@@ -59,10 +59,11 @@ def compile_SelectStmt(
         outvar = clauses.compile_output(stmt.result, ctx=ctx)
 
         # The FILTER clause.
-        query.where_clause = astutils.extend_binop(
-            query.where_clause,
-            clauses.compile_filter_clause(
-                stmt.where, stmt.where_card, ctx=ctx))
+        if stmt.where is not None:
+            query.where_clause = astutils.extend_binop(
+                query.where_clause,
+                clauses.compile_filter_clause(
+                    stmt.where, stmt.where_card, ctx=ctx))
 
         if outvar.nullable and query is ctx.toplevel_stmt:
             # A nullable var has bubbled up to the top,
@@ -268,10 +269,11 @@ def compile_GroupStmt(
             clauses.compile_output(o_stmt.result, ctx=selctx)
 
             # The WHERE clause
-            selquery.where_clause = astutils.extend_binop(
-                selquery.where_clause,
-                clauses.compile_filter_clause(
-                    o_stmt.where, o_stmt.where_card, ctx=selctx))
+            if o_stmt.where is not None:
+                selquery.where_clause = astutils.extend_binop(
+                    selquery.where_clause,
+                    clauses.compile_filter_clause(
+                        o_stmt.where, o_stmt.where_card, ctx=selctx))
 
             for ir_sortexpr in o_stmt.orderby:
                 alias = ctx.env.aliases.get('s')
@@ -316,14 +318,12 @@ def compile_GroupStmt(
         # The OFFSET clause
         if o_stmt.offset:
             with ctx.new() as ctx1:
-                ctx1.clause = 'offsetlimit'
                 ctx1.expr_exposed = False
                 query.limit_offset = dispatch.compile(o_stmt.offset, ctx=ctx1)
 
         # The LIMIT clause
         if o_stmt.limit:
             with ctx.new() as ctx1:
-                ctx1.clause = 'offsetlimit'
                 ctx1.expr_exposed = False
                 query.limit_count = dispatch.compile(o_stmt.limit, ctx=ctx1)
 
@@ -381,7 +381,7 @@ def compile_DeleteStmt(
         # Common DML bootstrap
         wrapper, delete_cte, delete_rvar, range_cte = dml.init_dml_stmt(
             stmt, pgast.DeleteStmt(), parent_ctx=parent_ctx, ctx=ctx)
-
+        assert range_cte is not None
         ctx.toplevel_stmt.ctes.append(range_cte)
         ctx.toplevel_stmt.ctes.append(delete_cte)
 

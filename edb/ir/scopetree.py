@@ -585,8 +585,7 @@ class ScopeTreeNode:
 
         return None, unnest_fence_seen
 
-    def find_by_unique_id(self, unique_id: int) \
-            -> Optional[ScopeTreeNode]:
+    def find_by_unique_id(self, unique_id: int) -> Optional[ScopeTreeNode]:
         for node in self.descendants:
             if node.unique_id == unique_id:
                 return node
