@@ -63,6 +63,41 @@ class Base(ast.AST):
     system_comment: str
 
 
+class OptionValue(Base):
+    """An option value resulting from a syntax."""
+
+    name: str
+    val: typing.Any
+
+
+class Flag(OptionValue):
+
+    val: bool
+
+
+class Options(Base):
+
+    options: typing.Dict[str, OptionValue]
+
+    def get_flag(self, k: str) -> Flag:
+        try:
+            flag = self[k]
+        except KeyError:
+            return Flag(name=k, val=False)
+        else:
+            assert isinstance(flag, Flag)
+            return flag
+
+    def __getitem__(self, k: str) -> OptionValue:
+        return self.options[k]
+
+    def __iter__(self) -> typing.Iterator[str]:
+        return iter(self.options)
+
+    def __len__(self) -> int:
+        return len(self.options)
+
+
 class Expr(Base):
     """Abstract parent for all query expressions."""
     __abstract_node__ = True
@@ -953,7 +988,7 @@ class DescribeStmt(Statement):
 
     language: qltypes.DescribeLanguage
     object: ObjectRef
-    verbose: bool = False
+    options: Options
 
 
 #

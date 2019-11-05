@@ -1443,8 +1443,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('SCHEMA')
         if node.language:
             self.write(' AS ', node.language)
-        if node.verbose:
-            self.write(' VERBOSE')
+        if node.options:
+            self.write(' ')
+            self.visit(node.options)
+
+    def visit_Options(self, node):
+        for i, opt in enumerate(node.options.values()):
+            if i > 0:
+                self.write(' ')
+            self.write(opt.name)
+            if not isinstance(opt, qlast.Flag):
+                self.write(f' {opt.val}')
 
     # SDL nodes
 

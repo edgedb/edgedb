@@ -78,7 +78,6 @@ def delta_schemas(
     excluded_modules: Optional[Iterable[str]]=None,
     included_items: Optional[Iterable[str]]=None,
     excluded_items: Optional[Iterable[str]]=None,
-    included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_diff: bool=True,
     include_std_diff: bool=False,
     linearize_delta: bool=True,
@@ -91,13 +90,29 @@ def delta_schemas(
     Args:
         included_modules:
             Optional list of modules to include in the delta.
+
         excluded_modules:
             Optional list of modules to exlude from the delta.
             Takes precedence over *included_modules*.
             NOTE: standard library modules are always excluded.
+
+        included_items:
+            Optional list of names of objects to include in the delta.
+
+        excluded_items:
+            Optional list of names of objects to exclude from the delta.
+            Takes precedence over *included_items*.
+
         include_module_diff:
             Whether to include create/drop module operations
             in the delta diff.
+
+        include_std_diff:
+            Whether to include the standard library in the diff.
+
+        linearize_delta:
+            Whether the resulting diff should be properly ordered
+            using the dependencies between objects.
 
     Returns:
         A :class:`schema.delta.DeltaRoot` instances representing
@@ -309,9 +324,13 @@ def _text_from_delta(
     sdlmode: bool,
     descriptive_mode: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
+    emit_oids: bool = False,
 ) -> str:
 
-    context = sd.CommandContext(descriptive_mode=descriptive_mode)
+    context = sd.CommandContext(
+        descriptive_mode=descriptive_mode,
+        emit_oids=emit_oids,
+    )
     text = []
     for command in delta.get_subcommands():
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
@@ -331,7 +350,12 @@ def _text_from_delta(
     return '\n'.join(text)
 
 
-def ddl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
+def ddl_text_from_delta(
+    schema: s_schema.Schema,
+    delta: sd.DeltaRoot,
+    *,
+    emit_oids: bool = False,
+) -> str:
     """Return DDL text corresponding to a delta plan.
 
     Args:
@@ -340,11 +364,13 @@ def ddl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
             applied.
         delta:
             The delta plan.
+        emit_oids:
+            Whether object ids should be included in the output.
 
     Returns:
         DDL text corresponding to *delta*.
     """
-    return _text_from_delta(schema, delta, sdlmode=False)
+    return _text_from_delta(schema, delta, sdlmode=False, emit_oids=emit_oids)
 
 
 def sdl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
@@ -421,6 +447,7 @@ def ddl_text_from_schema(
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
+    emit_oids: bool=False,
 ) -> str:
     if include_std_ddl:
         empty_schema = s_schema.Schema()
@@ -436,7 +463,7 @@ def ddl_text_from_schema(
         include_module_diff=include_module_ddl,
         include_std_diff=include_std_ddl,
     )
-    return ddl_text_from_delta(schema, diff)
+    return ddl_text_from_delta(schema, diff, emit_oids=emit_oids)
 
 
 def sdl_text_from_schema(
@@ -448,6 +475,7 @@ def sdl_text_from_schema(
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
+    emit_oids: bool=False,
 ) -> str:
     if include_std_ddl:
         empty_schema = s_schema.Schema()
@@ -476,6 +504,7 @@ def descriptive_text_from_schema(
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
+    emit_oids: bool=False,
 ) -> str:
     if include_std_ddl:
         empty_schema = s_schema.Schema()
