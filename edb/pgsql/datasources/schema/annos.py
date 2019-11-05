@@ -64,7 +64,8 @@ async def fetch_values(
                                             AS annotation_name,
                 a.value                     AS value,
                 a.inheritable               AS inheritable,
-                a.inherited_fields               AS inherited_fields
+                a.inherited_fields          AS inherited_fields,
+                a.is_local                  AS is_local
             FROM
                 edgedb.AnnotationValue a
             WHERE

@@ -809,6 +809,7 @@ class IntrospectionMech:
                 annotation=anno,
                 value=value,
                 inheritable=r['inheritable'],
+                is_local=r['is_local'],
             )
 
             basemap[anno] = (r['bases'], r['ancestors'])
