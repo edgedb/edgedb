@@ -422,7 +422,10 @@ def compile_DescribeStmt(
         if not ql.object:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 # DESCRIBE SCHEMA
-                text = s_ddl.ddl_text_from_schema(ctx.env.schema)
+                text = s_ddl.ddl_text_from_schema(
+                    ctx.env.schema,
+                    emit_oids=ql.options.get_flag('EMIT OIDS').val,
+                )
             else:
                 raise errors.QueryError(
                     f'cannot describe full schema as {ql.language}')
@@ -451,17 +454,27 @@ def compile_DescribeStmt(
                 )
                 items.append(obj.get_name(ictx.env.schema))
 
+            emit_oids = ql.options.get_flag('EMIT OIDS')
+            verbose = ql.options.get_flag('VERBOSE')
+
             if ql.language is qltypes.DescribeLanguage.DDL:
                 method = s_ddl.ddl_text_from_schema
             elif ql.language is qltypes.DescribeLanguage.SDL:
                 method = s_ddl.sdl_text_from_schema
             elif ql.language is qltypes.DescribeLanguage.TEXT:
                 method = s_ddl.descriptive_text_from_schema
-                if not ql.verbose:
+                if not verbose.val:
                     referenced_classes = [s_links.Link, s_lprops.Property]
             else:
                 raise errors.InternalServerError(
                     f'cannot handle describe language {ql.language}'
+                )
+
+            if (emit_oids.val
+                    and ql.language is not qltypes.DescribeLanguage.DDL):
+                raise errors.QueryError(
+                    f'EMIT OIDS is only valid for DDL mode',
+                    context=emit_oids.context,
                 )
 
             text = method(
@@ -471,6 +484,7 @@ def compile_DescribeStmt(
                 included_ref_classes=referenced_classes,
                 include_module_ddl=False,
                 include_std_ddl=True,
+                emit_oids=emit_oids.val,
             )
 
         ct = irtyputils.type_to_typeref(
