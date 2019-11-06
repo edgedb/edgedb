@@ -1,0 +1,68 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+      - ci
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        fetch-depth: 50
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.8
+
+    - uses: actions/cache@v1
+      id: depcache
+      with:
+        path: deps
+        key: edbdeps-pip-${{ hashFiles('setup.py') }}
+
+    - name: Download dependencies
+      if: steps.depcache.outputs.cache-hit != 'true'
+      run: |
+        pip download --dest=deps .[test,docs]
+
+    - name: Install Python deps
+      run: |
+        pip install -U --no-index --find-links=deps deps/*
+
+    - name: Compute build cache key
+      run: |
+        mkdir -p .tmp
+        python setup.py --quiet gen_build_cache_key >.tmp/build_cache_key.txt
+
+    - uses: actions/cache@v1
+      id: buildcache
+      with:
+        path: build
+        key: edbbuild-${{ hashFiles('.tmp/build_cache_key.txt') }}
+        restore-keys: |
+          edbbuild-
+
+    - name: Install system deps
+      if: steps.buildcache.outputs.cache-hit != 'true'
+      run: |
+        sudo apt-get install -y uuid-dev libreadline-dev bison flex
+
+    - name: Build
+      run: |
+        # --no-use-pep517 because we have explicitly installed all deps
+        # and don't want them to be reinstalled in an "isolated env".
+        pip install --no-use-pep517 --no-deps -e .[test,docs]
+
+    - name: Test
+      run: |
+        edb test -j2 -v
