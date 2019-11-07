@@ -80,6 +80,7 @@ def delta_schemas(
     excluded_items: Optional[Iterable[str]]=None,
     include_module_diff: bool=True,
     include_std_diff: bool=False,
+    include_derived_types: bool=True,
     linearize_delta: bool=True,
 ) -> sd.DeltaRoot:
     """Return difference between *schema1* and *schema2*.
@@ -109,6 +110,9 @@ def delta_schemas(
 
         include_std_diff:
             Whether to include the standard library in the diff.
+
+        include_derived_types:
+            Whether to include derived types, like unions, in the diff.
 
         linearize_delta:
             Whether the resulting diff should be properly ordered
@@ -213,7 +217,25 @@ def delta_schemas(
         objects = s_ordering.linearize_delta(
             objects, old_schema=schema2, new_schema=schema1)
 
-    result.update(objects)
+    if not include_derived_types:
+        diff = []
+
+        for cmd in objects.get_subcommands():
+            if isinstance(cmd, objtypes.ObjectTypeCommand):
+                if isinstance(cmd, objtypes.DeleteObjectType):
+                    relevant_schema = schema2
+                else:
+                    relevant_schema = schema1
+
+                obj = relevant_schema.get(cmd.classname)
+                if obj.is_union_type(relevant_schema):
+                    continue
+
+            diff.append(cmd)
+    else:
+        diff = objects
+
+    result.update(diff)
 
     if include_module_diff:
         for dropped_module in dropped_modules:
@@ -467,6 +489,7 @@ def ddl_text_from_schema(
         excluded_items=excluded_items,
         include_module_diff=include_module_ddl,
         include_std_diff=include_std_ddl,
+        include_derived_types=False,
     )
     return ddl_text_from_delta(schema, diff, emit_oids=emit_oids)
 
@@ -495,6 +518,7 @@ def sdl_text_from_schema(
         excluded_items=excluded_items,
         include_module_diff=include_module_ddl,
         include_std_diff=include_std_ddl,
+        include_derived_types=False,
         linearize_delta=False,
     )
     return sdl_text_from_delta(schema, diff)
@@ -509,6 +533,7 @@ def descriptive_text_from_schema(
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
+    include_derived_types=False,
     emit_oids: bool=False,
 ) -> str:
     if include_std_ddl:
@@ -524,6 +549,7 @@ def descriptive_text_from_schema(
         excluded_items=excluded_items,
         include_module_diff=include_module_ddl,
         include_std_diff=include_std_ddl,
+        include_derived_types=False,
         linearize_delta=False,
     )
     return descriptive_text_from_delta(
