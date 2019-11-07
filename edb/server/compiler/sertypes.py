@@ -24,6 +24,7 @@ import struct
 from edb import errors
 from edb.common import uuidgen
 
+from edb.schema import links as s_links
 from edb.schema import objects as s_obj
 from edb.schema import types as s_types
 
@@ -106,7 +107,8 @@ class TypeSerializer:
         self._register_type_id(set_id)
         return set_id
 
-    def _describe_type(self, t, view_shapes, view_shapes_metadata):
+    def _describe_type(self, t, view_shapes, view_shapes_metadata,
+                       follow_links: bool = True):
         # The encoding format is documented in edb/api/types.txt.
 
         buf = self.buffer
@@ -190,13 +192,25 @@ class TypeSerializer:
 
             for ptr in view_shapes[t]:
                 if ptr.singular(self.schema):
-                    subtype_id = self._describe_type(
-                        ptr.get_target(self.schema), view_shapes,
-                        view_shapes_metadata)
+                    if isinstance(ptr, s_links.Link) and not follow_links:
+                        subtype_id = self._describe_type(
+                            self.schema.get('std::uuid'), view_shapes,
+                            view_shapes_metadata,
+                        )
+                    else:
+                        subtype_id = self._describe_type(
+                            ptr.get_target(self.schema), view_shapes,
+                            view_shapes_metadata)
                 else:
-                    subtype_id = self._describe_set(
-                        ptr.get_target(self.schema), view_shapes,
-                        view_shapes_metadata)
+                    if isinstance(ptr, s_links.Link) and not follow_links:
+                        raise errors.InternalServerError(
+                            'cannot describe multi links when '
+                            'follow_links=False'
+                        )
+                    else:
+                        subtype_id = self._describe_set(
+                            ptr.get_target(self.schema), view_shapes,
+                            view_shapes_metadata)
                 subtypes.append(subtype_id)
                 element_names.append(ptr.get_shortname(self.schema).name)
                 link_props.append(False)
@@ -299,10 +313,12 @@ class TypeSerializer:
                 f'cannot describe type {t.get_name(self.schema)}')
 
     @classmethod
-    def describe(cls, schema, typ, view_shapes, view_shapes_metadata):
+    def describe(cls, schema, typ, view_shapes, view_shapes_metadata,
+                 *, follow_links: bool = True):
         builder = cls(schema)
         type_id = builder._describe_type(
-            typ, view_shapes, view_shapes_metadata)
+            typ, view_shapes, view_shapes_metadata,
+            follow_links=follow_links)
         return b''.join(builder.buffer), type_id
 
     @classmethod

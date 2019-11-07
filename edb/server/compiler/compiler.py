@@ -47,8 +47,12 @@ from edb.ir import staeval as ireval
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
+from edb.schema import links as s_links
+from edb.schema import lproperties as s_props
 from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
+from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
@@ -57,6 +61,7 @@ from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import codegen as pg_codegen
 from edb.pgsql import common as pg_common
+from edb.pgsql import types as pg_types
 
 from edb.server import config
 
@@ -1078,7 +1083,7 @@ class Compiler(BaseCompiler):
 
         return ctx
 
-    def _load_state(self, txid: int):
+    def _load_state(self, txid: int) -> dbstate.CompilerConnectionState:
         if self._current_db_state is None:  # pragma: no cover
             raise errors.InternalServerError(
                 f'failed to lookup transaction with id={txid}')
@@ -1184,3 +1189,147 @@ class Compiler(BaseCompiler):
             t = schema.get_by_id(uuidgen.UUID(tid))
             schema = t.set_field_value(schema, 'backend_id', backend_tid)
         state.current_tx().update_schema(schema)
+
+    async def describe_database_dump(
+        self,
+        txid,
+    ) -> List[DumpBlockDescriptor]:
+        state = self._load_state(txid)
+        tx = state.current_tx()
+        schema = tx.get_schema()
+        objtypes = schema.get_objects(
+            type=s_objtypes.ObjectType,
+            excluded_modules=s_schema.STD_MODULES,
+        )
+        descriptors = []
+
+        for objtype in objtypes:
+            descriptors.extend(self._describe_object(schema, objtype))
+
+        return descriptors
+
+    def _describe_object(
+        self,
+        schema: s_schema.Schema,
+        source: s_obj.Object,
+    ) -> List[DumpBlockDescriptor]:
+
+        cols = []
+        shape = []
+        ptrdesc: List[DumpBlockDescriptor] = []
+
+        if isinstance(source, s_props.Property):
+            prop_tuple = s_types.Tuple.from_subtypes(
+                schema,
+                {
+                    'source': schema.get('std::uuid'),
+                    'target': source.get_target(schema),
+                },
+                {'named': True},
+            )
+
+            type_data, type_id = sertypes.TypeSerializer.describe(
+                schema,
+                prop_tuple,
+                view_shapes={},
+                view_shapes_metadata={},
+                follow_links=False,
+            )
+
+            cols.extend([
+                'source',
+                'target',
+            ])
+
+        elif isinstance(source, s_links.Link):
+            props = {
+                'source': schema.get('std::uuid'),
+                'target': schema.get('std::uuid'),
+            }
+
+            cols.extend([
+                'source',
+                'target',
+            ])
+
+            for ptr in source.get_pointers(schema).objects(schema):
+                if ptr.is_endpoint_pointer(schema):
+                    continue
+
+                stor_info = pg_types.get_pointer_storage_info(
+                    ptr,
+                    schema=schema,
+                    source=source,
+                    link_bias=True,
+                )
+
+                cols.append(pg_common.quote_ident(stor_info.column_name))
+
+                props[ptr.get_shortname(schema).name] = ptr.get_target(schema)
+
+            link_tuple = s_types.Tuple.from_subtypes(
+                schema,
+                props,
+                {'named': True},
+            )
+
+            type_data, type_id = sertypes.TypeSerializer.describe(
+                schema,
+                link_tuple,
+                view_shapes={},
+                view_shapes_metadata={},
+                follow_links=False,
+            )
+
+        else:
+            for ptr in source.get_pointers(schema).objects(schema):
+                if ptr.is_endpoint_pointer(schema):
+                    continue
+
+                stor_info = pg_types.get_pointer_storage_info(
+                    ptr,
+                    schema=schema,
+                    source=source,
+                )
+
+                if stor_info.table_type == 'ObjectType':
+                    cols.append(pg_common.quote_ident(stor_info.column_name))
+                    shape.append(ptr)
+                else:
+                    ptrdesc.extend(self._describe_object(schema, ptr))
+
+            type_data, type_id = sertypes.TypeSerializer.describe(
+                schema,
+                source,
+                view_shapes={source: shape},
+                view_shapes_metadata={},
+                follow_links=False,
+            )
+
+        table_name = pg_common.get_backend_name(
+            schema, source, catenate=True
+        )
+
+        stmt = (
+            f'COPY {table_name} ({", ".join(c for c in cols)}) '
+            f'TO STDOUT WITH BINARY'
+        ).encode()
+
+        return [DumpBlockDescriptor(
+            schema_object_id=source.id,
+            schema_object_class=type(source).get_ql_class(),
+            schema_deps=tuple(p.schema_object_id for p in ptrdesc),
+            type_desc_id=type_id,
+            type_desc=type_data,
+            sql_copy_stmt=stmt,
+        )] + ptrdesc
+
+
+class DumpBlockDescriptor(NamedTuple):
+
+    schema_object_id: uuid.UUID
+    schema_object_class: qltypes.SchemaObjectClass
+    schema_deps: Tuple[uuid.UUID, ...]
+    type_desc_id: uuid.UUID
+    type_desc: bytes
+    sql_copy_stmt: bytes
