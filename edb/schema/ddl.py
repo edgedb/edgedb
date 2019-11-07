@@ -165,41 +165,46 @@ def delta_schemas(
 
     objects = sd.DeltaRoot(canonical=True)
 
-    for type in get_global_dep_order():
-        if issubclass(type, so.UnqualifiedObject):
+    for sclass in get_global_dep_order():
+        filters = []
+
+        if issubclass(sclass, derivable.DerivableObject):
+            filters.append(lambda schema, obj: obj.generic(schema))
+
+        if issubclass(sclass, so.UnqualifiedObject):
             # UnqualifiedObjects (like anonymous tuples and arrays)
             # should not use an included_modules filter.
             new = schema1.get_objects(
-                type=type,
+                type=sclass,
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
+                extra_filters=filters,
             )
             old = schema2.get_objects(
-                type=type,
+                type=sclass,
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
+                extra_filters=filters,
             )
         else:
             new = schema1.get_objects(
-                type=type,
+                type=sclass,
                 included_modules=included_modules,
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
+                extra_filters=filters,
             )
             old = schema2.get_objects(
-                type=type,
+                type=sclass,
                 included_modules=included_modules,
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
+                extra_filters=filters,
             )
-
-        if issubclass(type, derivable.DerivableObject):
-            new = filter(lambda i: i.generic(schema1), new)
-            old = filter(lambda i: i.generic(schema2), old)
 
         objects.update(so.Object.delta_sets(
             old, new, old_schema=schema2, new_schema=schema1))

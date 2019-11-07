@@ -650,6 +650,7 @@ class Schema(s_abc.Schema):
         included_items: Optional[Iterable[str]]=None,
         excluded_items: Optional[Iterable[str]]=None,
         type: Optional[so.ObjectMeta]=None,
+        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
     ) -> Iterator[so.Object]:
         return SchemaIterator(
             self,
@@ -658,6 +659,7 @@ class Schema(s_abc.Schema):
             included_items=included_items,
             excluded_items=excluded_items,
             type=type,
+            extra_filters=extra_filters,
         )
 
     def __repr__(self):
@@ -675,35 +677,40 @@ class SchemaIterator:
         included_items: Optional[Iterable[str]]=None,
         excluded_items: Optional[Iterable[str]]=None,
         type: Optional[so.ObjectMeta],
+        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
     ) -> None:
 
         filters = []
 
         if type is not None:
-            filters.append(
-                lambda obj: isinstance(obj, type))
+            filters.append(lambda schema, obj: isinstance(obj, type))
 
         if included_modules:
             modules = frozenset(included_modules)
             filters.append(
-                lambda obj:
+                lambda schema, obj:
                     not isinstance(obj, so.UnqualifiedObject) and
                     obj.get_name(schema).module in modules)
 
         if excluded_modules:
             excluded_modules = frozenset(excluded_modules)
             filters.append(
-                lambda obj:
+                lambda schema, obj:
                     isinstance(obj, so.UnqualifiedObject) or
                     obj.get_name(schema).module not in excluded_modules)
 
         if included_items:
             objs = frozenset(included_items)
-            filters.append(lambda obj: obj.get_name(schema) in objs)
+            filters.append(
+                lambda schema, obj: obj.get_name(schema) in objs)
 
         if excluded_items:
             objs = frozenset(excluded_items)
-            filters.append(lambda obj: obj.get_name(schema) not in objs)
+            filters.append(
+                lambda schema, obj: obj.get_name(schema) not in objs)
+
+        # Extra filters are last, because they might depend on type.
+        filters.extend(extra_filters)
 
         self._filters = filters
         self._schema = schema
@@ -713,7 +720,7 @@ class SchemaIterator:
         index = self._schema._id_to_type
 
         for obj in index.values():
-            if all(f(obj) for f in filters):
+            if all(f(self._schema, obj) for f in filters):
                 yield obj
 
 
