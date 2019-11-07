@@ -1249,7 +1249,6 @@ class ObjectRef(Object):
         schemaclass: Optional[ObjectMeta]=None,
         sourcectx=None,
     ) -> None:
-        super().__init__(_private_init=True)
         self.__dict__['_name'] = name
         self.__dict__['_origname'] = origname
         self.__dict__['_sourcectx'] = sourcectx

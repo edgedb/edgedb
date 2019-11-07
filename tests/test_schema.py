@@ -2767,7 +2767,18 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             output = stmt.expr.expr.result.expr.value
 
-            self.assert_equal(expected_output, output)
+            if isinstance(expected_output, list):
+                for variant in expected_output:
+                    try:
+                        self.assert_equal(variant, output)
+                    except AssertionError:
+                        pass
+                    else:
+                        return
+
+                self.assert_equal(expected_output[0], output)
+            else:
+                self.assert_equal(expected_output, output)
 
     def test_describe_01(self):
         self._assert_describe(
@@ -2877,4 +2888,32 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 };
             };
             """
+        )
+
+    def test_describe_02(self):
+        self._assert_describe(
+            """
+            type Foo;
+            type Bar;
+            type Spam {
+                link foobar -> Foo | Bar
+            }
+            """,
+
+            'DESCRIBE TYPE Spam AS SDL',
+
+            # The order of components in UNION is not defined,
+            # so we provide two possibilities of output.
+            [
+                """
+                type test::Spam {
+                    single link foobar -> (test::Foo | test::Bar);
+                };
+                """,
+                """
+                type test::Spam {
+                    single link foobar -> (test::Bar | test::Foo);
+                };
+                """,
+            ]
         )

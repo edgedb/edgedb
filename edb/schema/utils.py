@@ -142,18 +142,12 @@ def ast_to_typeref(
 
 
 def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
+    from . import types as s_types
+
     if t.is_type() and t.is_any():
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
     elif t.is_type() and t.is_anytuple():
         result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
-    elif not isinstance(t, s_abc.Collection):
-        result = qlast.TypeName(
-            name=_name,
-            maintype=qlast.ObjectRef(
-                module=t.get_name(schema).module,
-                name=t.get_name(schema).name
-            )
-        )
     elif isinstance(t, s_abc.Tuple) and t.named:
         result = qlast.TypeName(
             name=_name,
@@ -165,7 +159,7 @@ def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
                 for sn, st in t.iter_subtypes(schema)
             ]
         )
-    else:
+    elif isinstance(t, s_abc.Collection):
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(
@@ -175,6 +169,32 @@ def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
                 typeref_to_ast(schema, st)
                 for st in t.get_subtypes(schema)
             ]
+        )
+    elif isinstance(t, s_types.UnionTypeRef):
+        components = t.get_union_of(schema)
+        result = typeref_to_ast(schema, components[0])
+        for component in components[1:]:
+            result = qlast.TypeOp(
+                left=result,
+                op='|',
+                right=typeref_to_ast(schema, component),
+            )
+    elif t.is_type() and t.is_union_type(schema):
+        components = list(t.get_union_of(schema).objects(schema))
+        result = typeref_to_ast(schema, components[0])
+        for component in components[1:]:
+            result = qlast.TypeOp(
+                left=result,
+                op='|',
+                right=typeref_to_ast(schema, component),
+            )
+    else:
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                module=t.get_name(schema).module,
+                name=t.get_name(schema).name
+            )
         )
 
     return result

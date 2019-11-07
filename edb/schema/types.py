@@ -347,12 +347,14 @@ class UnionTypeRef(so.Object):
         components: Iterable[so.ObjectRef], *,
         module: str,
     ) -> None:
-        super().__init__(_private_init=True)
         self.__dict__['_components'] = tuple(components)
         self.__dict__['module'] = module
 
     def resolve_components(self, schema) -> typing.Tuple[Type, ...]:
         return tuple(c._resolve_ref(schema) for c in self._components)
+
+    def get_union_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
+        return self._components
 
     def __repr__(self) -> str:
         return f'<UnionTypeRef {self._components!r} at 0x{id(self):x}>'
@@ -369,6 +371,26 @@ class UnionTypeRef(so.Object):
         self, schema: s_schema.Schema
     ) -> typing.Tuple[UnionTypeRef, typing.Tuple[so.ObjectRef, ...]]:
         return self, self._components
+
+
+class ExistingUnionTypeRef(so.ObjectRef, UnionTypeRef):
+
+    def __init__(
+        self,
+        *,
+        name: s_name.Name,
+        components: Iterable[so.ObjectRef],
+        origname: Optional[str]=None,
+        schemaclass: Optional[so.ObjectMeta]=None,
+        sourcectx=None,
+    ) -> None:
+
+        so.ObjectRef.__init__(
+            self, name=name, origname=origname,
+            schemaclass=schemaclass, sourcectx=sourcectx)
+
+        UnionTypeRef.__init__(
+            self, components=components, module=name.module)
 
 
 class Collection(Type, s_abc.Collection):

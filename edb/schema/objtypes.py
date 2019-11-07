@@ -147,6 +147,23 @@ class BaseObjectType(sources.Source,
             return all(c._issubclass(schema, parent)
                        for c in my_vchildren.objects(schema))
 
+    def _reduce_to_ref(self, schema):
+        union_of = self.get_union_of(schema)
+        if union_of:
+            my_name = self.get_name(schema)
+            return (
+                s_types.ExistingUnionTypeRef(
+                    components=[
+                        c._reduce_to_ref(schema)[0]
+                        for c in union_of.objects(schema)
+                    ],
+                    name=my_name,
+                ),
+                my_name,
+            )
+        else:
+            return super()._reduce_to_ref(schema)
+
 
 class ObjectType(BaseObjectType, qlkind=qltypes.SchemaObjectClass.TYPE):
     pass

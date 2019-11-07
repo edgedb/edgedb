@@ -145,9 +145,11 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
             expected_stripped = expected.lower()
             result_stripped = result.lower()
 
-        assert expected_stripped == result_stripped, \
-            '[test]expected: {}\n[test] != returned: {}'.format(
-                expected, result)
+        self.assertEqual(
+            expected_stripped,
+            result_stripped,
+            f'\nexpected:\n{expected}\nreturned:\n{result}'
+        )
 
 
 class BaseSyntaxTest(BaseDocTest):
