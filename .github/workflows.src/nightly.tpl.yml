@@ -62,7 +62,7 @@ jobs:
     - uses: actions/checkout@v1
       with:
         repository: edgedb/edgedb-pkg
-        ref: gha
+        ref: master
         path: edgedb/edgedb-pkg
 
     - name: Build (${{ matrix.target }})
@@ -174,7 +174,7 @@ jobs:
     - uses: actions/checkout@v1
       with:
         repository: edgedb/edgedb-pkg
-        ref: gha
+        ref: master
         path: edgedb/edgedb-pkg
 
     - name: Describe
