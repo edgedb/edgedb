@@ -974,6 +974,21 @@ cdef class EdgeConnection:
                     self.dbview.txid,
                     typemap)
 
+    async def dump(self):
+        if not self.dbview.txid:
+            raise errors.ProtocolError(
+                'the DUMP message must be executed while in transaction'
+            )
+
+        descriptors = await self.backend.compiler.call(
+            'describe_database_dump',
+            self.dbview.txid,
+        )
+
+        raise errors.UnsupportedFeatureError(
+            'dump is not fully functional yet'
+        )
+
     async def execute(self):
         cdef:
             WriteBuffer bound_args_buf
@@ -1123,6 +1138,9 @@ cdef class EdgeConnection:
                     elif mtype == b'Q':
                         flush_sync_on_error = True
                         await self.simple_query()
+
+                    elif mtype == b'>':
+                        await self.dump()
 
                     elif mtype == b'S':
                         await self.sync()
