@@ -168,8 +168,8 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
 
 class ExpressionList(checked.FrozenCheckedList[Expression]):
 
-    @classmethod
-    def merge_values(cls, target, sources, field_name, *, schema):
+    @staticmethod
+    def merge_values(target, sources, field_name, *, schema):
         result = target.get_explicit_field_value(schema, field_name, None)
         for source in sources:
             theirs = source.get_explicit_field_value(schema, field_name, None)

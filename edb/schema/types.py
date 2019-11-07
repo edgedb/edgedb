@@ -46,8 +46,6 @@ if typing.TYPE_CHECKING:
     from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional
     from typing import Sequence, Union
     from edb.ir import ast as irast
-    from edb.schema import objtypes
-    from edb.schema import pseudo
     from edb.schema import scalars
 
 TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
@@ -302,18 +300,14 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def material_type(
         self, schema: s_schema.Schema
     ) -> Type:
-        # XXX: Why is this defined here?
-        # `get_nearest_non_derived_parent()` is only defined on Object
-        return self.get_nearest_non_derived_parent(schema)
+        return typing.cast(Type, self.get_nearest_non_derived_parent(schema))
 
-    def peel_view(
-        self, schema: s_schema.Schema
-    ) -> Union[objtypes.ObjectType, Type]:
+    def peel_view(self, schema: s_schema.Schema) -> Type:
         # When self is a view, this returns the class the view
         # is derived from (which may be another view).  If no
         # parent class is available, returns self.
         if self.is_view(schema):
-            return self.get_bases(schema).first(schema)
+            return typing.cast(Type, self.get_bases(schema).first(schema))
         else:
             return self
 
@@ -351,7 +345,10 @@ class UnionTypeRef(so.Object):
         self.__dict__['module'] = module
 
     def resolve_components(self, schema) -> typing.Tuple[Type, ...]:
-        return tuple(c._resolve_ref(schema) for c in self._components)
+        return tuple(
+            typing.cast(Type, c._resolve_ref(schema))
+            for c in self._components
+        )
 
     def get_union_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
         return self._components
@@ -369,11 +366,12 @@ class UnionTypeRef(so.Object):
 
     def _reduce_to_ref(
         self, schema: s_schema.Schema
-    ) -> typing.Tuple[UnionTypeRef, typing.Tuple[so.ObjectRef, ...]]:
+    ) -> typing.Tuple[UnionTypeRef, Any]:
         return self, self._components
 
 
-class ExistingUnionTypeRef(so.ObjectRef, UnionTypeRef):
+# Breaking Liskov Substitution Principle
+class ExistingUnionTypeRef(UnionTypeRef, so.ObjectRef):  # type: ignore
 
     def __init__(
         self,
@@ -446,9 +444,9 @@ class Collection(Type, s_abc.Collection):
         return type_dist
 
     def _issubclass(
-        self, schema: s_schema.Schema, parent: Type
+        self, schema: s_schema.Schema, parent: so.InheritingObjectBase
     ) -> bool:
-        if parent.is_any():
+        if isinstance(parent, Type) and parent.is_any():
             return True
 
         if parent.__class__ is not self.__class__:
@@ -468,7 +466,10 @@ class Collection(Type, s_abc.Collection):
     def issubclass(
         self,
         schema: s_schema.Schema,
-        parent: Union[Type, typing.Tuple[Type, ...]],
+        parent: Union[
+            so.InheritingObjectBase,
+            typing.Tuple[so.InheritingObjectBase, ...],
+        ],
     ) -> bool:
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
@@ -535,13 +536,7 @@ class Collection(Type, s_abc.Collection):
 
     def _reduce_to_ref(
         self, schema: s_schema.Schema
-    ) -> typing.Tuple[
-        Collection,
-        typing.Tuple[
-            typing.Type[Collection],
-            Any,
-        ],
-    ]:
+    ) -> typing.Tuple[Collection, Any]:
         strefs = []
 
         for st in self.get_subtypes(schema):
@@ -645,10 +640,10 @@ class BaseArray(Collection, s_abc.Array):
         schema: s_schema.Schema,
         *,
         name: Optional[s_name.Name] = None,
-        id: Union[uuid.UUID, typing.Type[so.NoDefault]] = so.NoDefault,
+        id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         dimensions: Sequence[int] = (),
-        element_type,
-        **kwargs,
+        element_type: Any,
+        **kwargs: Any,
     ) -> BaseArray_T:
         if not dimensions:
             dimensions = [-1]
@@ -783,7 +778,7 @@ class BaseArray(Collection, s_abc.Array):
         typemods: Any = None,
         *,
         name: Optional[s_name.Name] = None,
-        id: Union[uuid.UUID, typing.Type[so.NoDefault]] = so.NoDefault,
+        id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
     ) -> BaseArray_T:
         if len(subtypes) != 1:
             raise errors.SchemaError(
@@ -880,7 +875,7 @@ class BaseArray(Collection, s_abc.Array):
 
 class Array(EphemeralCollection, BaseArray):
 
-    element_type = so.Field(so.Object)
+    element_type = so.Field(Type)
     dimensions = so.Field(Dimensions, coerce=True)
 
     def as_schema_coll(self, schema):
@@ -900,9 +895,7 @@ class Array(EphemeralCollection, BaseArray):
             element_type=el_type,
         )
 
-    def get_element_type(
-        self, schema: s_schema.Schema
-    ) -> Union[scalars.ScalarType, pseudo.Any, objtypes.ObjectType]:
+    def get_element_type(self, schema: s_schema.Schema) -> Type:
         return self.element_type
 
     def get_subtypes(
@@ -910,7 +903,9 @@ class Array(EphemeralCollection, BaseArray):
     ) -> typing.Tuple[Type]:
         return (self.element_type,)
 
-    def get_dimensions(self, schema: s_schema.Schema) -> List[int]:
+    def get_dimensions(
+        self, schema: s_schema.Schema
+    ) -> checked.FrozenCheckedList[int]:
         return self.dimensions
 
 
@@ -939,14 +934,15 @@ class CollectionView(SchemaCollection):
 
 class SchemaAnonymousCollection(so.UnqualifiedObject, SchemaCollection):
     name = so.SchemaField(
-        str,
+        str,  # type: ignore
         inheritable=False,
         # We want a low compcoef so that collections are *never* altered.
         compcoef=0,
     )
 
 
-class SchemaArrayRef(BaseArray, so.ObjectRef):
+# Breaking Liskov Substitution Principle on _reduce_to_ref
+class SchemaArrayRef(BaseArray, so.ObjectRef):  # type: ignore
     def _resolve_ref(self, schema: s_schema.Schema) -> SchemaArray:
         return schema.get_global(SchemaArray, self.get_name(schema))
 
@@ -967,15 +963,10 @@ class BaseSchemaArray(SchemaCollection, BaseArray):
     def get_subtypes(self, schema):
         return (self.get_element_type(schema),)
 
-    def _reduce_to_ref(
+    # Breaking Liskov Substitution Principle
+    def _reduce_to_ref(  # type: ignore
         self: BaseArray_T, schema: s_schema.Schema
-    ) -> typing.Tuple[
-        SchemaArrayRef,
-        typing.Tuple[
-            typing.Type[BaseArray_T],
-            Any,
-        ]
-    ]:
+    ) -> typing.Tuple[SchemaArrayRef, Any]:
         # Since this is already a schema object, we should just create
         # a reference by "name".
         sa_ref = SchemaArrayRef(name=self.get_name(schema))
@@ -997,7 +988,7 @@ class BaseTuple(Collection, s_abc.Tuple):
     schema_name = 'tuple'
 
     named = so.Field(bool)
-    element_types = so.Field(dict, coerce=True)
+    element_types = so.Field[typing.Mapping[str, Type]](dict, coerce=True)
 
     @classmethod
     def create(
@@ -1005,7 +996,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         schema: s_schema.Schema,
         *,
         name: Optional[s_name.Name] = None,
-        id: Union[uuid.UUID, typing.Type[so.NoDefault]] = so.NoDefault,
+        id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         element_types: Mapping[str, Type],
         named: bool = False,
         **kwargs,
@@ -1129,7 +1120,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         typemods: Any = None,
         *,
         name: Optional[s_name.Name] = None,
-        id: Union[uuid.UUID, typing.Type[so.NoDefault]] = so.NoDefault,
+        id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         **kwargs,
     ) -> BaseTuple_T:
         named = False
@@ -1290,22 +1281,13 @@ class BaseTuple(Collection, s_abc.Tuple):
                    for st, ot in zip(self_subtypes, other_subtypes))
 
     def _reduce_to_ref(
-        self: BaseTuple_T, schema: s_schema.Schema
-    ) -> typing.Tuple[
-        BaseTuple_T,
-        typing.Tuple[
-            typing.Type[BaseTuple_T],
-            typing.Tuple[
-                s_name.SchemaName,
-                ...
-            ]
-        ],
-    ]:
-        strefs = {}
+        self, schema: s_schema.Schema
+    ) -> typing.Tuple[BaseTuple, Any]:
+        strefs: Dict[str, Type] = {}
 
         for n, st in self.iter_subtypes(schema):
             st_ref, _ = st._reduce_to_ref(schema)
-            strefs[n] = st_ref
+            strefs[n] = typing.cast(Type, st_ref)
 
         return (
             self.__class__.from_subtypes(
@@ -1318,9 +1300,9 @@ class BaseTuple(Collection, s_abc.Tuple):
     ) -> BaseTuple_T:
         if any(hasattr(st, '_resolve_ref')
                for st in self.get_subtypes(schema)):
-            subtypes = {}
+            subtypes: Dict[str, Type] = {}
             for st_name, st in self.iter_subtypes(schema):
-                subtypes[st_name] = st._resolve_ref(schema)
+                subtypes[st_name] = typing.cast(Type, st._resolve_ref(schema))
 
             return self.__class__.from_subtypes(
                 schema, subtypes, typemods=self.get_typemods(schema))
@@ -1464,20 +1446,21 @@ class Tuple(EphemeralCollection, BaseTuple):
         self.__dict__.update(state)
 
 
-class SchemaTupleRef(BaseTuple, so.ObjectRef):
+# Breaking Liskov Substitution Principle
+class SchemaTupleRef(BaseTuple, so.ObjectRef):  # type: ignore
     def _resolve_ref(self, schema):
         return schema.get_global(SchemaTuple, self.get_name(schema))
 
 
 class BaseSchemaTuple(SchemaCollection, BaseTuple):
 
-    named = so.SchemaField(
+    named = so.SchemaField(  # type: ignore
         bool,
         # We want a low compcoef so that tuples are *never* altered.
         compcoef=0,
     )
 
-    element_types = so.SchemaField(
+    element_types = so.SchemaField(  # type: ignore
         so.ObjectDict,
         coerce=True,
         # We want a low compcoef so that tuples are *never* altered.
@@ -1493,17 +1476,22 @@ class BaseSchemaTuple(SchemaCollection, BaseTuple):
     def iter_subtypes(
         self, schema: s_schema.Schema
     ) -> Iterator[typing.Tuple[str, Type]]:
-        yield from self.get_element_types(schema).items(schema)
+        # TODO: SchemaFields need to be made generic in the Mypy plugin
+        yield from self.get_element_types(schema).items(schema)  # type: ignore
 
     def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
-        return self.get_element_types(schema).values(schema)
+        # TODO: SchemaFields need to be made generic in the Mypy plugin
+        return self.get_element_types(schema).values(schema)  # type: ignore
 
         if self.element_types:
             return self.element_types.objects(schema)
         else:
             return []
 
-    def _reduce_to_ref(self, schema):
+    # Breaking Liskov Substitution Principle
+    def _reduce_to_ref(  # type: ignore
+        self, schema: s_schema.Schema
+    ) -> typing.Tuple[SchemaTupleRef, Any]:
         # Since this is already a schema object, we should just create
         # a reference by "name".
         sa_ref = SchemaTupleRef(name=self.get_name(schema))

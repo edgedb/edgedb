@@ -19,6 +19,16 @@
 
 from __future__ import annotations
 
+import typing
+
+
+if typing.TYPE_CHECKING:
+    from . import schema as s_schema
+
+    ObjectContainer_T = typing.TypeVar(
+        'ObjectContainer_T', bound='ObjectContainer'
+    )
+
 
 class Schema:
     pass
@@ -29,7 +39,10 @@ class Object:
 
 
 class ObjectContainer:
-    pass
+    def _reduce_to_ref(
+        self: ObjectContainer_T, schema: s_schema.Schema
+    ) -> typing.Tuple[ObjectContainer_T, typing.Any]:
+        raise NotImplementedError
 
 
 class Database(Object):
