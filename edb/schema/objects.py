@@ -18,11 +18,15 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
+from typing_extensions import Final
 
 import collections
 import collections.abc
+import enum
 import itertools
-from typing import *  # NoQA
+import sys
+import types
 import uuid
 
 import immutables as immu
@@ -43,52 +47,113 @@ from . import name as sn
 from . import _types
 
 
-def get_known_type_id(typename, default=...):
+if TYPE_CHECKING:
+    from edb.schema import objtypes
+    from edb.schema import delta as sd
+    from edb.schema import schema as s_schema
+
+    if sys.version_info <= (3, 7):
+        from typing_extensions import Protocol  # type: ignore
+
+    CovT = TypeVar("CovT", covariant=True)
+
+    class MergeFunction(Protocol):
+        def __call__(
+            self,  # not actually part of the signature
+            target: InheritingObjectBase,
+            sources: List[Object],
+            field_name: str,
+            *,
+            schema: s_schema.Schema,
+        ) -> Any:
+            ...
+
+    class CollectionFactory(Collection[CovT], Protocol):
+        """An unknown collection that can be instantiated from an iterable."""
+
+        def __init__(self, from_iter: Optional[Iterable[CovT]] = None) -> None:
+            ...
+
+
+class NoDefaultT(enum.Enum):
+    """Used as a sentinel indicating that a named argument wasn't passed.
+
+    Trick from https://github.com/python/mypy/issues/7642.
+    """
+    NoDefault = 0
+
+
+NoDefault: Final = NoDefaultT.NoDefault
+T = TypeVar("T")
+Type_T = TypeVar("Type_T", bound=type)
+Object_T = TypeVar("Object_T", bound="Object")
+ObjectLS_T = TypeVar("ObjectLS_T", "ObjectList", "ObjectSet")
+ObjectCollection_T = TypeVar("ObjectCollection_T", bound="ObjectCollection")
+Pair = Tuple[Optional["Object"], Optional["Object"]]
+HashCriterion = Union[Type[Object_T], Tuple[str, Any]]
+
+
+def default_field_merge(
+    target: InheritingObjectBase,
+    sources: List[Object],
+    field_name: str,
+    *,
+    schema: s_schema.Schema,
+) -> Any:
+    """The default `MergeFunction`."""
+    ours = target.get_explicit_local_field_value(schema, field_name, None)
+    if ours is not None:
+        return ours
+
+    for source in sources:
+        theirs = source.get_explicit_field_value(schema, field_name, None)
+        if theirs is not None:
+            return theirs
+
+    return None
+
+
+def get_known_type_id(
+    typename: Any, default: Union[uuid.UUID, NoDefaultT] = NoDefault
+) -> uuid.UUID:
     try:
         return _types.TYPE_IDS[typename]
     except KeyError:
         pass
 
-    if default is ...:
+    if default is NoDefault:
         raise errors.SchemaError(
             f'failed to lookup named type id for {typename!r}')
 
     return default
 
 
-def default_field_merge(target: Object, sources: List[Object],
-                        field_name: str, *, schema) -> object:
-    ours = target.get_explicit_local_field_value(schema, field_name, None)
-    if ours is None:
-        for source in sources:
-            theirs = source.get_explicit_field_value(schema, field_name, None)
-            if theirs is not None:
-                return theirs
-
-        return None
-    else:
-        return ours
-
-
 class ComparisonContextWrapper:
-    def __init__(self, context, pair):
+    def __init__(self, context: ComparisonContext, pair: Pair) -> None:
         self.context = context
         self.pair = pair
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self.context.push(self.pair)
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[Exception]],
+        exc_value: Exception,
+        traceback: Optional[types.TracebackType],
+    ) -> None:
         self.context.pop()
 
 
 class ComparisonContext:
-    def __init__(self):
+    stacks: Dict[Type[Object], List[Pair]]
+    ptrs: List[Type[Object]]
+
+    def __init__(self) -> None:
         self.stacks = collections.defaultdict(list)
         self.ptrs = []
-        self.memo = {}
 
-    def push(self, pair):
+    def push(self, pair: Pair) -> None:
         obj = pair[1] if pair[0] is None else pair[0]
         cls = type(obj)
 
@@ -99,38 +164,40 @@ class ComparisonContext:
         self.stacks[cls].append(pair)
         self.ptrs.append(cls)
 
-    def pop(self, cls=None):
+    def pop(self, cls: Optional[Type[Object]] = None) -> Pair:
         cls = cls or self.ptrs.pop()
         return self.stacks[cls].pop()
 
-    def get(self, cls):
+    def get(self, cls: Type[Object]) -> Optional[Pair]:
         stack = self.stacks[cls]
         if stack:
             return stack[-1]
+        return None
 
-    def __call__(self, left, right):
+    def __call__(
+        self, left: Optional[Object], right: Optional[Object]
+    ) -> ComparisonContextWrapper:
         return ComparisonContextWrapper(self, (left, right))
 
 
-class NoDefault:
-    pass
-
-
-class Field(struct.ProtoField):  # derived from ProtoField for validation
+# derived from ProtoField for validation
+class Field(struct.ProtoField, Generic[T]):
 
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
                  'merge_fn', 'ephemeral', 'introspectable',
                  'allow_ddl_set', 'weak_ref')
 
+    #: Name of the field on the target class; assigned by ObjectMeta
+    name: str
     #: The type of the value stored in the field
-    type: type
+    type: Type[T]
     #: Whether the field is allowed to automatically coerce
     #: the input value to the declared type of the field.
     coerce: bool
     #: The diffing coefficient to use when comparing field
     #: values in objects from 0 to 1.
-    compcoef: float
+    compcoef: Optional[float]
     #: Whether the field value can be inherited.
     inheritable: bool
     #: Wheter the field uses the generic AlterObjectProperty
@@ -151,15 +218,23 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
     weak_ref: bool
     #: A callable used to merge the value of the field from
     #: multiple objects.  Most oftenly used by inheritance.
-    merge_fn: Callable[
-        [Object, List[Object], str], Object
-    ]
+    merge_fn: MergeFunction
 
-    def __init__(self, type_, *, coerce=False,
-                 compcoef=None, inheritable=True,
-                 simpledelta=True, merge_fn=None, ephemeral=False,
-                 introspectable=True, weak_ref=False,
-                 allow_ddl_set=False, **kwargs):
+    def __init__(
+        self,
+        type_: Type[T],
+        *,
+        coerce: bool = False,
+        compcoef: Optional[float] = None,
+        inheritable: bool = True,
+        simpledelta: bool = True,
+        merge_fn: MergeFunction = default_field_merge,
+        ephemeral: bool = False,
+        introspectable: bool = True,
+        weak_ref: bool = False,
+        allow_ddl_set: bool = False,
+        **kwargs: Any,
+    ) -> None:
         """Schema item core attribute definition.
 
         """
@@ -176,16 +251,20 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
         self.introspectable = introspectable
         self.weak_ref = weak_ref
 
-        if merge_fn is not None:
-            self.merge_fn = merge_fn
-        elif callable(getattr(self.type, 'merge_values', None)):
-            self.merge_fn = self.type.merge_values
+        if (
+            merge_fn is default_field_merge
+            and callable(getattr(self.type, 'merge_values', None))
+        ):
+            # type ignore due to https://github.com/python/mypy/issues/1424
+            self.merge_fn = self.type.merge_values  # type: ignore
         else:
-            self.merge_fn = default_field_merge
+            self.merge_fn = merge_fn
 
         self.ephemeral = ephemeral
 
-    def coerce_value(self, schema, value):
+    def coerce_value(self, schema: s_schema.Schema, value: Any) -> Optional[T]:
+        # cast() below due to https://github.com/python/mypy/issues/7920
+        ctype = cast(type, self.type)
         ftype = self.type
 
         if value is None or isinstance(value, ftype):
@@ -195,30 +274,37 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
             raise TypeError(
                 f'{self.name} field: expected {ftype} but got {value!r}')
 
-        if issubclass(ftype, (checked.AbstractCheckedList,
-                              checked.AbstractCheckedSet)):
-            casted_value = []
+        if issubclass(ftype, (checked.CheckedList,
+                              checked.CheckedSet,
+                              checked.FrozenCheckedList,
+                              checked.FrozenCheckedSet)):
+            casted_list = []
             for v in value:
                 if v is not None and not isinstance(v, ftype.type):
                     v = ftype.type(v)
-                casted_value.append(v)
-            return ftype(casted_value)
+                casted_list.append(v)
+            return ctype(casted_list)
 
         if issubclass(ftype, checked.CheckedDict):
-            casted_value = {}
+            casted_dict = {}
             for k, v in value.items():
                 if k is not None and not isinstance(k, ftype.keytype):
                     k = ftype.keytype(k)
                 if v is not None and not isinstance(v, ftype.valuetype):
                     v = ftype.valuetype(v)
-                casted_value[k] = v
-            return ftype(casted_value)
+                casted_dict[k] = v
+            return ctype(casted_dict)
 
-        if issubclass(ftype, ObjectCollection):
-            return ftype.create(schema, value)
+        if issubclass(ctype, ObjectCollection):
+            # Type ignore below because with ctype we lost information that
+            # it is indeed a Type[T].
+            return ctype.create(schema, value)  # type: ignore
 
         try:
-            return ftype(value)
+            # Type ignore below because Mypy doesn't trust we can instantiate
+            # the type using the value.  We don't trust that either but this
+            # is why there's the try-except block.
+            return ctype(value)  # type: ignore
         except Exception:
             raise TypeError(
                 f'cannot coerce {self.name!r} value {value!r} to {ftype}')
@@ -228,23 +314,31 @@ class Field(struct.ProtoField):  # derived from ProtoField for validation
         return True
 
     @property
-    def is_schema_field(self):
+    def is_schema_field(self) -> bool:
         return False
 
-    def __get__(self, instance, owner):
+    @overload
+    def __get__(self, instance: None, owner: Type[Object]) -> Field[Type[T]]:
+        ...
+
+    @overload  # NoQA: F811
+    def __get__(self, instance: Object, owner: Type[Object]) -> T:
+        ...
+
+    def __get__(self, instance, owner):  # NoQA: F811
         if instance is not None:
             return None
         else:
             return self
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f'<{type(self).__name__} name={self.name!r} '
             f'type={self.type} {id(self):#x}>'
         )
 
 
-class SchemaField(Field):
+class SchemaField(Field[Type_T]):
 
     __slots__ = ('default', 'hashable')
 
@@ -253,23 +347,38 @@ class SchemaField(Field):
     #: Whether the field participates in object hash.
     hashable: bool
 
-    def __init__(self, type, *,
-                 default=NoDefault, hashable=True,
-                 allow_ddl_set=False, **kwargs):
+    def __init__(
+        self,
+        type: Type_T,
+        *,
+        default: Any = NoDefault,
+        hashable: bool = True,
+        allow_ddl_set: bool = False,
+        **kwargs: Any,
+    ):
         super().__init__(type, **kwargs)
         self.default = default
         self.hashable = hashable
         self.allow_ddl_set = allow_ddl_set
 
     @property
-    def required(self):
+    def required(self) -> bool:
         return self.default is NoDefault
 
     @property
-    def is_schema_field(self):
+    def is_schema_field(self) -> bool:
         return True
 
-    def __get__(self, instance, owner):
+    # Breaking Liskov Substitution Principle
+    @overload  # type: ignore
+    def __get__(self, instance: None, owner: Type) -> SchemaField[Type_T]:
+        ...
+
+    @overload  # NoQA: F811
+    def __get__(self, instance: T, owner: Type[T]) -> Type_T:
+        ...
+
+    def __get__(self, instance, owner):  # NoQA: F811
         if instance is not None:
             raise FieldValueNotFoundError(self.name)
         else:
@@ -290,8 +399,25 @@ class ObjectMeta(type):
     _schema_types: Set[ObjectMeta] = set()
     _ql_map: Dict[qltypes.SchemaObjectClass, ObjectMeta] = {}
 
-    def __new__(mcls, name, bases, clsdict, *,
-                qlkind: Optional[qltypes.SchemaObjectClass]=None):
+    # Instance fields (i.e. class fields on types built with ObjectMeta)
+    _fields: Dict[str, Field]
+    _hashable_fields: Set[Field]  # if f.is_schema_field and f.hashable
+    _sorted_fields: collections.OrderedDict[str, Field]
+    _refdicts: collections.OrderedDict[str, RefDict]
+    _refdicts_by_refclass: Dict[type, RefDict]
+    _refdicts_by_field: Dict[str, RefDict]  # key is rd.attr
+    _ql_class: Optional[qltypes.SchemaObjectClass]
+
+    def __new__(
+        mcls,
+        name: str,
+        bases: Tuple[type, ...],
+        clsdict: Dict[str, Any],
+        *,
+        qlkind: Optional[qltypes.SchemaObjectClass] = None,
+    ) -> ObjectMeta:
+        refdicts: collections.OrderedDict[str, RefDict]
+
         fields = {}
         myfields = {}
         refdicts = collections.OrderedDict()
@@ -327,7 +453,7 @@ class ObjectMeta(type):
                 )
 
         try:
-            cls = super().__new__(mcls, name, bases, clsdict)
+            cls = cast(ObjectMeta, super().__new__(mcls, name, bases, clsdict))
         except TypeError as ex:
             raise TypeError(
                 f'Object metaclass has failed to create class {name}: {ex}')
@@ -343,7 +469,7 @@ class ObjectMeta(type):
 
         cls._fields = fields
         cls._hashable_fields = {f for f in fields.values()
-                                if f.is_schema_field and f.hashable}
+                                if isinstance(f, SchemaField) and f.hashable}
         cls._sorted_fields = collections.OrderedDict(
             sorted(fields.items(), key=lambda e: e[0]))
         # Populated lazily
@@ -462,7 +588,7 @@ class ObjectMeta(type):
             raise LookupError(f'no schema metaclass for {qlkind}')
         return cls
 
-    def get_ql_class(cls) -> qltypes.SchemaObjectClass:
+    def get_ql_class(cls) -> Optional[qltypes.SchemaObjectClass]:
         return cls._ql_class
 
 
@@ -470,15 +596,11 @@ class FieldValueNotFoundError(Exception):
     pass
 
 
-Object_T = TypeVar('Object_T', bound='Object')
-Schema_T = TypeVar('Schema_T')
-
-
 class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     """Base schema item class."""
 
     # Unique ID for this schema item.
-    id = Field(
+    id = Field[uuid.UUID](
         uuid.UUID,
         inheritable=False, simpledelta=False, allow_ddl_set=True)
 
@@ -503,45 +625,48 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     _fields: Dict[str, SchemaField]
 
-    def get_shortname(self, schema) -> sn.Name:
+    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
         return sn.shortname_from_fullname(self.get_name(schema))
 
-    def get_displayname(self, schema) -> str:
+    def get_displayname(self, schema: s_schema.Schema) -> str:
         return str(self.get_shortname(schema))
 
-    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+    def get_verbosename(
+        self, schema: s_schema.Schema, *, with_parent: bool = False
+    ) -> str:
         clsname = self.get_schema_class_displayname()
         dname = self.get_displayname(schema)
         return f"{clsname} '{dname}'"
 
-    def __init__(self, *, _private_init):
+    def __init__(self, *, _private_init) -> None:
         pass
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if type(self) is not type(other):
             return NotImplemented
         return self.id == other.id
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.id, type(self)))
 
     @classmethod
-    def get_schema_class_displayname(cls):
+    def get_schema_class_displayname(cls) -> str:
         return cls.__name__.lower()
 
     @classmethod
-    def _prepare_id(cls, id: Optional[uuid.UUID],
-                    data: dict) -> uuid.UUID:
-        if id is None:
-            type_id = get_known_type_id(data.get('name'), None)
-            if type_id is not None:
-                id = type_id
-            else:
-                id = uuidgen.uuid1mc()
-        return id
+    def _prepare_id(
+        cls, id: Optional[uuid.UUID], data: Dict[str, Any]
+    ) -> uuid.UUID:
+        if id is not None:
+            return id
+
+        try:
+            return get_known_type_id(data.get('name'))
+        except errors.SchemaError:
+            return uuidgen.uuid1mc()
 
     @classmethod
-    def _create_from_id(cls, id):
+    def _create_from_id(cls: Type[Object_T], id: uuid.UUID) -> Object_T:
         assert id is not None
         obj = cls(_private_init=True)
         obj.__dict__['id'] = id
@@ -550,10 +675,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     @classmethod
     def create_in_schema(
         cls: Type[Object_T],
-        schema: Schema_T, *,
+        schema: s_schema.Schema, *,
         id=None,
-        **data,
-    ) -> Tuple[Schema_T, Object_T]:
+        **data
+    ) -> Tuple[s_schema.Schema, Object_T]:
 
         if not cls.is_schema_object:
             raise TypeError(f'{cls.__name__} type cannot be created in schema')
@@ -570,7 +695,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     f'type {cls.__name__} has no schema field for '
                     f'keyword argument {field_name!r}') from None
 
-            assert field.is_schema_field
+            assert isinstance(field, SchemaField)
 
             value = field.coerce_value(schema, value)
             if value is None:
@@ -585,7 +710,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return schema, scls
 
     @classmethod
-    def _create(cls: Type[Object_T], schema, *, id=None, **data) -> Object_T:
+    def _create(
+        cls: Type[Object_T],
+        schema: Optional[s_schema.Schema],
+        *,
+        id: Optional[uuid.UUID] = None,
+        **data: Any,
+    ) -> Object_T:
         if cls.is_schema_object:
             raise TypeError(
                 f'{cls.__name__} type cannot be created outside of a schema')
@@ -608,17 +739,16 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return obj
 
-    def get_fields_values(self, schema):
-        for field in self.__class__._fields:
-            value = self.get_explicit_field_value(schema, field, None)
-            if value is not None:
-                yield field, value
-
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         raise RuntimeError(
             f'cannot set value to attribute {self}.{name} directly')
 
-    def _getdefault(self, field_name, field, relaxrequired=False):
+    def _getdefault(
+        self,
+        field_name: str,
+        field: SchemaField[Type[T]],
+        relaxrequired: bool = False,
+    ) -> Optional[T]:
         if field.default == field.type:
             if issubclass(field.default, ObjectCollection):
                 value = field.default.create_empty()
@@ -636,8 +766,17 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             value = field.default
         return value
 
-    def _get_schema_field_value(self, schema, field_name, *,
-                                allow_default=True):
+    # XXX sadly, in the methods below, statically we don't know any better than
+    # "Any" since providing the field name as a `str` is the equivalent of
+    # getattr() on a regular class.
+
+    def _get_schema_field_value(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+        *,
+        allow_default: bool = True,
+    ) -> Any:
         val = schema._get_obj_field(self.id, field_name)
         if val is not None:
             return val
@@ -653,7 +792,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         raise FieldValueNotFoundError(
             f'{self!r} object has no value for field {field_name!r}')
 
-    def get_field_value(self, schema, field_name, *, allow_default=True):
+    def get_field_value(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+        *,
+        allow_default: bool = True,
+    ) -> Any:
         field = type(self).get_field(field_name)
 
         if field.is_schema_field:
@@ -668,7 +813,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         raise FieldValueNotFoundError(
             f'{self!r} object has no value for field {field_name!r}')
 
-    def get_explicit_field_value(self, schema, field_name, default=NoDefault):
+    def get_explicit_field_value(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+        default: Any = NoDefault,
+    ) -> Any:
         field = type(self).get_field(field_name)
 
         if field.is_schema_field:
@@ -691,20 +841,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             raise FieldValueNotFoundError(
                 f'{self!r} object has no value for field {field_name!r}')
 
-    def get_explicit_local_field_value(self, schema, field_name,
-                                       default=NoDefault):
-        inherited_fields = self.get_inherited_fields(schema)
-        if not inherited_fields.get(field_name):
-            return self.get_explicit_field_value(schema, field_name, default)
-        elif default is not NoDefault:
-            return default
-        else:
-            raise FieldValueNotFoundError(
-                f'{self!r} object has no non-inherited value for '
-                f'field {field_name!r}'
-            )
-
-    def set_field_value(self, schema, name, value):
+    def set_field_value(
+        self,
+        schema: s_schema.Schema,
+        name: str,
+        value: Any,
+    ) -> s_schema.Schema:
         field = type(self)._fields[name]
         assert field.is_schema_field
 
@@ -714,7 +856,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             value = field.coerce_value(schema, value)
             return schema._set_obj_field(self.__dict__['id'], name, value)
 
-    def update(self, schema, updates: dict):
+    def update(
+        self, schema: s_schema.Schema, updates: Dict[str, Any]
+    ) -> s_schema.Schema:
         fields = type(self)._fields
 
         updates = updates.copy()
@@ -729,13 +873,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return schema._update_obj(self.__dict__['id'], updates)
 
-    def is_type(self):
+    def is_type(self) -> bool:
         return False
 
-    def hash_criteria(self, schema):
+    def hash_criteria(
+        self: Object_T, schema: s_schema.Schema
+    ) -> FrozenSet[HashCriterion]:
         cls = type(self)
 
-        sig = [cls]
+        sig: List[Union[Type[Object_T], Tuple[str, Any]]] = [cls]
         for f in cls._hashable_fields:
             fn = f.name
             val = schema._get_obj_field(self.id, fn)
@@ -745,7 +891,14 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return frozenset(sig)
 
-    def compare(self, other, *, our_schema, their_schema, context=None):
+    def compare(
+        self,
+        other: Object,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: Optional[ComparisonContext] = None
+    ) -> float:
         if (not isinstance(other, self.__class__) and
                 not isinstance(self, other.__class__)):
             return NotImplemented
@@ -773,34 +926,50 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     their_schema=their_schema,
                     context=context)
 
-                similarity *= fcoef
+                # XXX to be fixed in a follow-up PR
+                similarity *= fcoef  # type: ignore
 
         return similarity
 
-    def is_blocking_ref(self, schema, reference):
+    def is_blocking_ref(
+        self, schema: s_schema.Schema, reference: InheritingObjectBase
+    ) -> bool:
         return True
 
     @classmethod
-    def compare_field_value(cls, field, our_value, their_value, *,
-                            our_schema, their_schema, context):
-
+    def compare_field_value(
+        cls,
+        field: SchemaField[Type[T]],
+        our_value: T,
+        their_value: T,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: Optional[ComparisonContext],
+    ) -> Optional[float]:
         comparator = getattr(field.type, 'compare_values', None)
         if callable(comparator):
-            fcoef = comparator(our_value, their_value, context=context,
-                               our_schema=our_schema,
-                               their_schema=their_schema,
-                               compcoef=field.compcoef or 0.5)
-        elif our_value != their_value:
-            fcoef = field.compcoef
+            return comparator(our_value, their_value, context=context,
+                              our_schema=our_schema,
+                              their_schema=their_schema,
+                              compcoef=field.compcoef or 0.5)
 
-        else:
-            fcoef = 1.0
+        if our_value != their_value:
+            return field.compcoef
 
-        return fcoef
+        return 1.0
 
     @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
+    def compare_values(
+        cls,
+        ours: Optional[Object],
+        theirs: Optional[Object],
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: Optional[ComparisonContext],
+        compcoef: float,
+    ) -> float:
         """Compare two values and return a coefficient of similarity.
 
         This is a common callback that is used when we do schema comparisons.
@@ -812,13 +981,14 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         """
         similarity = 1.0
 
-        if (ours is None) != (theirs is None):
-            similarity /= 1.2
-        elif ours is not None:
+        if ours is not None and theirs is not None:
             if type(ours) is not type(theirs):
                 similarity /= 1.4
             elif ours.get_name(our_schema) != theirs.get_name(their_schema):
                 similarity /= 1.2
+        elif ours is not None or theirs is not None:
+            # one is None but not both
+            similarity /= 1.2
 
         if similarity < 1.0:
             return compcoef
@@ -826,18 +996,26 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             return 1.0
 
     @classmethod
-    def delta(cls, old, new, *, context=None, old_schema, new_schema):
+    def delta(
+        cls,
+        old: Optional[Object],
+        new: Optional[Object],
+        *,
+        context: ComparisonContext = None,
+        old_schema: Optional[s_schema.Schema],
+        new_schema: s_schema.Schema,
+    ) -> sd.ObjectCommand:
         from . import delta as sd
 
         if context is None:
             context = ComparisonContext()
 
         with context(old, new):
-            command_args = {'canonical': True}
+            command_args: Dict[str, Any] = {'canonical': True}
 
             if old and new:
                 try:
-                    name = old.get_name(old_schema)
+                    name = old.get_name(old_schema)  # type: ignore
                 except AttributeError:
                     pass
                 else:
@@ -850,7 +1028,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                                      old_schema=old_schema,
                                      new_schema=new_schema)
 
-            elif not old:
+            elif new:
                 try:
                     name = new.get_name(new_schema)
                 except AttributeError:
@@ -865,9 +1043,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                                      old_schema=old_schema,
                                      new_schema=new_schema)
 
-            else:
+            elif old:
                 try:
-                    name = old.get_name(old_schema)
+                    name = old.get_name(old_schema)  # type: ignore
                 except AttributeError:
                     pass
                 else:
@@ -886,8 +1064,17 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return delta
 
     @classmethod
-    def _delta_refdict(cls, old, new, *, delta, refdict, context,
-                       old_schema, new_schema):
+    def _delta_refdict(
+        cls,
+        old: Optional[Object],
+        new: Optional[Object],
+        *,
+        delta: sd.ObjectCommand,
+        refdict: RefDict,
+        context: ComparisonContext,
+        old_schema: Optional[s_schema.Schema],
+        new_schema: s_schema.Schema,
+    ) -> None:
 
         old_idx_key = lambda o: o.get_name(old_schema)
         new_idx_key = lambda o: o.get_name(new_schema)
@@ -915,7 +1102,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         _delta_subdict(refdict.attr)
 
-    def add_classref(self, schema, collection, obj, replace=False):
+    def add_classref(
+        self,
+        schema: s_schema.Schema,
+        collection: str,
+        obj: Object,
+        replace: bool = False,
+    ) -> s_schema.Schema:
         refdict = type(self).get_refdict(collection)
         attr = refdict.attr
 
@@ -932,7 +1125,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return schema
 
-    def del_classref(self, schema, collection, key):
+    def del_classref(
+        self,
+        schema: s_schema.Schema,
+        collection: str,
+        key: str,
+    ) -> s_schema.Schema:
         refdict = type(self).get_refdict(collection)
         attr = refdict.attr
         coll = self.get_field_value(schema, attr)
@@ -943,13 +1141,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return schema
 
-    def _reduce_to_ref(self, schema):
+    def _reduce_to_ref(self, schema: s_schema.Schema) -> Tuple[Object, Any]:
         return ObjectRef(name=self.get_name(schema)), self.get_name(schema)
 
-    def _resolve_ref(self, schema):
+    def _resolve_ref(self, schema: s_schema.Schema) -> Object:
         return self
 
-    def _reduce_obj_coll(self, schema, v):
+    def _reduce_obj_coll(
+        self, schema: s_schema.Schema, v: ObjectLS_T
+    ) -> Tuple[ObjectLS_T, Tuple[str, ...]]:
         result = []
         comparison_v = []
 
@@ -962,34 +1162,43 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     _reduce_obj_list = _reduce_obj_coll
 
-    def _reduce_obj_set(self, schema, v):
+    def _reduce_obj_set(
+        self, schema: s_schema.Schema, v: ObjectSet
+    ) -> Tuple[ObjectSet, FrozenSet[str]]:
         result, comparison_v = self._reduce_obj_coll(schema, v)
         return result, frozenset(comparison_v)
 
-    def _reduce_refs(self, schema, value):
+    def _reduce_refs(
+        self, schema: s_schema.Schema, value: Any
+    ) -> Tuple[Any, Any]:
         if isinstance(value, ObjectList):
-            ref, val = self._reduce_obj_list(schema, value)
+            return self._reduce_obj_list(schema, value)
 
         elif isinstance(value, ObjectSet):
-            ref, val = self._reduce_obj_set(schema, value)
+            return self._reduce_obj_set(schema, value)
 
         elif isinstance(value, Object):
-            ref, val = value._reduce_to_ref(schema)
+            return value._reduce_to_ref(schema)
 
         elif isinstance(value, ObjectCollection):
-            ref, val = value._reduce_to_ref(schema, value)
+            return value._reduce_to_ref(schema, value)
 
         elif isinstance(value, s_abc.ObjectContainer):
-            ref, val = value._reduce_to_ref(schema)
+            return value._reduce_to_ref(schema)
 
-        else:
-            ref, val = value, value
-
-        return ref, val
+        return value, value
 
     @classmethod
-    def delta_properties(cls, delta, old, new, *, context=None,
-                         old_schema, new_schema):
+    def delta_properties(
+        cls,
+        delta: sd.ObjectCommand,
+        old: Optional[Object],
+        new: Object,
+        *,
+        context: ComparisonContext = None,
+        old_schema: Optional[s_schema.Schema],
+        new_schema: s_schema.Schema,
+    ) -> None:
         from edb.schema import delta as sd
 
         ff = type(new).get_fields(sorted=True).items()
@@ -997,6 +1206,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                   if f.simpledelta and not f.ephemeral and f.introspectable}
 
         if old and new:
+            if old_schema is None:
+                raise ValueError("`old` provided but `old_schema is None")
             if old.get_name(old_schema) != new.get_name(new_schema):
                 delta.add(old.delta_rename(old, new.get_name(new_schema),
                                            old_schema=old_schema,
@@ -1020,7 +1231,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 if fcoef != 1.0:
                     delta.add(sd.AlterObjectProperty(
                         property=fn, old_value=oldattr_v, new_value=newattr_v))
-        elif not old:
+        elif new:
             # IDs are assigned once when the object is created and
             # never changed.
             id_value = new.get_explicit_field_value(new_schema, 'id')
@@ -1034,14 +1245,28 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     cls.delta_property(new_schema, new, delta, fn, value)
 
     @classmethod
-    def delta_property(cls, schema, scls, delta, fname, value):
+    def delta_property(
+        cls,
+        schema: s_schema.Schema,
+        scls: Object,
+        delta: sd.ObjectCommand,
+        fname: str,
+        value: Any,
+    ) -> None:
         from edb.schema import delta as sd
 
         delta.add(sd.AlterObjectProperty(
             property=fname, old_value=None, new_value=value))
 
     @classmethod
-    def delta_rename(cls, obj, new_name, *, old_schema, new_schema):
+    def delta_rename(
+        cls,
+        obj: Object,
+        new_name: sn.Name,
+        *,
+        old_schema: s_schema.Schema,
+        new_schema: s_schema.Schema,
+    ) -> Object:
         from . import delta as sd
 
         rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
@@ -1052,7 +1277,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                             metaclass=type(obj))
 
     @classmethod
-    def _sort_set(cls, schema, items):
+    def _sort_set(
+        cls, schema: s_schema.Schema, items: ordered.OrderedSet[Object_T]
+    ) -> ordered.OrderedSet[Object_T]:
         from . import inheriting as s_inh
 
         if items:
@@ -1060,23 +1287,25 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
             if isinstance(probe, s_inh.InheritingObject):
                 items_idx = {p.get_name(schema): p for p in items}
-
                 g = {}
-
-                for x in items:
+                c_items = cast(ordered.OrderedSet[InheritingObjectBase], items)
+                for x in c_items:
                     deps = {b for b in x._get_deps(schema) if b in items_idx}
                     g[x.get_name(schema)] = {'item': x, 'deps': deps}
-
                 items = topological.sort(g)
 
         return items
 
-    def _get_deps(self, schema):
-        return {b.get_name(schema)
-                for b in self.get_bases(schema).objects(schema)}
-
     @classmethod
-    def delta_sets(cls, old, new, context=None, *, old_schema, new_schema):
+    def delta_sets(
+        cls,
+        old: Optional[Iterable[Object]],
+        new: Optional[Iterable[Object]],
+        context: Optional[ComparisonContext] = None,
+        *,
+        old_schema: Optional[s_schema.Schema],
+        new_schema: s_schema.Schema,
+    ) -> Union[sd.DeltaRoot, Tuple[sd.DeltaRoot, ...]]:
         from edb.schema import delta as sd
         from edb.schema import inheriting as s_inh
 
@@ -1084,12 +1313,16 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         dels = sd.DeltaRoot()
 
         if old is None:
+            if new is None:
+                raise ValueError("`old` and `new` cannot be both None.")
             for n in new:
                 adds_mods.add(n.delta(None, n, context=context,
                                       old_schema=old_schema,
                                       new_schema=new_schema))
             return adds_mods, dels
         elif new is None:
+            if old is None:
+                raise ValueError("`old` and `new` cannot be both None.")
             for o in old:
                 dels.add(o.delta(o, None, context=context,
                                  old_schema=old_schema,
@@ -1099,27 +1332,32 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         old = list(old)
         new = list(new)
 
-        oldkeys = {o.id: o.hash_criteria(old_schema) for o in old}
+        if old and old_schema is None:
+            raise ValueError("`old` is present but `old_schema` is None")
+
+        oldkeys = {
+            o.id: o.hash_criteria(old_schema) for o in old  # type: ignore
+        }
         newkeys = {o.id: o.hash_criteria(new_schema) for o in new}
 
         unchanged = set(oldkeys.values()) & set(newkeys.values())
 
-        old = ordered.OrderedSet(
+        old = ordered.OrderedSet[Object](
             o for o in old
             if oldkeys[o.id] not in unchanged)
-        new = ordered.OrderedSet(
+        new = ordered.OrderedSet[Object](
             o for o in new
             if newkeys[o.id] not in unchanged)
 
-        comparison = []
+        comparison: List[Tuple[float, Object, Object]] = []
         for x, y in itertools.product(new, old):
             comp = x.compare(y, our_schema=new_schema,
-                             their_schema=old_schema)
+                             their_schema=old_schema)  # type: ignore
             comparison.append((comp, x, y))
 
-        used_x = set()
-        used_y = set()
-        altered = ordered.OrderedSet()
+        used_x: Set[Object] = set()
+        used_y: Set[Object] = set()
+        altered = ordered.OrderedSet[sd.ObjectCommand]()
 
         comparison = sorted(comparison, key=lambda item: item[0], reverse=True)
 
@@ -1147,6 +1385,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                                       new_schema=new_schema))
 
         if old_schema is not None and new_schema is not None:
+            probe: Optional[Object]
             if old:
                 probe = next(iter(old))
             elif new:
@@ -1202,7 +1441,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             adds_mods.add(p)
 
         if deleted:
-            deleted = cls._sort_set(old_schema, deleted)
+            deleted = cls._sort_set(old_schema, deleted)  # type: ignore
             for y in reversed(list(deleted)):
                 dels.add(y.delta(y, None, context=context,
                                  old_schema=old_schema,
@@ -1211,13 +1450,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         adds_mods.update(dels)
         return adds_mods
 
-    def dump(self, schema):
+    def dump(self, schema: s_schema.Schema) -> str:
         return (
             f'<{type(self).__name__} name={self.get_name(schema)!r} '
             f'at {id(self):#x}>'
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
 
 
@@ -1228,10 +1467,14 @@ class ObjectFragment(Object):
 class UnqualifiedObject(Object):
 
     name = SchemaField(
-        str,
-        inheritable=False, compcoef=0.670)
+        # ignore below because Mypy doesn't understand fields which are not
+        # inheritable.
+        str,  # type: ignore
+        inheritable=False,
+        compcoef=0.670,
+    )
 
-    def get_displayname(self, schema):
+    def get_displayname(self, schema: s_schema.Schema) -> str:
         return self.get_name(schema)
 
 
@@ -1240,48 +1483,55 @@ class GlobalObject(UnqualifiedObject):
 
 
 class ObjectRef(Object):
+    _name: str
+    _origname: Optional[str]
+    _schemaclass: Optional[ObjectMeta]
+    _sourcectx: Optional[parsing.ParserContext]
 
     def __init__(
         self,
         *,
         name: str,
-        origname: Optional[str]=None,
-        schemaclass: Optional[ObjectMeta]=None,
-        sourcectx=None,
+        origname: Optional[str] = None,
+        schemaclass: Optional[ObjectMeta] = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         self.__dict__['_name'] = name
         self.__dict__['_origname'] = origname
         self.__dict__['_sourcectx'] = sourcectx
         self.__dict__['_schemaclass'] = schemaclass
 
+    # `name` and `get_name` are deliberately incompatible with the base
+    # `Object` equivalents so we type-ignore them
+
     @property
-    def name(self):
+    def name(self) -> str:  # type: ignore
         return self._name
 
-    def get_name(self, schema):
+    def get_name(self, schema: s_schema.Schema) -> str:  # type: ignore
         return self._name
 
-    def get_refname(self, schema):
+    def get_refname(self, schema: s_schema.Schema) -> str:
         return self._origname if self._origname is not None else self._name
 
-    def get_sourcectx(self, schema):
+    def get_sourcectx(self, schema: s_schema.Schema) -> Any:
         return self._sourcectx
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<ObjectRef "{}" at 0x{:x}>'.format(self._name, id(self))
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if type(self) is not type(other):
             return NotImplemented
         return self._name == other._name
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self._name, type(self)))
 
-    def _reduce_to_ref(self, schema):
+    def _reduce_to_ref(self, schema: s_schema.Schema) -> Tuple[ObjectRef, Any]:
         return self, self.get_name(schema)
 
-    def _resolve_ref(self, schema):
+    def _resolve_ref(self, schema: s_schema.Schema) -> Object:
         return schema.get(
             self.get_name(schema),
             type=self._schemaclass,
@@ -1294,28 +1544,42 @@ class ObjectCollectionDuplicateNameError(Exception):
     pass
 
 
-class ObjectCollection(s_abc.ObjectContainer):
+class ObjectCollection(s_abc.ObjectContainer, Generic[Object_T]):
+    _type: Type[Object_T]
+    _container: Type[CollectionFactory]
 
-    def __init_subclass__(cls, *, type=Object, container=None):
+    def __init_subclass__(
+        cls,
+        *,
+        type: Type[Object_T] = Object,  # type: ignore
+        container: Optional[Type[Collection]] = None,
+    ) -> None:
+        # Type ignore above due to https://github.com/python/mypy/issues/7927
+
         cls._type = type
         if container is not None:
             cls._container = container
 
-    def __init__(self, ids, *, _private_init):
+    def __init__(
+        self,
+        ids: Union[Collection[uuid.UUID], Collection[ObjectRef]],
+        *,
+        _private_init: bool,
+    ) -> None:
         self._ids = ids
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._ids)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, type(self)):
             return NotImplemented
         return self._ids == other._ids
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self._ids)
 
-    def dump(self, schema):
+    def dump(self, schema: s_schema.Schema) -> str:
         return (
             f'<{type(self).__name__} objects='
             f'[{", ".join(o.dump(schema) for o in self.objects(schema))}] '
@@ -1323,7 +1587,11 @@ class ObjectCollection(s_abc.ObjectContainer):
         )
 
     @classmethod
-    def create(cls, schema, data):
+    def create(
+        cls: Type[ObjectCollection_T],
+        schema: s_schema.Schema,
+        data: Iterable[Object_T],
+    ) -> ObjectCollection_T:
         ids = []
 
         if isinstance(data, ObjectCollection):
@@ -1331,15 +1599,17 @@ class ObjectCollection(s_abc.ObjectContainer):
         elif data:
             for v in data:
                 ids.append(cls._validate_value(schema, v))
-
-        return cls(cls._container(ids), _private_init=True)
+        container: CollectionFactory[uuid.UUID] = cls._container(ids)
+        return cls(container, _private_init=True)
 
     @classmethod
     def create_empty(cls) -> ObjectCollection:
         return cls(cls._container(), _private_init=True)
 
     @classmethod
-    def _validate_value(cls, schema, v):
+    def _validate_value(
+        cls, schema: s_schema.Schema, v: Object
+    ) -> Union[ObjectRef, uuid.UUID]:
         if not isinstance(v, cls._type):
             raise TypeError(
                 f'invalid input data for ObjectIndexByShortname: '
@@ -1354,18 +1624,22 @@ class ObjectCollection(s_abc.ObjectContainer):
 
         return v
 
-    def ids(self, schema):
-        result = []
+    def ids(self, schema: s_schema.Schema) -> Tuple[uuid.UUID, ...]:
+        result: List[uuid.UUID] = []
 
         for item_id in self._ids:
             if isinstance(item_id, ObjectRef):
-                result.append(item_id._resolve_ref(schema).id)
+                resolved = item_id._resolve_ref(schema)
+                # type ignore due to https://github.com/python/mypy/issues/7153
+                result.append(resolved.id)
             else:
                 result.append(item_id)
 
         return tuple(result)
 
-    def names(self, schema, *, allow_unresolved=False):
+    def names(
+        self, schema: s_schema.Schema, *, allow_unresolved: bool = False
+    ) -> Collection[str]:
         result = []
 
         for item_id in self._ids:
@@ -1385,7 +1659,9 @@ class ObjectCollection(s_abc.ObjectContainer):
 
         return type(self)._container(result)
 
-    def objects(self, schema):
+    def objects(self, schema: s_schema.Schema) -> Tuple[Any, ...]:
+        # The `Any` return type is so that using methods on Object subclasses
+        # doesn't cause Mypy to complain.
         result = []
 
         for item_id in self._ids:
@@ -1397,8 +1673,16 @@ class ObjectCollection(s_abc.ObjectContainer):
         return tuple(result)
 
     @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
+    def compare_values(
+        cls,
+        ours: ObjectCollection,
+        theirs: ObjectCollection,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: Optional[ComparisonContext],
+        compcoef: float,
+    ) -> float:
         if ours is not None:
             our_names = ours.names(our_schema, allow_unresolved=True)
         else:
@@ -1414,30 +1698,40 @@ class ObjectCollection(s_abc.ObjectContainer):
         else:
             return 1.0
 
-    def _reduce_to_ref(self, schema):
+    # Breaking Liskov Substitution Principle below (by adding `v`).
+    def _reduce_to_ref(  # type: ignore
+        self: T, schema: s_schema.Schema, v: ObjectCollection
+    ) -> Tuple[T, Any]:
         raise NotImplementedError
 
 
-class ObjectIndexBase(ObjectCollection, container=tuple):
+KeyFunction = Callable[["s_schema.Schema", Object], str]
+OIBT = TypeVar("OIBT", bound="ObjectIndexBase")
 
-    def __init_subclass__(cls, *, key):
+
+class ObjectIndexBase(ObjectCollection, container=tuple):
+    _key: KeyFunction
+
+    def __init_subclass__(cls, *, key: KeyFunction):
         cls._key = key
 
     @classmethod
-    def get_key_for(cls, schema, obj):
+    def get_key_for(cls, schema: s_schema.Schema, obj: Object) -> str:
         return cls._key(schema, obj)
 
     @classmethod
-    def get_key_for_name(cls, schema, name):
+    def get_key_for_name(cls, schema: s_schema.Schema, name: str) -> str:
         return name
 
     @classmethod
-    def create(cls, schema, data: Iterable[Object]):
+    def create(
+        cls: Type[OIBT], schema: s_schema.Schema, data: Iterable[Object]
+    ) -> OIBT:
         coll = super().create(schema, data)
         coll._check_duplicates(schema)
         return coll
 
-    def _check_duplicates(self, schema):
+    def _check_duplicates(self, schema: s_schema.Schema) -> None:
         counts = collections.Counter(self.keys(schema))
         duplicates = [v for v, count in counts.items() if count > 1]
         if duplicates:
@@ -1446,15 +1740,25 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
                 ', '.join(repr(duplicates)))
 
     @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
+    def compare_values(
+        cls,
+        ours: ObjectCollection,
+        theirs: ObjectCollection,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: Optional[ComparisonContext],
+        compcoef: float,
+    ) -> float:
+
         if not ours and not theirs:
             basecoef = 1.0
         elif not ours or not theirs:
             basecoef = 0.2
         else:
-            similarity = []
-
+            assert isinstance(ours, ObjectIndexBase)
+            assert isinstance(theirs, ObjectIndexBase)
+            similarity: List[float] = []
             for k, v in ours.items(our_schema):
                 try:
                     theirsv = theirs.get(their_schema, k)
@@ -1476,7 +1780,9 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return basecoef + (1 - basecoef) * compcoef
 
-    def add(self, schema, item) -> ObjectIndexBase:
+    def add(
+        self: OIBT, schema: s_schema.Schema, item: Object
+    ) -> Tuple[s_schema.Schema, OIBT]:
         """Return a copy of this collection containing the given item.
 
         If the item is already present in the collection, an
@@ -1490,7 +1796,9 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return self.update(schema, [item])
 
-    def update(self, schema, reps: Iterable[Object]):
+    def update(
+        self: OIBT, schema: s_schema.Schema, reps: Iterable[Object]
+    ) -> Tuple[s_schema.Schema, OIBT]:
         items = dict(self.items(schema))
         keyfunc = type(self)._key
 
@@ -1500,16 +1808,16 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
         return schema, type(self).create(schema, items.values())
 
     def delete(
-        self,
-        schema,
+        self: OIBT,
+        schema: s_schema.Schema,
         names: Iterable[str],
-    ) -> Tuple[s_abc.Schema, ObjectIndexBase]:
+    ) -> Tuple[s_schema.Schema, OIBT]:
         items = dict(self.items(schema))
         for name in names:
             items.pop(name)
         return schema, type(self).create(schema, items.values())
 
-    def items(self, schema):
+    def items(self, schema: s_schema.Schema) -> Tuple[Tuple[str, Any], ...]:
         result = []
         keyfunc = type(self)._key
 
@@ -1518,7 +1826,7 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return tuple(result)
 
-    def keys(self, schema):
+    def keys(self, schema: s_schema.Schema) -> Tuple[str, ...]:
         result = []
         keyfunc = type(self)._key
 
@@ -1527,12 +1835,14 @@ class ObjectIndexBase(ObjectCollection, container=tuple):
 
         return tuple(result)
 
-    def has(self, schema, name):
+    def has(self, schema: s_schema.Schema, name: str) -> bool:
         return name in self.keys(schema)
 
-    def get(self, schema, name, default=...):
+    def get(
+        self, schema: s_schema.Schema, name: str, default: Any = NoDefault
+    ):
         items = dict(self.items(schema))
-        if default is ...:
+        if default is NoDefault:
             return items[name]
         else:
             return items.get(name, default)
@@ -1549,7 +1859,7 @@ class ObjectIndexByShortname(
         key=lambda schema, o: o.get_shortname(schema)):
 
     @classmethod
-    def get_key_for_name(cls, schema, name):
+    def get_key_for_name(cls, schema: s_schema.Schema, name: str) -> str:
         return sn.shortname_from_fullname(name)
 
 
@@ -1558,50 +1868,55 @@ class ObjectIndexByUnqualifiedName(
         key=lambda schema, o: o.get_shortname(schema).name):
 
     @classmethod
-    def get_key_for_name(cls, schema, name):
+    def get_key_for_name(cls, schema: s_schema.Schema, name: str) -> str:
         return sn.shortname_from_fullname(name).name
 
 
 class ObjectDict(ObjectCollection, container=tuple):
+    _keys: Tuple[Any, ...]
 
+    # Breaking the Liskov Substitution Principle
     @classmethod
-    def create(
+    def create(  # type: ignore
         cls,
-        schema,
-        data: Mapping[object, Object]
+        schema: s_schema.Schema,
+        data: Mapping[Any, Object],
     ) -> ObjectDict:
 
         result = super().create(schema, data.values())
         result._keys = tuple(data.keys())
         return result
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, type(self)):
             return NotImplemented
         return self._ids == other._ids and self._keys == other._keys
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self._ids, self._keys))
 
-    def dump(self, schema):
+    def dump(self, schema: s_schema.Schema) -> str:
         objs = ", ".join(f"{self._keys[i]}: {o.dump(schema)}"
                          for i, o in enumerate(self.objects(schema)))
         return f'<{type(self).__name__} objects={objs} at {id(self):#x}>'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         items = [f"{self._keys[i]}: {id}" for i, id in enumerate(self._ids)]
         return f'{{{", ".join(items)}}}'
 
-    def keys(self, schema):
+    def keys(self, schema: s_schema.Schema) -> Tuple[Any, ...]:
         return self._keys
 
-    def values(self, schema):
+    def values(self, schema: s_schema.Schema) -> Tuple[Object, ...]:
         return self.objects(schema)
 
-    def items(self, schema):
+    def items(self, schema: s_schema.Schema) -> Tuple[Tuple[Any, Object], ...]:
         return tuple(zip(self._keys, self.objects(schema)))
 
-    def _reduce_to_ref(self, schema, v):
+    # Breaking Liskov Substitution Principle below (by adding `v`).
+    def _reduce_to_ref(  # type: ignore
+        self: ObjectDict, schema: s_schema.Schema, v: ObjectDict
+    ) -> Tuple[ObjectDict, Any]:
         result = {}
         comparison_v = []
 
@@ -1615,11 +1930,17 @@ class ObjectDict(ObjectCollection, container=tuple):
 
 class ObjectSet(ObjectCollection, container=frozenset):
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{{{", ".join(str(id) for id in self._ids)}}}'
 
-    @classmethod
-    def merge_values(cls, target, sources, field_name, *, schema):
+    @staticmethod
+    def merge_values(
+        target: Object,
+        sources: Iterable[Object],
+        field_name: str,
+        *,
+        schema: s_schema.Schema,
+    ):
         result = target.get_explicit_field_value(schema, field_name, None)
         for source in sources:
             if source.__class__.get_field(field_name) is None:
@@ -1636,10 +1957,14 @@ class ObjectSet(ObjectCollection, container=frozenset):
 
 class ObjectList(ObjectCollection, container=tuple):
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'[{", ".join(str(id) for id in self._ids)}]'
 
-    def first(self, schema, default=NoDefault):
+    def first(
+        self, schema: s_schema.Schema, default: Any = NoDefault
+    ) -> Any:
+        # The `Any` return type is so that using methods on Object subclasses
+        # doesn't cause Mypy to complain.
         try:
             return next(iter(self.objects(schema)))
         except StopIteration:
@@ -1690,23 +2015,34 @@ class InheritingObjectBase(Object):
         bool,
         default=False, compcoef=0.909)
 
-    def _issubclass(self, schema, parent):
+    def _issubclass(
+        self, schema: s_schema.Schema, parent: InheritingObjectBase
+    ) -> bool:
         lineage = compute_lineage(schema, self)
         return parent in lineage
 
-    def issubclass(self, schema, parent):
+    def issubclass(
+        self,
+        schema: s_schema.Schema,
+        parent: Union[InheritingObjectBase, Tuple[InheritingObjectBase, ...]],
+    ) -> bool:
+        from . import types as s_types
         if isinstance(parent, tuple):
             return any(self.issubclass(schema, p) for p in parent)
         else:
-            if parent.is_type() and parent.is_any():
+            if isinstance(parent, s_types.Type) and parent.is_any():
                 return True
             else:
                 return self._issubclass(schema, parent)
 
-    def descendants(self, schema):
+    def descendants(
+        self, schema: s_schema.Schema
+    ) -> FrozenSet[objtypes.ObjectType]:
         return schema.get_descendants(self)
 
-    def ordered_descendants(self, schema):
+    def ordered_descendants(
+        self, schema: s_schema.Schema
+    ) -> List[objtypes.ObjectType]:
         """Return class descendants in ancestral order."""
         graph = {}
         for descendant in self.descendants(schema):
@@ -1717,19 +2053,46 @@ class InheritingObjectBase(Object):
 
         return list(topological.sort(graph, allow_unresolved=True))
 
-    def children(self, schema):
+    def children(self, schema: s_schema.Schema) -> frozenset:
         return schema.get_children(self)
 
-    def get_nearest_non_derived_parent(self, schema):
+    def get_nearest_non_derived_parent(
+        self, schema: s_schema.Schema
+    ) -> Object:
         obj = self
         while obj.get_is_derived(schema):
-            obj = obj.get_bases(schema).first(schema)
+            obj = cast(
+                InheritingObjectBase, obj.get_bases(schema).first(schema)
+            )
         return obj
+
+    def get_explicit_local_field_value(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+        default: Any = NoDefault,
+    ) -> Any:
+        inherited_fields = self.get_inherited_fields(schema)
+        if not inherited_fields.get(field_name):
+            return self.get_explicit_field_value(schema, field_name, default)
+        elif default is not NoDefault:
+            return default
+        else:
+            raise FieldValueNotFoundError(
+                f'{self!r} object has no non-inherited value for '
+                f'field {field_name!r}'
+            )
+
+    def _get_deps(self, schema: s_schema.Schema) -> Set[sn.Name]:
+        return {
+            b.get_name(schema)
+            for b in self.get_bases(schema).objects(schema)
+        }
 
 
 @markup.serializer.serializer.register(Object)
 @markup.serializer.serializer.register(ObjectCollection)
-def _serialize_to_markup(o, *, ctx):
+def _serialize_to_markup(o: Object, *, ctx):
     if 'schema' not in ctx.kwargs:
         orepr = repr(o)
     else:
@@ -1741,8 +2104,10 @@ def _serialize_to_markup(o, *, ctx):
         repr=orepr)
 
 
-def _merge_lineage(schema, obj, lineage):
-    result = []
+def _merge_lineage(
+    schema: s_schema.Schema, obj: Object, lineage: Iterable[Any]
+) -> List[Any]:
+    result: List[Any] = []
 
     while True:
         nonempty = [line for line in lineage if line]
@@ -1770,15 +2135,21 @@ def _merge_lineage(schema, obj, lineage):
     return result
 
 
-def compute_lineage(schema, obj):
+def compute_lineage(
+    schema: s_schema.Schema, obj: InheritingObjectBase
+) -> List[Any]:
     bases = tuple(obj.get_bases(schema).objects(schema))
     lineage = [[obj]]
 
     for base in bases:
-        lineage.append(compute_lineage(schema, base))
+        # ObjectList could be made generic then this ignore would not be
+        # necessary.  Mypy sees `base` as Object whereas it's an IOB for sure.
+        lineage.append(compute_lineage(schema, base))  # type: ignore
 
     return _merge_lineage(schema, obj, lineage)
 
 
-def compute_ancestors(schema, obj):
+def compute_ancestors(
+    schema: s_schema.Schema, obj: InheritingObjectBase
+) -> List[Any]:
     return compute_lineage(schema, obj)[1:]

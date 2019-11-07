@@ -35,6 +35,7 @@ from edb.ir import utils as irutils
 from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
+from edb.schema import objects as s_objects
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -113,8 +114,10 @@ def compile_cast(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     else:
-        json_t = ctx.env.get_track_schema_object('std::json')
-
+        json_t = cast(
+            s_objects.InheritingObjectBase,
+            ctx.env.get_track_schema_object('std::json'),
+        )
         if (new_stype.issubclass(ctx.env.schema, json_t) and
                 ir_set.path_id.is_objtype_path()):
             # JSON casts of objects are special: we want the full shape

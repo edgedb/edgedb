@@ -25,13 +25,21 @@ import functools
 from edb import errors
 
 
+if TYPE_CHECKING:
+    NameT = TypeVar("NameT", bound="SchemaName")
+
+
 class SchemaName(str):
     __slots__ = ('module', 'name')
 
     module: str
     name: str
 
-    def __new__(cls, name, module=None):
+    def __new__(
+        cls: Type[NameT],
+        name: Union[SchemaName, str],
+        module: Optional[str] = None,
+    ) -> NameT:
         if not name:
             raise NameError('name must not be empty')
 
@@ -52,7 +60,10 @@ class SchemaName(str):
                 else:
                     _module = module
 
-        result = super().__new__(cls, _module + '::' + _name)
+        # Ignore below since Mypy doesn't believe you can pass `_fullname` to
+        # object.__new__.
+        _fullname = f"{_module}::{_name}"
+        result = super().__new__(cls, _fullname)  # type: ignore
         result.name = _name
         result.module = _module
 
@@ -62,14 +73,16 @@ class SchemaName(str):
         return (self.module, self.name)
 
     @staticmethod
-    def is_qualified(name):
+    def is_qualified(name: Union[SchemaName, str]) -> bool:
         return isinstance(name, SchemaName) or '::' in name
 
 
 class UnqualifiedName(SchemaName):
 
-    def __new__(cls, name):
-        result = str.__new__(cls, name)
+    def __new__(cls: Type[NameT], name: str) -> NameT:
+        # Ignore below since Mypy doesn't believe you can pass `name` to
+        # object.__new__.
+        result = str.__new__(cls, name)  # type: ignore
         result.name = name
         result.module = ''
 
@@ -79,7 +92,12 @@ class UnqualifiedName(SchemaName):
 Name = SchemaName
 
 
-def split_name(name):
+def split_name(
+    name: Union[SchemaName, str]
+) -> Tuple[Union[SchemaName, str], Optional[str], str]:
+    module: Optional[str]
+    nqname: str
+
     if isinstance(name, SchemaName):
         module = name.module
         nqname = name.name
@@ -98,16 +116,16 @@ def split_name(name):
     return name, module, nqname
 
 
-def mangle_name(name) -> str:
+def mangle_name(name: Union[SchemaName, str]) -> str:
     return name.replace('::', '|')
 
 
-def unmangle_name(name) -> str:
+def unmangle_name(name: str) -> str:
     return name.replace('|', '::')
 
 
 @functools.lru_cache(4096)
-def shortname_from_fullname(fullname) -> SchemaName:
+def shortname_from_fullname(fullname: SchemaName) -> SchemaName:
     parts = str(fullname.name).split('@@', 1)
     if len(parts) == 2:
         return SchemaName(unmangle_name(parts[0]))
@@ -116,12 +134,14 @@ def shortname_from_fullname(fullname) -> SchemaName:
 
 
 @functools.lru_cache(4096)
-def quals_from_fullname(fullname) -> List[str]:
+def quals_from_fullname(fullname: SchemaName) -> List[str]:
     _, _, mangled_quals = fullname.name.partition('@@')
     return [unmangle_name(p) for p in mangled_quals.split('@')]
 
 
-def get_specialized_name(basename, *qualifiers) -> str:
+def get_specialized_name(
+    basename: Union[SchemaName, str], *qualifiers: str
+) -> str:
     return (mangle_name(basename) +
             '@@' +
             '@'.join(mangle_name(qualifier)

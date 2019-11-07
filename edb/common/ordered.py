@@ -58,8 +58,6 @@ class OrderedSet(MutableSet[K]):
         return len(self.map)
 
     def __contains__(self, item: Any) -> bool:
-        # The ignore below is because the __contains__ protocol has to
-        # accept any object.
         return item in self.map
 
     def __iter__(self) -> Iterator[K]:

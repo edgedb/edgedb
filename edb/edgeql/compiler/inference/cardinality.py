@@ -271,8 +271,10 @@ def _analyse_filter_clause(
         exclusive_constr = schema.get('std::exclusive')
 
         for ptr, _ in filtered_ptrs:
-            ptr = ptr.get_nearest_non_derived_parent(env.schema)
-
+            ptr = cast(
+                s_pointers.Pointer,
+                ptr.get_nearest_non_derived_parent(env.schema),
+            )
             is_unique = (
                 ptr.is_id_pointer(schema) or
                 any(c.issubclass(schema, exclusive_constr)
