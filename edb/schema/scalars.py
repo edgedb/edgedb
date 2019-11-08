@@ -241,6 +241,12 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
 
         return cmd
 
+    def _get_ast_node(self, schema, context):
+        if self.get_attribute_value('expr'):
+            return qlast.CreateView
+        else:
+            return super()._get_ast_node(schema, context)
+
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'default':
             if op.new_value:

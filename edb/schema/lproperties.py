@@ -229,7 +229,12 @@ class CreateProperty(PropertyCommand,
             node.cardinality = op.new_value
         elif op.property == 'target' and link:
             if isinstance(node, qlast.CreateConcreteProperty):
-                node.target = utils.typeref_to_ast(schema, op.new_value)
+                expr = self.get_attribute_value('expr')
+                if expr is not None:
+                    node.target = expr.qlast
+                else:
+                    t = op.new_value
+                    node.target = utils.typeref_to_ast(schema, t)
             else:
                 node.commands.append(
                     qlast.SetPropertyType(

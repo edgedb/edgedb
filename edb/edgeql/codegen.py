@@ -241,7 +241,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.result_alias:
             self.write(node.result_alias, ' := ')
         self.visit(node.result)
-        self._block_ws(-1)
+        if not node.implicit or node.aliases:
+            self._block_ws(-1)
+        else:
+            self.write(' ')
         self._visit_filter(node)
         self._visit_order(node)
         self._visit_offset_limit(node)
@@ -1106,13 +1109,30 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             keywords.append('MULTI')
         keywords.append('PROPERTY')
 
+        pure_computable = (
+            len(node.commands) == 0
+            or (
+                len(node.commands) == 1
+                and isinstance(node.commands[0], qlast.SetField)
+                and node.commands[0].name.name == 'expr'
+            )
+        )
+
         def after_name():
             self._ddl_visit_bases(node)
             if node.target is not None:
-                self.write(' -> ')
-                self.visit(node.target)
+                if isinstance(node.target, qlast.TypeExpr):
+                    self.write(' -> ')
+                    self.visit(node.target)
+                elif pure_computable:
+                    # computable
+                    self.write(' := (')
+                    self.visit(node.target)
+                    self.write(')')
+
         self._visit_CreateObject(
-            node, *keywords, after_name=after_name, unqualified=True)
+            node, *keywords, after_name=after_name, unqualified=True,
+            render_commands=not pure_computable)
 
     def _process_AlterConcretePointer_for_SDL(self, node):
         keywords = []
@@ -1193,13 +1213,24 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 if isinstance(node.target, qlast.TypeExpr):
                     self.write(' -> ')
                     self.visit(node.target)
-                else:
+                elif pure_computable:
                     # computable
                     self.write(' := (')
                     self.visit(node.target)
                     self.write(')')
+
+        pure_computable = (
+            len(node.commands) == 0
+            or (
+                len(node.commands) == 1
+                and isinstance(node.commands[0], qlast.SetField)
+                and node.commands[0].name.name == 'expr'
+            )
+        )
+
         self._visit_CreateObject(
-            node, *keywords, after_name=after_name, unqualified=True)
+            node, *keywords, after_name=after_name, unqualified=True,
+            render_commands=not pure_computable)
 
     def visit_AlterConcreteLink(self, node):
         keywords = []

@@ -283,6 +283,12 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
+    def _get_ast_node(self, schema, context):
+        if self.get_attribute_value('expr'):
+            return qlast.CreateView
+        else:
+            return super()._get_ast_node(schema, context)
+
 
 class RenameObjectType(ObjectTypeCommand, sd.RenameObject):
     pass

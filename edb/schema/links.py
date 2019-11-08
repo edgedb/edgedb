@@ -232,8 +232,12 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         elif op.property == 'target' and objtype:
             if isinstance(node, qlast.CreateConcreteLink):
                 if not node.target:
-                    t = op.new_value
-                    node.target = utils.typeref_to_ast(schema, t)
+                    expr = self.get_attribute_value('expr')
+                    if expr is not None:
+                        node.target = expr.qlast
+                    else:
+                        t = op.new_value
+                        node.target = utils.typeref_to_ast(schema, t)
             else:
                 node.commands.append(
                     qlast.SetLinkType(

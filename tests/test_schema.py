@@ -2959,3 +2959,155 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """
         )
+
+    def test_describe_view_01(self):
+        self._assert_describe(
+            """
+            type Foo {
+                property name -> str;
+            };
+
+            view Bar := (SELECT Foo {name, calc := 1});
+            """,
+
+            'DESCRIBE SCHEMA',
+
+            """
+            CREATE MODULE test;
+            CREATE TYPE test::Foo {
+                CREATE SINGLE PROPERTY name -> std::str;
+            };
+            CREATE VIEW test::Bar :=
+                (WITH
+                    MODULE test
+                SELECT
+                    Foo {
+                        name,
+                        calc := 1
+                    }
+                );
+            """
+        )
+
+    def test_describe_view_02(self):
+        self._assert_describe(
+            """
+            type Foo {
+                property name -> str;
+            };
+
+            view Bar {
+                expr := (SELECT Foo {name, calc := 1});
+                annotation title := 'bar view';
+            };
+            """,
+
+            'DESCRIBE SCHEMA',
+
+            """
+            CREATE MODULE test;
+            CREATE TYPE test::Foo {
+                CREATE SINGLE PROPERTY name -> std::str;
+            };
+            CREATE VIEW test::Bar {
+                SET expr := (WITH
+                    MODULE test
+                SELECT
+                    Foo {
+                        name,
+                        calc := 1
+                    }
+                );
+                SET ANNOTATION std::title := 'bar view';
+            };
+            """
+        )
+
+    def test_describe_view_03(self):
+        self._assert_describe(
+            """
+            view scalar_view := {1, 2, 3};
+            """,
+
+            'DESCRIBE SCHEMA',
+
+            """
+            CREATE MODULE test;
+            CREATE VIEW test::scalar_view :=
+                (WITH
+                    MODULE test
+                SELECT
+                    {1, 2, 3}
+                );
+            """
+        )
+
+    def test_describe_view_04(self):
+        self._assert_describe(
+            """
+            view tuple_view := (1, 2, 3);
+            view array_view := [1, 2, 3];
+            """,
+
+            'DESCRIBE SCHEMA',
+
+            """
+            CREATE MODULE test;
+            CREATE VIEW test::array_view :=
+                [1, 2, 3];
+            CREATE VIEW test::tuple_view :=
+                (WITH
+                    MODULE test
+                SELECT
+                    (1, 2, 3)
+                );
+            """
+        )
+
+    def test_describe_computable_01(self):
+        self._assert_describe(
+            """
+            type Foo {
+                property compprop := 'foo';
+                link complink := (SELECT Foo LIMIT 1);
+                property annotated_compprop -> str {
+                    expr := 'foo';
+                    annotation title := 'compprop';
+                };
+                link annotated_link -> Foo {
+                    expr := (SELECT Foo LIMIT 1);
+                    annotation title := 'complink';
+                };
+            };
+            """,
+
+            'DESCRIBE SCHEMA',
+
+            """
+            CREATE MODULE test;
+            CREATE TYPE test::Foo {
+                CREATE SINGLE PROPERTY annotated_compprop {
+                    SET expr := 'foo';
+                    SET ANNOTATION std::title := 'compprop';
+                };
+                CREATE SINGLE LINK annotated_link {
+                    SET expr := (WITH
+                        MODULE test
+                    SELECT
+                        Foo
+                    LIMIT
+                        1
+                    );
+                    SET ANNOTATION std::title := 'complink';
+                };
+                CREATE SINGLE LINK complink := ((WITH
+                    MODULE test
+                SELECT
+                    Foo
+                LIMIT
+                    1
+                ));
+                CREATE SINGLE PROPERTY compprop := ('foo');
+            };
+            """
+        )
