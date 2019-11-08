@@ -2917,3 +2917,22 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 """,
             ]
         )
+
+    def test_describe_03(self):
+        self._assert_describe(
+            """
+            scalar type custom_str_t extending str {
+                constraint regexp('[A-Z]+');
+            }
+            """,
+
+            'DESCRIBE SCHEMA',
+
+            """
+            CREATE MODULE test;
+
+            CREATE SCALAR TYPE test::custom_str_t EXTENDING std::str {
+                CREATE CONSTRAINT std::regexp('[A-Z]+');
+            };
+            """
+        )

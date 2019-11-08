@@ -180,8 +180,11 @@ class Constraint(referencing.ReferencedInheritingObject,
                         for name, val in args_map.items()}
 
             args_map['__subject__'] = '{__subject__}'
-            attrs['errmessage'] = attrs['errmessage'].format(**args_map)
-            inherited.pop('errmessage', None)
+            message_template = attrs['errmessage']
+            formatted_message = message_template.format(**args_map)
+            if message_template != formatted_message:
+                attrs['errmessage'] = formatted_message
+                inherited['errmessage'] = False
 
         attrs['args'] = args
 
