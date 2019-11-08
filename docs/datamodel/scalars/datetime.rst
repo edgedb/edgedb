@@ -36,15 +36,22 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         SELECT <datetime>'2018-05-07T15:01:22.306916+00';
         SELECT <datetime>'2018-05-07T15:01:22+00';
 
-    Note that when casting from strings a timezone is always required:
+    Note that when casting from strings, the string should be in ISO
+    8601 format with timezone included:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <datetime>'January 01 2019';
-        InvalidValueError: an explicit timezone is required
-
         db> SELECT <datetime>'January 01 2019 UTC';
-        {<datetime>'2019-01-01T00:00:00+00:00'}
+        InvalidValueError: invalid input syntax for type
+        std::datetime: 'January 01 2019 UTC'
+        Hint: Please use ISO8601 format. Alternatively "to_datetime"
+        function provides custom formatting options.
+
+        db> SELECT <datetime>'2019-01-01T15:01:22';
+        InvalidValueError: invalid input syntax for type
+        std::datetime: '2019-01-01T15:01:22'
+        Hint: Please use ISO8601 format. Alternatively "to_datetime"
+        function provides custom formatting options.
 
     See functions :eql:func:`datetime_get`, :eql:func:`to_datetime`,
     and :eql:func:`to_str` for more ways of working with
@@ -66,16 +73,24 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         SELECT <local_datetime>'2018-05-07T15:01:22.306916';
         SELECT <local_datetime>'2018-05-07T15:01:22';
 
-    Note that when casting from strings a timezone must not be
-    included:
+    Note that when casting from strings, the string should be in ISO
+    8601 format without timezone:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <local_datetime>'January 01 2019 UTC';
-        InvalidValueError: invalid input syntax for type std::local_datetime
+        db> SELECT <local_datetime>'2019-01-01T15:01:22+00';
+        InvalidValueError: invalid input syntax for type
+        std::local_datetime: '2019-01-01T15:01:22+00'
+        Hint: Please use ISO8601 format. Alternatively
+        "to_local_datetime" function provides custom formatting
+        options.
 
         db> SELECT <local_datetime>'January 01 2019';
-        {<local_datetime>'2019-01-01T00:00:00'}
+        InvalidValueError: invalid input syntax for type
+        std::local_datetime: 'January 01 2019'
+        Hint: Please use ISO8601 format. Alternatively
+        "to_local_datetime" function provides custom formatting
+        options.
 
     See functions :eql:func:`datetime_get`, :eql:func:`to_local_datetime`,
     and :eql:func:`to_str` for more ways of working with
@@ -96,6 +111,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
         SELECT <local_date>'2018-05-07';
 
+    Note that when casting from strings, the string should be in ISO
+    8601 date format.
+
     See functions :eql:func:`date_get`, :eql:func:`to_local_date`,
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`local_date`.
@@ -115,6 +133,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
         SELECT <local_time>'15:01:22.306916';
         SELECT <local_time>'15:01:22';
+
+    Note that when casting from strings, the string should be in ISO
+    8601 time format.
 
     See functions :eql:func:`time_get`, :eql:func:`to_local_time`,
     and :eql:func:`to_str` for more ways of working with
@@ -172,7 +193,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     .. code-block:: edgeql-repl
 
-        db> select <datetime>'January 01 2019 UTC' - <duration>'1 day';
+        db> select <datetime>'2019-01-01T00:00:00Z' - <duration>'1 day';
         {<datetime>'2018-12-31T00:00:00+00:00'}
         db> select <local_time>'22:00' + <duration>'1 hour';
         {<local_time>'23:00:00'}

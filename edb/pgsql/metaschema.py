@@ -1317,6 +1317,14 @@ class JSONSliceFunction(dbops.Function):
             text=self.text)
 
 
+# We need custom casting functions for various datetime scalars in
+# order to enforce correctness w.r.t. local vs time-zone-aware
+# datetime. Postgres does a lot of magic and guessing for time zones
+# and generally will accept text with or without time zone for any
+# particular flavor of timestamp. In order to guarantee that we can
+# detect time-zones we restrict the inputs to ISO8601 format.
+#
+# See issue #740.
 class DatetimeInFunction(dbops.Function):
     """Cast text into timestamptz using ISO8601 spec."""
     text = r'''
