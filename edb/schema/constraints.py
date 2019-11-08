@@ -569,6 +569,31 @@ class CreateConstraint(ConstraintCommand,
 
         return cmd
 
+    def _apply_fields_ast(self, schema, context, node):
+        super()._apply_fields_ast(schema, context, node)
+
+        if isinstance(node, qlast.CreateConstraint):
+            params = []
+            for op in self.get_subcommands(type=s_func.ParameterCommand):
+                props = op.get_struct_properties(schema)
+                pname = s_func.Parameter.paramname_from_fullname(props['name'])
+                if pname == '__subject__':
+                    continue
+                num = props['num']
+                default = props.get('default')
+                param = qlast.FuncParam(
+                    name=pname,
+                    type=utils.typeref_to_ast(schema, props['type']),
+                    typemod=props['typemod'],
+                    kind=props['kind'],
+                    default=default.qlast if default is not None else None,
+                )
+                params.append((num, param))
+
+            params.sort(key=lambda e: e[0])
+
+            node.params = [p[1] for p in params]
+
     def _apply_field_ast(self, schema, context, node, op):
         subjectexpr = self.get_local_attribute_value('subjectexpr')
         if subjectexpr is not None:

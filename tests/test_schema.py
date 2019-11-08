@@ -2936,3 +2936,26 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """
         )
+
+    def test_describe_04(self):
+        self._assert_describe(
+            """
+            abstract constraint my_one_of(one_of: array<anytype>) {
+                expr := contains(one_of, __subject__);
+            }
+            """,
+
+            'DESCRIBE SCHEMA',
+
+            """
+            CREATE MODULE test;
+
+            CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
+                SET expr := (WITH
+                    MODULE test
+                SELECT
+                    contains(one_of, __subject__)
+                );
+            };
+            """
+        )
