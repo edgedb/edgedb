@@ -1798,10 +1798,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
-    @test.xfail('''
-        Eventually `trace_Path` fails with:
-        AttributeError: 'NoneType' object has no attribute 'getptr'
-    ''')
     def test_migrations_equivalence_41(self):
         # testing schema views
         self._assert_migration_equivalence([r"""
@@ -1844,10 +1840,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             )
         """])
 
-    @test.xfail('''
-        Eventually `trace_Path` fails with:
-        AttributeError: 'NoneType' object has no attribute 'getptr'
-    ''')
     def test_migrations_equivalence_42(self):
         # testing schema views
         self._assert_migration_equivalence([r"""

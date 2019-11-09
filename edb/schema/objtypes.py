@@ -38,6 +38,9 @@ from . import sources
 from . import types as s_types
 from . import utils
 
+if TYPE_CHECKING:
+    from . import schema as s_schema
+
 
 class BaseObjectType(sources.Source,
                      s_types.Type,
@@ -284,8 +287,22 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Optional[qlast.Base]:
+        if (self.get_attribute_value('view_type')
+                and not self.get_attribute_value('expr')):
+            # This is a nested view type, e.g
+            # __FooView_bar produced by  FooView := (SELECT Foo { bar: ... })
+            # and should obviously not appear as a top level definition.
+            return None
+        else:
+            return super()._get_ast(schema, context)
+
     def _get_ast_node(self, schema, context):
-        if self.get_attribute_value('expr'):
+        if self.get_attribute_value('view_type'):
             return qlast.CreateView
         else:
             return super()._get_ast_node(schema, context)
