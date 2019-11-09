@@ -52,6 +52,7 @@ from . import dispatch
 from . import inference
 from . import pathctx
 from . import setgen
+from . import schemactx
 
 
 def init_context(
@@ -192,7 +193,8 @@ def fini_expression(
         view_shapes=ctx.env.view_shapes,
         view_shapes_metadata=ctx.env.view_shapes_metadata,
         schema=ctx.env.schema,
-        schema_refs=frozenset(ctx.env.schema_refs),
+        schema_refs=frozenset(
+            ctx.env.schema_refs - ctx.env.created_schema_objects),
     )
     return result
 
@@ -224,33 +226,6 @@ def _elide_derived_ancestors(
         )
 
 
-def _derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
-    stdobj = ctx.env.schema.get('std::Object')
-    derived_obj_name = stdobj.get_derived_name(
-        ctx.env.schema, stdobj, module='__derived__')
-    derived_obj = ctx.env.schema.get(derived_obj_name, None)
-    if derived_obj is None:
-        ctx.env.schema, derived_obj = stdobj.derive_subtype(
-            ctx.env.schema, name=derived_obj_name)
-
-    derived_name = ptr.get_derived_name(
-        ctx.env.schema, derived_obj)
-
-    derived = ctx.env.schema.get(derived_name, None)
-    if derived is None:
-        ctx.env.schema, derived = ptr.derive_ref(
-            ctx.env.schema,
-            derived_obj,
-            derived_obj,
-            attrs={
-                'cardinality': qltypes.Cardinality.MANY,
-            },
-            name=derived_name,
-            mark_derived=True)
-
-    return derived
-
-
 def compile_anchor(
         name: str, anchor: Union[qlast.Expr, s_obj.Object], *,
         ctx: context.ContextLevel) -> irast.Set:
@@ -273,7 +248,7 @@ def compile_anchor(
                 ctx=ctx,
             )
         else:
-            ptrcls = _derive_dummy_ptr(anchor, ctx=ctx)
+            ptrcls = schemactx.derive_dummy_ptr(anchor, ctx=ctx)
             path = setgen.extend_path(
                 setgen.class_set(ptrcls.get_source(ctx.env.schema), ctx=ctx),
                 ptrcls,
@@ -300,7 +275,7 @@ def compile_anchor(
                 ctx=ctx,
             )
         else:
-            ptrcls = _derive_dummy_ptr(anchor_source, ctx=ctx)
+            ptrcls = schemactx.derive_dummy_ptr(anchor_source, ctx=ctx)
             path = setgen.extend_path(
                 setgen.class_set(ptrcls.get_source(ctx.env.schema), ctx=ctx),
                 ptrcls,

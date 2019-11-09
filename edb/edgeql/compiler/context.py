@@ -147,6 +147,9 @@ class Environment:
     schema_refs: Set[s_obj.Object]
     """A set of all schema objects referenced by an expression."""
 
+    created_schema_objects: Set[s_obj.Object]
+    """A set of all schema objects derived by this compilation."""
+
     allow_generic_type_output: bool
     """Whether to allow the expression to be of a generic type."""
 
@@ -177,6 +180,7 @@ class Environment:
         self.allow_abstract_operators = allow_abstract_operators
         self.allow_generic_type_output = allow_generic_type_output
         self.schema_refs = set()
+        self.created_schema_objects = set()
         self.func_params = func_params
         self.parent_object_type = parent_object_type
 

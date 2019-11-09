@@ -305,8 +305,13 @@ class Pointer(referencing.ReferencedInheritingObject,
                         f'{t1.get_displayname(schema)!r}.'))
 
             if len(new_targets) > 1:
-                schema, current_target = s_objtypes.get_or_create_union_type(
-                    schema, new_targets, module=source.get_name(schema).module)
+                schema, current_target, _ = (
+                    s_objtypes.get_or_create_union_type(
+                        schema,
+                        new_targets,
+                        module=source.get_name(schema).module,
+                    )
+                )
             else:
                 current_target = new_targets[0]
 

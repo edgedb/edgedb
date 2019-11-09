@@ -31,7 +31,6 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
 from edb.schema import types as s_types
-from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
@@ -63,9 +62,7 @@ def ql_typeexpr_to_type(
 
     types = _ql_typeexpr_to_type(ql_t, ctx=ctx)
     if len(types) > 1:
-        ctx.env.schema, uniontype = s_utils.get_union_type(
-            ctx.env.schema, types)
-        return uniontype
+        return schemactx.get_union_type(types, ctx=ctx)
     else:
         return types[0]
 

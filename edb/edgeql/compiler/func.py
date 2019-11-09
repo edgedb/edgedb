@@ -36,7 +36,6 @@ from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import operators as s_oper
 from edb.schema import types as s_types
-from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -48,6 +47,7 @@ from . import dispatch
 from . import inference
 from . import pathctx
 from . import polyres
+from . import schemactx
 from . import setgen
 from . import stmtctx
 from . import typegen
@@ -383,8 +383,7 @@ def compile_operator(
         elif right_type.issubclass(env.schema, left_type):
             rtype = left_type
         else:
-            env.schema, rtype = s_utils.get_union_type(
-                env.schema, [left_type, right_type])
+            rtype = schemactx.get_union_type([left_type, right_type], ctx=ctx)
 
     is_polymorphic = (
         any(p.get_type(env.schema).is_polymorphic(env.schema)

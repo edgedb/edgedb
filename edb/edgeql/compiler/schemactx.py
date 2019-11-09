@@ -41,6 +41,7 @@ from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import context
 from . import stmtctx
@@ -194,6 +195,8 @@ def derive_view(
     if preserve_shape and stype in ctx.env.view_shapes:
         ctx.env.view_shapes[derived] = ctx.env.view_shapes[stype]
 
+    ctx.env.created_schema_objects.add(derived)
+
     return derived
 
 
@@ -250,6 +253,8 @@ def derive_ptr(
     if preserve_shape and ptr in ctx.env.view_shapes:
         ctx.env.view_shapes[derived] = ctx.env.view_shapes[ptr]
 
+    ctx.env.created_schema_objects.add(derived)
+
     return derived
 
 
@@ -273,3 +278,49 @@ def derive_view_name(
         derived_name_base=derived_name_base,
         parent=stype,
     )
+
+
+def get_union_type(
+    types: Iterable[s_types.Type],
+    *,
+    ctx: context.ContextLevel,
+) -> s_types.Type:
+
+    ctx.env.schema, union, created = s_utils.ensure_union_type(
+        ctx.env.schema, types)
+
+    if created:
+        ctx.env.created_schema_objects.add(union)
+    else:
+        ctx.env.schema_refs.add(union)
+
+    return union
+
+
+def derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
+    stdobj = ctx.env.schema.get('std::Object')
+    derived_obj_name = stdobj.get_derived_name(
+        ctx.env.schema, stdobj, module='__derived__')
+    derived_obj = ctx.env.schema.get(derived_obj_name, None)
+    if derived_obj is None:
+        ctx.env.schema, derived_obj = stdobj.derive_subtype(
+            ctx.env.schema, name=derived_obj_name)
+        ctx.env.created_schema_objects.add(derived_obj)
+
+    derived_name = ptr.get_derived_name(
+        ctx.env.schema, derived_obj)
+
+    derived = ctx.env.schema.get(derived_name, None)
+    if derived is None:
+        ctx.env.schema, derived = ptr.derive_ref(
+            ctx.env.schema,
+            derived_obj,
+            derived_obj,
+            attrs={
+                'cardinality': qltypes.Cardinality.MANY,
+            },
+            name=derived_name,
+            mark_derived=True)
+        ctx.env.created_schema_objects.add(derived)
+
+    return derived

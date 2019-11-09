@@ -207,6 +207,7 @@ def get_or_create_union_type(
 
     type_id = s_types.generate_type_id(name)
     objtype = schema.get_by_id(type_id, None)
+    created = objtype is None
     if objtype is None:
         components = list(components)
 
@@ -255,7 +256,7 @@ def get_or_create_union_type(
                     if objtype.getptr(schema, pn) is None:
                         schema = objtype.add_pointer(schema, ptr)
 
-    return schema, objtype
+    return schema, objtype, created
 
 
 class ObjectTypeCommandContext(sd.ObjectCommandContext,

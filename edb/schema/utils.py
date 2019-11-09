@@ -32,6 +32,10 @@ from . import abc as s_abc
 from . import name as sn
 from . import objects as so
 
+if TYPE_CHECKING:
+    from . import schema as s_schema
+    from . import types as s_types
+
 
 def ast_objref_to_objref(
         node: qlast.ObjectRef, *,
@@ -389,8 +393,14 @@ def enrich_schema_lookup_error(
         error.set_source_context(context)
 
 
-def get_union_type(schema, types, *, opaque: bool = False,
-                   module: Optional[str] = None):
+def ensure_union_type(
+    schema,
+    types,
+    *,
+    opaque: bool = False,
+    module: Optional[str] = None,
+) -> Tuple[s_schema.Schema, s_types.Type, bool]:
+
     from edb.schema import objtypes as s_objtypes
 
     components = set()
@@ -402,12 +412,13 @@ def get_union_type(schema, types, *, opaque: bool = False,
             components.add(t)
 
     if len(components) == 1 and not opaque:
-        return schema, next(iter(components))
+        return schema, next(iter(components)), False
 
     components = list(components)
 
     seen_scalars = False
     seen_objtypes = False
+    created = False
 
     for component in components:
         if component.is_scalar():
@@ -428,10 +439,24 @@ def get_union_type(schema, types, *, opaque: bool = False,
         if uniontype is None:
             raise _union_error(schema, components)
     else:
-        schema, uniontype = s_objtypes.get_or_create_union_type(
+        schema, uniontype, created = s_objtypes.get_or_create_union_type(
             schema, components=components, opaque=opaque, module=module)
 
-    return schema, uniontype
+    return schema, uniontype, created
+
+
+def get_union_type(
+    schema,
+    types,
+    *,
+    opaque: bool = False,
+    module: Optional[str] = None,
+) -> Tuple[s_schema.Schema, s_types.Type, bool]:
+
+    schema, union, _ = ensure_union_type(
+        schema, types, opaque=opaque, module=module)
+
+    return schema, union
 
 
 def _union_error(schema, components):
