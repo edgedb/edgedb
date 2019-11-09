@@ -38,7 +38,7 @@ def find_edgedb_root():
 
 class TestCodeQuality(unittest.TestCase):
 
-    def test_empty_init(self):
+    def test_cqa_empty_init(self):
         edgepath = find_edgedb_root()
         for sn in EMPTY_INIT_FILES:
             fn = os.path.join(edgepath, sn)
@@ -53,7 +53,7 @@ class TestCodeQuality(unittest.TestCase):
                     self.fail(
                         f'{fn} must be an empty file (except Python comments)')
 
-    def test_flake8(self):
+    def test_cqa_flake8(self):
         edgepath = find_edgedb_root()
         config_path = os.path.join(edgepath, '.flake8')
         if not os.path.exists(config_path):
@@ -77,7 +77,7 @@ class TestCodeQuality(unittest.TestCase):
                 raise AssertionError(
                     f'flake8 validation failed:\n{output}') from None
 
-    def test_mypy(self):
+    def test_cqa_mypy(self):
         edgepath = find_edgedb_root()
         config_path = os.path.join(edgepath, 'mypy.ini')
         if not os.path.exists(config_path):
