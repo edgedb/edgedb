@@ -244,6 +244,11 @@ def trace_Path(node: qlast.Path, *,
                     return
 
             if step.type == 'property':
+                if ptr is None:
+                    # This is either a computable def, or
+                    # unknown link, bail.
+                    return
+
                 lprop = ptr.getptr(ctx.schema, step.ptr.name)
                 if lprop is None:
                     # Invalid link property reference, bail.
