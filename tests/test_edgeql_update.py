@@ -438,6 +438,20 @@ class TestUpdate(tb.QueryTestCase):
                     }
                 ],
             )
+
+            objs = await self.con.fetchall(
+                r"""
+                    WITH MODULE test
+                    UPDATE UpdateTest
+                    FILTER UpdateTest.name LIKE '%ret5._'
+                    SET {
+                        name := 'new ' ++ UpdateTest.name
+                    };
+                """
+            )
+
+            self.assertTrue(hasattr(objs[0], '__tid__'))
+
         finally:
             await self.con.execute(r"""
                 DELETE (

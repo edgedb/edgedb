@@ -233,17 +233,11 @@ def compile_GroupQuery(
 def compile_InsertQuery(
         expr: qlast.InsertQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as ictx:
-        ictx.implicit_id_in_shapes = False
-        ictx.implicit_tid_in_shapes = False
-
         stmt = irast.InsertStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
         assert isinstance(subject, irast.Set)
-
-        # Self-references in INSERT are prohibited.
-        pathctx.ban_path(subject.path_id, ctx=ictx)
 
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
         if subject_stype.get_is_abstract(ctx.env.schema):
@@ -258,14 +252,22 @@ def compile_InsertQuery(
                 f'{subject_stype.get_shortname(ctx.env.schema)!r}',
                 context=expr.subject.context)
 
-        stmt.subject = compile_query_subject(
-            subject,
-            shape=expr.shape,
-            view_rptr=ctx.view_rptr,
-            compile_views=True,
-            result_alias=expr.subject_alias,
-            is_insert=True,
-            ctx=ictx)
+        with ictx.new() as bodyctx:
+            # Self-references in INSERT are prohibited.
+            bodyctx.banned_paths = ictx.banned_paths.copy()
+            pathctx.ban_path(subject.path_id, ctx=bodyctx)
+
+            bodyctx.implicit_id_in_shapes = False
+            bodyctx.implicit_tid_in_shapes = False
+
+            stmt.subject = compile_query_subject(
+                subject,
+                shape=expr.shape,
+                view_rptr=ctx.view_rptr,
+                compile_views=True,
+                result_alias=expr.subject_alias,
+                is_insert=True,
+                ctx=bodyctx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
 
@@ -289,9 +291,6 @@ def compile_InsertQuery(
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as ictx:
-        ictx.implicit_id_in_shapes = False
-        ictx.implicit_tid_in_shapes = False
-
         stmt = irast.UpdateStmt()
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -310,14 +309,18 @@ def compile_UpdateQuery(
         clauses.compile_where_clause(
             stmt, expr.where, ctx=ictx)
 
-        stmt.subject = compile_query_subject(
-            subject,
-            shape=expr.shape,
-            view_rptr=ctx.view_rptr,
-            compile_views=True,
-            result_alias=expr.subject_alias,
-            is_update=True,
-            ctx=ictx)
+        with ictx.new() as bodyctx:
+            bodyctx.implicit_id_in_shapes = False
+            bodyctx.implicit_tid_in_shapes = False
+
+            stmt.subject = compile_query_subject(
+                subject,
+                shape=expr.shape,
+                view_rptr=ctx.view_rptr,
+                compile_views=True,
+                result_alias=expr.subject_alias,
+                is_update=True,
+                ctx=bodyctx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
 
@@ -341,9 +344,6 @@ def compile_UpdateQuery(
 def compile_DeleteQuery(
         expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Set:
     with ctx.subquery() as ictx:
-        ictx.implicit_id_in_shapes = False
-        ictx.implicit_tid_in_shapes = False
-
         stmt = irast.DeleteStmt()
         # Expand the DELETE from sugar into full DELETE (SELECT ...)
         # form, if there's any additional clauses.
@@ -393,7 +393,11 @@ def compile_DeleteQuery(
                 context=expr.subject.context
             )
 
-        stmt.subject = compile_query_subject(subject, shape=None, ctx=ictx)
+        with ictx.new() as bodyctx:
+            bodyctx.implicit_id_in_shapes = False
+            bodyctx.implicit_tid_in_shapes = False
+            stmt.subject = compile_query_subject(
+                subject, shape=None, ctx=bodyctx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
         result = setgen.class_set(
