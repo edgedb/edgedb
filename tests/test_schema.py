@@ -648,7 +648,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         except errors.EdgeDBError as e:
             self.fail(markup.dumps(e))
 
-        diff = s_ddl.delta_schemas(baseline_schema, test_schema)
+        diff = s_ddl.delta_schemas(test_schema, baseline_schema)
         if list(diff.get_subcommands()):
             self.fail(
                 f'unexpected difference in schema produced by\n'
@@ -666,7 +666,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         except errors.EdgeDBError as e:
             self.fail(markup.dumps(e))
 
-        diff = s_ddl.delta_schemas(baseline_schema, test_schema)
+        diff = s_ddl.delta_schemas(test_schema, baseline_schema)
 
         if list(diff.get_subcommands()):
             self.fail(
@@ -703,7 +703,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             # Perform incremental migration.
             multi_migration = self.run_ddl(multi_migration, mig_text, 'test')
 
-            diff = s_ddl.delta_schemas(cur_state, multi_migration)
+            diff = s_ddl.delta_schemas(multi_migration, cur_state)
 
             if list(diff.get_subcommands()):
                 self.fail(
