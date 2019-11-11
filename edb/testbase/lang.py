@@ -24,7 +24,9 @@ import os
 import re
 import unittest
 
-from edb.common import markup, context
+from edb.common import context
+from edb.common import devmode
+from edb.common import markup
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
@@ -35,6 +37,7 @@ from edb.server import defines
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
 from edb.schema import migrations as s_migrations  # noqa
+from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
 
@@ -210,8 +213,24 @@ _std_schema = None
 def _load_std_schema():
     global _std_schema
     if _std_schema is None:
-        _std_schema = s_std.load_std_schema()
-        _std_schema = s_std.load_graphql_schema(_std_schema)
+        std_dirs_hash = devmode.hash_dirs(s_std.CACHE_SRC_DIRS)
+        schema = None
+
+        if devmode.is_in_dev_mode():
+            schema = devmode.read_dev_mode_cache(
+                std_dirs_hash, 'transient-stdschema.pickle')
+
+        if schema is None:
+            schema = s_schema.Schema()
+            for modname in s_schema.STD_LIB + ('stdgraphql',):
+                schema = s_std.load_std_module(schema, modname)
+
+        if devmode.is_in_dev_mode():
+            devmode.write_dev_mode_cache(
+                schema, std_dirs_hash, 'transient-stdschema.pickle')
+
+        _std_schema = schema
+
     return _std_schema
 
 
