@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import binascii
 import hashlib
 import base64
 import re
@@ -61,6 +62,16 @@ def _quote_ident(string):
 
 def quote_ident(string, *, force=False):
     return _quote_ident(string) if needs_quoting(string) or force else string
+
+
+def quote_bytea_literal(data: bytes) -> str:
+    """Return valid SQL representation of a bytes value."""
+
+    if data:
+        b = binascii.b2a_hex(data).decode('ascii')
+        return f"'\\x{b}'::bytea"
+    else:
+        return "''::bytea"
 
 
 def needs_quoting(string):
