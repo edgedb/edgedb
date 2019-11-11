@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import *  # noqa
 
 from edb import edgeql
-
+from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
 
 from . import delta as sd
@@ -52,7 +52,7 @@ from . import types
 from . import views  # NOQA
 
 
-def get_global_dep_order():
+def get_global_dep_order() -> Tuple[so.ObjectMeta, ...]:
     return (
         annos.Annotation,
         functions.Function,
@@ -71,8 +71,8 @@ def get_global_dep_order():
 
 
 def delta_schemas(
-    schema1: s_schema.Schema,
-    schema2: s_schema.Schema,
+    schema_a: s_schema.Schema,
+    schema_b: s_schema.Schema,
     *,
     included_modules: Optional[Iterable[str]]=None,
     excluded_modules: Optional[Iterable[str]]=None,
@@ -83,10 +83,10 @@ def delta_schemas(
     include_derived_types: bool=True,
     linearize_delta: bool=True,
 ) -> sd.DeltaRoot:
-    """Return difference between *schema1* and *schema2*.
+    """Return difference between *schema_a* and *schema_b*.
 
     The returned object is a delta tree that, when applied to
-    *schema2* results in *schema1*.
+    *schema_a* results in *schema_b*.
 
     Args:
         included_modules:
@@ -120,16 +120,16 @@ def delta_schemas(
 
     Returns:
         A :class:`schema.delta.DeltaRoot` instances representing
-        the delta between *schema2* and *schema1*.
+        the delta between *schema_a* and *schema_b*.
     """
 
     result = sd.DeltaRoot(canonical=True)
 
-    my_modules = {m.get_name(schema1)
-                  for m in schema1.get_objects(type=modules.Module)}
+    my_modules = {m.get_name(schema_b)
+                  for m in schema_b.get_objects(type=modules.Module)}
 
-    other_modules = {m.get_name(schema2)
-                     for m in schema2.get_objects(type=modules.Module)}
+    other_modules = {m.get_name(schema_a)
+                     for m in schema_a.get_objects(type=modules.Module)}
 
     added_modules = my_modules - other_modules
     dropped_modules = other_modules - my_modules
@@ -178,14 +178,14 @@ def delta_schemas(
         if issubclass(sclass, so.UnqualifiedObject):
             # UnqualifiedObjects (like anonymous tuples and arrays)
             # should not use an included_modules filter.
-            new = schema1.get_objects(
+            new = schema_b.get_objects(
                 type=sclass,
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
                 extra_filters=filters,
             )
-            old = schema2.get_objects(
+            old = schema_a.get_objects(
                 type=sclass,
                 excluded_modules=excluded_modules,
                 included_items=included_items,
@@ -193,7 +193,7 @@ def delta_schemas(
                 extra_filters=filters,
             )
         else:
-            new = schema1.get_objects(
+            new = schema_b.get_objects(
                 type=sclass,
                 included_modules=included_modules,
                 excluded_modules=excluded_modules,
@@ -201,7 +201,7 @@ def delta_schemas(
                 excluded_items=excluded_items,
                 extra_filters=filters,
             )
-            old = schema2.get_objects(
+            old = schema_a.get_objects(
                 type=sclass,
                 included_modules=included_modules,
                 excluded_modules=excluded_modules,
@@ -211,53 +211,57 @@ def delta_schemas(
             )
 
         objects.update(so.Object.delta_sets(
-            old, new, old_schema=schema2, new_schema=schema1))
+            old, new, old_schema=schema_a, new_schema=schema_b))
 
     if linearize_delta:
         objects = s_ordering.linearize_delta(
-            objects, old_schema=schema2, new_schema=schema1)
+            objects, old_schema=schema_a, new_schema=schema_b)
 
-    if not include_derived_types:
-        diff = []
-
+    if include_derived_types:
+        result.update(objects)
+    else:
         for cmd in objects.get_subcommands():
             if isinstance(cmd, objtypes.ObjectTypeCommand):
                 if isinstance(cmd, objtypes.DeleteObjectType):
-                    relevant_schema = schema2
+                    relevant_schema = schema_a
                 else:
-                    relevant_schema = schema1
+                    relevant_schema = schema_b
 
                 obj = relevant_schema.get(cmd.classname)
                 if obj.is_union_type(relevant_schema):
                     continue
 
-            diff.append(cmd)
-    else:
-        diff = objects
-
-    result.update(diff)
+            result.add(cmd)
 
     if include_module_diff:
         for dropped_module in dropped_modules:
-            result.add(modules.DeleteModule(
-                classname=dropped_module.get_name(schema2)))
+            result.add(modules.DeleteModule(classname=dropped_module))
 
     return result
 
 
-def cmd_from_ddl(stmt, *, context=None, schema, modaliases,
-                 testmode: bool=False):
+def cmd_from_ddl(
+    stmt: qlast.DDL,
+    *,
+    context: Optional[sd.CommandContext]=None,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    testmode: bool=False
+) -> sd.Command:
     ddl = s_expr.imprint_expr_context(stmt, modaliases)
 
     if context is None:
         context = sd.CommandContext(
             schema=schema, modaliases=modaliases, testmode=testmode)
 
-    cmd = sd.Command.from_ast(schema, ddl, context=context)
-    return cmd
+    return sd.Command.from_ast(schema, ddl, context=context)
 
 
-def compile_migration(cmd, target_schema, current_schema):
+def compile_migration(
+    cmd: migrations.CreateMigration,
+    target_schema: s_schema.Schema,
+    current_schema: s_schema.Schema,
+) -> migrations.CreateMigration:
 
     declarations = cmd.get_attribute_value('target')
     if not declarations:
@@ -278,15 +282,21 @@ def compile_migration(cmd, target_schema, current_schema):
     if len(modnames - {'__derived__'}) > 1:
         raise RuntimeError('unexpected delta module structure')
 
-    diff = delta_schemas(target_schema, current_schema,
+    diff = delta_schemas(current_schema, target_schema,
                          included_modules=modnames)
     cmd.set_attribute_value('delta', diff)
 
     return cmd
 
 
-def apply_sdl(documents, *, target_schema, current_schema,
-              stdmode: bool=False, testmode: bool=False):
+def apply_sdl(
+    documents: Sequence[Tuple[str, qlast.Schema]],
+    *,
+    target_schema: s_schema.Schema,
+    current_schema: s_schema.Schema,
+    stdmode: bool=False,
+    testmode: bool=False,
+) -> s_schema.Schema:
     ddl_stmts = s_decl.sdl_to_ddl(current_schema, documents)
     context = sd.CommandContext(
         modaliases={},
@@ -309,22 +319,40 @@ def apply_sdl(documents, *, target_schema, current_schema,
     return target_schema
 
 
-def apply_ddl(ddl_stmt, *, schema, modaliases,
-              stdmode: bool=False, testmode: bool=False):
+def apply_ddl(
+    ddl_stmt: qlast.DDL,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    stdmode: bool=False,
+    testmode: bool=False,
+) -> s_schema.Schema:
     schema, _ = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
                                 stdmode=stdmode, testmode=testmode)
     return schema
 
 
-def delta_from_ddl(ddl_stmt, *, schema, modaliases,
-                   stdmode: bool=False, testmode: bool=False):
+def delta_from_ddl(
+    ddl_stmt: qlast.DDL,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    stdmode: bool=False,
+    testmode: bool=False,
+) -> sd.DeltaRoot:
     _, cmd = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
                              stdmode=stdmode, testmode=testmode)
     return cmd
 
 
-def _delta_from_ddl(ddl_stmt, *, schema, modaliases,
-                    stdmode: bool=False, testmode: bool=False):
+def _delta_from_ddl(
+    ddl_stmt: qlast.DDL,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    stdmode: bool=False,
+    testmode: bool=False,
+) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
     delta = sd.DeltaRoot()
     context = sd.CommandContext(
         modaliases=modaliases,
@@ -460,6 +488,7 @@ def ddl_text_from_migration(
         DDL text corresponding to the delta in *migration*.
     """
     delta = migration.get_delta(schema)
+    assert delta is not None
     context = sd.CommandContext()
     migrated_schema, _ = delta.apply(schema, context)
     return ddl_text_from_delta(migrated_schema, delta)
@@ -481,8 +510,8 @@ def ddl_text_from_schema(
     else:
         empty_schema = std.load_std_schema()
     diff = delta_schemas(
-        schema,
         empty_schema,
+        schema,
         included_modules=included_modules,
         excluded_modules=excluded_modules,
         included_items=included_items,
@@ -510,8 +539,8 @@ def sdl_text_from_schema(
     else:
         empty_schema = std.load_std_schema()
     diff = delta_schemas(
-        schema,
         empty_schema,
+        schema,
         included_modules=included_modules,
         excluded_modules=excluded_modules,
         included_items=included_items,
@@ -533,7 +562,7 @@ def descriptive_text_from_schema(
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
-    include_derived_types=False,
+    include_derived_types: bool=False,
     emit_oids: bool=False,
 ) -> str:
     if include_std_ddl:
@@ -541,8 +570,8 @@ def descriptive_text_from_schema(
     else:
         empty_schema = std.load_std_schema()
     diff = delta_schemas(
-        schema,
         empty_schema,
+        schema,
         included_modules=included_modules,
         excluded_modules=excluded_modules,
         included_items=included_items,

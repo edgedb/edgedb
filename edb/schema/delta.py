@@ -296,7 +296,14 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return cmdcls
 
     @classmethod
-    def from_ast(cls, schema, astnode, *, context=None):
+    def from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.Base,
+        *,
+        context: Optional[CommandContext]=None,
+    ) -> Command:
+
         if context is None:
             context = CommandContext()
 
