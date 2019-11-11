@@ -1529,6 +1529,21 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
+            r'''SELECT <str><duration>'13 months';''',
+            ['1 year 1 month'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str><duration>'13 months 1 day';''',
+            ['1 year 1 month 1 day'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <str><duration>'14 months 1 day';''',
+            ['1 year 2 months 1 day'],
+        )
+
+        await self.assert_query_result(
             r'''SELECT <str>to_duration(weeks:=20);''',
             ['140 days'],
         )
