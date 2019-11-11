@@ -455,8 +455,8 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_basic_datatypes_02(self):
         self.assertEqual(
             await self.con.fetchall(
-                r'''select [b"\x00a", b"b", b'', b'\na']'''),
-            edgedb.Set([[b"\x00a", b"b", b'', b'\na']]))
+                r'''select [b"\x00a", b"b", b'', b'\na', b'=A0']'''),
+            edgedb.Set([[b"\x00a", b"b", b'', b'\na', b'=A0']]))
 
         self.assertEqual(
             await self.con.fetchall(
