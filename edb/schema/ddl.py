@@ -42,6 +42,7 @@ from . import objtypes  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA
 from . import migrations
+from . import modules
 from . import operators  # NOQA
 from . import indexes  # NOQA
 from . import links  # NOQA
@@ -71,13 +72,19 @@ def get_global_dep_order() -> Tuple[so.ObjectMeta, ...]:
 
 
 def delta_schemas(
-    schema_a: s_schema.Schema,
+    schema_a: Optional[s_schema.Schema],
     schema_b: s_schema.Schema,
     *,
     included_modules: Optional[Iterable[str]]=None,
     excluded_modules: Optional[Iterable[str]]=None,
     included_items: Optional[Iterable[str]]=None,
     excluded_items: Optional[Iterable[str]]=None,
+    schema_a_filters: Iterable[
+        Callable[[s_schema.Schema, so.Object], bool]
+    ] = (),
+    schema_b_filters: Iterable[
+        Callable[[s_schema.Schema, so.Object], bool]
+    ] = (),
     include_module_diff: bool=True,
     include_std_diff: bool=False,
     include_derived_types: bool=True,
@@ -89,6 +96,15 @@ def delta_schemas(
     *schema_a* results in *schema_b*.
 
     Args:
+        schema_a:
+            Schema to use as a starting state.  If ``None``,
+            then a schema with only standard modules is assumed,
+            unless *include_std_diff* is ``True``, in which case
+            an entirely empty schema is assumed as a starting point.
+
+        schema_b:
+            Schema to use as the ending state.
+
         included_modules:
             Optional list of modules to include in the delta.
 
@@ -103,6 +119,12 @@ def delta_schemas(
         excluded_items:
             Optional list of names of objects to exclude from the delta.
             Takes precedence over *included_items*.
+
+        schema_a_filters:
+            Optional list of additional filters to place on *schema_a*.
+
+        schema_b_filters:
+            Optional list of additional filters to place on *schema_b*.
 
         include_module_diff:
             Whether to include create/drop module operations
@@ -125,11 +147,40 @@ def delta_schemas(
 
     result = sd.DeltaRoot(canonical=True)
 
-    my_modules = {m.get_name(schema_b)
-                  for m in schema_b.get_objects(type=modules.Module)}
+    schema_a_filters = list(schema_a_filters)
+    schema_b_filters = list(schema_b_filters)
 
-    other_modules = {m.get_name(schema_a)
-                     for m in schema_a.get_objects(type=modules.Module)}
+    if schema_a is None:
+        if include_std_diff:
+            schema_a = s_schema.Schema()
+        else:
+            schema_a = schema_b
+
+            def _filter(schema: s_schema.Schema, obj: so.Object) -> bool:
+                return (
+                    (not isinstance(obj, so.UnqualifiedObject)
+                        and (obj.get_name(schema).module
+                             in s_schema.STD_MODULES))
+                    or (isinstance(obj, modules.Module)
+                        and obj.get_name(schema) in s_schema.STD_MODULES)
+                )
+            schema_a_filters.append(_filter)
+
+    my_modules = {
+        m.get_name(schema_b)
+        for m in schema_b.get_objects(
+            type=modules.Module,
+            extra_filters=schema_b_filters,
+        )
+    }
+
+    other_modules = {
+        m.get_name(schema_a)
+        for m in schema_a.get_objects(
+            type=modules.Module,
+            extra_filters=schema_a_filters,
+        )
+    }
 
     added_modules = my_modules - other_modules
     dropped_modules = other_modules - my_modules
@@ -183,14 +234,14 @@ def delta_schemas(
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
-                extra_filters=filters,
+                extra_filters=filters + schema_b_filters,
             )
             old = schema_a.get_objects(
                 type=sclass,
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
-                extra_filters=filters,
+                extra_filters=filters + schema_a_filters,
             )
         else:
             new = schema_b.get_objects(
@@ -199,7 +250,7 @@ def delta_schemas(
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
-                extra_filters=filters,
+                extra_filters=filters + schema_b_filters,
             )
             old = schema_a.get_objects(
                 type=sclass,
@@ -207,7 +258,7 @@ def delta_schemas(
                 excluded_modules=excluded_modules,
                 included_items=included_items,
                 excluded_items=excluded_items,
-                extra_filters=filters,
+                extra_filters=filters + schema_a_filters,
             )
 
         objects.update(so.Object.delta_sets(
@@ -505,13 +556,9 @@ def ddl_text_from_schema(
     include_std_ddl: bool=False,
     emit_oids: bool=False,
 ) -> str:
-    if include_std_ddl:
-        empty_schema = s_schema.Schema()
-    else:
-        empty_schema = std.load_std_schema()
     diff = delta_schemas(
-        empty_schema,
-        schema,
+        schema_a=None,
+        schema_b=schema,
         included_modules=included_modules,
         excluded_modules=excluded_modules,
         included_items=included_items,
@@ -534,13 +581,9 @@ def sdl_text_from_schema(
     include_std_ddl: bool=False,
     emit_oids: bool=False,
 ) -> str:
-    if include_std_ddl:
-        empty_schema = s_schema.Schema()
-    else:
-        empty_schema = std.load_std_schema()
     diff = delta_schemas(
-        empty_schema,
-        schema,
+        schema_a=None,
+        schema_b=schema,
         included_modules=included_modules,
         excluded_modules=excluded_modules,
         included_items=included_items,
@@ -565,13 +608,9 @@ def descriptive_text_from_schema(
     include_derived_types: bool=False,
     emit_oids: bool=False,
 ) -> str:
-    if include_std_ddl:
-        empty_schema = s_schema.Schema()
-    else:
-        empty_schema = std.load_std_schema()
     diff = delta_schemas(
-        empty_schema,
-        schema,
+        schema_a=None,
+        schema_b=schema,
         included_modules=included_modules,
         excluded_modules=excluded_modules,
         included_items=included_items,
