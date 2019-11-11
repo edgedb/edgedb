@@ -538,7 +538,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(common.quote_e_literal(node.val))
 
     def visit_ByteaConstant(self, node):
-        pybytes = binascii.a2b_qp(node.val)
+        pybytes = node.val
         if pybytes:
             b = binascii.b2a_hex(pybytes).decode('ascii')
             self.write(f"'\\x{b}'::bytea")
