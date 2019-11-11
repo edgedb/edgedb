@@ -119,7 +119,7 @@ std::`<` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE CAST FROM std::str TO std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'edgedb.bool_in';
+    FROM SQL FUNCTION 'edgedb.str_to_bool';
 };
 
 

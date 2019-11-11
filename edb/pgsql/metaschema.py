@@ -191,6 +191,30 @@ class RaiseSpecificExceptionFunction(dbops.Function):
             text=self.text)
 
 
+class RaiseSpecificExceptionFunctionArray(dbops.Function):
+    text = '''
+    BEGIN
+        RAISE EXCEPTION USING
+            ERRCODE = exc,
+            MESSAGE = msg,
+            DETAIL = COALESCE(det, '');
+        RETURN rtype;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_raise_specific_exception_array'),
+            args=[('exc', ('text',)), ('msg', ('text',)), ('det', ('text',)),
+                  ('rtype', ('anyarray',))],
+            returns=('anyarray',),
+            # See NOTE for the _raise_exception for reason why this is
+            # stable and not immutable.
+            volatility='stable',
+            language='plpgsql',
+            text=self.text)
+
+
 class RaiseExceptionOnNullFunction(dbops.Function):
     """Return the passed value or raise an exception if it's NULL."""
     text = '''
@@ -1601,6 +1625,40 @@ class ToLocalDatetimeFunction(dbops.Function):
             text=self.text)
 
 
+class StrToBool(dbops.Function):
+    """Parse bool from text."""
+    # We first try to match case-insensitive "true|false" at all. On
+    # null, we raise an exception. But otherwise we know that we have
+    # an array of matches. The first element matching "true" and
+    # second - "false". So the boolean value is then "true" if the
+    # second array element is NULL and false otherwise.
+    #
+    # Also, we can't re-use `_raise_specific_exception` or functions
+    # derived from it because we're passing an array as argument
+    # instead of an element.
+    text = r'''
+        SELECT (
+            coalesce(
+                regexp_match(val, '^\s*(?:(true)|(false))\s*$', 'i')::text[],
+                edgedb._raise_specific_exception_array(
+                    'invalid_text_representation',
+                    'invalid syntax for bool: ' || quote_literal(val),
+                    '',
+                    NULL::text[])
+                )
+        )[2] IS NULL;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_bool'),
+            args=[('val', ('text',))],
+            returns=('bool',),
+            # Stable because it's raising exceptions.
+            volatility='stable',
+            text=self.text)
+
+
 class SysConfigValueType(dbops.CompositeType):
     """Type of values returned by _read_sys_config."""
     def __init__(self) -> None:
@@ -1947,6 +2005,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(GetSharedObjectMetadata()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseSpecificExceptionFunction()),
+        dbops.CreateFunction(RaiseSpecificExceptionFunctionArray()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnEmptyStringFunction()),
         dbops.CreateFunction(AssertJSONTypeFunction()),
@@ -1991,6 +2050,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(ToTimestampTZCheck()),
         dbops.CreateFunction(ToDatetimeFunction()),
         dbops.CreateFunction(ToLocalDatetimeFunction()),
+        dbops.CreateFunction(StrToBool()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateFunction(SysConfigFunction()),
