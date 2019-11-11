@@ -135,7 +135,7 @@ sys::__version_internal() -> tuple<major: std::int64,
         (SELECT coalesce(array_agg(el), ARRAY[]::text[])
          FROM jsonb_array_elements_text(v -> 'local') AS el)
     FROM
-        edgedb._read_sys_metadata('version') AS v
+        (SELECT edgedb.__syscache_instancedata() -> 'version' AS v) AS q;
     $$;
 };
 

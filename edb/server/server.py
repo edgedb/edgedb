@@ -319,8 +319,8 @@ class Server:
                 if match:
                     return auth.method
 
-    def get_sys_query(self, key):
-        return self._dbindex.get_sys_query(key)
+    async def get_sys_query(self, conn, key):
+        return await self._dbindex.get_sys_query(conn, key)
 
-    def get_instance_data(self, key):
-        return self._dbindex.get_instance_data(key)
+    async def get_instance_data(self, conn, key):
+        return await self._dbindex.get_instance_data(conn, key)

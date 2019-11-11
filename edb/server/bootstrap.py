@@ -51,6 +51,7 @@ from edb.server import config
 from edb.server import compiler
 from edb.server import defines as edgedb_defines
 
+from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
@@ -172,6 +173,46 @@ async def _ensure_edgedb_template_not_connectable(conn):
         )
 
 
+async def _store_static_bin_cache(cluster, key: str, data: bytes) -> None:
+
+    text = f"""\
+        CREATE OR REPLACE FUNCTION edgedb.__syscache_{key} () RETURNS bytea
+        AS $$
+            SELECT {pg_common.quote_bytea_literal(data)};
+        $$ LANGUAGE SQL IMMUTABLE;
+    """
+
+    dbconn = await cluster.connect(
+        database=edgedb_defines.EDGEDB_TEMPLATE_DB,
+        user=edgedb_defines.EDGEDB_SUPERUSER,
+    )
+
+    try:
+        await _execute(dbconn, text)
+    finally:
+        await dbconn.close()
+
+
+async def _store_static_json_cache(cluster, key: str, data: str) -> None:
+
+    text = f"""\
+        CREATE OR REPLACE FUNCTION edgedb.__syscache_{key} () RETURNS jsonb
+        AS $$
+            SELECT {pg_common.quote_literal(data)}::jsonb;
+        $$ LANGUAGE SQL IMMUTABLE;
+    """
+
+    dbconn = await cluster.connect(
+        database=edgedb_defines.EDGEDB_TEMPLATE_DB,
+        user=edgedb_defines.EDGEDB_SUPERUSER,
+    )
+
+    try:
+        await _execute(dbconn, text)
+    finally:
+        await dbconn.close()
+
+
 async def _ensure_meta_schema(conn):
     logger.info('Bootstrapping meta schema...')
     await metaschema.bootstrap(conn)
@@ -253,13 +294,10 @@ async def _make_stdlib(testmode: bool):
 
 
 async def _init_stdlib(cluster, conn, testmode):
-    data_dir = pathlib.Path(cluster.get_data_dir())
     in_dev_mode = devmode.is_in_dev_mode()
 
     cache_hit = False
     sql_text = None
-
-    cluster_schema_cache = data_dir / 'stdschema.pickle'
 
     if in_dev_mode:
         schema_cache = 'backend-stdschema.pickle'
@@ -296,8 +334,11 @@ async def _init_stdlib(cluster, conn, testmode):
         devmode.write_dev_mode_cache(sql_text, src_hash, script_cache)
         devmode.write_dev_mode_cache(testmode, src_hash, testmode_flag)
 
-    with open(cluster_schema_cache, 'wb') as f:
-        pickle.dump(schema, file=f, protocol=pickle.HIGHEST_PROTOCOL)
+    await _store_static_bin_cache(
+        cluster,
+        'stdschema',
+        pickle.dumps(schema, protocol=pickle.HIGHEST_PROTOCOL),
+    )
 
     await metaschema.generate_views(conn, schema)
     await metaschema.generate_support_views(conn, schema)
@@ -436,7 +477,7 @@ async def _compile_sys_queries(schema, cluster):
         expected_cardinality_one=True,
         single_statement=True)
 
-    queries['config'] = sql.encode('utf-8')
+    queries['config'] = sql
 
     role_query = '''
         SELECT sys::Role {
@@ -451,29 +492,18 @@ async def _compile_sys_queries(schema, cluster):
         expected_cardinality_one=True,
         single_statement=True)
 
-    queries['role'] = sql.encode('utf-8')
+    queries['role'] = sql
 
-    data_dir = cluster.get_data_dir()
-    queries_fn = os.path.join(data_dir, 'queries.pickle')
+    await _store_static_json_cache(
+        cluster,
+        'sysqueries',
+        json.dumps(queries),
+    )
 
-    with open(queries_fn, 'wb') as f:
-        pickle.dump(queries, f)
 
-
-async def _populate_misc_instance_data(schema, cluster):
+async def _populate_misc_instance_data(cluster):
 
     mock_auth_nonce = scram.B64(scram.generate_nonce())
-
-    instance_data = {
-        'mock_auth_nonce': mock_auth_nonce,
-    }
-
-    data_dir = cluster.get_data_dir()
-    fn = os.path.join(data_dir, 'instance_data.pickle')
-
-    with open(fn, 'wb') as f:
-        pickle.dump(instance_data, f)
-
     ver = buildmeta.get_version()
     json_instance_data = {
         'version': {
@@ -482,13 +512,15 @@ async def _populate_misc_instance_data(schema, cluster):
             'stage': ver.stage.name.lower(),
             'stage_no': ver.stage_no,
             'local': tuple(ver.local) if ver.local else (),
-        }
+        },
+        'mock_auth_nonce': mock_auth_nonce,
     }
 
-    fn = os.path.join(data_dir, 'instance_data.json')
-
-    with open(fn, 'wt') as f:
-        json.dump(json_instance_data, f)
+    await _store_static_json_cache(
+        cluster,
+        'instancedata',
+        json.dumps(json_instance_data),
+    )
 
 
 async def _ensure_edgedb_database(conn, database, owner, *, cluster):
@@ -522,16 +554,11 @@ async def _bootstrap_config_spec(schema, cluster):
     config_spec = config.load_spec_from_schema(schema)
     config.set_settings(config_spec)
 
-    data_dir = cluster.get_data_dir()
-    spec_fn = os.path.join(data_dir, 'config_spec.json')
-    sys_overrides_fn = os.path.join(data_dir, 'config_sys.json')
-
-    with open(spec_fn, 'wt') as f:
-        f.write(config.spec_to_json(config_spec))
-
-    if not os.path.exists(sys_overrides_fn):
-        with open(sys_overrides_fn, 'wt') as f:
-            f.write('{}')
+    await _store_static_json_cache(
+        cluster,
+        'configspec',
+        config.spec_to_json(config_spec),
+    )
 
 
 def _pg_log_listener(conn, msg):
@@ -561,12 +588,12 @@ async def bootstrap(cluster, args) -> bool:
                 conn.add_log_listener(_pg_log_listener)
 
                 await _ensure_meta_schema(conn)
+                await _populate_misc_instance_data(cluster)
 
                 std_schema = await _init_stdlib(
                     cluster, conn, testmode=args['testmode'])
                 await _bootstrap_config_spec(std_schema, cluster)
                 await _compile_sys_queries(std_schema, cluster)
-                await _populate_misc_instance_data(std_schema, cluster)
                 schema = await _init_defaults(std_schema, std_schema, conn)
                 schema = await _populate_data(std_schema, schema, conn)
                 await _configure(std_schema, conn, cluster,
@@ -575,10 +602,16 @@ async def bootstrap(cluster, args) -> bool:
             finally:
                 await conn.close()
         else:
-            std_schema = compiler.load_std_schema(
-                pathlib.Path(cluster.get_data_dir()))
-            config_spec = config.load_spec_from_schema(std_schema)
-            config.set_settings(config_spec)
+            conn = await cluster.connect(
+                database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+                user=edgedb_defines.EDGEDB_SUPERUSER)
+
+            try:
+                std_schema = await compiler.load_std_schema(conn)
+                config_spec = config.load_spec_from_schema(std_schema)
+                config.set_settings(config_spec)
+            finally:
+                await conn.close()
 
         await _ensure_edgedb_database(
             pgconn, edgedb_defines.EDGEDB_SUPERUSER_DB,

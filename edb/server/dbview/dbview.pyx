@@ -279,27 +279,36 @@ cdef class DatabaseIndex:
 
         self._sys_overrides_fn = os.path.join(datadir, 'config_sys.json')
 
-        sys_queries_fn = os.path.join(datadir, 'queries.pickle')
-        with open(sys_queries_fn, 'rb') as f:
-            self._sys_queries = pickle.load(f)
-
-        instance_data_fn = os.path.join(datadir, 'instance_data.pickle')
-        with open(instance_data_fn, 'rb') as f:
-            self._instance_data = pickle.load(f)
-
+        self._sys_queries = None
+        self._instance_data = None
         self._sys_config = None
         self._sys_config_ver = time.monotonic_ns()
 
-    def get_sys_query(self, key: str) -> bytes:
+    async def get_sys_query(self, conn, key: str) -> bytes:
+        if self._sys_queries is None:
+            result = await conn.simple_query(
+                b'SELECT edgedb.__syscache_sysqueries()',
+                ignore_data=False,
+            )
+            queries = json.loads(result[0][0].decode('utf-8'))
+            self._sys_queries = {k: q.encode() for k, q in queries.items()}
+
         return self._sys_queries[key]
 
-    def get_instance_data(self, key: str) -> object:
+    async def get_instance_data(self, conn, key: str) -> object:
+        if self._instance_data is None:
+            result = await conn.simple_query(
+                b'SELECT edgedb.__syscache_instancedata()',
+                ignore_data=False,
+            )
+            self._instance_data = json.loads(result[0][0].decode('utf-8'))
+
         return self._instance_data[key]
 
     async def reload_config(self):
         conn = await self._server.new_pgcon(defines.EDGEDB_SUPERUSER_DB)
 
-        query = self.get_sys_query('config')
+        query = await self.get_sys_query(conn, 'config')
         try:
             result = await conn.simple_query(query, ignore_data=False)
         finally:

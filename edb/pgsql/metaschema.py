@@ -1693,12 +1693,7 @@ class SysConfigFunction(dbops.Function):
                         (s.value->>'typeid')::uuid AS typeid,
                         (s.value->>'typemod') AS typemod
                     FROM
-                        jsonb_each(
-                            (SELECT pg_read_file(
-                                (SELECT d.dir || '/config_spec.json'
-                                 FROM data_dir d)
-                            )::jsonb)
-                        ) s
+                        jsonb_each(edgedb.__syscache_configspec()) AS s
                     ),
 
                 config_defaults AS
@@ -1795,33 +1790,6 @@ class SysConfigFunction(dbops.Function):
             returns=('edgedb', '_sys_config_val_t'),
             set_returning=True,
             language='plpgsql',
-            volatility='volatile',
-            text=self.text,
-        )
-
-
-class SysMetadataFunction(dbops.Function):
-
-    # This is a function because "_edgecon_state" is a temporary table
-    # and therefore cannot be used in a view.
-
-    text = f'''
-        WITH
-            data_dir AS
-                (SELECT setting AS dir FROM pg_settings
-                    WHERE name = 'data_directory')
-        SELECT
-            (SELECT pg_read_file(
-                (SELECT d.dir || '/instance_data.json' FROM data_dir d)
-            )::jsonb) -> name;
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_read_sys_metadata'),
-            args=[('name', ('text',))],
-            returns=('jsonb',),
-            language='sql',
             volatility='volatile',
             text=self.text,
         )
@@ -2053,7 +2021,6 @@ async def bootstrap(conn):
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateFunction(SysConfigFunction()),
-        dbops.CreateFunction(SysMetadataFunction()),
     ])
 
     # Register "any" pseudo-type.

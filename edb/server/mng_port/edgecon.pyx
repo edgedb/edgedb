@@ -292,9 +292,10 @@ cdef class EdgeConnection:
         return params
 
     async def _get_role_record(self, user):
-        role_query = self.port.get_server().get_sys_query('role')
-
-        json_data = await self.backend.pgcon.parse_execute_json(
+        conn = self.backend.pgcon
+        server = self.port.get_server()
+        role_query = await server.get_sys_query(conn, 'role')
+        json_data = await conn.parse_execute_json(
             role_query, b'__sys_role',
             dbver=0, use_prep_stmt=True, args=(user,),
         )
@@ -462,7 +463,9 @@ cdef class EdgeConnection:
             # generate a mock verifier using a salt derived from the
             # received user name and the cluster mock auth nonce.
             # The same approach is taken by Postgres.
-            nonce = self.port.get_server().get_instance_data('mock_auth_nonce')
+            server = self.port.get_server()
+            nonce = await server.get_instance_data(
+                self.backend.pgcon, 'mock_auth_nonce')
             salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
 
             verifier = scram.SCRAMVerifier(

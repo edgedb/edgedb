@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections
 import dataclasses
 import hashlib
-import pathlib
+import pickle
 from typing import *  # NoQA
 import uuid
 
@@ -66,7 +66,6 @@ from . import enums
 from . import errormech
 from . import sertypes
 from . import status
-from . import stdschema
 
 
 @dataclasses.dataclass(frozen=True)
@@ -139,6 +138,15 @@ def compile_bootstrap_script(std_schema: s_schema.Schema,
     return new_schema, sql.decode()
 
 
+async def load_std_schema(backend_conn) -> s_schema.Schema:
+    data = await backend_conn.fetchval('SELECT edgedb.__syscache_stdschema();')
+    try:
+        return pickle.loads(data)
+    except Exception as e:
+        raise RuntimeError(
+            'could not load std schema pickle') from e
+
+
 class BaseCompiler:
 
     _connect_args: dict
@@ -149,15 +157,8 @@ class BaseCompiler:
         self._connect_args = connect_args
         self._dbname = None
         self._cached_db = None
-
-        if data_dir is not None:
-            self._data_dir = pathlib.Path(data_dir)
-            self._std_schema = stdschema.load_std_schema(self._data_dir)
-            config_spec = config.load_spec_from_schema(self._std_schema)
-            config.set_settings(config_spec)
-        else:
-            self._data_dir = None
-            self._std_schema = None
+        self._std_schema = None
+        self._config_spec = None
 
     def _hash_sql(self, sql: bytes, **kwargs: bytes):
         h = hashlib.sha1(sql)
@@ -176,8 +177,6 @@ class BaseCompiler:
         if self._cached_db is not None and self._cached_db.dbver == dbver:
             return self._cached_db
 
-        assert self._std_schema is not None
-
         self._cached_db = None
 
         con_args = self._connect_args.copy()
@@ -185,6 +184,13 @@ class BaseCompiler:
         con_args['database'] = self._dbname
 
         con = await asyncpg.connect(**con_args)
+        if self._std_schema is None:
+            self._std_schema = await load_std_schema(con)
+
+        if self._config_spec is None:
+            self._config_spec = config.load_spec_from_schema(self._std_schema)
+            config.set_settings(self._config_spec)
+
         try:
             im = intromech.IntrospectionMech(con)
             schema = await im.readschema(
@@ -212,13 +218,6 @@ class Compiler(BaseCompiler):
 
         self._current_db_state = None
         self._bootstrap_mode = False
-
-        if data_dir is not None:
-            self._data_dir = pathlib.Path(data_dir)
-            self._std_schema = stdschema.load_std_schema(self._data_dir)
-        else:
-            self._data_dir = None
-            self._std_schema = None
 
     def _in_testmode(self, ctx: CompileContext):
         current_tx = ctx.state.current_tx()

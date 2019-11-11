@@ -19,8 +19,6 @@
 
 from __future__ import annotations
 
-import binascii
-
 from edb import errors
 
 from edb.pgsql import common
@@ -538,12 +536,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(common.quote_e_literal(node.val))
 
     def visit_ByteaConstant(self, node):
-        pybytes = node.val
-        if pybytes:
-            b = binascii.b2a_hex(pybytes).decode('ascii')
-            self.write(f"'\\x{b}'::bytea")
-        else:
-            self.write("''::bytea")
+        self.write(common.quote_bytea_literal(node.val))
 
     def visit_ParamRef(self, node):
         self.write('$', str(node.number))
