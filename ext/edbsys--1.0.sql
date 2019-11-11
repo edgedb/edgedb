@@ -19,14 +19,6 @@
 
 
 --
--- Custom variant of the bool cast.
---
-CREATE FUNCTION bool_in(text)
-RETURNS boolean
-AS '$libdir/edbsys', 'edb_bool_in'
-LANGUAGE C IMMUTABLE PARALLEL SAFE;
-
-
 --
 -- Perform floor division of two integers.
 --

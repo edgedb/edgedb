@@ -508,10 +508,11 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [True, True, True, True, True],
         )
 
-        for variant in {'😈', 'yes', '1', 'no', 'on', 'OFF'}:
+        for variant in {'😈', 'yes', '1', 'no', 'on', 'OFF',
+                        't', 'f', 'tr', 'fa'}:
             with self.assertRaisesRegex(
                     edgedb.InvalidValueError,
-                    fr'invalid syntax for std::bool: "{variant}"'):
+                    fr"invalid syntax for std::bool: '{variant}'"):
                 await self.con.fetchone(f'SELECT <bool>"{variant}"')
 
         self.assertTrue(
