@@ -27,7 +27,6 @@ from edb import errors
 
 from edb import edgeql
 from edb import schema
-from edb.common import devmode
 from edb.edgeql import compiler as qlcompiler
 from edb.schema import delta as s_delta
 
@@ -88,31 +87,3 @@ def load_std_module(
             statement, schema=schema, modaliases=modaliases, stdmode=True)
 
     return schema
-
-
-def load_std_schema() -> s_schema.Schema:
-    std_dirs_hash = devmode.hash_dirs(CACHE_SRC_DIRS)
-    schema = None
-
-    if devmode.is_in_dev_mode():
-        schema = devmode.read_dev_mode_cache(
-            std_dirs_hash, 'transient-stdschema.pickle')
-
-    if schema is None:
-        schema = s_schema.Schema()
-        for modname in s_schema.STD_LIB:
-            schema = load_std_module(schema, modname)
-
-    if devmode.is_in_dev_mode():
-        devmode.write_dev_mode_cache(
-            schema, std_dirs_hash, 'transient-stdschema.pickle')
-
-    return schema
-
-
-def load_graphql_schema(
-        schema: Optional[s_schema.Schema]=None) -> s_schema.Schema:
-    if schema is None:
-        schema = s_schema.Schema()
-
-    return load_std_module(schema, 'stdgraphql')
