@@ -654,5 +654,7 @@ CREATE CAST FROM std::local_time TO std::str {
 
 CREATE CAST FROM std::duration TO std::str {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'edgedb.interval_out';
+    FROM SQL $$
+    SELECT regexp_replace(val::text, '[[:<:]]mon(?=s?[[:>:]])', 'month');
+    $$;
 };

@@ -19,16 +19,6 @@
 
 
 --
--- Custom variants of date/time functions.
---
-
-CREATE FUNCTION interval_out(interval)
-RETURNS text
-AS '$libdir/edbsys', 'edb_interval_out'
-LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
-
-
---
 -- Custom variant of the bool cast.
 --
 CREATE FUNCTION bool_in(text)
