@@ -27,16 +27,6 @@ RETURNS text
 AS '$libdir/edbsys', 'edb_interval_out'
 LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
 
-CREATE FUNCTION to_timestamp(text, text)
-RETURNS timestamp
-AS '$libdir/edbsys', 'edb_to_timestamp'
-LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
-
-CREATE FUNCTION to_timestamptz(text, text)
-RETURNS timestamptz
-AS '$libdir/edbsys', 'edb_to_timestamptz'
-LANGUAGE C CALLED ON NULL INPUT IMMUTABLE PARALLEL SAFE;
-
 
 --
 -- Custom variant of the bool cast.

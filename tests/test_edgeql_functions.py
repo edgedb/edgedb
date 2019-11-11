@@ -1320,6 +1320,57 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ['2018-05-07T20:01:22.306916+00:00'],
         )
 
+    async def test_edgeql_functions_to_datetime_03(self):
+        await self.assert_query_result(
+            r'''
+                SELECT
+                    to_datetime('2019/01/01 00:00:00 0715',
+                                'YYYY/MM/DD H24:MI:SS TZHTZM') =
+                    <datetime>'2019-01-01T00:00:00+0715';
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT
+                    to_datetime('2019/01/01 00:00:00 07TZM',
+                                'YYYY/MM/DD H24:MI:SS TZH"TZM"') =
+                    <datetime>'2019-01-01T00:00:00+07';
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT
+                    to_datetime('2019/01/01 00:00:00 TZH07TZM',
+                                'YYYY/MM/DD H24:MI:SS "TZH"TZH"TZM"') =
+                    <datetime>'2019-01-01T00:00:00+07';
+            ''',
+            [True],
+        )
+
+        with self.assertRaisesRegex(edgedb.InvalidValueError,
+                                    'missing required time zone in format'):
+            async with self.con.transaction():
+                await self.con.fetchall(r'''
+                    SELECT
+                        to_datetime('2019/01/01 00:00:00 TZH07',
+                                    'YYYY/MM/DD H24:MI:SS "TZH"TZM') =
+                        <datetime>'2019-01-01T00:00:00+07';
+                ''')
+
+    async def test_edgeql_functions_to_datetime_04(self):
+        with self.assertRaisesRegex(edgedb.InvalidValueError,
+                                    'missing required time zone in input'):
+            async with self.con.transaction():
+                await self.con.fetchall(r'''
+                    SELECT
+                        to_datetime('2019/01/01 00:00:00 0715',
+                                    'YYYY/MM/DD H24:MI:SS "NOPE"TZHTZM');
+                ''')
+
     async def test_edgeql_functions_to_local_datetime_01(self):
         await self.assert_query_result(
             r'''
@@ -1336,6 +1387,58 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 SELECT <str>to_local_datetime(2018, 5, 7, 15, 1, 22.306916);
             ''',
             ['2018-05-07T15:01:22.306916'],
+        )
+
+    async def test_edgeql_functions_to_local_datetime_03(self):
+        await self.assert_query_result(
+            # The time zone is ignored because the format string just
+            # specifies arbitrary characters in its place.
+            r'''
+                SELECT
+                    to_local_datetime('2019/01/01 00:00:00 0715',
+                                      'YYYY/MM/DD H24:MI:SS "NOTZ"') =
+                    <local_datetime>'2019-01-01T00:00:00';
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            # The time zone is ignored because the format string does
+            # not expect to parse it.
+            r'''
+                SELECT
+                    to_local_datetime('2019/01/01 00:00:00 0715',
+                                      'YYYY/MM/DD H24:MI:SS') =
+                    <local_datetime>'2019-01-01T00:00:00';
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_functions_to_local_datetime_04(self):
+        with self.assertRaisesRegex(edgedb.InvalidValueError,
+                                    'unexpected time zone in format'):
+            async with self.con.transaction():
+                await self.con.fetchall(
+                    r'''
+                        SELECT
+                            to_local_datetime('2019/01/01 00:00:00 0715',
+                                              'YYYY/MM/DD H24:MI:SS TZH') =
+                            <local_datetime>'2019-01-01T00:00:00';
+                    ''')
+
+    async def test_edgeql_functions_to_local_datetime_05(self):
+        await self.assert_query_result(
+            # Make sure that time zone change (while converting
+            # `to_local_datetime`) is not leaking.
+            r'''
+                SELECT (<str><local_datetime>'2019-01-01 00:00:00',
+                        <str>to_local_datetime('2019/01/01 00:00:00 0715',
+                                               'YYYY/MM/DD H24:MI:SS'),
+                        <str><local_datetime>'2019-02-01 00:00:00');
+            ''',
+            [['2019-01-01T00:00:00',
+              '2019-01-01T00:00:00',
+              '2019-02-01T00:00:00']],
         )
 
     async def test_edgeql_functions_to_local_date_01(self):
@@ -1362,6 +1465,18 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ['2018-05-07'],
         )
 
+    async def test_edgeql_functions_to_local_date_03(self):
+        with self.assertRaisesRegex(edgedb.InvalidValueError,
+                                    'unexpected time zone in format'):
+            async with self.con.transaction():
+                await self.con.fetchall(
+                    r'''
+                        SELECT
+                            to_local_date('2019/01/01 00:00:00 0715',
+                                          'YYYY/MM/DD H24:MI:SS TZH') =
+                            <local_date>'2019-01-01';
+                    ''')
+
     async def test_edgeql_functions_to_local_time_01(self):
         await self.assert_query_result(
             r'''
@@ -1384,6 +1499,18 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''',
             ['13:01:22.306916'],
         )
+
+    async def test_edgeql_functions_to_local_time_03(self):
+        with self.assertRaisesRegex(edgedb.InvalidValueError,
+                                    'unexpected time zone in format'):
+            async with self.con.transaction():
+                await self.con.fetchall(
+                    r'''
+                        SELECT
+                            to_local_time('00:00:00 0715',
+                                          'H24:MI:SS TZH') =
+                            <local_time>'00:00:00';
+                    ''')
 
     async def test_edgeql_functions_to_duration_01(self):
         await self.assert_query_result(

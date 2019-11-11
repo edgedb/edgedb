@@ -273,6 +273,16 @@ def static_interpret_backend_error(fields):
                 'unique link constraint violation')
 
     elif err_details.code in SCHEMA_CODES:
+        if err_details.code == PGErrorCode.InvalidDatetimeFormatError:
+            hint = None
+            if err_details.detail_json:
+                hint = err_details.detail_json.get('hint')
+
+            if err_details.message.startswith('missing required time zone'):
+                return errors.InvalidValueError(err_details.message, hint=hint)
+            elif err_details.message.startswith('unexpected time zone'):
+                return errors.InvalidValueError(err_details.message, hint=hint)
+
         return SchemaRequired
 
     elif err_details.code == PGErrorCode.InvalidParameterValue:

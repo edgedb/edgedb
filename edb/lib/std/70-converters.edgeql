@@ -323,12 +323,12 @@ std::to_json(str: std::str) -> std::json
 CREATE FUNCTION
 std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
 {
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'STABLE';
+    # Helper function to_datetime is VOLATILE.
+    SET volatility := 'VOLATILE';
     FROM SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::timestamptz
+            edgedb.datetime_in("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
@@ -337,7 +337,7 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
                 NULL::timestamptz)
         ELSE
             edgedb._raise_exception_on_null(
-                edgedb.to_timestamptz("s", "fmt"),
+                edgedb.to_datetime("s", "fmt"),
                 'invalid_parameter_value',
                 'to_datetime(): format ''' || "fmt" || ''' is invalid',
                 ''
@@ -381,8 +381,8 @@ CREATE FUNCTION
 std::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
     -> std::local_datetime
 {
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'STABLE';
+    # Helper function to_local_datetime is VOLATILE.
+    SET volatility := 'VOLATILE';
     FROM SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -395,7 +395,7 @@ std::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
                 NULL::timestamp)
         ELSE
             edgedb._raise_exception_on_null(
-                edgedb.to_timestamp("s", "fmt")::timestamp,
+                edgedb.to_local_datetime("s", "fmt"),
                 'invalid_parameter_value',
                 'to_local_datetime(): format ''' || "fmt" || ''' is invalid',
                 ''
@@ -450,7 +450,7 @@ std::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> std::local_date
                 NULL::date)
         ELSE
             edgedb._raise_exception_on_null(
-                to_date("s", "fmt"),
+                edgedb.to_local_datetime("s", "fmt")::date,
                 'invalid_parameter_value',
                 'to_local_date(): format ''' || "fmt" || ''' is invalid',
                 ''
@@ -501,7 +501,7 @@ std::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> std::local_time
                 NULL::time)
         ELSE
             edgedb._raise_exception_on_null(
-                to_timestamp("s", "fmt")::time,
+                edgedb.to_local_datetime("s", "fmt")::time,
                 'invalid_parameter_value',
                 'to_local_time(): format ''' || "fmt" || ''' is invalid',
                 ''

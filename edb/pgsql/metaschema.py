@@ -1466,6 +1466,141 @@ class LocalTimeInFunction(dbops.Function):
             text=self.text)
 
 
+class ToTimestampTZCheck(dbops.Function):
+    """Checks if the original text has time zone or not."""
+    # What are we trying to mitigate?
+    # We're trying to detect that when we're casting to datetime the
+    # time zone is in fact present in the input. It is a problem if
+    # it's not since then one gets assigned implicitly based on the
+    # server settings.
+    #
+    # It is insufficient to rely on the presence of TZH in the format
+    # string, since `to_timestamp` will happily ignore the missing
+    # time-zone in the input anyway. So in order to tell whether the
+    # input string contained a time zone that was in fact parsed we
+    # employ the following trick:
+    #
+    # If the time zone is in the input then it is unambiguous and the
+    # parsed value will not depend on the current server time zone.
+    # However, if the time zone was omitted, then the parsed value
+    # will default to the server time zone. This implies that if
+    # changing the server time zone for the same input string affects
+    # the parsed value, the input string itself didn't contain a time
+    # zone.
+    text = r'''
+        DECLARE
+            result timestamptz;
+            chk timestamptz;
+            msg text;
+        BEGIN
+            result := to_timestamp(val, fmt);
+            PERFORM set_config('TimeZone', 'America/Toronto', true);
+            chk := to_timestamp(val, fmt);
+            -- We're deliberately not doing any save/restore because
+            -- the server MUST be in UTC. In fact, this check relies
+            -- on it.
+            PERFORM set_config('TimeZone', 'UTC', true);
+
+            IF hastz THEN
+                msg := 'missing required';
+            ELSE
+                msg := 'unexpected';
+            END IF;
+
+            IF (result = chk) != hastz THEN
+                RAISE EXCEPTION USING
+                    ERRCODE = 'invalid_datetime_format',
+                    MESSAGE = msg || ' time zone in input ' ||
+                        quote_literal(val),
+                    DETAIL = '';
+            END IF;
+
+            RETURN result;
+        END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_to_timestamptz_check'),
+            args=[('val', ('text',)), ('fmt', ('text',)),
+                  ('hastz', ('bool',))],
+            returns=('timestamptz',),
+            # We're relying on changing settings, so it's volatile.
+            volatility='volatile',
+            language='plpgsql',
+            text=self.text)
+
+
+class ToDatetimeFunction(dbops.Function):
+    """Convert text into timestamptz using a formatting spec."""
+    # NOTE that if only the TZM (minutes) are mentioned it is not
+    # enough for a valid time zone definition
+    text = r'''
+        SELECT
+            CASE WHEN fmt !~ (
+                    '^(' ||
+                        '("([^"\\]|\\.)*")|' ||
+                        '([^"]+)' ||
+                    ')*(TZH).*$'
+                )
+            THEN
+                edgedb._raise_specific_exception(
+                    'invalid_datetime_format',
+                    'missing required time zone in format: ' ||
+                    quote_literal(fmt),
+                    $h${"hint":"Use one or both of the following: $h$ ||
+                    $h$'TZH', 'TZM'"}$h$,
+                    NULL::timestamptz
+                )
+            ELSE
+                edgedb._to_timestamptz_check(val, fmt, true)
+            END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'to_datetime'),
+            args=[('val', ('text',)), ('fmt', ('text',))],
+            returns=('timestamptz',),
+            # Same as _to_timestamptz_check.
+            volatility='volatile',
+            text=self.text)
+
+
+class ToLocalDatetimeFunction(dbops.Function):
+    """Convert text into timestamp using a formatting spec."""
+    # NOTE time zone should not be mentioned at all.
+    text = r'''
+        SELECT
+            CASE WHEN fmt ~ (
+                    '^(' ||
+                        '("([^"\\]|\\.)*")|' ||
+                        '([^"]+)' ||
+                    ')*(TZH|TZM).*$'
+                )
+            THEN
+                edgedb._raise_specific_exception(
+                    'invalid_datetime_format',
+                    'unexpected time zone in format: ' ||
+                    quote_literal(fmt),
+                    '',
+                    NULL::timestamp
+                )
+            ELSE
+                edgedb._to_timestamptz_check(val, fmt, false)::timestamp
+            END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'to_local_datetime'),
+            args=[('val', ('text',)), ('fmt', ('text',))],
+            returns=('timestamp',),
+            # Same as _to_timestamptz_check.
+            volatility='volatile',
+            text=self.text)
+
+
 class SysConfigValueType(dbops.CompositeType):
     """Type of values returned by _read_sys_config."""
     def __init__(self) -> None:
@@ -1853,6 +1988,9 @@ async def bootstrap(conn):
         dbops.CreateFunction(LocalDatetimeInFunction()),
         dbops.CreateFunction(LocalDateInFunction()),
         dbops.CreateFunction(LocalTimeInFunction()),
+        dbops.CreateFunction(ToTimestampTZCheck()),
+        dbops.CreateFunction(ToDatetimeFunction()),
+        dbops.CreateFunction(ToLocalDatetimeFunction()),
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateFunction(SysConfigFunction()),
