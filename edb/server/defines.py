@@ -24,6 +24,7 @@ EDGEDB_SUPERUSER = 'edgedb'
 EDGEDB_TEMPLATE_DB = 'edgedb0'
 EDGEDB_SUPERUSER_DB = 'edgedb'
 EDGEDB_ENCODING = 'utf-8'
+EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
 
 
 _MAX_QUERIES_CACHE = 1000

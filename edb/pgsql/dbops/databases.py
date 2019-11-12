@@ -40,6 +40,23 @@ class Database(base.DBObject):
     def get_id(self):
         return qi(self.name)
 
+    def is_shared(self) -> bool:
+        return True
+
+    def get_oid(self) -> base.Query:
+        qry = textwrap.dedent(f'''\
+            SELECT
+                'pg_database'::regclass::oid AS classoid,
+                pg_database.oid AS objectoid,
+                0
+            FROM
+                pg_database
+            WHERE
+                datname = {ql(self.name)}
+        ''')
+
+        return base.Query(text=qry)
+
 
 class DatabaseExists(base.Condition):
     def __init__(self, name):

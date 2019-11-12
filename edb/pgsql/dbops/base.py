@@ -415,6 +415,9 @@ class DBObject:
         else:
             return self.metadata.get(key)
 
+    def is_shared(self) -> bool:
+        return False
+
 
 class InheritableDBObject(DBObject):
     def __init__(self, *, inherit=False, **kwargs):

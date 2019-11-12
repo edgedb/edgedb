@@ -365,6 +365,11 @@ def evaluate_config_reset(
         ir: irast.ConfigReset,
         schema: s_schema.Schema):
 
+    if ir.selector is not None:
+        raise UnsupportedExpressionError(
+            'filtered CONFIGURE RESET is not supported by static eval'
+        )
+
     return config.Operation(
         opcode=config.OpCode.CONFIG_RESET,
         level=config.OpLevel.SYSTEM if ir.system else config.OpLevel.SESSION,

@@ -44,6 +44,8 @@ from edb.schema import objects as s_obj
 from edb.schema import pseudo as s_pseudo
 from edb.schema import types as s_types
 
+from edb.server import defines
+
 from . import common
 from . import dbops
 from . import types
@@ -104,13 +106,15 @@ class GetObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
         SELECT
-            CASE WHEN substr(d, 1, 5) = '$EDB:'
-            THEN substr(d, 6)::jsonb
-            ELSE '{}'::jsonb
+            CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
+            THEN substr(d, char_length({prefix}) + 1)::jsonb
+            ELSE '{{}}'::jsonb
             END
         FROM
             obj_description("objoid", "objclass") AS d
-    '''
+    '''.format(
+        prefix=f'E{ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)}',
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -125,13 +129,15 @@ class GetSharedObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
         SELECT
-            CASE WHEN substr(d, 1, 5) = '$EDB:'
-            THEN substr(d, 6)::jsonb
-            ELSE '{}'::jsonb
+            CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
+            THEN substr(d, char_length({prefix}) + 1)::jsonb
+            ELSE '{{}}'::jsonb
             END
         FROM
             shobj_description("objoid", "objclass") AS d
-    '''
+    '''.format(
+        prefix=f'E{ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)}',
+    )
 
     def __init__(self) -> None:
         super().__init__(
@@ -1676,7 +1682,7 @@ class SysConfigFunction(dbops.Function):
     # This is a function because "_edgecon_state" is a temporary table
     # and therefore cannot be used in a view.
 
-    text = R'''
+    text = f'''
         BEGIN
         RETURN QUERY EXECUTE $$
             WITH
@@ -1714,10 +1720,13 @@ class SysConfigFunction(dbops.Function):
                         10 AS priority
                     FROM
                         jsonb_each(
-                            (SELECT pg_read_file(
-                                (SELECT d.dir || '/config_sys.json'
-                                 FROM data_dir d)
-                            )::jsonb)
+                            shobj_metadata(
+                               (SELECT oid FROM pg_database
+                                WHERE
+                                    datname = {ql(defines.EDGEDB_TEMPLATE_DB)}
+                               ),
+                               'pg_database'
+                            ) -> 'sysconfig'
                         ) s
                     ),
 
@@ -1747,7 +1756,7 @@ class SysConfigFunction(dbops.Function):
                         pg_settings,
                         LATERAL
                         (SELECT
-                            regexp_match(pg_settings.unit, '(\d+)(\w+)') AS v
+                            regexp_match(pg_settings.unit, '(\\d+)(\\w+)') AS v
                         ) AS u
                      WHERE name = any(ARRAY[
                          'shared_buffers',

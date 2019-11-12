@@ -614,6 +614,7 @@ cdef class EdgeConnection:
                         b';'.join(query_unit.sql), ignore_data=True)
                     if query_unit.config_ops is not None:
                         await self.dbview.apply_config_ops(
+                            self.backend.pgcon,
                             query_unit.config_ops)
             except ConnectionAbortedError:
                 raise
@@ -838,10 +839,12 @@ cdef class EdgeConnection:
         data = await self.backend.pgcon.simple_query(
             b';'.join(query_unit.sql), ignore_data=False)
         if data:
+            # Prefer encoded op produced by the SQL command.
             config_ops = [config.Operation.from_json(r[0]) for r in data]
         else:
-            config_ops = []
-        await self.dbview.apply_config_ops(config_ops)
+            # Otherwise, fall back to staticly evaluated op.
+            config_ops = query_unit.config_ops
+        await self.dbview.apply_config_ops(self.backend.pgcon, config_ops)
 
         # If this is a backend configuration setting we also
         # need to make sure it has been loaded.
@@ -900,6 +903,7 @@ cdef class EdgeConnection:
                     )
                     if query_unit.config_ops is not None:
                         await self.dbview.apply_config_ops(
+                            self.backend.pgcon,
                             query_unit.config_ops)
             except ConnectionAbortedError:
                 raise

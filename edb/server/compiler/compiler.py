@@ -762,7 +762,12 @@ class Compiler(BaseCompiler):
                 session_config)
             ctx.state.current_tx().update_session_config(session_config)
         else:
-            config_op = None
+            try:
+                config_op = ireval.evaluate_to_config_op(ir, schema=schema)
+            except ireval.UnsupportedExpressionError:
+                # This is a complex config object operation, the
+                # op will be produced by the compiler as json.
+                config_op = None
 
         return dbstate.SessionStateQuery(
             sql=sql,
@@ -936,8 +941,6 @@ class Compiler(BaseCompiler):
                     unit.modaliases = ctx.state.current_tx().get_modaliases()
 
                 if comp.config_op is not None:
-                    if unit.config_ops is None:
-                        unit.config_ops = []
                     unit.config_ops.append(comp.config_op)
 
                 unit.has_set = True

@@ -24,6 +24,7 @@ import textwrap
 from typing import *  # NoQA
 
 from edb.common import ordered
+from edb.server import defines
 
 from ..common import qname as qn
 from ..common import quote_ident as qi
@@ -142,7 +143,8 @@ class Index(tables.InheritableTableObject):
                 ;
             EXECUTE
                 'COMMENT ON INDEX ' || {schema_name} || '.' || {index_name}
-                || ' IS ' || quote_literal('$EDB:'
+                || ' IS '
+                || quote_literal({ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)}
                 || {desc_var}.metadata::text)
                 ;
         ''')
