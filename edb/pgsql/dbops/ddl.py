@@ -22,7 +22,11 @@ from __future__ import annotations
 import json
 import textwrap
 
-from .. import common
+from edb.server import defines
+
+from ..common import quote_ident as qi
+from ..common import quote_literal as ql
+
 from . import base
 
 
@@ -118,7 +122,7 @@ class Comment(DDLOperation):
 
         code = 'COMMENT ON {type} {id} IS {text}'.format(
             type=object_type, id=object_id,
-            text=common.quote_literal(self.text))
+            text=ql(self.text))
 
         return code
 
@@ -131,8 +135,8 @@ class ReassignOwned(DDLOperation):
 
     def code(self, block: base.PLBlock) -> str:
         return (
-            f'REASSIGN OWNED BY {common.quote_ident(self.old_role)} '
-            f'TO {common.quote_ident(self.new_role)}'
+            f'REASSIGN OWNED BY {qi(self.old_role)} '
+            f'TO {qi(self.new_role)}'
         )
 
 
@@ -143,6 +147,7 @@ class GetMetadata(base.Command):
 
     def code(self, block: base.PLBlock) -> str:
         oid = self.object.get_oid()
+        is_shared = self.object.is_shared()
         if isinstance(oid, base.Query):
             qry = oid.text
             objoid = block.declare_var('oid')
@@ -153,15 +158,21 @@ class GetMetadata(base.Command):
         else:
             objoid, classoid, objsubid = oid
 
+        prefix = f'E{ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)}'
+
         return textwrap.dedent(f'''\
             SELECT
-                description::jsonb
+                CASE WHEN substr(
+                    description, 1, char_length({prefix})) = {prefix}
+                THEN substr(description, char_length({prefix}) + 1)::jsonb
+                ELSE '{{}}'::jsonb
+                END
              FROM
-                pg_description
+                {'pg_shdescription' if is_shared else 'pg_description'}
              WHERE
                 objoid = {objoid}
                 AND classoid = {classoid}
-                AND objsubid = {objsubid}
+                {f'AND objsubid = {objsubid}' if not is_shared else ''}
         ''')
 
 
@@ -183,26 +194,38 @@ class PutMetadata(DDLOperation):
 class SetMetadata(PutMetadata):
     def code(self, block: base.PLBlock) -> str:
         metadata = self.metadata
-        desc = '$EDB:{}'.format(json.dumps(metadata))
 
         object_type = self.object.get_type()
         object_id = self.object.get_id()
 
-        comment = common.quote_literal(desc)
-        return f'COMMENT ON {object_type} {object_id} IS {comment}'
+        prefix = ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)
+        desc = ql(json.dumps(metadata))
+        comment = f'E{prefix} || {desc}'
+
+        return textwrap.dedent(f'''\
+            EXECUTE 'COMMENT ON {object_type} {object_id} IS ' ||
+                quote_literal({comment});
+        ''')
 
 
 class UpdateMetadata(PutMetadata):
     def code(self, block: base.PLBlock) -> str:
         metadata_qry = GetMetadata(self.object).code(block)
+        prefix = ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)
         json_v = block.declare_var('jsonb')
         upd_v = block.declare_var('text')
-        block.add_command(
-            f'{json_v} := ({metadata_qry});')
+        meta_v = block.declare_var('jsonb')
+        block.add_command(f'{json_v} := ({metadata_qry});')
+        upd_metadata = ql(json.dumps(self.metadata))
+        block.add_command(f'{meta_v} := {upd_metadata}::jsonb')
 
-        upd_metadata = common.quote_literal(json.dumps(self.metadata))
-        block.add_command(
-            f"{upd_v} := '$EDB:' || ({json_v} || {upd_metadata})::text;")
+        block.add_command(textwrap.dedent(f'''\
+            IF {json_v} IS NOT NULL THEN
+                {upd_v} := E{prefix} || ({json_v} || {upd_metadata})::text;
+            ELSE
+                {upd_v} := E{prefix} || {upd_metadata}::text;
+            END IF;
+        '''))
 
         object_type = self.object.get_type()
         object_id = self.object.get_id()

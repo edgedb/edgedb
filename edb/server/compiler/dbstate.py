@@ -175,7 +175,8 @@ class QueryUnit:
     # Set only when this unit contains a CONFIGURE command which
     # alters a backend configuration setting.
     backend_config: bool = False
-    config_ops: Optional[List[config.Operation]] = None
+    config_ops: List[config.Operation] = (
+        dataclasses.field(default_factory=list))
     modaliases: Optional[immutables.Map] = None
 
 

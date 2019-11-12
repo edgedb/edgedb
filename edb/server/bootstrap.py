@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os.path
 import pathlib
 import pickle
 import re
@@ -460,11 +459,14 @@ async def _configure(schema, conn, cluster, *, insecure=False, testmode=False):
             config_op = config.Operation.from_json(config_op_data)
             settings = config_op.apply(config_spec, immutables.Map())
 
-    data_dir = cluster.get_data_dir()
-    overrides_fn = os.path.join(data_dir, 'config_sys.json')
+    config_json = config.to_json(config_spec, settings)
+    block = dbops.PLTopBlock()
+    dbops.UpdateMetadata(
+        dbops.Database(name=edgedb_defines.EDGEDB_TEMPLATE_DB),
+        {'sysconfig': json.loads(config_json)},
+    ).generate(block)
 
-    with open(overrides_fn, 'wt') as f:
-        f.write(config.to_json(config_spec, settings))
+    await _execute_block(conn, block)
 
 
 async def _compile_sys_queries(schema, cluster):

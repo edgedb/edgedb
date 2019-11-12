@@ -22,14 +22,11 @@ cdef class DatabaseIndex:
         dict _dbs
 
         object _server
-        str _sys_overrides_fn
 
         object _sys_config
         object _sys_config_ver
         object _sys_queries
         object _instance_data
-
-    cdef _save_system_overrides(self)
 
 
 cdef class Database:
