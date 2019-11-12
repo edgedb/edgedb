@@ -1340,7 +1340,7 @@ std::`//` (n: std::int16, d: std::int16) -> std::int16
     # the common attributes of the SQL division operator while
     # overriding the main operator function.
     FROM SQL OPERATOR r'/';
-    FROM SQL FUNCTION 'edgedb.int2floordiv';
+    FROM SQL 'SELECT floor("n"::numeric / "d"::numeric)::int2';
 };
 
 
@@ -1349,7 +1349,7 @@ std::`//` (n: std::int32, d: std::int32) -> std::int32
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
-    FROM SQL FUNCTION 'edgedb.int4floordiv';
+    FROM SQL 'SELECT floor("n"::numeric / "d"::numeric)::int4';
 };
 
 
@@ -1358,7 +1358,7 @@ std::`//` (n: std::int64, d: std::int64) -> std::int64
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
-    FROM SQL FUNCTION 'edgedb.int8floordiv';
+    FROM SQL 'SELECT floor("n"::numeric / "d"::numeric)::int8';
 };
 
 
@@ -1367,7 +1367,7 @@ std::`//` (n: std::float32, d: std::float32) -> std::float32
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
-    FROM SQL FUNCTION 'edgedb.float4floordiv';
+    FROM SQL 'SELECT floor("n" / "d")::float4';
 };
 
 
@@ -1376,7 +1376,7 @@ std::`//` (n: std::float64, d: std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
-    FROM SQL FUNCTION 'edgedb.float8floordiv';
+    FROM SQL 'SELECT floor("n" / "d")';
 };
 
 
@@ -1396,7 +1396,9 @@ std::`%` (n: std::int16, d: std::int16) -> std::int16
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'%';
-    FROM SQL FUNCTION 'edgedb.int2floormod';
+    FROM SQL $$
+        SELECT ((n % d) + d) % d;
+    $$;
 };
 
 
@@ -1405,7 +1407,9 @@ std::`%` (n: std::int32, d: std::int32) -> std::int32
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'%';
-    FROM SQL FUNCTION 'edgedb.int4floormod';
+    FROM SQL $$
+        SELECT ((n % d) + d) % d;
+    $$;
 };
 
 
@@ -1414,7 +1418,9 @@ std::`%` (n: std::int64, d: std::int64) -> std::int64
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'%';
-    FROM SQL FUNCTION 'edgedb.int8floormod';
+    FROM SQL $$
+        SELECT ((n % d) + d) % d;
+    $$;
 };
 
 
@@ -1425,7 +1431,9 @@ std::`%` (n: std::float32, d: std::float32) -> std::float32
     # We cheat here a bit by copying most of SQL operator metadata
     # from the `/` operator, since there is no float % in Postgres.
     FROM SQL OPERATOR r'/';
-    FROM SQL FUNCTION 'edgedb.float4floormod';
+    FROM SQL $$
+        SELECT n - floor(n / d)::float4 * d;
+    $$;
 };
 
 
@@ -1434,7 +1442,9 @@ std::`%` (n: std::float64, d: std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'/';
-    FROM SQL FUNCTION 'edgedb.float8floormod';
+    FROM SQL $$
+        SELECT n - floor(n / d) * d;
+    $$;
 };
 
 
@@ -1443,7 +1453,9 @@ std::`%` (n: std::decimal, d: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL OPERATOR r'%';
-    FROM SQL 'SELECT n - floor("n" / "d") * "d"';
+    FROM SQL $$
+        SELECT ((n % d) + d) % d;
+    $$;
 };
 
 

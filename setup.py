@@ -225,50 +225,6 @@ def _compile_postgres(build_base, *,
             f.write(source_stamp)
 
 
-def _compile_postgres_extensions(build_base):
-    postgres_build = (build_base / 'postgres').resolve()
-    postgres_build_stamp_path = postgres_build / 'stamp'
-
-    ext_build = (build_base / 'ext').resolve()
-    ext_build_stamp_path = ext_build / 'stamp'
-
-    if postgres_build_stamp_path.exists():
-        with open(postgres_build_stamp_path, 'r') as f:
-            postgres_build_stamp = f.read()
-    else:
-        raise RuntimeError('Postgres is not built, cannot build extensions')
-
-    if ext_build_stamp_path.exists():
-        with open(ext_build_stamp_path, 'r') as f:
-            ext_build_stamp = f.read()
-    else:
-        ext_build_stamp = None
-
-    ext_dir = (pathlib.Path(__file__).parent / 'ext').resolve()
-    pg_config = (build_base / 'postgres' / 'install' /
-                 'bin' / 'pg_config').resolve()
-
-    if not ext_dir.exists():
-        raise RuntimeError('missing Postgres extension directory')
-
-    ext_make = ['make', '-C', str(ext_dir), 'PG_CONFIG=' + str(pg_config)]
-
-    if ext_build_stamp != postgres_build_stamp:
-        print('Extensions build stamp does not match Postgres build stamp. '
-              'Rebuilding...')
-        subprocess.run(ext_make + ['clean'], check=True)
-
-    ext_build.mkdir(parents=True, exist_ok=True)
-
-    subprocess.run(ext_make, check=True)
-    subprocess.run(ext_make + ['install'], check=True)
-
-    ext_build_stamp = postgres_build_stamp
-
-    with open(ext_build_stamp_path, 'w') as f:
-        f.write(ext_build_stamp)
-
-
 class build(distutils_build.build):
 
     user_options = distutils_build.build.user_options + [
@@ -302,7 +258,6 @@ class develop(setuptools_develop.develop):
     def run(self, *args, **kwargs):
         _compile_parsers(pathlib.Path('build/lib'), inplace=True)
         _compile_postgres(pathlib.Path('build').resolve())
-        _compile_postgres_extensions(pathlib.Path('build').resolve())
 
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = [s + '_dev' for s in scripts]
@@ -337,26 +292,6 @@ class build_postgres(setuptools.Command):
             fresh_build=self.fresh_build,
             run_configure=self.configure,
             build_contrib=self.build_contrib)
-
-        _compile_postgres_extensions(
-            pathlib.Path('build').resolve())
-
-
-class build_postgres_ext(setuptools.Command):
-
-    description = "build postgres extensions"
-
-    user_options = []
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self, *args, **kwargs):
-        _compile_postgres_extensions(
-            pathlib.Path('build').resolve())
 
 
 class build_ext(distutils_build_ext.build_ext):
@@ -455,7 +390,6 @@ setuptools.setup(
         'build_ext': build_ext,
         'develop': develop,
         'build_postgres': build_postgres,
-        'build_postgres_ext': build_postgres_ext,
     },
     entry_points={
         'console_scripts': [

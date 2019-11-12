@@ -798,6 +798,28 @@ class TestExpressions(tb.QueryTestCase):
             [False],
         )
 
+    async def test_edgeql_expr_mod_01(self):
+        # Test integer division and remainder.
+        tests = [
+            ('5', '3', 1, 2),
+            ('-5', '3', -2, 1),
+            ('-5', '-3', 1, -2),
+            ('5', '-3', -2, -1),
+        ]
+
+        types = [v.typename for v in VALUES.values() if v.anyreal]
+
+        for t in types:
+            for a, b, div, mod in tests:
+                await self.assert_query_result(
+                    f'''SELECT <{t}>{a} // <{t}>{b};''',
+                    [div],
+                )
+                await self.assert_query_result(
+                    f'''SELECT <{t}>{a} % <{t}>{b};''',
+                    [mod],
+                )
+
     async def _test_boolop(self, left, right, op, not_op, result):
         if isinstance(result, bool):
             # this operation should be valid and produce opposite

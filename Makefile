@@ -17,10 +17,6 @@ postgres:
 	python setup.py build_postgres
 
 
-postgres-ext:
-	python setup.py build_postgres_ext
-
-
 pygments:
 	out=$$(edb gen-meta-grammars edgeql) && \
 		echo "$$out" > edb/edgeql/pygments/meta.py
