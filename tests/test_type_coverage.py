@@ -186,122 +186,122 @@ class TypeCoverageTests(unittest.TestCase):
                 f"value: {actual_percentage:.2f}%"
             )
 
-    def test_type_coverage_self(self) -> None:
+    def test_cqa_type_coverage_self(self) -> None:
         coverage = cover_file(Path(__file__))
         self.assertTrue(coverage.typed_functions >= 49)
         self.assertEqual(coverage.untyped_functions, 0)
         self.assertTrue(coverage.typed_lines >= 187)
         self.assertEqual(coverage.untyped_lines, 0)
 
-    def test_type_coverage_cli(self) -> None:
+    def test_cqa_type_coverage_cli(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "cli", 0)
 
-    def test_type_coverage_common(self) -> None:
+    def test_cqa_type_coverage_common(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "common", 22.33)
 
-    def test_type_coverage_common_ast(self) -> None:
+    def test_cqa_type_coverage_common_ast(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "common" / "ast", 0)
 
-    def test_type_coverage_common_markup(self) -> None:
+    def test_cqa_type_coverage_common_markup(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "common" / "markup", 0)
 
-    def test_type_coverage_edgeql(self) -> None:
+    def test_cqa_type_coverage_edgeql(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "edgeql", 15.89)
 
-    def test_type_coverage_edgeql_compiler(self) -> None:
+    def test_cqa_type_coverage_edgeql_compiler(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "edgeql" / "compiler", 56.84)
 
-    def test_type_coverage_edgeql_parser(self) -> None:
+    def test_cqa_type_coverage_edgeql_parser(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "edgeql" / "parser", 0)
 
-    def test_type_coverage_edgeql_pygments(self) -> None:
+    def test_cqa_type_coverage_edgeql_pygments(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "edgeql" / "pygments", 0)
 
-    def test_type_coverage_errors(self) -> None:
+    def test_cqa_type_coverage_errors(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "errors", 0)
 
-    def test_type_coverage_graphql(self) -> None:
+    def test_cqa_type_coverage_graphql(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "graphql", 0)
 
-    def test_type_coverage_graphql_pygments(self) -> None:
+    def test_cqa_type_coverage_graphql_pygments(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "graphql" / "pygments", 0)
 
-    def test_type_coverage_ir(self) -> None:
+    def test_cqa_type_coverage_ir(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "ir", 36.07)
 
-    def test_type_coverage_pgsql(self) -> None:
+    def test_cqa_type_coverage_pgsql(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "pgsql", 40.70)
 
-    def test_type_coverage_pgsql_compiler(self) -> None:
+    def test_cqa_type_coverage_pgsql_compiler(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "pgsql" / "compiler", 100.00)
 
-    def test_type_coverage_pgsql_datasources(self) -> None:
+    def test_cqa_type_coverage_pgsql_datasources(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "pgsql" / "datasources", 48.39)
 
-    def test_type_coverage_pgsql_dbops(self) -> None:
+    def test_cqa_type_coverage_pgsql_dbops(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "pgsql" / "dbops", 33.91)
 
-    def test_type_coverage_repl(self) -> None:
+    def test_cqa_type_coverage_repl(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "repl", 0)
 
-    def test_type_coverage_schema(self) -> None:
+    def test_cqa_type_coverage_schema(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "schema", 15.32)
 
-    def test_type_coverage_server(self) -> None:
+    def test_cqa_type_coverage_server(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server", 6.67)
 
-    def test_type_coverage_server_cache(self) -> None:
+    def test_cqa_type_coverage_server_cache(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "cache", 0)
 
-    def test_type_coverage_server_compiler(self) -> None:
+    def test_cqa_type_coverage_server_compiler(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "compiler", 12.77)
 
-    def test_type_coverage_server_config(self) -> None:
+    def test_cqa_type_coverage_server_config(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "config", 18.75)
 
-    def test_type_coverage_server_daemon(self) -> None:
+    def test_cqa_type_coverage_server_daemon(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "daemon", 0)
 
-    def test_type_coverage_server_dbview(self) -> None:
+    def test_cqa_type_coverage_server_dbview(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "dbview", 0)
 
-    def test_type_coverage_server_http(self) -> None:
+    def test_cqa_type_coverage_server_http(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "http", 0)
 
-    def test_type_coverage_server_http_edgeql_port(self) -> None:
+    def test_cqa_type_coverage_server_http_edgeql_port(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "http_edgeql_port", 0)
 
-    def test_type_coverage_server_http_graphql_port(self) -> None:
+    def test_cqa_type_coverage_server_http_graphql_port(self) -> None:
         self.assertFunctionCoverage(
             EDB_DIR / "server" / "http_graphql_port", 0
         )
 
-    def test_type_coverage_server_mng_port(self) -> None:
+    def test_cqa_type_coverage_server_mng_port(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "mng_port", 0)
 
     def tests_type_coverage_server_pgcon(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "pgcon", 0)
 
-    def test_type_coverage_server_pgproto(self) -> None:
+    def test_cqa_type_coverage_server_pgproto(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "pgproto", 0)
 
-    def test_type_coverage_server_procpool(self) -> None:
+    def test_cqa_type_coverage_server_procpool(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "procpool", 5.36)
 
-    def test_type_coverage_testbase(self) -> None:
+    def test_cqa_type_coverage_testbase(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "testbase", 0)
 
-    def test_type_coverage_tools(self) -> None:
+    def test_cqa_type_coverage_tools(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tools", 8.38)
 
-    def test_type_coverage_tools_docs(self) -> None:
+    def test_cqa_type_coverage_tools_docs(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tools" / "docs", 0)
 
-    def test_type_coverage_tools_mypy(self) -> None:
+    def test_cqa_type_coverage_tools_mypy(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tools" / "mypy", 36.36)
 
-    def test_type_coverage_tools_test(self) -> None:
+    def test_cqa_type_coverage_tools_test(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tools" / "test", 4.17)
 
-    def test_type_coverage_tests(self) -> None:
+    def test_cqa_type_coverage_tests(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tests", 0)
