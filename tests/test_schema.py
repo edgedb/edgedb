@@ -37,7 +37,7 @@ from edb.tools import test
 
 
 class TestSchema(tb.BaseSchemaLoadTest):
-    def test_schema_inherited_01(self):
+    def test_schema_overloaded_01(self):
         """
             type UniqueName {
                 property name -> str {
@@ -45,16 +45,16 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 }
             };
             type UniqueName_2 extending UniqueName {
-                inherited property name -> str {
+                overloaded property name -> str {
                     constraint exclusive
                 }
             };
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
-                  "'name'.*must be declared using the `inherited` keyword",
+                  "'name'.*must be declared using the `overloaded` keyword",
                   position=214)
-    def test_schema_inherited_02(self):
+    def test_schema_overloaded_02(self):
         """
             type UniqueName {
                 property name -> str {
@@ -70,12 +70,12 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
-                  "'name'.*cannot be declared `inherited`",
+                  "'name'.*cannot be declared `overloaded`",
                   position=47)
-    def test_schema_inherited_03(self):
+    def test_schema_overloaded_03(self):
         """
             type UniqueName {
-                inherited property name -> str
+                overloaded property name -> str
             };
         """
 
@@ -738,8 +738,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type SpecialUser extending User {
-                inherited property name extending annotated_name -> str;
-                inherited link friends extending special -> SpecialUser;
+                overloaded property name extending annotated_name -> str;
+                overloaded link friends extending special -> SpecialUser;
             };
         '''
 
@@ -754,7 +754,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             abstract type User extending Named {
-                inherited required property name -> str {
+                overloaded required property name -> str {
                     delegated constraint exclusive;
                 }
             };
@@ -867,10 +867,10 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str;
             };
             type Ham extending Spam {
-                inherited link foo {
+                overloaded link foo {
                     constraint exclusive;
                 };
-                inherited property name {
+                overloaded property name {
                     constraint exclusive;
                 };
             };
@@ -891,7 +891,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required property name -> str;
+                overloaded required property name -> str;
             }
         """])
 
@@ -902,7 +902,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """, r"""
             type Base {
@@ -911,7 +911,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required property foo2 -> str;
+                overloaded required property foo2 -> str;
             }
         """])
 
@@ -922,7 +922,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """, r"""
             type Base;
@@ -943,7 +943,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
 
             type Further extending Derived {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """, r"""
             type Base;
@@ -964,7 +964,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """, r"""
             type Base;
@@ -983,7 +983,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required property foo -> int64;
+                overloaded required property foo -> int64;
             }
         """, r"""
             type Base {
@@ -992,7 +992,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """])
 
@@ -1104,7 +1104,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required link bar -> Child;
+                overloaded required link bar -> Child;
             }
         """, r"""
             type Child;
@@ -1132,7 +1132,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """])
 
@@ -1183,7 +1183,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Derived extending Base {
                 # also make the link 'required'
-                inherited required link bar -> Child;
+                overloaded required link bar -> Child;
             }
         """])
 
@@ -1393,7 +1393,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             # derive a type with a more restrictive link
             type DerivedParent extending Parent {
-                inherited link bar -> DerivedChild;
+                overloaded link bar -> DerivedChild;
             }
         """])
 
@@ -2059,7 +2059,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
 
             type Derived extending Base {
-                inherited link child -> Child {
+                overloaded link child -> Child {
                     property foo -> str
                 }
             };
@@ -2095,7 +2095,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
 
             type Derived extending Base {
-                inherited link child -> Child {
+                overloaded link child -> Child {
                     # move the link property later in the inheritance tree
                     property foo -> str
                 }
@@ -2111,7 +2111,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
 
             type Derived extending Base {
-                inherited link child -> Child {
+                overloaded link child -> Child {
                     property foo -> str
                 }
             };
@@ -2151,7 +2151,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
 
             type Derived extending Base {
-                inherited link child -> Child {
+                overloaded link child -> Child {
                     # move the link property later in the inheritance tree
                     property foo -> str
                 }
@@ -2801,7 +2801,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             type Child extending Parent, Parent2 {
                 annotation anno := 'annotated';
 
-                inherited link foo extending f -> Foo {
+                overloaded link foo extending f -> Foo {
                     constraint exclusive {
                         annotation anno := 'annotated constraint';
                     }
@@ -2815,7 +2815,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
-                inherited link foo extending test::f -> test::Foo {
+                overloaded link foo extending test::f -> test::Foo {
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
@@ -2831,7 +2831,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 annotation test::anno := 'annotated';
                 index on (.name);
                 link __type__ -> schema::Type;
-                inherited link foo extending test::f -> test::Foo {
+                overloaded link foo extending test::f -> test::Foo {
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
@@ -2855,7 +2855,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::Child extending test::Parent, test::Parent2 {
                 link __type__ -> schema::Type;
-                inherited link foo extending test::f -> test::Foo {
+                overloaded link foo extending test::f -> test::Foo {
                     property p -> test::int_t;
                 };
                 required property id -> std::uuid;

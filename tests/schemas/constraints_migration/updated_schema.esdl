@@ -122,7 +122,7 @@ type UniqueName {
 }
 
 type UniqueNameInherited extending UniqueName {
-    inherited property name -> str;
+    overloaded property name -> str;
 }
 
 type UniqueNameGrandchild extending UniqueNameInherited;
@@ -167,7 +167,7 @@ type ParentUniqueName {
 }
 
 type ReceivingParent extending ParentUniqueName {
-    inherited property name -> str;
+    overloaded property name -> str;
 }
 
 type LosingParent {
@@ -190,13 +190,13 @@ type AbstractConstraintParent2 {
 type AbstractConstraintPureChild extending AbstractConstraintParent;
 
 type AbstractConstraintMixedChild extending AbstractConstraintParent {
-    inherited property name -> str {
+    overloaded property name -> str {
         constraint exclusive on (str_lower(__subject__));
     }
 }
 
 type AbstractConstraintPropagated extending AbstractConstraintParent {
-    inherited property name -> str {
+    overloaded property name -> str {
         delegated constraint exclusive;
     }
 }

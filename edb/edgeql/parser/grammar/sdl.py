@@ -570,13 +570,13 @@ class ConcretePropertyBlock(Nonterm):
 
     def reduce_CreateOverloadedProperty(self, *kids):
         """%reduce
-            INHERITED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
+            OVERLOADED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
             OptPtrTarget CreateConcretePropertySDLCommandsBlock
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
             bases=kids[4].val,
-            declared_inherited=True,
+            declared_overloaded=True,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             target=kids[5].val,
@@ -609,13 +609,13 @@ class ConcretePropertyShort(Nonterm):
 
     def reduce_CreateOverloadedProperty(self, *kids):
         """%reduce
-            INHERITED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
+            OVERLOADED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
             OptPtrTarget
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[3].val,
             bases=kids[4].val,
-            declared_inherited=True,
+            declared_overloaded=True,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             target=kids[5].val,
@@ -736,13 +736,13 @@ class ConcreteLinkBlock(Nonterm):
 
     def reduce_CreateOverloadedLink(self, *kids):
         """%reduce
-            INHERITED OptPtrQuals LINK ShortNodeName OptExtendingSimple
+            OVERLOADED OptPtrQuals LINK ShortNodeName OptExtendingSimple
             OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         self.val = qlast.CreateConcreteLink(
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
-            declared_inherited=True,
+            declared_overloaded=True,
             name=kids[3].val,
             bases=kids[4].val,
             target=kids[5].val,
@@ -779,11 +779,11 @@ class ConcreteLinkShort(Nonterm):
 
     def reduce_CreateOverloadedLink(self, *kids):
         """%reduce
-            INHERITED OptPtrQuals LINK ShortNodeName OptExtendingSimple
+            OVERLOADED OptPtrQuals LINK ShortNodeName OptExtendingSimple
             OptPtrTarget
         """
         self.val = qlast.CreateConcreteLink(
-            declared_inherited=True,
+            declared_overloaded=True,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             name=kids[3].val,

@@ -348,14 +348,14 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             multi link bar -> Bar;
             required single link baz -> Baz;
             required multi link spam -> Spam;
-            inherited required single link ham -> Ham;
-            inherited required multi link eggs -> Egg;
-            inherited link knight;
-            inherited link clinic {
+            overloaded required single link ham -> Ham;
+            overloaded required multi link eggs -> Egg;
+            overloaded link knight;
+            overloaded link clinic {
                 property argument -> int64;
             };
-            inherited property castle;
-            inherited property tower {
+            overloaded property castle;
+            overloaded property tower {
                 constraint exclusive;
             };
         };
@@ -368,8 +368,8 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             multi property bar -> str;
             required single property baz -> str;
             required multi property spam -> str;
-            inherited required single property ham -> str;
-            inherited required multi property eggs -> str;
+            overloaded required single property ham -> str;
+            overloaded required multi property eggs -> str;
         };
         """
 
@@ -392,11 +392,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         }
 
         type Ham {
-            inherited required single property ham -> str
+            overloaded required single property ham -> str
         }
 
         type Eggs {
-            inherited required multi property eggs -> str
+            overloaded required multi property eggs -> str
         }
 
 % OK %
@@ -418,11 +418,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
 
         type Ham {
-            inherited required single property ham -> str;
+            overloaded required single property ham -> str;
         };
 
         type Eggs {
-            inherited required multi property eggs -> str;
+            overloaded required multi property eggs -> str;
         };
         """
 

@@ -728,7 +728,7 @@ class CreateConcretePointer(CreateObject):
 
     bases: typing.List[TypeName]
     is_required: bool = False
-    declared_inherited: bool = False
+    declared_overloaded: bool = False
     target: typing.Optional[typing.Union[Expr, TypeExpr]]
     cardinality: qltypes.Cardinality
 

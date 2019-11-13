@@ -33,6 +33,24 @@ Declare a *concrete* link "friends" within a "User" type:
         index on (__subject__.name);
     }
 
+Any time that the SDL declaration refers to an inherited link that is
+being overloaded (by adding more constraints or changing the target
+type, for example), the ``overloaded`` keyword must be used. This is
+to prevent unintentional overloading due to name clashes:
+
+.. code-block:: sdl
+
+    abstract type Friendly {
+        # this type can have "friends"
+        link friends -> Friendly;
+    }
+
+    type User extending Friendly {
+        # overload the link target to be User, specifically
+        overloaded multi link friends -> User;
+        # ... other links and properties
+    }
+
 
 Syntax
 ------
@@ -43,7 +61,7 @@ commands <ref_eql_ddl_links>`.
 .. sdl:synopsis::
 
     # Concrete link form used inside type declaration:
-    [ required ] [{single | multi}] link <name>
+    [ overloaded ] [ required ] [{single | multi}] link <name>
       [ extending <base> [, ...] ] -> <type>
       [ "{"
           [ default := <expression> ; ]
