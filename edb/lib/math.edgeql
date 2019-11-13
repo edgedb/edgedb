@@ -23,7 +23,7 @@ CREATE FUNCTION
 math::abs(x: std::anyreal) -> std::anyreal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'abs';
+    USING SQL FUNCTION 'abs';
 };
 
 
@@ -31,7 +31,7 @@ CREATE FUNCTION
 math::ceil(x: std::int64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'ceil';
+    USING SQL FUNCTION 'ceil';
 };
 
 
@@ -39,7 +39,7 @@ CREATE FUNCTION
 math::ceil(x: std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'ceil';
+    USING SQL FUNCTION 'ceil';
 };
 
 
@@ -47,7 +47,7 @@ CREATE FUNCTION
 math::ceil(x: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'ceil';
+    USING SQL FUNCTION 'ceil';
 };
 
 
@@ -55,7 +55,7 @@ CREATE FUNCTION
 math::floor(x: std::int64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'floor';
+    USING SQL FUNCTION 'floor';
 };
 
 
@@ -63,7 +63,7 @@ CREATE FUNCTION
 math::floor(x: std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'floor';
+    USING SQL FUNCTION 'floor';
 };
 
 
@@ -71,7 +71,7 @@ CREATE FUNCTION
 math::floor(x: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'floor';
+    USING SQL FUNCTION 'floor';
 };
 
 
@@ -79,7 +79,7 @@ CREATE FUNCTION
 math::ln(x: std::int64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'ln';
+    USING SQL FUNCTION 'ln';
 };
 
 
@@ -87,7 +87,7 @@ CREATE FUNCTION
 math::ln(x: std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'ln';
+    USING SQL FUNCTION 'ln';
 };
 
 
@@ -95,7 +95,7 @@ CREATE FUNCTION
 math::ln(x: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'ln';
+    USING SQL FUNCTION 'ln';
 };
 
 
@@ -103,7 +103,7 @@ CREATE FUNCTION
 math::lg(x: std::int64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'log';
+    USING SQL FUNCTION 'log';
 };
 
 
@@ -111,7 +111,7 @@ CREATE FUNCTION
 math::lg(x: std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'log';
+    USING SQL FUNCTION 'log';
 };
 
 
@@ -119,7 +119,7 @@ CREATE FUNCTION
 math::lg(x: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'log';
+    USING SQL FUNCTION 'log';
 };
 
 
@@ -127,7 +127,7 @@ CREATE FUNCTION
 math::log(x: std::decimal, NAMED ONLY base: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT log("base", "x")
     $$;
 };
@@ -141,7 +141,7 @@ CREATE FUNCTION
 math::mean(vals: SET OF std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'avg';
+    USING SQL FUNCTION 'avg';
     SET error_on_null_result := 'invalid input to mean(): not ' ++
                                 'enough elements in input set';
 };
@@ -151,7 +151,7 @@ CREATE FUNCTION
 math::mean(vals: SET OF std::int64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'avg';
+    USING SQL FUNCTION 'avg';
     # SQL 'avg' returns numeric on integer inputs.
     SET force_return_cast := true;
     SET error_on_null_result := 'invalid input to mean(): not ' ++
@@ -163,7 +163,7 @@ CREATE FUNCTION
 math::mean(vals: SET OF std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'avg';
+    USING SQL FUNCTION 'avg';
     SET error_on_null_result := 'invalid input to mean(): not ' ++
                                 'enough elements in input set';
 };
@@ -175,7 +175,7 @@ CREATE FUNCTION
 math::stddev(vals: SET OF std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'stddev';
+    USING SQL FUNCTION 'stddev';
     SET error_on_null_result := 'invalid input to stddev(): not ' ++
                                 'enough elements in input set';
 };
@@ -185,7 +185,7 @@ CREATE FUNCTION
 math::stddev(vals: SET OF std::int64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'stddev';
+    USING SQL FUNCTION 'stddev';
     # SQL 'stddev' returns numeric on integer inputs.
     SET force_return_cast := true;
     SET error_on_null_result := 'invalid input to stddev(): not ' ++
@@ -197,7 +197,7 @@ CREATE FUNCTION
 math::stddev(vals: SET OF std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'stddev';
+    USING SQL FUNCTION 'stddev';
     SET error_on_null_result := 'invalid input to stddev(): not ' ++
                                 'enough elements in input set';
 };
@@ -209,7 +209,7 @@ CREATE FUNCTION
 math::stddev_pop(vals: SET OF std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'stddev_pop';
+    USING SQL FUNCTION 'stddev_pop';
     SET error_on_null_result := 'invalid input to stddev_pop(): not ' ++
                                 'enough elements in input set';
 };
@@ -219,7 +219,7 @@ CREATE FUNCTION
 math::stddev_pop(vals: SET OF std::int64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'stddev_pop';
+    USING SQL FUNCTION 'stddev_pop';
     # SQL 'stddev_pop' returns numeric on integer inputs.
     SET force_return_cast := true;
     SET error_on_null_result := 'invalid input to stddev_pop(): not ' ++
@@ -231,7 +231,7 @@ CREATE FUNCTION
 math::stddev_pop(vals: SET OF std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'stddev_pop';
+    USING SQL FUNCTION 'stddev_pop';
     SET error_on_null_result := 'invalid input to stddev_pop(): not ' ++
                                 'enough elements in input set';
 };
@@ -243,7 +243,7 @@ CREATE FUNCTION
 math::var(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'variance';
+    USING SQL FUNCTION 'variance';
     SET error_on_null_result := 'invalid input to var(): not ' ++
                                 'enough elements in input set';
 };
@@ -253,7 +253,7 @@ CREATE FUNCTION
 math::var(vals: SET OF std::int64) -> OPTIONAL std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'variance';
+    USING SQL FUNCTION 'variance';
     # SQL 'var' returns numeric on integer inputs.
     SET force_return_cast := true;
     SET error_on_null_result := 'invalid input to var(): not ' ++
@@ -265,7 +265,7 @@ CREATE FUNCTION
 math::var(vals: SET OF std::float64) -> OPTIONAL std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'variance';
+    USING SQL FUNCTION 'variance';
     SET error_on_null_result := 'invalid input to var(): not ' ++
                                 'enough elements in input set';
 };
@@ -277,7 +277,7 @@ CREATE FUNCTION
 math::var_pop(vals: SET OF std::decimal) -> OPTIONAL std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'var_pop';
+    USING SQL FUNCTION 'var_pop';
     SET error_on_null_result := 'invalid input to var_pop(): not ' ++
                                 'enough elements in input set';
 };
@@ -287,7 +287,7 @@ CREATE FUNCTION
 math::var_pop(vals: SET OF std::int64) -> OPTIONAL std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'var_pop';
+    USING SQL FUNCTION 'var_pop';
     # SQL 'var_pop' returns numeric on integer inputs.
     SET force_return_cast := true;
     SET error_on_null_result := 'invalid input to var_pop(): not ' ++
@@ -299,7 +299,7 @@ CREATE FUNCTION
 math::var_pop(vals: SET OF std::float64) -> OPTIONAL std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'var_pop';
+    USING SQL FUNCTION 'var_pop';
     SET error_on_null_result := 'invalid input to var_pop(): not ' ++
                                 'enough elements in input set';
 };

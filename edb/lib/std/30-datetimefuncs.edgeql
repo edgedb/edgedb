@@ -24,7 +24,7 @@ CREATE FUNCTION
 std::datetime_current() -> std::datetime
 {
     SET volatility := 'VOLATILE';
-    FROM SQL FUNCTION 'clock_timestamp';
+    USING SQL FUNCTION 'clock_timestamp';
 };
 
 
@@ -32,7 +32,7 @@ CREATE FUNCTION
 std::datetime_of_transaction() -> std::datetime
 {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'transaction_timestamp';
+    USING SQL FUNCTION 'transaction_timestamp';
 };
 
 
@@ -40,7 +40,7 @@ CREATE FUNCTION
 std::datetime_of_statement() -> std::datetime
 {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'statement_timestamp';
+    USING SQL FUNCTION 'statement_timestamp';
 };
 
 
@@ -49,7 +49,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 {
     # date_part of timestamptz is STABLE in PostgreSQL
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT date_part("el", "dt")
     $$;
 };
@@ -59,7 +59,7 @@ CREATE FUNCTION
 std::datetime_get(dt: std::local_datetime, el: std::str) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT date_part("el", "dt")
     $$;
 };
@@ -69,7 +69,7 @@ CREATE FUNCTION
 std::time_get(dt: std::local_time, el: std::str) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT date_part("el", "dt")
     $$;
 };
@@ -79,7 +79,7 @@ CREATE FUNCTION
 std::date_get(dt: std::local_date, el: std::str) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT date_part("el", "dt")
     $$;
 };
@@ -89,7 +89,7 @@ CREATE FUNCTION
 std::duration_get(dt: std::duration, el: std::str) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT date_part("el", "dt")
     $$;
 };
@@ -100,7 +100,7 @@ std::datetime_trunc(dt: std::datetime, unit: std::str) -> std::datetime
 {
     # date_trunc of timestamptz is STABLE in PostgreSQL
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT date_trunc("unit", "dt")
     $$;
 };
@@ -110,7 +110,7 @@ CREATE FUNCTION
 std::duration_trunc(dt: std::duration, unit: std::str) -> std::duration
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT date_trunc("unit", "dt")
     $$;
 };
@@ -124,56 +124,56 @@ std::duration_trunc(dt: std::duration, unit: std::str) -> std::duration
 CREATE INFIX OPERATOR
 std::`=` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::datetime, r: OPTIONAL std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::datetime, r: OPTIONAL std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::datetime, r: std::datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=';
 };
 
 
@@ -181,7 +181,7 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::datetime, r: std::duration) -> std::datetime {
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'STABLE';
-    FROM SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+';
 };
 
 
@@ -189,7 +189,7 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::datetime) -> std::datetime {
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'STABLE';
-    FROM SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+';
 };
 
 
@@ -197,14 +197,14 @@ CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'STABLE';
-    FROM SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-';
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-';
 };
 
 
@@ -213,7 +213,7 @@ std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
 CREATE INFIX OPERATOR
 std::`=` (l: std::local_datetime, r: std::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=';
 };
 
 
@@ -221,14 +221,14 @@ CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::local_datetime,
            r: OPTIONAL std::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::local_datetime, r: std::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>';
 };
 
 
@@ -236,63 +236,63 @@ CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::local_datetime,
             r: OPTIONAL std::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::local_datetime, r: std::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::local_datetime, r: std::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::local_datetime, r: std::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::local_datetime, r: std::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::local_datetime, r: std::duration) -> std::local_datetime {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+';
 };
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::local_datetime) -> std::local_datetime {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+';
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::local_datetime, r: std::duration) -> std::local_datetime {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-';
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::local_datetime, r: std::local_datetime) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-';
 };
 
 
@@ -301,7 +301,7 @@ std::`-` (l: std::local_datetime, r: std::local_datetime) -> std::duration {
 CREATE INFIX OPERATOR
 std::`=` (l: std::local_date, r: std::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=';
 };
 
 
@@ -309,14 +309,14 @@ CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::local_date,
            r: OPTIONAL std::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::local_date, r: std::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>';
 };
 
 
@@ -324,35 +324,35 @@ CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::local_date,
             r: OPTIONAL std::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::local_date, r: std::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::local_date, r: std::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::local_date, r: std::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::local_date, r: std::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=';
 };
 
 
@@ -360,7 +360,7 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::local_date, r: std::duration) -> std::local_date
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '+';
+    USING SQL OPERATOR '+';
     SET force_return_cast := true;
 };
 
@@ -369,7 +369,7 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::local_date) -> std::local_date
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '+';
+    USING SQL OPERATOR '+';
     SET force_return_cast := true;
 };
 
@@ -378,7 +378,7 @@ CREATE INFIX OPERATOR
 std::`-` (l: std::local_date, r: std::duration) -> std::local_date
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '-';
+    USING SQL OPERATOR '-';
     SET force_return_cast := true;
 };
 
@@ -386,7 +386,7 @@ std::`-` (l: std::local_date, r: std::duration) -> std::local_date
 CREATE INFIX OPERATOR
 std::`-` (l: std::local_date, r: std::local_date) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT make_interval(days => "l" - "r")
     $$;
 };
@@ -397,7 +397,7 @@ std::`-` (l: std::local_date, r: std::local_date) -> std::duration {
 CREATE INFIX OPERATOR
 std::`=` (l: std::local_time, r: std::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=';
 };
 
 
@@ -405,14 +405,14 @@ CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::local_time,
            r: OPTIONAL std::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::local_time, r: std::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>';
 };
 
 
@@ -420,63 +420,63 @@ CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::local_time,
             r: OPTIONAL std::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::local_time, r: std::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::local_time, r: std::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::local_time, r: std::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::local_time, r: std::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::local_time, r: std::duration) -> std::local_time {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+';
 };
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::local_time) -> std::local_time {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+';
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::local_time, r: std::duration) -> std::local_time {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-';
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::local_time, r: std::local_time) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-';
 };
 
 
@@ -485,21 +485,21 @@ std::`-` (l: std::local_time, r: std::local_time) -> std::duration {
 CREATE INFIX OPERATOR
 std::`=` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::duration, r: OPTIONAL std::duration) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>';
 };
 
 
@@ -509,56 +509,56 @@ std::`?!=` (
         r: OPTIONAL std::duration
 ) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::duration) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+';
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::duration, r: std::duration) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-';
 };
 
 
 CREATE PREFIX OPERATOR
 std::`-` (v: std::duration) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-';
 };
 
 
@@ -567,19 +567,19 @@ std::`-` (v: std::duration) -> std::duration {
 
 CREATE CAST FROM std::local_datetime TO std::local_date {
     SET volatility := 'IMMUTABLE';
-    FROM SQL CAST;
+    USING SQL CAST;
 };
 
 
 CREATE CAST FROM std::local_datetime TO std::local_time {
     SET volatility := 'IMMUTABLE';
-    FROM SQL CAST;
+    USING SQL CAST;
 };
 
 
 CREATE CAST FROM std::local_date TO std::local_datetime {
     SET volatility := 'IMMUTABLE';
-    FROM SQL CAST;
+    USING SQL CAST;
 };
 
 
@@ -591,31 +591,31 @@ CREATE CAST FROM std::local_date TO std::local_datetime {
 # IMMUTABLE (as the corresponding casts from those types to text).
 CREATE CAST FROM std::str TO std::datetime {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'edgedb.datetime_in';
+    USING SQL FUNCTION 'edgedb.datetime_in';
 };
 
 
 CREATE CAST FROM std::str TO std::local_datetime {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'edgedb.local_datetime_in';
+    USING SQL FUNCTION 'edgedb.local_datetime_in';
 };
 
 
 CREATE CAST FROM std::str TO std::local_date {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'edgedb.local_date_in';
+    USING SQL FUNCTION 'edgedb.local_date_in';
 };
 
 
 CREATE CAST FROM std::str TO std::local_time {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'edgedb.local_time_in';
+    USING SQL FUNCTION 'edgedb.local_time_in';
 };
 
 
 CREATE CAST FROM std::str TO std::duration {
     SET volatility := 'STABLE';
-    FROM SQL CAST;
+    USING SQL CAST;
 };
 
 
@@ -626,7 +626,7 @@ CREATE CAST FROM std::str TO std::duration {
 # and time.
 CREATE CAST FROM std::datetime TO std::str {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT trim(to_json(val)::text, '"');
     $$;
 };
@@ -634,7 +634,7 @@ CREATE CAST FROM std::datetime TO std::str {
 
 CREATE CAST FROM std::local_datetime TO std::str {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT trim(to_json(val)::text, '"');
     $$;
 };
@@ -642,19 +642,19 @@ CREATE CAST FROM std::local_datetime TO std::str {
 
 CREATE CAST FROM std::local_date TO std::str {
     SET volatility := 'STABLE';
-    FROM SQL CAST;
+    USING SQL CAST;
 };
 
 
 CREATE CAST FROM std::local_time TO std::str {
     SET volatility := 'IMMUTABLE';
-    FROM SQL CAST;
+    USING SQL CAST;
 };
 
 
 CREATE CAST FROM std::duration TO std::str {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT regexp_replace(val::text, '[[:<:]]mon(?=s?[[:>:]])', 'month');
     $$;
 };

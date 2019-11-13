@@ -926,7 +926,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         await self.con.execute(r"""
             CREATE FUNCTION con05(a: int64) -> str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT <str>a
                 $$;
         """)
@@ -966,7 +966,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         await self.con.execute(r"""
             CREATE FUNCTION con06(a: int64) -> array<int64>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [a]
                 $$;
         """)

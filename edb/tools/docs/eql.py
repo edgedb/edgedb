@@ -665,7 +665,7 @@ class EQLFunctionDirective(BaseEQLDirective):
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
-                f'CREATE FUNCTION {sig} FROM SQL FUNCTION "xxx";')[0]
+                f'CREATE FUNCTION {sig} USING SQL FUNCTION "xxx";')[0]
         except Exception as ex:
             raise shared.DirectiveParseError(
                 self, f'could not parse function signature {sig!r}',
@@ -687,7 +687,7 @@ class EQLFunctionDirective(BaseEQLDirective):
             ^
             CREATE\sFUNCTION\s
             (?P<f>.*?)
-            \sFROM\sSQL\sFUNCTION
+            \sUSING\sSQL\sFUNCTION
             .*$
         ''', func_repr)
         if not m or not m.group('f'):

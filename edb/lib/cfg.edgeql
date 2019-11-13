@@ -145,7 +145,7 @@ CREATE TYPE cfg::Config {
 CREATE FUNCTION
 cfg::get_config_json() -> std::json
 {
-    FROM SQL $$
+    USING SQL $$
     SELECT jsonb_object_agg(cfg.name, cfg)
     FROM edgedb._read_sys_config() AS cfg
     $$;

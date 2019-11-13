@@ -764,13 +764,13 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
             elif from_function:
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
-                    f'"FROM SQL FUNCTION" is not supported in '
+                    f'"USING SQL FUNCTION" is not supported in '
                     f'user-defined functions',
                     context=self.source_context)
             elif language != qlast.Language.EdgeQL:
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
-                    f'"FROM {language}" is not supported in '
+                    f'"USING {language}" is not supported in '
                     f'user-defined functions',
                     context=self.source_context)
 
@@ -827,7 +827,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                         for f in overloaded_funcs)):
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create the `{signature}` function: '
-                    f'overloading "FROM SQL FUNCTION" functions is '
+                    f'overloading "USING SQL FUNCTION" functions is '
                     f'allowed only when all functions point to the same '
                     f'SQL function',
                     context=self.source_context)

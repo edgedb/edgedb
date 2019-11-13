@@ -24,7 +24,7 @@ CREATE FUNCTION
 std::re_match(pattern: std::str, str: std::str) -> array<std::str>
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT regexp_matches("str", "pattern");
     $$;
 };
@@ -34,7 +34,7 @@ CREATE FUNCTION
 std::re_match_all(pattern: std::str, str: std::str) -> SET OF array<std::str>
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT regexp_matches("str", "pattern", 'g');
     $$;
 };
@@ -44,7 +44,7 @@ CREATE FUNCTION
 std::re_test(pattern: std::str, str: std::str) -> std::bool
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT "str" ~ "pattern";
     $$;
 };
@@ -58,7 +58,7 @@ std::re_replace(
     NAMED ONLY flags: std::str = '') -> std::str
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT regexp_replace("str", "pattern", "sub", "flags");
     $$;
 };

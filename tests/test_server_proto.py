@@ -56,7 +56,7 @@ class TestServerProto(tb.QueryTestCase):
         try:
             await self.con.execute('''
                 CREATE FUNCTION test::testconf() -> bool
-                    FROM SQL $$ SELECT true; $$;
+                    USING SQL $$ SELECT true; $$;
                 DROP FUNCTION test::testconf();
             ''')
         except edgedb.InvalidFunctionDefinitionError:

@@ -1533,18 +1533,18 @@ class OperatorKind(Nonterm):
 
 class OperatorCode(Nonterm):
 
-    def reduce_FROM_Identifier_OPERATOR_BaseStringConstant(self, *kids):
+    def reduce_USING_Identifier_OPERATOR_BaseStringConstant(self, *kids):
         lang = commondl._parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM OPERATOR clause',
+                f'{lang} language is not supported in USING OPERATOR clause',
                 context=kids[1].context) from None
 
         sql_operator = kids[3].val.value
         m = re.match(r'([^(]+)(?:\((\w*(?:,\s*\w*)*)\))?', sql_operator)
         if not m:
             raise EdgeQLSyntaxError(
-                f'invalid syntax for FROM OPERATOR clause',
+                f'invalid syntax for USING OPERATOR clause',
                 context=kids[3].context) from None
 
         sql_operator = (m.group(1),)
@@ -1555,31 +1555,31 @@ class OperatorCode(Nonterm):
         self.val = qlast.OperatorCode(
             language=lang, from_operator=sql_operator)
 
-    def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
+    def reduce_USING_Identifier_FUNCTION_BaseStringConstant(self, *kids):
         lang = commondl._parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM FUNCTION clause',
+                f'{lang} language is not supported in USING FUNCTION clause',
                 context=kids[1].context) from None
 
         self.val = qlast.OperatorCode(language=lang,
                                       from_function=kids[3].val.value)
 
-    def reduce_FROM_Identifier_BaseStringConstant(self, *kids):
+    def reduce_USING_Identifier_BaseStringConstant(self, *kids):
         lang = commondl._parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM clause',
+                f'{lang} language is not supported in USING clause',
                 context=kids[1].context) from None
 
         self.val = qlast.OperatorCode(language=lang,
                                       code=kids[2].val.value)
 
-    def reduce_FROM_Identifier_EXPRESSION(self, *kids):
+    def reduce_USING_Identifier_EXPRESSION(self, *kids):
         lang = commondl._parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM clause',
+                f'{lang} language is not supported in USING clause',
                 context=kids[1].context) from None
 
         self.val = qlast.OperatorCode(language=lang)
@@ -1649,7 +1649,7 @@ class CreateOperatorStmt(Nonterm):
             if isinstance(node, qlast.OperatorCode):
                 if abstract:
                     raise errors.InvalidOperatorDefinitionError(
-                        'unexpected FROM clause in abstract '
+                        'unexpected USING clause in abstract '
                         'operator definition',
                         context=node.context,
                     )
@@ -1657,26 +1657,26 @@ class CreateOperatorStmt(Nonterm):
                 if node.from_function:
                     if from_function is not None:
                         raise errors.InvalidOperatorDefinitionError(
-                            'more than one FROM FUNCTION clause',
+                            'more than one USING FUNCTION clause',
                             context=node.context)
                     from_function = node.from_function
 
                 elif node.from_operator:
                     if from_operator is not None:
                         raise errors.InvalidOperatorDefinitionError(
-                            'more than one FROM OPERATOR clause',
+                            'more than one USING OPERATOR clause',
                             context=node.context)
                     from_operator = node.from_operator
 
                 elif node.code:
                     if code is not None:
                         raise errors.InvalidOperatorDefinitionError(
-                            'more than one FROM <code> clause',
+                            'more than one USING <code> clause',
                             context=node.context)
                     code = node.code
 
                 else:
-                    # FROM SQL EXPRESSION
+                    # USING SQL EXPRESSION
                     from_expr = True
             else:
                 commands.append(node)
@@ -1686,14 +1686,14 @@ class CreateOperatorStmt(Nonterm):
                     and from_function is None
                     and not from_expr):
                 raise errors.InvalidOperatorDefinitionError(
-                    'CREATE OPERATOR requires at least one FROM clause',
+                    'CREATE OPERATOR requires at least one USING clause',
                     context=block.context)
 
             else:
                 if from_expr and (from_operator or from_function or code):
                     raise errors.InvalidOperatorDefinitionError(
-                        'FROM SQL EXPRESSION is mutually exclusive with other '
-                        'FROM variants',
+                        'USING SQL EXPRESSION is mutually exclusive with '
+                        'other USING variants',
                         context=block.context)
 
                 props['code'] = qlast.OperatorCode(
@@ -1774,40 +1774,40 @@ class CastAllowedUse(Nonterm):
 
 class CastCode(Nonterm):
 
-    def reduce_FROM_Identifier_FUNCTION_BaseStringConstant(self, *kids):
+    def reduce_USING_Identifier_FUNCTION_BaseStringConstant(self, *kids):
         lang = commondl._parse_language(kids[1])
         if lang not in {qlast.Language.SQL, qlast.Language.EdgeQL}:
             raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM FUNCTION clause',
+                f'{lang} language is not supported in USING FUNCTION clause',
                 context=kids[1].context) from None
 
         self.val = qlast.CastCode(language=lang,
                                   from_function=kids[3].val.value)
 
-    def reduce_FROM_Identifier_BaseStringConstant(self, *kids):
+    def reduce_USING_Identifier_BaseStringConstant(self, *kids):
         lang = commondl._parse_language(kids[1])
         if lang not in {qlast.Language.SQL, qlast.Language.EdgeQL}:
             raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM clause',
+                f'{lang} language is not supported in USING clause',
                 context=kids[1].context) from None
 
         self.val = qlast.CastCode(language=lang,
                                   code=kids[2].val.value)
 
-    def reduce_FROM_Identifier_CAST(self, *kids):
+    def reduce_USING_Identifier_CAST(self, *kids):
         lang = commondl._parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM CAST clause',
+                f'{lang} language is not supported in USING CAST clause',
                 context=kids[1].context) from None
 
         self.val = qlast.CastCode(language=lang, from_cast=True)
 
-    def reduce_FROM_Identifier_EXPRESSION(self, *kids):
+    def reduce_USING_Identifier_EXPRESSION(self, *kids):
         lang = commondl._parse_language(kids[1])
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
-                f'{lang} language is not supported in FROM EXPRESSION clause',
+                f'{lang} language is not supported in USING EXPRESSION clause',
                 context=kids[1].context) from None
 
         self.val = qlast.CastCode(language=lang)
@@ -1852,33 +1852,33 @@ class CreateCastStmt(Nonterm):
                 if node.from_function:
                     if from_function is not None:
                         raise EdgeQLSyntaxError(
-                            'more than one FROM FUNCTION clause',
+                            'more than one USING FUNCTION clause',
                             context=node.context)
                     from_function = node.from_function
 
                 elif node.code:
                     if code is not None:
                         raise EdgeQLSyntaxError(
-                            'more than one FROM <code> clause',
+                            'more than one USING <code> clause',
                             context=node.context)
                     code = node.code
 
                 elif node.from_cast:
-                    # FROM SQL CAST
+                    # USING SQL CAST
 
                     if from_cast:
                         raise EdgeQLSyntaxError(
-                            'more than one FROM CAST clause',
+                            'more than one USING CAST clause',
                             context=node.context)
 
                     from_cast = True
 
                 else:
-                    # FROM SQL EXPRESSION
+                    # USING SQL EXPRESSION
 
                     if from_expr:
                         raise EdgeQLSyntaxError(
-                            'more than one FROM EXPRESSION clause',
+                            'more than one USING EXPRESSION clause',
                             context=node.context)
 
                     from_expr = True
@@ -1900,20 +1900,20 @@ class CreateCastStmt(Nonterm):
         if (code is None and from_function is None
                 and not from_expr and not from_cast):
             raise EdgeQLSyntaxError(
-                'CREATE CAST requires at least one FROM clause',
+                'CREATE CAST requires at least one USING clause',
                 context=block.context)
 
         else:
             if from_expr and (from_function or code or from_cast):
                 raise EdgeQLSyntaxError(
-                    'FROM SQL EXPRESSION is mutually exclusive with other '
-                    'FROM variants',
+                    'USING SQL EXPRESSION is mutually exclusive with other '
+                    'USING variants',
                     context=block.context)
 
             if from_cast and (from_function or code or from_expr):
                 raise EdgeQLSyntaxError(
-                    'FROM SQL CAST is mutually exclusive with other '
-                    'FROM variants',
+                    'USING SQL CAST is mutually exclusive with other '
+                    'USING variants',
                     context=block.context)
 
             props['code'] = qlast.CastCode(

@@ -36,7 +36,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 CREATE FUNCTION test::func_01(
                     a: anytype
                 ) -> bool
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT a IS float32
                     $$;
             ''')
@@ -52,7 +52,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 CREATE FUNCTION test::func_02(
                     a: anyreal
                 ) -> bool
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT a IS float32
                     $$;
             ''')
@@ -68,7 +68,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 CREATE FUNCTION test::func_03(
                     a: str
                 ) -> anytype
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT a
                     $$;
             ''')
@@ -84,7 +84,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 CREATE FUNCTION test::func_04(
                     a: str
                 ) -> anyscalar
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT a
                     $$;
             ''')
@@ -93,26 +93,26 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::func_05.*'
-                r'FROM SQL FUNCTION.*not supported in '
+                r'USING SQL FUNCTION.*not supported in '
                 r'user-defined functions'):
             await self.con.execute('''
                 CREATE FUNCTION test::func_05(
                     a: str
                 ) -> str
-                    FROM SQL FUNCTION 'lower';
+                    USING SQL FUNCTION 'lower';
             ''')
 
     async def test_edgeql_userddl_06(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::func_06.*'
-                r'FROM SQL.*not supported in '
+                r'USING SQL.*not supported in '
                 r'user-defined functions'):
             await self.con.execute('''
                 CREATE FUNCTION test::func_06(
                     a: str
                 ) -> str
-                    FROM SQL $$ SELECT "a" $$;
+                    USING SQL $$ SELECT "a" $$;
             ''')
 
     async def test_edgeql_userddl_07(self):
@@ -122,7 +122,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE INFIX OPERATOR
                 std::`+` (l: std::str, r: std::str) -> std::str
-                    FROM SQL OPERATOR r'||';
+                    USING SQL OPERATOR r'||';
             ''')
 
     async def test_edgeql_userddl_08(self):
@@ -131,7 +131,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 r'user-defined casts are not supported'):
             await self.con.execute('''
                 CREATE CAST FROM std::int64 TO std::duration {
-                    FROM SQL CAST;
+                    USING SQL CAST;
                     ALLOW ASSIGNMENT;
                 };
             ''')
@@ -144,7 +144,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 CREATE FUNCTION std::func_09(
                     a: str
                 ) -> str
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT a
                     $$;
             ''')
@@ -157,7 +157,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 CREATE FUNCTION math::func_10(
                     a: str
                 ) -> str
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT a
                     $$;
             ''')
@@ -240,7 +240,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 CREATE FUNCTION test::func_19(
                     a: SET OF str
                 ) -> bool
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT EXISTS a
                     $$;
             ''')
@@ -250,7 +250,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
             CREATE FUNCTION test::func_20(
                 a: str
             ) -> SET OF str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT {a, 'a'}
                 $$;
         ''')
@@ -278,7 +278,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                     a: str
                 ) -> bool
                 {
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT True;
                     $$;
                     SET force_return_cast := true;

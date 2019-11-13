@@ -35,7 +35,7 @@ ALTER TYPE stdgraphql::Mutation {
 
 CREATE FUNCTION stdgraphql::short_name(name: str) -> str {
     SET volatility := 'IMMUTABLE';
-    FROM EdgeQL $$
+    USING EdgeQL $$
         SELECT (
             name[5:] IF name LIKE 'std::%' ELSE
             name[9:] IF name LIKE 'default::%' ELSE

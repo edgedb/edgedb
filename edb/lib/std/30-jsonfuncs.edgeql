@@ -24,7 +24,7 @@ CREATE FUNCTION
 std::json_typeof(json: std::json) -> std::str
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'jsonb_typeof';
+    USING SQL FUNCTION 'jsonb_typeof';
 };
 
 
@@ -32,7 +32,7 @@ CREATE FUNCTION
 std::json_array_unpack(array: std::json) -> SET OF std::json
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'jsonb_array_elements';
+    USING SQL FUNCTION 'jsonb_array_elements';
 };
 
 
@@ -40,7 +40,7 @@ CREATE FUNCTION
 std::json_object_unpack(obj: std::json) -> SET OF tuple<std::str, std::json>
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL FUNCTION 'jsonb_each';
+    USING SQL FUNCTION 'jsonb_each';
     # jsonb_each is defined as (jsonb, OUT key text, OUT value jsonb),
     # and, quite perprexingly, would reject a column definition list
     # with `a column definition list is only allowed for functions
@@ -58,7 +58,7 @@ std::json_get(
     NAMED ONLY default: OPTIONAL std::json={}) -> OPTIONAL std::json
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT COALESCE(
         jsonb_extract_path("json", VARIADIC "path"),
         "default"
@@ -70,56 +70,56 @@ std::json_get(
 CREATE INFIX OPERATOR
 std::`=` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::json, r: OPTIONAL std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::json, r: OPTIONAL std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '>=';
+    USING SQL OPERATOR '>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '>';
+    USING SQL OPERATOR '>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '<=';
+    USING SQL OPERATOR '<=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '<';
+    USING SQL OPERATOR '<';
 };
 
 
@@ -129,7 +129,7 @@ std::`<` (l: std::json, r: std::json) -> std::bool {
 # availability.
 CREATE CAST FROM array<anytype> TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
@@ -137,13 +137,13 @@ CREATE CAST FROM array<anytype> TO std::json {
 # availability.
 CREATE CAST FROM anytuple TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE CAST FROM std::json TO array<json> {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
         SELECT array_agg(j)
         FROM jsonb_array_elements(val) AS j
     $$;
@@ -154,91 +154,91 @@ CREATE CAST FROM std::json TO array<json> {
 # generic and STABLE volatility may be an overestimation in many cases.
 CREATE CAST FROM std::bool TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::uuid TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::str TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::datetime TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::local_datetime TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::local_date TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::local_time TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::duration TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::int16 TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::int32 TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::int64 TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::float32 TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::float64 TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::decimal TO std::json {
     SET volatility := 'STABLE';
-    FROM SQL FUNCTION 'to_jsonb';
+    USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::json TO std::bool  {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'boolean')::bool;
     $$;
 };
@@ -246,7 +246,7 @@ CREATE CAST FROM std::json TO std::bool  {
 
 CREATE CAST FROM std::json TO std::uuid {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::uuid;
     $$;
 };
@@ -254,7 +254,7 @@ CREATE CAST FROM std::json TO std::uuid {
 
 CREATE CAST FROM std::json TO std::str {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string');
     $$;
 };
@@ -262,7 +262,7 @@ CREATE CAST FROM std::json TO std::str {
 
 CREATE CAST FROM std::json TO std::datetime {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.datetime_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 };
@@ -270,7 +270,7 @@ CREATE CAST FROM std::json TO std::datetime {
 
 CREATE CAST FROM std::json TO std::local_datetime {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.local_datetime_in(
         edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
@@ -279,7 +279,7 @@ CREATE CAST FROM std::json TO std::local_datetime {
 
 CREATE CAST FROM std::json TO std::local_date {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.local_date_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 };
@@ -287,7 +287,7 @@ CREATE CAST FROM std::json TO std::local_date {
 
 CREATE CAST FROM std::json TO std::local_time {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.local_time_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 };
@@ -295,7 +295,7 @@ CREATE CAST FROM std::json TO std::local_time {
 
 CREATE CAST FROM std::json TO std::duration {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::interval;
     $$;
 };
@@ -303,7 +303,7 @@ CREATE CAST FROM std::json TO std::duration {
 
 CREATE CAST FROM std::json TO std::int16 {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::int2;
     $$;
 };
@@ -311,7 +311,7 @@ CREATE CAST FROM std::json TO std::int16 {
 
 CREATE CAST FROM std::json TO std::int32 {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::int4;
     $$;
 };
@@ -319,7 +319,7 @@ CREATE CAST FROM std::json TO std::int32 {
 
 CREATE CAST FROM std::json TO std::int64 {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::int8;
     $$;
 };
@@ -327,7 +327,7 @@ CREATE CAST FROM std::json TO std::int64 {
 
 CREATE CAST FROM std::json TO std::float32 {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::float4;
     $$;
 };
@@ -335,7 +335,7 @@ CREATE CAST FROM std::json TO std::float32 {
 
 CREATE CAST FROM std::json TO std::float64 {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::float8;
     $$;
 };
@@ -343,7 +343,7 @@ CREATE CAST FROM std::json TO std::float64 {
 
 CREATE CAST FROM std::json TO std::decimal {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::numeric;
     $$;
 };

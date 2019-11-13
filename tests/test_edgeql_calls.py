@@ -34,7 +34,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY suffix: str = '-suf',
                 NAMED ONLY prefix: str = 'pref-'
             ) -> std::str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT prefix ++ s ++ <str>sum(array_unpack(a)) ++ suffix;
                 $$;
         ''')
@@ -102,7 +102,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call2(
                 VARIADIC a: anytype
             ) -> std::str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT '=' ++ <str>len(a) ++ '='
                 $$;
         ''')
@@ -122,7 +122,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: int32,
                 NAMED ONLY b: int32
             ) -> int32
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a + b
                 $$;
         ''')
@@ -150,7 +150,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: int32,
                 NAMED ONLY b: array<anytype> = []
             ) -> int32
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a + len(b)
                 $$;
         ''')
@@ -180,7 +180,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: int64,
                 NAMED ONLY b: OPTIONAL int64 = <int64>{}
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a + b ?? -100
                 $$;
         ''')
@@ -210,7 +210,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call6(
                 VARIADIC a: int64
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT <int64>sum(array_unpack(a));;
                 $$;
         ''')
@@ -239,7 +239,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY d: int64 = 4,
                 NAMED ONLY e: int64 = 5
             ) -> array<int64>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [a, b, c, d, e]
                 $$;
         ''')
@@ -297,7 +297,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: int64 = 1,
                 NAMED ONLY b: int64 = 2
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a + b
                 $$;
 
@@ -305,7 +305,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: float64 = 1.0,
                 NAMED ONLY b: int64 = 2
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT 1000 + <int64>a + b
                 $$;
         ''')
@@ -442,7 +442,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call11(
                 a: array<int32>
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT sum(array_unpack(a))
                 $$;
         ''')
@@ -484,14 +484,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call12(
                 a: anyint
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT <int64>a + 100
                 $$;
 
             CREATE FUNCTION test::call12(
                 a: int64
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT <int64>a + 1
                 $$;
         ''')
@@ -511,14 +511,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::inner(
                 a: anytype
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT 1;
                 $$;
 
             CREATE FUNCTION test::call13(
                 a: anytype
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT test::inner(a)
                 $$;
         ''')
@@ -547,14 +547,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::inner(
                 a: str
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT 2;
                 $$;
 
             CREATE FUNCTION test::call13_2(
                 a: anytype
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT test::inner(a)
                 $$;
         ''')
@@ -584,7 +584,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call14(
                 a: anytype
             ) -> array<anytype>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [a]
                 $$;
         ''')
@@ -609,7 +609,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call15(
                 a: anytype
             ) -> array<anytype>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [a, a, a]
                 $$;
         ''')
@@ -630,7 +630,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: array<anytype>,
                 idx: int64
             ) -> anytype
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a[idx]
                 $$;
 
@@ -638,7 +638,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: array<anytype>,
                 idx: str
             ) -> anytype
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a[<int64>idx + 1]
                 $$;
 
@@ -646,7 +646,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: anyscalar,
                 idx: int64
             ) -> anytype
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a[idx]
                 $$;
         ''')
@@ -681,14 +681,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call17(
                 a: anytype
             ) -> array<anytype>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [a, a, a]
                 $$;
 
             CREATE FUNCTION test::call17(
                 a: str
             ) -> array<str>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT ['!!!!', a, '!!!!']
                 $$;
         ''')
@@ -708,7 +708,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call18(
                 VARIADIC a: anytype
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT len(a)
                 $$;
         ''')
@@ -745,7 +745,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call19(
                 a: anytype
             ) -> array<anytype>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [a]
                 $$;
         ''')
@@ -761,14 +761,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call20_1(
                 a: anyreal, b: anyreal
             ) -> anyreal
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a + b
                 $$;
 
             CREATE FUNCTION test::call20_2(
                 a: anyscalar, b: anyscalar
             ) -> bool
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a < b
                 $$;
         ''')
@@ -799,7 +799,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call21(
                 a: array<anytype>
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT len(a)
                 $$;
         ''')
@@ -829,14 +829,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call22(
                 a: str, b: str
             ) -> str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a ++ b
                 $$;
 
             CREATE FUNCTION test::call22(
                 a: array<anytype>, b: array<anytype>
             ) -> array<anytype>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a ++ b
                 $$;
         ''')
@@ -859,7 +859,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: anytype,
                 idx: int64
             ) -> anytype
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a[idx]
                 $$;
 
@@ -867,7 +867,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: anytype,
                 idx: int32
             ) -> anytype
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a[-idx:]
                 $$;
         ''')
@@ -894,14 +894,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
     async def test_edgeql_calls_24(self):
         await self.con.execute('''
             CREATE FUNCTION test::call24() -> str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT 'ab' ++ 'cd'
                 $$;
 
             CREATE FUNCTION test::call24(
                 a: str
             ) -> str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a ++ '!'
                 $$;
         ''')
@@ -921,7 +921,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call26(
                 a: array<anyscalar>
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT len(a)
                 $$;
         ''')
@@ -947,7 +947,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call27(
                 a: array<anyint>
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT len(a)
                 $$;
         ''')
@@ -983,14 +983,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call28(
                 a: array<anyint>
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT len(a)
                 $$;
 
             CREATE FUNCTION test::call28(
                 a: array<anyscalar>
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT len(a) + 1000
                 $$;
         ''')
@@ -1015,7 +1015,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call29(
                 a: anyint
             ) -> anyint
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a + 1
                 $$;
         ''')
@@ -1030,7 +1030,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call30(
                 a: anyint
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT <int64>a + 100
                 $$;
         ''')
@@ -1050,7 +1050,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call31(
                 a: anytype
             ) -> anytype
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a
                 $$;
         ''')
@@ -1130,7 +1130,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call32(
                 a: anytype, b: anytype
             ) -> anytype
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a ++ b
                 $$;
         ''')
@@ -1150,7 +1150,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: tuple<int64, tuple<int64>>,
                 b: tuple<foo: int64, bar: str>
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a.0 + b.foo
                 $$;
         ''')
@@ -1169,7 +1169,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 CREATE FUNCTION test::call33_2(
                     a: array<tuple<int64, int64>>
                 ) -> int64
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT a[0].0
                     $$;
             ''')
@@ -1181,7 +1181,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::call34(
                 a: int64
             ) -> tuple<int64, tuple<foo: int64>>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT (a, ((a + 1),))
                 $$;
         ''')
@@ -1207,7 +1207,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 CREATE FUNCTION test::call34_2(
                     a: int64
                 ) -> array<tuple<int64>>
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT [(a,)]
                     $$;
             ''')
@@ -1219,7 +1219,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: int64 = 1,
                 b: int64 = 2
             ) -> int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a + b
                 $$;
         ''')
