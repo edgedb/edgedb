@@ -2494,7 +2494,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello01(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$
         """)
@@ -2508,7 +2508,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # in principle)
         await self._migrate(r"""
             function hello01(a: int64, b: int64=42) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>(a + b)
                 $$
         """)
@@ -2529,7 +2529,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello02(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$
         """)
@@ -2543,7 +2543,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # in principle)
         await self._migrate(r"""
             function hello02(a: int64, b: OPTIONAL int64=42) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>(a + b)
                 $$
         """)
@@ -2564,7 +2564,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello03(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$
         """)
@@ -2578,7 +2578,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # in principle)
         await self._migrate(r"""
             function hello03(a: int64, NAMED ONLY b: int64=42) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>(a + b)
                 $$
         """)
@@ -2599,7 +2599,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello04(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$
         """)
@@ -2612,7 +2612,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # same parameters, different return type
         await self._migrate(r"""
             function hello04(a: int64) -> int64
-                from edgeql $$
+                using edgeql $$
                     SELECT -a
                 $$
         """)
@@ -2628,7 +2628,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello05(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT <str>a
                 $$
         """)
@@ -2641,7 +2641,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # same parameters, different return type (array)
         await self._migrate(r"""
             function hello05(a: int64) -> array<int64>
-                from edgeql $$
+                using edgeql $$
                     SELECT [a]
                 $$
         """)
@@ -2672,7 +2672,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello06(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT <str>a
                 $$;
 
@@ -2695,7 +2695,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # same parameters, different return type (array)
         await self._migrate(r"""
             function hello06(a: int64) -> array<int64>
-                from edgeql $$
+                using edgeql $$
                     SELECT [a]
                 $$;
 
@@ -2721,7 +2721,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello07(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT <str>a
                 $$;
 
@@ -2742,7 +2742,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # same parameters, different return type (array)
         await self._migrate(r"""
             function hello07(a: int64) -> array<int64>
-                from edgeql $$
+                using edgeql $$
                     SELECT [a]
                 $$;
 
@@ -2763,7 +2763,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello08(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT <str>a
                 $$;
 
@@ -2779,7 +2779,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # same parameters, different return type (array)
         await self._migrate(r"""
             function hello08(a: int64) -> array<int64>
-                from edgeql $$
+                using edgeql $$
                     SELECT [a]
                 $$;
 
@@ -2798,7 +2798,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello09(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT <str>a
                 $$;
 
@@ -2823,7 +2823,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # same parameters, different return type (array)
         await self._migrate(r"""
             function hello09(a: int64) -> array<int64>
-                from edgeql $$
+                using edgeql $$
                     SELECT [a]
                 $$;
 
@@ -2860,7 +2860,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello10(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT <str>a
                 $$;
 
@@ -2883,7 +2883,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # same parameters, different return type (array)
         await self._migrate(r"""
             function hello10(a: int64) -> array<int64>
-                from edgeql $$
+                using edgeql $$
                     SELECT [a]
                 $$;
 
@@ -2906,7 +2906,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello11(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$
         """)
@@ -2919,7 +2919,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             # replace the function with a new one by the same name
             function hello11(a: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ a
                 $$
         """)
@@ -2943,7 +2943,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello12(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$;
         """)
@@ -2955,13 +2955,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self._migrate(r"""
             function hello12(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$;
 
             # make the function polymorphic
             function hello12(a: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ a
                 $$;
         """)
@@ -2985,12 +2985,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             # start with a polymorphic function
             function hello13(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$;
 
             function hello13(a: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ a
                 $$;
         """)
@@ -3007,7 +3007,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self._migrate(r"""
             # remove one of the 2 versions
             function hello13(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$;
         """)
@@ -3031,7 +3031,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello14(a: str, b: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT a ++ b
                 $$
         """)
@@ -3045,7 +3045,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             # Replace the function with a new one by the same name,
             # but working with arrays.
             function hello14(a: array<str>, b: array<str>) -> array<str>
-                from edgeql $$
+                using edgeql $$
                     SELECT a ++ b
                 $$
         """)
@@ -3070,7 +3070,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
         await self._migrate(r"""
             function hello15(a: str, b: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT a ++ b
                 $$
         """)
@@ -3084,7 +3084,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             # Replace the function with a new one by the same name,
             # but working with arrays.
             function hello15(a: tuple<str, str>) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT a.0 ++ a.1
                 $$
         """)

@@ -941,20 +941,20 @@ abstract property foo {
     def test_eschema_syntax_function_01(self):
         """
         function len() -> std::int64
-            from sql function 'length';
+            using sql function 'length';
         """
 
     def test_eschema_syntax_function_02(self):
         r"""
         function some_func(foo: std::int64 = 42) -> std::str
-            from sql $$
+            using sql $$
                 SELECT 'life';
             $$;
 
 % OK %
 
         function some_func(foo: std::int64 = 42) -> std::str
-            from sql $$
+            using sql $$
                 SELECT 'life';
             $$;
         """
@@ -962,7 +962,7 @@ abstract property foo {
     def test_eschema_syntax_function_03(self):
         r"""
         function some_func(foo: std::int64 = 42) -> std::str
-            from edgeql $$
+            using edgeql $$
                 SELECT 'life';
             $$;
         """
@@ -972,7 +972,7 @@ abstract property foo {
         function myfunc(arg1: str, arg2: str = 'DEFAULT',
                         variadic arg3: std::int64) -> set of int {
             annotation description := 'myfunc sample';
-            from sql
+            using sql
                 $$SELECT blarg;$$;
         };
         """
@@ -984,7 +984,7 @@ abstract property foo {
                         variadic arg3: std::int64,
                         named only arg4: std::int64,
                         named only arg5: std::int64) -> set of int
-            from edgeql $$
+            using edgeql $$
                 SELECT blarg
             $$;
         """
@@ -993,7 +993,7 @@ abstract property foo {
         """
         function some_func(foo: std::int64 = 42) -> std::str {
             initial_value := 'bad';
-            from edgeql $$
+            using edgeql $$
                 SELECT 'life'
             $$;
         };
@@ -1002,31 +1002,31 @@ abstract property foo {
     def test_eschema_syntax_function_07(self):
         """
         function some_func(foo: std::int64 = bar(42)) -> std::str
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         """
 
     def test_eschema_syntax_function_08(self):
         """
         function some_func(foo: str = ')') -> std::str
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         """
 
     def test_eschema_syntax_function_09(self):
         """
         function some_func(foo: str = $$)$$) -> std::str
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         """
 
     def test_eschema_syntax_function_10(self):
         """
         function some_func(foo: str = $a1$)$a1$) -> std::str
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         """
 
     def test_eschema_syntax_function_11(self):
         """
         function some_func(`(`: str = ')') -> std::str
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -1035,7 +1035,7 @@ abstract property foo {
     def test_eschema_syntax_function_12(self):
         """
         function some_func($`(`: str = ) ) -> std::str {
-            from edgeql function 'some_other_func';
+            using edgeql function 'some_other_func';
         }
         """
 
@@ -1044,7 +1044,7 @@ abstract property foo {
         function some_func(`(`:
                 str = ')',
                 bar: int = bar()) -> std::str
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         """
 
     def test_eschema_syntax_function_15(self):
@@ -1053,7 +1053,7 @@ abstract property foo {
                     str,
                     array<tuple<int, str>>
                 >
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         """
 
     def test_eschema_syntax_function_16(self):
@@ -1062,7 +1062,7 @@ abstract property foo {
                     str,
                     array<tuple<int, `Foo:>`>>
                 >
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '>'",
@@ -1073,89 +1073,89 @@ abstract property foo {
                     str,
                     array<tuple<int, Foo>>>
                 > {
-            from sql function 'some_other_func';
+            using sql function 'some_other_func';
         };
         """
 
     def test_eschema_syntax_function_18(self):
         """
         function len1() -> std::int64
-            from sql function 'length1';
+            using sql function 'length1';
 
         function len2() -> std::int64
-            from sql function 'length2';
+            using sql function 'length2';
 
         function len3() -> std::int64
-            from sql function 'length3';
+            using sql function 'length3';
 
         function len4() -> std::int64
-            from sql function 'length4';
+            using sql function 'length4';
 
 % OK %
 
         function len1() ->  std::int64
-            from SQL function 'length1';
+            using SQL function 'length1';
         function len2() ->  std::int64
-            from SQL function 'length2';
+            using SQL function 'length2';
         function len3() ->  std::int64
-            from SQL function 'length3';
+            using SQL function 'length3';
         function len4() ->  std::int64
-            from SQL function 'length4';
+            using SQL function 'length4';
         """
 
     def test_eschema_syntax_function_19(self):
         """
         function len1() ->  std::int64 {
-            from SQL function 'length1'
+            using SQL function 'length1'
         }
         function len2() ->  std::int64 {
-            from SQL function 'length2'
+            using SQL function 'length2'
         }
         function len3() ->  std::int64 {
-            from SQL function 'length3'
+            using SQL function 'length3'
         }
         function len4() ->  std::int64 {
-            from SQL function 'length4'
+            using SQL function 'length4'
         }
 
 
 % OK %
 
         function len1() ->  std::int64
-            from SQL function 'length1';
+            using SQL function 'length1';
         function len2() ->  std::int64
-            from SQL function 'length2';
+            using SQL function 'length2';
         function len3() ->  std::int64
-            from SQL function 'length3';
+            using SQL function 'length3';
         function len4() ->  std::int64
-            from SQL function 'length4';
+            using SQL function 'length4';
         """
 
     def test_eschema_syntax_function_20(self):
         """
         function len1() ->  std::int64 {
-            from SQL function 'length1'
+            using SQL function 'length1'
         }
         function len2() ->  std::int64
-            from SQL function 'length2';
+            using SQL function 'length2';
 
         function len3() ->  std::int64 {
-            from SQL function 'length3'
+            using SQL function 'length3'
         }
         function len4() ->  std::int64
-            from SQL function 'length4';
+            using SQL function 'length4';
 
 
 % OK %
 
         function len1() ->  std::int64
-            from SQL function 'length1';
+            using SQL function 'length1';
         function len2() ->  std::int64
-            from SQL function 'length2';
+            using SQL function 'length2';
         function len3() ->  std::int64
-            from SQL function 'length3';
+            using SQL function 'length3';
         function len4() ->  std::int64
-            from SQL function 'length4';
+            using SQL function 'length4';
         """
 
     def test_eschema_syntax_view_01(self):

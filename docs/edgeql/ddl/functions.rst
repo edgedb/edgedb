@@ -21,7 +21,7 @@ CREATE FUNCTION
 
     [ WITH <with-item> [, ...] ]
     CREATE FUNCTION <name> ([ <argspec> ] [, ... ]) -> <returnspec>
-    FROM <language> <functionbody> ;
+    USING <language> <functionbody> ;
 
     [ WITH <with-item> [, ...] ]
     CREATE FUNCTION <name> ([ <argspec> ] [, ... ]) -> <returnspec>
@@ -47,7 +47,7 @@ CREATE FUNCTION
 
       SET session_only := {true | false}
       SET ANNOTATION <annotation-name> := <value>
-      FROM <language> <functionbody>
+      USING <language> <functionbody>
 
 
 Description
@@ -149,7 +149,7 @@ block:
 
     See :eql:stmt:`SET ANNOTATION` for details.
 
-:eql:synopsis:`FROM <language> <functionbody>`
+:eql:synopsis:`USING <language> <functionbody>`
     See the meaning of *language* and *functionbody* above.
 
 
@@ -161,7 +161,7 @@ Define a function returning the sum of its arguments:
 .. code-block:: edgeql
 
     CREATE FUNCTION mysum(a: int64, b: int64) -> int64
-    FROM edgeql $$
+    USING edgeql $$
         SELECT a + b;
     $$;
 
@@ -170,7 +170,7 @@ The same, but using a variadic argument:
 .. code-block:: edgeql
 
     CREATE FUNCTION mysum(VARIADIC argv: int64) -> int64
-    FROM edgeql $$
+    USING edgeql $$
         SELECT sum(array_unpack(argv));
     $$;
 
@@ -179,7 +179,7 @@ Define a function using the block syntax:
 .. code-block:: edgeql
 
     CREATE FUNCTION mysum(a: int64, b: int64) -> int64 {
-        FROM edgeql $$
+        USING edgeql $$
             SELECT a + b;
         $$;
         SET ANNOTATION title := "My sum function.";

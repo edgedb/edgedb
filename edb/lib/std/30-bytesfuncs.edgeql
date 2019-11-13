@@ -24,7 +24,7 @@ CREATE FUNCTION
 std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT get_bit("bytes", "num"::int)::bigint
     $$;
 };
@@ -37,61 +37,61 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 CREATE INFIX OPERATOR
 std::`=` (l: std::bytes, r: std::bytes) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::bytes, r: std::bytes) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`++` (l: std::bytes, r: std::bytes) -> std::bytes {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'||';
+    USING SQL OPERATOR r'||';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::bytes, r: std::bytes) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '>=';
+    USING SQL OPERATOR '>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::bytes, r: std::bytes) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '>';
+    USING SQL OPERATOR '>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::bytes, r: std::bytes) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '<=';
+    USING SQL OPERATOR '<=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::bytes, r: std::bytes) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '<';
+    USING SQL OPERATOR '<';
 };

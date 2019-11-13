@@ -17,7 +17,7 @@ the end of the that string:
 .. code-block:: sdl
 
     function foo(s: str) -> str
-        from EdgeQL $$
+        using EdgeQL $$
             SELECT s ++ <str>len(a)
         $$;
 
@@ -31,13 +31,13 @@ commands <ref_eql_ddl_functions>`.
 .. sdl:synopsis::
 
     function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
-    from <language> <functionbody> ;
+    using <language> <functionbody> ;
 
     function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     "{"
         session_only := {true | false} ;
         [ <annotation-declarations> ]
-        from <language> <functionbody> ;
+        using <language> <functionbody> ;
     "}" ;
 
     # where <argspec> is:

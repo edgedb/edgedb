@@ -35,7 +35,7 @@ std::to_str(dt: std::datetime, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("dt")::text, '"')
@@ -63,7 +63,7 @@ std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("td")::text, '"')
@@ -91,7 +91,7 @@ std::to_str(dt: std::local_datetime, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             trim(to_json("dt")::text, '"')
@@ -119,7 +119,7 @@ std::to_str(d: std::local_date, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
@@ -153,7 +153,7 @@ std::to_str(nt: std::local_time, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "nt"::text
@@ -186,7 +186,7 @@ std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "i"::text
@@ -214,7 +214,7 @@ std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "f"::text
@@ -242,7 +242,7 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "d"::text
@@ -274,7 +274,7 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "json"::text
@@ -303,7 +303,7 @@ CREATE FUNCTION
 std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
 {
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT array_to_string("array", "delimiter");
     $$;
 };
@@ -314,7 +314,7 @@ std::to_json(str: std::str) -> std::json
 {
     # Casting of jsonb to and from text in PostgreSQL is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT "str"::jsonb
     $$;
 };
@@ -325,7 +325,7 @@ std::to_datetime(s: std::str, fmt: OPTIONAL str={}) -> std::datetime
 {
     # Helper function to_datetime is VOLATILE.
     SET volatility := 'VOLATILE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             edgedb.datetime_in("s")
@@ -354,7 +354,7 @@ std::to_datetime(local: std::local_datetime, zone: std::str)
 {
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT timezone("zone", "local");
     $$;
 };
@@ -368,7 +368,7 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
 {
     # make_timestamptz is STABLE
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT make_timestamptz(
         "year"::int, "month"::int, "day"::int,
         "hour"::int, "min"::int, "sec", "timezone"
@@ -383,7 +383,7 @@ std::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
 {
     # Helper function to_local_datetime is VOLATILE.
     SET volatility := 'VOLATILE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             edgedb.local_datetime_in("s")
@@ -412,7 +412,7 @@ std::to_local_datetime(year: std::int64, month: std::int64, day: std::int64,
     -> std::local_datetime
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT make_timestamp(
         "year"::int, "month"::int, "day"::int,
         "hour"::int, "min"::int, "sec"
@@ -427,7 +427,7 @@ std::to_local_datetime(dt: std::datetime, zone: std::str)
 {
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT timezone("zone", "dt");
     $$;
 };
@@ -438,7 +438,7 @@ std::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> std::local_date
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             edgedb.local_date_in("s")
@@ -467,7 +467,7 @@ std::to_local_date(dt: std::datetime, zone: std::str)
 {
     # The version of timezone with these arguments is IMMUTABLE.
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT timezone("zone", "dt")::date;
     $$;
 };
@@ -478,7 +478,7 @@ std::to_local_date(year: std::int64, month: std::int64, day: std::int64)
     -> std::local_date
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT make_date("year"::int, "month"::int, "day"::int)
     $$;
 };
@@ -489,7 +489,7 @@ std::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> std::local_time
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             edgedb.local_time_in("s")
@@ -519,7 +519,7 @@ std::to_local_time(dt: std::datetime, zone: std::str)
     # The version of timezone with these arguments is IMMUTABLE and so
     # is the cast.
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT timezone("zone", "dt")::time;
     $$;
 };
@@ -530,7 +530,7 @@ std::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
     -> std::local_time
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT make_time("hour"::int, "min"::int, "sec")
     $$;
 };
@@ -548,7 +548,7 @@ std::to_duration(
     ) -> std::duration
 {
     SET volatility := 'IMMUTABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT make_interval(
         "years"::int,
         "months"::int,
@@ -567,7 +567,7 @@ std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "s"::numeric
@@ -595,7 +595,7 @@ std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "s"::bigint
@@ -623,7 +623,7 @@ std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "s"::int
@@ -651,7 +651,7 @@ std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "s"::smallint
@@ -679,7 +679,7 @@ std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "s"::float8
@@ -707,7 +707,7 @@ std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
 {
     # Helper functions raising exceptions are STABLE.
     SET volatility := 'STABLE';
-    FROM SQL $$
+    USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
             "s"::float4

@@ -323,7 +323,7 @@ _123456789_123456789_123456789 -> str
         schema = self.run_ddl(schema, '''
             CREATE FUNCTION
             test::my_contains(arr: array<anytype>, val: anytype) -> bool {
-                FROM edgeql $$
+                USING edgeql $$
                     SELECT contains(arr, val);
                 $$;
             };
@@ -498,7 +498,7 @@ _123456789_123456789_123456789 -> str
 
         schema = self.run_ddl(schema, '''
             CREATE FUNCTION test::foo (a: int64) -> int64
-            FROM EdgeQL $$ SELECT a; $$;
+            USING EdgeQL $$ SELECT a; $$;
         ''')
 
         self.assertEqual(
@@ -797,7 +797,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             function get_ingredients(
                 recipe: Recipe
             ) -> tuple<name: str, quantity: decimal> {
-                from edgeql $$
+                using edgeql $$
                     SELECT (
                         name := recipe.ingredients.name,
                         quantity := recipe.ingredients.quantity,
@@ -1882,12 +1882,12 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_function_01(self):
         self._assert_migration_equivalence([r"""
             function hello01(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$
         """, r"""
             function hello01(a: int64, b: int64=42) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>(a + b)
                 $$
         """])
@@ -1895,7 +1895,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_function_06(self):
         self._assert_migration_equivalence([r"""
             function hello06(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT <str>a
                 $$;
 
@@ -1907,7 +1907,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """, r"""
             function hello06(a: int64) -> array<int64>
-                from edgeql $$
+                using edgeql $$
                     SELECT [a]
                 $$;
 
@@ -1922,7 +1922,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_function_10(self):
         self._assert_migration_equivalence([r"""
             function hello10(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT <str>a
                 $$;
 
@@ -1934,7 +1934,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """, r"""
             function hello10(a: int64) -> array<int64>
-                from edgeql $$
+                using edgeql $$
                     SELECT [a]
                 $$;
 
@@ -1949,13 +1949,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_function_11(self):
         self._assert_migration_equivalence([r"""
             function hello11(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$
         """, r"""
             # replace the function with a new one by the same name
             function hello11(a: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ a
                 $$
         """])
@@ -1963,18 +1963,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_function_12(self):
         self._assert_migration_equivalence([r"""
             function hello12(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$;
         """, r"""
             function hello12(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$;
 
             # make the function polymorphic
             function hello12(a: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ a
                 $$;
         """])
@@ -1984,18 +1984,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         self._assert_migration_equivalence([r"""
             # start with a polymorphic function
             function hello13(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$;
 
             function hello13(a: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ a
                 $$;
         """, r"""
             # remove one of the 2 versions
             function hello13(a: int64) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT 'hello' ++ <str>a
                 $$;
         """])
@@ -2003,14 +2003,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_function_14(self):
         self._assert_migration_equivalence([r"""
             function hello14(a: str, b: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT a ++ b
                 $$
         """, r"""
             # Replace the function with a new one by the same name,
             # but working with arrays.
             function hello14(a: array<str>, b: array<str>) -> array<str>
-                from edgeql $$
+                using edgeql $$
                     SELECT a ++ b
                 $$
         """])
@@ -2018,14 +2018,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def test_migrations_equivalence_function_15(self):
         self._assert_migration_equivalence([r"""
             function hello15(a: str, b: str) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT a ++ b
                 $$
         """, r"""
             # Replace the function with a new one by the same name,
             # but working with arrays.
             function hello15(a: tuple<str, str>) -> str
-                from edgeql $$
+                using edgeql $$
                     SELECT a.0 ++ a.1
                 $$
         """])
@@ -2886,7 +2886,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             function std::array_agg(s: SET OF anytype) ->  array<anytype> {
                 volatility := 'IMMUTABLE';
-                from sql;
+                using sql;
             };
             """,
 
@@ -2895,7 +2895,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             r"""
             function stdgraphql::short_name(name: std::str) -> std::str {
                 volatility := 'IMMUTABLE';
-                from edgeql $$
+                using edgeql $$
                     SELECT (
                         name[5:] IF name LIKE 'std::%' ELSE
                         name[9:] IF name LIKE 'default::%' ELSE

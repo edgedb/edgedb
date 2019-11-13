@@ -53,7 +53,7 @@ sys::sleep(duration: std::float64) -> std::bool
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
-    FROM SQL $$
+    USING SQL $$
     SELECT pg_sleep("duration") IS NOT NULL;
     $$;
 };
@@ -65,7 +65,7 @@ sys::sleep(duration: std::duration) -> std::bool
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
-    FROM SQL $$
+    USING SQL $$
     SELECT pg_sleep_for("duration") IS NOT NULL;
     $$;
 };
@@ -77,7 +77,7 @@ sys::advisory_lock(key: std::int64) -> std::bool
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
-    FROM SQL $$
+    USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb._raise_exception('lock key cannot be negative', NULL::bool)
     ELSE
@@ -93,7 +93,7 @@ sys::advisory_unlock(key: std::int64) -> std::bool
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
-    FROM SQL $$
+    USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb._raise_exception('lock key cannot be negative', NULL::bool)
     ELSE
@@ -109,7 +109,7 @@ sys::advisory_unlock_all() -> std::bool
     # This function has side-effect.
     SET volatility := 'VOLATILE';
     SET session_only := True;
-    FROM SQL $$
+    USING SQL $$
     SELECT pg_advisory_unlock_all() IS NOT NULL;
     $$;
 };
@@ -130,7 +130,7 @@ sys::__version_internal() -> tuple<major: std::int64,
 {
     # This function reads external data.
     SET volatility := 'VOLATILE';
-    FROM SQL $$
+    USING SQL $$
     SELECT
         (v ->> 'major')::int8,
         (v ->> 'minor')::int8,
@@ -153,7 +153,7 @@ sys::get_version() -> tuple<major: std::int64,
 {
     # This function reads external data.
     SET volatility := 'VOLATILE';
-    FROM EdgeQL $$
+    using EdgeQL $$
     SELECT <tuple<major: std::int64,
                   minor: std::int64,
                   stage: sys::version_stage,
@@ -168,7 +168,7 @@ sys::get_version_as_str() -> std::str
 {
     # This function reads external data.
     SET volatility := 'VOLATILE';
-    FROM EdgeQL $$
+    using EdgeQL $$
     WITH v := sys::get_version()
     SELECT
         <str>v.major
@@ -188,5 +188,5 @@ sys::get_transaction_isolation() -> sys::transaction_isolation_t
     # This function only reads from a table.
     SET volatility := 'STABLE';
     SET force_return_cast := true;
-    FROM SQL FUNCTION 'edgedb._get_transaction_isolation';
+    USING SQL FUNCTION 'edgedb._get_transaction_isolation';
 };

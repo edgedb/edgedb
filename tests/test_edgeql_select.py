@@ -2154,7 +2154,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_func_05(self):
         await self.con.execute(r'''
             CREATE FUNCTION test::concat1(VARIADIC s: anytype) -> std::str
-                FROM SQL FUNCTION 'concat';
+                USING SQL FUNCTION 'concat';
         ''')
 
         await self.assert_query_result(
@@ -2193,7 +2193,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_func_06(self):
         await self.con.execute(r'''
             CREATE FUNCTION test::concat2(VARIADIC s: std::str) -> std::str
-                FROM SQL FUNCTION 'concat';
+                USING SQL FUNCTION 'concat';
         ''')
 
         with self.assertRaisesRegex(edgedb.QueryError,
@@ -2205,7 +2205,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             CREATE FUNCTION test::concat3(sep: OPTIONAL std::str,
                                           VARIADIC s: std::str)
                     -> std::str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     # poor man concat
                     SELECT (array_get(s, 0) ?? '') ++
                            (sep ?? '::') ++

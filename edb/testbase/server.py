@@ -532,7 +532,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     # in which case ISOLATED_METHODS will be False.
     ISOLATED_METHODS = True
     # Turns on "EdgeDB developer" mode which allows using restricted
-    # syntax like FROM SQL and similar. It allows modifying standard
+    # syntax like USING SQL and similar. It allows modifying standard
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 

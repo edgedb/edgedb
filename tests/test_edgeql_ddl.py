@@ -923,7 +923,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_01(self):
         await self.con.execute("""
             CREATE FUNCTION test::my_lower(s: std::str) -> std::str
-                FROM SQL FUNCTION 'lower';
+                USING SQL FUNCTION 'lower';
         """)
 
         with self.assertRaisesRegex(edgedb.DuplicateFunctionDefinitionError,
@@ -934,7 +934,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     CREATE FUNCTION test::my_lower(s: SET OF std::str)
                         -> std::str {
                         SET initial_value := '';
-                        FROM SQL FUNCTION 'count';
+                        USING SQL FUNCTION 'count';
                     };
                 """)
 
@@ -945,7 +945,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             CREATE FUNCTION test::my_lower(s: SET OF anytype)
                 -> std::str {
-                FROM SQL FUNCTION 'count';
+                USING SQL FUNCTION 'count';
                 SET initial_value := '';
             };
         """)
@@ -956,7 +956,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             async with self.con.transaction():
                 await self.con.execute("""
                     CREATE FUNCTION test::my_lower(s: anytype) -> std::str
-                        FROM SQL FUNCTION 'lower';
+                        USING SQL FUNCTION 'lower';
                 """)
 
         await self.con.execute("""
@@ -969,37 +969,37 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(f"""
             CREATE FUNCTION test::my_sql_func1()
                 -> std::str
-                FROM SQL $$
+                USING SQL $$
                     SELECT 'spam'::text
                 $$;
 
             CREATE FUNCTION test::my_sql_func2(foo: std::str)
                 -> std::str
-                FROM SQL $$
+                USING SQL $$
                     SELECT "foo"::text
                 $$;
 
             CREATE FUNCTION test::my_sql_func4(VARIADIC s: std::str)
                 -> std::str
-                FROM SQL $$
+                USING SQL $$
                     SELECT array_to_string(s, '-')
                 $$;
 
             CREATE FUNCTION test::{long_func_name}()
                 -> std::str
-                FROM SQL $$
+                USING SQL $$
                     SELECT '{long_func_name}'::text
                 $$;
 
             CREATE FUNCTION test::my_sql_func6(a: std::str='a' ++ 'b')
                 -> std::str
-                FROM SQL $$
+                USING SQL $$
                     SELECT $1 || 'c'
                 $$;
 
             CREATE FUNCTION test::my_sql_func7(s: array<std::int64>)
                 -> std::int64
-                FROM SQL $$
+                USING SQL $$
                     SELECT sum(s)::bigint FROM UNNEST($1) AS s
                 $$;
         """)
@@ -1063,7 +1063,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE FUNCTION test::broken_sql_func1(
                     a: std::int64=(SELECT schema::ObjectType))
                 -> std::str
-                FROM SQL $$
+                USING SQL $$
                     SELECT 'spam'::text
                 $$;
             """)
@@ -1072,13 +1072,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(f"""
             CREATE FUNCTION test::my_edgeql_func1()
                 -> std::str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT 'sp' ++ 'am'
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func2(s: std::str)
                 -> schema::ObjectType
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT
                         schema::ObjectType
                     FILTER schema::ObjectType.name = s
@@ -1087,13 +1087,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             CREATE FUNCTION test::my_edgeql_func3(s: std::int64)
                 -> std::int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT s + 10
                 $$;
 
             CREATE FUNCTION test::my_edgeql_func4(i: std::int64)
                 -> array<std::int64>
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [i, 1, 2, 3]
                 $$;
         """)
@@ -1134,7 +1134,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             CREATE FUNCTION test::attr_func_1() -> std::str {
                 SET ANNOTATION description := 'hello';
-                FROM EdgeQL "SELECT '1'";
+                USING EdgeQL "SELECT '1'";
             };
         """)
 
@@ -1160,7 +1160,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_06(self):
         await self.con.execute("""
             CREATE FUNCTION test::int_func_1() -> std::int64 {
-                FROM EdgeQL "SELECT 1";
+                USING EdgeQL "SELECT 1";
             };
         """)
 
@@ -1179,7 +1179,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(r"""
                 CREATE FUNCTION test::my_agg(
                         s: anytype = [1]) -> array<anytype>
-                    FROM SQL FUNCTION "my_agg";
+                    USING SQL FUNCTION "my_agg";
             """)
 
     async def test_edgeql_ddl_function_08(self):
@@ -1189,7 +1189,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute("""
                 CREATE FUNCTION test::ddlf_08(s: std::str = 1) -> std::str
-                    FROM EdgeQL $$ SELECT "1" $$;
+                    USING EdgeQL $$ SELECT "1" $$;
             """)
 
     async def test_edgeql_ddl_function_09(self):
@@ -1198,7 +1198,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 NAMED ONLY a: int64,
                 NAMED ONLY b: int64
             ) -> std::str
-                FROM EdgeQL $$ SELECT "1" $$;
+                USING EdgeQL $$ SELECT "1" $$;
         """)
 
         with self.assertRaisesRegex(
@@ -1211,7 +1211,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         NAMED ONLY b: int64,
                         NAMED ONLY a: int64 = 1
                     ) -> std::str
-                        FROM EdgeQL $$ SELECT "1" $$;
+                        USING EdgeQL $$ SELECT "1" $$;
                 """)
 
         await self.con.execute("""
@@ -1219,7 +1219,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 NAMED ONLY b: str,
                 NAMED ONLY a: int64
             ) -> std::str
-                FROM EdgeQL $$ SELECT "2" $$;
+                USING EdgeQL $$ SELECT "2" $$;
         """)
 
         await self.assert_query_result(
@@ -1244,7 +1244,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE FUNCTION test::ddlf_10(
                     sum: int64
                 ) -> int64
-                    FROM EdgeQL $$
+                    USING EdgeQL $$
                         SELECT <int64>sum(sum)
                     $$;
             ''')
@@ -1252,17 +1252,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_11(self):
         await self.con.execute(r'''
             CREATE FUNCTION test::ddlf_11_1() -> str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT '\u0062'
                 $$;
 
             CREATE FUNCTION test::ddlf_11_2() -> str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT r'\u0062'
                 $$;
 
             CREATE FUNCTION test::ddlf_11_3() -> str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT $a$\u0062$a$
                 $$;
         ''')
@@ -1301,10 +1301,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_12(a: int64) -> int64
-                    FROM EdgeQL $$ SELECT 11 $$;
+                    USING EdgeQL $$ SELECT 11 $$;
 
                 CREATE FUNCTION test::ddlf_12(a: int64) -> float64
-                    FROM EdgeQL $$ SELECT 11 $$;
+                    USING EdgeQL $$ SELECT 11 $$;
             ''')
 
     async def test_edgeql_ddl_function_13(self):
@@ -1317,7 +1317,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             async with self.con.transaction():
                 await self.con.execute(r'''
                     CREATE FUNCTION test::ddlf_13(a: SET OF int64) -> int64
-                        FROM EdgeQL $$ SELECT 11 $$;
+                        USING EdgeQL $$ SELECT 11 $$;
                 ''')
 
         with self.assertRaises(edgedb.InvalidReferenceError):
@@ -1329,11 +1329,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r'''
             CREATE FUNCTION test::ddlf_14(
                     a: int64, NAMED ONLY f: int64) -> int64
-                FROM EdgeQL $$ SELECT 11 $$;
+                USING EdgeQL $$ SELECT 11 $$;
 
             CREATE FUNCTION test::ddlf_14(
                     a: int32, NAMED ONLY f: str) -> int64
-                FROM EdgeQL $$ SELECT 12 $$;
+                USING EdgeQL $$ SELECT 12 $$;
         ''')
 
         try:
@@ -1364,11 +1364,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_15(
                         a: int64, NAMED ONLY f: int64) -> int64
-                    FROM EdgeQL $$ SELECT 11 $$;
+                    USING EdgeQL $$ SELECT 11 $$;
 
                 CREATE FUNCTION test::ddlf_15(
                         a: int32, NAMED ONLY h: str) -> int64
-                    FROM EdgeQL $$ SELECT 12 $$;
+                    USING EdgeQL $$ SELECT 12 $$;
             ''')
 
     async def test_edgeql_ddl_function_16(self):
@@ -1380,27 +1380,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_16(
                         a: anytype, b: int64) -> OPTIONAL int64
-                    FROM EdgeQL $$ SELECT 11 $$;
+                    USING EdgeQL $$ SELECT 11 $$;
 
                 CREATE FUNCTION test::ddlf_16(a: anytype, b: float64) -> str
-                    FROM EdgeQL $$ SELECT '12' $$;
+                    USING EdgeQL $$ SELECT '12' $$;
             ''')
 
     async def test_edgeql_ddl_function_17(self):
         await self.con.execute(r'''
             CREATE FUNCTION test::ddlf_17(str: std::str) -> int64
-                FROM SQL FUNCTION 'whatever';
+                USING SQL FUNCTION 'whatever';
         ''')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
                 r'cannot create.*test::ddlf_17.*'
-                r'overloading "FROM SQL FUNCTION"'):
+                r'overloading "USING SQL FUNCTION"'):
 
             async with self.con.transaction():
                 await self.con.execute(r'''
                     CREATE FUNCTION test::ddlf_17(str: std::int64) -> int64
-                        FROM SQL FUNCTION 'whatever2';
+                        USING SQL FUNCTION 'whatever2';
                 ''')
 
         await self.con.execute("""
@@ -1416,7 +1416,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_18(str: std::str) -> anytype
-                    FROM EdgeQL $$ SELECT 1 $$;
+                    USING EdgeQL $$ SELECT 1 $$;
             ''')
 
     async def test_edgeql_ddl_function_19(self):
@@ -1426,7 +1426,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_19(f: std::anytype) -> int64
-                    FROM EdgeQL $$ SELECT 1 $$;
+                    USING EdgeQL $$ SELECT 1 $$;
             ''')
 
     async def test_edgeql_ddl_function_20(self):
@@ -1436,13 +1436,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_20(f: int64) -> int64
-                    FROM EdgeQL $$ SELECT 1; SELECT f; $$;
+                    USING EdgeQL $$ SELECT 1; SELECT f; $$;
             ''')
 
     async def test_edgeql_ddl_function_21(self):
         await self.con.execute(r'''
             CREATE FUNCTION test::ddlf_21(str: str) -> int64
-                FROM EdgeQL $$ SELECT 1$$;
+                USING EdgeQL $$ SELECT 1$$;
         ''')
 
         with self.assertRaisesRegex(
@@ -1454,7 +1454,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 await self.con.execute(r'''
                     CREATE FUNCTION test::ddlf_21(str: int64) -> int64 {
                         SET session_only := true;
-                        FROM EdgeQL $$ SELECT 1$$;
+                        USING EdgeQL $$ SELECT 1$$;
                     };
                 ''')
 
@@ -1470,7 +1470,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(r"""
                 CREATE FUNCTION test::broken_edgeql_func22(
                     a: std::str) -> std::int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT a
                 $$;
             """)
@@ -1483,7 +1483,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(r"""
                 CREATE FUNCTION test::broken_edgeql_func23(
                     a: std::str) -> std::int64
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [a]
                 $$;
             """)
@@ -1496,7 +1496,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(r"""
                 CREATE FUNCTION test::broken_edgeql_func24(
                     a: std::str) -> std::str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT [a]
                 $$;
             """)
@@ -1509,7 +1509,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute(r"""
                 CREATE FUNCTION test::broken_edgeql_func25(
                     a: std::str) -> std::str
-                FROM EdgeQL $$
+                USING EdgeQL $$
                     SELECT {a, a}
                 $$;
             """)
@@ -1528,7 +1528,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''
             CREATE INFIX OPERATOR test::`+++`
                 (left: int64, right: int64) -> int64
-                FROM SQL OPERATOR r'+';
+                USING SQL OPERATOR r'+';
         ''')
 
         await self.assert_query_result(
@@ -1623,11 +1623,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE POSTFIX OPERATOR test::`!`
                     (operand: int64) -> int64
-                    FROM SQL OPERATOR r'!';
+                    USING SQL OPERATOR r'!';
 
                 CREATE PREFIX OPERATOR test::`!`
                     (operand: int64) -> int64
-                    FROM SQL OPERATOR r'!!';
+                    USING SQL OPERATOR r'!!';
             ''')
 
             await self.assert_query_result(
@@ -1670,7 +1670,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 r'an operator must have operands'):
             await self.con.execute('''
                 CREATE PREFIX OPERATOR test::`NOT`() -> bool
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
             ''')
 
     async def test_edgeql_ddl_operator_04(self):
@@ -1683,7 +1683,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE INFIX OPERATOR
                 test::`=` (l: array<anytype>, r: str) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                     SET recursive := true;
                 };
             ''')
@@ -1698,7 +1698,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE INFIX OPERATOR
                 test::`=` (l: array<anytype>, r: anytuple) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                     SET recursive := true;
                 };
             ''')
@@ -1717,7 +1717,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE INFIX OPERATOR
                 std::`=` (l: array<int64>, r: array<int64>) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                 };
             ''')
 
@@ -1735,12 +1735,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE INFIX OPERATOR
                 test::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                 };
 
                 CREATE INFIX OPERATOR
                 test::`=` (l: array<int64>, r: array<int64>) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                     SET recursive := true;
                 };
             ''')
@@ -1779,11 +1779,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_operator_09(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidOperatorDefinitionError,
-                r'unexpected FROM clause in abstract operator definition'):
+                r'unexpected USING clause in abstract operator definition'):
             await self.con.execute('''
                 CREATE ABSTRACT INFIX OPERATOR
                 test::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                 };
             ''')
 
@@ -1798,13 +1798,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE INFIX OPERATOR
                 test::`IN` (l: std::float64, r: std::float64) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                     SET derivative_of := 'std::=';
                 };
 
                 CREATE INFIX OPERATOR
                 test::`IN` (l: std::int64, r: std::int64) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                 };
             ''')
 
@@ -1820,12 +1820,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE INFIX OPERATOR
                 test::`IN` (l: std::float64, r: std::float64) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                 };
 
                 CREATE INFIX OPERATOR
                 test::`IN` (l: std::int64, r: std::int64) -> std::bool {
-                    FROM SQL EXPRESSION;
+                    USING SQL EXPRESSION;
                     SET derivative_of := 'std::=';
                 };
             ''')
@@ -1837,12 +1837,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE SCALAR TYPE test::type_c EXTENDING std::datetime;
 
             CREATE CAST FROM test::type_a TO test::type_b {
-                FROM SQL CAST;
+                USING SQL CAST;
                 ALLOW IMPLICIT;
             };
 
             CREATE CAST FROM test::type_a TO test::type_c {
-                FROM SQL CAST;
+                USING SQL CAST;
                 ALLOW ASSIGNMENT;
             };
         ''')
@@ -3593,7 +3593,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
             CREATE SCALAR TYPE test::dropint EXTENDING int64;
             CREATE FUNCTION test::dropfunc(a: test::dropint) -> int64
-                FROM EdgeQL $$ SELECT a; $$;
+                USING EdgeQL $$ SELECT a; $$;
         """)
 
         async with self.assertRaisesRegexTx(

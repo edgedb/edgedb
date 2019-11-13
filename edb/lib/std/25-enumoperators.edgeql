@@ -24,56 +24,56 @@
 CREATE INFIX OPERATOR
 std::`=` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::anyenum, r: OPTIONAL std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::anyenum, r: OPTIONAL std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '>=';
+    USING SQL OPERATOR '>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '>';
+    USING SQL OPERATOR '>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '<=';
+    USING SQL OPERATOR '<=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL OPERATOR '<';
+    USING SQL OPERATOR '<';
 };
 
 
@@ -84,12 +84,12 @@ std::`<` (l: std::anyenum, r: std::anyenum) -> std::bool {
 # sense to create an implicit assignment cast.
 CREATE CAST FROM std::str TO std::anyenum {
     SET volatility := 'IMMUTABLE';
-    FROM SQL CAST;
+    USING SQL CAST;
     ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::anyenum TO std::str {
     SET volatility := 'IMMUTABLE';
-    FROM SQL CAST;
+    USING SQL CAST;
 };

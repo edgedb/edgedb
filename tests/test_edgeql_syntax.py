@@ -2790,7 +2790,7 @@ aa';
         """
         CREATE FUNCTION std::sum(v: SET OF std::int64)
             -> std::int64
-            FROM SQL FUNCTION 'sum';
+            USING SQL FUNCTION 'sum';
         """
 
     def test_edgeql_syntax_ddl_aggregate_01(self):
@@ -2798,7 +2798,7 @@ aa';
         CREATE FUNCTION std::sum(v: SET OF std::int64)
             -> std::int64 {
             SET initial_value := 0;
-            FROM SQL FUNCTION 'test';
+            USING SQL FUNCTION 'test';
         };
         """
 
@@ -2807,7 +2807,7 @@ aa';
         CREATE FUNCTION std::sum(arg: SET OF std::int64)
             -> std::int64 {
             SET initial_value := 0;
-            FROM SQL FUNCTION 'sum';
+            USING SQL FUNCTION 'sum';
         };
         """
 
@@ -2816,7 +2816,7 @@ aa';
         CREATE FUNCTION std::sum(integer: SET OF std::int64)
             -> std::int64 {
             SET initial_value := 0;
-            FROM SQL FUNCTION 'sum';
+            USING SQL FUNCTION 'sum';
         };
         """
 
@@ -2825,7 +2825,7 @@ aa';
         CREATE FUNCTION std::sum(integer: SET OF std::int64)
             -> std::int64 {
             SET initial_value := 0;
-            FROM SQL FUNCTION 'sum';
+            USING SQL FUNCTION 'sum';
         };
         """
 
@@ -2836,7 +2836,7 @@ aa';
         CREATE FUNCTION foo(string: SET OF std::str)
             -> std::int64 {
             SET initial_value := 0;
-            FROM AAA FUNCTION 'foo';
+            USING AAA FUNCTION 'foo';
         };
         """
 
@@ -2845,7 +2845,7 @@ aa';
         CREATE FUNCTION std::count(expression: SET OF anytype)
             -> std::int64 {
             SET initial_value := 0;
-            FROM SQL FUNCTION 'count';
+            USING SQL FUNCTION 'count';
         };
         """
 
@@ -3010,40 +3010,40 @@ aa';
     def test_edgeql_syntax_ddl_function_01(self):
         """
         CREATE FUNCTION std::strlen(string: std::str) -> std::int64
-            FROM SQL FUNCTION 'strlen';
+            USING SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_02(self):
         """
         CREATE FUNCTION std::strlen(a: std::str) -> std::int64
-            FROM SQL FUNCTION 'strlen';
+            USING SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_03(self):
         """
         CREATE FUNCTION std::strlen(string: std::str) -> std::int64
-            FROM SQL FUNCTION 'strlen';
+            USING SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_04(self):
         """
         CREATE FUNCTION std::strlen(string: std::str, integer: std::int64)
             -> std::int64
-            FROM SQL FUNCTION 'strlen';
+            USING SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_05(self):
         """
         CREATE FUNCTION std::strlen(string: std::str, a: std::int64)
             -> std::int64
-            FROM SQL FUNCTION 'strlen';
+            USING SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_06(self):
         """
         CREATE FUNCTION std::strlen(string: std::str = '1')
             -> std::int64
-            FROM SQL FUNCTION 'strlen';
+            USING SQL FUNCTION 'strlen';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3078,19 +3078,19 @@ aa';
         """
         CREATE FUNCTION std::strlen(a: std::str = '1', VARIADIC b: std::str)
             -> std::int64
-            FROM SQL FUNCTION 'strlen';
+            USING SQL FUNCTION 'strlen';
         """
 
     def test_edgeql_syntax_ddl_function_11(self):
         """
         CREATE FUNCTION no_params() -> std::int64
-        FROM EdgeQL $$ SELECT 1 $$;
+        USING EdgeQL $$ SELECT 1 $$;
         """
 
     def test_edgeql_syntax_ddl_function_13(self):
         """
         CREATE FUNCTION foo(string: std::str) -> tuple<bar: std::int64>
-        FROM EDGEQL $$ SELECT (bar := 123) $$;
+        USING EDGEQL $$ SELECT (bar := 123) $$;
         """
 
     def test_edgeql_syntax_ddl_function_14(self):
@@ -3099,14 +3099,14 @@ aa';
         -> tuple<
             bar: std::int64,
             baz: std::str
-        > FROM EdgeQL $$ SELECT smth() $$;
+        > USING EdgeQL $$ SELECT smth() $$;
         """
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)
     def test_edgeql_syntax_ddl_function_16(self):
         """
         CREATE FUNCTION foo(string: std::str)
-        -> std::int64 FROM AAA FUNCTION 'foo';
+        -> std::int64 USING AAA FUNCTION 'foo';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3114,33 +3114,33 @@ aa';
     def test_edgeql_syntax_ddl_function_19(self):
         """
         CREATE FUNCTION foo(string: std::str)
-        -> std::int64 FROM AAA 'code';
+        -> std::int64 USING AAA 'code';
         """
 
     def test_edgeql_syntax_ddl_function_20(self):
         """
-        CREATE FUNCTION foo() -> std::int64 FROM SQL 'SELECT 1';
+        CREATE FUNCTION foo() -> std::int64 USING SQL 'SELECT 1';
 
 % OK %
 
-        CREATE FUNCTION foo() -> std::int64 FROM SQL $$SELECT 1$$;
+        CREATE FUNCTION foo() -> std::int64 USING SQL $$SELECT 1$$;
         """
 
     def test_edgeql_syntax_ddl_function_21(self):
         """
-        CREATE FUNCTION foo() -> std::int64 FROM SQL FUNCTION 'aaa';
+        CREATE FUNCTION foo() -> std::int64 USING SQL FUNCTION 'aaa';
         """
 
     def test_edgeql_syntax_ddl_function_24(self):
         """
-        CREATE FUNCTION foo() -> std::str FROM SQL $a$SELECT $$foo$$$a$;
+        CREATE FUNCTION foo() -> std::str USING SQL $a$SELECT $$foo$$$a$;
         """
 
     def test_edgeql_syntax_ddl_function_25(self):
         """
         CREATE FUNCTION foo() -> std::str {
             SET ANNOTATION description := 'aaaa';
-            FROM SQL $a$SELECT $$foo$$$a$;
+            USING SQL $a$SELECT $$foo$$$a$;
         };
         """
 
@@ -3149,12 +3149,12 @@ aa';
         CREATE FUNCTION foo() -> std::str {
             SET volatility := 'VOLATILE';
             SET ANNOTATION description := 'aaaa';
-            FROM SQL $a$SELECT $$foo$$$a$;
+            USING SQL $a$SELECT $$foo$$$a$;
         };
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "CREATE FUNCTION requires at least one FROM clause", line=2)
+                  "CREATE FUNCTION requires at least one USING clause", line=2)
     def test_edgeql_syntax_ddl_function_27(self):
         """
         CREATE FUNCTION foo() -> std::str {
@@ -3163,13 +3163,13 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "more than one FROM <code> clause", line=5)
+                  "more than one USING <code> clause", line=5)
     def test_edgeql_syntax_ddl_function_28(self):
         """
         CREATE FUNCTION foo() -> std::str {
-            FROM SQL 'SELECT 1';
+            USING SQL 'SELECT 1';
             SET ANNOTATION description := 'aaaa';
-            FROM SQL 'SELECT 2';
+            USING SQL 'SELECT 2';
         };
         """
 
@@ -3181,7 +3181,7 @@ aa';
         CREATE FUNCTION std::foobar(arg1: str, arg2: str = 'DEFAULT',
                                     VARIADIC arg3)
             -> std::int64
-            FROM EdgeQL $$$$;
+            USING EdgeQL $$$$;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3209,7 +3209,7 @@ aa';
     def test_edgeql_syntax_ddl_function_34(self):
         """
         CREATE FUNCTION foo(a: OPTIONAL std::str) ->
-            std::int64 FROM SQL FUNCTION 'aaa';
+            std::int64 USING SQL FUNCTION 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3217,7 +3217,7 @@ aa';
     def test_edgeql_syntax_ddl_function_35(self):
         """
         CREATE FUNCTION std::foo(a: SET OF std::str) -> VARIADIC std::int64
-            FROM SQL $a$SELECT $$foo$$$a$;
+            USING SQL $a$SELECT $$foo$$$a$;
         """
 
     def test_edgeql_syntax_ddl_function_36(self):
@@ -3228,7 +3228,7 @@ aa';
             NAMED ONLY c: OPTIONAL std::str = '1',
             NAMED ONLY d: OPTIONAL std::str
         ) ->
-            std::int64 FROM SQL FUNCTION 'aaa';
+            std::int64 USING SQL FUNCTION 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3242,7 +3242,7 @@ aa';
             NAMED ONLY c: OPTIONAL std::str,
             d: OPTIONAL std::str
         ) ->
-            std::int64 FROM SQL FUNCTION 'aaa';
+            std::int64 USING SQL FUNCTION 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3256,7 +3256,7 @@ aa';
             NAMED ONLY s1: OPTIONAL std::str = '1',
             VARIADIC v: OPTIONAL std::str = '1'
         ) ->
-            std::int64 FROM SQL FUNCTION 'aaa';
+            std::int64 USING SQL FUNCTION 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3270,7 +3270,7 @@ aa';
             VARIADIC v: OPTIONAL std::str = '1',
             NAMED ONLY s1: OPTIONAL std::str = '1'
         ) ->
-            std::int64 FROM SQL FUNCTION 'aaa';
+            std::int64 USING SQL FUNCTION 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3283,7 +3283,7 @@ aa';
             VARIADIC `variadic`: OPTIONAL std::str,
             `select`: OPTIONAL std::str = '1'
         ) ->
-            std::int64 FROM SQL FUNCTION 'aaa';
+            std::int64 USING SQL FUNCTION 'aaa';
         """
 
     def test_edgeql_syntax_ddl_function_41(self):
@@ -3294,7 +3294,7 @@ aa';
             NAMED ONLY `create`: OPTIONAL std::str,
             NAMED ONLY `select`: OPTIONAL std::str = '1'
         ) ->
-            std::int64 FROM SQL FUNCTION 'aaa';
+            std::int64 USING SQL FUNCTION 'aaa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3304,7 +3304,7 @@ aa';
         """
         CREATE FUNCTION std::strlen(VARIADIC b: std::str = '1')
             -> std::int64
-            FROM SQL FUNCTION 'strlen';
+            USING SQL FUNCTION 'strlen';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3313,7 +3313,7 @@ aa';
     def test_edgeql_syntax_ddl_function_43(self):
         """
         CREATE FUNCTION std::strlen($1: int32) -> int64
-            FROM EdgeQL $$ SELECT 1 $$;
+            USING EdgeQL $$ SELECT 1 $$;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3322,7 +3322,7 @@ aa';
     def test_edgeql_syntax_ddl_function_44(self):
         """
         CREATE FUNCTION std::strlen(a: int16, b: str, a: int16) -> int64
-            FROM EdgeQL $$ SELECT 1 $$;
+            USING EdgeQL $$ SELECT 1 $$;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3332,7 +3332,7 @@ aa';
         """
         CREATE FUNCTION std::strlen(aa: int16, b: str,
                                     NAMED ONLY aa: int16) -> int64
-            FROM EdgeQL $$ SELECT 1 $$;
+            USING EdgeQL $$ SELECT 1 $$;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -3342,7 +3342,7 @@ aa';
         """
         CREATE FUNCTION std::strlen(aa: int16, b: str,
                                     VARIADIC aa: int16) -> int64
-            FROM EdgeQL $$ SELECT 1 $$;
+            USING EdgeQL $$ SELECT 1 $$;
         """
 
     def test_edgeql_syntax_ddl_function_47(self):
@@ -3352,7 +3352,7 @@ aa';
             named only foo: OPTIONAL std::str,
             nameD onlY bar: OPTIONAL std::str = '1'
         ) ->
-            std::int64 FROM SQL FUNCTION 'aaa';
+            std::int64 USING SQL FUNCTION 'aaa';
         """
 
     def test_edgeql_syntax_ddl_property_01(self):

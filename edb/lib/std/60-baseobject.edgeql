@@ -39,78 +39,78 @@ CREATE ABSTRACT TYPE std::Object {
 };
 
 
-# 'FROM SQL EXPRESSION' creates an EdgeDB Operator for purposes of
+# 'USING SQL EXPRESSION' creates an EdgeDB Operator for purposes of
 # introspection and validation by the EdgeQL compiler. However, no
 # object is created in Postgres and the EdgeQL->SQL compiler is expected
 # to produce some expression that will be valid.
 #
-# 'FROM SQL OPERATOR' does all of the above and it also creates an
+# 'USING SQL OPERATOR' does all of the above and it also creates an
 # actual Postgres operator. It is expected that the EdgeQL->SQL compiler
 # will specifically use that operator.
 
-# HACK: We use 'FROM SQL EXPRESSION' instead of 'FROM SQL OPERATOR'
+# HACK: We use 'USING SQL EXPRESSION' instead of 'USING SQL OPERATOR'
 # here because in actuality Objects will be resolved as their uuids
 # and in the end it's the uuid operators that will be called in SQL.
-# On the other hand, if we use "FROM SQL OPERATOR", we will end up
+# On the other hand, if we use "USING SQL OPERATOR", we will end up
 # clashing with the operators for uuid in Postgres.
 CREATE INFIX OPERATOR
 std::`=` (l: std::Object, r: std::Object) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::Object, r: OPTIONAL std::Object) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::Object, r: std::Object) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::Object, r: OPTIONAL std::Object) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::Object, r: std::Object) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::Object, r: std::Object) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::Object, r: std::Object) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::Object, r: std::Object) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };
 
 
 # The only possible Object cast is into json.
 CREATE CAST FROM std::Object TO std::json {
     SET volatility := 'IMMUTABLE';
-    FROM SQL EXPRESSION;
+    USING SQL EXPRESSION;
 };

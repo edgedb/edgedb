@@ -258,7 +258,7 @@ class TestSession(tb.QueryTestCase):
                                     r'called in a non-session context'):
             await self.con.execute(r"""
                 CREATE FUNCTION bad() -> bool
-                    FROM EdgeQL $$ SELECT sys::sleep(0) $$;
+                    USING EdgeQL $$ SELECT sys::sleep(0) $$;
             """)
 
     async def test_session_only_function_06(self):
@@ -266,7 +266,7 @@ class TestSession(tb.QueryTestCase):
             await self.con.execute(r"""
                 CREATE FUNCTION ok() -> bool {
                     SET session_only := true;
-                    FROM EdgeQL $$ SELECT sys::sleep(0) $$;
+                    USING EdgeQL $$ SELECT sys::sleep(0) $$;
                 };
             """)
 
