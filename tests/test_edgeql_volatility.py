@@ -22,6 +22,7 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLVolatility(tb.QueryTestCase):
@@ -65,6 +66,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             'more than one value for the same vol_stable() call'
         )
 
+    @test.xfail('regression with Postgres 12; see issue #830')
     async def test_edgeql_volatility_function_03(self):
         result = await self.con.fetchall(
             r"""
