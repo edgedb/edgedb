@@ -60,13 +60,13 @@ class TestLinkTargetDeleteSchema(tb.BaseSchemaLoadTest):
             };
 
             type Object2 extending Object {
-                inherited link foo -> Object {
+                overloaded link foo -> Object {
                     annotation title := "Foo"
                 }
             };
 
             type Object3 extending Object {
-                inherited link foo -> Object {
+                overloaded link foo -> Object {
                     on target delete restrict
                 }
             };

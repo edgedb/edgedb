@@ -1099,8 +1099,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateConcreteProperty(self, node):
         keywords = []
-        if self.sdlmode and node.declared_inherited:
-            keywords.append('INHERITED')
+        if self.sdlmode and node.declared_overloaded:
+            keywords.append('OVERLOADED')
         if node.is_required:
             keywords.append('REQUIRED')
         if node.cardinality is qltypes.Cardinality.ONE:
@@ -1155,7 +1155,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         ignored_cmds = set()
         if self.sdlmode:
             if not self.descmode:
-                keywords.append('INHERITED')
+                keywords.append('OVERLOADED')
             quals, ignored_cmds = self._process_AlterConcretePointer_for_SDL(
                 node)
             keywords.extend(quals)
@@ -1197,8 +1197,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_CreateConcreteLink(self, node):
         keywords = []
 
-        if self.sdlmode and node.declared_inherited:
-            keywords.append('INHERITED')
+        if self.sdlmode and node.declared_overloaded:
+            keywords.append('OVERLOADED')
         if node.is_required:
             keywords.append('REQUIRED')
         if node.cardinality is qltypes.Cardinality.ONE:
@@ -1239,7 +1239,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if (not self.descmode
                     or not node.system_comment
                     or 'inherited from' not in node.system_comment):
-                keywords.append('INHERITED')
+                keywords.append('OVERLOADED')
             quals, ignored_cmds = self._process_AlterConcretePointer_for_SDL(
                 node)
             keywords.extend(quals)

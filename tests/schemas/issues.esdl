@@ -32,7 +32,7 @@ abstract type Named {
 # Dictionary is a NamedObject variant, that enforces
 # name uniqueness across all instances if its subclass.
 abstract type Dictionary extending Named {
-    inherited required property name -> str {
+    overloaded required property name -> str {
         delegated constraint exclusive;
     }
 }

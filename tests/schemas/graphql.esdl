@@ -100,5 +100,5 @@ type Rab {
 }
 
 type Rab2 extending Rab {
-    inherited link blah -> Bar2;
+    overloaded link blah -> Bar2;
 }

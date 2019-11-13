@@ -230,7 +230,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                inherited required property name -> str;
+                overloaded required property name -> str;
             }
         """)
         await self.con.execute("""
@@ -256,7 +256,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """)
         await self.con.execute("""
@@ -275,7 +275,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                inherited required property foo2 -> str;
+                overloaded required property foo2 -> str;
             }
         """)
 
@@ -306,7 +306,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """)
         await self.con.execute("""
@@ -356,7 +356,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Derived extending Base;
 
             type Further extending Derived {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """)
         await self.con.execute("""
@@ -412,7 +412,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                inherited required property foo -> int64;
+                overloaded required property foo -> int64;
             }
         """)
         await self.con.execute("""
@@ -442,7 +442,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """)
 
@@ -723,7 +723,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                inherited required link bar -> Child;
+                overloaded required link bar -> Child;
             }
         """)
         data = await self.con.fetchall(r"""
@@ -783,7 +783,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             type Derived extending Base {
-                inherited required property foo -> str;
+                overloaded required property foo -> str;
             }
         """)
 
@@ -852,7 +852,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Derived extending Base {
                 # also make the link 'required'
-                inherited required link bar -> Child;
+                overloaded required link bar -> Child;
             }
         """)
 
@@ -1313,7 +1313,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             # derive a type with a more restrictive link
             type DerivedParent extending Parent {
-                inherited link bar -> DerivedChild;
+                overloaded link bar -> DerivedChild;
             }
         """)
 
@@ -3393,7 +3393,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base {
-                inherited link child -> Child {
+                overloaded link child -> Child {
                     property foo -> str
                 }
             };
@@ -3478,7 +3478,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base {
-                inherited link child -> Child {
+                overloaded link child -> Child {
                     # move the link property later in the inheritance tree
                     property foo -> str
                 }
@@ -3512,7 +3512,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base {
-                inherited link child -> Child {
+                overloaded link child -> Child {
                     property foo -> str
                 }
             };
@@ -3600,7 +3600,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             };
 
             type Derived extending Base {
-                inherited link child -> Child {
+                overloaded link child -> Child {
                     # move the link property later in the inheritance tree
                     property foo -> str
                 }

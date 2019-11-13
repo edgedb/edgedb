@@ -22,7 +22,7 @@ type Target0 {
 }
 
 type Target1 extending Target0 {
-    inherited property name -> str;
+    overloaded property name -> str;
 }
 
 type ObjectType0 {

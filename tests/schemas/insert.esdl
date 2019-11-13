@@ -135,9 +135,9 @@ abstract type Callable {
 }
 
 type Field extending Callable {
-    # This link 'args' appears to be overriding the inherited 'args'
+    # This link 'args' appears to be overriding the overloaded 'args'
     # from Callable.
-    inherited multi link args -> InputValue;
+    overloaded multi link args -> InputValue;
 }
 
 type Directive extending Callable;

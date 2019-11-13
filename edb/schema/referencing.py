@@ -564,7 +564,7 @@ class ReferencedInheritingObjectCommand(
         if context.declarative and self.scls.get_is_local(schema):
             if (implicit_bases
                     and refdict.requires_explicit_inherit
-                    and not self.get_attribute_value('declared_inherited')):
+                    and not self.get_attribute_value('declared_overloaded')):
 
                 ancestry = [
                     obj.get_referrer(schema) for obj in implicit_bases
@@ -572,17 +572,17 @@ class ReferencedInheritingObjectCommand(
 
                 raise errors.SchemaDefinitionError(
                     f'{self.scls.get_verbosename(schema, with_parent=True)} '
-                    f'must be declared using the `inherited` keyword because '
+                    f'must be declared using the `overloaded` keyword because '
                     f'it is defined in the following ancestor(s): '
                     f'{", ".join(a.get_shortname(schema) for a in ancestry)}',
                     context=self.source_context,
                 )
             elif (not implicit_bases
-                    and self.get_attribute_value('declared_inherited')):
+                    and self.get_attribute_value('declared_overloaded')):
 
                 raise errors.SchemaDefinitionError(
                     f'{self.scls.get_verbosename(schema, with_parent=True)}: '
-                    f'cannot be declared `inherited` as there are no '
+                    f'cannot be declared `overloaded` as there are no '
                     f'ancestors defining it.',
                     context=self.source_context,
                 )

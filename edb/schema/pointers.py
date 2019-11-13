@@ -548,7 +548,7 @@ class PointerCommandOrFragment:
 
                     if context.declarative:
                         self.set_attribute_value(
-                            'declared_inherited', True
+                            'declared_overloaded', True
                         )
             else:
                 target = target_ref
@@ -710,8 +710,8 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
-            if getattr(astnode, 'declared_inherited', False):
-                cmd.set_attribute_value('declared_inherited', True)
+            if getattr(astnode, 'declared_overloaded', False):
+                cmd.set_attribute_value('declared_overloaded', True)
         return cmd
 
     def _process_create_or_alter_ast(self, schema, astnode, context):

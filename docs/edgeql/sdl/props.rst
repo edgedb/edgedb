@@ -34,6 +34,23 @@ Declare *concrete* properties "name" and "address" within a "User" type:
         index on (__subject__.name);
     }
 
+Any time that the SDL declaration refers to an inherited property that
+is being overloaded (by adding more constraints, for example), the
+``overloaded`` keyword must be used. This is to prevent unintentional
+overloading due to name clashes:
+
+.. code-block:: sdl
+
+    abstract type Named {
+        property name -> str;
+    }
+
+    type User extending Named {
+        # define concrete properties
+        overloaded required property name -> str;
+        # ... other links and properties
+    }
+
 
 Syntax
 ------
@@ -44,7 +61,7 @@ commands <ref_eql_ddl_props>`.
 .. sdl:synopsis::
 
     # Concrete property form used inside type declaration:
-    [ required ] [{single | multi}] property <name>
+    [ overloaded ] [ required ] [{single | multi}] property <name>
       [ extending <base> [, ...] ] -> <type>
       [ "{"
           [ default := <expression> ; ]

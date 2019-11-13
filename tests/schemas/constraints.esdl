@@ -127,7 +127,7 @@ type UniqueName {
 }
 
 type UniqueNameInherited extending UniqueName {
-    inherited property name -> str;
+    overloaded property name -> str;
 }
 
 type UniqueDescription {
@@ -155,7 +155,7 @@ type UniqueName_2_Inherited extending UniqueName_2;
 
 
 type UniqueName_3 extending UniqueName_2 {
-    inherited property name -> str {
+    overloaded property name -> str {
         constraint exclusive on (str_lower(__subject__));
     }
 }
@@ -182,7 +182,7 @@ type ReceivingParent {
 }
 
 type LosingParent extending ParentUniqueName {
-    inherited property name -> str;
+    overloaded property name -> str;
     property lp -> str;
 }
 
@@ -201,13 +201,13 @@ type AbstractConstraintParent2 {
 type AbstractConstraintPureChild extending AbstractConstraintParent;
 
 type AbstractConstraintMixedChild extending AbstractConstraintParent {
-    inherited property name -> str {
+    overloaded property name -> str {
         constraint exclusive on (str_lower(__subject__));
     }
 }
 
 type AbstractConstraintPropagated extending AbstractConstraintParent {
-    inherited property name -> str {
+    overloaded property name -> str {
         delegated constraint exclusive;
     }
 }
@@ -245,7 +245,7 @@ type BecomingConcreteConstraint {
 type BecomingConcreteConstraintChild extending BecomingConcreteConstraint;
 
 type AbstractInheritingNonAbstract extending ParentUniqueName {
-    inherited property name -> str {
+    overloaded property name -> str {
         delegated constraint exclusive;
     }
 }
