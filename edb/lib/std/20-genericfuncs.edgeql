@@ -235,7 +235,17 @@ std::contains(haystack: std::str, needle: std::str) -> std::bool
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL $$
-    SELECT strpos("haystack", "needle") != 0
+    SELECT (
+        -- There was a regression in 12.0 (fixed in 12.1): strpos
+        -- started to report 0 for empty search strings:
+        -- https://postgr.es/m/CADT4RqAz7oN4vkPir86Kg1_mQBmBxCp-L_=9vRpgSNPJf0KRkw@mail.gmail.com
+        --
+        -- This CASE..WHEN fixes this edge case.
+        CASE
+            WHEN "needle" = '' THEN 1
+            ELSE strpos("haystack", "needle")
+        END
+    ) != 0
     $$;
 };
 
@@ -272,7 +282,17 @@ std::find(haystack: std::str, needle: std::str) -> std::int64
 {
     SET volatility := 'IMMUTABLE';
     FROM SQL $$
-    SELECT (strpos("haystack", "needle") - 1)::int8
+    SELECT (
+        -- There was a regression in 12.0 (fixed in 12.1): strpos
+        -- started to report 0 for empty search strings:
+        -- https://postgr.es/m/CADT4RqAz7oN4vkPir86Kg1_mQBmBxCp-L_=9vRpgSNPJf0KRkw@mail.gmail.com
+        --
+        -- This CASE..WHEN fixes this edge case.
+        CASE
+            WHEN "needle" = '' THEN 0
+            ELSE strpos("haystack", "needle") - 1
+        END
+    )::int8
     $$;
 };
 
