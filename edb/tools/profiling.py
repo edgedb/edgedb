@@ -37,7 +37,7 @@ PREFIX = "edgedb_"
 SUFFIX = ".pstats"
 
 
-T = TypeVar("T")
+T = TypeVar("T", bound=Callable[..., Any])
 
 
 class profile:
@@ -106,14 +106,19 @@ class profile:
         # Note: this will also dump in case the profiler was never enabled
         # (the function was not called).  That's by design.  The presence of
         # the file lets us know the profiling scaffolding worked.
-        assert self.reuse
+        assert self.profiler is not None
         self.profiler.dump_stats(self.make_dump_file())
 
-    def aggregate(self, out_path: pathlib.Path, *, sort_by: str = "") -> None:
+    def aggregate(
+        self, out_path: pathlib.Path, *, sort_by: str = ""
+    ) -> Tuple[int, int]:
         """Read all pstats in `self.dir` and write a summary to `out_path`.
 
         `sort_by` after `pstats.sort_stats()`.  Files identified by `self.dir`,
         `self.prefix`, and `self.suffix`.
+
+        Returns a tuple with number of successfully and unsucessfully
+        aggregated files.
         """
         if not self.dir:
             with tempfile.NamedTemporaryFile() as tmp:
@@ -164,7 +169,7 @@ def cli(
 
     dir: Optional[str] = dirs[0] if dirs else None
     prof = profile(dir=dir, prefix=prefix, suffix=suffix)
-    prof.aggregate(out, sort_by=sort_by)
+    prof.aggregate(pathlib.Path(out), sort_by=sort_by)
 
 
 if __name__ == "__main__":
