@@ -115,35 +115,13 @@ class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
 class SimpleFor(Nonterm):
     def reduce_For(self, *kids):
         r"%reduce FOR Identifier IN Set \
-                  UNION OptionallyAliasedExpr \
-                  OptFilterClause OptSortClause OptSelectLimit"
-        offset, limit = kids[8].val
-
-        if offset is not None or limit is not None:
-            subj = qlast.ForQuery(
-                iterator_alias=kids[1].val,
-                iterator=kids[3].val,
-                result=kids[5].val.expr,
-                result_alias=kids[5].val.alias,
-                where=kids[6].val,
-                orderby=kids[7].val,
-                implicit=True,
-            )
-
-            self.val = qlast.SelectQuery(
-                result=subj,
-                offset=offset,
-                limit=limit,
-            )
-        else:
-            self.val = qlast.ForQuery(
-                iterator_alias=kids[1].val,
-                iterator=kids[3].val,
-                result=kids[5].val.expr,
-                result_alias=kids[5].val.alias,
-                where=kids[6].val,
-                orderby=kids[7].val,
-            )
+                  UNION OptionallyAliasedExpr"
+        self.val = qlast.ForQuery(
+            iterator_alias=kids[1].val,
+            iterator=kids[3].val,
+            result=kids[5].val.expr,
+            result_alias=kids[5].val.alias,
+        )
 
 
 class SimpleSelect(Nonterm):

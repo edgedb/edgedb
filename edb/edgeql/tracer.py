@@ -493,6 +493,15 @@ def trace_DeleteQuery(node: qlast.DeleteQuery, *, ctx: TracerContext) -> None:
 
 
 @trace.register
+def trace_For(node: qlast.ForQuery, *, ctx: TracerContext) -> None:
+    for alias in node.aliases:
+        if isinstance(alias, qlast.AliasedExpr):
+            trace(alias.expr, ctx=ctx)
+
+    trace(node.result, ctx=ctx)
+
+
+@trace.register
 def trace_DescribeStmt(
     node: qlast.DescribeStmt, *,
     ctx: TracerContext,

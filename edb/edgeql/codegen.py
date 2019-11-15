@@ -273,10 +273,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.result)
         self.indentation -= 1
 
-        self._visit_filter(node)
-        self._visit_order(node)
-        self._visit_offset_limit(node)
-
         if parenthesise:
             self.write(')')
 

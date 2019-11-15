@@ -4861,14 +4861,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             WITH MODULE test
-            FOR x IN {1, 4}
-            UNION Issue {
-                name
-            }
-            FILTER
-                Issue.number = <str>x
+            SELECT Issue := (
+                FOR x IN {1, 4}
+                UNION (
+                    SELECT Issue {
+                        name
+                    }
+                    FILTER
+                        .number = <str>x
+                )
+            )
             ORDER BY
-                Issue.number;
+                .number;
             ''',
             [
                 {'name': 'Release EdgeDB'},
@@ -4880,18 +4884,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             WITH MODULE test
-            FOR x IN {1, 3, 4}
-            UNION I := (
-                SELECT Issue {
-                    name,
-                    number,
-                }
-                FILTER
-                    Issue.number > <str>x
-                ORDER BY
-                    Issue.number
+            SELECT I := (
+                FOR x IN {1, 3, 4}
+                UNION (
+                    SELECT Issue {
+                        name,
+                        number,
+                    }
+                    FILTER
+                        .number > <str>x
+                )
             )
-            ORDER BY I.number;
+            ORDER BY .number;
             ''',
             [
                 {

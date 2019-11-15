@@ -504,7 +504,7 @@ class DeleteQuery(Statement, SubjectMixin, SelectClauseMixin):
     pass
 
 
-class ForQuery(SelectQuery):
+class ForQuery(Statement, ReturningMixin):
     iterator: Expr
     iterator_alias: str
 
