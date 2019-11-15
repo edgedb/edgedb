@@ -113,12 +113,6 @@ def compile_ForQuery(
         stmt = irast.SelectStmt()
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
-        if qlstmt.offset is not None or qlstmt.limit is not None:
-            # LIMIT and OFFSET are infix operators with both
-            # operands being SET OF, so we need to compile
-            # the body of the statement behind a fence.
-            sctx.path_scope = sctx.path_scope.attach_fence()
-
         with sctx.newscope(fenced=True) as scopectx:
             iterator = qlstmt.iterator
             if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
@@ -144,21 +138,6 @@ def compile_ForQuery(
             view_name=ctx.toplevel_result_view_name,
             forward_rptr=True,
             ctx=sctx)
-
-        clauses.compile_where_clause(
-            stmt, qlstmt.where, ctx=sctx)
-
-        stmt.orderby = clauses.compile_orderby_clause(
-            qlstmt.orderby, ctx=sctx)
-
-        if qlstmt.offset is not None or qlstmt.limit is not None:
-            sctx.path_scope = sctx.path_scope.parent
-
-            stmt.offset = clauses.compile_limit_offset_clause(
-                qlstmt.offset, ctx=sctx)
-
-            stmt.limit = clauses.compile_limit_offset_clause(
-                qlstmt.limit, ctx=sctx)
 
         result = fini_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 

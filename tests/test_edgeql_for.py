@@ -20,6 +20,7 @@
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLFor(tb.QueryTestCase):
@@ -189,29 +190,14 @@ class TestEdgeQLFor(tb.QueryTestCase):
             [3] * 13
         )
 
-    async def test_edgeql_for_filter_01(self):
-        await self.assert_query_result(
-            r'''
-                WITH MODULE test
-                FOR X IN {User.name}
-                UNION X
-                # this FILTER should have no impact
-                FILTER Card.element = 'Air';
-            ''',
-            {
-                'Alice',
-                'Bob',
-                'Carol',
-                'Dave',
-            }
-        )
-
     async def test_edgeql_for_limit_01(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
-                FOR X IN {User.name}
-                UNION X
+                SELECT X := (
+                    FOR X IN {User.name}
+                    UNION X
+                )
                 ORDER BY X
                 OFFSET 2
                 LIMIT 1
@@ -225,8 +211,10 @@ class TestEdgeQLFor(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
-                FOR X IN {Card.name}
-                UNION X
+                SELECT X := (
+                    FOR X IN {Card.name}
+                    UNION X
+                )
                 # this FILTER should have no impact
                 FILTER Card.element = 'Air';
             ''',
@@ -247,9 +235,11 @@ class TestEdgeQLFor(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
-                # get a combination of names from different object types
-                FOR X IN {Card.name, User.name}
-                UNION X
+                SELECT (
+                    # get a combination of names from different object types
+                    FOR X IN {Card.name, User.name}
+                    UNION X
+                )
                 # this FILTER should have no impact
                 FILTER Card.element = 'Air';
             ''',
@@ -277,13 +267,123 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 SELECT User {
                     select_deck := (
                         FOR letter IN {'I', 'B'}
-                        UNION _ := (
+                        UNION (
                             SELECT User.deck {
                                 name,
+                                # just define an ad-hoc link prop
                                 @letter := letter
                             }
                             FILTER User.deck.name[0] = letter
                         )
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', '@letter': 'B'},
+                        {'name': 'Imp', '@letter': 'I'},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x['name'],
+            }
+        )
+
+    @test.xfail('''
+        One important use of FOR is to associate link props with targets.
+
+        The test attempts to define a computable with an ad-hoc link
+        prop. The matters are complicated by the ORDER clause applied
+        ot the computable link. The wrapping SELECT makes it
+        impossible to define a link prop directly in FOR and it causes
+        an error in how "letter" is interpreted.
+
+        _letter and @letter become {'I', 'B'}, instead of being singletons.
+    ''')
+    async def test_edgeql_for_in_computable_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    select_deck := (
+                        SELECT _ := (
+                            FOR letter IN {'I', 'B'}
+                            UNION (
+                                SELECT User.deck {
+                                    name,
+                                    # Can't create a link property
+                                    # because it is not used directly
+                                    # in a computable link, but
+                                    # there's an intermediate clause.
+                                    _letter := letter
+                                }
+                                FILTER User.deck.name[0] = letter
+                            )
+                        ) {
+                            name,
+                            # redefine the _letter as a link prop
+                            @letter := ._letter
+                        }
+                        ORDER BY _.name
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', '@letter': 'B'},
+                        {'name': 'Imp', '@letter': 'I'},
+                    ]
+                }
+            ]
+        )
+
+    @test.xfail('''
+        See comment on why this test doesn't contain a FOR.
+
+        The result is *almost* correct, but oddly @letter is not a
+        singleton, even though it's equal to a tuple element, which
+        should be a singleton by definition.
+
+        See `test_edgeql_scope_tuple_13` for a shorter version of the
+        same issue.
+    ''')
+    async def test_edgeql_for_in_computable_03(self):
+        # This is trying to compute the same result as in previous
+        # example, but without using a FOR. Instead relying on
+        # property of tuples and cross-products to get the same
+        # result.
+        #
+        # In principle FOR x := <expr0> UNION <expr1> {<shape>} can be
+        # conceptually refactored as:
+        # WITH
+        #   el0 := <expr0>,
+        #   tup := (el0, expr1)
+        # SELECT tup.1 {<shape>};
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT User {
+                    select_deck := (
+                        WITH
+                            Deck := User.deck,
+                            letter := {'I', 'B'},
+                            tup := (
+                                SELECT (
+                                    letter,
+                                    (
+                                        SELECT Deck
+                                        FILTER Deck.name[0] = letter
+                                    )
+                                )
+                            )
+                        SELECT _ := tup.1 {
+                            name,
+                            # redefine the _letter as a link prop
+                            @letter := tup.0
+                        }
                         ORDER BY _.name
                     )
                 } FILTER .name = 'Alice';

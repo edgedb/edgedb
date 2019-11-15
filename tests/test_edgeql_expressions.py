@@ -4288,8 +4288,10 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(
             r"""
-                FOR x IN {1, 3, 5, 7}
-                UNION x
+                SELECT x := (
+                    FOR x IN {1, 3, 5, 7}
+                    UNION x
+                )
                 ORDER BY x;
             """,
             [1, 3, 5, 7],
@@ -4297,8 +4299,10 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                FOR x IN {1, 3, 5, 7}
-                UNION x + 1
+                SELECT x := (
+                    FOR x IN {1, 3, 5, 7}
+                    UNION x + 1
+                )
                 ORDER BY x;
             """,
             [2, 4, 6, 8],

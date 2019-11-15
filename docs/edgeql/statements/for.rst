@@ -17,15 +17,7 @@ FOR
 
     FOR <variable> IN "{" <iterator-set> [, ...]  "}"
 
-    UNION <output-expr>
-
-    [ FILTER <filter-expr> ]
-
-    [ ORDER BY <order-expr> [direction] [THEN ...] ]
-
-    [ OFFSET <offset-expr> ]
-
-    [ LIMIT  <limit-expr> ] ;
+    UNION <output-expr> ;
 
 :eql:synopsis:`FOR <variable> IN "{" <iterator-set> [, ...]  "}"`
     The ``FOR`` clause has this general form:
@@ -53,9 +45,6 @@ FOR
     is an arbitrary expression that is evaluated for
     every element in a set produced by evaluating the ``FOR`` clause.
     The results of the evaluation are appended into the result set.
-
-For details about ``FILTER``, ``ORDER BY``, ``OFFSET``, and ``LIMIT``
-clauses see the documentation of the :eql:stmt:`SELECT` statement.
 
 
 .. _ref_eql_forstatement:
