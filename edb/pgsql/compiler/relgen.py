@@ -1757,11 +1757,13 @@ def _compile_func_epilogue(
             expr.volatility is qltypes.Volatility.VOLATILE):
         # Apply the volatility reference.
         # See the comment in process_set_as_subquery().
-        volatility_source = pgast.SelectStmt(
-            values=[pgast.ImplicitRowExpr(args=[ctx.volatility_ref])]
+        func_rel.where_clause = astutils.extend_binop(
+            func_rel.where_clause,
+            pgast.NullTest(
+                arg=ctx.volatility_ref,
+                negated=True,
+            )
         )
-        volatility_rvar = relctx.rvar_for_rel(volatility_source, ctx=ctx)
-        relctx.rel_join(func_rel, volatility_rvar, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
         func_rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
