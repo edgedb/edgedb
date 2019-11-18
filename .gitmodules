@@ -1,6 +1,6 @@
 [submodule "postgres"]
 	path = postgres
-	url = https://github.com/edgedb/postgres.git
+	url = https://github.com/postgres/postgres.git
 [submodule "edb/server/pgproto"]
 	path = edb/server/pgproto
 	url = https://github.com/MagicStack/py-pgproto.git
