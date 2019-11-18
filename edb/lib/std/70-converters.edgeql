@@ -386,7 +386,7 @@ std::to_local_datetime(s: std::str, fmt: OPTIONAL str={})
     FROM SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::timestamp
+            edgedb.local_datetime_in("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
@@ -441,7 +441,7 @@ std::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> std::local_date
     FROM SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::date
+            edgedb.local_date_in("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
@@ -492,7 +492,7 @@ std::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> std::local_time
     FROM SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::time
+            edgedb.local_time_in("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',
