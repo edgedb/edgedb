@@ -25,11 +25,12 @@ There are two ways of writing identifiers in EdgeQL: plain and quoted.
 The plain identifiers are similar to many other languages, they are
 alphanumeric with underscores and cannot start with a digit. The
 quoted identifiers start and end with a *backtick*
-```quoted.identifier``` and can contain any characters inside, but
-must not start with an ampersand (``@``). If there's a need to include
-a backtick character as part of the identifier name a double-backtick
-sequence (``````) should be used: ```quoted``identifier``` will result
-in the actual identifier being ``quoted`identifier``.
+```quoted.identifier``` and can contain any characters inside with a
+few exceptions. They must not start with an ampersand (``@``) or
+contain double-colon (``::``). If there's a need to include a backtick
+character as part of the identifier name a double-backtick sequence
+(``````) should be used: ```quoted``identifier``` will result in the
+actual identifier being ``quoted`identifier``.
 
 .. productionlist:: edgeql
     identifier: `plain_ident` | `quoted_ident`

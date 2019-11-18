@@ -278,9 +278,13 @@ class EdgeQLLexer(lexer.Lexer):
         elif rule_token == 'BADIDENT':
             self.handle_error(txt)
 
-        elif rule_token == 'QIDENT' and txt[1] == '@':
-            self.handle_error(f'Identifiers cannot start with "@"',
-                              exact_message=True)
+        elif rule_token == 'QIDENT':
+            if txt[1] == '@':
+                self.handle_error(f'Identifiers cannot start with "@"',
+                                  exact_message=True)
+            elif '::' in txt:
+                self.handle_error(f'Identifiers cannot contain "::"',
+                                  exact_message=True)
 
         tok = super().token_from_text(rule_token, txt)
 
