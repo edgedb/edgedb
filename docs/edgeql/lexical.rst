@@ -26,7 +26,10 @@ The plain identifiers are similar to many other languages, they are
 alphanumeric with underscores and cannot start with a digit. The
 quoted identifiers start and end with a *backtick*
 ```quoted.identifier``` and can contain any characters inside, but
-must not start with an ampersand (``@``).
+must not start with an ampersand (``@``). If there's a need to include
+a backtick character as part of the identifier name a double-backtick
+sequence (``````) should be used: ```quoted``identifier``` will result
+in the actual identifier being ``quoted`identifier``.
 
 .. productionlist:: edgeql
     identifier: `plain_ident` | `quoted_ident`

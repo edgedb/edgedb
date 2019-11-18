@@ -41,11 +41,11 @@ def any_ident_to_str(ident):
 
 
 def ident_to_str(ident):
-    return edgeql_quote.disambiguate_identifier(ident)
+    return edgeql_quote.quote_ident(ident)
 
 
 def param_to_str(ident):
-    return '$' + edgeql_quote.disambiguate_identifier(
+    return '$' + edgeql_quote.quote_ident(
         ident, allow_reserved=True)
 
 
