@@ -74,7 +74,6 @@ EXTRA_DEPS = {
         'coverage~=4.5.2',
         'requests-xml~=0.2.3',
         'lxml',
-        'requests-xml',
     ] + DOCS_DEPS,
 
     'docs': DOCS_DEPS,
