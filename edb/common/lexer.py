@@ -219,10 +219,15 @@ class Lexer:
         if eof_tok is not None:
             yield eof_tok
 
-    def handle_error(self, txt, *, exc_type=UnknownTokenError):
+    def handle_error(self, txt, *,
+                     exact_message=False, exc_type=UnknownTokenError):
+        if exact_message:
+            msg = txt
+        else:
+            msg = f"Unexpected '{txt}'"
+
         raise exc_type(
-            f"Unexpected '{txt}'",
-            line=self.lineno, col=self.column, filename=self.filename)
+            msg, line=self.lineno, col=self.column, filename=self.filename)
 
     def token(self):
         """Return the next token produced by the lexer.

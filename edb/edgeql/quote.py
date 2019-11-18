@@ -59,21 +59,8 @@ def dollar_quote_literal(text):
     return quote + text + quote
 
 
-def disambiguate_identifier(text, *, allow_reserved=False):
-    reserved = keywords.by_type[keywords.RESERVED_KEYWORD]
-    if (text.lower() != '__type__' and
-            ((not allow_reserved and reserved.get(text.lower())) or
-                not _re_ident.fullmatch(text))):
-        return '`{}`'.format(text)
-    else:
-        return text
-
-
 def needs_quoting(string, allow_reserved):
-    isalnum = (
-        string and not string[0].isdecimal()
-        and string.replace('_', 'a').isalnum()
-    )
+    isalnum = _re_ident.fullmatch(string)
 
     string = string.lower()
 

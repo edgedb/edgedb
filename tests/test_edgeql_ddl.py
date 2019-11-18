@@ -3794,3 +3794,35 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SET id := <uuid>'00000000-0000-0000-0000-0000feedbeef'
                 }
             ''')
+
+    async def test_edgeql_ddl_quoting_01(self):
+        await self.con.execute("""
+            CREATE TYPE test::`U S``E R` {
+                CREATE PROPERTY `n ame` -> str;
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT test::`U S``E R` {
+                `n ame` := 'quoting_01'
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::`U S``E R` {
+                    __type__: {
+                        name
+                    },
+                    `n ame`
+                };
+            """,
+            [{
+                '__type__': {'name': 'test::U S`E R'},
+                'n ame': 'quoting_01'
+            }],
+        )
+
+        await self.con.execute("""
+            DROP TYPE test::`U S``E R`;
+        """)

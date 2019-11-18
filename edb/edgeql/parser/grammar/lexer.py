@@ -238,7 +238,7 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='QIDENT',
              next_state=STATE_KEEP,
-             regexp=r'`[^@].*?`'),
+             regexp=r'`([^`]|``)*`'),
 
         Rule(token='self',
              next_state=STATE_KEEP,
@@ -273,9 +273,14 @@ class EdgeQLLexer(lexer.Lexer):
     def token_from_text(self, rule_token, txt):
         if rule_token == 'BADSCONST':
             self.handle_error(f"Unterminated string {txt}",
+                              exact_message=True,
                               exc_type=UnterminatedStringError)
         elif rule_token == 'BADIDENT':
             self.handle_error(txt)
+
+        elif rule_token == 'QIDENT' and txt[1] == '@':
+            self.handle_error(f'Identifiers cannot start with "@"',
+                              exact_message=True)
 
         tok = super().token_from_text(rule_token, txt)
 
@@ -283,7 +288,9 @@ class EdgeQLLexer(lexer.Lexer):
             tok = tok._replace(type=txt)
 
         elif rule_token == 'QIDENT':
-            tok = tok._replace(type='IDENT', value=txt[1:-1])
+            # Drop the quotes and replace the "``" inside with a "`"
+            val = txt[1:-1].replace('``', '`')
+            tok = tok._replace(type='IDENT', value=val)
 
         return tok
 
@@ -324,6 +331,8 @@ class EdgeQLLexer(lexer.Lexer):
     def lex_highlight(self):
         return super().lex()
 
-    def handle_error(self, txt, *, exc_type=lexer.UnknownTokenError):
+    def handle_error(self, txt, *,
+                     exact_message=False, exc_type=lexer.UnknownTokenError):
         if self.raise_lexerror:
-            super().handle_error(txt, exc_type=exc_type)
+            super().handle_error(
+                txt, exact_message=exact_message, exc_type=exc_type)

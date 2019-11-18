@@ -759,6 +759,9 @@ aa';
         SELECT foo::`bar`;
         SELECT `foo`::bar;
         SELECT `foo`::`bar`;
+        SELECT `foo``bar`;
+        SELECT `foo`::`bar```;
+        SELECT `foo::bar`;
 
 % OK %
 
@@ -768,6 +771,9 @@ aa';
         SELECT foo::bar;
         SELECT foo::bar;
         SELECT foo::bar;
+        SELECT `foo``bar`;
+        SELECT foo::`bar```;
+        SELECT `foo::bar`;
         """
 
     def test_edgeql_syntax_name_02(self):
