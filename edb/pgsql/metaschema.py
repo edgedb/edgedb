@@ -1804,6 +1804,24 @@ class SysConfigFunction(dbops.Function):
         )
 
 
+class SysGetTransactionIsolation(dbops.Function):
+    "Get transaction isolation value as text compatible with EdgeDB's enum."
+    text = r'''
+        SELECT upper(setting)
+        FROM pg_settings
+        WHERE name = 'transaction_isolation'
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_get_transaction_isolation'),
+            args=[],
+            returns=('text',),
+            # This function only reads from a table.
+            volatility='stable',
+            text=self.text)
+
+
 def _field_to_column(field):
     ftype = field.type
     coltype = None
@@ -2030,6 +2048,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(BytesIndexWithBoundsFunction()),
         dbops.CreateCompositeType(SysConfigValueType()),
         dbops.CreateFunction(SysConfigFunction()),
+        dbops.CreateFunction(SysGetTransactionIsolation()),
     ])
 
     # Register "any" pseudo-type.

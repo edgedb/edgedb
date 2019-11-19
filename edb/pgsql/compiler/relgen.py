@@ -1830,7 +1830,9 @@ def process_set_as_func_enumerate(
         args = _compile_func_args(inner_func_set, ctx=newctx)
 
         if inner_func.func_sql_function:
-            func_name = (inner_func.func_sql_function,)
+            # The name might contain a "." if it's one of our
+            # metaschema helpers.
+            func_name = tuple(inner_func.func_sql_function.split('.', 1))
         else:
             func_name = common.get_function_backend_name(
                 inner_func.func_shortname, inner_func.func_module_id)
@@ -1859,7 +1861,9 @@ def process_set_as_func_expr(
         args = _compile_func_args(ir_set, ctx=newctx)
 
         if expr.func_sql_function:
-            name = (expr.func_sql_function,)
+            # The name might contain a "." if it's one of our
+            # metaschema helpers.
+            name = tuple(expr.func_sql_function.split('.', 1))
         else:
             name = common.get_function_backend_name(
                 expr.func_shortname, expr.func_module_id)
@@ -2023,7 +2027,9 @@ def process_set_as_agg_expr(
                 args.append(arg_ref)
 
         if expr.func_sql_function:
-            name = (expr.func_sql_function,)
+            # The name might contain a "." if it's one of our
+            # metaschema helpers.
+            name = tuple(expr.func_sql_function.split('.', 1))
         else:
             name = common.get_function_backend_name(expr.func_shortname,
                                                     expr.func_module_id)
