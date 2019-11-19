@@ -135,14 +135,29 @@ System
         {'1.0-alpha.1'}
 
 
-.. eql:function:: sys::get_transaction_isolation() -> str
+.. eql:function:: sys::get_transaction_isolation() -> \
+                        sys::transaction_isolation_t
 
     Return the isolation level of the current transaction.
 
-    Possible return values: ``"repeatable read"``,
-    ``"serialized"``.
+    Possible return values are given by
+    :eql:type:`sys::transaction_isolation_t`.
 
     .. code-block:: edgeql-repl
 
         db> SELECT sys::get_transaction_isolation();
-        {'repeatable read'}
+        {<enum>'REPEATABLE READ'}
+
+
+-----------
+
+
+.. eql:type:: sys::transaction_isolation_t
+
+    :index: enum transaction isolation
+
+    :eql:type:`Enum <enum>` indicating the possible transaction
+    isolation modes.
+
+    This enum takes the following values: ``REPEATABLE READ``,
+    ``SERIALIZABLE``.

@@ -504,7 +504,9 @@ def compile_FunctionCall(
         args.append(pgast.VariadicArgument(expr=var))
 
     if expr.func_sql_function:
-        name = (expr.func_sql_function,)
+        # The name might contain a "." if it's one of our
+        # metaschema helpers.
+        name = tuple(expr.func_sql_function.split('.', 1))
     else:
         name = common.get_function_backend_name(expr.func_shortname,
                                                 expr.func_module_id)

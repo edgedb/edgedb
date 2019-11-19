@@ -20,6 +20,10 @@
 CREATE MODULE sys;
 
 
+CREATE SCALAR TYPE sys::transaction_isolation_t
+    EXTENDING enum<'REPEATABLE READ', 'SERIALIZABLE'>;
+
+
 CREATE TYPE sys::Database {
     CREATE REQUIRED PROPERTY name -> std::str {
         SET readonly := True;
@@ -179,11 +183,10 @@ sys::get_version_as_str() -> std::str
 
 
 CREATE FUNCTION
-sys::get_transaction_isolation() -> std::str
+sys::get_transaction_isolation() -> sys::transaction_isolation_t
 {
     # This function only reads from a table.
     SET volatility := 'STABLE';
-    FROM SQL $$
-        SELECT setting FROM pg_settings WHERE name = 'transaction_isolation'
-    $$;
+    SET force_return_cast := true;
+    FROM SQL FUNCTION 'edgedb._get_transaction_isolation';
 };

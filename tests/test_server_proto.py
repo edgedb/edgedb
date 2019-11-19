@@ -1665,16 +1665,18 @@ class TestServerProto(tb.QueryTestCase):
 
                 if isol:
                     stmt += f' ISOLATION {isol}'
-                    expected = isol.lower()
+                    expected = isol
                 else:
-                    expected = 'repeatable read'
+                    expected = 'REPEATABLE READ'
 
                 await self.con.execute(stmt)
-                self.assertEqual(
-                    await self.con.fetchone(
-                        'SELECT sys::get_transaction_isolation()'),
-                    expected,
-                )
+                result = await self.con.fetchone(
+                    'SELECT sys::get_transaction_isolation()')
+                # Check that it's an enum and that the value is as
+                # expected without explicitly listing all the possible
+                # enum values for this.
+                self.assertIsInstance(result, edgedb.EnumValue)
+                self.assertEqual(str(result), expected)
                 await self.con.execute('ROLLBACK')
         finally:
             await self.con.execute('ROLLBACK')
