@@ -954,6 +954,27 @@ aa';
         SELECT `foo::bar`;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Identifiers cannot be empty', line=2, col=16)
+    def test_edgeql_syntax_name_24(self):
+        """
+        SELECT ``;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Identifiers cannot be empty', line=2, col=21)
+    def test_edgeql_syntax_name_25(self):
+        """
+        SELECT foo::``;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Identifiers cannot be empty', line=2, col=16)
+    def test_edgeql_syntax_name_26(self):
+        """
+        SELECT ``::Bar;
+        """
+
     def test_edgeql_syntax_shape_01(self):
         """
         SELECT Foo {bar};

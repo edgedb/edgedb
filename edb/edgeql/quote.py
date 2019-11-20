@@ -60,6 +60,11 @@ def dollar_quote_literal(text):
 
 
 def needs_quoting(string, allow_reserved):
+    if not string or string.startswith('@') or '::' in string:
+        # some strings are illegal as identifiers and as such don't
+        # require quoting
+        return False
+
     isalnum = _re_ident.fullmatch(string)
 
     string = string.lower()

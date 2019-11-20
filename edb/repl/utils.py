@@ -20,12 +20,18 @@
 from __future__ import annotations
 
 import functools
+import re
+from typing import *  # NoQA
 
+from edb.edgeql import quote as eql_quote
 from edb.edgeql.parser.grammar import lexer
 
 
 @functools.lru_cache(100)
-def split_edgeql(script: str, *, script_mode=True):
+def split_edgeql(
+    script: str, *,
+    script_mode=True
+) -> Tuple[List[str], Optional[str]]:
     '''\
     Split the input string into a list of possible EdgeQL statements.
 
@@ -82,3 +88,39 @@ def split_edgeql(script: str, *, script_mode=True):
     out = [line for line in out if line not in {'', ';'}]
 
     return out, incomplete
+
+
+def _strip_quote(part: str) -> str:
+    if (part != '```'
+            and len(part) > 2
+            and part.startswith('`') and part.endswith('`')):
+        return part[1:-1].replace('``', '`')
+    else:
+        return part
+
+
+def normalize_name(name: str) -> str:
+    r'''Normalize plain text and backtick-quoted names into valid identifiers.
+
+    The \d command takes a name which is normally expected to be plain
+    text even if it contains special symbols that require quoting in
+    EdgeQL. However, it is possible for the user to submit a name that
+    is properly quoted, too. This function normalizes all these
+    options into a string representing valid EdgeQL identifier.
+    '''
+
+    # un-backtick-quote the input
+    name = ''.join(_strip_quote(part)
+                   for part in re.split(r'(`(?:[^`]|``)+`)', name))
+
+    # normalize input by backtick-quoting when necessary
+    name = '::'.join(eql_quote.quote_ident(ident)
+                     for ident in name.split('::', 1))
+
+    if (not name
+            or name.startswith('::') or name.endswith('::')
+            or name.startswith('@') or name.endswith('@')):
+        # name is illegal and cannot be normalized
+        return ''
+
+    return name
