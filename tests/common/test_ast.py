@@ -20,6 +20,7 @@
 import copy
 import typing
 import unittest
+import unittest.mock
 
 from edb.common import ast
 from edb.common.ast import match
@@ -83,6 +84,10 @@ class ASTBaseTests(unittest.TestCase):
         assert ctree22.left.args[0].node['lconst'] is not lconst
         assert ctree22.left.args[0].node['lconst'].value == lconst.value
 
+    @unittest.mock.patch(
+        'edb.common.ast.base._check_type',
+        ast.base._check_type_real,
+    )
     def test_common_ast_typing(self):
         class Base(ast.AST):
             pass

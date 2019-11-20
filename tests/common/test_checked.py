@@ -28,9 +28,21 @@ from edb.common.checked import CheckedList
 from edb.common.checked import CheckedSet
 from edb.common.checked import FrozenCheckedList
 from edb.common.checked import FrozenCheckedSet
+from edb.common.checked import enable_typechecks, disable_typechecks
+from edb.common import debug
 
 
-class CheckedDictTests(unittest.TestCase):
+class EnsureTypeChecking:
+    def setUp(self):
+        if not debug.flags.typecheck:
+            enable_typechecks()
+
+    def tearDown(self):
+        if not debug.flags.typecheck:
+            disable_typechecks()
+
+
+class CheckedDictTests(EnsureTypeChecking, unittest.TestCase):
     def test_common_checked_checkeddict_basics(self) -> None:
         StrDict = CheckedDict[str, int]
         assert StrDict({"1": 2})["1"] == 2
@@ -113,7 +125,7 @@ class CheckedDictTests(unittest.TestCase):
         assert sd == sd2
 
 
-class CheckedListTestBase:
+class CheckedListTestBase(EnsureTypeChecking):
     BaseList = FrozenCheckedList
 
     def test_common_checked_shared_list_basics(self) -> None:
@@ -266,7 +278,7 @@ class CheckedListTests(CheckedListTestBase, unittest.TestCase):
             tl = (42,) + tl
 
 
-class CheckedSetTestBase:
+class CheckedSetTestBase(EnsureTypeChecking):
     BaseSet = FrozenCheckedSet
 
     def test_common_checked_shared_set_basics(self) -> None:
@@ -406,7 +418,7 @@ class GenericFrozenCheckedSetSubclass(FrozenCheckedSet[T]):
 ConcreteFrozenCheckedSetSubclass2 = GenericFrozenCheckedSetSubclass[int]
 
 
-class CheckedSubclassingTestBase:
+class CheckedSubclassingTestBase(EnsureTypeChecking):
     BaseSet = GenericFrozenCheckedSetSubclass
 
     def test_common_checked_checkedset_subclass_pickling(self):
