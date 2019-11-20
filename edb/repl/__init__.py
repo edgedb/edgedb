@@ -31,8 +31,10 @@ import immutables
 
 from prompt_toolkit import application as pt_app
 from prompt_toolkit import completion as pt_complete
+from prompt_toolkit import document as pt_document
 from prompt_toolkit import enums as pt_enums
 from prompt_toolkit import filters as pt_filters
+from prompt_toolkit import formatted_text as pt_formatted_text
 from prompt_toolkit import history as pt_history
 from prompt_toolkit import key_binding as pt_key_binding
 from prompt_toolkit import shortcuts as pt_shortcuts
@@ -47,7 +49,7 @@ from edb.edgeql import pygments as eql_pygments
 from edb.server import buildmeta
 
 from . import context
-from . import lexutils
+from . import utils
 from . import render
 
 
@@ -71,7 +73,7 @@ def is_multiline_text(text):
         return False
 
     if text.endswith(';'):
-        _, incomplete = lexutils.split_edgeql(text, script_mode=False)
+        _, incomplete = utils.split_edgeql(text, script_mode=False)
         return incomplete is not None
 
     return True
@@ -270,7 +272,7 @@ class Cli:
         self.connection.add_log_listener(self.on_edgedb_log_message)
 
     @_command('c', R'\c DBNAME', 'connect to database DBNAME')
-    def command_connect(self, args):
+    def command_connect(self, args: str) -> None:
         new_db = args.strip()
         new_args = self.conn_args.set('database', new_db)
         try:
@@ -286,7 +288,7 @@ class Cli:
         self.conn_args = new_args
 
     @_command('l', R'\l', 'list databases')
-    def command_list_dbs(self, args):
+    def command_list_dbs(self, args: str) -> None:
         result, _ = self.fetch(
             '''
                 SELECT name := sys::Database.name
@@ -299,10 +301,39 @@ class Cli:
         for dbn in result:
             print(f'  {dbn}')
 
+    @_command('d', R'\d NAME', 'describe concept')
+    def command_describe_object(self, args: str) -> None:
+        name = utils.normalize_name(args.strip())
+
+        if not name:
+            print(f'The name {args!r} is not valid', flush=True)
+            return
+
+        try:
+            result, _ = self.fetch(
+                f'''
+                    DESCRIBE OBJECT {name} AS TEXT
+                ''',
+                json=False
+            )
+        except edgedb.EdgeDBError as exc:
+            render.render_exception(self.context, exc)
+        else:
+            desc_doc = pt_document.Document(result[0])
+            lexer = pt_lexers.PygmentsLexer(eql_pygments.EdgeQLLexer)
+            formatter = lexer.lex_document(desc_doc)
+
+            for line in range(desc_doc.line_count):
+                pt_shortcuts.print_formatted_text(
+                    pt_formatted_text.FormattedText(formatter(line)),
+                    style=self.style
+                )
+            print()
+
     @_command('psql', R'\psql',
               'open psql to the current postgres process',
               dev=True)
-    def command_psql(self, args):
+    def command_psql(self, args: str) -> None:
         settings = self.connection.get_settings()
         pgaddr = settings.get('pgaddr')
         if not pgaddr:
@@ -341,7 +372,7 @@ class Cli:
 
     @_command('errverbose', R'\errverbose',
               'show most recent error message at maximum verbosity')
-    def command_errverbose(self, args):
+    def command_errverbose(self, args: str) -> None:
         exc = self.context.last_exception
 
         if exc is None:
@@ -459,11 +490,11 @@ class Cli:
                 last_query = None
                 try:
                     if qm is context.QueryMode.Normal:
-                        for query in lexutils.split_edgeql(command)[0]:
+                        for query in utils.split_edgeql(command)[0]:
                             last_query = query
                             results.append(self.fetch(query, json=False))
                     else:
-                        for query in lexutils.split_edgeql(command)[0]:
+                        for query in utils.split_edgeql(command)[0]:
                             last_query = query
                             results.append(self.fetch(query, json=True))
 
@@ -523,7 +554,7 @@ def execute_script(conn_args, data):
             raise
 
     try:
-        queries = lexutils.split_edgeql(data)[0]
+        queries = utils.split_edgeql(data)[0]
         ctx = context.ReplContext()
         for query in queries:
             try:

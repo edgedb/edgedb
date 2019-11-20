@@ -229,7 +229,7 @@ class EdgeQLLexer(lexer.Lexer):
              regexp=r'''
                     __[^\W\d]\w*__
                     |
-                    `__.*?__`
+                    `__([^`]|``)*__`(?!`)
                 '''),
 
         Rule(token='IDENT',
@@ -279,7 +279,10 @@ class EdgeQLLexer(lexer.Lexer):
             self.handle_error(txt)
 
         elif rule_token == 'QIDENT':
-            if txt[1] == '@':
+            if txt == '``':
+                self.handle_error(f'Identifiers cannot be empty',
+                                  exact_message=True)
+            elif txt[1] == '@':
                 self.handle_error(f'Identifiers cannot start with "@"',
                                   exact_message=True)
             elif '::' in txt:

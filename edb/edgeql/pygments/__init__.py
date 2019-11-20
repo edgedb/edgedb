@@ -81,10 +81,15 @@ class EdgeQLLexer(RegexLexer):
 
             (fr'''(?ix)
                 \b(?<![:\.<>@])(
-                    {' | '.join(unreserved_keywords)}
-                    |
                     {' | '.join(reserved_keywords)}
                 )\b''', token.Keyword.Reserved),
+
+            # Unreserved keywords should lose their special meaning
+            # when part of a path or fully-qualified name.
+            (fr'''(?ix)
+                \b(?<![:\.<>@])(
+                    {' | '.join(unreserved_keywords)}
+                )\b(?![:\.<>@])''', token.Keyword.Reserved),
 
             (fr'''(?x)
                 \b(?<!\.)(
