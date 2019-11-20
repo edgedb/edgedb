@@ -35,9 +35,9 @@ The following data types are used in the descriptions:
     * - ``byte``
       - 8-bit unsigned integer
     * - ``string``
-      - a UTF-8 encoded text string prefixed with its byte length as ``int16``
+      - a UTF-8 encoded text string prefixed with its byte length as ``int32``
     * - ``bytes``
-      - a byte string prefixed with its length as ``int16``
+      - a byte string prefixed with its length as ``int32``
     * - ``Headers``
       - a key-value structure with the following layout:
 
