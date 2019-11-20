@@ -24,6 +24,8 @@ import functools
 import itertools
 import types
 
+from edb.common import debug
+
 
 __all__ = [
     "CheckedList",
@@ -126,11 +128,12 @@ class AbstractCheckedList(Generic[T]):
     type: type
     _container: List[T]
 
-    def _check_type(self, value: Any) -> T:
+    @classmethod
+    def _check_type(cls, value: Any) -> T:
         """Ensure `value` is of type T and return it."""
-        if not isinstance(value, self.type):
+        if not isinstance(value, cls.type):
             raise ValueError(
-                f"{type(self)!r} accepts only values of type {self.type!r}, "
+                f"{cls!r} accepts only values of type {cls.type!r}, "
                 f"got {type(value)!r}"
             )
         return cast(T, value)
@@ -312,11 +315,12 @@ class AbstractCheckedSet(AbstractSet[T]):
     type: type
     _container: AbstractSet[T]
 
-    def _check_type(self, value: Any) -> T:
+    @classmethod
+    def _check_type(cls, value: Any) -> T:
         """Ensure `value` is of type T and return it."""
-        if not isinstance(value, self.type):
+        if not isinstance(value, cls.type):
             raise ValueError(
-                f"{type(self)!r} accepts only values of type {self.type!r}, "
+                f"{cls!r} accepts only values of type {cls.type!r}, "
                 f"got {type(value)!r}"
             )
         return cast(T, value)
@@ -647,3 +651,35 @@ class CheckedDict(
         for key in iterable:
             new[cls._check_key_type(key)] = cls._check_value_type(value)
         return new
+
+
+def _identity(cls: type, value: T) -> T:
+    return value
+
+
+_type_checking = {
+    CheckedList: ["_check_type"],
+    CheckedDict: ["_check_key_type", "_check_value_type"],
+    CheckedSet: ["_check_type"],
+    FrozenCheckedList: ["_check_type"],
+    FrozenCheckedSet: ["_check_type"],
+}
+
+
+def disable_typechecks() -> None:
+    for type_, methods in _type_checking.items():
+        for method in methods:
+            setattr(type_, method, _identity)
+
+
+def enable_typechecks() -> None:
+    for type_, methods in _type_checking.items():
+        for method in methods:
+            try:
+                delattr(type_, method)
+            except AttributeError:
+                continue
+
+
+if not debug.flags.typecheck:
+    disable_typechecks()

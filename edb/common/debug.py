@@ -108,6 +108,9 @@ class flags(metaclass=FlagsMeta):
     disable_qcache = Flag(
         doc="Disable server query cache. Parse/Execute will always recompile.")
 
+    typecheck = Flag(
+        doc="Perform runtime type checking.")
+
 
 @contextlib.contextmanager
 def timeit(title='block'):

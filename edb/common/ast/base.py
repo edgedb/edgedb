@@ -28,6 +28,7 @@ from typing import *  # NoQA
 
 import typing_inspect
 
+from edb.common import debug
 from edb.common import markup
 from edb.common import typeutils
 
@@ -462,7 +463,11 @@ def _check_mapping_type(type_, value, raise_error, instance_type):
         _check_type(vtype, v, raise_error)
 
 
-def _check_type(type_, value, raise_error):
+def _check_type_passthrough(type_, value, raise_error):
+    pass
+
+
+def _check_type_real(type_, value, raise_error):
     if type_ is None:
         return
 
@@ -501,3 +506,9 @@ def _check_type(type_, value, raise_error):
     elif type_ is not Any:
         if value is not None and not isinstance(value, type_):
             raise_error(type_.__name__, value)
+
+
+if debug.flags.typecheck:
+    _check_type = _check_type_real
+else:
+    _check_type = _check_type_passthrough
