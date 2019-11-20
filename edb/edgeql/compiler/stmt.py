@@ -30,6 +30,7 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import ddl as s_ddl
+from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_lprops
 from edb.schema import name as s_name
@@ -418,24 +419,49 @@ def compile_DescribeStmt(
             referenced_classes: List[s_obj.ObjectMeta] = []
 
             objref = ql.object
+            itemclass = objref.itemclass
 
-            if objref.itemclass is qltypes.SchemaObjectClass.MODULE:
+            if itemclass is qltypes.SchemaObjectClass.MODULE:
                 modules.append(objref.name)
             else:
                 itemtypes = None
+                found = False
 
-                if objref.itemclass is not None:
+                name: str
+                if objref.module:
+                    name = s_name.Name(module=objref.module, name=objref.name)
+                else:
+                    name = objref.name
+
+                if itemclass is not None:
                     itemtypes = (
                         s_obj.ObjectMeta.get_schema_metaclass_for_ql_class(
-                            objref.itemclass),
+                            itemclass),
                     )
 
-                obj = schemactx.get_schema_object(
-                    objref,
-                    item_types=itemtypes,
-                    ctx=ictx,
-                )
-                items.append(obj.get_name(ictx.env.schema))
+                if (itemclass is None or
+                        itemclass is qltypes.SchemaObjectClass.FUNCTION):
+
+                    try:
+                        funcs: Tuple[s_func.Function] = \
+                            ictx.env.schema.get_functions(
+                                name,
+                                module_aliases=ictx.modaliases)
+                    except errors.InvalidReferenceError:
+                        pass
+                    else:
+                        for func in funcs:
+                            items.append(func.get_name(ictx.env.schema))
+                        found = True
+
+                if not found:
+                    obj = schemactx.get_schema_object(
+                        objref,
+                        item_types=itemtypes,
+                        ctx=ictx,
+                    )
+
+                    items.append(obj.get_name(ictx.env.schema))
 
             emit_oids = ql.options.get_flag('EMIT OIDS')
             verbose = ql.options.get_flag('VERBOSE')
@@ -476,7 +502,7 @@ def compile_DescribeStmt(
         )
 
         stmt.result = setgen.ensure_set(
-            irast.StringConstant(value=text, typeref=ct),
+            irast.RawStringConstant(value=text, typeref=ct),
             ctx=ictx,
         )
 

@@ -1276,3 +1276,22 @@ class TestIntrospection(tb.QueryTestCase):
         """)
 
         self.assertGreater(res, 0)
+
+    async def test_edgeql_introspection_describe_01(self):
+        # Test that things like "\1" are serialized correctly
+        # by the DESCRIBE command as they would in a raw string.
+        async with self.con.transaction():
+            await self.con.execute(r'''
+                CREATE FUNCTION bad() -> str
+                    FROM EdgeQL $$ SELECT r'\1' $$;
+            ''')
+
+            desc = await self.con.fetchone('''
+                DESCRIBE OBJECT bad AS TEXT
+            ''')
+
+        self.assertEqual(
+            desc,
+            r"function default::bad() ->  std::str "
+            r"from edgeql $$ SELECT r'\1' $$;"
+        )

@@ -148,6 +148,13 @@ def ast_to_typeref(
 def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
     from . import types as s_types
 
+    if isinstance(t, so.ObjectRef):
+        # We want typenames like 'anytype` that are wrapped in an
+        # ObjectRef to be unwrapped to proper types, so that we
+        # can generate proper AST nodes for them (e.g. for `anytype` it
+        # is `qlast.AnyType()`).
+        t = t._resolve_ref(schema)
+
     if t.is_type() and t.is_any():
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
     elif t.is_type() and t.is_anytuple():
@@ -380,7 +387,11 @@ def enrich_schema_lookup_error(
                 names.append(str(suggestion.get_displayname(schema)))
 
         if name_template is not None:
-            names = [name_template.format(name=name) for name in names]
+            # Use a set() for names as there might be duplicates.
+            # E.g. "to_datetime" function has multiple variants, and
+            # we don't want to diplay "did you mean one of these:
+            # to_datetime, to_datetime, to_datetime?"
+            names = {name_template.format(name=name) for name in names}
 
         if len(names) > 1:
             hint = f'did you mean one of these: {", ".join(names)}?'

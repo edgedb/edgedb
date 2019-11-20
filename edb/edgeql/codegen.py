@@ -1338,20 +1338,23 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self._block_ws(1)
                 self.visit_list(node.commands, terminator=';')
                 self.new_lines = 1
+            else:
+                self.write(' ')
 
             if node.code.from_function:
-                from_clause = f' FROM {node.code.language} FUNCTION '
+                from_clause = f'FROM {node.code.language} FUNCTION '
                 if self.sdlmode:
                     from_clause = from_clause.lower()
                 self.write(from_clause)
                 self.write(f'{node.code.from_function!r}')
             else:
-                from_clause = f' FROM {node.code.language} '
+                from_clause = f'FROM {node.code.language} '
                 if self.sdlmode:
                     from_clause = from_clause.lower()
                 self.write(from_clause)
-                self.write(edgeql_quote.dollar_quote_literal(
-                    node.code.code))
+                if node.code.code:
+                    self.write(edgeql_quote.dollar_quote_literal(
+                        node.code.code))
 
             self._block_ws(-1)
             if node.commands:
