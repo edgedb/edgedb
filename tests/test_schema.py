@@ -2879,7 +2879,31 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                                    for {__subject__} is 15.';
                 };
             };
+            """,
+
+            'DESCRIBE OBJECT array_agg AS TEXT',
+
             """
+            function std::array_agg(s: SET OF anytype) ->  array<anytype> {
+                volatility := 'IMMUTABLE';
+                from sql;
+            };
+            """,
+
+            'DESCRIBE FUNCTION stdgraphql::short_name AS SDL',
+
+            r"""
+            function stdgraphql::short_name(name: std::str) -> std::str {
+                volatility := 'IMMUTABLE';
+                from edgeql $$
+                    SELECT (
+                        name[5:] IF name LIKE 'std::%' ELSE
+                        name[9:] IF name LIKE 'default::%' ELSE
+                        re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
+                    ) ++ 'Type'
+                $$
+            ;};
+            """,
         )
 
     def test_describe_02(self):

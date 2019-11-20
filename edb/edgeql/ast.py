@@ -18,6 +18,8 @@
 
 
 from __future__ import annotations
+# Do not import "from typing *"; this module contains
+# AST classes that name-clash with classes from the typing module.
 
 import decimal
 import typing
@@ -875,8 +877,8 @@ class Language(s_enum.StrEnum):
 
 class FunctionCode(Clause):
     language: Language
-    code: str
-    from_function: str
+    code: typing.Optional[str]
+    from_function: typing.Optional[str]
     from_expr: bool
 
 

@@ -933,21 +933,30 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
     def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'return_type':
             node.returning = utils.typeref_to_ast(schema, op.new_value)
+
         elif op.property == 'return_typemod':
             node.returning_typemod = op.new_value
+
         elif op.property == 'code':
-            node.code = qlast.FunctionCode(
-                language=self.get_attribute_value('language'),
-                code=op.new_value,
-            )
+            if node.code is None:
+                node.code = qlast.FunctionCode()
+            node.code.code = op.new_value
+
+        elif op.property == 'language':
+            if node.code is None:
+                node.code = qlast.FunctionCode()
+            node.code.language = op.new_value
+
         elif op.property == 'from_function' and op.new_value:
-            node.code = qlast.FunctionCode(
-                from_function=op.new_value,
-            )
+            if node.code is None:
+                node.code = qlast.FunctionCode()
+            node.code.from_function = op.new_value
+
         elif op.property == 'from_expr' and op.new_value:
-            node.code = qlast.FunctionCode(
-                from_expr=op.new_value,
-            )
+            if node.code is None:
+                node.code = qlast.FunctionCode()
+            node.code.from_expr = op.new_value
+
         else:
             super()._apply_field_ast(schema, context, node, op)
 
