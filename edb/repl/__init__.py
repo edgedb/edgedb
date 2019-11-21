@@ -45,6 +45,7 @@ from edb.errors import base as base_errors
 
 from edb.common import term
 from edb.edgeql import pygments as eql_pygments
+from edb.edgeql import quote as eql_quote
 
 from edb.server import buildmeta
 
@@ -60,7 +61,7 @@ STATUSES_WITH_OUTPUT = frozenset({
 
 
 @functools.lru_cache(100)
-def is_multiline_text(text):
+def is_multiline_text(text) -> bool:
     text = text.strip()
 
     if text in Cli.exit_commands:
@@ -80,7 +81,7 @@ def is_multiline_text(text):
 
 
 @pt_filters.Condition
-def is_multiline():
+def is_multiline() -> bool:
     doc = pt_app.get_app().layout.get_buffer_by_name(
         pt_enums.DEFAULT_BUFFER).document
 
@@ -289,17 +290,77 @@ class Cli:
 
     @_command('l', R'\l', 'list databases')
     def command_list_dbs(self, args: str) -> None:
-        result, _ = self.fetch(
-            '''
-                SELECT name := sys::Database.name
-                ORDER BY name ASC
-            ''',
-            json=False
+        self._command_simplelist(
+            '',
+            query='SELECT name := sys::Database.name',
+            name_field='name',
+            item_name='databases',
         )
 
-        print('List of databases:')
-        for dbn in result:
-            print(f'  {dbn}')
+    @_command('lr', R'\lr [PATTERN]', 'list roles')
+    def command_list_roles(self, args: str, *,
+                           case_sensitive: bool = False) -> None:
+        self._command_simplelist(
+            args.strip(),
+            query='SELECT name := sys::Role.name',
+            name_field='name',
+            item_name='roles',
+            case_sensitive=case_sensitive,
+        )
+
+    @_command('lrI', R'\lrI [PATTERN]',
+              'list roles (case sensitive pattern match)')
+    def command_list_roles_i(self, args: str) -> None:
+        self.command_list_roles(args, case_sensitive=True)
+
+    @_command('lm', R'\lm [PATTERN]', 'list modules')
+    def command_list_modules(self, args: str, *,
+                             case_sensitive: bool = False) -> None:
+        self._command_simplelist(
+            args.strip(),
+            query='SELECT name := schema::Module.name',
+            name_field='name',
+            item_name='modules',
+            case_sensitive=case_sensitive,
+        )
+
+    @_command('lmI', R'\lmI [PATTERN]',
+              'list modules (case sensitive pattern match)')
+    def command_list_modules_i(self, args: str) -> None:
+        self.command_list_modules(args, case_sensitive=True)
+
+    def _command_simplelist(self, pattern: str, query: str,
+                            name_field: str, item_name: str,
+                            case_sensitive: bool = False) -> None:
+        if case_sensitive:
+            flag = ''
+        else:
+            flag = 'i'
+
+        filter_clause, qkw = utils.get_filter_based_on_pattern(
+            pattern, name_field, flag)
+
+        try:
+            result, _ = self.fetch(
+                f'''
+                    {query}
+                    {filter_clause}
+                    ORDER BY {name_field} ASC
+                ''',
+                json=False,
+                **qkw
+            )
+        except edgedb.EdgeDBError as exc:
+            render.render_exception(self.context, exc)
+        else:
+            if result:
+                print(f'List of {item_name}:')
+                for item in result:
+                    print(f'  {item}')
+                print()
+            else:
+                print(f'No {item_name} found matching '
+                      f'{eql_quote.quote_literal(pattern)}')
 
     @_command('d', R'\d NAME', 'describe schema object')
     def command_describe_object(self, args: str, *, verbose=False) -> None:
@@ -408,7 +469,7 @@ class Cli:
             print('> ' + '\n> '.join(srv_tb.strip().split('\n')))
             print()
 
-    def fetch(self, query: str, *, json: bool, retry: bool=True):
+    def fetch(self, query: str, *, json: bool, retry: bool=True, **kwargs):
         self.ensure_connection()
         self.context.last_exception = None
 
@@ -418,7 +479,7 @@ class Cli:
             meth = self.connection.fetchall
 
         try:
-            result = meth(query)
+            result = meth(query, **kwargs)
         except edgedb.EdgeDBError as ex:
             self.context.last_exception = ex
             raise
@@ -438,13 +499,13 @@ class Cli:
 
         return result, self.connection._get_last_status()
 
-    def show_banner(self):
+    def show_banner(self) -> None:
         version = self.connection.fetchone('SELECT sys::get_version_as_str()')
         render.render_status(self.context, f'EdgeDB {version}')
         render.render_status(self.context, R'Type "\?" for help.')
         print()
 
-    def run(self):
+    def run(self) -> None:
         self.prompt = self.build_propmpt()
         self.ensure_connection()
         self.context.use_colors = term.use_colors(sys.stdout.fileno())
@@ -579,7 +640,7 @@ def execute_script(conn_args, data):
         con.close()
 
 
-def _data_in_stdin():
+def _data_in_stdin() -> str:
     try:
         if select.select([sys.stdin], [], [], 0.0)[0]:
             data = sys.stdin.read()

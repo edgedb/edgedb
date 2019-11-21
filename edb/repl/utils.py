@@ -124,3 +124,20 @@ def normalize_name(name: str) -> str:
         return ''
 
     return name
+
+
+def get_filter_based_on_pattern(pattern: str,
+                                field: str = '.name',
+                                flag: str = '') -> Tuple[str, Dict[str, str]]:
+    if flag:
+        flag = f'(?{flag})'
+
+    qkw = {}
+
+    if pattern:
+        qkw[f're_{field}'] = flag + pattern
+        return f'FILTER re_test(<str>$`re_{field}`, {field})', qkw
+
+    else:
+        # no FILTER clause necessary
+        return '', qkw
