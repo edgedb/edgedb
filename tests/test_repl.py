@@ -24,7 +24,7 @@ from edb.repl import utils
 
 class TestReplUtils(unittest.TestCase):
 
-    def test_split_edgeql_01(self):
+    def test_repl_split_edgeql_01(self):
         # test regular complete statements
         self.assertEqual(
             utils.split_edgeql('select +  - 1;', script_mode=False),
@@ -62,7 +62,7 @@ class TestReplUtils(unittest.TestCase):
                 None
             ))
 
-    def test_split_edgeql_02(self):
+    def test_repl_split_edgeql_02(self):
         # test multiline statements
         self.assertEqual(
             utils.split_edgeql('', script_mode=False),
@@ -92,7 +92,7 @@ class TestReplUtils(unittest.TestCase):
                                script_mode=False),
             (['select +  - 1;'], '  select {;;;;}}}}'))
 
-    def test_split_edgeql_03(self):
+    def test_repl_split_edgeql_03(self):
         # test multiline statements where the string is unterminated
         self.assertEqual(
             utils.split_edgeql('SELECT "aaa', script_mode=False),
@@ -106,7 +106,7 @@ class TestReplUtils(unittest.TestCase):
             utils.split_edgeql('SELECT "as\n', script_mode=False),
             ([], 'SELECT "as\n'))
 
-    def test_split_edgeql_04(self):
+    def test_repl_split_edgeql_04(self):
         # test multiline statements where the ';' is not a separator
         self.assertEqual(
             utils.split_edgeql('SELECT "aaa;', script_mode=False),
@@ -116,7 +116,7 @@ class TestReplUtils(unittest.TestCase):
             utils.split_edgeql('SELECT 1 #;', script_mode=False),
             ([], 'SELECT 1 #;'))
 
-    def test_split_edgeql_05(self):
+    def test_repl_split_edgeql_05(self):
         # test invalid tokens
         self.assertEqual(
             utils.split_edgeql('SELECT 1 ~ 2;', script_mode=False),
@@ -126,7 +126,7 @@ class TestReplUtils(unittest.TestCase):
             utils.split_edgeql('SELECT 1 ~ 2', script_mode=False),
             ([], 'SELECT 1 ~ 2'))
 
-    def test_split_edgeql_06(self):
+    def test_repl_split_edgeql_06(self):
         # test regular script mode
         self.assertEqual(
             utils.split_edgeql('select +  - 1;', script_mode=True),
@@ -157,7 +157,7 @@ class TestReplUtils(unittest.TestCase):
                 '''select 1;'''
             ], None))
 
-    def test_split_edgeql_07(self):
+    def test_repl_split_edgeql_07(self):
         # test script mode with various incomplete parts
         self.assertEqual(
             utils.split_edgeql('', script_mode=True), ([], None))
@@ -186,7 +186,7 @@ class TestReplUtils(unittest.TestCase):
                                script_mode=True),
             (['select +  - 1;', 'select {;;;;}}}};', 'select'], None))
 
-    def test_normalize_name_01(self):
+    def test_repl_normalize_name_01(self):
         # test REPL name normalization
         self.assertEqual(
             utils.normalize_name('Object'), 'Object')
@@ -211,7 +211,7 @@ class TestReplUtils(unittest.TestCase):
         self.assertEqual(
             utils.normalize_name('`select`::`Group`'), '`select`::`Group`')
 
-    def test_normalize_name_02(self):
+    def test_repl_normalize_name_02(self):
         # The empty string quote is not a valid identifier,
         # therefore it's treated as plain text "``".
         self.assertEqual(
@@ -233,7 +233,7 @@ class TestReplUtils(unittest.TestCase):
         self.assertEqual(
             utils.normalize_name('````````'), '````````')
 
-    def test_normalize_name_03(self):
+    def test_repl_normalize_name_03(self):
         # The normalization allows some unusual quoting that would not
         # be legal in EdgeQL, but since \d command is not bound by the
         # same rules for valid identifiers, these are allowed here.
@@ -255,7 +255,7 @@ class TestReplUtils(unittest.TestCase):
             # quoting that encompasses "::", which would be illegal in EdgeQL
             utils.normalize_name('`std::Object`'), 'std::Object')
 
-    def test_normalize_name_04(self):
+    def test_repl_normalize_name_04(self):
         # this results in an illegal (empty) name
         self.assertEqual(
             utils.normalize_name(''), '')
@@ -268,3 +268,34 @@ class TestReplUtils(unittest.TestCase):
         # this results in an illegal name starting with "@"
         self.assertEqual(
             utils.normalize_name('@foo'), '')
+
+    def test_repl_filter_pattern_01(self):
+        # no pattern - no filter
+        clause, qkw = utils.get_filter_based_on_pattern('')
+        self.assertEqual(clause, '')
+        self.assertEqual(qkw, {})
+
+        clause, qkw = utils.get_filter_based_on_pattern('', 'name')
+        self.assertEqual(clause, '')
+        self.assertEqual(qkw, {})
+
+        clause, qkw = utils.get_filter_based_on_pattern('', 'name', 'i')
+        self.assertEqual(clause, '')
+        self.assertEqual(qkw, {})
+
+        # actual filters
+        clause, qkw = utils.get_filter_based_on_pattern(r'std')
+        self.assertEqual(clause, r'FILTER re_test(<str>$`re_.name`, .name)')
+        self.assertEqual(qkw, {'re_.name': 'std'})
+
+        clause, qkw = utils.get_filter_based_on_pattern(r'std', 'foo')
+        self.assertEqual(clause, r'FILTER re_test(<str>$`re_foo`, foo)')
+        self.assertEqual(qkw, {'re_foo': 'std'})
+
+        clause, qkw = utils.get_filter_based_on_pattern(r'std', 'foo', 'i')
+        self.assertEqual(clause, r'FILTER re_test(<str>$`re_foo`, foo)')
+        self.assertEqual(qkw, {'re_foo': '(?i)std'})
+
+        clause, qkw = utils.get_filter_based_on_pattern(r'\s*\'\w+\'')
+        self.assertEqual(clause, r'FILTER re_test(<str>$`re_.name`, .name)')
+        self.assertEqual(qkw, {'re_.name': r'\s*\'\w+\''})
