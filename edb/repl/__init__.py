@@ -301,8 +301,8 @@ class Cli:
         for dbn in result:
             print(f'  {dbn}')
 
-    @_command('d', R'\d NAME', 'describe concept')
-    def command_describe_object(self, args: str) -> None:
+    @_command('d', R'\d NAME', 'describe schema object')
+    def command_describe_object(self, args: str, *, verbose=False) -> None:
         name = utils.normalize_name(args.strip())
 
         if not name:
@@ -313,6 +313,7 @@ class Cli:
             result, _ = self.fetch(
                 f'''
                     DESCRIBE OBJECT {name} AS TEXT
+                        {'VERBOSE' if verbose else ''}
                 ''',
                 json=False
             )
@@ -329,6 +330,10 @@ class Cli:
                     style=self.style
                 )
             print()
+
+    @_command('d+', R'\d+ NAME', 'describe schema object in a verbose mode')
+    def command_describe_object_verbose(self, args: str) -> None:
+        self.command_describe_object(args, verbose=True)
 
     @_command('psql', R'\psql',
               'open psql to the current postgres process',
