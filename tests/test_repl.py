@@ -17,9 +17,13 @@
 #
 
 
+import io
+import re
+import textwrap
 import unittest
 
 from edb.repl import utils
+from edb.repl import table
 
 
 class TestReplUtils(unittest.TestCase):
@@ -299,3 +303,246 @@ class TestReplUtils(unittest.TestCase):
         clause, qkw = utils.get_filter_based_on_pattern(r'\s*\'\w+\'')
         self.assertEqual(clause, r'FILTER re_test(<str>$`re_.name`, .name)')
         self.assertEqual(qkw, {'re_.name': r'\s*\'\w+\''})
+
+    def _compare_tables(self, tab1: str, tab2: str, max_width: int) -> None:
+        # trailing whitespace for each line is ignored in this comparison
+        t1 = re.sub(r' +\n', '\n', tab1.strip())
+        t2 = re.sub(r' +\n', '\n', tab2.strip())
+        self.assertEqual(t1, t2)
+
+        # the table width is as specified (if applicable)
+        if max_width:
+            for line in tab1.split('\n'):
+                if len(line) > 0:
+                    # only consider non-empty lines
+                    self.assertEqual(len(line), max_width,
+                                     'table width is not as expected')
+
+    def test_repl_render_table_01(self):
+        output = io.StringIO()
+        table.render_table(
+            title='Objects',
+            columns=[
+                table.ColumnSpec(
+                    field='foo', title='Foo', width=3, align='left'),
+                table.ColumnSpec(
+                    field='bar', title='Bar', width=2, align='center'),
+                table.ColumnSpec(
+                    field='baz', title='Baz', width=1, align='right'),
+            ],
+            data=[
+                {'foo': 'hello', 'bar': 'green', 'baz': 1},
+                {'foo': 'world', 'bar': 'red', 'baz': 9001},
+                {'foo': '!', 'bar': 'magenta', 'baz': 42},
+            ],
+            max_width=40,
+            file=output,
+        )
+
+        self._compare_tables(
+            output.getvalue(),
+            textwrap.dedent('''
+                --------------- Objects --------+-------
+                 Foo               |    Bar     |   Baz
+                -------------------+------------+-------
+                 hello             |   green    |     1
+                 world             |    red     |  9001
+                 !                 |  magenta   |    42
+            '''),
+            max_width=40,
+        )
+
+    def test_repl_render_table_02(self):
+        output = io.StringIO()
+        table.render_table(
+            title='Objects',
+            columns=[
+                table.ColumnSpec(
+                    field='foo', title='Foo', width=3, align='left'),
+                table.ColumnSpec(
+                    field='bar', title='Bar', width=2, align='center'),
+                table.ColumnSpec(
+                    field='baz', title='Baz', width=1, align='right'),
+            ],
+            data=[
+                {'foo': 'hello', 'bar': 'green', 'baz': 1},
+                {'foo': 'world', 'bar': 'red', 'baz': 9001},
+                {'foo': '!', 'bar': 'magenta', 'baz': 42},
+            ],
+            max_width=20,
+            file=output,
+        )
+
+        self._compare_tables(
+            output.getvalue(),
+            textwrap.dedent('''
+                ----- Objects -+----
+                 Foo    | Bar  | Ba+
+                        |      |  z
+                --------+------+----
+                 hello  | gree+|  1
+                        |  n   |
+                 world  | red  | 90+
+                        |      | 01
+                 !      | mage+| 42
+                        | nta  |
+            '''),
+            max_width=20,
+        )
+
+    def test_repl_render_table_03(self):
+        output = io.StringIO()
+        table.render_table(
+            title='Objects',
+            columns=[
+                table.ColumnSpec(
+                    field='foo', title='Foo', width=3, align='left'),
+            ],
+            data=[
+                {'foo': 'hello'},
+                {'foo': 'world'},
+                {'foo': '!'},
+            ],
+            max_width=20,
+            file=output,
+        )
+
+        self._compare_tables(
+            output.getvalue(),
+            textwrap.dedent('''
+                ----- Objects ------
+                 Foo
+                --------------------
+                 hello
+                 world
+                 !
+            '''),
+            max_width=20,
+        )
+
+    def test_repl_render_table_04(self):
+        output = io.StringIO()
+        table.render_table(
+            title='Objects',
+            columns=[
+                table.ColumnSpec(
+                    field='foo', title='Foo', width=3, align='left'),
+                table.ColumnSpec(
+                    field='bar', title='Bar', width=2, align='center'),
+                table.ColumnSpec(
+                    field='baz', title='Baz', width=1, align='right'),
+            ],
+            data=[
+                {'foo': 'hello', 'bar': 'green', 'baz': 1},
+                {'foo': 'world', 'bar': 'red', 'baz': 9001},
+                {'foo': '!', 'bar': 'magenta', 'baz': 42},
+            ],
+            # minimum width for 3 columns
+            max_width=11,
+            file=output,
+        )
+
+        self._compare_tables(
+            output.getvalue(),
+            textwrap.dedent('''
+                - Objects -
+                 F+| B+| B+
+                 o+| a+| a+
+                 o | r | z
+                ---+---+---
+                 h+| g+| 1
+                 e+| r+|
+                 l+| e+|
+                 l+| e+|
+                 o | n |
+                 w+| r+| 9+
+                 o+| e+| 0+
+                 r+| d | 0+
+                 l+|   | 1
+                 d |   |
+                 ! | m+| 4+
+                   | a+| 2
+                   | g+|
+                   | e+|
+                   | n+|
+                   | t+|
+                   | a |
+            '''),
+            max_width=11,
+        )
+
+    def test_repl_render_table_05(self):
+        output = io.StringIO()
+        table.render_table(
+            title='Extra Long Objects Title',
+            columns=[
+                table.ColumnSpec(
+                    field='foo', title='Foo', width=3, align='left'),
+                table.ColumnSpec(
+                    field='bar', title='Bar', width=2, align='center'),
+                table.ColumnSpec(
+                    field='baz', title='Baz', width=1, align='right'),
+            ],
+            data=[
+                {'foo': 'hello', 'bar': 'green', 'baz': 1},
+                {'foo': 'world', 'bar': 'red', 'baz': 9001},
+                {'foo': '!', 'bar': 'magenta', 'baz': 42},
+            ],
+            # width below minimum, will still render the minimum width
+            # table, but the title may be longer than the table width
+            max_width=1,
+            file=output,
+        )
+
+        self._compare_tables(
+            output.getvalue(),
+            textwrap.dedent('''
+                Extra Long Objects Title
+                 F+| B+| B+
+                 o+| a+| a+
+                 o | r | z
+                ---+---+---
+                 h+| g+| 1
+                 e+| r+|
+                 l+| e+|
+                 l+| e+|
+                 o | n |
+                 w+| r+| 9+
+                 o+| e+| 0+
+                 r+| d | 0+
+                 l+|   | 1
+                 d |   |
+                 ! | m+| 4+
+                   | a+| 2
+                   | g+|
+                   | e+|
+                   | n+|
+                   | t+|
+                   | a |
+            '''),
+            # don't check width
+            max_width=0,
+        )
+
+    def test_repl_render_table_06(self):
+        output = io.StringIO()
+        table.render_table(
+            title='Objects',
+            columns=[
+                table.ColumnSpec(
+                    field='foo', title='Foo', width=3, align='left'),
+            ],
+            data=[
+                {'foo': 'hello'},
+                {'foo': 'world'},
+                {'foo': '!'},
+            ],
+            max_width=0,
+            file=output,
+        )
+
+        self._compare_tables(
+            output.getvalue(),
+            textwrap.dedent(''),
+            max_width=0,
+        )
