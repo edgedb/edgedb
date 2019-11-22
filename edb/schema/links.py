@@ -223,7 +223,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             else:
                 node.commands.append(
                     qlast.SetSpecialField(
-                        name=qlast.ObjectRef(name='required'),
+                        name='required',
                         value=op.new_value,
                     )
                 )

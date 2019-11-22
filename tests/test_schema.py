@@ -878,6 +878,21 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    # def test_get_migration_09(self):
+    #     # validate that we can trace DETACHED
+    #     schema = r'''
+    #         type Foo {
+    #             property bar -> int64;
+    #         };
+
+    #         view X {
+    #             using (SELECT Foo FILTER .bar > count(DETACHED Foo));
+    #             annotation title := 'A Foo view';
+    #         }
+    #     '''
+
+    #     self._assert_migration_consistency(schema)
+
     def test_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;

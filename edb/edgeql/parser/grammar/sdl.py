@@ -226,7 +226,7 @@ def sdl_commands_block(parent, *commands, opt=True):
 
 class SetField(Nonterm):
     # field := <expr>
-    def reduce_ShortNodeName_ASSIGN_Expr(self, *kids):
+    def reduce_Identifier_ASSIGN_Expr(self, *kids):
         self.val = qlast.SetField(name=kids[0].val, value=kids[2].val)
 
 
@@ -905,7 +905,7 @@ class ViewDeclarationShort(Nonterm):
             name=kids[1].val,
             commands=[
                 qlast.SetField(
-                    name=qlast.ObjectRef(name='expr'),
+                    name='expr',
                     value=kids[3].val,
                 )
             ]

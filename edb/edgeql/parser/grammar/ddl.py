@@ -286,17 +286,17 @@ def commands_block(parent, *commands, opt=True):
 
 class SetFieldStmt(Nonterm):
     # field := <expr>
-    def reduce_SET_NodeName_ASSIGN_Expr(self, *kids):
+    def reduce_SET_Identifier_ASSIGN_Expr(self, *kids):
         self.val = qlast.SetField(
             name=kids[1].val,
             value=kids[3].val,
         )
 
-    def reduce_SET_NodeName_AS_SchemaItem(self, *kids):
-        self.val = qlast.SetField(
-            name=kids[1].val,
-            value=kids[3].val,
-        )
+    # def reduce_SET_NodeName_AS_SchemaItem(self, *kids):
+    #     self.val = qlast.SetField(
+    #         name=kids[1].val,
+    #         value=kids[3].val,
+    #     )
 
 
 class SetAnnotationValueStmt(Nonterm):
@@ -337,21 +337,21 @@ commands_block(
 class AlterAbstract(Nonterm):
     def reduce_DROP_ABSTRACT(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='is_abstract'), value=False)
+            name='is_abstract', value=False)
 
     def reduce_SET_ABSTRACT(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='is_abstract'), value=True)
+            name='is_abstract', value=True)
 
 
 class AlterFinal(Nonterm):
     def reduce_DROP_FINAL(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='is_final'), value=False)
+            name='is_final', value=False)
 
     def reduce_SET_FINAL(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='is_final'), value=True)
+            name='is_final', value=True)
 
 
 class OptInheritPosition(Nonterm):
@@ -690,13 +690,13 @@ class SetDelegatedStmt(Nonterm):
 
     def reduce_SET_DELEGATED(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='delegated'),
+            name='delegated',
             value=True,
         )
 
     def reduce_DROP_DELEGATED(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='delegated'),
+            name='delegated',
             value=False,
         )
 
@@ -1011,13 +1011,13 @@ class SetCardinalityStmt(Nonterm):
 
     def reduce_SET_SINGLE(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='cardinality'),
+            name='cardinality',
             value=qltypes.Cardinality.ONE,
         )
 
     def reduce_SET_MULTI(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='cardinality'),
+            name='cardinality',
             value=qltypes.Cardinality.MANY,
         )
 
@@ -1026,13 +1026,13 @@ class SetRequiredStmt(Nonterm):
 
     def reduce_SET_REQUIRED(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='required'),
+            name='required',
             value=True,
         )
 
     def reduce_DROP_REQUIRED(self, *kids):
         self.val = qlast.SetSpecialField(
-            name=qlast.ObjectRef(name='required'),
+            name='required',
             value=False,
         )
 
@@ -1384,7 +1384,7 @@ class CreateViewStmt(Nonterm):
             name=kids[2].val,
             commands=[
                 qlast.SetField(
-                    name=qlast.ObjectRef(name='expr'),
+                    name='expr',
                     value=kids[4].val,
                 )
             ]

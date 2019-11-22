@@ -64,6 +64,24 @@ class Base(ast.AST):
     # System-generated comment.
     system_comment: str
 
+    # parent: typing.Optional[Base]
+
+
+class OffsetLimitMixin(Base):
+    __abstract_node__ = True
+    offset: Expr
+    limit: Expr
+
+
+class OrderByMixin(Base):
+    __abstract_node__ = True
+    orderby: typing.List[SortExpr]
+
+
+class FilterMixin(Base):
+    __abstract_node__ = True
+    where: Expr
+
 
 class OptionValue(Base):
     """An option value resulting from a syntax."""
@@ -228,7 +246,7 @@ class BinOp(Expr):
     right: Expr
 
 
-class WindowSpec(Clause):
+class WindowSpec(Clause, OrderByMixin):
     orderby: typing.List[SortExpr]
     partition: typing.List[Expr]
 
@@ -456,22 +474,14 @@ class ReturningMixin(Base):
     result_alias: str
 
 
-class SelectClauseMixin(Base):
+class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
     __abstract_node__ = True
-    where: Expr
-    orderby: typing.List[SortExpr]
-    offset: Expr
-    limit: Expr
     implicit: bool = False
 
 
-class ShapeElement(Expr):
+class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     expr: Path
     elements: typing.List[ShapeElement]
-    where: Expr
-    orderby: typing.List[SortExpr]
-    offset: Expr
-    limit: Expr
     compexpr: Expr
     cardinality: qltypes.Cardinality
     required: bool = False
@@ -497,9 +507,8 @@ class InsertQuery(Statement, SubjectMixin):
     shape: typing.List[ShapeElement]
 
 
-class UpdateQuery(Statement, SubjectMixin):
+class UpdateQuery(Statement, SubjectMixin, FilterMixin):
     shape: typing.List[ShapeElement]
-    where: Expr
 
 
 class DeleteQuery(Statement, SubjectMixin, SelectClauseMixin):
@@ -556,30 +565,27 @@ class DDL(Base):
     __abstract_node__ = True
 
 
-class SDL(Base):
-    '''Abstract parent for all SDL statements.'''
-    __abstract_node__ = True
-
-
 class CompositeDDL(Command, DDL):
     __abstract_node__ = True
 
 
+class BasesMixin(DDL):
+    __abstract_node__ = True
+    bases: typing.Union[typing.List[TypeName], typing.List[ObjectRef], None]
+
+
 class Position(DDL):
-    ref: str
+    ref: ObjectRef
     position: str
 
 
-class AlterAddInherit(DDL):
-    bases: typing.Union[typing.List[TypeName], typing.List[ObjectRef]]
-    position: Position
+class DDLCommand(DDL):
+    # `name` will either be `str` if node is BaseSetField, or
+    # `ObjectRef` if node is ObjectDDL.
+    name: typing.Any
 
 
-class AlterDropInherit(DDL):
-    bases: typing.List[TypeName]
-
-
-class SetPointerType(DDL):
+class SetPointerType(DDLCommand):
     type: TypeExpr
 
 
@@ -591,17 +597,39 @@ class SetPropertyType(SetPointerType):
     pass
 
 
-class OnTargetDelete(DDL):
+class AlterAddInherit(DDLCommand, BasesMixin):
+    position: Position
+
+
+class AlterDropInherit(DDLCommand, BasesMixin):
+    pass
+
+
+class OnTargetDelete(DDLCommand):
     cascade: LinkTargetDeleteAction
 
 
-class ObjectDDL(CompositeDDL):
+class BaseSetField(DDLCommand):
+    __abstract_node__ = True
+    name: str
+    value: Expr
+
+
+class SetField(BaseSetField):
+    pass
+
+
+class SetSpecialField(BaseSetField):
+    value: typing.Any
+
+
+class ObjectDDL(DDLCommand, CompositeDDL):
     __abstract_node__ = True
     name: ObjectRef
-    commands: typing.List[DDL]
+    commands: typing.Sequence[DDLCommand]
 
 
-class CreateObject(ObjectDDL, SDL):
+class CreateObject(ObjectDDL):
     is_abstract: bool = False
     alter_if_exists: bool = False
 
@@ -614,12 +642,11 @@ class DropObject(ObjectDDL):
     pass
 
 
-class CreateExtendingObject(CreateObject):
-    bases: typing.List[TypeName]
+class CreateExtendingObject(CreateObject, BasesMixin):
     is_final: bool = False
 
 
-class Rename(DDL):
+class Rename(DDLCommand):
     new_name: ObjectRef
 
     @property
@@ -681,8 +708,8 @@ class DropModule(DropObject):
     pass
 
 
-class CreateRole(CreateObject):
-    bases: typing.List[TypeName]
+class CreateRole(CreateObject, BasesMixin):
+    pass
 
 
 class AlterRole(AlterObject):
@@ -726,9 +753,7 @@ class DropProperty(DropObject):
     pass
 
 
-class CreateConcretePointer(CreateObject):
-
-    bases: typing.List[TypeName]
+class CreateConcretePointer(CreateObject, BasesMixin):
     is_required: bool = False
     declared_overloaded: bool = False
     target: typing.Optional[typing.Union[Expr, TypeExpr]]
@@ -743,7 +768,7 @@ class AlterConcreteProperty(AlterObject):
     pass
 
 
-class DropConcreteProperty(AlterObject):
+class DropConcreteProperty(DropObject):
     pass
 
 
@@ -840,26 +865,12 @@ class CreateIndex(CreateObject, IndexOp):
     pass
 
 
-class AlterIndex(CreateObject, IndexOp):
+class AlterIndex(AlterObject, IndexOp):
     pass
 
 
 class DropIndex(DropObject, IndexOp):
     pass
-
-
-class BaseSetField(DDL):
-    __abstract_node__ = True
-    name: ObjectRef
-    value: Expr
-
-
-class SetField(BaseSetField, SDL):
-    pass
-
-
-class SetSpecialField(BaseSetField):
-    value: typing.Any
 
 
 class CreateAnnotationValue(CreateObject):
@@ -977,9 +988,8 @@ class ConfigInsert(ConfigOp):
     shape: typing.List[ShapeElement]
 
 
-class ConfigReset(ConfigOp):
-
-    where: typing.Optional[Expr]
+class ConfigReset(ConfigOp, FilterMixin):
+    pass
 
 
 #
@@ -996,6 +1006,12 @@ class DescribeStmt(Statement):
 #
 # SDL
 #
+
+
+class SDL(Base):
+    '''Abstract parent for all SDL statements.'''
+    __abstract_node__ = True
+
 
 class Schema(SDL):
     declarations: typing.List[DDL]
