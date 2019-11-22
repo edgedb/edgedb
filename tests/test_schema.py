@@ -330,7 +330,7 @@ _123456789_123456789_123456789 -> str
 
             CREATE ABSTRACT CONSTRAINT
             test::my_one_of(one_of: array<anytype>) {
-                SET expr := (
+                USING (
                     WITH foo := test::Object1
                     SELECT test::my_contains(one_of, __subject__)
                 );
@@ -2972,7 +2972,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         self._assert_describe(
             """
             abstract constraint my_one_of(one_of: array<anytype>) {
-                expr := contains(one_of, __subject__);
+                using contains(one_of, __subject__);
             }
             """,
 
@@ -2982,7 +2982,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE MODULE test;
 
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
-                SET expr := (WITH
+                USING (WITH
                     MODULE test
                 SELECT
                     contains(one_of, __subject__)
@@ -3028,7 +3028,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
 
             view Bar {
-                expr := (SELECT Foo {name, calc := 1});
+                using (SELECT Foo {name, calc := 1});
                 annotation title := 'bar view';
             };
             """,
@@ -3041,7 +3041,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 CREATE SINGLE PROPERTY name -> std::str;
             };
             CREATE VIEW test::Bar {
-                SET expr := (WITH
+                USING (WITH
                     MODULE test
                 SELECT
                     Foo {
@@ -3102,11 +3102,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 property compprop := 'foo';
                 link complink := (SELECT Foo LIMIT 1);
                 property annotated_compprop -> str {
-                    expr := 'foo';
+                    using 'foo';
                     annotation title := 'compprop';
                 };
                 link annotated_link -> Foo {
-                    expr := (SELECT Foo LIMIT 1);
+                    using (SELECT Foo LIMIT 1);
                     annotation title := 'complink';
                 };
             };
@@ -3118,11 +3118,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE MODULE test;
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY annotated_compprop {
-                    SET expr := 'foo';
+                    USING 'foo';
                     SET ANNOTATION std::title := 'compprop';
                 };
                 CREATE SINGLE LINK annotated_link {
-                    SET expr := (WITH
+                    USING (WITH
                         MODULE test
                     SELECT
                         Foo

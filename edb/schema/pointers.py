@@ -144,7 +144,6 @@ class Pointer(referencing.ReferencedInheritingObject,
     # definining them.
     expr = so.SchemaField(
         s_expr.Expression,
-        allow_ddl_set=True,
         default=None, coerce=True, compcoef=0.909)
 
     default = so.SchemaField(

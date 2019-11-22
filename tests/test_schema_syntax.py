@@ -660,7 +660,7 @@ type LogEntry extending    OwnedObject,    Text {
         """
         scalar type special extending int {
             constraint special_constraint {
-                expr := (__subject__ % 2 = 0);
+                using (__subject__ % 2 = 0);
             };
             title := 'Special ScalarType';
         };
@@ -683,14 +683,14 @@ type LogEntry extending    OwnedObject,    Text {
     def test_eschema_syntax_constraint_01(self):
         """
         abstract constraint max_value(param:anytype) on (()) {
-            expr := __subject__ <= $param;
+            using __subject__ <= $param;
             errmessage := 'Maximum allowed value for {subject} is {$param}.';
         };
 
 % OK %
 
         abstract constraint max_value(param:anytype) on (()) {
-            expr := (__subject__ <= $param);
+            using (__subject__ <= $param);
             errmessage := 'Maximum allowed value for {subject} is {$param}.';
         };
         """
@@ -717,7 +717,7 @@ type LogEntry extending    OwnedObject,    Text {
     def test_eschema_syntax_constraint_04(self):
         """
         abstract constraint max_value(param:anytype) {
-            expr := (__subject__ <= $param);
+            using (__subject__ <= $param);
             errmessage := 'Maximum allowed value for {subject} is {$param}.';
         };
 
@@ -852,7 +852,7 @@ abstract property foo {
             property bar -> int64;
 
             constraint expr {
-                expr := self.foo = self.bar;
+                using self.foo = self.bar;
             };
         };      """
 
@@ -1162,14 +1162,14 @@ abstract property foo {
         """
         view FooBaz {
             annotation description := 'Special Foo';
-            expr := (SELECT Foo FILTER Foo.bar = 'baz');
+            using (SELECT Foo FILTER Foo.bar = 'baz');
         };
         """
 
     def test_eschema_syntax_view_02(self):
         """
         view FooBaz {
-            expr := (
+            using (
                 SELECT Foo
                 FILTER Foo.bar = 'baz'
             );

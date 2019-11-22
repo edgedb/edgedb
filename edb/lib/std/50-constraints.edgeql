@@ -39,7 +39,7 @@ std::constraint
 CREATE ABSTRACT CONSTRAINT
 std::expression EXTENDING std::constraint
 {
-    SET expr := __subject__;
+    USING __subject__;
 };
 
 
@@ -47,7 +47,7 @@ CREATE ABSTRACT CONSTRAINT
 std::exclusive EXTENDING std::constraint
 {
     SET errmessage := '{__subject__} violates exclusivity constraint';
-    SET expr := std::_is_exclusive(__subject__);
+    USING std::_is_exclusive(__subject__);
 };
 
 
@@ -55,7 +55,7 @@ CREATE ABSTRACT CONSTRAINT
 std::one_of(VARIADIC vals: anytype) EXTENDING std::constraint
 {
     SET errmessage := '{__subject__} must be one of: {vals}.';
-    SET expr := contains(vals, __subject__);
+    USING contains(vals, __subject__);
 };
 
 
@@ -70,7 +70,7 @@ CREATE ABSTRACT CONSTRAINT
 std::max_value(max: anytype) EXTENDING std::constraint
 {
     SET errmessage := 'Maximum allowed value for {__subject__} is {max}.';
-    SET expr := __subject__ <= max;
+    USING __subject__ <= max;
 };
 
 
@@ -78,7 +78,7 @@ CREATE ABSTRACT CONSTRAINT
 std::min_value(min: anytype) EXTENDING std::constraint
 {
     SET errmessage := 'Minimum allowed value for {__subject__} is {min}.';
-    SET expr := __subject__ >= min;
+    USING __subject__ >= min;
 };
 
 
@@ -93,7 +93,7 @@ CREATE ABSTRACT CONSTRAINT
 std::min_ex_value(min: anytype) EXTENDING std::min_value
 {
     SET errmessage := '{__subject__} must be greater than {min}.';
-    SET expr := __subject__ > min;
+    USING __subject__ > min;
 };
 
 
@@ -101,7 +101,7 @@ CREATE ABSTRACT CONSTRAINT
 std::regexp(pattern: std::str) EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
-    SET expr := re_test(pattern, __subject__);
+    USING re_test(pattern, __subject__);
 };
 
 

@@ -38,14 +38,21 @@ from edb.ir import typeutils as irtyputils
 from .. import context
 
 
-def amend_empty_set_type(es: irast.EmptySet, t: s_obj.Object, env) -> None:
+def amend_empty_set_type(
+    es: irast.EmptySet,
+    t: s_types.Type,
+    env: context.Environment
+) -> None:
     env.set_types[es] = t
     alias = es.path_id.target_name_hint.name
     typename = s_name.Name(module='__derived__', name=alias)
     es.path_id = irast.PathId.from_type(env.schema, t, typename=typename)
 
 
-def _infer_common_type(irs: List[irast.Base], env):
+def _infer_common_type(
+    irs: List[irast.Base],
+    env: context.Environment
+) -> Optional[s_types.Type]:
     if not irs:
         raise errors.QueryError(
             'cannot determine common type of an empty set',
@@ -396,7 +403,7 @@ def __infer_struct_indirection(ir, env):
     return result
 
 
-def infer_type(ir: irast.Base, env: context.Environment):
+def infer_type(ir: irast.Base, env: context.Environment) -> s_types.Type:
     result = env.inferred_types.get(ir)
     if result is not None:
         return result

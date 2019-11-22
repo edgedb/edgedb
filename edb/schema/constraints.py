@@ -44,7 +44,7 @@ class Constraint(referencing.ReferencedInheritingObject,
 
     expr = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.909,
-        coerce=True, allow_ddl_set=True)
+        coerce=True)
 
     subjectexpr = so.SchemaField(
         s_expr.Expression,

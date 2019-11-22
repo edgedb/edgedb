@@ -2895,7 +2895,7 @@ aa';
             EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {p}.';
-            SET expr := contains($p, __subject__);
+            USING contains($p, __subject__);
         };
         """
 
@@ -2903,7 +2903,7 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: anytype) {
             SET errmessage := '{subject} must be one of: {$p}.';
-            SET expr := contains($p, __subject__);
+            USING contains($p, __subject__);
         };
         """
 
@@ -2911,7 +2911,7 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := contains($param, __subject__);
+            USING contains($param, __subject__);
         };
         """
 
@@ -2919,14 +2919,14 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum() {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := contains($param, __subject__);
+            USING contains($param, __subject__);
         };
 
 % OK %
 
         CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            SET expr := contains($param, __subject__);
+            USING contains($param, __subject__);
         };
         """
 
@@ -2957,7 +2957,7 @@ aa';
     def test_edgeql_syntax_ddl_constraint_08(self):
         """
         CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
-            SET expr := (__subject__ <= f);
+            USING (__subject__ <= f);
             SET subjectexpr := len(__subject__);
         };
         """
@@ -3571,11 +3571,11 @@ aa';
     def test_edgeql_syntax_ddl_view_02(self):
         """
         CREATE VIEW Foo {
-            SET expr := (SELECT User);
+            USING (SELECT User);
         };
 
         ALTER VIEW Foo
-            SET expr := (SELECT Person);
+            USING (SELECT Person);
 
         DROP VIEW Foo;
 
@@ -3584,7 +3584,7 @@ aa';
         CREATE VIEW Foo := (SELECT User);
 
         ALTER VIEW Foo
-            SET expr := (SELECT Person);
+            USING (SELECT Person);
 
         DROP VIEW Foo;
         """

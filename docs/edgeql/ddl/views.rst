@@ -23,7 +23,7 @@ CREATE VIEW
 
     [ WITH <with-item> [, ...] ]
     CREATE VIEW <view-name> "{"
-        SET expr := <view-expr>;
+        USING <view-expr>;
         [ SET ANNOTATION <attr-name> := <attr-value>; ... ]
     "}" ;
 

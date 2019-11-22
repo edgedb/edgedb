@@ -33,7 +33,7 @@ commands <ref_eql_ddl_views>`.
     view <view-name> := <view-expr> ;
 
     view <view-name> "{"
-        expr := <view-expr>;
+        using <view-expr>;
         [ <annotation-declarations> ]
     "}" ;
 

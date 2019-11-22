@@ -224,6 +224,14 @@ def sdl_commands_block(parent, *commands, opt=True):
         _new_nonterm(parent + 'SingleSDLCommandBlock', clsdict=clsdict)
 
 
+class Using(Nonterm):
+    def reduce_USING_Expr(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name='expr',
+            value=kids[1].val
+        )
+
+
 class SetField(Nonterm):
     # field := <expr>
     def reduce_Identifier_ASSIGN_Expr(self, *kids):
@@ -238,6 +246,7 @@ class SetAnnotation(Nonterm):
 
 sdl_commands_block(
     'Create',
+    Using,
     SetField,
     SetAnnotation)
 
@@ -518,6 +527,7 @@ class PropertyDeclarationShort(Nonterm):
 
 sdl_commands_block(
     'CreateConcreteProperty',
+    Using,
     SetField,
     SetAnnotation,
     ConcreteConstraintBlock,
@@ -684,6 +694,7 @@ class LinkDeclarationShort(Nonterm):
 
 sdl_commands_block(
     'CreateConcreteLink',
+    Using,
     SetField,
     SetAnnotation,
     ConcreteConstraintBlock,
@@ -879,6 +890,7 @@ class ObjectTypeDeclarationShort(Nonterm):
 
 sdl_commands_block(
     'CreateView',
+    Using,
     SetField,
     SetAnnotation,
     opt=False
@@ -904,7 +916,7 @@ class ViewDeclarationShort(Nonterm):
         self.val = qlast.CreateView(
             name=kids[1].val,
             commands=[
-                qlast.SetField(
+                qlast.SetSpecialField(
                     name='expr',
                     value=kids[3].val,
                 )
