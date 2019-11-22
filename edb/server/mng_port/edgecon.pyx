@@ -181,7 +181,7 @@ cdef class EdgeConnection:
             )
 
         database = params.get('database')
-        if not user:
+        if not database:
             raise errors.BinaryProtocolError(
                 f'missing required connection parameter in ClientHandshake '
                 f'message: "database"'
