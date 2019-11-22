@@ -113,6 +113,9 @@ Format:
         // Error code.
         int32               code;
 
+        // Error message
+        string              message;
+
         // Other error attributes.
         Headers             attributes;
     };
