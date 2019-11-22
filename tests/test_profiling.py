@@ -73,7 +73,7 @@ class ProfilingTestCase(unittest.TestCase):
         self.assertEqual(len(ptest_files), 1)
 
         # aggregate the results
-        out_file = ptest_files[0].with_suffix(".out")
+        out_file = ptest_files[0].with_suffix(".pstats")
         success, failure = profiler.aggregate(out_file, sort_by="cumulative")
 
         self.assertEqual(success, 1)
