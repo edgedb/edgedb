@@ -284,6 +284,14 @@ def commands_block(parent, *commands, opt=True):
         _new_nonterm('Opt' + parent + 'CommandsBlock', clsdict=clsdict)
 
 
+class UsingStmt(Nonterm):
+    def reduce_USING_Expr(self, *kids):
+        self.val = qlast.SetSpecialField(
+            name='expr',
+            value=kids[1].val
+        )
+
+
 class SetFieldStmt(Nonterm):
     # field := <expr>
     def reduce_SET_Identifier_ASSIGN_Expr(self, *kids):
@@ -291,12 +299,6 @@ class SetFieldStmt(Nonterm):
             name=kids[1].val,
             value=kids[3].val,
         )
-
-    # def reduce_SET_NodeName_AS_SchemaItem(self, *kids):
-    #     self.val = qlast.SetField(
-    #         name=kids[1].val,
-    #         value=kids[3].val,
-    #     )
 
 
 class SetAnnotationValueStmt(Nonterm):
@@ -321,12 +323,14 @@ class RenameStmt(Nonterm):
 
 commands_block(
     'Create',
+    UsingStmt,
     SetFieldStmt,
     SetAnnotationValueStmt)
 
 
 commands_block(
     'Alter',
+    UsingStmt,
     RenameStmt,
     SetFieldStmt,
     SetAnnotationValueStmt,
@@ -969,6 +973,7 @@ class DropPropertyStmt(Nonterm):
 
 commands_block(
     'CreateConcreteProperty',
+    UsingStmt,
     SetFieldStmt,
     SetAnnotationValueStmt,
     CreateConcreteConstraintStmt
@@ -1039,6 +1044,7 @@ class SetRequiredStmt(Nonterm):
 
 commands_block(
     'AlterConcreteProperty',
+    UsingStmt,
     RenameStmt,
     SetFieldStmt,
     SetAnnotationValueStmt,
@@ -1174,6 +1180,7 @@ class DropLinkStmt(Nonterm):
 
 commands_block(
     'CreateConcreteLink',
+    UsingStmt,
     SetFieldStmt,
     SetAnnotationValueStmt,
     CreateConcreteConstraintStmt,
@@ -1211,6 +1218,7 @@ class CreateConcreteLinkStmt(Nonterm):
 
 commands_block(
     'AlterConcreteLink',
+    UsingStmt,
     RenameStmt,
     SetFieldStmt,
     SetAnnotationValueStmt,
@@ -1369,6 +1377,7 @@ class DropObjectTypeStmt(Nonterm):
 
 commands_block(
     'CreateView',
+    UsingStmt,
     SetFieldStmt,
     SetAnnotationValueStmt,
     opt=False
@@ -1383,7 +1392,7 @@ class CreateViewStmt(Nonterm):
         self.val = qlast.CreateView(
             name=kids[2].val,
             commands=[
-                qlast.SetField(
+                qlast.SetSpecialField(
                     name='expr',
                     value=kids[4].val,
                 )
@@ -1407,6 +1416,7 @@ class CreateViewStmt(Nonterm):
 
 commands_block(
     'AlterView',
+    UsingStmt,
     RenameStmt,
     SetFieldStmt,
     SetAnnotationValueStmt,

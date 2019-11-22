@@ -47,7 +47,7 @@ scalar type constraint_strvalue extending str {
 # A variant of one_of that uses an array argument instead of
 # a variadic.
 abstract constraint my_one_of(one_of: array<anytype>) {
-    expr := contains(one_of, __subject__);
+    using contains(one_of, __subject__);
 }
 
 

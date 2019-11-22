@@ -27,41 +27,45 @@ from . import objects as so
 from . import types as s_types
 
 
+if typing.TYPE_CHECKING:
+    from . import schema as s_schema
+
+
 class PseudoType(inheriting.InheritingObject, s_types.Type):
 
     name = so.Field(sn.UnqualifiedName)
 
-    def get_name(self, schema):
+    def get_name(self, schema: s_schema.Schema) -> sn.Name:
         return self.name
 
-    def get_shortname(self, schema):
+    def get_shortname(self, schema: s_schema.Schema) -> str:
         return self.name
 
-    def get_displayname(self, schema):
+    def get_displayname(self, schema: s_schema.Schema) -> str:
         return self.name
 
-    def get_bases(self, schema):
+    def get_bases(self, schema: s_schema.Schema) -> so.ObjectList:
         return so.ObjectList.create_empty()
 
-    def get_ancestors(self, schema):
+    def get_ancestors(self, schema: s_schema.Schema) -> so.ObjectList:
         return so.ObjectList.create_empty()
 
-    def get_is_abstract(self, schema):
+    def get_is_abstract(self, schema: s_schema.Schema) -> bool:
         return True
 
-    def is_polymorphic(self, schema):
+    def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return True
 
-    def material_type(self, schema):
+    def material_type(self, schema: s_schema.Schema) -> s_types.Type:
         return self
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((
             type(self),
             self.name,
         ))
 
-    def __eq__(self, other):
+    def __eq__(self, other: s_types.Type) -> bool:
         return (type(self) is type(other) and
                 self.name == other.name)
 

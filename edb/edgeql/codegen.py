@@ -102,7 +102,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             node.parent is not None and (
                 not isinstance(node.parent, qlast.Base)
                 or not isinstance(node.parent, qlast.DDL)
-                or isinstance(node.parent, qlast.SetField)
+                or isinstance(node.parent, (qlast.SetField,
+                                            qlast.SetSpecialField))
             )
         )
 
@@ -904,8 +905,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         return keywords
 
     def visit_SetSpecialField(self, node: qlast.SetSpecialField) -> None:
-        keywords = self._process_SetSpecialField(node)
-        self.write(*keywords, delimiter=' ')
+        if node.name == 'expr':
+            self.write('USING ')
+            self.visit(node.value)
+        else:
+            keywords = self._process_SetSpecialField(node)
+            self.write(*keywords, delimiter=' ')
 
     def visit_AlterAddInherit(self, node: qlast.AlterAddInherit) -> None:
         if node.bases:
@@ -992,7 +997,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateView(self, node: qlast.CreateView) -> None:
         if (len(node.commands) == 1
-                and isinstance(node.commands[0], qlast.SetField)
+                and isinstance(node.commands[0], qlast.SetSpecialField)
                 and node.commands[0].name == 'expr'):
 
             self._visit_CreateObject(node, 'VIEW', render_commands=False)
@@ -1174,7 +1179,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             len(node.commands) == 0
             or (
                 len(node.commands) == 1
-                and isinstance(node.commands[0], qlast.SetField)
+                and isinstance(node.commands[0], qlast.SetSpecialField)
                 and node.commands[0].name == 'expr'
             )
         )
@@ -1296,7 +1301,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             len(node.commands) == 0
             or (
                 len(node.commands) == 1
-                and isinstance(node.commands[0], qlast.SetField)
+                and isinstance(node.commands[0], qlast.SetSpecialField)
                 and node.commands[0].name == 'expr'
             )
         )

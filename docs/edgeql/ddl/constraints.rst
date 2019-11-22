@@ -30,7 +30,7 @@ CREATE ABSTRACT CONSTRAINT
 
     # where <subcommand> is one of
 
-      SET expr := <constr-expression>
+      USING <constr-expression>
       SET errmessage := <error-message>
       SET ANNOTATION <annotation-name> := <value>
 
@@ -78,7 +78,7 @@ Parameters
 The following subcommands are allowed in the ``CERATE ABSTRACT
 CONSTRAINT`` block:
 
-:eql:synopsis:`SET expr := <constr_expression>`
+:eql:synopsis:`USING <constr_expression>`
     A boolean expression that returns ``true`` for valid data and
     ``false`` for invalid data.  The expression may refer to the subject
     of the constraint as ``__subject__``.
@@ -110,7 +110,7 @@ is a string in upper case.
 
     CREATE ABSTRACT CONSTRAINT uppercase {
         SET ANNOTATION title := "Upper case constraint";
-        SET expr := str_upper(__subject__) = __subject__;
+        USING str_upper(__subject__) = __subject__;
         SET errmessage := "{__subject__} is not in upper case";
     };
 
@@ -133,7 +133,7 @@ Alter the definition of an
     # where <subcommand> is one of
 
       RENAME TO <newname>
-      SET expr := <constr-expression>
+      USING <constr-expression>
       SET errmessage := <error-message>
       SET ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>

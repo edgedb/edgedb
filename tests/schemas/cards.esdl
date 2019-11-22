@@ -67,7 +67,7 @@ view WaterOrEarthCard := (
 
 
 view EarthOrFireCard {
-    expr := (SELECT Card FILTER .element = 'Fire' OR .element = 'Earth')
+    using (SELECT Card FILTER .element = 'Fire' OR .element = 'Earth')
 };
 
 

@@ -386,10 +386,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         context_class = self.get_context_class()
         return context(context_class(schema, self, scls))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return struct.MixedStruct.__str__(self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         flds = struct.MixedStruct.__repr__(self)
         return '<{}.{}{}>'.format(self.__class__.__module__,
                                   self.__class__.__name__,
@@ -428,7 +428,7 @@ class CommandContextWrapper:
         self.context.push(self.token)
         return self.token
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         self.context.pop()
 
 
@@ -1031,7 +1031,7 @@ class RenameObject(AlterObjectFragment):
 
     new_name = struct.Field(sn.Name)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<%s.%s "%s" to "%s">' % (self.__class__.__module__,
                                          self.__class__.__name__,
                                          self.classname, self.new_name)
@@ -1337,9 +1337,23 @@ class AlterSpecialObjectProperty(Command):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
+        propname = astnode.name
+        parent_ctx = context.current()
+        parent_op = parent_ctx.op
+        field = parent_op.get_schema_metaclass().get_field(propname)
+
+        new_value = astnode.value
+
+        if field.type is s_expr.Expression and field.name == 'expr':
+            new_value = s_expr.Expression.from_ast(
+                astnode.value,
+                schema,
+                context.modaliases,
+            )
+
         return AlterObjectProperty(
             property=astnode.name,
-            new_value=astnode.value
+            new_value=new_value
         )
 
 
@@ -1411,6 +1425,7 @@ class AlterObjectProperty(Command):
 
     def _get_ast(self, schema, context):
         value = self.new_value
+        astcls = qlast.SetField
 
         new_value_empty = \
             (value is None or
@@ -1424,8 +1439,19 @@ class AlterObjectProperty(Command):
                 f'{self.property!r} is not a valid field',
                 context=self.context)
 
-        if (not field.allow_ddl_set
-                or (self.property == 'id' and not context.emit_oids)):
+        if ((not field.allow_ddl_set and self.property != 'expr') or
+                (self.property == 'id' and not context.emit_oids)):
+            # Don't produce any AST if:
+            #
+            # * a field does not have the "allow_ddl_set" option, unless
+            #   it's an 'expr' field.
+            #
+            #   'expr' fields come from the "USING" clause and are specially
+            #   treated in parser and codegen.
+            #
+            # * an 'id' field unless we asked for it by setting
+            #   the "emit_iods" option in the context.  This is used
+            #   for dumping the schema (for later restore.)
             return
 
         if self.source == 'inheritance':
@@ -1436,6 +1462,8 @@ class AlterObjectProperty(Command):
 
         if isinstance(value, s_expr.Expression):
             value = value.qlast
+            if self.property == 'expr':
+                astcls = qlast.SetSpecialField
         elif utils.is_nontrivial_container(value):
             value = qlast.Tuple(elements=[
                 qlast.BaseConstant.from_python(el) for el in value
@@ -1453,7 +1481,7 @@ class AlterObjectProperty(Command):
         else:
             value = qlast.BaseConstant.from_python(value)
 
-        op = qlast.SetField(name=self.property, value=value)
+        op = astcls(name=self.property, value=value)
         return op
 
     def __repr__(self):

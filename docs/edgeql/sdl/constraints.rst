@@ -18,7 +18,8 @@ Declare an *abstract* constraint:
     abstract constraint min_value(min: anytype) {
         errmessage :=
             'Minimum allowed value for {__subject__} is {min}.';
-        expr := __subject__ >= min;
+
+        using __subject__ >= min;
     }
 
 Declare a *concrete* constraint on an integer type:
@@ -42,7 +43,7 @@ commands <ref_eql_ddl_constraints>`.
         [ on ( <subject-expr> ) ]
         [ extending <base> [, ...] ]
     "{"
-        [ expr := <constr-expression> ; ]
+        [ using <constr-expression> ; ]
         [ errmessage := <error-message> ; ]
         [ <annotation-declarations> ]
         [ ... ]
