@@ -442,9 +442,10 @@ def _text_from_delta(
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
             delta_ast = command.get_ast(schema, context)
             if delta_ast:
-                ql_classes = [
+                ql_classes_src = {
                     scls.get_ql_class() for scls in limit_ref_classes
-                ]
+                }
+                ql_classes = {q for q in ql_classes_src if q is not None}
 
                 stmt_text = edgeql.generate_source(
                     delta_ast, sdlmode=sdlmode,

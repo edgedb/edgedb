@@ -327,7 +327,7 @@ def trace_View(
     hard_dep_exprs = []
 
     for cmd in node.commands:
-        if isinstance(cmd, qlast.SetField) and cmd.name.name == "expr":
+        if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
             hard_dep_exprs.append(cmd.value)
             break
 
@@ -362,6 +362,8 @@ def _register_item(
 
     if isinstance(decl, qlast.CreateConcretePointer):
         name = decl.name.name
+    elif isinstance(decl, qlast.BaseSetField):
+        name = decl.name
     else:
         name = ctx.get_local_name(decl.name)
 

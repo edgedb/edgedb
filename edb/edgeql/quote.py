@@ -31,7 +31,7 @@ _re_ident = re.compile(r'''(?x)
 ''')
 
 
-def escape_string(s):
+def escape_string(s: str) -> str:
     split = re.split(r"(\n|\\\\|\\')", s)
 
     if len(split) == 1:
@@ -41,11 +41,11 @@ def escape_string(s):
                    for i, r in enumerate(split))
 
 
-def quote_literal(string):
+def quote_literal(string: str) -> str:
     return "'" + escape_string(string) + "'"
 
 
-def dollar_quote_literal(text):
+def dollar_quote_literal(text: str) -> str:
     quote = '$$'
     qq = 0
 
@@ -59,7 +59,7 @@ def dollar_quote_literal(text):
     return quote + text + quote
 
 
-def needs_quoting(string, allow_reserved):
+def needs_quoting(string: str, allow_reserved: bool) -> bool:
     if not string or string.startswith('@') or '::' in string:
         # some strings are illegal as identifiers and as such don't
         # require quoting
@@ -80,11 +80,12 @@ def needs_quoting(string, allow_reserved):
     )
 
 
-def _quote_ident(string):
+def _quote_ident(string: str) -> str:
     return '`' + string.replace('`', '``') + '`'
 
 
-def quote_ident(string, *, force=False, allow_reserved=False):
+def quote_ident(string: str, *,
+                force: bool = False, allow_reserved: bool = False) -> str:
     if force or needs_quoting(string, allow_reserved):
         return _quote_ident(string)
     else:

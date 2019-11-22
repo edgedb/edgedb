@@ -1194,7 +1194,7 @@ class AlterObject(ObjectCommand):
         if op.property in {'is_abstract', 'is_final'}:
             node.commands.append(
                 qlast.SetSpecialField(
-                    name=qlast.ObjectRef(name=op.property),
+                    name=op.property,
                     value=op.new_value
                 )
             )
@@ -1338,7 +1338,7 @@ class AlterSpecialObjectProperty(Command):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         return AlterObjectProperty(
-            property=astnode.name.name,
+            property=astnode.name,
             new_value=astnode.value
         )
 
@@ -1355,7 +1355,7 @@ class AlterObjectProperty(Command):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         from edb.edgeql import compiler as qlcompiler
 
-        propname = astnode.name.name
+        propname = astnode.name
 
         parent_ctx = context.current()
         parent_op = parent_ctx.op
@@ -1453,9 +1453,7 @@ class AlterObjectProperty(Command):
         else:
             value = qlast.BaseConstant.from_python(value)
 
-        op = qlast.SetField(
-            name=qlast.ObjectRef(module='', name=self.property),
-            value=value)
+        op = qlast.SetField(name=self.property, value=value)
         return op
 
     def __repr__(self):

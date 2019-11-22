@@ -18,18 +18,25 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import itertools
 
+from . import base
 from .visitor import NodeVisitor
 
 
 class SourceGenerator(NodeVisitor):
     """Generate source code from an AST tree."""
 
+    result: List[str]
+
     def __init__(
-            self, indent_with=' ' * 4, add_line_information=False,
-            pretty=True):
+        self,
+        indent_with: str = ' ' * 4,
+        add_line_information: bool = False,
+        pretty: bool = True
+    ) -> None:
         self.result = []
         self.indent_with = indent_with
         self.add_line_information = add_line_information
@@ -39,12 +46,16 @@ class SourceGenerator(NodeVisitor):
         self.current_line = 1
         self.pretty = pretty
 
-    def node_visit(self, node):
+    def node_visit(self, node: base.AST) -> None:
         method = 'visit_' + node.__class__.__name__
         visitor = getattr(self, method, self.generic_visit)
         return visitor(node)
 
-    def write(self, *x, delimiter=None):
+    def write(
+        self,
+        *x: str,
+        delimiter: Optional[str] = None
+    ) -> None:
         if self.new_lines:
             if self.result and self.pretty:
                 self.current_line += self.new_lines
@@ -69,8 +80,14 @@ class SourceGenerator(NodeVisitor):
             self.result.append(chunk)
 
     def visit_list(
-            self, items, *,
-            separator=',', terminator=None, newlines=True, **kwargs):
+        self,
+        items: Sequence[base.AST],
+        *,
+        separator: str = ',',
+        terminator: Optional[str] = None,
+        newlines: bool = True,
+        **kwargs: Any
+    ) -> None:
         # terminator overrides separator setting
         #
         separator = terminator if terminator is not None else separator
@@ -92,8 +109,13 @@ class SourceGenerator(NodeVisitor):
 
     @classmethod
     def to_source(
-            cls, node, indent_with=' ' * 4, add_line_information=False,
-            pretty=True, **kwargs):
+        cls,
+        node: Union[base.AST, Sequence[base.AST]],
+        indent_with: str = ' ' * 4,
+        add_line_information: bool = False,
+        pretty: bool = True,
+        **kwargs: Any
+    ) -> str:
         generator = cls(indent_with, add_line_information,
                         pretty=pretty, **kwargs)
         generator.visit(node)

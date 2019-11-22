@@ -301,16 +301,10 @@ class ConstraintCommand(
         # check that 'subject' and 'subjectexpr' are not set as annotations
         for command in astnode.commands:
             cname = command.name
-            if cls._is_special_name(cname):
+            if cname in {'subject', 'subjectexpr'}:
                 raise errors.InvalidConstraintDefinitionError(
-                    f'{cname.name} is not a valid constraint annotation',
+                    f'{cname} is not a valid constraint annotation',
                     context=command.context)
-
-    @classmethod
-    def _is_special_name(cls, astnode):
-        # check that 'subject' and 'subjectexpr' are not set as annotations
-        return (astnode.name in {'subject', 'subjectexpr'} and
-                not astnode.module)
 
     @classmethod
     def _classname_quals_from_ast(cls, schema, astnode, base_name,
@@ -328,8 +322,7 @@ class ConstraintCommand(
         # check if "orig_subjectexpr" field is set
         for node in astnode.commands:
             if isinstance(node, qlast.SetField):
-                if (node.name.module is None and
-                        node.name.name == 'orig_subjectexpr'):
+                if node.name == 'orig_subjectexpr':
                     subjexpr_text = node.value.value
                     break
 
@@ -606,7 +599,7 @@ class CreateConstraint(ConstraintCommand,
             else:
                 node.commands.append(
                     qlast.SetSpecialField(
-                        name=qlast.ObjectRef(name='delegated'),
+                        name='delegated',
                         value=op.new_value,
                     )
                 )

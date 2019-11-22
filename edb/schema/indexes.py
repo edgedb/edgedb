@@ -125,8 +125,7 @@ class IndexCommand(referencing.ReferencedInheritingObjectCommand,
         # check if "origexpr" field is already set
         for node in astnode.commands:
             if isinstance(node, qlast.SetField):
-                if (node.name.module is None and
-                        node.name.name == 'origexpr'):
+                if node.name == 'origexpr':
                     expr_text = node.value.value
                     break
 

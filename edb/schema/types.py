@@ -1577,7 +1577,7 @@ class TypeCommand(sd.ObjectCommand):
     ) -> Optional[qlast.Expr]:
         for subcmd in astnode.commands:
             if (isinstance(subcmd, qlast.SetField) and
-                    subcmd.name.name == 'expr'):
+                    subcmd.name == 'expr'):
                 return subcmd.value
 
         return None
