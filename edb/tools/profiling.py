@@ -186,7 +186,7 @@ class profile:
             # Mypy is wrong below, `stats` is there on all pstats.Stats objects
             render_svg(ps.stats, svg_path)  # type: ignore
         except ValueError as ve:
-            print("Cannot display flame graph: {ve}", file=sys.stderr)
+            print(f"Cannot display flame graph: {ve}", file=sys.stderr)
         print(
             f"Processed {success + failure} files, {failure} failed.",
             file=sys.stderr,
