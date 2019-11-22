@@ -302,7 +302,8 @@ def try_bind_call_args(
                 raise RuntimeError('unprocessed NAMED ONLY parameter')
 
             if param_kind is _VARIADIC:
-                var_type = param.get_type(schema).get_subtypes(schema)[0]
+                param_type = cast(s_types.Array, param_type)
+                var_type = param_type.get_subtypes(schema)[0]
                 cd = _get_cast_distance(arg_val, arg_type, var_type)
                 if cd < 0:
                     return None
@@ -320,7 +321,7 @@ def try_bind_call_args(
 
                 break
 
-            cd = _get_cast_distance(arg_val, arg_type, param.get_type(schema))
+            cd = _get_cast_distance(arg_val, arg_type, param_type)
             if cd < 0:
                 return None
 
@@ -362,6 +363,10 @@ def try_bind_call_args(
                 if isinstance(barg, BoundArg):
                     bound_param_args.append(barg)
                     continue
+                if barg.param is None:
+                    # Shouldn't be possible; the code above takes care of this.
+                    raise RuntimeError(
+                        f'failed to resolve the parameter for the arg #{i}')
 
                 param = barg.param
                 param_shortname = param.get_shortname(schema)

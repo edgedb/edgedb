@@ -24,24 +24,26 @@ import itertools
 from typing import *  # NoQA
 
 from edb.common import ast
+from edb.schema import schema as s_schema
+from edb.schema import functions as s_func
 
 from . import ast as qlast
 
 
 class ParameterInliner(ast.NodeTransformer):
 
-    def __init__(self, args_map):
+    def __init__(self, args_map: Dict[str, qlast.Base]) -> None:
         super().__init__()
         self.args_map = args_map
 
-    def visit_Path(self, node):
+    def visit_Path(self, node: qlast.Path) -> qlast.Base:
         if (len(node.steps) != 1 or
                 not isinstance(node.steps[0], qlast.ObjectRef)):
             return node
 
-        param_name = node.steps[0].name
+        ref: qlast.ObjectRef = node.steps[0]
         try:
-            arg = self.args_map[param_name]
+            arg = self.args_map[ref.name]
         except KeyError:
             return node
 
@@ -49,13 +51,22 @@ class ParameterInliner(ast.NodeTransformer):
         return arg
 
 
-def inline_parameters(ql_expr: qlast.Base, args: Dict[str, qlast.Base]):
+def inline_parameters(
+    ql_expr: qlast.Base,
+    args: Mapping[str, qlast.Base]
+) -> None:
+
     inliner = ParameterInliner(args)
     inliner.visit(ql_expr)
 
 
-def index_parameters(ql_args: List[qlast.Base], *,
-                     parameters, schema):
+def index_parameters(
+    ql_args: List[qlast.Base],
+    *,
+    parameters: Sequence[s_func.Parameter],
+    schema: s_schema.Schema
+) -> Dict[str, qlast.Base]:
+
     result = {}
     varargs = None
     variadic = parameters.find_variadic(schema)
@@ -82,11 +93,11 @@ def index_parameters(ql_args: List[qlast.Base], *,
 
 class AnchorInliner(ast.NodeTransformer):
 
-    def __init__(self, anchors):
+    def __init__(self, anchors: Mapping[Any, qlast.Base]) -> None:
         super().__init__()
         self.anchors = anchors
 
-    def visit_Path(self, node):
+    def visit_Path(self, node: qlast.Path) -> qlast.Path:
         if not node.steps:
             return node
 
@@ -100,7 +111,10 @@ class AnchorInliner(ast.NodeTransformer):
         return node
 
 
-def inline_anchors(ql_expr: qlast.Base,
-                   anchors: Dict[object, qlast.Base]):
+def inline_anchors(
+    ql_expr: qlast.Base,
+    anchors: Mapping[Any, qlast.Base]
+) -> None:
+
     inliner = AnchorInliner(anchors)
     inliner.visit(ql_expr)
