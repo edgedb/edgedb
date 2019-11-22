@@ -30,7 +30,7 @@ from edb.edgeql.parser.grammar import lexer
 @functools.lru_cache(100)
 def split_edgeql(
     script: str, *,
-    script_mode=True
+    script_mode: bool = True
 ) -> Tuple[List[str], Optional[str]]:
     '''\
     Split the input string into a list of possible EdgeQL statements.

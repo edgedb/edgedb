@@ -242,7 +242,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "pgsql" / "dbops", 34.40)
 
     def test_cqa_type_coverage_repl(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "repl", 21.05)
+        self.assertFunctionCoverage(EDB_DIR / "repl", 27.38)
 
     def test_cqa_type_coverage_schema(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "schema", 36.78)

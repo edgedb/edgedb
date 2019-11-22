@@ -34,7 +34,9 @@ from edb.errors import base as base_errors
 from edb.common.markup.renderers import terminal
 from edb.common.markup.renderers import styles
 
+from typing import *  # NoQA
 from . import context
+from . import table
 
 
 style = styles.Dark256
@@ -375,3 +377,15 @@ def render_exception(repl_ctx: context.ReplContext, exc, *, query=None):
                     print('###', line)
                     if lineno == exc_line:
                         print('###', ' ' * (exc_col - 1) + '^')
+
+
+def render_table(
+    repl_ctx: context.ReplContext,
+    *,
+    title: str,
+    columns: Sequence[table.ColumnSpec],
+    data: Iterable[edgedb.Object],
+    max_width=None,
+) -> None:
+    table.render_table(
+        title=title, columns=columns, data=data, max_width=max_width)
