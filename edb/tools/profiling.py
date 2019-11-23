@@ -23,6 +23,7 @@ import atexit
 import cProfile
 import dataclasses
 import functools
+import os
 import pathlib
 import pstats
 import sys
@@ -32,9 +33,9 @@ from xml.sax import saxutils
 import click
 
 
-# .parent.parent.parent removes the last three from
-# edgedb/edb/tools/profiling.py, leaving just edgedb/
-EDGEDB_DIR = pathlib.Path(__file__).resolve().parent.parent.parent
+CURRENT_DIR = pathlib.Path(__file__).resolve().parent
+EDGEDB_DIR = CURRENT_DIR.parent.parent
+PROFILING_JS = CURRENT_DIR / "profiling_svg_helpers.js"
 PREFIX = "edgedb_"
 STAT_SUFFIX = ".pstats"
 PROF_SUFFIX = ".prof"
@@ -306,7 +307,44 @@ class Block:
 
     @property
     def name(self) -> FunctionName:
-        return self.func[2]
+        result = self.func[2]
+        if result.startswith("<built-in method builtins."):
+            result = result[len("<built-in method "):-1]
+        return result
+
+    @property
+    def module(self) -> str:
+        result = self.func[0]
+        edgedb = str(EDGEDB_DIR) + os.sep
+        if result.startswith(edgedb):
+            return result[len(edgedb):]
+
+        parts = []
+        maybe_stdlib = False
+        for part in pathlib.Path(result).parts[::-1]:
+            parts.append(part)
+            if part in {'python3.6', 'python3.7', 'python3.8', 'python3.9'}:
+                maybe_stdlib = True
+            elif maybe_stdlib:
+                if part == 'lib':
+                    parts.pop()
+                    return os.sep.join(parts[::-1])
+
+                break
+
+        return result
+
+    @property
+    def full_name(self) -> str:
+        result = ""
+        if self.func[0] not in {"~", "", None}:
+            result += self.module
+            result += ":"
+        if self.func[1] not in (0, None):
+            result += str(self.func[1])
+            result += ":"
+        result += self.name
+        return f"{result} {self.tooltip}"
 
 
 def count_calls(funcs: Dict[FunctionID, Function]) -> Counter[Call]:
@@ -384,9 +422,7 @@ def build_svg_blocks(
                 continue
 
             child_call_stack = call_stack + (child,)
-            tooltip = "{0[0]}:{0[1]}:{0[2]} {5:.2%} ({1} {2} {3} {4})".format(
-                child, cc, nc, tt, tc, tc / maxw
-            )
+            tooltip = TOOLTIP.format(tc / maxw, cc, nc, tt, tc)
             block = Block(
                 func=child,
                 call_stack=child_call_stack,
@@ -438,9 +474,7 @@ def build_svg_blocks(
                 origin += ttt
                 continue
 
-            tooltip = "{0[0]}:{0[1]}:{0[2]} {5:.2%} ({1} {2} {3} {4})".format(
-                fid, cc, nc, tt, tc, tt / maxw
-            )
+            tooltip = TOOLTIP.format(tt / maxw, cc, nc, tt, tc)
             block = Block(
                 func=fid,
                 call_stack=(),
@@ -500,10 +534,11 @@ def render_svg_section(
                 tx=tx,
                 ty=ty,
                 name=saxutils.escape(b.name),
-                full_name=saxutils.escape(b.tooltip),
+                full_name=saxutils.escape(b.full_name),
                 font_size=font_size,
                 h=block_height - 1,
                 fill=fill,
+                upsidedown="true" if invert else "false",
             )
         )
 
@@ -514,9 +549,9 @@ def render_svg(
     stats: Stats,
     out: Union[pathlib.Path, str],
     threshold: float = 0.1 / 100,
-    width: int = 1920,  # in pixels
+    width: int = 1200,  # in pixels
     block_height: int = 24,  # in pixels
-    font_size: int = 9,
+    font_size: int = 12,
     log_mult: int = 1000000,
 ) -> None:
     """Render an SVG file to `out`.
@@ -542,6 +577,7 @@ def render_svg(
         )
         # a visual distinction between the call graph and the usage graph
         current_height += block_height
+    lines1.append(DETAILS.format(font_size=font_size, y=current_height))
     if usage_blocks:
         lines2, current_height = render_svg_section(
             usage_blocks,
@@ -550,12 +586,21 @@ def render_svg(
             block_height=block_height,
             font_size=font_size,
             width=width,
-            top=current_height,
+            top=current_height + block_height,
             invert=True,
         )
+    with PROFILING_JS.open() as js_file:
+        javascript = js_file.read()
     with open(out, "w") as outf:
-        content = "\n".join(lines1 + lines2)
-        outf.write(SVG.format(content, width=width, height=current_height))
+        svg = SVG.format(
+            "\n".join(lines1 + lines2),
+            javascript=javascript,
+            width=width,
+            height=current_height,
+            unzoom_button_x=width - 100,
+            ui_font_size=1.33 * font_size,
+        )
+        outf.write(svg)
 
 
 SVG = """\
@@ -563,23 +608,48 @@ SVG = """\
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" \
 "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg version="1.1" width="{width}" height="{height}"
-     xmlns="http://www.w3.org/2000/svg"
-     xmlns:xlink="http://www.w3.org/1999/xlink">
+ xmlns="http://www.w3.org/2000/svg"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ onload="init(evt)"
+ class="default">
 <style type="text/css">
-    .func_g {{ font-family: arial }}
-    .func_g:hover {{ stroke:black; stroke-width:0.5; cursor:pointer; }}
+ .func_g {{ font-family: arial }}
+ .func_g:hover {{ stroke:black; stroke-width:0.5; cursor:pointer; }}
 </style>
+<script type="text/ecmascript">
+<![CDATA[
+{javascript}
+]]>
+</script>
+<text id="unzoom" onclick="unzoom()"
+ text-anchor="" x="{unzoom_button_x}" y="24"
+ font-size="{ui_font_size}" font-family="arial"
+ fill="rgb(0,0,0)" style="opacity:0.0;cursor:pointer" >Reset Zoom</text>
+<text id="search"
+ onmouseover="searchover()" onmouseout="searchout()" onclick="search_prompt()"
+ text-anchor="" x="10" y="24"
+ font-size="{ui_font_size}" font-family="arial"
+ fill="rgb(0,0,0)" style="opacity:0.1;cursor:pointer" >Search</text>
 {}
 </svg>"""
 
 ELEM = """\
-<svg class="func_g" x="{x}" y="{y}" width="{w}" height="{h}"><g>
+<svg class="func_g" x="{x}" y="{y}" width="{w}" height="{h}"
+ onclick="zoom(this, {upsidedown})" onmouseover="s(this)" onmouseout="s()">
     <title>{full_name}</title>
     <rect height="100%" width="100%" fill="rgb({fill.r},{fill.g},{fill.b})"
      rx="2" ry="2" />
-    <text alignment-baseline="central" x="{tx}" y="{ty}"
+    <text text-anchor="" x="{tx}" y="{ty}"
      font-size="{font_size}px" fill="rgb(0,0,0)">{name}</text>
-</g></svg>"""
+</svg>"""
+
+DETAILS = """
+<text id="details" text-anchor="" x="10.00" y="{y}"
+ font-family="arial" font-size="{font_size}" font-weight="bold"
+ fill="rgb(0,0,0)"> </text>
+"""
+
+TOOLTIP = "{0:.2%} (calls={1} pcalls={2} tottime={3:.2f} cumtime={4:.2f})"
 
 
 @click.command()
