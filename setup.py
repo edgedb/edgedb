@@ -44,7 +44,7 @@ RUNTIME_DEPS = [
     'setproctitle~=1.1.10',
     'setuptools_scm~=3.2.0',
     'typing_inspect~=0.5.0',
-    'uvloop~=0.14.0rc2',
+    'uvloop~=0.14.0',
 
     'graphql-core~=2.2.1',
     'promise~=2.2.0',
