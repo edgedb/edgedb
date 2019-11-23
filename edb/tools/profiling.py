@@ -143,12 +143,22 @@ class profile:
         self.profiler.dump_stats(self.make_dump_file())
 
     def aggregate(
-        self, out_path: pathlib.Path, *, sort_by: str = ""
+        self,
+        out_path: pathlib.Path,
+        *,
+        sort_by: str = "",
+        width: int = 1920,
+        threshold: float = 0.0001,  # 1.0 is 100%
     ) -> Tuple[int, int]:
         """Read all pstats in `self.dir` and write a summary to `out_path`.
 
         `sort_by` after `pstats.sort_stats()`.  Files identified by `self.dir`,
         `self.prefix`, and `self.suffix`.
+
+        `width` selects the width of the generated SVG.
+
+        Functions whose runtime is below `threshold` percentage are not
+        included.
 
         Returns a tuple with number of successfully and unsucessfully
         aggregated files.
@@ -185,7 +195,12 @@ class profile:
             ps.print_stats()
         try:
             # Mypy is wrong below, `stats` is there on all pstats.Stats objects
-            render_svg(ps.stats, svg_path)  # type: ignore
+            render_svg(
+                ps.stats,  # type: ignore
+                svg_path,
+                width=width,
+                threshold=threshold,
+            )
         except ValueError as ve:
             print(f"Cannot display flame graph: {ve}", file=sys.stderr)
         print(
@@ -237,8 +252,7 @@ def gradient_from_name(name: str) -> float:
 
 
 def calc_callers(
-    stats: Stats,
-    threshold: float,
+    stats: Stats, threshold: float,
 ) -> Tuple[Dict[FunctionID, Function], Dict[Call, Stat]]:
     """Calculate flattened stats of calls between functions."""
     roots: List[FunctionID] = []
@@ -309,7 +323,7 @@ class Block:
     def name(self) -> FunctionName:
         result = self.func[2]
         if result.startswith("<built-in method builtins."):
-            result = result[len("<built-in method "):-1]
+            result = result[len("<built-in method ") : -1]
         return result
 
     @property
@@ -317,16 +331,16 @@ class Block:
         result = self.func[0]
         edgedb = str(EDGEDB_DIR) + os.sep
         if result.startswith(edgedb):
-            return result[len(edgedb):]
+            return result[len(edgedb) :]
 
         parts = []
         maybe_stdlib = False
         for part in pathlib.Path(result).parts[::-1]:
             parts.append(part)
-            if part in {'python3.6', 'python3.7', 'python3.8', 'python3.9'}:
+            if part in {"python3.6", "python3.7", "python3.8", "python3.9"}:
                 maybe_stdlib = True
             elif maybe_stdlib:
-                if part == 'lib':
+                if part == "lib":
                     parts.pop()
                     return os.sep.join(parts[::-1])
 
@@ -548,15 +562,17 @@ def render_svg_section(
 def render_svg(
     stats: Stats,
     out: Union[pathlib.Path, str],
-    threshold: float = 0.1 / 100,
-    width: int = 1200,  # in pixels
+    *,
+    threshold: float = 0.0001,  # 1.0 is 100%
+    width: int = 1920,  # in pixels
     block_height: int = 24,  # in pixels
     font_size: int = 12,
-    log_mult: int = 1000000,
 ) -> None:
     """Render an SVG file to `out`.
 
     Raises ValueError if rendering cannot be done with the given `stats`.
+
+    Functions whose runtime is below `threshold` percentage are not included.
     """
     funcs, calls = calc_callers(stats, threshold)
     call_blocks, usage_blocks, maxw = build_svg_blocks(
@@ -657,6 +673,8 @@ TOOLTIP = "{0:.2%} (calls={1} pcalls={2} tottime={3:.2f} cumtime={4:.2f})"
 @click.option("--suffix", default=PROF_SUFFIX)
 @click.option("--sort-by", default="cumulative")
 @click.option("--out", default=EDGEDB_DIR)
+@click.option("--width", default=1920)
+@click.option("--threshold", default=0.0001)
 @click.argument("dirs", nargs=-1)
 def cli(
     dirs: List[str],
@@ -664,13 +682,17 @@ def cli(
     suffix: str,
     sort_by: str,
     out: Union[pathlib.Path, str],
+    width: int,
+    threshold: float,
 ) -> None:
     if len(dirs) > 1:
         raise click.UsageError("Specify at most one directory")
 
     dir: Optional[str] = dirs[0] if dirs else None
     prof = profile(dir=dir, prefix=prefix, suffix=suffix, reuse=False)
-    prof.aggregate(pathlib.Path(out), sort_by=sort_by)
+    prof.aggregate(
+        pathlib.Path(out), sort_by=sort_by, width=width, threshold=threshold
+    )
 
 
 if __name__ == "__main__":
