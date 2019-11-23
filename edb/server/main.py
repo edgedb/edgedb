@@ -313,6 +313,22 @@ def run_server(args):
         cluster.stop()
 
 
+def bump_rlimit_nofile() -> None:
+    try:
+        fno_soft, fno_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    except resource.error:
+        logger.warning('could not read RLIMIT_NOFILE')
+    else:
+        if fno_soft < defines.EDGEDB_MIN_RLIMIT_NOFILE:
+            try:
+                resource.setrlimit(
+                    resource.RLIMIT_NOFILE,
+                    (min(defines.EDGEDB_MIN_RLIMIT_NOFILE, fno_hard),
+                     fno_hard))
+            except resource.error:
+                logger.warning('could not set RLIMIT_NOFILE')
+
+
 _server_options = [
     click.option(
         '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
@@ -378,18 +394,7 @@ def server_main(*, insecure=False, **kwargs):
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
 
-    try:
-        fno_limits = resource.getrlimit(resource.RLIMIT_NOFILE)
-    except resource.error:
-        logger.warning('could not read RLIMIT_NOFILE')
-    else:
-        if fno_limits[0] < defines.EDGEDB_RLIMIT_NOFILE:
-            try:
-                resource.setrlimit(
-                    resource.RLIMIT_NOFILE,
-                    (defines.EDGEDB_RLIMIT_NOFILE, resource.RLIM_INFINITY))
-            except resource.error:
-                logger.warning('could not set RLIMIT_NOFILE')
+    bump_rlimit_nofile()
 
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 

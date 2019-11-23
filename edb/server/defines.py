@@ -30,7 +30,7 @@ EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
 # By default, at least on macOS, the max number of open FDs
 # is 256, which is low and can cause 'edb test' to hang.
 # We try to bump the rlimit on server start if pemitted.
-EDGEDB_RLIMIT_NOFILE = 2048
+EDGEDB_MIN_RLIMIT_NOFILE = 2048
 
 
 _MAX_QUERIES_CACHE = 1000
