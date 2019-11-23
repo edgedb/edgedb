@@ -26,7 +26,7 @@ import logging
 import os
 import os.path
 import pathlib
-import setproctitle
+import resource
 import signal
 import socket
 import sys
@@ -35,6 +35,7 @@ import tempfile
 import uvloop
 
 import click
+import setproctitle
 
 from edb.common import devmode
 from edb.common import exceptions
@@ -374,9 +375,21 @@ def server_options(func):
 
 
 def server_main(*, insecure=False, **kwargs):
-
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
+
+    try:
+        fno_limits = resource.getrlimit(resource.RLIMIT_NOFILE)
+    except resource.error:
+        logger.warning('could not read RLIMIT_NOFILE')
+    else:
+        if fno_limits[0] < defines.EDGEDB_RLIMIT_NOFILE:
+            try:
+                resource.setrlimit(
+                    resource.RLIMIT_NOFILE,
+                    (defines.EDGEDB_RLIMIT_NOFILE, resource.RLIM_INFINITY))
+            except resource.error:
+                logger.warning('could not set RLIMIT_NOFILE')
 
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
