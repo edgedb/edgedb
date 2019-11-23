@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import abc
 import types
 from typing import *  # NoQA
 
@@ -69,8 +70,32 @@ def param_as_str(
     return ''.join(ret)
 
 
+class ParameterLike(s_abc.Parameter):
+
+    def get_shortname(self, schema: s_schema.Schema) -> str:
+        raise NotImplementedError
+
+    def get_name(self, schema: s_schema.Schema) -> str:
+        raise NotImplementedError
+
+    def get_kind(self, _: s_schema.Schema) -> ft.ParameterKind:
+        raise NotImplementedError
+
+    def get_default(self, _: s_schema.Schema) -> Optional[expr.Expression]:
+        raise NotImplementedError
+
+    def get_type(self, _: s_schema.Schema) -> s_types.Type:
+        raise NotImplementedError
+
+    def get_typemod(self, _: s_schema.Schema) -> ft.TypeModifier:
+        raise NotImplementedError
+
+    def as_str(self, schema: s_schema.Schema) -> str:
+        raise NotImplementedError
+
+
 # Non-schema description of a parameter.
-class ParameterDesc(NamedTuple, s_abc.Parameter):
+class ParameterDesc(ParameterLike):
 
     num: int
     name: str
@@ -78,6 +103,23 @@ class ParameterDesc(NamedTuple, s_abc.Parameter):
     type: s_types.Type
     typemod: ft.TypeModifier
     kind: ft.ParameterKind
+
+    def __init__(
+        self,
+        *,
+        num: int,
+        name: str,
+        default: Optional[expr.Expression],
+        type: s_types.Type,
+        typemod: ft.TypeModifier,
+        kind: ft.ParameterKind,
+    ) -> None:
+        self.num = num
+        self.name = name
+        self.default = default
+        self.type = type
+        self.typemod = typemod
+        self.kind = kind
 
     @classmethod
     def from_ast(
@@ -212,7 +254,7 @@ class ParameterDesc(NamedTuple, s_abc.Parameter):
         return cmd
 
 
-class Parameter(so.ObjectFragment, s_abc.Parameter):
+class Parameter(so.ObjectFragment, ParameterLike):
 
     num = so.SchemaField(
         int, compcoef=0.4)
@@ -334,7 +376,7 @@ class PgParams(NamedTuple):
         variadic = None
         has_param_wo_default = False
 
-        if isinstance(params, FuncParameterList):
+        if isinstance(params, ParameterLikeList):
             params = params.objects(schema)
 
         for param in params:
@@ -365,7 +407,43 @@ class PgParams(NamedTuple):
             has_param_wo_default=has_param_wo_default)
 
 
-class FuncParameterList(so.ObjectList, type=Parameter):
+class ParameterLikeList(abc.ABC):
+
+    @abc.abstractmethod
+    def get_by_name(self, schema: s_schema.Schema, name) -> ParameterLike:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def as_str(self, schema: s_schema.Schema) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def has_polymorphic(self, schema: s_schema.Schema) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def find_named_only(
+        self,
+        schema: s_schema.Schema
+    ) -> Mapping[str, ParameterLike]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def find_variadic(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[ParameterLike]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def objects(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[ParameterLike, ...]:
+        raise NotImplementedError
+
+
+class FuncParameterList(so.ObjectList, ParameterLikeList, type=Parameter):
 
     def get_by_name(self, schema: s_schema.Schema, name) -> Parameter:
         for param in self.objects(schema):
@@ -453,7 +531,7 @@ class CallableLike:
     def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
 
-    def get_params(self, schema: s_schema.Schema) -> FuncParameterList:
+    def get_params(self, schema: s_schema.Schema) -> ParameterLikeList:
         raise NotImplementedError
 
     def get_return_type(self, schema: s_schema.Schema) -> s_types.Type:

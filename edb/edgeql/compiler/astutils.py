@@ -21,6 +21,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 
@@ -29,22 +30,30 @@ from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
 
-def extend_qlbinop(binop, *exprs, op='AND'):
-    exprs = list(exprs)
-    binop = binop or exprs.pop(0)
+def extend_binop(
+    binop: Optional[qlast.Expr],
+    *exprs: qlast.Expr,
+    op: str = 'AND',
+) -> qlast.Expr:
+    exprlist = list(exprs)
 
-    for expr in exprs:
-        if expr is not binop:
-            binop = qlast.BinOp(
-                left=binop,
+    if binop is None:
+        result = exprlist.pop(0)
+    else:
+        result = binop
+
+    for expr in exprlist:
+        if expr is not None and expr is not result:
+            result = qlast.BinOp(
+                left=result,
                 right=expr,
-                op=op
+                op=op,
             )
 
-    return binop
+    return result
 
 
-def ensure_qlstmt(expr):
+def ensure_qlstmt(expr: qlast.Expr) -> qlast.Statement:
     if not isinstance(expr, qlast.Statement):
         expr = qlast.SelectQuery(
             result=expr,
@@ -53,11 +62,11 @@ def ensure_qlstmt(expr):
     return expr
 
 
-def is_ql_empty_set(expr):
+def is_ql_empty_set(expr: qlast.Expr) -> bool:
     return isinstance(expr, qlast.Set) and len(expr.elements) == 0
 
 
-def is_ql_path(qlexpr):
+def is_ql_path(qlexpr: qlast.Expr) -> bool:
     if isinstance(qlexpr, qlast.Shape):
         qlexpr = qlexpr.expr
 
@@ -69,7 +78,7 @@ def is_ql_path(qlexpr):
     return isinstance(start, (qlast.Source, qlast.ObjectRef, qlast.Ptr))
 
 
-def is_degenerate_select(qlstmt):
+def is_degenerate_select(qlstmt: qlast.Expr) -> bool:
     if not isinstance(qlstmt, qlast.SelectQuery) or not qlstmt.implicit:
         return False
 
@@ -81,6 +90,8 @@ def is_degenerate_select(qlstmt):
 
     if isinstance(qlexpr, qlast.Shape):
         qlexpr = qlexpr.expr
+
+    assert isinstance(qlexpr, qlast.Path)
 
     start = qlexpr.steps[0]
 

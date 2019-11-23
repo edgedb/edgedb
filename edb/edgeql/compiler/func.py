@@ -41,7 +41,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 
-from . import cast
+from . import casts
 from . import context
 from . import dispatch
 from . import inference
@@ -624,7 +624,7 @@ def finalize_args(
             # cast the arguments so that the backend has no
             # wiggle room to apply its own (potentially different)
             # casting.
-            arg = cast.compile_cast(
+            arg = casts.compile_cast(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
         if param_mod is not ft.TypeModifier.SET_OF:

@@ -295,7 +295,7 @@ def get_nq_name(schema, item) -> str:
 
 
 def find_item_suggestions(
-        name, modaliases, schema, *, item_types=None, limit=3,
+        name, modaliases, schema, *, item_types=(), limit=3,
         collection=None, condition=None):
     from . import functions as s_func
     from . import modules as s_mod

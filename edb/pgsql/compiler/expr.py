@@ -54,7 +54,7 @@ def compile_Set(
     if ctx.singleton_mode:
         return _compile_set_in_singleton_mode(ir_set, ctx=ctx)
 
-    is_toplevel = ctx.toplevel_stmt is None
+    is_toplevel = ctx.toplevel_stmt is context.NO_STMT
 
     _compile_set_impl(ir_set, ctx=ctx)
 
@@ -86,14 +86,14 @@ def _compile_set_impl(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> None:
 
-    is_toplevel = ctx.toplevel_stmt is None
+    is_toplevel = ctx.toplevel_stmt is context.NO_STMT
 
     if isinstance(ir_set.expr, irast.BaseConstant):
         # Avoid creating needlessly complicated constructs for
         # constant expressions.  Besides being an optimization,
         # this helps in GROUP BY queries.
         value = dispatch.compile(ir_set.expr, ctx=ctx)
-        if ctx.rel is None:
+        if is_toplevel:
             ctx.rel = ctx.toplevel_stmt = pgast.SelectStmt()
         pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
         if (output.in_serialization_ctx(ctx) and ir_set.shape

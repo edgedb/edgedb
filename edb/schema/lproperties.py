@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *  # NoQA
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -34,11 +36,23 @@ from . import referencing
 from . import sources
 from . import utils
 
+if TYPE_CHECKING:
+    from . import schema as s_schema
+    from . import sources as s_sources
+    from . import types as s_types
+
 
 class Property(pointers.Pointer, s_abc.Property,
                qlkind=qltypes.SchemaObjectClass.PROPERTY):
 
-    def derive_ref(self, schema, source, target=None, attrs=None, **kwargs):
+    def derive_ref(
+        self: referencing.ReferencedT,
+        schema: s_schema.Schema,
+        source: s_sources.Source,
+        target: Optional[s_types.Type] = None,
+        attrs: Optional[Mapping[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Tuple[s_schema.Schema, referencing.ReferencedT]:
         if target is None:
             target = self.get_target(schema)
 

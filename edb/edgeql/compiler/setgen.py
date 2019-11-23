@@ -22,8 +22,9 @@
 
 from __future__ import annotations
 
-import contextlib
 from typing import *  # NoQA
+
+import contextlib
 
 from edb import errors
 
@@ -53,12 +54,15 @@ from . import pathctx
 from . import schemactx
 from . import stmtctx
 
+if TYPE_CHECKING:
+    from edb.schema import objects as s_obj
+
 
 PtrDir = s_pointers.PointerDirection
 
 
 def new_set(*, stype: s_types.Type, ctx: context.ContextLevel,
-            **kwargs) -> irast.Set:
+            **kwargs: Any) -> irast.Set:
     """Create a new ir.Set instance with given attributes.
 
     Absolutely all ir.Set instances must be created using this
@@ -208,7 +212,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 stype = schemactx.get_schema_type(
                     step,
                     condition=lambda o: (
-                        o.is_object_type() or o.is_view(ctx.env.schema)
+                        isinstance(o, s_types.Type)
+                        and (o.is_object_type() or o.is_view(ctx.env.schema))
                     ),
                     label='object type or view',
                     srcctx=step.context,
@@ -245,13 +250,15 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
             ptr_name = ptr_expr.ptr.name
 
-            source: Union[s_types.Type, s_pointers.PointerLike]
+            source: s_obj.Object
 
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
                 # link immediately preceding this step in the path.
-                source = irtyputils.ptrcls_from_ptrref(
+                ptr = irtyputils.ptrcls_from_ptrref(
                     path_tip.rptr.ptrref, schema=ctx.env.schema)
+                assert isinstance(ptr, s_links.Link)
+                source = ptr
             else:
                 source = get_set_type(path_tip, ctx=ctx)
 
@@ -434,7 +441,7 @@ def fuse_scope_branch(
 
 def ptr_step_set(
         path_tip: irast.Set, *,
-        source: Union[s_types.Type, s_pointers.PointerLike],
+        source: s_obj.Object,
         ptr_name: str,
         direction: PtrDir,
         source_context: parsing.ParserContext,
@@ -455,7 +462,7 @@ def ptr_step_set(
 
 
 def resolve_ptr(
-        near_endpoint: Union[s_types.Type, s_pointers.PointerLike],
+        near_endpoint: s_obj.Object,
         pointer_name: str, *,
         direction: s_pointers.PointerDirection=(
             s_pointers.PointerDirection.Outbound
@@ -467,6 +474,8 @@ def resolve_ptr(
         # Reference to a property on non-object
         msg = 'invalid property reference on a primitive type expression'
         raise errors.InvalidReferenceError(msg, context=source_context)
+
+    ptr: Optional[s_pointers.Pointer]
 
     if direction is s_pointers.PointerDirection.Outbound:
         ptr = near_endpoint.getptr(ctx.env.schema, pointer_name)
@@ -581,7 +590,7 @@ def extend_path(
 
 
 def _is_computable_ptr(
-        ptrcls, *,
+        ptrcls: s_pointers.PointerLike, *,
         is_mut_assign: bool=False,
         ctx: context.ContextLevel) -> bool:
     try:
@@ -865,6 +874,8 @@ def computable_ptr_set(
         inner_source_path_id = None
         path_id_ns = None
 
+    newctx: Callable[[], ContextManager[context.ContextLevel]]
+
     if qlctx is None:
         # Schema-level computable, completely detached context
         newctx = ctx.detached
@@ -895,6 +906,7 @@ def computable_ptr_set(
 
     with newctx() as subctx:
         subctx.view_scls = result_stype
+        assert isinstance(source_scls, s_sources.Source)
         subctx.view_rptr = context.ViewRPtr(
             source_scls, ptrcls=ptrcls, rptr=rptr)
         subctx.anchors[qlast.Source] = source_set
@@ -937,10 +949,10 @@ def _get_computable_ctx(
     same_scope: bool,
     qlctx: context.ContextLevel,
     ctx: context.ContextLevel
-) -> Callable[[], ContextManager]:
+) -> Callable[[], ContextManager[context.ContextLevel]]:
 
     @contextlib.contextmanager
-    def newctx():
+    def newctx() -> Iterator[context.ContextLevel]:
         with ctx.new() as subctx:
             subctx.class_view_overrides = {}
             subctx.partial_path_prefix = None
@@ -964,15 +976,17 @@ def _get_computable_ctx(
             if path_id_ns is not None:
                 subctx.path_id_namespace |= {path_id_ns}
 
-            subctx.pending_stmt_own_path_id_namespace = {
+            pending_pid_ns = {
                 irast.WeakNamespace(ctx.aliases.get('ns')),
             }
 
             if path_id_ns is not None and same_scope:
-                subctx.pending_stmt_own_path_id_namespace.add(path_id_ns)
+                pending_pid_ns.add(path_id_ns)
 
-            subns = subctx.pending_stmt_full_path_id_namespace = \
-                set(subctx.pending_stmt_own_path_id_namespace)
+            subctx.pending_stmt_own_path_id_namespace = (
+                frozenset(pending_pid_ns))
+
+            subns = set(pending_pid_ns)
 
             self_view = ctx.view_sets.get(source_stype)
             if self_view:
@@ -999,6 +1013,8 @@ def _get_computable_ctx(
                         source_stype, ctx=subctx)
 
                 inner_path_id = inner_path_id.merge_namespace(subns)
+
+            subctx.pending_stmt_full_path_id_namespace = frozenset(subns)
 
             remapped_source = new_set_from_set(
                 rptr.source, rptr=rptr.source.rptr,

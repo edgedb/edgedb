@@ -19,9 +19,10 @@
 
 from __future__ import annotations
 
+from typing import *  # NoQA
+
 import functools
 import itertools
-from typing import *  # NoQA
 
 import immutables as immu
 
@@ -37,9 +38,13 @@ from . import objects as so
 from . import operators as s_oper
 from . import types as s_types
 
+if TYPE_CHECKING:
+    from edb.common import parsing
+
 
 STD_LIB = ('std', 'schema', 'math', 'sys', 'cfg')
 STD_MODULES = frozenset({'std', 'schema', 'stdgraphql', 'math', 'sys', 'cfg'})
+
 
 _void = object()
 
@@ -447,25 +452,37 @@ class Schema(s_abc.Schema):
 
         return default
 
-    def get_functions(self, name, default=_void, *, module_aliases=None):
+    def get_functions(
+        self,
+        name,
+        default=so.NoDefault,
+        *,
+        module_aliases=None
+    ):
         funcs = self._get(name,
                           getter=_get_functions,
                           module_aliases=module_aliases,
                           default=default)
 
-        if funcs is not _void:
+        if funcs is not so.NoDefault:
             return funcs
 
         raise errors.InvalidReferenceError(
             f'function {name!r} does not exist')
 
-    def get_operators(self, name, default=_void, *, module_aliases=None):
+    def get_operators(
+        self,
+        name,
+        default=so.NoDefault,
+        *,
+        module_aliases=None,
+    ):
         funcs = self._get(name,
                           getter=_get_operators,
                           module_aliases=module_aliases,
                           default=default)
 
-        if funcs is not _void:
+        if funcs is not so.NoDefault:
             return funcs
 
         raise errors.InvalidReferenceError(
@@ -554,11 +571,11 @@ class Schema(s_abc.Schema):
 
             return result
 
-    def get_by_id(self, obj_id, default=_void):
+    def get_by_id(self, obj_id, default=so.NoDefault):
         try:
             return self._id_to_type[obj_id]
         except KeyError:
-            if default is _void:
+            if default is so.NoDefault:
                 raise errors.InvalidReferenceError(
                     f'reference to a non-existent schema item {obj_id}'
                     f' in schema {self!r}'
@@ -566,8 +583,8 @@ class Schema(s_abc.Schema):
             else:
                 return default
 
-    def _get_by_name(self, name, *, type=None):
-        if isinstance(type, tuple):
+    def _get_by_name(self, name, *, type=()):
+        if type and isinstance(type, tuple):
             for typ in type:
                 scls = self._get_by_name(name, type=typ)
                 if scls is not None:
@@ -579,27 +596,34 @@ class Schema(s_abc.Schema):
             return None
 
         obj = self._id_to_type[obj_id]
-        if type is not None and not isinstance(obj, type):
+        if type and not isinstance(obj, type):
             return None
 
         return obj
 
-    def get_global(self, objtype, name, default=_void):
+    def get_global(self, objtype, name, default=so.NoDefault):
         obj_id = self._globalname_to_id.get((objtype, name))
         if obj_id is not None:
             return self._id_to_type[obj_id]
-        elif default is not _void:
+        elif default is not so.NoDefault:
             return default
         else:
             desc = objtype.get_schema_class_displayname()
             raise errors.InvalidReferenceError(
                 f'{desc} {name!r} does not exist')
 
-    def get(self, name, default=_void, *,
-            refname=None,
-            module_aliases=None, type=None,
-            condition=None, label=None,
-            sourcectx=None):
+    def get(
+        self,
+        name: str,
+        default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
+        *,
+        refname: Optional[str] = None,
+        module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        type: Tuple[so.ObjectMeta, ...] = (),
+        condition: Optional[Callable[[so.Object], bool]] = None,
+        label: Optional[str] = None,
+        sourcectx: Optional[parsing.SourceContext] = None,
+    ) -> so.Object:
         def getter(schema, name):
             obj = schema._get_by_name(name, type=type)
             if obj is not None and condition is not None:
@@ -612,11 +636,12 @@ class Schema(s_abc.Schema):
                         module_aliases=module_aliases,
                         default=default)
 
-        if obj is not _void:
+        if obj is not so.NoDefault:
             return obj
 
         if label is None:
-            if type is not None:
+            assert isinstance(type, tuple)
+            if type:
                 if isinstance(type, tuple):
                     label = " or ".join(t.get_schema_class_displayname()
                                         for t in type)

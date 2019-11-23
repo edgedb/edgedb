@@ -35,12 +35,14 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
+from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 
-from . import cast
+from . import casts
 from . import context
 from . import dispatch
 from . import inference
@@ -115,7 +117,10 @@ def compile_Parameter(
 
 @dispatch.compile.register(qlast.DetachedExpr)
 def compile_DetachedExpr(
-        expr: qlast.DetachedExpr, *, ctx: context.ContextLevel):
+    expr: qlast.DetachedExpr,
+    *,
+    ctx: context.ContextLevel,
+) -> typing.Union[irast.Set, irast.Expr]:
     with ctx.detached() as subctx:
         return dispatch.compile(expr.expr, ctx=subctx)
 
@@ -218,7 +223,8 @@ def try_fold_binop(
     try:
         const = ireval.evaluate(opcall, schema=ctx.env.schema)
     except ireval.UnsupportedExpressionError:
-        anyreal = ctx.env.schema.get('std::anyreal')
+        anyreal = typing.cast(s_scalars.ScalarType,
+                              ctx.env.schema.get('std::anyreal'))
 
         if (opcall.func_shortname in ('std::+', 'std::*') and
                 opcall.operator_kind is ft.OperatorKind.INFIX and
@@ -435,7 +441,7 @@ def compile_TypeCast(
             json_typeref = irtyputils.type_to_typeref(
                 ctx.env.schema, ctx.env.get_track_schema_type('std::json'))
 
-            param = cast.compile_cast(
+            param = casts.compile_cast(
                 irast.Parameter(
                     typeref=json_typeref,
                     name=param_name,
@@ -469,7 +475,7 @@ def compile_TypeCast(
             ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
     new_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
-    return cast.compile_cast(
+    return casts.compile_cast(
         ir_expr, new_stype, ctx=ctx, srcctx=expr.expr.context)
 
 
@@ -482,7 +488,12 @@ def compile_Introspect(
         typeref = typeref.material_type
     if typeref.is_opaque_union:
         typeref = irtyputils.type_to_typeref(
-            ctx.env.schema, ctx.env.schema.get('std::Object'))
+            ctx.env.schema,
+            typing.cast(
+                s_objtypes.ObjectType,
+                ctx.env.schema.get('std::Object'),
+            ),
+        )
 
     if irtyputils.is_view(typeref):
         raise errors.QueryError(

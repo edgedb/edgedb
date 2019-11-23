@@ -26,6 +26,7 @@ from edb.testbase import lang as tb
 
 from edb import edgeql
 from edb.edgeql import compiler as qlcompiler
+from edb.edgeql import parser as qlparser
 from edb.edgeql import qltypes
 
 from edb.schema import delta as s_delta
@@ -2766,8 +2767,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         tests = [iter(tests)] * 2
 
         for stmt_text, expected_output in zip(*tests):
-            stmt = qlcompiler.compile_to_ir(
-                stmt_text,
+            qltree = qlparser.parse(stmt_text, {None: 'test'})
+            stmt = qlcompiler.compile_ast_to_ir(
+                qltree,
                 schema,
                 modaliases={None: 'test'},
             )

@@ -21,9 +21,9 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import json
-from typing import *  # NoQA
 
 from edb import errors
 
@@ -35,6 +35,7 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -42,6 +43,9 @@ from edb.edgeql import ast as qlast
 from . import context
 from . import dispatch
 from . import setgen
+
+if TYPE_CHECKING:
+    from edb.schema import schema as s_schema
 
 
 class SettingInfo(NamedTuple):
@@ -98,7 +102,7 @@ def compile_ConfigReset(
             context=expr.context,
         )
 
-    elif info.param_type.is_object_type():
+    elif isinstance(info.param_type, s_objtypes.ObjectType):
         param_type_name = info.param_type.get_name(ctx.env.schema)
         param_type_ref = qlast.ObjectRef(
             name=param_type_name.name,
@@ -266,7 +270,7 @@ def _validate_op(
                 context=expr.context
             )
 
-        ptr = None
+        ptr_candidate: Optional[s_pointers.Pointer] = None
 
         mro = [cfg_type] + list(
             cfg_type.get_ancestors(ctx.env.schema).objects(ctx.env.schema))
@@ -275,15 +279,20 @@ def _validate_op(
                 ct, scls_type=s_links.Link, field_name='target')
 
             if ptrs:
-                ptr = next(iter(ptrs))
+                ptr_candidate = next(iter(ptrs))
                 break
 
-        if ptr is None or ptr.get_source(ctx.env.schema) != cfg_host_type:
+        if (ptr_candidate is None
+                or ptr_candidate.get_source(ctx.env.schema) != cfg_host_type):
             raise errors.ConfigurationError(
                 f'{name!r} cannot be configured directly'
             )
 
+        ptr = ptr_candidate
+
         name = ptr.get_shortname(ctx.env.schema).name
+
+    assert isinstance(ptr, s_pointers.Pointer)
 
     sys_attr = ptr.get_annotations(ctx.env.schema).get(
         ctx.env.schema, 'cfg::system', None)
@@ -294,6 +303,7 @@ def _validate_op(
     )
 
     cardinality = ptr.get_cardinality(ctx.env.schema)
+    assert cardinality is not None
 
     restart_attr = ptr.get_annotations(ctx.env.schema).get(
         ctx.env.schema, 'cfg::requires_restart', None)
@@ -324,7 +334,10 @@ def _validate_op(
 
 
 def get_config_type_shape(
-        schema, stype, path) -> List[qlast.ShapeElement]:
+    schema: s_schema.Schema,
+    stype: s_objtypes.ObjectType,
+    path: List[qlast.Base],
+) -> List[qlast.ShapeElement]:
     shape = []
     seen: Set[str] = set()
 

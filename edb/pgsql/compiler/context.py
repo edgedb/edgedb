@@ -59,6 +59,7 @@ class NoVolatilitySentinel:
 
 
 NO_VOLATILITY = NoVolatilitySentinel()
+NO_STMT = pgast.SelectStmt()
 
 
 class CompilerContextLevel(compiler.ContextLevel):
@@ -93,7 +94,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     #: Whether the expression currently being processed is
     #: directly exposed to the output of the statement.
-    expr_exposed: bool
+    expr_exposed: Optional[bool]
 
     #: Expression to use to force SQL expression volatility in this context
     volatility_ref: Optional[Union[pgast.BaseExpr, NoVolatilitySentinel]]
@@ -147,18 +148,24 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     def __init__(
         self,
-        prevlevel: CompilerContextLevel,
+        prevlevel: Optional[CompilerContextLevel],
         mode: ContextSwitchMode,
+        *,
+        env: Optional[Environment] = None,
+        scope_tree: Optional[irast.ScopeTreeNode] = None,
     ) -> None:
         if prevlevel is None:
-            self.env = None
+            assert env is not None
+            assert scope_tree is not None
+
+            self.env = env
             self.argmap = collections.OrderedDict()
 
             self.singleton_mode = False
 
-            self.toplevel_stmt = None
-            self.stmt = None
-            self.rel = None
+            self.toplevel_stmt = NO_STMT
+            self.stmt = NO_STMT
+            self.rel = NO_STMT
             self.rel_hierarchy = {}
             self.parent_rel = None
             self.pending_query = None
@@ -172,7 +179,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.join_target_type_filter = {}
 
             self.path_scope = collections.ChainMap()
-            self.scope_tree = None
+            self.scope_tree = scope_tree
             self.type_rel_overlays = collections.defaultdict(list)
             self.ptr_rel_overlays = collections.defaultdict(list)
 

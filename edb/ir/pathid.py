@@ -18,13 +18,17 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from . import typeutils
 
-from edb.schema import abc as s_abc
 from edb.schema import name as s_name
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
+
+if TYPE_CHECKING:
+    from edb.ir import ast as irast
+    from edb.schema import schema as s_schema
 
 
 class PathId:
@@ -33,11 +37,17 @@ class PathId:
     __slots__ = ('_path', '_norm_path', '_namespace', '_prefix',
                  '_is_ptr', '_is_linkprop')
 
-    def __init__(self, initializer=None, *, namespace=None, typename=None):
+    def __init__(
+        self,
+        initializer: Optional[PathId] = None,
+        *,
+        namespace: AbstractSet[str] = frozenset(),
+        typename: Optional[str] = None,
+    ) -> None:
         if isinstance(initializer, PathId):
             self._path = initializer._path
             self._norm_path = initializer._norm_path
-            if namespace is not None:
+            if namespace:
                 self._namespace = frozenset(namespace)
             else:
                 self._namespace = initializer._namespace
@@ -55,8 +65,15 @@ class PathId:
             self._is_linkprop = False
 
     @classmethod
-    def from_type(cls, schema, initializer, *, namespace=None, typename=None):
-        if not isinstance(initializer, s_abc.Type):
+    def from_type(
+        cls,
+        schema: s_schema.Schema,
+        initializer: s_types.Type,
+        *,
+        namespace: AbstractSet[str] = frozenset(),
+        typename: Optional[str] = None,
+    ) -> PathId:
+        if not isinstance(initializer, s_types.Type):
             raise ValueError(
                 f'invalid PathId: bad source: {initializer!r}')
 
@@ -66,7 +83,13 @@ class PathId:
                                 typename=typename)
 
     @classmethod
-    def from_typeref(cls, initializer, *, namespace=None, typename=None):
+    def from_typeref(
+        cls,
+        initializer: s_types.Type,
+        *,
+        namespace: AbstractSet[str] = frozenset(),
+        typename: Optional[str] = None,
+    ) -> PathId:
         pid = cls()
         pid._path = (initializer,)
         if typename is None:
@@ -80,7 +103,7 @@ class PathId:
             self.__class__, self._norm_path,
             self._namespace, self._prefix, self._is_ptr))
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, PathId):
             return NotImplemented
 
@@ -91,10 +114,10 @@ class PathId:
             self._is_ptr == other._is_ptr
         )
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._path)
 
-    def get_prefix(self, size):
+    def get_prefix(self, size: int) -> PathId:
         # Validate that slicing results in a
         # valid PathId, it must not produce a path ending
         # with a pointer spec.
@@ -104,7 +127,7 @@ class PathId:
 
         return self._get_prefix(size)
 
-    def _get_prefix(self, size):
+    def _get_prefix(self, size: int) -> PathId:
         if size < 0:
             size = len(self._path) + size
 
@@ -130,17 +153,23 @@ class PathId:
 
         return result
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.pformat_internal(debug=False)
 
     __repr__ = __str__
 
-    def replace_namespace(self, namespace):
+    def replace_namespace(
+        self,
+        namespace: AbstractSet[str],
+    ) -> PathId:
         result = self.__class__(self)
         result._namespace = frozenset(namespace) if namespace else None
         return result
 
-    def merge_namespace(self, namespace):
+    def merge_namespace(
+        self,
+        namespace: AbstractSet[str],
+    ) -> PathId:
         if not self._namespace:
             new_namespace = namespace
         else:
@@ -160,7 +189,7 @@ class PathId:
 
         return prefix
 
-    def strip_weak_namespaces(self):
+    def strip_weak_namespaces(self) -> PathId:
         if self._namespace is not None:
             stripped_ns = tuple(bit for bit in self._namespace
                                 if not isinstance(bit, WeakNamespace))
@@ -357,15 +386,21 @@ class PathId:
         else:
             return self
 
-    def extend(self, *, ptrcls, direction=None, target=None, ns=None, schema):
+    def extend(
+        self,
+        *,
+        ptrcls: s_pointers.PointerLike,
+        direction: s_pointers.PointerDirection = (
+            s_pointers.PointerDirection.Outbound),
+        target: Union[None, s_types.Type, irast.TypeRef] = None,
+        ns: AbstractSet[str] = frozenset(),
+        schema: s_schema.Schema,
+    ) -> PathId:
         if not self:
             raise ValueError('cannot extend empty PathId')
 
         if ptrcls.generic(schema):
             raise ValueError('path id must contain specialized pointers')
-
-        if direction is None:
-            direction = s_pointers.PointerDirection.Outbound
 
         if target is None:
             target = ptrcls.get_far_endpoint(schema, direction)

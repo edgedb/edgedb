@@ -41,9 +41,12 @@ from . import schemactx
 from . import setgen
 
 
-def type_to_ql_typeref(t: s_types.Type, *,
-                       _name=None,
-                       ctx: context.ContextLevel) -> qlast.TypeName:
+def type_to_ql_typeref(
+    t: s_types.Type,
+    *,
+    _name: Optional[str] = None,
+    ctx: context.ContextLevel,
+) -> qlast.TypeName:
 
     return astutils.type_to_ql_typeref(t, schema=ctx.env.schema)
 

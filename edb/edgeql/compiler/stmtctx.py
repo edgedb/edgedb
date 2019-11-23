@@ -22,8 +22,9 @@
 
 from __future__ import annotations
 
-import functools
 from typing import *  # NoQA
+
+import functools
 
 from edb import errors
 
@@ -58,14 +59,19 @@ from . import schemactx
 def init_context(
         *,
         schema: s_schema.Schema,
-        func_params: Optional[s_func.FuncParameterList]=None,
+        func_params: Optional[s_func.ParameterLikeList]=None,
         parent_object_type: Optional[s_obj.ObjectMeta]=None,
-        modaliases: Optional[Dict[str, str]]=None,
-        anchors: Optional[Dict[str, s_obj.Object]]=None,
+        modaliases: Optional[Mapping[Optional[str], str]]=None,
+        anchors: Optional[
+            Mapping[
+                Union[str, qlast.SpecialAnchorT],
+                Union[s_obj.Object, irast.Base],
+            ],
+        ]=None,
         singletons: Optional[Iterable[s_types.Type]]=None,
         security_context: Optional[str]=None,
         derived_target_module: Optional[str]=None,
-        result_view_name: Optional[str]=None,
+        result_view_name: Optional[s_name.SchemaName]=None,
         schema_view_mode: bool=False,
         disable_constant_folding: bool=False,
         allow_generic_type_output: bool=False,
@@ -75,11 +81,9 @@ def init_context(
         json_parameters: bool=False,
         session_mode: bool=False) -> \
         context.ContextLevel:
-    stack = context.CompilerContext()
-    ctx = stack.current
     if not schema.get_global(s_mod.Module, '__derived__', None):
         schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
-    ctx.env = context.Environment(
+    env = context.Environment(
         schema=schema,
         path_scope=irast.new_scope_tree(),
         constant_folding=not disable_constant_folding,
@@ -90,6 +94,8 @@ def init_context(
         session_mode=session_mode,
         allow_abstract_operators=allow_abstract_operators,
         allow_generic_type_output=allow_generic_type_output)
+    ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
+    _ = context.CompilerContext(initial=ctx)
 
     if singletons:
         # The caller wants us to treat these type references
@@ -118,8 +124,10 @@ def init_context(
 
 
 def fini_expression(
-        ir: irast.Base, *,
-        ctx: context.ContextLevel) -> irast.Command:
+    ir: irast.Base,
+    *,
+    ctx: context.ContextLevel,
+) -> irast.Command:
     # Run delayed work callbacks.
     for cb in ctx.completion_work:
         cb(ctx=ctx)
@@ -227,8 +235,11 @@ def _elide_derived_ancestors(
 
 
 def compile_anchor(
-        name: str, anchor: Union[qlast.Expr, s_obj.Object], *,
-        ctx: context.ContextLevel) -> irast.Set:
+    name: Union[str, qlast.SpecialAnchorT],
+    anchor: Union[qlast.Expr, irast.Base, s_obj.Object],
+    *,
+    ctx: context.ContextLevel,
+) -> irast.Set:
 
     show_as_anchor = True
 
@@ -249,8 +260,10 @@ def compile_anchor(
             )
         else:
             ptrcls = schemactx.derive_dummy_ptr(anchor, ctx=ctx)
+            src = ptrcls.get_source(ctx.env.schema)
+            assert isinstance(src, s_types.Type)
             path = setgen.extend_path(
-                setgen.class_set(ptrcls.get_source(ctx.env.schema), ctx=ctx),
+                setgen.class_set(src, ctx=ctx),
                 ptrcls,
                 s_pointers.PointerDirection.Outbound,
                 ptrcls.get_target(ctx.env.schema),
@@ -276,8 +289,10 @@ def compile_anchor(
             )
         else:
             ptrcls = schemactx.derive_dummy_ptr(anchor_source, ctx=ctx)
+            src = ptrcls.get_source(ctx.env.schema)
+            assert isinstance(src, s_types.Type)
             path = setgen.extend_path(
-                setgen.class_set(ptrcls.get_source(ctx.env.schema), ctx=ctx),
+                setgen.class_set(src, ctx=ctx),
                 ptrcls,
                 s_pointers.PointerDirection.Outbound,
                 ptrcls.get_target(ctx.env.schema),
@@ -319,15 +334,20 @@ def compile_anchor(
 
 
 def populate_anchors(
-        anchors: Dict[str, s_obj.Object], *,
-        ctx: context.ContextLevel) -> None:
+    anchors: Mapping[
+        Union[str, qlast.SpecialAnchorT],
+        Union[s_obj.Object, irast.Base],
+    ],
+    *,
+    ctx: context.ContextLevel,
+) -> None:
 
     for name, val in anchors.items():
         ctx.anchors[name] = compile_anchor(name, val, ctx=ctx)
 
 
 def declare_view(
-        expr: qlast.Base, alias: str, *,
+        expr: qlast.Expr, alias: str, *,
         fully_detached: bool=False,
         temporary_scope: bool=True,
         ctx: context.ContextLevel) -> irast.Set:
@@ -401,6 +421,7 @@ def declare_view_from_schema(
             ctx.path_id_namespace)
 
         vc = subctx.aliased_views[viewcls_name]
+        assert vc is not None
         ctx.env.schema_view_cache[viewcls] = vc
         ctx.source_map.update(subctx.source_map)
         ctx.aliased_views[viewcls_name] = subctx.aliased_views[viewcls_name]
@@ -498,9 +519,11 @@ def pend_pointer_cardinality_inference(
 
 
 def once_pointer_cardinality_is_inferred(
-        ptrcls: s_pointers.PointerLike,
-        cb: Callable, *,
-        ctx: context.ContextLevel) -> None:
+    ptrcls: s_pointers.PointerLike,
+    cb: context.PointerCardinalityCallback,
+    *,
+    ctx: context.ContextLevel,
+) -> None:
 
     pending = ctx.pending_cardinality.get(ptrcls)
     if pending is None:
@@ -533,10 +556,10 @@ def get_expr_cardinality_later(
         *,
         target: irast.Base,
         field: str,
-        irexpr: irast.Base,
+        irexpr: irast.Set,
         ctx: context.ContextLevel) -> None:
 
-    def cb(irexpr, ctx):
+    def cb(irexpr: irast.Set, ctx: context.ContextLevel) -> None:
         card = infer_expr_cardinality(irexpr=irexpr, ctx=ctx)
         setattr(target, field, card)
 
@@ -554,12 +577,18 @@ def ensure_ptrref_cardinality(
         # The cardinality of the pointer is not yet, known,
         # schedule an update of the PointerRef when it
         # becomes available
-        def _update_ref_cardinality(ptrcls, *, ctx):
+        def _update_ref_cardinality(
+            ptrcls: s_pointers.PointerLike,
+            *,
+            ctx: context.ContextLevel,
+        ) -> None:
             if ptrcls.singular(ctx.env.schema, ptrref.direction):
                 ptrref.dir_cardinality = qltypes.Cardinality.ONE
             else:
                 ptrref.dir_cardinality = qltypes.Cardinality.MANY
-            ptrref.out_cardinality = ptrcls.get_cardinality(ctx.env.schema)
+            out_cardinality = ptrcls.get_cardinality(ctx.env.schema)
+            assert out_cardinality is not None
+            ptrref.out_cardinality = out_cardinality
 
         once_pointer_cardinality_is_inferred(
             ptrcls, _update_ref_cardinality, ctx=ctx)
@@ -599,12 +628,13 @@ def enforce_singleton(
 
 
 def enforce_pointer_cardinality(
-        ptrcls,
-        irexpr: irast.Base, *,
-        ctx: context.ContextLevel) -> None:
+    ptrcls: s_pointers.Pointer,
+    irexpr: irast.Set, *,
+    ctx: context.ContextLevel,
+) -> None:
 
     if not ctx.defining_view:
-        def _enforce_singleton(ctx):
+        def _enforce_singleton(ctx: context.ContextLevel) -> None:
             if ptrcls.singular(ctx.env.schema):
                 enforce_singleton_now(irexpr, ctx=ctx)
 
@@ -612,6 +642,7 @@ def enforce_pointer_cardinality(
 
 
 def at_stmt_fini(
-        cb: Callable, *,
-        ctx: context.ContextLevel) -> None:
+    cb: context.CompletionWorkCallback, *,
+    ctx: context.ContextLevel,
+) -> None:
     ctx.completion_work.append(cb)

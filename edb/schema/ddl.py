@@ -278,7 +278,8 @@ def delta_schemas(
                 else:
                     relevant_schema = schema_b
 
-                obj = relevant_schema.get(cmd.classname)
+                obj = cast(objtypes.ObjectType,
+                           relevant_schema.get(cmd.classname))
                 if obj.is_union_type(relevant_schema):
                     continue
 

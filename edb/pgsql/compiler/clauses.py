@@ -36,7 +36,7 @@ from . import relgen
 def init_stmt(
         stmt: irast.Stmt, ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) -> None:
-    if ctx.toplevel_stmt is None:
+    if ctx.toplevel_stmt is context.NO_STMT:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = ctx.stmt
 
 

@@ -129,6 +129,8 @@ def compile_ForQuery(
 
         pathctx.register_set_in_scope(stmt.iterator_stmt, ctx=sctx)
         node = sctx.path_scope.find_descendant(stmt.iterator_stmt.path_id)
+        assert node is not None
+        assert iterator_scope is not None
         node.attach_subtree(iterator_scope)
 
         stmt.result = compile_result_clause(
@@ -516,6 +518,11 @@ def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
     expr = setgen.ensure_set(dispatch.compile(shape.expr, ctx=ctx), ctx=ctx)
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
+    if not isinstance(expr_stype, s_objtypes.ObjectType):
+        raise errors.QueryError(
+            f'shapes cannot be applied to '
+            f'{expr_stype.get_verbosename(ctx.env.schema)}'
+        )
     view_type = viewgen.process_view(
         stype=expr_stype, path_id=expr.path_id,
         elements=shape.elements, ctx=ctx)
@@ -530,8 +537,7 @@ def init_stmt(
     ctx.stmt = irstmt
     if ctx.toplevel_stmt is None:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
-        if parent_ctx.path_scope is None:
-            parent_ctx.path_scope = ctx.path_scope = irast.new_scope_tree()
+        ctx.path_scope = parent_ctx.path_scope
     else:
         ctx.path_scope = parent_ctx.path_scope.attach_fence()
 
@@ -561,6 +567,9 @@ def fini_stmt(
     view_name = parent_ctx.toplevel_result_view_name
     t = inference.infer_type(irstmt, ctx.env)
 
+    view: Optional[s_types.Type]
+    path_id: Optional[irast.PathId]
+
     if t.get_name(ctx.env.schema) == view_name:
         # The view statement did contain a view declaration and
         # generated a view class with the requested name.
@@ -569,8 +578,11 @@ def fini_stmt(
     elif view_name is not None:
         # The view statement did _not_ contain a view declaration,
         # but we still want the correct path_id.
-        view = ctx.env.schema.get(view_name, None)
-        if view is None:
+        view_obj = ctx.env.schema.get(view_name, None)
+        if view_obj is not None:
+            assert isinstance(view_obj, s_types.Type)
+            view = view_obj
+        else:
             view = schemactx.derive_view(
                 t, derived_name=view_name, preserve_shape=True, ctx=parent_ctx)
         path_id = pathctx.get_path_id(view, ctx=parent_ctx)
@@ -607,7 +619,7 @@ def process_with_block(
 
 
 def compile_result_clause(
-        result: qlast.Base, *,
+        result: qlast.Expr, *,
         view_scls: Optional[s_types.Type]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
         view_name: Optional[s_name.SchemaName]=None,
@@ -624,7 +636,7 @@ def compile_result_clause(
             sctx.view_rptr = view_rptr
             # sctx.view_scls = view_scls
 
-        result_expr: qlast.Base
+        result_expr: qlast.Expr
         shape: Optional[Sequence[qlast.ShapeElement]]
 
         if isinstance(result, qlast.Shape):
@@ -732,8 +744,10 @@ def compile_query_subject(
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
         # its properties.
-        view_rptr.base_ptrcls = irtyputils.ptrcls_from_ptrref(
+        base_ptrcls = irtyputils.ptrcls_from_ptrref(
             expr_rptr.ptrref, schema=ctx.env.schema)
+        assert isinstance(base_ptrcls, s_pointers.Pointer)
+        view_rptr.base_ptrcls = base_ptrcls
         view_rptr.ptrcls_is_alias = True
 
     if (ctx.expr_exposed
@@ -750,6 +764,12 @@ def compile_query_subject(
         if (view_name is None and
                 isinstance(result_alias, s_name.SchemaName)):
             view_name = result_alias
+
+        if not isinstance(expr_stype, s_objtypes.ObjectType):
+            raise errors.QueryError(
+                f'shapes cannot be applied to '
+                f'{expr_stype.get_verbosename(ctx.env.schema)}'
+            )
 
         view_scls = viewgen.process_view(
             stype=expr_stype, path_id=expr.path_id,
@@ -780,8 +800,6 @@ def compile_groupby_clause(
 
     with ctx.new() as sctx:
         sctx.clause = 'groupby'
-        if sctx.stmt.parent_stmt is None:
-            sctx.toplevel_clause = sctx.clause
 
         ir_groupexprs = []
         for groupexpr in groupexprs:

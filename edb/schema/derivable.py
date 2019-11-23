@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from . import abc as s_abc
 from . import name as sn
@@ -86,8 +87,13 @@ class DerivableObject(so.InheritingObjectBase, DerivableObjectBase):
         inheritable=False)
 
 
-def derive_name(schema, *qualifiers,
-                module, parent=None, derived_name_base=None):
+def derive_name(
+    schema,
+    *qualifiers: str,
+    module: str,
+    parent: Optional[DerivableObjectBase] = None,
+    derived_name_base: Optional[str] = None,
+) -> sn.Name:
     if derived_name_base is None:
         derived_name_base = parent.get_derived_name_base(schema)
 

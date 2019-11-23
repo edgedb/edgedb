@@ -50,6 +50,9 @@ from . import setgen
 from . import typegen
 from . import viewgen
 
+if TYPE_CHECKING:
+    from edb.schema import schema as s_schema
+
 
 def compile_cast(
         ir_expr: Union[irast.Set, irast.Expr],
@@ -197,27 +200,59 @@ def _inheritance_cast_to_ir(
     return setgen.ensure_set(cast_ir, ctx=ctx)
 
 
-class CastParamListWrapper(list):
-    def find_named_only(self, schema):
+class CastParamListWrapper(s_func.ParameterLikeList):
+
+    def __init__(self, params: Iterable[s_func.ParameterDesc]) -> None:
+        self._params = tuple(params)
+
+    def get_by_name(
+        self,
+        schema: s_schema.Schema,
+        name: str,
+    ) -> s_func.ParameterDesc:
+        raise NotImplementedError
+
+    def as_str(self, schema: s_schema.Schema) -> str:
+        raise NotImplementedError
+
+    def find_named_only(
+        self,
+        schema: s_schema.Schema,
+    ) -> Mapping[str, s_func.ParameterDesc]:
         return {}
 
-    def find_variadic(self, schema):
+    def find_variadic(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[s_func.ParameterDesc]:
         return None
 
-    def has_polymorphic(self, schema):
+    def has_polymorphic(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
         return False
+
+    def objects(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[s_func.ParameterDesc, ...]:
+        return self._params
 
 
 class CastCallableWrapper(s_func.CallableLike):
     # A wrapper around a cast object to make it quack like a callable
     # for the purposes of polymorphic resolution.
-    def __init__(self, cast):
+    def __init__(self, cast: s_casts.Cast) -> None:
         self._cast = cast
 
-    def has_inlined_defaults(self, schema):
+    def has_inlined_defaults(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def get_params(self, schema):
+    def get_params(
+        self,
+        schema: s_schema.Schema,
+    ) -> s_func.ParameterLikeList:
         from_type_param = s_func.ParameterDesc(
             num=0, name='val', type=self._cast.get_from_type(schema),
             typemod=ft.TypeModifier.SINGLETON,
@@ -232,18 +267,18 @@ class CastCallableWrapper(s_func.CallableLike):
             default=None,
         )
 
-        return CastParamListWrapper([from_type_param, to_type_param])
+        return CastParamListWrapper((from_type_param, to_type_param))
 
-    def get_return_type(self, schema):
+    def get_return_type(self, schema: s_schema.Schema) -> s_types.Type:
         return self._cast.get_to_type(schema)
 
-    def get_return_typemod(self, schema):
+    def get_return_typemod(self, schema: s_schema.Schema) -> ft.TypeModifier:
         return ft.TypeModifier.SINGLETON
 
-    def get_verbosename(self, schema):
+    def get_verbosename(self, schema: s_schema.Schema) -> str:
         return self._cast.get_verbosename(schema)
 
-    def get_is_abstract(self, schema):
+    def get_is_abstract(self, schema: s_schema.Schema) -> bool:
         return False
 
 

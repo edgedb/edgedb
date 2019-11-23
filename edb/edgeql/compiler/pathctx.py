@@ -30,7 +30,6 @@ from edb.edgeql import qltypes
 from edb.ir import ast as irast
 
 from edb.schema import name as s_name
-from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
@@ -38,7 +37,7 @@ from . import context
 from . import stmtctx
 
 
-def get_path_id(stype: s_obj.Object, *,
+def get_path_id(stype: s_types.Type, *,
                 typename: Optional[str]=None,
                 ctx: context.ContextLevel) -> irast.PathId:
     return irast.PathId.from_type(
@@ -129,9 +128,15 @@ def mark_path_as_optional(
 
 
 def extend_path_id(
-        path_id: irast.PathId, *,
-        ptrcls, direction=None, target=None, ns=None,
-        ctx: context.ContextLevel) -> irast.PathId:
+    path_id: irast.PathId,
+    *,
+    ptrcls: s_pointers.PointerLike,
+    direction: s_pointers.PointerDirection = (
+        s_pointers.PointerDirection.Outbound),
+    target: Union[None, s_types.Type, irast.TypeRef] = None,
+    ns: AbstractSet[str] = frozenset(),
+    ctx: context.ContextLevel,
+) -> irast.PathId:
 
     result = path_id.extend(ptrcls=ptrcls, direction=direction, target=target,
                             ns=ns, schema=ctx.env.schema)

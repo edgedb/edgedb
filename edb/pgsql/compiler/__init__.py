@@ -51,20 +51,30 @@ def compile_ir_to_sql_tree(
         expected_cardinality_one: bool=False) -> pgast.Base:
     try:
         # Transform to sql tree
-        ctx_stack = context.CompilerContext()
-        ctx = ctx_stack.current
-        if isinstance(ir_expr, irast.Statement):
-            ctx.scope_tree = ir_expr.scope_tree
-            ir_expr = ir_expr.expr
-        elif isinstance(ir_expr, irast.ConfigCommand):
-            ctx.scope_tree = ir_expr.scope_tree
-        ctx.singleton_mode = singleton_mode
-        ctx.env = context.Environment(
+        env = context.Environment(
             output_format=output_format,
             expected_cardinality_one=expected_cardinality_one,
             use_named_params=use_named_params,
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast)
+
+        if isinstance(ir_expr, irast.Statement):
+            scope_tree = ir_expr.scope_tree
+            ir_expr = ir_expr.expr
+        elif isinstance(ir_expr, irast.ConfigCommand):
+            scope_tree = ir_expr.scope_tree
+        else:
+            scope_tree = irast.new_scope_tree()
+
+        ctx = context.CompilerContextLevel(
+            None,
+            context.ContextSwitchMode.TRANSPARENT,
+            env=env,
+            scope_tree=scope_tree,
+        )
+
+        _ = context.CompilerContext(initial=ctx)
+        ctx.singleton_mode = singleton_mode
         qtree = dispatch.compile(ir_expr, ctx=ctx)
 
     except Exception as e:  # pragma: no cover
