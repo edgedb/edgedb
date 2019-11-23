@@ -70,10 +70,13 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
                 self.name == other.name)
 
 
+AnyT = typing.TypeVar('AnyT', bound='Any')
+
+
 class AnyMeta(type(PseudoType)):
 
     @property
-    def instance(cls):
+    def instance(cls: typing.Type[AnyT]) -> AnyT:
         if cls._instance is None:
             cls._instance = cls.create()
 

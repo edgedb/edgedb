@@ -157,7 +157,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
             delta.add(cmd)
             schema, _ = delta.apply(schema, context)
 
-        derived = schema.get(name)
+        derived = typing.cast(TypeT, schema.get(name))
 
         return schema, derived
 
@@ -1664,9 +1664,11 @@ class TypeCommand(sd.ObjectCommand):
                 view_types.append(vt)
 
         if isinstance(astnode, qlast.AlterObject):
-            prev = schema.get(classname)
+            prev = typing.cast(Type, schema.get(classname))
+            prev_expr = prev.get_expr(schema)
+            assert prev_expr is not None
             prev_ir = cls._compile_view_expr(
-                prev.get_expr(schema).qlast, classname, schema, context)
+                prev_expr.qlast, classname, schema, context)
             old_schema = prev_ir.schema
             for vt in prev_ir.views.values():
                 if isinstance(vt, Collection):

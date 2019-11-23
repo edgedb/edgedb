@@ -18,11 +18,15 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from . import indexes
 from . import name as sn
 from . import objects as so
 from . import pointers
+
+if TYPE_CHECKING:
+    from . import schema as s_schema
 
 
 class SourceCommandContext(indexes.IndexSourceCommandContext):
@@ -46,7 +50,11 @@ class Source(indexes.IndexableSubject):
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
         default=so.ObjectIndexByUnqualifiedName)
 
-    def getptr(self, schema, name):
+    def getptr(
+        self,
+        schema: s_schema.Schema,
+        name: str,
+    ) -> Optional[pointers.Pointer]:
         if sn.Name.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')

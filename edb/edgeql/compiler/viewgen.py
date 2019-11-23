@@ -47,17 +47,21 @@ from . import schemactx
 from . import setgen
 from . import stmtctx
 
+if TYPE_CHECKING:
+    from edb.schema import lproperties as s_props
+    from edb.schema import sources as s_sources
+
 
 def process_view(
         *,
-        stype: s_types.Type,
+        stype: s_objtypes.ObjectType,
         path_id: irast.PathId,
         elements: List[qlast.ShapeElement],
         view_rptr: Optional[context.ViewRPtr]=None,
         view_name: Optional[sn.SchemaName]=None,
         is_insert: bool=False,
         is_update: bool=False,
-        ctx: context.ContextLevel) -> s_types.Type:
+        ctx: context.ContextLevel) -> s_objtypes.ObjectType:
 
     cache_key = (stype, tuple(elements))
     view_scls = ctx.shape_type_cache.get(cache_key)
@@ -86,7 +90,7 @@ def process_view(
 
 def _process_view(
         *,
-        stype: s_types.Type,
+        stype: s_objtypes.ObjectType,
         path_id: irast.PathId,
         path_id_namespace: Optional[irast.WeakNamespace]=None,
         elements: List[qlast.ShapeElement],
@@ -94,7 +98,7 @@ def _process_view(
         view_name: Optional[sn.SchemaName]=None,
         is_insert: bool=False,
         is_update: bool=False,
-        ctx: context.ContextLevel) -> s_types.Type:
+        ctx: context.ContextLevel) -> s_objtypes.ObjectType:
 
     if (view_name is None and ctx.env.schema_view_mode
             and view_rptr is not None):
@@ -131,6 +135,7 @@ def _process_view(
     view_scls = schemactx.derive_view(
         stype, is_insert=is_insert, is_update=is_update,
         derived_name=view_name, ctx=ctx)
+    assert isinstance(view_scls, s_objtypes.ObjectType)
     is_mutation = is_insert or is_update
     is_defining_shape = ctx.expr_exposed or is_mutation
 
@@ -194,8 +199,10 @@ def _process_view(
                     view_rptr=view_rptr, ctx=scopectx))
 
     for ptrcls in pointers:
+        source: Union[s_types.Type, s_pointers.PointerLike]
+
         if ptrcls.is_link_property(ctx.env.schema):
-            assert view_rptr is not None
+            assert view_rptr is not None and view_rptr.ptrcls is not None
             source = view_rptr.ptrcls
         else:
             source = view_scls
@@ -213,7 +220,7 @@ def _process_view(
 
 def _normalize_view_ptr_expr(
         shape_el: qlast.ShapeElement,
-        view_scls: s_types.Type, *,
+        view_scls: s_objtypes.ObjectType, *,
         path_id: irast.PathId,
         path_id_namespace: Optional[irast.WeakNamespace]=None,
         is_insert: bool=False,
@@ -227,7 +234,7 @@ def _normalize_view_ptr_expr(
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
     plen = len(steps)
-    ptrsource = view_scls
+    ptrsource: s_sources.Source = view_scls
     qlexpr = None
     target_typexpr = None
     source: qlast.Base
@@ -244,10 +251,11 @@ def _normalize_view_ptr_expr(
         assert isinstance(lexpr, qlast.Ptr)
         is_linkprop = lexpr.type == 'property'
         if is_linkprop:
-            if view_rptr is None:
+            if view_rptr is None or view_rptr.ptrcls is None:
                 raise errors.QueryError(
                     'invalid reference to link property '
                     'in top level shape', context=lexpr.context)
+            assert isinstance(view_rptr.ptrcls, s_links.Link)
             ptrsource = view_rptr.ptrcls
         source = qlast.Source()
     elif plen == 2 and isinstance(steps[0], qlast.TypeIndirection):
@@ -263,7 +271,14 @@ def _normalize_view_ptr_expr(
                 'complex type expressions are not supported here',
                 context=ptype.context,
             )
-        ptrsource = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
+        source_spec = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
+        if not isinstance(source_spec, s_objtypes.ObjectType):
+            raise errors.QueryError(
+                f'expected object type, got '
+                f'{source_spec.get_verbosename(ctx.env.schema)}',
+                context=ptype.context,
+            )
+        ptrsource = source_spec
         is_polymorphic = True
     else:  # pragma: no cover
         raise RuntimeError(
@@ -421,9 +436,12 @@ def _normalize_view_ptr_expr(
             # most importantly, in INSERT/UPDATE context.
             shape_expr_ctx.view_rptr = context.ViewRPtr(
                 ptrsource if is_linkprop else view_scls,
-                ptrcls=ptrcls, ptrcls_name=ptr_name,
+                ptrcls=ptrcls,
+                ptrcls_name=ptr_name,
                 ptrcls_is_linkprop=is_linkprop,
-                is_insert=is_insert, is_update=is_update)
+                is_insert=is_insert,
+                is_update=is_update,
+            )
 
             shape_expr_ctx.defining_view = True
             shape_expr_ctx.path_scope.unnest_fence = True
@@ -513,9 +531,12 @@ def _normalize_view_ptr_expr(
                 )
 
     if qlexpr is not None or ptrcls is None:
+        src_scls: s_sources.Source
+
         if is_linkprop:
             # Proper checking was done when is_linkprop is defined.
             assert view_rptr is not None
+            assert isinstance(view_rptr.ptrcls, s_links.Link)
             src_scls = view_rptr.ptrcls
         else:
             src_scls = view_scls
@@ -538,7 +559,9 @@ def _normalize_view_ptr_expr(
 
         existing = ctx.env.schema.get(derived_name, None)
         if existing is not None:
+            assert isinstance(existing, s_pointers.Pointer)
             existing_target = existing.get_target(ctx.env.schema)
+            assert existing_target is not None
             if ptr_target == existing_target:
                 ptrcls = existing
             elif ptr_target.implicitly_castable_to(
@@ -639,11 +662,11 @@ def derive_ptrcls(
             transparent = False
 
             if target_scls.is_object_type():
-                view_rptr.base_ptrcls = (
-                    ctx.env.get_track_schema_object('std::link'))
+                base = ctx.env.get_track_schema_object('std::link')
+                view_rptr.base_ptrcls = cast(s_links.Link, base)
             else:
-                view_rptr.base_ptrcls = (
-                    ctx.env.get_track_schema_object('std::property'))
+                base = ctx.env.get_track_schema_object('std::property')
+                view_rptr.base_ptrcls = cast(s_props.Property, base)
 
         derived_name = schemactx.derive_view_name(
             view_rptr.base_ptrcls,

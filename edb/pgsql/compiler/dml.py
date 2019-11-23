@@ -187,7 +187,7 @@ def get_dml_stmt_stack(
         ir_stmt: irast.MutatingStmt, *,
         ctx: context.CompilerContextLevel) -> List[irast.MutatingStmt]:
     stack = []
-    stmt: irast.Stmt = ir_stmt
+    stmt: Optional[irast.Stmt] = ir_stmt
     while stmt is not None:
         if isinstance(stmt, irast.MutatingStmt):
             stack.append(stmt)
@@ -292,6 +292,9 @@ def process_insert_body(
     else:
         iterator_set = None
 
+    iterator_cte: Optional[pgast.CommonTableExpr]
+    iterator_id: Optional[pgast.BaseExpr]
+
     if iterator_set is not None:
         with ctx.substmt() as ictx:
             ictx.path_scope = ictx.path_scope.new_child()
@@ -376,7 +379,7 @@ def process_insert_body(
             if ptr_info and ptr_info.table_type == 'link':
                 external_inserts.append((shape_el, props_only))
 
-        if iterator_cte is not None:
+        if iterator_set is not None:
             cols.append(pgast.ColumnRef(name=['__edb_token']))
 
             values.append(pgast.ResTarget(val=iterator_id))
@@ -426,7 +429,7 @@ def compile_insert_shape_element(
         wrapper: pgast.Query,
         ir_stmt: irast.MutatingStmt,
         shape_el: irast.Set,
-        iterator_id: pgast.BaseExpr, *,
+        iterator_id: Optional[pgast.BaseExpr], *,
         ctx: context.CompilerContextLevel) -> pgast.Query:
 
     with ctx.newscope() as insvalctx:
@@ -450,7 +453,7 @@ def insert_value_for_shape_element(
         wrapper: pgast.Query,
         ir_stmt: irast.MutatingStmt,
         shape_el: irast.Set,
-        iterator_id: pgast.BaseExpr, *,
+        iterator_id: Optional[pgast.BaseExpr], *,
         ptr_info: pg_types.PointerStorageInfo,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 

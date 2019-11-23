@@ -214,6 +214,9 @@ class SpecialAnchor(Expr):
     __abstract_node__ = True
 
 
+SpecialAnchorT = typing.Type[SpecialAnchor]
+
+
 class Source(SpecialAnchor):  # __source__
     pass
 

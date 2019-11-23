@@ -818,7 +818,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
             if rename is not None:
                 name = rename
         metaclass = self.get_schema_metaclass()
-        return schema.get(name, type=metaclass)
+        return schema.get(name, type=(metaclass,))
 
     def compute_inherited_fields(self, schema, context):
         result = {}

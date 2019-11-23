@@ -540,8 +540,8 @@ class Stmt(Expr):
     name: str
     result: Set
     cardinality: qltypes.Cardinality
-    parent_stmt: Stmt
-    iterator_stmt: Set
+    parent_stmt: typing.Optional[Stmt]
+    iterator_stmt: typing.Optional[Set]
 
 
 class FilteredStmt(Stmt):

@@ -1419,6 +1419,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
                     new_class = new_schema.get(new_name)
 
+                    assert isinstance(old_class, s_inh.InheritingObject)
+                    assert isinstance(new_class, s_inh.InheritingObject)
+
                     old_bases = \
                         old_class.get_bases(old_schema).objects(old_schema)
                     new_bases = \
@@ -1532,9 +1535,14 @@ class ObjectRef(Object):
         return self, self.get_name(schema)
 
     def _resolve_ref(self, schema: s_schema.Schema) -> Object:
+        type_filter: Tuple[ObjectMeta, ...]
+        if self._schemaclass is not None:
+            type_filter = (self._schemaclass,)
+        else:
+            type_filter = tuple()
         return schema.get(
             self.get_name(schema),
-            type=self._schemaclass,
+            type=type_filter,
             refname=self._origname,
             sourcectx=self.get_sourcectx(schema),
         )

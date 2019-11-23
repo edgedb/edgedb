@@ -24,6 +24,7 @@ from edb.testbase import lang as tb
 
 from edb.edgeql import compiler
 from edb.edgeql import qltypes
+from edb.edgeql import parser as qlparser
 
 
 class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
@@ -33,7 +34,8 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
                           'cards.esdl')
 
     def run_test(self, *, source, spec, expected):
-        ir = compiler.compile_to_ir(source, self.schema)
+        qltree = qlparser.parse(source)
+        ir = compiler.compile_ast_to_ir(qltree, self.schema)
         expected_cardinality = qltypes.Cardinality(
             textwrap.dedent(expected).strip(' \n'))
         self.assertEqual(ir.cardinality, expected_cardinality,

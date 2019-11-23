@@ -26,6 +26,7 @@ from edb import errors
 from edb.testbase import lang as tb
 
 from edb.edgeql import compiler
+from edb.edgeql import parser as qlparser
 
 
 class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
@@ -35,7 +36,8 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                           'cards.esdl')
 
     def run_test(self, *, source, spec, expected):
-        ir = compiler.compile_to_ir(source, self.schema)
+        qltree = qlparser.parse(source)
+        ir = compiler.compile_ast_to_ir(qltree, self.schema)
 
         path_scope = textwrap.indent(ir.scope_tree.pformat(), '    ')
         expected_scope = textwrap.indent(

@@ -143,7 +143,11 @@ def try_bind_call_args(
     is_abstract = func.get_is_abstract(ctx.env.schema)
     resolved_poly_base_type: Optional[s_types.Type] = None
 
-    def _get_cast_distance(arg, arg_type, param_type) -> int:
+    def _get_cast_distance(
+        arg: irast.Set,
+        arg_type: s_types.Type,
+        param_type: s_types.Type,
+    ) -> int:
         nonlocal resolved_poly_base_type
 
         if in_polymorphic_func:

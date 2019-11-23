@@ -19,5 +19,7 @@
 
 from __future__ import annotations
 
+__all__ = ('amend_empty_set_type', 'infer_cardinality', 'infer_type',)
+
 from .cardinality import infer_cardinality  # NOQA
 from .types import amend_empty_set_type, infer_type  # NOQA

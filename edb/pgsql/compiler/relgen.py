@@ -119,7 +119,7 @@ def get_set_rvar(
     if rvar is not None:
         return rvar
 
-    if ctx.toplevel_stmt is None:
+    if ctx.toplevel_stmt is context.NO_STMT:
         # Top level query
         return _process_toplevel_query(ir_set, ctx=ctx)
 

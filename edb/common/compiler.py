@@ -34,7 +34,10 @@ class ContextLevel:
     def __init__(self, prevlevel: Optional[ContextLevel], mode: Any) -> None:
         pass
 
-    def on_pop(self, prevlevel: Optional[ContextLevel]) -> None:
+    def on_pop(
+        self: ContextLevel_T,
+        prevlevel: Optional[ContextLevel_T],
+    ) -> None:
         pass
 
     def new(
@@ -45,7 +48,7 @@ class ContextLevel:
         return stack.new(mode, self)
 
 
-class CompilerContextManager(Generic[ContextLevel_T]):
+class CompilerContextManager(ContextManager[ContextLevel_T]):
     def __init__(
         self,
         context: CompilerContext[ContextLevel_T],
@@ -68,9 +71,9 @@ class CompilerContext(Generic[ContextLevel_T]):
     ContextLevelClass: Type[ContextLevel_T]
     default_mode: Any
 
-    def __init__(self) -> None:
+    def __init__(self, initial: ContextLevel_T) -> None:
         self.stack = []
-        self._push(None, initial=True)
+        self._push(None, initial=initial)
 
     def push(
         self,
@@ -84,11 +87,13 @@ class CompilerContext(Generic[ContextLevel_T]):
         mode: Any,
         prevlevel: Optional[ContextLevel_T] = None,
         *,
-        initial: bool = False,
+        initial: Optional[ContextLevel_T] = None,
     ) -> ContextLevel_T:
-        if prevlevel is None and not initial:
+        if initial is not None:
+            level = initial
+        else:
             prevlevel = self.current
-        level = self.ContextLevelClass(prevlevel, mode)
+            level = self.ContextLevelClass(prevlevel, mode)
         # XXX: typing fu
         level._stack = cast(CompilerContext[ContextLevel], self)
         self.stack.append(level)

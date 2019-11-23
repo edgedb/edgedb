@@ -34,6 +34,7 @@ from edb.schema import inheriting as s_inh
 from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import sources as s_sources
@@ -50,8 +51,8 @@ from . import stmtctx
 def get_schema_object(
         name: Union[str, qlast.BaseObjectRef],
         module: Optional[str]=None, *,
-        item_types: Optional[Sequence[s_obj.ObjectMeta]],
-        condition: Optional[Callable[[s_types.Type], bool]]=None,
+        item_types: Tuple[s_obj.ObjectMeta, ...] = (),
+        condition: Optional[Callable[[s_obj.Object], bool]]=None,
         label: Optional[str]=None,
         ctx: context.ContextLevel,
         srcctx: Optional[parsing.ParserContext] = None) -> s_obj.Object:
@@ -98,15 +99,13 @@ def get_schema_object(
 
 def get_schema_type(
         name: Union[str, qlast.BaseObjectRef],
-        module: Optional[str]=None, *,
+        module: Optional[str] = None, *,
         ctx: context.ContextLevel,
-        label: Optional[str]=None,
-        condition: Optional[Callable[[s_types.Type], bool]]=None,
-        item_types: Optional[
-            Sequence[Type[s_types.Type]]
-        ] = None,
+        label: Optional[str] = None,
+        condition: Optional[Callable[[s_obj.Object], bool]] = None,
+        item_types: Tuple[s_obj.ObjectMeta, ...] = (),
         srcctx: Optional[parsing.ParserContext] = None) -> s_types.Type:
-    if item_types is None:
+    if not item_types:
         item_types = (s_types.Type,)
     obj = get_schema_object(name, module, item_types=item_types,
                             condition=condition, label=label,
@@ -135,7 +134,7 @@ def derive_view(
         is_insert: bool=False,
         is_update: bool=False,
         inheritance_merge: bool=True,
-        attrs: Optional[dict]=None,
+        attrs: Optional[Dict[str, Any]]=None,
         ctx: context.ContextLevel) -> s_types.Type:
 
     if derived_name is None:
@@ -206,7 +205,7 @@ def derive_ptr(
         ptr: s_pointers.Pointer,
         source: s_sources.Source,
         target: Optional[s_types.Type]=None,
-        *qualifiers,
+        *qualifiers: str,
         derived_name: Optional[sn.SchemaName]=None,
         derived_name_quals: Optional[Sequence[str]]=(),
         derived_name_base: Optional[str]=None,
@@ -215,7 +214,7 @@ def derive_ptr(
         is_insert: bool=False,
         is_update: bool=False,
         inheritance_merge: bool=True,
-        attrs: Optional[dict]=None,
+        attrs: Optional[Dict[str, Any]]=None,
         ctx: context.ContextLevel) -> s_pointers.Pointer:
 
     if derived_name is None and ctx.derived_target_module:
@@ -261,7 +260,7 @@ def derive_ptr(
 
 
 def derive_view_name(
-        stype: s_obj.Object,
+        stype: Optional[s_der.DerivableObjectBase],
         derived_name_quals: Optional[Sequence[str]]=(),
         derived_name_base: Optional[str]=None, *,
         ctx: context.ContextLevel) -> sn.Name:
@@ -275,7 +274,8 @@ def derive_view_name(
         derived_name_module = '__derived__'
 
     return s_der.derive_name(
-        ctx.env.schema, *derived_name_quals,
+        ctx.env.schema,
+        *derived_name_quals,
         module=derived_name_module,
         derived_name_base=derived_name_base,
         parent=stype,
@@ -299,8 +299,12 @@ def get_union_type(
     return union
 
 
-def derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
-    stdobj = ctx.env.schema.get('std::Object')
+def derive_dummy_ptr(
+    ptr: s_pointers.Pointer,
+    *,
+    ctx: context.ContextLevel,
+) -> s_pointers.Pointer:
+    stdobj = cast(s_objtypes.ObjectType, ctx.env.schema.get('std::Object'))
     derived_obj_name = stdobj.get_derived_name(
         ctx.env.schema, stdobj, module='__derived__')
     derived_obj = ctx.env.schema.get(derived_obj_name, None)
@@ -312,7 +316,8 @@ def derive_dummy_ptr(ptr, *, ctx: context.ContextLevel):
     derived_name = ptr.get_derived_name(
         ctx.env.schema, derived_obj)
 
-    derived = ctx.env.schema.get(derived_name, None)
+    derived: s_pointers.Pointer
+    derived = cast(s_pointers.Pointer, ctx.env.schema.get(derived_name, None))
     if derived is None:
         ctx.env.schema, derived = ptr.derive_ref(
             ctx.env.schema,

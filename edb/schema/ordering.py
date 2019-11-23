@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 import collections
-import uuid
 
 from edb.common import topological
 
@@ -45,7 +44,7 @@ def linearize_delta(
     """Sort delta operations to dependency order."""
 
     opmap: Dict[sd.ObjectCommand, List[sd.ObjectCommand]] = {}
-    strongrefs: Dict[uuid.UUID, so.Object] = {}
+    strongrefs: Dict[str, str] = {}
 
     for op in delta.get_subcommands():
         _break_down(opmap, strongrefs, [delta, op])
@@ -194,7 +193,7 @@ def _trace_op(
     depgraph: Dict[Tuple[str, sn.Name], Dict[str, Any]],
     renames: Dict[sn.Name, sn.Name],
     renames_r: Dict[sn.Name, sn.Name],
-    strongrefs: Dict[uuid.UUID, so.Object],
+    strongrefs: Dict[str, str],
     old_schema: Optional[s_schema.Schema],
     new_schema: s_schema.Schema,
 ) -> None:
@@ -364,7 +363,7 @@ def get_object(
 def _get_referrers(
     schema: s_schema.Schema,
     obj: so.Object,
-    strongrefs: Dict[uuid.UUID, so.Object],
+    strongrefs: Dict[str, str],
 ) -> Set[so.Object]:
     refs = schema.get_referrers(obj)
     result = set()

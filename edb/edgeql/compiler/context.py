@@ -20,11 +20,12 @@
 """EdgeQL to IR compiler context."""
 
 from __future__ import annotations
+from typing import *  # NoQA
+from typing_extensions import Protocol  # type: ignore
 
 import collections
 import dataclasses
 import enum
-from typing import *  # NoQA
 import uuid
 
 from edb.common import compiler
@@ -41,6 +42,10 @@ from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
+if TYPE_CHECKING:
+    from edb.schema import objtypes as s_objtypes
+    from edb.schema import sources as s_sources
+
 
 class ContextSwitchMode(enum.Enum):
     NEW = enum.auto()
@@ -53,11 +58,19 @@ class ContextSwitchMode(enum.Enum):
 
 
 class ViewRPtr:
-    def __init__(self, source, *, ptrcls=None, ptrcls_name=None,
-                 base_ptrcls=None, ptrcls_is_linkprop=None,
-                 ptrcls_is_alias=None,
-                 rptr=None, is_insert=False,
-                 is_update=False):
+    def __init__(
+        self,
+        source: s_sources.Source,
+        *,
+        ptrcls: Optional[s_pointers.Pointer],
+        ptrcls_name: Optional[s_name.Name] = None,
+        base_ptrcls: Optional[s_pointers.Pointer] = None,
+        ptrcls_is_linkprop: bool = False,
+        ptrcls_is_alias: bool = False,
+        rptr: Optional[irast.Pointer] = None,
+        is_insert: bool = False,
+        is_update: bool = False,
+    ) -> None:
         self.source = source
         self.ptrcls = ptrcls
         self.base_ptrcls = base_ptrcls
@@ -74,11 +87,32 @@ class StatementMetadata:
     is_unnest_fence: bool = False
 
 
+class CompletionWorkCallback(Protocol):
+
+    def __call__(
+        self,
+        *,
+        ctx: ContextLevel,
+    ) -> None:
+        ...
+
+
+class PointerCardinalityCallback(Protocol):
+
+    def __call__(
+        self,
+        ptrcls: s_pointers.PointerLike,
+        *,
+        ctx: ContextLevel,
+    ) -> None:
+        ...
+
+
 class PendingCardinality(NamedTuple):
 
     specified_cardinality: Optional[qltypes.Cardinality]
     source_ctx: Optional[parsing.ParserContext]
-    callbacks: List[Callable]
+    callbacks: List[PointerCardinalityCallback]
 
 
 class Environment:
@@ -132,7 +166,7 @@ class Environment:
 
     view_shapes_metadata: Dict[s_types.Type, irast.ViewShapeMetadata]
 
-    func_params: Optional[s_func.FuncParameterList]
+    func_params: Optional[s_func.ParameterLikeList]
     """If compiling a function body, a list of function parameters."""
 
     json_parameters: bool
@@ -153,15 +187,20 @@ class Environment:
     allow_generic_type_output: bool
     """Whether to allow the expression to be of a generic type."""
 
-    def __init__(self, *, schema, path_scope,
-                 parent_object_type: Optional[s_obj.ObjectMeta]=None,
-                 schema_view_mode: bool=False,
-                 constant_folding: bool=True,
-                 json_parameters: bool=False,
-                 session_mode: bool=False,
-                 allow_abstract_operators: bool=True,
-                 allow_generic_type_output: bool=False,
-                 func_params: Optional[s_func.FuncParameterList]=None):
+    def __init__(
+        self,
+        *,
+        schema: s_schema.Schema,
+        path_scope: irast.ScopeTreeNode,
+        parent_object_type: Optional[s_obj.ObjectMeta]=None,
+        schema_view_mode: bool=False,
+        constant_folding: bool=True,
+        json_parameters: bool=False,
+        session_mode: bool=False,
+        allow_abstract_operators: bool=True,
+        allow_generic_type_output: bool=False,
+        func_params: Optional[s_func.ParameterLikeList]=None,
+    ) -> None:
         self.schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
@@ -186,27 +225,30 @@ class Environment:
 
     def get_track_schema_object(
         self,
-        name, *,
-        modaliases=None,
-        type=None,
-        default=s_schema._void,
-        label: Optional[str]=None,
-        condition: Optional[Callable[[s_types.Type], bool]]=None,
+        name: str,
+        *,
+        modaliases: Optional[Mapping[Optional[str], str]] = None,
+        type: Tuple[s_obj.ObjectMeta, ...] = (),
+        default: Union[s_obj.Object, s_obj.NoDefaultT, None] = s_obj.NoDefault,
+        label: Optional[str] = None,
+        condition: Optional[Callable[[s_obj.Object], bool]] = None,
     ) -> s_obj.Object:
         sobj = self.schema.get(name, module_aliases=modaliases, type=type,
                                condition=condition, label=label,
                                default=default)
         if sobj is not default:
             self.schema_refs.add(sobj)
+
         return sobj
 
     def get_track_schema_type(
         self,
-        name, *,
-        modaliases=None,
-        default=s_schema._void,
+        name: str,
+        *,
+        modaliases: Optional[Mapping[Optional[str], str]] = None,
+        default: Union[None, s_obj.Object, s_obj.NoDefaultT] = s_obj.NoDefault,
         label: Optional[str]=None,
-        condition: Optional[Callable[[s_types.Type], bool]]=None,
+        condition: Optional[Callable[[s_obj.Object], bool]]=None,
     ) -> s_types.Type:
 
         stype = self.get_track_schema_object(
@@ -261,7 +303,7 @@ class ContextLevel(compiler.ContextLevel):
     view_sets: Dict[s_types.Type, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
 
-    aliased_views: ChainMap[str, s_types.Type]
+    aliased_views: ChainMap[str, Optional[s_types.Type]]
     """A dictionary of views aliased in a statement body."""
 
     expr_view_cache: Dict[Tuple[qlast.Base, str], irast.Set]
@@ -269,26 +311,26 @@ class ContextLevel(compiler.ContextLevel):
 
     shape_type_cache: Dict[
         Tuple[
-            s_types.Type,
+            s_objtypes.ObjectType,
             Tuple[qlast.ShapeElement, ...],
         ],
-        s_types.Type,
+        s_objtypes.ObjectType,
     ]
     """Type cache for shape expressions."""
 
     class_view_overrides: Dict[uuid.UUID, s_types.Type]
     """Object mapping used by implicit view override in SELECT."""
 
-    clause: str
+    clause: Optional[str]
     """Statement clause the compiler is currently in."""
 
-    toplevel_clause: str
+    toplevel_clause: Optional[str]
     """Top-level statement clause the compiler is currently in."""
 
-    toplevel_stmt: irast.Stmt
+    toplevel_stmt: Optional[irast.Stmt]
     """Top-level statement."""
 
-    stmt: irast.Stmt
+    stmt: Optional[irast.Stmt]
     """Statement node currently being built."""
 
     path_id_namespace: FrozenSet[str]
@@ -303,10 +345,10 @@ class ContextLevel(compiler.ContextLevel):
     banned_paths: Set[irast.PathId]
     """A set of path ids that are considered invalid in this context."""
 
-    view_map: Dict[irast.PathId, irast.Set]
+    view_map: ChainMap[irast.PathId, irast.Set]
     """Set translation map.  Used for views."""
 
-    completion_work: List[Callable]
+    completion_work: List[CompletionWorkCallback]
     """A list of callbacks to execute when the whole query has been seen."""
 
     pending_cardinality: Dict[
@@ -333,13 +375,13 @@ class ContextLevel(compiler.ContextLevel):
     view_rptr: Optional[ViewRPtr]
     """Pointer information for the top-level view of the substatement."""
 
-    view_scls: s_types.Type
+    view_scls: Optional[s_types.Type]
     """Schema class for the top-level set of the substatement."""
 
-    toplevel_result_view_name: s_name.SchemaName
+    toplevel_result_view_name: Optional[s_name.SchemaName]
     """The name to use for the view that is the result of the top statement."""
 
-    partial_path_prefix: irast.Set
+    partial_path_prefix: Optional[irast.Set]
     """The set used as a prefix for partial paths."""
 
     implicit_id_in_shapes: bool
@@ -351,17 +393,24 @@ class ContextLevel(compiler.ContextLevel):
     special_computables_in_mutation_shape: FrozenSet[str]
     """A set of "special" compiutable pointers allowed in mutation shape."""
 
-    empty_result_type_hint: s_types.Type
+    empty_result_type_hint: Optional[s_types.Type]
     """Type to use if the statement result expression is an empty set ctor."""
 
     defining_view: bool
     """Whether a view is currently being defined (as opposed to be compiled)"""
 
-    def __init__(self, prevlevel, mode):
+    def __init__(
+        self,
+        prevlevel: Optional[ContextLevel],
+        mode: ContextSwitchMode,
+        *,
+        env: Optional[Environment] = None,
+    ) -> None:
         self.mode = mode
 
         if prevlevel is None:
-            self.env = None
+            assert env is not None
+            self.env = env
             self.derived_target_module = None
             self.aliases = compiler.AliasGenerator()
             self.anchors = {}
@@ -388,7 +437,7 @@ class ContextLevel(compiler.ContextLevel):
             self.pending_stmt_full_path_id_namespace = frozenset()
             self.banned_paths = set()
             self.view_map = collections.ChainMap()
-            self.path_scope = None
+            self.path_scope = irast.new_scope_tree()
             self.path_scope_map = {}
             self.scope_id_ctr = compiler.SimpleCounter()
             self.view_scls = None
@@ -448,8 +497,8 @@ class ContextLevel(compiler.ContextLevel):
                 self.class_view_overrides = \
                     prevlevel.class_view_overrides.copy()
 
-                self.pending_stmt_own_path_id_namespace = None
-                self.pending_stmt_full_path_id_namespace = None
+                self.pending_stmt_own_path_id_namespace = frozenset()
+                self.pending_stmt_full_path_id_namespace = frozenset()
                 self.banned_paths = prevlevel.banned_paths.copy()
 
                 self.view_rptr = None
@@ -517,15 +566,21 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.path_scope = prevlevel.path_scope.attach_branch()
 
-    def on_pop(self, prevlevel):
-        if self.mode in {ContextSwitchMode.NEWFENCE_TEMP,
-                         ContextSwitchMode.NEWSCOPE_TEMP}:
+    def on_pop(self, prevlevel: Optional[ContextLevel]) -> None:
+        if (prevlevel is not None
+                and self.mode in {ContextSwitchMode.NEWFENCE_TEMP,
+                                  ContextSwitchMode.NEWSCOPE_TEMP}):
             prevlevel.path_scope.remove_subtree(self.path_scope)
 
-    def subquery(self):
+    def subquery(self) -> compiler.CompilerContextManager[ContextLevel]:
         return self.new(ContextSwitchMode.SUBQUERY)
 
-    def newscope(self, *, temporary=False, fenced=False):
+    def newscope(
+        self,
+        *,
+        temporary: bool = False,
+        fenced: bool = False,
+    ) -> compiler.CompilerContextManager[ContextLevel]:
         if temporary and fenced:
             mode = ContextSwitchMode.NEWFENCE_TEMP
         elif temporary:
@@ -537,10 +592,10 @@ class ContextLevel(compiler.ContextLevel):
 
         return self.new(mode)
 
-    def detached(self):
+    def detached(self) -> compiler.CompilerContextManager[ContextLevel]:
         return self.new(ContextSwitchMode.DETACHED)
 
 
-class CompilerContext(compiler.CompilerContext):
+class CompilerContext(compiler.CompilerContext[ContextLevel]):
     ContextLevelClass = ContextLevel
     default_mode = ContextSwitchMode.NEW

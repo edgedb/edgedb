@@ -40,6 +40,10 @@ from . import types as s_types
 from . import utils
 
 
+if TYPE_CHECKING:
+    from . import sources as s_sources
+
+
 class PointerDirection(enum.StrEnum):
     Outbound = '>'
     Inbound = '<'
@@ -338,12 +342,17 @@ class Pointer(referencing.ReferencedInheritingObject,
         shortname = self.get_shortname(schema)
         return sn.Name(module='__', name=shortname.name)
 
-    def derive_ref(self, schema, source,
-                   target=None,
-                   *qualifiers,
-                   mark_derived=False,
-                   attrs=None,
-                   dctx=None, **kwargs):
+    def derive_ref(
+        self: referencing.ReferencedT,
+        schema: s_schema.Schema,
+        source: s_sources.Source,
+        target: Optional[s_types.Type] = None,
+        *qualifiers: str,
+        mark_derived: bool = False,
+        attrs: Optional[Mapping[str, Any]] = None,
+        dctx: Optional[sd.CommandContext] = None,
+        **kwargs: Any,
+    ) -> Tuple[s_schema.Schema, referencing.ReferencedT]:
 
         if target is None:
             if attrs and 'target' in attrs:

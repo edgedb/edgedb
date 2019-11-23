@@ -27,6 +27,7 @@ from edb import errors
 from edb.schema import abc as s_abc
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
@@ -116,97 +117,164 @@ def _infer_common_type(
 
 
 @functools.singledispatch
-def _infer_type(ir, env):
-    return
+def _infer_type(
+    ir: irast.Base,
+    env: context.Environment,
+) -> s_types.Type:
+    raise ValueError(f'infer_cardinality: cannot handle {ir!r}')
 
 
 @_infer_type.register(type(None))
-def __infer_none(ir, env):
+def __infer_none(
+    ir: None,
+    env: context.Environment,
+) -> s_types.Type:
     # Here for debugging purposes.
     raise ValueError('invalid infer_type(None, env) call')
 
 
-@_infer_type.register(irast.Statement)
-def __infer_statement(ir, env):
+@_infer_type.register
+def __infer_statement(
+    ir: irast.Statement,
+    env: context.Environment,
+) -> s_types.Type:
     return infer_type(ir.expr, env)
 
 
-@_infer_type.register(irast.Set)
-def __infer_set(ir, env):
+@_infer_type.register
+def __infer_set(
+    ir: irast.Set,
+    env: context.Environment,
+) -> s_types.Type:
     return env.set_types[ir]
 
 
-@_infer_type.register(irast.TypeIntrospection)
-def __infer_type_introspection(ir, env):
+@_infer_type.register
+def __infer_type_introspection(
+    ir: irast.TypeIntrospection,
+    env: context.Environment,
+) -> s_types.Type:
     if irtyputils.is_scalar(ir.typeref):
-        return env.schema.get('schema::ScalarType')
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::ScalarType'))
     elif irtyputils.is_object(ir.typeref):
-        return env.schema.get('schema::ObjectType')
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::ObjectType'))
     elif irtyputils.is_array(ir.typeref):
-        return env.schema.get('schema::Array')
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::Array'))
     elif irtyputils.is_tuple(ir.typeref):
-        return env.schema.get('schema::Tuple')
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::Tuple'))
     else:
         raise errors.QueryError(
             'unexpected type in INTROSPECT', context=ir.context)
 
 
-@_infer_type.register(irast.OperatorCall)
-@_infer_type.register(irast.FunctionCall)
-def __infer_func_call(ir, env):
+@_infer_type.register
+def __infer_func_call(
+    ir: irast.FunctionCall,
+    env: context.Environment,
+) -> s_types.Type:
     return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
 
 
-@_infer_type.register(irast.BaseConstant)
-@_infer_type.register(irast.ConstantSet)
-@_infer_type.register(irast.Parameter)
-def __infer_const_or_param(ir, env):
+@_infer_type.register
+def __infer_oper_call(
+    ir: irast.OperatorCall,
+    env: context.Environment,
+) -> s_types.Type:
     return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
 
 
-def _infer_binop_args(left, right, env):
-    if not isinstance(left, irast.EmptySet) or left.stype is not None:
-        left_type = infer_type(left, env)
-    else:
-        left_type = None
+@_infer_type.register
+def __infer_const(
+    ir: irast.BaseConstant,
+    env: context.Environment,
+) -> s_types.Type:
+    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
 
-    if not isinstance(right, irast.EmptySet) or right.stype is not None:
-        right_type = infer_type(right, env)
-    else:
-        right_type = None
 
-    if left_type is None and right_type is None:
+@_infer_type.register
+def __infer_const_set(
+    ir: irast.ConstantSet,
+    env: context.Environment,
+) -> s_types.Type:
+    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+
+
+@_infer_type.register
+def __infer_param(
+    ir: irast.Parameter,
+    env: context.Environment,
+) -> s_types.Type:
+    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+
+
+def _infer_binop_args(
+    left: irast.Base,
+    right: irast.Base,
+    env: context.Environment
+) -> Tuple[s_types.Type, s_types.Type]:
+
+    if isinstance(left, irast.EmptySet):
+        inferred_left_type = None
+    else:
+        inferred_left_type = infer_type(left, env)
+
+    if isinstance(right, irast.EmptySet):
+        inferred_right_type = None
+    else:
+        inferred_right_type = infer_type(right, env)
+
+    if inferred_right_type is not None:
+        if isinstance(left, irast.EmptySet):
+            amend_empty_set_type(left, inferred_right_type, env)
+        left_type = right_type = inferred_right_type
+    elif inferred_left_type is not None:
+        if isinstance(right, irast.EmptySet):
+            amend_empty_set_type(right, inferred_left_type, env)
+        left_type = right_type = inferred_left_type
+    else:
         raise errors.QueryError(
             'cannot determine the type of an empty set',
             context=left.context)
-    elif left_type is None:
-        amend_empty_set_type(left, right_type, env)
-        left_type = right_type
-    elif right_type is None:
-        amend_empty_set_type(right, left_type, env)
-        right_type = left_type
 
     return left_type, right_type
 
 
-@_infer_type.register(irast.TypeCheckOp)
-def __infer_typecheckop(ir, env):
+@_infer_type.register
+def __infer_typecheckop(
+    ir: irast.TypeCheckOp,
+    env: context.Environment,
+) -> s_types.Type:
     left_type, right_type = _infer_binop_args(ir.left, ir.right, env)
-    return env.schema.get('std::bool')
+    return cast(s_scalars.ScalarType, env.schema.get('std::bool'))
 
 
-@_infer_type.register(irast.AnyTypeRef)
-def __infer_anytyperef(ir, env):
+@_infer_type.register
+def __infer_anytyperef(
+    ir: irast.AnyTypeRef,
+    env: context.Environment,
+) -> s_types.Type:
     return s_pseudo.Any.instance
 
 
-@_infer_type.register(irast.AnyTupleRef)
-def __infer_anytupleref(ir, env):
+@_infer_type.register
+def __infer_anytupleref(
+    ir: irast.AnyTupleRef,
+    env: context.Environment,
+) -> s_types.Type:
     return s_pseudo.AnyTuple.instance
 
 
-@_infer_type.register(irast.TypeRef)
-def __infer_typeref(ir, env):
+@_infer_type.register
+def __infer_typeref(
+    ir: irast.TypeRef,
+    env: context.Environment,
+) -> s_types.Type:
+    result: s_types.Type
+
     if ir.collection:
         coll = s_types.Collection.get_class(ir.collection)
         if issubclass(coll, s_types.Tuple):
@@ -218,7 +286,7 @@ def __infer_typeref(ir, env):
                 eltypes = {st.element_name: infer_type(st, env)
                            for st in ir.subtypes}
             else:
-                eltypes = {i: infer_type(st, env)
+                eltypes = {str(i): infer_type(st, env)
                            for i, st in enumerate(ir.subtypes)}
 
             result = coll.create(
@@ -232,8 +300,11 @@ def __infer_typeref(ir, env):
     return result
 
 
-@_infer_type.register(irast.TypeCast)
-def __infer_typecast(ir, env):
+@_infer_type.register
+def __infer_typecast(
+    ir: irast.TypeCast,
+    env: context.Environment,
+) -> s_types.Type:
     stype = infer_type(ir.to_type, env)
 
     # is_polymorphic is synonymous to get_is_abstract for scalars
@@ -246,24 +317,33 @@ def __infer_typecast(ir, env):
     return stype
 
 
-@_infer_type.register(irast.Stmt)
-def __infer_stmt(ir, env):
+@_infer_type.register
+def __infer_stmt(
+    ir: irast.Stmt,
+    env: context.Environment,
+) -> s_types.Type:
     return infer_type(ir.result, env)
 
 
-@_infer_type.register(irast.ConfigInsert)
-def __infer_config_insert(ir, env):
+@_infer_type.register
+def __infer_config_insert(
+    ir: irast.ConfigInsert,
+    env: context.Environment,
+) -> s_types.Type:
     return infer_type(ir.expr, env)
 
 
-@_infer_type.register(irast.SliceIndirection)
-def __infer_slice(ir, env):
+@_infer_type.register
+def __infer_slice(
+    ir: irast.SliceIndirection,
+    env: context.Environment,
+) -> s_types.Type:
     node_type = infer_type(ir.expr, env)
 
-    str_t = env.schema.get('std::str')
-    int_t = env.schema.get('std::int64')
-    json_t = env.schema.get('std::json')
-    bytes_t = env.schema.get('std::bytes')
+    str_t = cast(s_scalars.ScalarType, env.schema.get('std::str'))
+    int_t = cast(s_scalars.ScalarType, env.schema.get('std::int64'))
+    json_t = cast(s_scalars.ScalarType, env.schema.get('std::json'))
+    bytes_t = cast(s_scalars.ScalarType, env.schema.get('std::bytes'))
 
     if node_type.issubclass(env.schema, str_t):
         base_name = 'string'
@@ -295,17 +375,20 @@ def __infer_slice(ir, env):
     return node_type
 
 
-@_infer_type.register(irast.IndexIndirection)
-def __infer_index(ir, env):
+@_infer_type.register
+def __infer_index(
+    ir: irast.IndexIndirection,
+    env: context.Environment,
+) -> s_types.Type:
     node_type = infer_type(ir.expr, env)
     index_type = infer_type(ir.index, env)
 
-    str_t = env.schema.get('std::str')
-    bytes_t = env.schema.get('std::bytes')
-    int_t = env.schema.get('std::int64')
-    json_t = env.schema.get('std::json')
+    str_t = cast(s_scalars.ScalarType, env.schema.get('std::str'))
+    bytes_t = cast(s_scalars.ScalarType, env.schema.get('std::bytes'))
+    int_t = cast(s_scalars.ScalarType, env.schema.get('std::int64'))
+    json_t = cast(s_scalars.ScalarType, env.schema.get('std::json'))
 
-    result = None
+    result: s_types.Type
 
     if node_type.issubclass(env.schema, str_t):
 
@@ -370,8 +453,11 @@ def __infer_index(ir, env):
     return result
 
 
-@_infer_type.register(irast.Array)
-def __infer_array(ir, env):
+@_infer_type.register
+def __infer_array(
+    ir: irast.Array,
+    env: context.Environment,
+) -> s_types.Type:
     if ir.typeref is not None:
         return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
     elif ir.elements:
@@ -385,17 +471,24 @@ def __infer_array(ir, env):
     return s_types.Array.create(env.schema, element_type=element_type)
 
 
-@_infer_type.register(irast.Tuple)
-def __infer_struct(ir, env):
+@_infer_type.register
+def __infer_tuple(
+    ir: irast.Tuple,
+    env: context.Environment,
+) -> s_types.Type:
     element_types = {el.name: infer_type(el.val, env) for el in ir.elements}
     return s_types.Tuple.create(
         env.schema, element_types=element_types, named=ir.named)
 
 
-@_infer_type.register(irast.TupleIndirection)
-def __infer_struct_indirection(ir, env):
-    struct_type = infer_type(ir.expr, env)
-    result = struct_type.get_subtype(env.schema, ir.name)
+@_infer_type.register
+def __infer_tuple_indirection(
+    ir: irast.TupleIndirection,
+    env: context.Environment,
+) -> s_types.Type:
+    tuple_type = infer_type(ir.expr, env)
+    assert isinstance(tuple_type, s_types.Tuple)
+    result = tuple_type.get_subtype(env.schema, ir.name)
     if result is None:
         raise errors.QueryError('could not determine struct element type',
                                 context=ir.context)
