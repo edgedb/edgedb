@@ -683,7 +683,7 @@ type LogEntry extending    OwnedObject,    Text {
     def test_eschema_syntax_constraint_01(self):
         """
         abstract constraint max_value(param:anytype) on (()) {
-            using __subject__ <= $param;
+            using (__subject__ <= $param);
             errmessage := 'Maximum allowed value for {subject} is {$param}.';
         };
 
@@ -852,7 +852,7 @@ abstract property foo {
             property bar -> int64;
 
             constraint expr {
-                using self.foo = self.bar;
+                using (self.foo = self.bar);
             };
         };      """
 

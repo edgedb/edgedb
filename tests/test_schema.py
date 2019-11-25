@@ -2972,7 +2972,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         self._assert_describe(
             """
             abstract constraint my_one_of(one_of: array<anytype>) {
-                using contains(one_of, __subject__);
+                using (contains(one_of, __subject__));
             }
             """,
 
@@ -3085,7 +3085,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             CREATE MODULE test;
             CREATE VIEW test::array_view :=
-                [1, 2, 3];
+                ([1, 2, 3]);
             CREATE VIEW test::tuple_view :=
                 (WITH
                     MODULE test
@@ -3102,7 +3102,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 property compprop := 'foo';
                 link complink := (SELECT Foo LIMIT 1);
                 property annotated_compprop -> str {
-                    using 'foo';
+                    using ('foo');
                     annotation title := 'compprop';
                 };
                 link annotated_link -> Foo {
@@ -3118,7 +3118,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE MODULE test;
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY annotated_compprop {
-                    USING 'foo';
+                    USING ('foo');
                     SET ANNOTATION std::title := 'compprop';
                 };
                 CREATE SINGLE LINK annotated_link {
@@ -3131,13 +3131,13 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     );
                     SET ANNOTATION std::title := 'complink';
                 };
-                CREATE SINGLE LINK complink := ((WITH
+                CREATE SINGLE LINK complink := (WITH
                     MODULE test
                 SELECT
                     Foo
                 LIMIT
                     1
-                ));
+                );
                 CREATE SINGLE PROPERTY compprop := ('foo');
             };
             """

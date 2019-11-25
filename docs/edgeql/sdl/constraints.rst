@@ -19,7 +19,7 @@ Declare an *abstract* constraint:
         errmessage :=
             'Minimum allowed value for {__subject__} is {min}.';
 
-        using __subject__ >= min;
+        using (__subject__ >= min);
     }
 
 Declare a *concrete* constraint on an integer type:

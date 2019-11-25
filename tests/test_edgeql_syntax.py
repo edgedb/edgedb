@@ -2895,7 +2895,7 @@ aa';
             EXTENDING std::constraint
         {
             SET errmessage := '{subject} must be one of: {p}.';
-            USING contains($p, __subject__);
+            USING (contains($p, __subject__));
         };
         """
 
@@ -2903,7 +2903,7 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum(VARIADIC p: anytype) {
             SET errmessage := '{subject} must be one of: {$p}.';
-            USING contains($p, __subject__);
+            USING (contains($p, __subject__));
         };
         """
 
@@ -2911,7 +2911,7 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            USING contains($param, __subject__);
+            USING (contains($param, __subject__));
         };
         """
 
@@ -2919,14 +2919,14 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT std::enum() {
             SET errmessage := '{subject} must be one of: {param}.';
-            USING contains($param, __subject__);
+            USING (contains($param, __subject__));
         };
 
 % OK %
 
         CREATE ABSTRACT CONSTRAINT std::enum {
             SET errmessage := '{subject} must be one of: {param}.';
-            USING contains($param, __subject__);
+            USING (contains($param, __subject__));
         };
         """
 
@@ -2958,6 +2958,13 @@ aa';
         """
         CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
             USING (__subject__ <= f);
+            SET subjectexpr := len(__subject__);
+        };
+
+% OK %
+
+        CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
+            USING ((__subject__ <= f));
             SET subjectexpr := len(__subject__);
         };
         """
@@ -3587,6 +3594,15 @@ aa';
             USING (SELECT Person);
 
         DROP VIEW Foo;
+        """
+
+    def test_edgeql_syntax_ddl_view_03(self):
+        """
+        CREATE VIEW Foo := User;
+
+% OK %
+
+        CREATE VIEW Foo := (User);
         """
 
     def test_edgeql_syntax_ddl_index_01(self):

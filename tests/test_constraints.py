@@ -671,7 +671,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             {
                 SET errmessage :=
                     '{__subject__} must be no longer than {max} characters.';
-                USING __subject__ <= max;
+                USING (__subject__ <= max);
             };
 
             CREATE ABSTRACT CONSTRAINT test::mymax_ext1(max: std::int64)
@@ -819,7 +819,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
             CREATE ABSTRACT CONSTRAINT test::mymax2(max: std::int64) {
                 SET errmessage :=
                     '{__subject__} must be no longer than {max} characters.';
-                USING __subject__ <= max;
+                USING (__subject__ <= max);
             };
 
             CREATE TYPE test::ConstraintOnTest2 {
@@ -898,7 +898,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 SET errmessage :=
                     '{__subject__} must be no longer ' ++
                     'than {max} characters.';
-                USING __subject__ <= max;
+                USING (__subject__ <= max);
             };
 
             CREATE TYPE test::ConstraintOnTest3 {
@@ -1012,7 +1012,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                       # XXX: once simple string concat is possible here
                       #      formatting can be saner
                       '{__subject__} must be no longer than {m} characters.';
-                        USING __subject__ <= m;
+                        USING (__subject__ <= m);
                     };
 
                     CREATE TYPE test::InvalidConstraintTest2 {
@@ -1058,7 +1058,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
 
         qry = """
             CREATE ABSTRACT CONSTRAINT foo {
-                USING __subject__;
+                USING (__subject__);
             };
 
             CREATE TYPE User {
@@ -1083,7 +1083,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                     CREATE ABSTRACT CONSTRAINT
                     test::mymax_er_06(max: std::int64) ON (len(__subject__))
                     {
-                        USING __subject__ <= $max;
+                        USING (__subject__ <= $max);
                     };
 
                     CREATE TYPE test::ConstraintOnTest_err_06 {

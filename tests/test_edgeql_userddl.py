@@ -289,7 +289,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         await self.con.execute('''
             CREATE ABSTRACT CONSTRAINT test::uppercase {
                 SET ANNOTATION title := "Upper case constraint";
-                USING str_upper(__subject__) = __subject__;
+                USING (str_upper(__subject__) = __subject__);
                 SET errmessage := "{__subject__} is not in upper case";
             };
 

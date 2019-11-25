@@ -108,5 +108,5 @@ type Publication {
 }
 
 abstract constraint my_one_of(one_of: array<anytype>) {
-    using contains(one_of, __subject__);
+    using (contains(one_of, __subject__));
 }

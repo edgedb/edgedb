@@ -225,7 +225,7 @@ def sdl_commands_block(parent, *commands, opt=True):
 
 
 class Using(Nonterm):
-    def reduce_USING_Expr(self, *kids):
+    def reduce_USING_ParenExpr(self, *kids):
         self.val = qlast.SetSpecialField(
             name='expr',
             value=kids[1].val

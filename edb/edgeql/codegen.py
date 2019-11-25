@@ -102,8 +102,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             node.parent is not None and (
                 not isinstance(node.parent, qlast.Base)
                 or not isinstance(node.parent, qlast.DDL)
-                or isinstance(node.parent, (qlast.SetField,
-                                            qlast.SetSpecialField))
+                or isinstance(node.parent, qlast.SetField)
             )
         )
 
@@ -906,8 +905,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_SetSpecialField(self, node: qlast.SetSpecialField) -> None:
         if node.name == 'expr':
-            self.write('USING ')
+            self.write('USING (')
             self.visit(node.value)
+            self.write(')')
         else:
             keywords = self._process_SetSpecialField(node)
             self.write(*keywords, delimiter=' ')
@@ -1001,12 +1001,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 and node.commands[0].name == 'expr'):
 
             self._visit_CreateObject(node, 'VIEW', render_commands=False)
-            self.write(' := ')
+            self.write(' := (')
             self.new_lines = 1
             self.indentation += 1
             self.visit(node.commands[0].value)
             self.indentation -= 1
             self.new_lines = 1
+            self.write(')')
         else:
             self._visit_CreateObject(node, 'VIEW')
 
