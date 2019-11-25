@@ -20,9 +20,7 @@
 from __future__ import annotations
 
 import functools
-import io
 import os
-import select
 import subprocess
 import sys
 
@@ -640,19 +638,6 @@ def execute_script(conn_args, data):
         con.close()
 
 
-def _data_in_stdin() -> str:
-    try:
-        if select.select([sys.stdin], [], [], 0.0)[0]:
-            data = sys.stdin.read()
-        else:
-            data = ''
-    except io.UnsupportedOperation:
-        # Mock stdin cannot be selected, just read it
-        data = sys.stdin.read()
-
-    return data
-
-
 def main(*, host, port, user, database, password, password_prompt, admin):
     connect_kwargs = {
         'user': user,
@@ -665,8 +650,13 @@ def main(*, host, port, user, database, password, password_prompt, admin):
         'timeout': 60,
     }
 
-    stdin_data = _data_in_stdin()
-    if stdin_data:
-        return execute_script(connect_kwargs, stdin_data)
-    else:
+    try:
+        interactive = sys.stdin.isatty()
+    except AttributeError:
+        # mock streams are always non-interactive
+        interactive = False
+
+    if interactive:
         return Cli(connect_kwargs).run()
+    else:
+        return execute_script(connect_kwargs, sys.stdin.read())
