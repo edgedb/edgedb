@@ -279,30 +279,40 @@ class TestReplUtils(unittest.TestCase):
         self.assertEqual(clause, '')
         self.assertEqual(qkw, {})
 
-        clause, qkw = utils.get_filter_based_on_pattern('', 'name')
+        clause, qkw = utils.get_filter_based_on_pattern('', ['name'])
         self.assertEqual(clause, '')
         self.assertEqual(qkw, {})
 
-        clause, qkw = utils.get_filter_based_on_pattern('', 'name', 'i')
+        clause, qkw = utils.get_filter_based_on_pattern('', ['name'], 'i')
         self.assertEqual(clause, '')
         self.assertEqual(qkw, {})
 
         # actual filters
         clause, qkw = utils.get_filter_based_on_pattern(r'std')
-        self.assertEqual(clause, r'FILTER re_test(<str>$`re_.name`, .name)')
-        self.assertEqual(qkw, {'re_.name': 'std'})
+        self.assertEqual(clause, r'FILTER re_test(<str>$re_filter, .name)')
+        self.assertEqual(qkw, {'re_filter': 'std'})
 
-        clause, qkw = utils.get_filter_based_on_pattern(r'std', 'foo')
-        self.assertEqual(clause, r'FILTER re_test(<str>$`re_foo`, foo)')
-        self.assertEqual(qkw, {'re_foo': 'std'})
+        clause, qkw = utils.get_filter_based_on_pattern(r'std', ['foo'])
+        self.assertEqual(clause, r'FILTER re_test(<str>$re_filter, foo)')
+        self.assertEqual(qkw, {'re_filter': 'std'})
 
-        clause, qkw = utils.get_filter_based_on_pattern(r'std', 'foo', 'i')
-        self.assertEqual(clause, r'FILTER re_test(<str>$`re_foo`, foo)')
-        self.assertEqual(qkw, {'re_foo': '(?i)std'})
+        clause, qkw = utils.get_filter_based_on_pattern(r'std', ['foo'], 'i')
+        self.assertEqual(clause, r'FILTER re_test(<str>$re_filter, foo)')
+        self.assertEqual(qkw, {'re_filter': '(?i)std'})
 
         clause, qkw = utils.get_filter_based_on_pattern(r'\s*\'\w+\'')
-        self.assertEqual(clause, r'FILTER re_test(<str>$`re_.name`, .name)')
-        self.assertEqual(qkw, {'re_.name': r'\s*\'\w+\''})
+        self.assertEqual(clause, r'FILTER re_test(<str>$re_filter, .name)')
+        self.assertEqual(qkw, {'re_filter': r'\s*\'\w+\''})
+
+    def test_repl_filter_pattern_02(self):
+        # no pattern - no filter
+        clause, qkw = utils.get_filter_based_on_pattern(
+            r'foo', ['first_name', 'last_name'])
+        self.assertEqual(
+            clause,
+            r'FILTER re_test(<str>$re_filter, first_name) OR '
+            r're_test(<str>$re_filter, last_name)')
+        self.assertEqual(qkw, {'re_filter': 'foo'})
 
     def _compare_tables(self, tab1: str, tab2: str, max_width: int) -> None:
         # trailing whitespace for each line is ignored in this comparison

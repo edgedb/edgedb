@@ -58,6 +58,9 @@ STATUSES_WITH_OUTPUT = frozenset({
     'GET MIGRATION', 'DESCRIBE',
 })
 
+# Maximum width for rendering output and tables.
+MAX_WIDTH = 120
+
 
 @functools.lru_cache(100)
 def is_multiline_text(text) -> bool:
@@ -337,7 +340,7 @@ class Cli:
             flag = 'i'
 
         filter_clause, qkw = utils.get_filter_based_on_pattern(
-            pattern, name_field, flag)
+            pattern, [name_field], flag)
 
         try:
             result, _ = self.fetch(
@@ -420,19 +423,164 @@ class Cli:
                     columns=[
                         table.ColumnSpec(field='name', title='Name',
                                          width=2, align='left'),
-                        table.ColumnSpec(field='extending', title='Extending',
-                                         width=2, align='left'),
                         table.ColumnSpec(field='is_abstract', title='Abstract',
                                          width=1, align='left'),
+                        table.ColumnSpec(field='extending', title='Extending',
+                                         width=2, align='left'),
                         table.ColumnSpec(field='kind', title='Kind',
                                          width=1, align='left'),
                     ],
                     data=result,
-                    max_width=min(max_width, 120),
+                    max_width=min(max_width, MAX_WIDTH),
                 )
 
             else:
                 print(f'No scalar types found matching '
+                      f'{eql_quote.quote_literal(pattern)}')
+
+    @_command('lt', R'\lt [PATTERN]', 'list object types')
+    def command_list_object_types(self, args: str, *,
+                                  case_sensitive: bool = False) -> None:
+        self._list_object_types(args.strip(), case_sensitive=case_sensitive)
+
+    @_command('ltI', R'\ltI [PATTERN]',
+              'list object types (case sensitive pattern match)')
+    def command_list_object_types_i(self, args: str) -> None:
+        self.command_list_object_types(args, case_sensitive=True)
+
+    def _list_object_types(
+        self,
+        pattern: str,
+        case_sensitive: bool = False
+    ) -> None:
+        if case_sensitive:
+            flag = ''
+        else:
+            flag = 'i'
+
+        filter_clause, qkw = utils.get_filter_based_on_pattern(
+            pattern, flag=flag)
+
+        base_query = r'''
+            WITH MODULE schema
+            SELECT ObjectType {
+                name,
+                is_abstract,
+                `extending` := to_str(array_agg(.ancestors.name), ', '),
+            }
+        '''
+
+        try:
+            result, _ = self.fetch(
+                f'''
+                    {base_query}
+                    {filter_clause}
+                    ORDER BY .name;
+                ''',
+                json=False,
+                **qkw
+            )
+        except edgedb.EdgeDBError as exc:
+            render.render_exception(self.context, exc)
+        else:
+            if result:
+                print(f'List of object types:')
+                max_width = self.prompt.output.get_size().columns
+                render.render_table(
+                    self.context,
+                    title='Object Types',
+                    columns=[
+                        table.ColumnSpec(field='name', title='Name',
+                                         width=2, align='left'),
+                        table.ColumnSpec(field='is_abstract', title='Abstract',
+                                         width=1, align='left'),
+                        table.ColumnSpec(field='extending', title='Extending',
+                                         width=3, align='left'),
+                    ],
+                    data=result,
+                    max_width=min(max_width, MAX_WIDTH),
+                )
+
+            else:
+                print(f'No object types found matching '
+                      f'{eql_quote.quote_literal(pattern)}')
+
+    @_command('lc', R'\lc [PATTERN]', 'list casts')
+    def command_list_casts(self, args: str, *,
+                           case_sensitive: bool = False) -> None:
+        self._list_casts(args.strip(), case_sensitive=case_sensitive)
+
+    @_command('lcI', R'\lcI [PATTERN]',
+              'list casts (case sensitive pattern match)')
+    def command_list_casts_i(self, args: str) -> None:
+        self.command_list_casts(args, case_sensitive=True)
+
+    def _list_casts(
+        self,
+        pattern: str,
+        case_sensitive: bool = False
+    ) -> None:
+        if case_sensitive:
+            flag = ''
+        else:
+            flag = 'i'
+
+        filter_clause, qkw = utils.get_filter_based_on_pattern(
+            pattern, ['.from_type_name', '.to_type_name'], flag=flag)
+
+        base_query = r'''
+            WITH MODULE schema
+            SELECT Cast {
+                from_type_name := .from_type.name,
+                to_type_name := .to_type.name,
+                kind := (
+                    'implicit' IF .allow_implicit ELSE
+                    'assignemnt' IF .allow_assignment ELSE
+                    'regular'
+                ),
+                volatility,
+            }
+        '''
+
+        try:
+            result, _ = self.fetch(
+                f'''
+                    {base_query}
+                    {filter_clause}
+                    ORDER BY .from_type.name THEN .to_type.name;
+                ''',
+                json=False,
+                **qkw
+            )
+        except edgedb.EdgeDBError as exc:
+            render.render_exception(self.context, exc)
+        else:
+            if result:
+                print(f'List of casts:')
+                max_width = self.prompt.output.get_size().columns
+                render.render_table(
+                    self.context,
+                    title='Casts',
+                    columns=[
+                        table.ColumnSpec(
+                            field='from_type_name', title='From Type',
+                            width=1, align='left'),
+                        table.ColumnSpec(
+                            field='to_type_name', title='To Type',
+                            width=1, align='left'),
+                        table.ColumnSpec(
+                            field='kind', title='Type of Cast',
+                            width=1, align='left'),
+                        table.ColumnSpec(
+                            field='volatility', title='Volatility',
+                            width=1, align='left'),
+                    ],
+                    data=result,
+                    max_width=min(max_width, MAX_WIDTH),
+                )
+
+            else:
+                print(f'No casts found matching '
                       f'{eql_quote.quote_literal(pattern)}')
 
     @_command('d', R'\d NAME', 'describe schema object')
@@ -660,12 +808,12 @@ class Cli:
                                 render.render_json(
                                     self.context,
                                     result,
-                                    max_width=min(max_width, 120))
+                                    max_width=min(max_width, MAX_WIDTH))
                             else:
                                 render.render_binary(
                                     self.context,
                                     result,
-                                    max_width=min(max_width, 120))
+                                    max_width=min(max_width, MAX_WIDTH))
                         else:
                             render.render_status(self.context, status)
                 except KeyboardInterrupt:
