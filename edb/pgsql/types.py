@@ -22,8 +22,8 @@ from __future__ import annotations
 import collections
 import functools
 from typing import *  # NoQA
-import uuid
 
+from edb.common import uuidgen
 from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
@@ -484,7 +484,7 @@ class TypeDescNode(_TypeDescNode):
         # A type desc node is uniquely identified by it's type,
         # and the name and position within a parent type.
         id_str = f"{data['maintype']!r}::{data['name']!r}::{data['position']}"
-        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, id_str)
+        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, id_str)
 
     def to_sql_expr(self):
         if self.subtypes:

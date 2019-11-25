@@ -21,15 +21,15 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import dataclasses
 import decimal
 import functools
-from typing import *  # NoQA
-import uuid
 
 from edb import errors
 
+from edb.common import uuidgen
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import qltypes
@@ -257,7 +257,7 @@ def scalar_type_to_python_type(
         'std::decimal': decimal.Decimal,
         'std::bool': bool,
         'std::json': str,
-        'std::uuid': uuid.UUID,
+        'std::uuid': uuidgen.UUID,
     }
 
     for basetype, python_type in typemap.items():

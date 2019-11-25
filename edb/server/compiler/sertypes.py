@@ -20,9 +20,9 @@
 from __future__ import annotations
 
 import struct
-import uuid
 
 from edb import errors
+from edb.common import uuidgen
 
 from edb.schema import objects as s_obj
 from edb.schema import types as s_types
@@ -67,18 +67,18 @@ class TypeSerializer:
             string_id += f'\x00{":".join(element_names)}'
         if has_implicit_fields:
             string_id += ';has_implicit_fields'
-        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
+        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
     def _get_union_type_id(self, union_type):
         base_type_id = ','.join(
             str(c.id) for c in union_type.children(self.schema))
 
-        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE, base_type_id)
+        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, base_type_id)
 
     @classmethod
     def _get_set_type_id(cls, basetype_id):
-        return uuid.uuid5(s_types.TYPE_ID_NAMESPACE,
-                          'set-of::' + str(basetype_id))
+        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE,
+                             'set-of::' + str(basetype_id))
 
     def _register_type_id(self, type_id):
         if type_id not in self.uuid_to_pos:

@@ -89,7 +89,7 @@ async def _ensure_edgedb_user(conn, username, *, is_superuser=False):
         is_superuser=is_superuser,
         allow_login=True,
         metadata=dict(
-            id=str(uuidgen.uuid1mc()),
+            id=str(uuidgen.uuid1mc()),  # note: slow UUID
             __edgedb__='1',
         )
     )
