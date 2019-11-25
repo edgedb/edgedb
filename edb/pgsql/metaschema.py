@@ -1869,7 +1869,7 @@ def _field_to_column(field):
         coltype = 'uuid'
         if field.name == 'id':
             required = True
-            default = 'edgedb.uuid_generate_v1mc()'  # Note: slow UUID
+            default = 'edgedb.uuid_generate_v1mc()'
 
     else:
         coltype = 'text'
