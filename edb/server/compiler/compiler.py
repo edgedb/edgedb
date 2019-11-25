@@ -18,7 +18,6 @@
 
 
 from __future__ import annotations
-from edb.tools.profiling import profile
 
 import collections
 import dataclasses
@@ -253,7 +252,6 @@ class Compiler(BaseCompiler):
 
         return schema, delta
 
-    @profile(prefix="_uuid_new", dir="/tmp/", reuse=False)
     def _compile_ql_query(
             self, ctx: CompileContext,
             ql: qlast.Base) -> dbstate.BaseQuery:
