@@ -29,6 +29,7 @@ import uuid
 from edb.common import adapter, checked, debug
 from edb.common import context as parser_context
 from edb.common import exceptions
+from edb.common import uuidgen
 
 from edb.edgeql import qltypes
 
@@ -57,9 +58,9 @@ ql = common.quote_literal
 qt = common.quote_type
 
 
-DATABASE_ID_NAMESPACE = uuid.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
-CONFIG_ID_NAMESPACE = uuid.UUID('a48b38fa-349b-11e9-a6be-4f337f82f5ad')
-CONFIG_ID = uuid.UUID('172097a4-39f4-11e9-b189-9321eb2f4b97')
+DATABASE_ID_NAMESPACE = uuidgen.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
+CONFIG_ID_NAMESPACE = uuidgen.UUID('a48b38fa-349b-11e9-a6be-4f337f82f5ad')
+CONFIG_ID = uuidgen.UUID('172097a4-39f4-11e9-b189-9321eb2f4b97')
 
 
 class Context:
@@ -1868,7 +1869,7 @@ def _field_to_column(field):
         coltype = 'uuid'
         if field.name == 'id':
             required = True
-            default = 'edgedb.uuid_generate_v1mc()'
+            default = 'edgedb.uuid_generate_v1mc()'  # Note: slow UUID
 
     else:
         coltype = 'text'

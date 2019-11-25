@@ -33,7 +33,7 @@ from setuptools.command import develop as setuptools_develop
 
 
 RUNTIME_DEPS = [
-    'asyncpg~=0.19.0',
+    'asyncpg~=0.20.0',
     'click~=6.7',
     'httptools>=0.0.13',
     'immutables>=0.9',

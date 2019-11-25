@@ -18,13 +18,13 @@
 
 
 from __future__ import annotations
+from edb.tools.profiling import profile
 
 import collections
 import dataclasses
 import hashlib
 import pickle
 from typing import *  # NoQA
-import uuid
 
 import asyncpg
 import immutables
@@ -37,6 +37,7 @@ from edb.pgsql import intromech
 
 from edb import edgeql
 from edb.common import debug
+from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
@@ -252,6 +253,7 @@ class Compiler(BaseCompiler):
 
         return schema, delta
 
+    @profile(prefix="_uuid_new", dir="/tmp/", reuse=False)
     def _compile_ql_query(
             self, ctx: CompileContext,
             ql: qlast.Base) -> dbstate.BaseQuery:
@@ -1145,6 +1147,6 @@ class Compiler(BaseCompiler):
         tx = state.current_tx()
         schema = tx.get_schema()
         for tid, backend_tid in typemap.items():
-            t = schema.get_by_id(uuid.UUID(tid))
+            t = schema.get_by_id(uuidgen.UUID(tid))
             schema = t.set_field_value(schema, 'backend_id', backend_tid)
         state.current_tx().update_schema(schema)

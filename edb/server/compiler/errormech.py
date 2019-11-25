@@ -23,9 +23,9 @@ import enum
 import json
 import re
 from typing import *  # NoQA
-import uuid
 
 from edb import errors
+from edb.common import uuidgen
 
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
@@ -122,7 +122,7 @@ def translate_pgtype(schema, msg):
         return translated
 
     def replace(r):
-        type_id = uuid.UUID(r.group('id'))
+        type_id = uuidgen.UUID(r.group('id'))
         stype = schema.get_by_id(type_id, None)
         if stype:
             return f'{r.group("p")} {stype.get_displayname(schema)!r}'
@@ -250,7 +250,7 @@ def static_interpret_backend_error(fields):
             constraint_id, _, _ = err_details.constraint_name.rpartition(';')
 
             try:
-                constraint_id = uuid.UUID(constraint_id)
+                constraint_id = uuidgen.UUID(constraint_id)
             except ValueError:
                 return errors.InternalServerError(err_details.message)
 
@@ -351,7 +351,7 @@ def interpret_backend_error(schema, fields):
         if error_type == 'constraint':
             # similarly, if we're here it's because we have a constraint_id
             constraint_id, _, _ = err_details.constraint_name.rpartition(';')
-            constraint_id = uuid.UUID(constraint_id)
+            constraint_id = uuidgen.UUID(constraint_id)
 
             constraint = schema.get_by_id(constraint_id)
 

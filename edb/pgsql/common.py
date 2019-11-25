@@ -23,8 +23,8 @@ import binascii
 import hashlib
 import base64
 import re
-import uuid
 
+from edb.common import uuidgen
 from edb.schema import abc as s_abc
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
@@ -332,7 +332,7 @@ def get_object_from_backend_name(schema, metaclass, name, *, aspect=None):
 
     if metaclass is s_objtypes.ObjectType:
         table_name = name[1]
-        obj_id = uuid.UUID(table_name)
+        obj_id = uuidgen.UUID(table_name)
         return schema.get_by_id(obj_id)
 
     else:

@@ -28,6 +28,7 @@ import uuid
 from edb import errors
 
 from edb.common import checked
+from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
 
@@ -48,7 +49,7 @@ if typing.TYPE_CHECKING:
     from edb.ir import ast as irast
     from edb.schema import scalars
 
-TYPE_ID_NAMESPACE = uuid.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
+TYPE_ID_NAMESPACE = uuidgen.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
 MAX_TYPE_DISTANCE = 1_000_000_000
 
 
@@ -1507,7 +1508,7 @@ class TupleView(CollectionView, BaseSchemaTuple):
 
 
 def generate_type_id(id_str: str) -> uuid.UUID:
-    return uuid.uuid5(TYPE_ID_NAMESPACE, id_str)
+    return uuidgen.uuid5(TYPE_ID_NAMESPACE, id_str)
 
 
 def ensure_schema_union_type(schema, union_type_ref, parent_cmd, *,
