@@ -663,7 +663,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         try:
             return get_known_type_id(data.get('name'))
         except errors.SchemaError:
-            return uuidgen.uuid1mc()  # note: slow UUID
+            return uuidgen.uuid1mc()
 
     @classmethod
     def _create_from_id(cls: Type[Object_T], id: uuid.UUID) -> Object_T:

@@ -35,7 +35,7 @@ def uuid1mc() -> uuid.UUID:
 
     # Note: cannot use pgproto.UUID since it's UUID v1
     node = int.from_bytes(os.urandom(6), byteorder='little') | (1 << 40)
-    return uuid.uuid1(node=node)
+    return UUID(uuid.uuid1(node=node).bytes)  # type: ignore
 
 
 # type-ignores below because the first argument to uuid.UUID is a string
