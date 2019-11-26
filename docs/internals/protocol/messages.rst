@@ -229,7 +229,7 @@ Format:
         int32   message_length;
 
         // A set of message headers.
-        Map     headers;
+        Headers     headers;
 
         // Command status.
         bytes   status_data;
@@ -371,13 +371,13 @@ Format:
         int8<Cardinality> result_cardinality;
 
         // Argument data descriptor ID.
-        byte              input_typedesc_id[16];
+        uuid              input_typedesc_id;
 
         // Argument data descriptor.
         bytes             input_typedesc;
 
         // Output data descriptor ID.
-        byte              output_typedesc_id[16];
+        uuid              output_typedesc_id;
 
         // Output data descriptor.
         bytes             output_typedesc;
@@ -497,10 +497,10 @@ Format:
         string              command_text;
 
         // Argument data descriptor ID.
-        byte                input_typedesc_id[16];
+        uuid                input_typedesc_id;
 
         // Output data descriptor ID.
-        byte                output_typedesc_id[16];
+        uuid                output_typedesc_id;
 
         // Encoded argument data.
         bytes               arguments;
@@ -614,16 +614,16 @@ Format:
         int32               message_length;
 
         // A set of message headers.
-        Map                 headers;
+        Headers             headers;
 
         // Result cardinality
         int8<Cardinality>   cardinality;
 
         // Argument data descriptor ID.
-        byte                input_typedesc_id[16];
+        uuid                input_typedesc_id;
 
         // Output data descriptor ID.
-        byte                output_typedesc_id[16];
+        uuid                output_typedesc_id;
     };
 
     enum Cardinality {
