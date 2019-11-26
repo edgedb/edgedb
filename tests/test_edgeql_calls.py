@@ -34,9 +34,9 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 NAMED ONLY suffix: str = '-suf',
                 NAMED ONLY prefix: str = 'pref-'
             ) -> std::str
-                USING EdgeQL $$
-                    SELECT prefix ++ s ++ <str>sum(array_unpack(a)) ++ suffix;
-                $$;
+                USING (
+                    SELECT prefix ++ s ++ <str>sum(array_unpack(a)) ++ suffix
+                );
         ''')
 
         await self.assert_query_result(
@@ -101,10 +101,11 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         await self.con.execute('''
             CREATE FUNCTION test::call2(
                 VARIADIC a: anytype
-            ) -> std::str
-                USING EdgeQL $$
+            ) -> std::str {
+                USING (
                     SELECT '=' ++ <str>len(a) ++ '='
-                $$;
+                );
+            }
         ''')
 
         await self.assert_query_result(

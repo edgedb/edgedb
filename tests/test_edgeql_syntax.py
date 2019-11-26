@@ -3091,13 +3091,13 @@ aa';
     def test_edgeql_syntax_ddl_function_11(self):
         """
         CREATE FUNCTION no_params() -> std::int64
-        USING EdgeQL $$ SELECT 1 $$;
+        USING ( SELECT 1 );
         """
 
     def test_edgeql_syntax_ddl_function_13(self):
         """
         CREATE FUNCTION foo(string: std::str) -> tuple<bar: std::int64>
-        USING EDGEQL $$ SELECT (bar := 123) $$;
+        USING (SELECT (bar := 123));
         """
 
     def test_edgeql_syntax_ddl_function_14(self):
@@ -3106,7 +3106,7 @@ aa';
         -> tuple<
             bar: std::int64,
             baz: std::str
-        > USING EdgeQL $$ SELECT smth() $$;
+        > USING (SELECT smth());
         """
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   "AAA is not a valid language", line=3)

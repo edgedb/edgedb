@@ -169,7 +169,7 @@ def hash_dirs(dirs: Tuple[str, str]) -> bytes:
     for dirname, ext in dirs:
         hash_dir(dirname, ext, paths)
 
-    h = hashlib.md5()
+    h = hashlib.sha1()  # sha1 is the fastest one.
     for path in sorted(paths):
         with open(path, 'rb') as f:
             h.update(f.read())

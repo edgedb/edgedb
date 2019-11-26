@@ -962,9 +962,9 @@ abstract property foo {
     def test_eschema_syntax_function_03(self):
         r"""
         function some_func(foo: std::int64 = 42) -> std::str
-            using edgeql $$
-                SELECT 'life';
-            $$;
+            using (
+                SELECT 'life'
+            );
         """
 
     def test_eschema_syntax_function_04(self):
@@ -984,18 +984,18 @@ abstract property foo {
                         variadic arg3: std::int64,
                         named only arg4: std::int64,
                         named only arg5: std::int64) -> set of int
-            using edgeql $$
+            using (
                 SELECT blarg
-            $$;
+            );
         """
 
     def test_eschema_syntax_function_06(self):
         """
         function some_func(foo: std::int64 = 42) -> std::str {
             initial_value := 'bad';
-            using edgeql $$
+            using (
                 SELECT 'life'
-            $$;
+            );
         };
         """
 

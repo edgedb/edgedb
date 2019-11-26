@@ -31,12 +31,16 @@ commands <ref_eql_ddl_functions>`.
 .. sdl:synopsis::
 
     function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
+    using ( <edgeql> );
+
+    function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     using <language> <functionbody> ;
 
     function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     "{"
         session_only := {true | false} ;
         [ <annotation-declarations> ]
+        using ( <expr> ) ;
         using <language> <functionbody> ;
     "}" ;
 
