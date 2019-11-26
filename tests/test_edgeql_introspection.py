@@ -1283,7 +1283,7 @@ class TestIntrospection(tb.QueryTestCase):
         async with self.con.transaction():
             await self.con.execute(r'''
                 CREATE FUNCTION bad() -> str
-                    USING EdgeQL $$ SELECT r'\1' $$;
+                    USING ( SELECT r'\1' );
             ''')
 
             desc = await self.con.fetchone('''
@@ -1293,5 +1293,5 @@ class TestIntrospection(tb.QueryTestCase):
         self.assertEqual(
             desc,
             r"function default::bad() ->  std::str "
-            r"using edgeql $$ SELECT r'\1' $$;"
+            r"using ( SELECT r'\1' );"
         )

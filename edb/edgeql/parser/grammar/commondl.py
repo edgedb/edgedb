@@ -284,6 +284,20 @@ class FunctionType(Nonterm):
 
 
 class FromFunction(Nonterm):
+    def reduce_USING_ParenExpr(self, *kids):
+        lang = qlast.Language.EdgeQL
+
+        # Now that we know that we were able to parse the expression
+        # inside "USING (...)", we want to get the original text of it.
+        # Sadly we have to discard the parsed AST as there's no way we
+        # can pass it to the schema constructor yet.
+        ctx = kids[1].context
+        code = ctx.buffer[ctx.start.pointer + 1:ctx.end.pointer - 1]
+
+        self.val = qlast.FunctionCode(
+            language=lang,
+            code=code)
+
     def reduce_USING_Identifier_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])
         code = kids[2].val.value

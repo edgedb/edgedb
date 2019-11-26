@@ -21,6 +21,10 @@ CREATE FUNCTION
 
     [ WITH <with-item> [, ...] ]
     CREATE FUNCTION <name> ([ <argspec> ] [, ... ]) -> <returnspec>
+    USING ( <expr> );
+
+    [ WITH <with-item> [, ...] ]
+    CREATE FUNCTION <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     USING <language> <functionbody> ;
 
     [ WITH <with-item> [, ...] ]
@@ -45,9 +49,10 @@ CREATE FUNCTION
 
     # where <subcommand> is one of
 
-      SET session_only := {true | false}
-      SET ANNOTATION <annotation-name> := <value>
-      USING <language> <functionbody>
+      SET session_only := {true | false} ;
+      SET ANNOTATION <annotation-name> := <value> ;
+      USING ( <expr> ) ;
+      USING <language> <functionbody> ;
 
 
 Description
@@ -117,14 +122,21 @@ Parameters
     The ``OPTIONAL`` qualifier indicates that the function may return
     an empty set.
 
-:eql:synopsis:`<language>`
-    The name of the language that the function is implemented in.
-    Currently it can only be ``edgeql``.
+:eql:synopsis:`USING ( <expr> )`
+    Specified the body of the function.  :eql:synopsis:`<expr>` is an
+    arbitrary EdgeQL expression.
 
-:eql:synopsis:`<functionbody>`
-    A string constant defining the function.  It is often helpful
-    to use :ref:`dollar quoting <ref_eql_lexical_dollar_quoting>`
-    to write the function definition string.
+:eql:synopsis:`USING <language> <functionbody>`
+    A verbose version of the :eql:synopsis:`USING` clause that allows
+    to specify the language of the function body.
+
+    * :eql:synopsis:`<language>` is the name of the language that
+      the function is implemented in.  Currently can only be ``edgeql``.
+
+    * :eql:synopsis:`<functionbody>` isa  string constant defining
+      the function.  It is often helpful to use
+      :ref:`dollar quoting <ref_eql_lexical_dollar_quoting>`
+      to write the function definition string.
 
 
 Subcommands
@@ -161,17 +173,17 @@ Define a function returning the sum of its arguments:
 .. code-block:: edgeql
 
     CREATE FUNCTION mysum(a: int64, b: int64) -> int64
-    USING edgeql $$
-        SELECT a + b;
-    $$;
+    USING (
+        SELECT a + b
+    );
 
-The same, but using a variadic argument:
+The same, but using a variadic argument and an explicit language:
 
 .. code-block:: edgeql
 
     CREATE FUNCTION mysum(VARIADIC argv: int64) -> int64
     USING edgeql $$
-        SELECT sum(array_unpack(argv));
+        SELECT sum(array_unpack(argv))
     $$;
 
 Define a function using the block syntax:
@@ -179,9 +191,9 @@ Define a function using the block syntax:
 .. code-block:: edgeql
 
     CREATE FUNCTION mysum(a: int64, b: int64) -> int64 {
-        USING edgeql $$
-            SELECT a + b;
-        $$;
+        USING (
+            SELECT a + b
+        );
         SET ANNOTATION title := "My sum function.";
     };
 

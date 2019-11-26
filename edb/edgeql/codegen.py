@@ -1437,6 +1437,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     from_clause = from_clause.lower()
                 self.write(from_clause)
                 self.write(f'{node.code.from_function!r}')
+            elif node.code.language is qlast.Language.EdgeQL:
+                assert node.code.code
+                self._write_keywords('USING')
+                self.write(f' ({node.code.code})')
             else:
                 from_clause = f'USING {node.code.language} '
                 if self.sdlmode:

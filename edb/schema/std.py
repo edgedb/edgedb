@@ -28,6 +28,7 @@ from edb import errors
 from edb import edgeql
 from edb import schema
 from edb.edgeql import compiler as qlcompiler
+from edb.edgeql import parser as qlparser
 from edb.schema import delta as s_delta
 
 from . import ddl as s_ddl
@@ -37,10 +38,12 @@ from . import schema as s_schema
 SCHEMA_ROOT = pathlib.Path(schema.__path__[0])
 LIB_ROOT = pathlib.Path(stdlib.__path__[0])
 QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])
+QL_PARSER_ROOT = pathlib.Path(qlparser.__path__[0])
 
 CACHE_SRC_DIRS = (
     (SCHEMA_ROOT, '.py'),
     (QL_COMPILER_ROOT, '.py'),
+    (QL_PARSER_ROOT, '.py'),
     (LIB_ROOT, '.edgeql'),
 )
 

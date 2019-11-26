@@ -153,13 +153,13 @@ sys::get_version() -> tuple<major: std::int64,
 {
     # This function reads external data.
     SET volatility := 'VOLATILE';
-    using EdgeQL $$
-    SELECT <tuple<major: std::int64,
-                  minor: std::int64,
-                  stage: sys::version_stage,
-                  stage_no: std::int64,
-                  local: array<std::str>>>sys::__version_internal()
-    $$;
+    USING (
+        SELECT <tuple<major: std::int64,
+                    minor: std::int64,
+                    stage: sys::version_stage,
+                    stage_no: std::int64,
+                    local: array<std::str>>>sys::__version_internal()
+    );
 };
 
 
@@ -168,17 +168,17 @@ sys::get_version_as_str() -> std::str
 {
     # This function reads external data.
     SET volatility := 'VOLATILE';
-    using EdgeQL $$
-    WITH v := sys::get_version()
-    SELECT
-        <str>v.major
-        ++ '.' ++ <str>v.minor
-        ++ ('-' ++ <str>v.stage
-            ++ '.' ++ <str>v.stage_no
-            ++ ('+' ++ std::to_str(v.local, '.')
-                IF len(v.local) > 0 ELSE '')
-        ) IF v.stage != <sys::version_stage>'final' ELSE ''
-    $$;
+    USING (
+        WITH v := sys::get_version()
+        SELECT
+            <str>v.major
+            ++ '.' ++ <str>v.minor
+            ++ ('-' ++ <str>v.stage
+                ++ '.' ++ <str>v.stage_no
+                ++ ('+' ++ std::to_str(v.local, '.')
+                    IF len(v.local) > 0 ELSE '')
+            ) IF v.stage != <sys::version_stage>'final' ELSE ''
+    );
 };
 
 
