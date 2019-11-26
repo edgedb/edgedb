@@ -256,7 +256,7 @@ async def _make_stdlib(testmode: bool):
 
     for ddl_cmd in edgeql.parse_block(ddl_text):
         delta_command = s_ddl.delta_from_ddl(
-            ddl_cmd, schema=schema, modaliases={None: 'std'}, stdmode=True)
+            ddl_cmd, modaliases={}, schema=schema, stdmode=True)
 
         if debug.flags.delta_plan_input:
             debug.header('Delta Plan Input')

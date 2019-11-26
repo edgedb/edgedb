@@ -720,7 +720,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if self.limit_ref_classes:
             commands = [
                 c for c in commands
-                if c.name.itemclass in self.limit_ref_classes
+                # Command names are ObjectRefs unless it's `SET expr`,
+                # but we want to keep `SET expr`.
+                if ((isinstance(c, qlast.SetSpecialField) and c.name == 'expr')
+                    or (c.name.itemclass in self.limit_ref_classes))
             ]
 
         if len(commands) == 1 and allow_short:
@@ -752,7 +755,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                         self.new_lines = 1
                     self.visit_list(list(items), terminator=';')
             elif self.descmode or self.sdlmode:
-                sort_key = lambda c: (c.name.itemclass or '', c.name)
                 sort_key = lambda c: (
                     (c.name.itemclass or '')
                     if isinstance(c.name, qlast.ObjectRef)
@@ -905,7 +907,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_SetSpecialField(self, node: qlast.SetSpecialField) -> None:
         if node.name == 'expr':
-            self.write('USING (')
+            self._write_keywords('USING')
+            self.write(' (')
             self.visit(node.value)
             self.write(')')
         else:
