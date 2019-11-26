@@ -39,6 +39,7 @@ class ParameterInliner(ast.NodeTransformer):
     def visit_Path(self, node: qlast.Path) -> qlast.Base:
         if (len(node.steps) != 1 or
                 not isinstance(node.steps[0], qlast.ObjectRef)):
+            self.visit(node.steps[0])
             return node
 
         ref: qlast.ObjectRef = node.steps[0]

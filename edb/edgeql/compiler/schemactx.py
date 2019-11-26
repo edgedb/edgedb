@@ -75,6 +75,7 @@ def get_schema_object(
     elif isinstance(name, str):
         view = ctx.aliased_views.get(name)
         if view is not None:
+            ctx.must_use_views.pop(view, None)
             return view
 
     try:
@@ -92,6 +93,7 @@ def get_schema_object(
 
     view = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
     if view is not None:
+        ctx.must_use_views.pop(view, None)
         return view
     else:
         return stype

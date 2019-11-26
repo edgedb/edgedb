@@ -306,6 +306,9 @@ class ContextLevel(compiler.ContextLevel):
     aliased_views: ChainMap[str, Optional[s_types.Type]]
     """A dictionary of views aliased in a statement body."""
 
+    must_use_views: Dict[s_types.Type, Tuple[str, parsing.ParserContext]]
+    """A set of views that *must* be used in an expression."""
+
     expr_view_cache: Dict[Tuple[qlast.Base, str], irast.Set]
     """Type cache used by expression-level views."""
 
@@ -424,6 +427,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = {}
             self.view_sets = {}
             self.aliased_views = collections.ChainMap()
+            self.must_use_views = {}
             self.expr_view_cache = {}
             self.shape_type_cache = {}
             self.class_view_overrides = {}
@@ -465,6 +469,7 @@ class ContextLevel(compiler.ContextLevel):
             self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
+            self.must_use_views = prevlevel.must_use_views
             self.expr_view_cache = prevlevel.expr_view_cache
             self.shape_type_cache = prevlevel.shape_type_cache
 

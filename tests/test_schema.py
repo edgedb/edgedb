@@ -332,8 +332,10 @@ _123456789_123456789_123456789 -> str
             CREATE ABSTRACT CONSTRAINT
             test::my_one_of(one_of: array<anytype>) {
                 USING (
-                    WITH foo := test::Object1
-                    SELECT test::my_contains(one_of, __subject__)
+                    SELECT (
+                        test::my_contains(one_of, __subject__),
+                        test::Object1,
+                    ).0
                 );
             };
 
