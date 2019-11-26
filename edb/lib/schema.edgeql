@@ -258,8 +258,8 @@ ALTER TYPE schema::Link {
 
 
 ALTER TYPE schema::ObjectType {
-    CREATE LINK links := .pointers[IS schema::Link];
-    CREATE LINK properties := .pointers[IS schema::Property];
+    CREATE MULTI LINK links := .pointers[IS schema::Link];
+    CREATE MULTI LINK properties := .pointers[IS schema::Property];
 };
 
 

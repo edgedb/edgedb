@@ -78,9 +78,6 @@ def load_std_module(
         schema: s_schema.Schema, modname: str) -> s_schema.Schema:
 
     modaliases = {}
-    if modname == 'std':
-        modaliases[None] = 'std'
-
     context = s_delta.CommandContext()
     context.stdmode = True
 

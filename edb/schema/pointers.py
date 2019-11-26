@@ -423,6 +423,16 @@ class Pointer(referencing.ReferencedInheritingObject,
         else:
             return self.is_exclusive(schema)
 
+    def get_implicit_bases(self, schema: s_schema.Schema) -> List[Pointer]:
+        bases = super().get_implicit_bases(schema)
+
+        # True implicit bases for pointers will have a different source.
+        my_source = self.get_source(schema)
+        return [
+            b for b in bases
+            if b.get_source(schema) != my_source
+        ]
+
 
 class PseudoPointer(s_abc.Pointer):
     # An abstract base class for pointer-like objects, i.e.
