@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import binascii
+import functools
 import hashlib
 import base64
 import re
@@ -119,6 +120,26 @@ def get_module_backend_name(module, prefix='edgedb_'):
     return edgedb_name_to_pg_name(f'{prefix}{module}', len(prefix))
 
 
+@functools.lru_cache()
+def _edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
+    # Note: PostgreSQL doesn't have a sha1 implementation as a
+    # built-in function available in all versions, hence we use md5.
+    #
+    # Although sha1 would be slightly better as it's marginally faster than
+    # md5 (and it doesn't matter which function is better cryptographically
+    # in this case.)
+    hashed = base64.b64encode(
+        hashlib.md5(name.encode()).digest()
+    ).decode().rstrip('=')
+
+    return (
+        name[:prefix_length] +
+        hashed +
+        ':' +
+        name[-(63 - prefix_length - 1 - len(hashed)):]
+    )
+
+
 def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     """Convert EdgeDB name to a valid PostgresSQL column name.
 
@@ -132,12 +153,10 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
                          'to be kept in original form')
 
     name = str(name)
-    if len(name) > 63 - prefix_length:
-        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode(
-        ).rstrip('=')
-        name = name[:prefix_length] + hash + ':' + name[-(
-            63 - prefix_length - 1 - len(hash)):]
-    return name
+    if len(name) <= 63 - prefix_length:
+        return name
+
+    return _edgedb_name_to_pg_name(name, prefix_length)
 
 
 def convert_name(name, suffix='', catenate=True, prefix='edgedb_'):
