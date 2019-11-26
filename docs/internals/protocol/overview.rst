@@ -52,6 +52,10 @@ The following data types are used in the descriptions:
                int16  key;
                bytes  value;
            };
+    * - ``uuid``
+      - a simple array of 16 bytes with no length prefix, equivalent to
+        ``byte[16]``
+
 
 
 Message Format
