@@ -3,6 +3,8 @@ name: Build Test and Publish Nightly Packages
 on:
   schedule:
     - cron: "0 0 * * *"
+  repository_dispatch:
+    types: ["nightly-build"]
 
 jobs:
   build-linux:
