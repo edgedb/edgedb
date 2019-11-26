@@ -74,7 +74,9 @@ class ProfilingTestCase(unittest.TestCase):
 
         # aggregate the results
         out_file = ptest_files[0].with_suffix(".pstats")
-        success, failure = profiler.aggregate(out_file, sort_by="cumulative")
+        success, failure = profiler.aggregate(
+            out_file, sort_by="cumulative", quiet=True
+        )
 
         self.assertEqual(success, 1)
         self.assertEqual(failure, 0)
