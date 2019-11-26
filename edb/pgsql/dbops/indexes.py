@@ -26,6 +26,7 @@ from typing import *  # NoQA
 from edb.common import ordered
 from edb.server import defines
 
+from .. import common
 from ..common import qname as qn
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
@@ -82,7 +83,8 @@ class Index(tables.InheritableTableObject):
 
     @property
     def name_in_catalog(self):
-        return base.pack_name(self.table_name[1] + '__' + self.name)
+        return common.edgedb_name_to_pg_name(
+            self.table_name[1] + '__' + self.name)
 
     def add_columns(self, columns):
         for col in columns:

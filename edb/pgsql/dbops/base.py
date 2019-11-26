@@ -19,9 +19,7 @@
 
 from __future__ import annotations
 
-import base64
 import collections
-import hashlib
 import numbers
 import textwrap
 from typing import *  # NoQA
@@ -59,17 +57,6 @@ def encode_value(val: Any) -> str:
         val = str(val)
 
     return val
-
-
-def pack_name(name, prefix_length=0):
-    """Pack a potentially long name into Postgres' 63 char limit."""
-    name = str(name)
-    if len(name) > 63 - prefix_length:
-        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode(
-        ).rstrip('=')
-        name = name[:prefix_length] + hash + ':' + name[-(
-            63 - prefix_length - 1 - len(hash)):]
-    return name
 
 
 class PLExpression(str):
