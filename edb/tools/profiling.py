@@ -149,6 +149,7 @@ class profile:
         sort_by: str = "",
         width: int = 1920,
         threshold: float = 0.0001,  # 1.0 is 100%
+        quiet: bool = False,
     ) -> Tuple[int, int]:
         """Read all pstats in `self.dir` and write a summary to `out_path`.
 
@@ -163,6 +164,9 @@ class profile:
         Returns a tuple with number of successfully and unsucessfully
         aggregated files.
         """
+        if quiet:
+            print = lambda *args, **kwargs: None
+
         if not self.dir:
             with tempfile.NamedTemporaryFile() as tmp:
                 directory = pathlib.Path(tmp.name).parent
