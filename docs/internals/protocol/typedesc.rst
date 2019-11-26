@@ -200,7 +200,7 @@ Named Tuple Type Descriptor
 
 .. code-block:: c
 
-    struct ScalarTypeDescriptor {
+    struct NamedTupleTypeDescriptor {
         // Indicates that this is a
         // Named Tuple Type descriptor.
         int8         type = 5;
