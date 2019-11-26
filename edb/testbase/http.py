@@ -46,6 +46,13 @@ class StubbornHttpConnection(http.client.HTTPConnection):
 
 class BaseHttpTest:
 
+    # Serialize tests over http -- we don't want all tests workers to
+    # create http ports. Every port spawns a number of Python
+    # compiler processes and at a high number of parallel test
+    # workers this ends up with test consuming too much system resources
+    # for no particular speedup.
+    SERIALIZED = True
+
     @classmethod
     def get_port_proto(cls):
         raise NotImplementedError
