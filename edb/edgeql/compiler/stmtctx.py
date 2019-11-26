@@ -190,6 +190,13 @@ def fini_expression(
                 hint='Consider using an explicit type cast.',
                 context=ctx.env.type_origins.get(anytype))
 
+    if ctx.must_use_views:
+        alias, srcctx = next(iter(ctx.must_use_views.values()))
+        raise errors.QueryError(
+            f'unused view definition: {alias!r}',
+            context=srcctx,
+        )
+
     result = irast.Statement(
         expr=ir,
         params=ctx.env.query_parameters,
@@ -350,6 +357,7 @@ def declare_view(
         expr: qlast.Expr, alias: str, *,
         fully_detached: bool=False,
         temporary_scope: bool=True,
+        must_be_used: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
 
     with ctx.newscope(temporary=temporary_scope, fenced=True) as subctx:
@@ -394,9 +402,13 @@ def declare_view(
             view_set.path_id = view_set.path_id.replace_namespace(
                 ctx.path_id_namespace)
 
-        ctx.aliased_views[alias] = setgen.get_set_type(view_set, ctx=ctx)
+        view_type = setgen.get_set_type(view_set, ctx=ctx)
+        ctx.aliased_views[alias] = view_type
         ctx.path_scope_map[view_set] = subctx.path_scope
         ctx.expr_view_cache[expr, alias] = view_set
+
+        if must_be_used:
+            ctx.must_use_views[view_type] = (alias, expr.context)
 
     return view_set
 

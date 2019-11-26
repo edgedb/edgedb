@@ -695,8 +695,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             r'''
                 # just a simple unpack
                 WITH
-                    MODULE test,
-                    I2 := Item
+                    MODULE test
                 SELECT Item {
                     name,
                     unpack := (SELECT array_unpack(Item.tag_array))
@@ -737,8 +736,7 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             r'''
                 # just a simple unpack
                 WITH
-                    MODULE test,
-                    I2 := Item
+                    MODULE test
                 SELECT Item {
                     name,
                     unpack := array_unpack(Item.tag_array)

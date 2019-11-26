@@ -1215,7 +1215,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     ) < C.element
                     AND
                     (
-                        WITH E := A
                         SELECT count((WITH F := A SELECT F.owners.friends)) > 2
                     )
                 )
@@ -1647,23 +1646,27 @@ class TestEdgeQLScope(tb.QueryTestCase):
             r'''
                 WITH
                     MODULE test,
-                    Card := (SELECT Card FILTER .element = 'Fire')
+                    Card := (SELECT Card FILTER .name = 'Bog monster')
                 # The contents of the shape will be detached, thus
                 # the `Card` mentioned in the shape will be referring to
                 # the set of all issues and not the one defined in the
                 # WITH clause.
-                SELECT DETACHED (User {
-                    name,
-                    fire_cards := (
-                        SELECT User.deck {
+                SELECT
+                    _ := (
+                        Card,
+                        DETACHED (User {
                             name,
-                            element,
-                        }
-                        FILTER User.deck IN Card
-                        ORDER BY .name
-                    ),
-                })
-                ORDER BY .name;
+                            fire_cards := (
+                                SELECT User.deck {
+                                    name,
+                                    element,
+                                }
+                                FILTER User.deck IN Card
+                                ORDER BY .name
+                            ),
+                        }),
+                    ).1
+                ORDER BY _.name;
             ''',
             [
                 {
@@ -1970,7 +1973,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             r"""
                 WITH
                     MODULE test,
-                    User := User,
                     User := Card,
                     User := User
                 # this is a Card.name now
@@ -1993,3 +1995,30 @@ class TestEdgeQLScope(tb.QueryTestCase):
             """,
             {'Fire', 'Water', 'Earth', 'Air'},
         )
+
+    async def test_edgeql_scope_unused_with_def_01(self):
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"unused view definition: 'foo'",
+                _position=48):
+            await self.con.fetchall("""\
+                WITH
+                    foo := 1
+                SELECT 1;
+            """)
+
+    async def test_edgeql_scope_unused_with_def_02(self):
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"unused view definition: 'foo'",
+                _position=48):
+            await self.con.fetchall("""\
+                WITH
+                    foo := 1
+                SELECT (
+                    WITH foo := 2
+                    SELECT foo
+                )
+            """)

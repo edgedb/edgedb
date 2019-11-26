@@ -611,7 +611,10 @@ def process_with_block(
             with ctx.new() as scopectx:
                 scopectx.expr_exposed = False
                 stmtctx.declare_view(
-                    with_entry.expr, with_entry.alias, ctx=scopectx)
+                    with_entry.expr,
+                    with_entry.alias,
+                    must_be_used=True,
+                    ctx=scopectx)
 
         else:
             raise RuntimeError(
