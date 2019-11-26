@@ -254,9 +254,9 @@ Enumeration Type Descriptor
 
 .. code-block:: c
 
-    struct ArrayTypeDescriptor {
+    struct EnumerationTypeDescriptor {
         // Indicates that this is an
-        // Enumeration Tuple Type descriptor.
+        // Enumeration Type descriptor.
         int8         type = 7;
 
         // Descriptor ID.
@@ -276,7 +276,7 @@ Type Annotation Descriptor
 
 .. code-block:: c
 
-    struct ArrayTypeDescriptor {
+    struct TypeAnnotationDescriptor {
         // Indicates that this is an
         // Type Annotation descriptor.
         int8         type = 0xf0..0xff;
