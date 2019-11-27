@@ -3201,44 +3201,25 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             'DESCRIBE TYPE schema::ObjectType',
 
-            [
-                # the links order is non-deterministic
-                """
-                CREATE TYPE schema::ObjectType
-                EXTENDING schema::BaseObjectType {
-                    CREATE MULTI LINK links :=
-                        (.pointers[IS schema::Link]);
-                    CREATE MULTI LINK properties :=
-                        (.pointers[IS schema::Property]);
-                };
-                """,
-                """
-                CREATE TYPE schema::ObjectType
-                EXTENDING schema::BaseObjectType {
-                    CREATE MULTI LINK properties :=
-                        (.pointers[IS schema::Property]);
-                    CREATE MULTI LINK links :=
-                        (.pointers[IS schema::Link]);
-                };
-                """,
-            ],
+            # the links order is non-deterministic
+            """
+            CREATE TYPE schema::ObjectType
+            EXTENDING schema::BaseObjectType {
+                CREATE MULTI LINK links :=
+                    (.pointers[IS schema::Link]);
+                CREATE MULTI LINK properties :=
+                    (.pointers[IS schema::Property]);
+            };
+            """,
 
             'DESCRIBE TYPE schema::ObjectType AS SDL',
 
-            [
-                """
-                type schema::ObjectType extending schema::BaseObjectType {
-                    multi link links := (.pointers[IS schema::Link]);
-                    multi link properties := (.pointers[IS schema::Property]);
-                };
-                """,
-                """
-                type schema::ObjectType extending schema::BaseObjectType {
-                    multi link properties := (.pointers[IS schema::Property]);
-                    multi link links := (.pointers[IS schema::Link]);
-                };
-                """,
-            ],
+            """
+            type schema::ObjectType extending schema::BaseObjectType {
+                multi link links := (.pointers[IS schema::Link]);
+                multi link properties := (.pointers[IS schema::Property]);
+            };
+            """,
         )
 
     def test_describe_bad_01(self):

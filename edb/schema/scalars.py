@@ -34,7 +34,6 @@ from . import constraints
 from . import delta as sd
 from . import expr
 from . import inheriting
-from . import name as sn
 from . import objects as so
 from . import types as s_types
 
@@ -56,41 +55,6 @@ class ScalarType(s_types.Type, constraints.ConsistencySubject,
     @classmethod
     def get_schema_class_displayname(cls):
         return 'scalar type'
-
-    def _get_deps(self, schema):
-        deps = super()._get_deps(schema)
-
-        consts = self.get_constraints(schema)
-        if consts:
-            N = sn.Name
-
-            # Add dependency on all built-in scalars unconditionally
-            deps.add(N(module='std', name='str'))
-            deps.add(N(module='std', name='bytes'))
-            deps.add(N(module='std', name='int16'))
-            deps.add(N(module='std', name='int32'))
-            deps.add(N(module='std', name='int64'))
-            deps.add(N(module='std', name='float32'))
-            deps.add(N(module='std', name='float64'))
-            deps.add(N(module='std', name='decimal'))
-            deps.add(N(module='std', name='bool'))
-            deps.add(N(module='std', name='uuid'))
-
-            for constraint in consts.objects(schema):
-                c_params = constraint.get_params(schema).objects(schema)
-                ptypes = [p.get_type(schema) for p in c_params]
-                if ptypes:
-                    for ptype in ptypes:
-                        if isinstance(ptype, s_abc.Collection):
-                            subtypes = ptype.get_subtypes(schema)
-                        else:
-                            subtypes = [ptype]
-
-                        for subtype in subtypes:
-                            if subtype is not self:
-                                deps.add(subtype.get_name(schema))
-
-        return deps
 
     def is_scalar(self):
         return True
