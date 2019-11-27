@@ -27,10 +27,6 @@ class MyExc(Exception):
     pass
 
 
-class MyBaseExc(BaseException):
-    pass
-
-
 class TestTaskGroup(tb.TestCase):
 
     async def test_taskgroup_01(self):
@@ -533,14 +529,14 @@ class TestTaskGroup(tb.TestCase):
             try:
                 await asyncio.sleep(10)
             finally:
-                raise MyBaseExc
+                raise KeyboardInterrupt
 
         async def runner():
             async with taskgroup.TaskGroup() as g:
                 g.create_task(crash_soon())
                 await nested()
 
-        with self.assertRaises(MyBaseExc):
+        with self.assertRaises(KeyboardInterrupt):
             await runner()
 
     async def _test_taskgroup_21(self):
@@ -549,7 +545,7 @@ class TestTaskGroup(tb.TestCase):
 
         async def crash_soon():
             await asyncio.sleep(0.1)
-            raise MyBaseExc
+            raise KeyboardInterrupt
 
         async def nested():
             try:
@@ -562,7 +558,7 @@ class TestTaskGroup(tb.TestCase):
                 g.create_task(crash_soon())
                 await nested()
 
-        with self.assertRaises(MyBaseExc):
+        with self.assertRaises(KeyboardInterrupt):
             await runner()
 
     async def test_taskgroup_22(self):
