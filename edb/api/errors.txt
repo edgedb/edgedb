@@ -21,7 +21,6 @@
 
 0x_01_00_00_00   InternalServerError
 
-
 ####
 
 0x_02_00_00_00   UnsupportedFeatureError

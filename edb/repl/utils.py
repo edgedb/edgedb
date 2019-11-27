@@ -126,11 +126,23 @@ def normalize_name(name: str) -> str:
     return name
 
 
-def get_filter_based_on_pattern(pattern: str,
-                                fields: Sequence[str] = ('.name',),
-                                flag: str = '') -> Tuple[str, Dict[str, str]]:
+def get_filter_based_on_pattern(
+    pattern: str,
+    fields: Sequence[str] = ('.name',),
+    flag: str = '',
+    *,
+    filter_and: str = '',
+    filter_or: str = '',
+) -> Tuple[str, Dict[str, str]]:
+
+    # TODO: This is quite ugly.
+    # We will re-implement this as soon as we have query builder APIs.
+
     if flag:
         flag = f'(?{flag})'
+
+    qkw: Dict[str, str] = {}
+    filter_cond = ''
 
     if pattern and fields:
         # the pattern is the same for all fields, so we only use one
@@ -139,8 +151,26 @@ def get_filter_based_on_pattern(pattern: str,
         filters = []
         for field in fields:
             filters.append(f're_test(<str>$re_filter, {field})')
-        return f'FILTER {" OR ".join(filters)}', qkw
 
-    else:
-        # no FILTER clause necessary
-        return '', {}
+        filter_cond = f'({" OR ".join(filters)})'
+
+    filter_clause = ''
+
+    if filter_cond:
+        filter_clause += filter_cond
+
+    if filter_and:
+        if filter_clause:
+            filter_clause += ' AND '
+        filter_clause += filter_and
+
+    if filter_or:
+        if filter_clause:
+            filter_clause += ' OR '
+        filter_clause += filter_or
+
+    if filter_clause:
+        filter_clause = 'FILTER ' + filter_clause
+        return filter_clause, qkw
+
+    return '', qkw

@@ -39,7 +39,7 @@ class ColumnSpec(NamedTuple):
 def render_table(
     *,
     title: str,
-    columns: List[ColumnSpec],
+    columns: Sequence[ColumnSpec],
     data: Iterable[edgedb.Object],
     max_width: int = 0,
     file: typing.TextIO = sys.stdout,
@@ -98,8 +98,6 @@ def render_table(
         for row in rows:
             print(row, file=file)
 
-    print(file=file)
-
 
 def merge_centered_title(title: str, background: str) -> str:
     '''Embed the title in the center of the background string.'''
@@ -118,7 +116,7 @@ def merge_centered_title(title: str, background: str) -> str:
 
 def get_table_row(
     item: Any,
-    columns: List[ColumnSpec],
+    columns: Sequence[ColumnSpec],
     widths: List[int]
 ) -> List[str]:
     # a single logical row may be split across multiple actual rows

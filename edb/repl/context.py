@@ -30,7 +30,7 @@ class QueryMode(enum.IntEnum):
     Normal = 0
     JSON = 1
 
-    def cycle(self):
+    def cycle(self) -> QueryMode:
         return QueryMode((int(self) + 1) % 2)
 
 
@@ -44,11 +44,11 @@ class ReplContext:
     typenames: Optional[Dict[uuid.UUID, str]] = None
     last_exception: Optional[Exception] = None
 
-    def toggle_query_mode(self):
+    def toggle_query_mode(self) -> None:
         self.query_mode = self.query_mode.cycle()
 
-    def toggle_implicit(self):
+    def toggle_implicit(self) -> None:
         self.show_implicit_fields = not self.show_implicit_fields
 
-    def toggle_introspect_types(self):
+    def toggle_introspect_types(self) -> None:
         self.introspect_types = not self.introspect_types

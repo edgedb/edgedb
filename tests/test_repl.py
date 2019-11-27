@@ -22,6 +22,7 @@ import re
 import textwrap
 import unittest
 
+from edb.repl import cmd
 from edb.repl import utils
 from edb.repl import table
 
@@ -289,19 +290,19 @@ class TestReplUtils(unittest.TestCase):
 
         # actual filters
         clause, qkw = utils.get_filter_based_on_pattern(r'std')
-        self.assertEqual(clause, r'FILTER re_test(<str>$re_filter, .name)')
+        self.assertEqual(clause, r'FILTER (re_test(<str>$re_filter, .name))')
         self.assertEqual(qkw, {'re_filter': 'std'})
 
         clause, qkw = utils.get_filter_based_on_pattern(r'std', ['foo'])
-        self.assertEqual(clause, r'FILTER re_test(<str>$re_filter, foo)')
+        self.assertEqual(clause, r'FILTER (re_test(<str>$re_filter, foo))')
         self.assertEqual(qkw, {'re_filter': 'std'})
 
         clause, qkw = utils.get_filter_based_on_pattern(r'std', ['foo'], 'i')
-        self.assertEqual(clause, r'FILTER re_test(<str>$re_filter, foo)')
+        self.assertEqual(clause, r'FILTER (re_test(<str>$re_filter, foo))')
         self.assertEqual(qkw, {'re_filter': '(?i)std'})
 
         clause, qkw = utils.get_filter_based_on_pattern(r'\s*\'\w+\'')
-        self.assertEqual(clause, r'FILTER re_test(<str>$re_filter, .name)')
+        self.assertEqual(clause, r'FILTER (re_test(<str>$re_filter, .name))')
         self.assertEqual(qkw, {'re_filter': r'\s*\'\w+\''})
 
     def test_repl_filter_pattern_02(self):
@@ -310,8 +311,8 @@ class TestReplUtils(unittest.TestCase):
             r'foo', ['first_name', 'last_name'])
         self.assertEqual(
             clause,
-            r'FILTER re_test(<str>$re_filter, first_name) OR '
-            r're_test(<str>$re_filter, last_name)')
+            r'FILTER (re_test(<str>$re_filter, first_name) OR '
+            r're_test(<str>$re_filter, last_name))')
         self.assertEqual(qkw, {'re_filter': 'foo'})
 
     def _compare_tables(self, tab1: str, tab2: str, max_width: int) -> None:
@@ -556,3 +557,129 @@ class TestReplUtils(unittest.TestCase):
             textwrap.dedent(''),
             max_width=0,
         )
+
+    def test_repl_cmd_parser_1(self):
+        parser = cmd.Parser(
+            commands=[
+                cmd.Command(
+                    trigger='l',
+                    desc='list databases',
+                    group='Introspection',
+                    callback=None,
+                ),
+
+                cmd.Command(
+                    trigger='lT',
+                    desc='list scalar types',
+                    group='Introspection',
+                    arg_name='PATTERN',
+                    arg_optional=True,
+                    flags={
+                        'I': 'case_sensitive',
+                        'S': 'system',
+                    },
+                    callback=None,
+                ),
+
+                cmd.Command(
+                    trigger='lz',
+                    desc='list scalar types',
+                    group='Introspection',
+                    arg_name='PATTERN',
+                    arg_optional=False,
+                    flags={
+                        'I': 'case_sensitive',
+                        'S': 'system',
+                    },
+                    callback=None,
+                ),
+
+                cmd.Command(
+                    trigger='E',
+                    desc='show most recent error message at maximum verbosity',
+                    group='Development',
+                    callback=None,
+                ),
+
+                cmd.Command(
+                    trigger='psql',
+                    desc='open psql to the current postgres process',
+                    group='Development',
+                    callback=lambda *args, **kw: 1 / 0,
+                    devonly=True,
+                ),
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, 'invalid command'):
+            parser.parse('a')
+
+        c, flags, args = parser.parse(R'\l')
+        self.assertEqual(c.trigger, 'l')
+        self.assertEqual(flags, set())
+        self.assertIsNone(args)
+
+        with self.assertRaisesRegex(LookupError, 'does not have flags'):
+            parser.parse(R'\lt')
+
+        with self.assertRaisesRegex(LookupError, R'cannot resolve \\a'):
+            parser.parse(R'\a')
+
+        c, flags, args = parser.parse(R'\lT')
+        self.assertEqual(c.trigger, 'lT')
+        self.assertEqual(flags, set())
+        self.assertIsNone(args)
+
+        c, flags, args = parser.parse(R'\lT pat')
+        self.assertEqual(c.trigger, 'lT')
+        self.assertEqual(flags, set())
+        self.assertEqual(args, 'pat')
+
+        c, flags, args = parser.parse(R'\lTI pat')
+        self.assertEqual(c.trigger, 'lT')
+        self.assertEqual(flags, {'case_sensitive'})
+        self.assertEqual(args, 'pat')
+
+        c, flags, args = parser.parse(R'\lTIS pat')
+        self.assertEqual(c.trigger, 'lT')
+        self.assertEqual(flags, {'case_sensitive', 'system'})
+        self.assertEqual(args, 'pat')
+
+        c, flags, args = parser.parse(R'\lTSI ')
+        self.assertEqual(c.trigger, 'lT')
+        self.assertEqual(flags, {'case_sensitive', 'system'})
+        self.assertIsNone(args)
+
+        with self.assertRaisesRegex(LookupError,
+                                    r"\\lT command.*flags.*'Z'"):
+            parser.parse(R'\lTZ ')
+
+        with self.assertRaisesRegex(LookupError,
+                                    r"\\psql.*does not have flags matching"):
+            parser.parse(R'\psql+')
+
+        with self.assertRaisesRegex(LookupError,
+                                    r"\\lz command has a required argument"):
+            parser.parse(R'\lz')
+
+        out = parser.render()
+        self.assertIn(R'  \l  ', out)
+        self.assertIn('list databases', out)
+        self.assertIn('\nDevelopment\n', out)
+        self.assertNotIn(R'  \psql  ', out)
+
+        out = parser.render(show_devonly=True)
+        self.assertIn(R'  \l  ', out)
+        self.assertIn('list databases', out)
+        self.assertIn(R'  \psql  ', out)
+
+        out = parser.render(
+            show_devonly=True,
+            group_annos={'Development': 'XXX'})
+        self.assertIn(R'  \l  ', out)
+        self.assertIn('list databases', out)
+        self.assertIn(R'  \psql  ', out)
+        self.assertIn('\nDevelopment\n  XXX', out)
+
+        with self.assertRaises(ZeroDivisionError):
+            parser.run(R'\psql')
