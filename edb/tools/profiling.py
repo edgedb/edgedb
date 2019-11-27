@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 import atexit
+import builtins
 import cProfile
 import dataclasses
 import functools
@@ -82,7 +83,7 @@ class profile:
         prefix: str = PREFIX,
         suffix: str = PROF_SUFFIX,
         dir: Optional[str] = None,
-        reuse: bool = True,
+        save_every_n_calls: int = 1,
     ):
         """Create the decorator.
 
@@ -95,52 +96,58 @@ class profile:
         self.prefix = prefix
         self.suffix = suffix
         self.dir = dir
-        self.reuse = reuse
-        self.profiler = None
-        if reuse:
-            self.profiler = cProfile.Profile()
-            atexit.register(self.dump_at_exit)
+        self.save_every_n_calls = save_every_n_calls
+        self.n_calls = 0
+        self._profiler: Optional[cProfile.Profile] = None
+        self._dump_file_path: Optional[str] = None
 
     def __call__(self, func: T) -> T:
         """Apply decorator to a function."""
-        if self.reuse:
 
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                self.profiler.enable()
-                try:
-                    return func(*args, **kwargs)
-                finally:
-                    self.profiler.disable()
-
-        else:
-
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                pr = cProfile.Profile()
-                pr.enable()
-                try:
-                    return func(*args, **kwargs)
-                finally:
-                    pr.disable()
-                    pr.dump_stats(self.make_dump_file())
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            self.n_calls += 1
+            self.profiler.enable()
+            try:
+                return func(*args, **kwargs)
+            finally:
+                self.profiler.disable()
+                if self.n_calls % self.save_every_n_calls == 0:
+                    self.profiler.dump_stats(self.dump_file)
 
         return cast(T, wrapper)
 
-    def make_dump_file(self) -> str:
+    @property
+    def profiler(self) -> cProfile.Profile:
+        if self._profiler is None:
+            self._profiler = cProfile.Profile()
+            if self.save_every_n_calls > 1:
+                # This is attached here so the registration is in the right
+                # process (relevant for multiprocessing workers).  This is
+                # still sadly flimsy, hence the `save every n calls`.
+                atexit.register(self.dump_at_exit)
+        return self._profiler
+
+    @property
+    def dump_file(self) -> str:
         """Return a path to a new, empty, existing named temporary file."""
-        file = tempfile.NamedTemporaryFile(
-            dir=self.dir, prefix=self.prefix, suffix=self.suffix, delete=False,
-        )
-        file.close()
-        return file.name
+        if self._dump_file_path is None:
+            file = tempfile.NamedTemporaryFile(
+                dir=self.dir,
+                prefix=self.prefix,
+                suffix=self.suffix,
+                delete=False,
+            )
+            file.close()
+            self._dump_file_path = file.name
+
+        return self._dump_file_path
 
     def dump_at_exit(self) -> None:
         # Note: this will also dump in case the profiler was never enabled
         # (the function was not called).  That's by design.  The presence of
         # the file lets us know the profiling scaffolding worked.
-        assert self.profiler is not None
-        self.profiler.dump_stats(self.make_dump_file())
+        self.profiler.dump_stats(self.dump_file)
 
     def aggregate(
         self,
@@ -164,6 +171,7 @@ class profile:
         Returns a tuple with number of successfully and unsucessfully
         aggregated files.
         """
+        print = builtins.print
         if quiet:
             print = lambda *args, **kwargs: None
 
@@ -693,7 +701,7 @@ def cli(
         raise click.UsageError("Specify at most one directory")
 
     dir: Optional[str] = dirs[0] if dirs else None
-    prof = profile(dir=dir, prefix=prefix, suffix=suffix, reuse=False)
+    prof = profile(dir=dir, prefix=prefix, suffix=suffix, save_every_n_calls=1)
     prof.aggregate(
         pathlib.Path(out), sort_by=sort_by, width=width, threshold=threshold
     )
