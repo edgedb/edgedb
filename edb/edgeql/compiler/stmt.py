@@ -426,7 +426,7 @@ def compile_DescribeStmt(
             if itemclass is qltypes.SchemaObjectClass.MODULE:
                 modules.append(objref.name)
             else:
-                itemtypes = None
+                itemtypes: Tuple[s_obj.ObjectMeta, ...] = ()
                 found = False
 
                 name: str

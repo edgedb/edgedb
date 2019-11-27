@@ -3240,3 +3240,17 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 """,
             ],
         )
+
+    def test_describe_bad_01(self):
+        with self.assertRaisesRegex(
+            errors.InvalidReferenceError,
+            "schema item 'std::Tuple' does not exist",
+        ):
+            self._assert_describe(
+                """
+                """,
+
+                'DESCRIBE OBJECT std::Tuple',
+
+                '',
+            )
