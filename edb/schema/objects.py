@@ -322,7 +322,11 @@ class Field(struct.ProtoField, Generic[T]):
         ...
 
     @overload  # NoQA: F811
-    def __get__(self, instance: Object, owner: Type[Object]) -> T:
+    def __get__(  # NoQA: F811
+        self,
+        instance: Object,
+        owner: Type[Object]
+    ) -> T:
         ...
 
     def __get__(self, instance, owner):  # NoQA: F811
@@ -375,7 +379,7 @@ class SchemaField(Field[Type_T]):
         ...
 
     @overload  # NoQA: F811
-    def __get__(self, instance: T, owner: Type[T]) -> Type_T:
+    def __get__(self, instance: T, owner: Type[T]) -> Type_T:  # NoQA: F811
         ...
 
     def __get__(self, instance, owner):  # NoQA: F811
