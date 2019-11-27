@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import json
 import logging
@@ -515,6 +516,7 @@ async def _populate_misc_instance_data(cluster):
             'stage_no': ver.stage_no,
             'local': tuple(ver.local) if ver.local else (),
         },
+        'catver': edgedb_defines.EDGEDB_CATALOG_VERSION,
         'mock_auth_nonce': mock_auth_nonce,
     }
 
@@ -523,6 +525,8 @@ async def _populate_misc_instance_data(cluster):
         'instancedata',
         json.dumps(json_instance_data),
     )
+
+    return json_instance_data
 
 
 async def _ensure_edgedb_database(conn, database, owner, *, cluster):
@@ -571,6 +575,15 @@ def _pg_log_listener(conn, msg):
     logger.log(level, msg.message)
 
 
+async def _get_instance_data(conn: Any) -> Dict[str, Any]:
+
+    data = await conn.fetchval(
+        'SELECT edgedb.__syscache_instancedata()'
+    )
+
+    return json.loads(data)
+
+
 async def bootstrap(cluster, args) -> bool:
     pgconn = await cluster.connect()
     pgconn.add_log_listener(_pg_log_listener)
@@ -590,7 +603,7 @@ async def bootstrap(cluster, args) -> bool:
                 conn.add_log_listener(_pg_log_listener)
 
                 await _ensure_meta_schema(conn)
-                await _populate_misc_instance_data(cluster)
+                instancedata = await _populate_misc_instance_data(cluster)
 
                 std_schema = await _init_stdlib(
                     cluster, conn, testmode=args['testmode'])
@@ -612,13 +625,54 @@ async def bootstrap(cluster, args) -> bool:
                 std_schema = await compiler.load_std_schema(conn)
                 config_spec = config.load_spec_from_schema(std_schema)
                 config.set_settings(config_spec)
+                instancedata = await _get_instance_data(conn)
             finally:
                 await conn.close()
 
         await _ensure_edgedb_database(
-            pgconn, edgedb_defines.EDGEDB_SUPERUSER_DB,
+            pgconn,
+            edgedb_defines.EDGEDB_SUPERUSER_DB,
             edgedb_defines.EDGEDB_SUPERUSER,
             cluster=cluster)
+
+        datadir_version = instancedata.get('version')
+        if datadir_version:
+            datadir_major = datadir_version.get('major')
+
+        expected_ver = buildmeta.get_version()
+
+        if datadir_major != expected_ver.major:
+            raise errors.ConfigurationError(
+                'database instance incompatible with this version of EdgeDB',
+                details=(
+                    f'The database instance was initialized with '
+                    f'EdgeDB version {datadir_major}, '
+                    f'which is incompatible with this version '
+                    f'{expected_ver.major}'
+                ),
+                hint=(
+                    f'You need to recreate the instance and upgrade '
+                    f'using dump/restore.'
+                )
+            )
+
+        datadir_catver = instancedata.get('catver')
+        expected_catver = edgedb_defines.EDGEDB_CATALOG_VERSION
+
+        if datadir_catver != expected_catver:
+            raise errors.ConfigurationError(
+                'database instance incompatible with this version of EdgeDB',
+                details=(
+                    f'The database instance was initialized with '
+                    f'EdgeDB format version {datadir_catver}, '
+                    f'but this version of the server expects '
+                    f'format version {expected_catver}'
+                ),
+                hint=(
+                    f'You need to recreate the instance and upgrade '
+                    f'using dump/restore.'
+                )
+            )
 
         await _ensure_edgedb_template_not_connectable(pgconn)
 
