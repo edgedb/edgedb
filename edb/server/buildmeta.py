@@ -51,7 +51,7 @@ def get_build_metadata_value(prop: str) -> str:
             f'could not find {prop} in build metadata') from None
 
 
-def get_pg_config_path() -> os.PathLike:
+def get_pg_config_path() -> pathlib.Path:
     if devmode.is_in_dev_mode():
         root = pathlib.Path(edb.server.__path__[0]).parent.parent
         pg_config = (root / 'build' / 'postgres' /
