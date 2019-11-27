@@ -48,7 +48,7 @@ class ProfilingTestCase(unittest.TestCase):
 
     def _inner_basic(self, dir: str, atexit: FakeAtexit) -> None:
         profiler = profiling.profile(
-            dir=dir, prefix="test_", suffix=".ptest", reuse=True
+            dir=dir, prefix="test_", suffix=".ptest", save_every_n_calls=100
         )
 
         @profiler
