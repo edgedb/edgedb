@@ -53,7 +53,7 @@ class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
         return me.lang.ExceptionContext(title=self.title, body=body)
 
 
-class SQLSourceGeneratorError(errors.EdgeDBError):
+class SQLSourceGeneratorError(errors.InternalServerError):
     def __init__(self, msg, *, node=None, details=None, hint=None):
         super().__init__(msg, details=details, hint=hint)
         if node is not None:

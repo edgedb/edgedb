@@ -54,11 +54,11 @@ def module_to_str(module: str) -> str:
     return '.'.join([ident_to_str(part) for part in module.split('.')])
 
 
-class EdgeQLSourceGeneratorError(errors.EdgeDBError):
+class EdgeQLSourceGeneratorError(errors.InternalServerError):
     pass
 
 
-class EdgeSchemaSourceGeneratorError(errors.EdgeDBError):
+class EdgeSchemaSourceGeneratorError(errors.InternalServerError):
     pass
 
 

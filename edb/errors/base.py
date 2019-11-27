@@ -42,6 +42,14 @@ class EdgeDBErrorMeta(type):
 
         return cls
 
+    def __init__(cls, name, bases, dct):
+        if cls._code is None and cls.__module__ != __name__:
+            # We don't want any EdgeDBError subclasses to not
+            # have a code.
+            raise RuntimeError(
+                'direct subclassing of EdgeDBError is prohibited; '
+                'subclass one of its subclasses in edb.errors')
+
     @classmethod
     def get_error_class_from_code(mcls, code):
         return mcls._error_map[code]
@@ -54,7 +62,8 @@ class EdgeDBMessage(Warning):
     @classmethod
     def get_code(cls):
         if cls._code is None:
-            raise RuntimeError('EdgeDB message code is not set')
+            raise RuntimeError(
+                f'EdgeDB message code is not set (type: {cls.__name__})')
         return cls._code
 
 
@@ -86,7 +95,8 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     @classmethod
     def get_code(cls):
         if cls._code is None:
-            raise RuntimeError('EdgeDB exception code is not set')
+            raise RuntimeError(
+                f'EdgeDB message code is not set (type: {cls.__name__})')
         return cls._code
 
     def set_linecol(self, line, col):
