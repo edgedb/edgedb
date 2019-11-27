@@ -187,7 +187,7 @@ class FrozenCheckedList(
         ...
 
     @overload  # NoQA: F811
-    def __getitem__(self, index: slice) -> FrozenCheckedList[T]:
+    def __getitem__(self, index: slice) -> FrozenCheckedList[T]:  # NoQA: F811
         ...
 
     def __getitem__(self, index):  # NoQA: F811
@@ -231,7 +231,7 @@ class CheckedList(
         ...
 
     @overload  # NoQA: F811
-    def __getitem__(self, index: slice) -> CheckedList[T]:
+    def __getitem__(self, index: slice) -> CheckedList[T]:  # NoQA: F811
         ...
 
     def __getitem__(self, index):  # NoQA: F811
@@ -249,7 +249,11 @@ class CheckedList(
         ...
 
     @overload  # NoQA: F811
-    def __setitem__(self, index: slice, value: Iterable[T]) -> None:
+    def __setitem__(  # NoQA: F811
+        self,
+        index: slice,
+        value: Iterable[T]
+    ) -> None:
         ...
 
     def __setitem__(self, index, value):  # NoQA: F811
@@ -265,7 +269,7 @@ class CheckedList(
         ...
 
     @overload  # NoQA: F811
-    def __delitem__(self, index: slice) -> None:
+    def __delitem__(self, index: slice) -> None:  # NoQA: F811
         ...
 
     def __delitem__(self, index):  # NoQA: F811
