@@ -195,7 +195,7 @@ class BaseObjectRef(Base):
 class ObjectRef(BaseObjectRef):
     name: str
     module: str
-    itemclass: qltypes.SchemaObjectClass
+    itemclass: typing.Optional[qltypes.SchemaObjectClass]
 
 
 class PseudoObjectRef(BaseObjectRef):
