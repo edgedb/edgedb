@@ -1281,26 +1281,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                             metaclass=type(obj))
 
     @classmethod
-    def _sort_set(
-        cls, schema: s_schema.Schema, items: ordered.OrderedSet[Object_T]
-    ) -> ordered.OrderedSet[Object_T]:
-        from . import inheriting as s_inh
-
-        if items:
-            probe = next(iter(items))
-
-            if isinstance(probe, s_inh.InheritingObject):
-                items_idx = {p.get_name(schema): p for p in items}
-                g = {}
-                c_items = cast(ordered.OrderedSet[InheritingObjectBase], items)
-                for x in c_items:
-                    deps = {b for b in x._get_deps(schema) if b in items_idx}
-                    g[x.get_name(schema)] = {'item': x, 'deps': deps}
-                items = topological.sort(g)
-
-        return items
-
-    @classmethod
     def delta_sets(
         cls,
         old: Optional[Iterable[Object]],
@@ -1363,7 +1343,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         used_y: Set[Object] = set()
         altered = ordered.OrderedSet[sd.ObjectCommand]()
 
-        comparison = sorted(comparison, key=lambda item: item[0], reverse=True)
+        def _key(item: Tuple[float, Object, Object]) -> Tuple[float, str]:
+            return item[0], item[1].get_name(new_schema)
+
+        comparison = sorted(comparison, key=_key, reverse=True)
 
         for s, x, y in comparison:
             if x not in used_x and y not in used_y:
@@ -1382,7 +1365,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         created = new - used_x
 
         if created:
-            created = cls._sort_set(new_schema, created)
             for x in created:
                 adds_mods.add(x.delta(None, x, context=context,
                                       old_schema=old_schema,
@@ -1448,8 +1430,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             adds_mods.add(p)
 
         if deleted:
-            deleted = cls._sort_set(old_schema, deleted)  # type: ignore
-            for y in reversed(list(deleted)):
+            for y in deleted:
                 dels.add(y.delta(y, None, context=context,
                                  old_schema=old_schema,
                                  new_schema=new_schema))
@@ -2094,12 +2075,6 @@ class InheritingObjectBase(Object):
                 f'{self!r} object has no non-inherited value for '
                 f'field {field_name!r}'
             )
-
-    def _get_deps(self, schema: s_schema.Schema) -> Set[sn.Name]:
-        return {
-            b.get_name(schema)
-            for b in self.get_bases(schema).objects(schema)
-        }
 
 
 @markup.serializer.serializer.register(Object)
