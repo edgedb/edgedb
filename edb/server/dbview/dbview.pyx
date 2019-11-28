@@ -349,6 +349,12 @@ cdef class DatabaseIndex:
             )
             op_value = op.coerce_value(op_value, allow_missing=allow_missing)
 
+        # _save_system_overrides *must* happen before
+        # the callbacks below, because certain config changes
+        # may cause the backend connection to drop.
+        self._sys_config = op.apply(config.get_settings(), self._sys_config)
+        await self._save_system_overrides(conn)
+
         if op.opcode is config.OpCode.CONFIG_ADD:
             await self._server._on_system_config_add(op.setting_name, op_value)
         elif op.opcode is config.OpCode.CONFIG_REM:
@@ -360,9 +366,6 @@ cdef class DatabaseIndex:
         else:
             raise errors.UnsupportedFeatureError(
                 f'unsupported config operation: {op.opcode}')
-
-        self._sys_config = op.apply(config.get_settings(), self._sys_config)
-        await self._save_system_overrides(conn)
 
         self._sys_config_ver = time.monotonic_ns()
 
