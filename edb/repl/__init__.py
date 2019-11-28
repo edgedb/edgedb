@@ -454,6 +454,7 @@ class Cli:
             else:
                 print(f'No {item_name} found matching '
                       f'{eql_quote.quote_literal(pattern)}')
+                self._command_semicolon_hint(pattern)
 
     def _render_sdl(self, sdl: str) -> None:
         desc_doc = pt_document.Document(sdl)
@@ -524,11 +525,13 @@ class Cli:
         flags: AbstractSet[str],
         arg: Optional[str]
     ) -> None:
-        name = arg
         verbose = 'verbose' in flags
 
+        # normalize name
+        name = utils.normalize_name(arg or '')
+
         if not name:
-            print(f'The name {name!r} is not valid', flush=True)
+            print(f'The name {arg!r} is not valid', flush=True)
             return
 
         try:
@@ -539,6 +542,13 @@ class Cli:
                 ''',
                 json=False
             )
+        except edgedb.InvalidReferenceError as exc:
+            render.render_exception(self.context, exc)
+            # if the error itself doesn't have a hint, render our
+            # generic hint
+            if not exc._hint:
+                self._command_semicolon_hint(arg)
+
         except edgedb.EdgeDBError as exc:
             render.render_exception(self.context, exc)
         else:
@@ -640,6 +650,7 @@ class Cli:
                 if pattern:
                     print(f'No scalar types found matching '
                           f'{eql_quote.quote_literal(pattern)}.')
+                    self._command_semicolon_hint(arg)
                 elif 'system' not in flags:
                     print(R'No user-defined sclar types found. Try \lTS.')
 
@@ -702,6 +713,7 @@ class Cli:
                 if pattern:
                     print(f'No object types found matching '
                           f'{eql_quote.quote_literal(pattern)}.')
+                    self._command_semicolon_hint(arg)
                 elif 'system' not in flags:
                     print(R'No user-defined object types found. Try \ltS.')
 
@@ -770,8 +782,9 @@ class Cli:
                 if pattern:
                     print(f'No casts found matching '
                           f'{eql_quote.quote_literal(pattern)}.')
+                    self._command_semicolon_hint(arg)
                 else:
-                    print(f'No casts found.')
+                    print('No casts found.')
 
     def _command_psql(
         self,
@@ -849,6 +862,11 @@ class Cli:
             print('SERVER TRACEBACK:')
             print('> ' + '\n> '.join(srv_tb.strip().split('\n')))
             print()
+
+    def _command_semicolon_hint(self, arg: Optional[str]) -> None:
+        arg = (arg or '').strip()
+        if arg and arg[-1] == ';':
+            print("Consider removing the trailing ';' from the command.")
 
     def fetch(
         self,
