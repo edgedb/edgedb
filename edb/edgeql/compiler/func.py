@@ -297,14 +297,22 @@ def compile_operator(
                     coll_opers, args=args, kwargs={}, ctx=ctx)
 
             else:
-                # Ultimately the operator will be the same, regardless of the
-                # specific operand types, as long as it passed validation, so
-                # we just use the first operand type for the purpose of
-                # finding the callable.
+                # The recursive operators are usually defined as
+                # being polymorphic on all parameters, and so this has
+                # a side-effect of forcing both operands to be of
+                # the same type (via casting) before the operator is
+                # applied.  This might seem suboptmial, since there might
+                # be a more specific operator for the types of the
+                # elements, but the current version of Postgres
+                # actually requires tuples and arrays to be of the
+                # same type in comparison, so this behavior is actually
+                # what we want.
                 matched = polyres.find_callable(
                     coll_opers,
-                    args=[(args[0][0], args[0][1]), (args[0][0], args[1][1])],
-                    kwargs={}, ctx=ctx)
+                    args=args,
+                    kwargs={},
+                    ctx=ctx,
+                )
 
                 # Now that we have an operator, we need to validate that it
                 # can be applied to the tuple or array elements.
