@@ -175,14 +175,19 @@ class ReferencedObjectCommandBase(sd.ObjectCommand,
     _referrer_context_class = None
 
     @classmethod
-    def get_referrer_context_class(cls):
+    def get_referrer_context_class(cls) -> Type[sd.CommandContext]:
         if cls._referrer_context_class is None:
             raise TypeError(
                 f'referrer_context_class is not defined for {cls}')
         return cls._referrer_context_class
 
     @classmethod
-    def get_referrer_context(cls, context):
+    def get_referrer_context(cls, context) -> Optional[sd.CommandContext]:
+        """Get the context of the command for the referring object, if any.
+
+        E.g. for a `create/alter/etc concrete link` command this would
+        be the context of the `create/alter/etc type` command.
+        """
         return context.get(cls.get_referrer_context_class())
 
 
@@ -563,7 +568,7 @@ class ReferencedInheritingObjectCommand(
 
         if context.declarative and self.scls.get_is_local(schema):
             if (implicit_bases
-                    and refdict.requires_explicit_inherit
+                    and refdict.requires_explicit_overloaded
                     and not self.get_attribute_value('declared_overloaded')):
 
                 ancestry = [
@@ -658,34 +663,51 @@ class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
 
     def _get_ast(self, schema, context):
         refctx = type(self).get_referrer_context(context)
-        if refctx is not None and not self.get_attribute_value('is_local'):
-            if context.descriptive_mode:
-                astnode = super()._get_ast(schema, context)
-                bases = [
-                    b.get_name(schema)
-                    for b in self.get_attribute_value('bases').objects(schema)
-                ]
-                inherited_from = []
-                for b in bases:
-                    if sn.shortname_from_fullname(b) == b:
-                        # Not an implicit base
-                        continue
-                    quals = sn.quals_from_fullname(b)
-                    inherited_from.append(quals[0])
+        if refctx is not None:
+            if not self.get_attribute_value('is_local'):
+                if context.descriptive_mode:
+                    astnode = super()._get_ast(schema, context)
 
-                astnode.system_comment = (
-                    f'inherited from {", ".join(inherited_from)}'
-                )
-                return astnode
+                    bases = self.get_attribute_value('bases')
+                    bases_names = [
+                        b.get_name(schema)
+                        for b in bases.objects(schema)
+                    ]
+                    inherited_from = []
+                    for bname in bases_names:
+                        if sn.shortname_from_fullname(bname) == bname:
+                            # Not an implicit base
+                            continue
+                        quals = sn.quals_from_fullname(bname)
+                        inherited_from.append(quals[0])
+
+                    astnode.system_comment = (
+                        f'inherited from {", ".join(inherited_from)}'
+                    )
+                    return astnode
+                else:
+                    return None
+
             else:
-                return None
+                astnode = super()._get_ast(schema, context)
+
+                if context.declarative:
+                    scls = self.get_object(schema, context)
+                    implicit_bases = scls.get_implicit_bases(schema)
+                    objcls = self.get_schema_metaclass()
+                    referrer_class = refctx.op.get_schema_metaclass()
+                    refdict = referrer_class.get_refdict_for_class(objcls)
+                    if refdict.requires_explicit_overloaded and implicit_bases:
+                        astnode.declared_overloaded = True
+
+                return astnode
         else:
             return super()._get_ast(schema, context)
 
     def _get_ast_node(self, schema, context):
         scls = self.get_object(schema, context)
         implicit_bases = scls.get_implicit_bases(schema)
-        if implicit_bases:
+        if implicit_bases and not context.declarative:
             mcls = self.get_schema_metaclass()
             Alter = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.AlterObject, mcls)

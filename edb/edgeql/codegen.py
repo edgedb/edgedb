@@ -720,10 +720,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if self.limit_ref_classes:
             commands = [
                 c for c in commands
-                # Command names are ObjectRefs unless it's `SET expr`,
-                # but we want to keep `SET expr`.
-                if ((isinstance(c, qlast.SetSpecialField) and c.name == 'expr')
-                    or (c.name.itemclass in self.limit_ref_classes))
+                # If c.name is an ObjectRef we want to check if the
+                # property in in the white list;
+                # if it's not, then it's a regular SetField for things
+                # like 'default' or 'readonly'.
+                if (
+                    (isinstance(c.name, qlast.ObjectRef)
+                        and c.name.itemclass in self.limit_ref_classes)
+                    or not isinstance(c.name, qlast.ObjectRef)
+                )
             ]
 
         if len(commands) == 1 and allow_short:

@@ -580,6 +580,8 @@ class IntrospectionMech:
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
 
+        basemap = {}
+
         for index_data in indexes:
             subj = schema.get(index_data['subject_name'])
             subj_table_name = common.get_backend_name(
@@ -610,6 +612,12 @@ class IntrospectionMech:
                 expr=self.unpack_expr(index_data['expr'], schema))
 
             schema = subj.add_index(schema, index)
+
+            basemap[index] = (index_data['bases'], index_data['ancestors'])
+
+        for scls, (basenames, ancestors) in basemap.items():
+            schema = self._set_reflist(schema, scls, 'bases', basenames)
+            schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
 
         if pg_indexes and not only_modules and not exclude_modules:
             details = f'Extraneous PostgreSQL indexes found: {pg_indexes!r}'

@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import functools
 import os
@@ -137,7 +138,14 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
     def run_test(self, *, source, spec, expected=None):
         raise NotImplementedError
 
-    def assert_equal(self, expected, result, *, re_filter=None):
+    def assert_equal(
+        self,
+        expected,
+        result,
+        *,
+        re_filter: Optional[str] = None,
+        message: Optional[str] = None
+    ) -> None:
         if re_filter is None:
             re_filter = self.re_filter
 
@@ -151,7 +159,8 @@ class BaseDocTest(unittest.TestCase, metaclass=DocTestMeta):
         self.assertEqual(
             expected_stripped,
             result_stripped,
-            f'\nexpected:\n{expected}\nreturned:\n{result}'
+            (f'{message if message else ""}' +
+                f'\nexpected:\n{expected}\nreturned:\n{result}')
         )
 
 

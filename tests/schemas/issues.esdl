@@ -35,6 +35,7 @@ abstract type Dictionary extending Named {
     overloaded required property name -> str {
         delegated constraint exclusive;
     }
+    index on (__subject__.name);
 }
 
 type User extending Dictionary {
