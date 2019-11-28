@@ -1455,7 +1455,22 @@ class AlterObjectProperty(Command):
             return
 
         if self.source == 'inheritance':
-            return
+            # We don't want to show inherited properties unless
+            # we are in "descriptive_mode" and ...
+
+            if not (
+                context.descriptive_mode and
+                self.property in {'default', 'readonly'}
+            ):
+                # If property isn't 'default' or 'readonly' --
+                # skip the AST for it.
+                return
+
+            parentop_sn = sn.shortname_from_fullname(parent_op.classname).name
+            if self.property == 'default' and parentop_sn == 'id':
+                # If it's 'default' for the 'id' property --
+                # skip the AST for it.
+                return
 
         if new_value_empty:
             return

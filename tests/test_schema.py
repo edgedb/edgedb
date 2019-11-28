@@ -2787,9 +2787,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     else:
                         return
 
-                self.assert_equal(expected_output[0], output)
-            else:
-                self.assert_equal(expected_output, output)
+                expected_output = expected_output[0]
+
+            self.assert_equal(
+                expected_output,
+                output,
+                message=f'query: {stmt_text!r}')
 
     def test_describe_01(self):
         self._assert_describe(
@@ -2809,7 +2812,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             }
 
             type Parent {
-                property name -> str;
+                multi property name -> str;
                 index on (.name);
             }
 
@@ -2849,23 +2852,26 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
                 index on (.name);
-                link __type__ -> schema::Type;
-                overloaded link foo extending test::f -> test::Foo {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                overloaded single link foo extending test::f -> test::Foo {
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
                     };
-                    property p -> test::int_t {
+                    single property p -> test::int_t {
                         constraint std::max_value(10) {
                             errmessage := 'Maximum allowed value
                                            for {__subject__} is 10.';
                         };
                     };
                 };
-                required property id -> std::uuid {
+                required single property id -> std::uuid {
+                    readonly := true;
                     constraint std::exclusive;
                 };
-                property name -> std::str;
+                multi property name -> std::str;
             };
             """,
 
@@ -2873,12 +2879,16 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Child extending test::Parent, test::Parent2 {
-                link __type__ -> schema::Type;
-                overloaded link foo extending test::f -> test::Foo {
-                    property p -> test::int_t;
+                required single link __type__ -> schema::Type {
+                    readonly := true;
                 };
-                required property id -> std::uuid;
-                property name -> std::str;
+                overloaded single link foo extending test::f -> test::Foo {
+                    single property p -> test::int_t;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                };
+                multi property name -> std::str;
             };
             """,
 
@@ -2993,6 +3003,121 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 );
             };
             """
+        )
+
+    def test_describe_05(self):
+        self._assert_describe(
+            """
+            type Foo {
+                required single property middle_name -> std::str {
+                    default := 'abc';
+                    readonly := true;
+                };
+            }
+
+            type Bar extending Foo;
+            """,
+
+            'DESCRIBE TYPE Foo AS TEXT',
+
+            """
+            type test::Foo {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                };
+                required single property middle_name -> std::str {
+                    default := 'abc';
+                    readonly := true;
+                };
+            };
+            """,
+
+            'DESCRIBE TYPE Foo AS TEXT VERBOSE',
+
+            """
+            type test::Foo {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                    constraint std::exclusive;
+                };
+                required single property middle_name -> std::str {
+                    default := 'abc';
+                    readonly := true;
+                };
+            };
+            """,
+
+            'DESCRIBE TYPE Bar AS TEXT',
+
+            """
+            type test::Bar extending test::Foo {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                required single property id -> std::uuid {
+
+                    readonly := true;
+                };
+                required single property middle_name -> std::str {
+                    default := 'abc';
+                    readonly := true;
+                };
+            };
+            """,
+        )
+
+    def test_describe_06(self):
+        self._assert_describe(
+            """
+            abstract type HasImage {
+                # just a URL to the image
+                required property image -> str;
+                index on (__subject__.image);
+            }
+
+
+            type User extending HasImage {
+                property name -> str;
+            }
+            """,
+
+            'DESCRIBE TYPE User AS TEXT VERBOSE',
+
+            """
+            type test::User extending test::HasImage {
+                index on (__subject__.image);
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                    constraint std::exclusive;
+                };
+                required single property image -> std::str;
+                single property name -> std::str;
+            };
+            """,
+
+            'DESCRIBE TYPE User AS TEXT',
+
+            """
+            type test::User extending test::HasImage {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                };
+                required single property image -> std::str;
+                single property name -> std::str;
+            };
+            """,
         )
 
     def test_describe_view_01(self):

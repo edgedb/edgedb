@@ -437,6 +437,7 @@ def _text_from_delta(
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
         emit_oids=emit_oids,
+        declarative=sdlmode,
     )
     text = []
     for command in delta.get_subcommands():

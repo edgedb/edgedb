@@ -196,6 +196,18 @@ class LinkCommand(lproperties.PropertySourceCommand,
                 context=srcctx,
             )
 
+    def _get_ast(self, schema, context):
+        node = super()._get_ast(schema, context)
+        # __type__ link is special, and while it exists on every object
+        # it doesn not have a defined default in the schema (and therefore
+        # it isn't marked as required.)  We intervene here to mark all
+        # __type__ links required when rendering for SDL/TEXT.
+        if (context.declarative and
+                node is not None and
+                node.name.name == '__type__'):
+            node.is_required = True
+        return node
+
 
 class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
     astnode = [qlast.CreateConcreteLink, qlast.CreateLink]

@@ -77,7 +77,7 @@ class DerivableObject(so.InheritingObjectBase, DerivableObjectBase):
     declared_overloaded = so.SchemaField(
         bool,
         default=False, compcoef=None,
-        introspectable=False, inheritable=False)
+        introspectable=False, inheritable=False, ephemeral=True)
 
     # Whether the object is a result of refdict inheritance
     # merge.

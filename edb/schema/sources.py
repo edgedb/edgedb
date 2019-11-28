@@ -41,7 +41,7 @@ class SourceCommand(indexes.IndexSourceCommand):
 class Source(indexes.IndexableSubject):
     pointers_refs = so.RefDict(
         attr='pointers',
-        requires_explicit_inherit=True,
+        requires_explicit_overloaded=True,
         backref_attr='source',
         ref_cls=pointers.Pointer)
 

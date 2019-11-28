@@ -391,10 +391,17 @@ class SchemaField(Field[Type_T]):
 
 class RefDict(struct.Struct):
 
-    attr = struct.Field(str, frozen=True)
-    backref_attr = struct.Field(str, default='subject', frozen=True)
-    requires_explicit_inherit = struct.Field(bool, default=False, frozen=True)
-    ref_cls = struct.Field(type, frozen=True)
+    attr = struct.Field(
+        str, frozen=True)
+
+    backref_attr = struct.Field(
+        str, default='subject', frozen=True)
+
+    requires_explicit_overloaded = struct.Field(
+        bool, default=False, frozen=True)
+
+    ref_cls = struct.Field(
+        type, frozen=True)
 
 
 class ObjectMeta(type):

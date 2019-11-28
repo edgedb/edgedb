@@ -33,12 +33,6 @@ from . import utils
 
 class InheritingObjectCommand(sd.ObjectCommand):
 
-    def _apply_field_ast(self, schema, context, node, op):
-        if op.source == 'inheritance':
-            pass
-        else:
-            return super()._apply_field_ast(schema, context, node, op)
-
     def _create_begin(self, schema, context):
         schema = super()._create_begin(schema, context)
 
@@ -704,6 +698,9 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
 
 
 class InheritingObject(derivable.DerivableObject):
+
+    #: True if the object has an explicit definition and is not
+    #: purely inherited.
     is_local = so.SchemaField(
         bool,
         default=False,
