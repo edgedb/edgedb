@@ -3203,6 +3203,169 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
         )
 
+    def test_describe_07(self):
+        self._assert_describe(
+            """
+            scalar type constraint_enum extending str {
+                constraint one_of('foo', 'bar');
+            }
+
+            abstract constraint my_one_of(one_of: array<anytype>) {
+                using (contains(one_of, __subject__));
+            }
+
+            scalar type constraint_my_enum extending str {
+                constraint my_one_of(['fuz', 'buz']);
+            }
+
+            abstract link translated_label {
+                property lang -> str;
+                property prop1 -> str;
+            }
+
+            type Label {
+                property text -> str;
+            }
+
+            type UniqueName {
+                link translated_label extending translated_label -> Label {
+                    constraint exclusive on (
+                        (__subject__@source, __subject__@lang)
+                    );
+                    constraint exclusive on (__subject__@prop1);
+                }
+
+            }
+            """,
+
+            'DESCRIBE OBJECT constraint_my_enum AS TEXT VERBOSE',
+
+            """
+            scalar type test::constraint_my_enum extending std::str {
+                constraint test::my_one_of(['fuz', 'buz']);
+            };
+            """,
+
+            'DESCRIBE OBJECT my_one_of AS DDL',
+
+            '''
+            CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>)
+            {
+                USING (WITH
+                    MODULE test
+                SELECT
+                    contains(one_of, __subject__)
+                );
+            };
+            ''',
+
+            'DESCRIBE OBJECT UniqueName AS SDL',
+
+            '''
+            type test::UniqueName {
+                single link translated_label extending test::translated_label
+                        -> test::Label {
+                    constraint std::exclusive on (WITH
+                        MODULE test
+                    SELECT
+                        __subject__@prop1
+                    ) {
+                        orig_subjectexpr := r'__subject__@prop1';
+                    };
+                    constraint std::exclusive on (WITH
+                        MODULE test
+                    SELECT
+                        (__subject__@source, __subject__@lang)
+                    ) {
+                        orig_subjectexpr :=
+                            r'(__subject__@source, __subject__@lang)';
+                    };
+                };
+            };
+            ''',
+
+            'DESCRIBE OBJECT UniqueName AS TEXT',
+
+            '''
+            type test::UniqueName {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                single link translated_label extending test::translated_label
+                    -> test::Label
+                {
+                    single property lang -> std::str;
+                    single property prop1 -> std::str;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                };
+            };
+            ''',
+
+            'DESCRIBE OBJECT UniqueName AS TEXT VERBOSE',
+
+            '''
+            type test::UniqueName {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                single link translated_label extending test::translated_label
+                    -> test::Label
+                {
+                    constraint std::exclusive on (__subject__@prop1);
+                    constraint std::exclusive on (
+                        (__subject__@source, __subject__@lang));
+                    single property lang -> std::str;
+                    single property prop1 -> std::str;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                    constraint std::exclusive;
+                };
+            };
+            ''',
+
+            'DESCRIBE OBJECT std::max_len_value AS DDL',
+
+            '''
+            CREATE ABSTRACT CONSTRAINT std::max_len_value(max: std::int64)
+                EXTENDING std::max_value, std::len_value
+            {
+                SET errmessage := '{__subject__} must be no longer
+                                   than {max} characters.';
+            };
+            ''',
+
+            'DESCRIBE OBJECT std::len_value AS SDL',
+
+            '''
+            abstract constraint std::len_value on (len(<std::str>__subject__))
+            {
+                errmessage := 'invalid {__subject__}';
+                orig_subjectexpr := r'len(<std::str>__subject__)';
+            };
+            ''',
+
+            'DESCRIBE OBJECT std::len_value AS TEXT',
+
+            '''
+            abstract constraint std::len_value on (len(<std::str>__subject__))
+            {
+                errmessage := 'invalid {__subject__}';
+            };
+            ''',
+
+            'DESCRIBE OBJECT std::len_value AS TEXT VERBOSE',
+
+            '''
+            abstract constraint std::len_value on (len(<std::str>__subject__))
+            {
+                errmessage := 'invalid {__subject__}';
+            };
+            '''
+        )
+
     def test_describe_view_01(self):
         self._assert_describe(
             """
