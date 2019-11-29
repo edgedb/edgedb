@@ -46,6 +46,8 @@ contain a dot (``.``) or to distinguish *names* from *reserved keywords*
 (for instance to allow referring to a link named "order" as ```order```).
 
 
+.. _ref_eql_lexical_names:
+
 Names and keywords
 ------------------
 
