@@ -33,7 +33,7 @@ STATE_KEEP = 0
 STATE_BASE = 1
 
 
-re_dquote = r'\$([A-Za-z\200-\377_][0-9]*)*\$'
+re_dquote = r'\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$'
 
 Rule = lexer.Rule
 

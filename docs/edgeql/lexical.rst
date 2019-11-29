@@ -123,9 +123,9 @@ Production rules for :eql:type:`str` literal:
            : 'r"' `raw_content`* '"' |
            : `dollar_quote` `raw_content`* `dollar_quote`
     raw_content: <any character different from delimiting quote>
-    dollar_quote: "$" `q_char`* "$"
-    q_char: "A"..."Z" | "a"..."z" | "_" | "0"..."9" |
-          : <high ASCII characters>
+    dollar_quote: "$" `q_char0` ? `q_char`* "$"
+    q_char0: "A"..."Z" | "a"..."z" | "_"
+    q_char: "A"..."Z" | "a"..."z" | "_" | "0"..."9"
     str_content: <newline> | `unicode` | `str_escapes`
     unicode: <any printable unicode character not preceded by "\">
     str_escapes: <see below for details>
@@ -243,6 +243,10 @@ content with *dollar-quotes* in an unambiguous manner:
     db> SELECT $a$hello$$world$$$a$;
     {'hello$$world$$'}
 
+More specifically delimiter:
+
+* Must start with an ASCII letter or underscore
+* Following characters can be digits 0-9, underscore or ASCII letters
 
 .. _ref_eql_lexical_bytes:
 
