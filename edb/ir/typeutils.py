@@ -174,10 +174,10 @@ def type_to_typeref(schema, t: s_types.Type, *,
 
 def ir_typeref_to_type(schema, typeref: irast.TypeRef) -> s_types.Type:
     if is_anytuple(typeref):
-        return s_pseudo.AnyTuple.instance
+        return s_pseudo.AnyTuple.instance()
 
     elif is_any(typeref):
-        return s_pseudo.Any.instance
+        return s_pseudo.Any.instance()
 
     elif is_tuple(typeref):
         named = False
