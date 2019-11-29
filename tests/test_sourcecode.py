@@ -95,6 +95,7 @@ class TestCodeQuality(unittest.TestCase):
                         sys.executable,
                         '-m',
                         'mypy',
+                        '--show-traceback',
                         '--config-file',
                         config_path,
                         subdir,

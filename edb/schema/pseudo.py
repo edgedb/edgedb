@@ -70,7 +70,7 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
                 self.name == other.name)
 
 
-AnyT = typing.TypeVar('AnyT', bound='Any')
+AnyT = typing.TypeVar('AnyT', 'Any', 'AnyTuple')
 
 
 class AnyMeta(type(PseudoType)):
