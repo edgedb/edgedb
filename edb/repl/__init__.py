@@ -928,6 +928,8 @@ class Cli:
                         print()
                     except LookupError as e:
                         render.render_error(self.context, str(e))
+                    except Exception as ex:
+                        render.render_exception(self.context, ex)
                     continue
 
                 qm = self.context.query_mode
