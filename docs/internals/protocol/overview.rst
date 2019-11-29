@@ -75,7 +75,7 @@ The server and the client *MUST* not fragment messages. I.e the complete
 message must be sent before starting a new message. It's advised that whole
 message should be buffered before initiating a network call (but this
 requirement is neither observable nor enforceable at the other side). It's
-also common to buffer whole message on receiver before starting to process
+also common to buffer the whole message on receiver before starting to process
 it.
 
 Errors
