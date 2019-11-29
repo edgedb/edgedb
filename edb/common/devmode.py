@@ -129,7 +129,7 @@ def read_dev_mode_cache(cache_key, path):
 
     if full_path.exists():
         with open(full_path, 'rb') as f:
-            src_hash = f.read(16)
+            src_hash = f.read(len(cache_key))
             if src_hash == cache_key:
                 try:
                     return pickle.load(f)

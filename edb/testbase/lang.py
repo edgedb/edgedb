@@ -300,9 +300,9 @@ class BaseSchemaTest(BaseDocTest):
         return current_schema
 
     @classmethod
-    def load_schema(cls, source):
+    def load_schema(cls, source: str, modname: str='test') -> s_schema.Schema:
         decls = [
-            ('test', qlparser.parse_sdl(source))
+            (modname, qlparser.parse_sdl(source))
         ]
 
         schema = _load_std_schema()

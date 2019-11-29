@@ -267,7 +267,7 @@ def lookup(spec: spec.Spec, name: str, *configs: Mapping,
            allow_unrecognized: bool = False):
     try:
         setting = spec[name]
-    except KeyError:
+    except (KeyError, TypeError):
         if allow_unrecognized:
             return None
         else:
