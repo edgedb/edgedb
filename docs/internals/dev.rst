@@ -103,7 +103,7 @@ tests in a test case file:
    # or run two files:
    $ edb test tests/test_edgeql_calls.py tests/test_edgeql_for.py
 
-To pattern-match a test but its name:
+To pattern-match a test by its name:
 
 .. code-block:: bash
 
