@@ -113,7 +113,7 @@ class EdgeQLLexer(RegexLexer):
                 (?P<Q>
                     # capture the opening quote in group Q
                     (
-                        \$([A-Za-z\200-\377_][0-9]*)*\$
+                        \$(?:[A-Za-z_][A-Za-z_0-9]*)?\$
                     )
                 )
                 (?:
