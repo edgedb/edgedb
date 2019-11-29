@@ -248,13 +248,13 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "schema", 36.93)
 
     def test_cqa_type_coverage_server(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "server", 7.09)
+        self.assertFunctionCoverage(EDB_DIR / "server", 7.56)
 
     def test_cqa_type_coverage_server_cache(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "cache", 0)
 
     def test_cqa_type_coverage_server_compiler(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "server" / "compiler", 12.77)
+        self.assertFunctionCoverage(EDB_DIR / "server" / "compiler", 14.74)
 
     def test_cqa_type_coverage_server_config(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server" / "config", 18.75)
@@ -289,7 +289,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "server" / "procpool", 5.36)
 
     def test_cqa_type_coverage_testbase(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "testbase", 0)
+        self.assertFunctionCoverage(EDB_DIR / "testbase", 1.04)
 
     def test_cqa_type_coverage_tools(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "tools", 17.41)

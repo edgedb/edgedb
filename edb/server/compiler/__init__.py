@@ -20,7 +20,8 @@
 from __future__ import annotations
 
 from .compiler import Compiler, BaseCompiler, CompilerDatabaseState
-from .compiler import compile_bootstrap_script, load_std_schema
+from .compiler import compile_edgeql_script, compile_bootstrap_script
+from .compiler import load_std_schema
 from .dbstate import QueryUnit
 from .enums import Capability, CompileStatementMode, ResultCardinality
 
@@ -29,6 +30,7 @@ __all__ = (
     'Compiler', 'BaseCompiler', 'CompilerDatabaseState',
     'QueryUnit',
     'Capability', 'CompileStatementMode', 'ResultCardinality',
+    'compile_edgeql_script',
     'compile_bootstrap_script',
-    'load_std_schema'
+    'load_std_schema',
 )

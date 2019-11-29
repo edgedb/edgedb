@@ -94,27 +94,54 @@ DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
 pg_ql = lambda o: pg_common.quote_literal(str(o))
 
 
-def compile_bootstrap_script(std_schema: s_schema.Schema,
-                             schema: s_schema.Schema,
-                             eql: str, *,
-                             single_statement: bool = False,
-                             expected_cardinality_one: bool = False):
+def compile_bootstrap_script(
+    std_schema: s_schema.Schema,
+    schema: s_schema.Schema,
+    eql: str, *,
+    single_statement: bool = False,
+    expected_cardinality_one: bool = False,
+) -> Tuple[s_schema.Schema, str]:
+
+    return compile_edgeql_script(
+        std_schema=std_schema,
+        schema=schema,
+        eql=eql,
+        single_statement=single_statement,
+        expected_cardinality_one=expected_cardinality_one,
+        json_parameters=True,
+        bootstrap_mode=True,
+        output_format=pg_compiler.OutputFormat.JSON,
+    )
+
+
+def compile_edgeql_script(
+    std_schema: s_schema.Schema,
+    schema: s_schema.Schema,
+    eql: str, *,
+    single_statement: bool = False,
+    modaliases: Optional[Mapping[Optional[str], str]] = None,
+    expected_cardinality_one: bool = False,
+    json_parameters: bool = False,
+    bootstrap_mode: bool = False,
+    output_format: pg_compiler.OutputFormat = pg_compiler.OutputFormat.NATIVE,
+) -> Tuple[s_schema.Schema, str]:
 
     state = dbstate.CompilerConnectionState(
         0,
         schema,
-        EMPTY_MAP,
+        immutables.Map(modaliases) if modaliases else EMPTY_MAP,
         EMPTY_MAP,
         enums.Capability.ALL)
 
     ctx = CompileContext(
         state=state,
-        output_format=pg_compiler.OutputFormat.JSON,
+        output_format=output_format,
         expected_cardinality_one=expected_cardinality_one,
-        json_parameters=True,
+        json_parameters=json_parameters,
         stmt_mode=(
             enums.CompileStatementMode.SINGLE
-            if single_statement else enums.CompileStatementMode.ALL)
+            if single_statement else enums.CompileStatementMode.ALL
+        )
     )
 
     compiler = Compiler(None, None)
