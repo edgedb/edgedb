@@ -147,7 +147,7 @@ Generic
 
     Compare two (potentially empty) values for inequality.
 
-    Works the same as regular :eql:op:`\!=<NEQ>`, but also allows
+    Works the same as regular |neq|_, but also allows
     comparing ``{}``.  Two ``{}`` are considered equal.
 
     .. code-block:: edgeql-repl
@@ -404,3 +404,6 @@ Generic
 
         db> SELECT random();
         {0.62649393780157}
+
+.. |neq| replace:: !=
+.. _neq: #operator::NEQ

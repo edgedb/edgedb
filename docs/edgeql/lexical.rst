@@ -317,7 +317,7 @@ EdgeQL operators listed in order of precedence from lowest to highest:
     * - :eql:op:`OR`
     * - :eql:op:`AND`
     * - :eql:op:`NOT`
-    * - :eql:op:`=<EQ>`, :eql:op:`\!=<NEQ>`, :eql:op:`?=<COALEQ>`,
+    * - :eql:op:`=<EQ>`, |neq|_, :eql:op:`?=<COALEQ>`,
         :eql:op:`?\!=<COALNEQ>`
     * - :eql:op:`\<<LT>`, :eql:op:`><GT>`, :eql:op:`\<=<LTEQ>`,
         :eql:op:`>=<GTEQ>`
@@ -336,3 +336,6 @@ EdgeQL operators listed in order of precedence from lowest to highest:
         :eql:op:`json[] <JSONIDX>`,
         :eql:op:`bytes[] <BYTESIDX>`
     * - :ref:`DETACHED <ref_eql_with_detached>`
+
+.. |neq| replace:: !=
+.. _neq: ./funcops/generic#operator::NEQ
