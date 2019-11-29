@@ -3070,6 +3070,21 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 };
             };
             """,
+
+            'DESCRIBE TYPE Foo AS SDL',
+
+            '''
+            type test::Foo {
+                required single property middle_name -> std::str {
+                    default := 'abc';
+                    readonly := true;
+                };
+            };
+            ''',
+
+            'DESCRIBE TYPE Bar AS SDL',
+
+            'type test::Bar extending test::Foo;'
         )
 
     def test_describe_06(self):
@@ -3118,6 +3133,74 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 single property name -> std::str;
             };
             """,
+
+            'DESCRIBE TYPE User AS SDL',
+
+            '''
+            type test::User extending test::HasImage {
+                single property name -> std::str;
+            };
+            ''',
+
+            'DESCRIBE TYPE HasImage AS TEXT VERBOSE',
+
+            '''
+            abstract type test::HasImage {
+                index on (__subject__.image);
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                    constraint std::exclusive;
+                };
+                required single property image -> std::str;
+            };
+            ''',
+
+            'DESCRIBE TYPE HasImage AS TEXT',
+
+            '''
+            abstract type test::HasImage {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                };
+                required single property image -> std::str;
+            };
+            ''',
+
+            'DESCRIBE TYPE HasImage AS SDL',
+
+            '''
+            abstract type test::HasImage {
+                index on (WITH
+                    MODULE test
+                SELECT
+                    __subject__.image
+                ) {
+                    origexpr := r'__subject__.image';
+                };
+                required single property image -> std::str;
+            };
+            ''',
+
+            'DESCRIBE TYPE HasImage AS DDL',
+
+            '''
+            CREATE ABSTRACT TYPE test::HasImage {
+                CREATE REQUIRED SINGLE PROPERTY image -> std::str;
+                CREATE INDEX ON (WITH
+                    MODULE test
+                SELECT
+                    __subject__.image
+                ) {
+                    SET origexpr := r'__subject__.image';
+                };
+            };
+            '''
         )
 
     def test_describe_view_01(self):

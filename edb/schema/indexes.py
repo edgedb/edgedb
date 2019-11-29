@@ -205,10 +205,35 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
         )
 
     def _apply_field_ast(self, schema, context, node, op):
-        if op.property == 'origexpr':
-            node.expr = edgeql.parse_fragment(op.new_value)
+        if context.descriptive_mode:
+            # When generating AST for DESCRIBE AS TEXT, we want
+            # to use the original user-specified and unmangled
+            # expression to render the index definition.
+            # The mangled actual 'expr' needs to be omitted.
+            if op.property == 'origexpr':
+                node.expr = edgeql.parse_fragment(op.new_value)
+                return
+            elif op.property == 'expr':
+                return
         else:
-            super()._apply_field_ast(schema, context, node, op)
+            # In all other DESCRIBE modes we want the 'origexpr'
+            # to be there as a 'SET origexpr := ...' command.
+            # The mangled 'expr' should be the main expression that
+            # the index is defined on.
+            if op.property == 'origexpr':
+                node.commands.append(
+                    qlast.SetField(
+                        name='origexpr',
+                        value=qlast.RawStringConstant.from_python(
+                            op.new_value),
+                    )
+                )
+                return
+            elif op.property == 'expr':
+                node.expr = op.new_value.qlast
+                return
+
+        super()._apply_field_ast(schema, context, node, op)
 
     def compile_expr_field(self, schema, context, field, value):
         if field.name == 'expr':
