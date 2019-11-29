@@ -1398,9 +1398,7 @@ class GraphQLTranslator:
         return qlast.BooleanConstant(value=value)
 
     def visit_EnumValue(self, node):
-        # since enums are identifier-like, we can assume they have no
-        # special characters that need escaping, etc.
-        return qlast.StringConstant(value=node.value, quote='"')
+        return qlast.StringConstant.from_python(node.value)
 
     def _visit_list_of_inputs(self, inputlist, op):
         if not isinstance(inputlist, gql_ast.ListValue):
