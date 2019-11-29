@@ -40,7 +40,6 @@ from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
-from edb.edgeql import quote as ql_quote
 from edb.edgeql import qltypes
 
 from edb.ir import staeval as ireval
@@ -447,9 +446,7 @@ class Compiler(BaseCompiler):
             elif isinstance(cmd, s_migrations.GetMigration):
                 ddl_text = s_ddl.ddl_text_from_migration(schema, migration)
                 query_ql = qlast.SelectQuery(
-                    result=qlast.StringConstant(
-                        quote="'",
-                        value=ql_quote.escape_string(ddl_text)))
+                    result=qlast.RawStringConstant.from_python(ddl_text))
                 return self._compile_ql_query(ctx, query_ql)
 
             elif isinstance(cmd, s_migrations.CreateMigration):
