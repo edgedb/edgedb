@@ -588,10 +588,36 @@ class CreateConstraint(ConstraintCommand,
             node.params = [p[1] for p in params]
 
     def _apply_field_ast(self, schema, context, node, op):
-        subjectexpr = self.get_local_attribute_value('subjectexpr')
-        if subjectexpr is not None:
-            # add subjectexpr to the node
-            node.subjectexpr = subjectexpr.qlast
+        if context.descriptive_mode:
+            # When generating AST for DESCRIBE AS TEXT, we want
+            # to use the original user-specified and unmangled
+            # subject expression to render the constraint definition.
+            # The mangled actual 'subjectexpr' needs to be omitted.
+            if op.property == 'subjectexpr':
+                return
+            elif op.property == 'orig_subjectexpr':
+                node.subjectexpr = edgeql.parse_fragment(op.new_value)
+                return
+        else:
+            # In all other DESCRIBE modes we want the 'orig_subjectexpr'
+            # to be there as a 'SET orig_subjectexpr := ...' command.
+            # The mangled 'subjectexpr' should be the main expression that
+            # the constraint is defined on.
+            if op.property == 'subjectexpr':
+                subjectexpr = self.get_local_attribute_value('subjectexpr')
+                if subjectexpr is not None:
+                    # add subjectexpr to the node
+                    node.subjectexpr = subjectexpr.qlast
+                return
+            elif op.property == 'orig_subjectexpr':
+                node.commands.append(
+                    qlast.SetField(
+                        name='orig_subjectexpr',
+                        value=qlast.RawStringConstant.from_python(
+                            op.new_value),
+                    )
+                )
+                return
 
         if op.property == 'delegated':
             if isinstance(node, qlast.CreateConcreteConstraint):
@@ -603,10 +629,12 @@ class CreateConstraint(ConstraintCommand,
                         value=op.new_value,
                     )
                 )
+            return
         elif op.property == 'args':
             node.args = [arg.qlast for arg in op.new_value]
-        else:
-            super()._apply_field_ast(schema, context, node, op)
+            return
+
+        super()._apply_field_ast(schema, context, node, op)
 
     @classmethod
     def _classbases_from_ast(cls, schema, astnode, context):
