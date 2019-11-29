@@ -70,53 +70,66 @@ class PseudoType(inheriting.InheritingObject, s_types.Type):
                 self.name == other.name)
 
 
-AnyT = typing.TypeVar('AnyT', bound='Any')
+class Any(PseudoType):
 
-
-class AnyMeta(type(PseudoType)):
-
-    @property
-    def instance(cls: typing.Type[AnyT]) -> AnyT:
-        if cls._instance is None:
-            cls._instance = cls.create()
-
-        return cls._instance
-
-
-class Any(PseudoType, metaclass=AnyMeta):
-
-    _instance = None
+    _instance: typing.Optional[Any] = None
 
     @classmethod
-    def create(cls):
+    def create(cls) -> Any:
         return cls._create(None, name=sn.UnqualifiedName('anytype'))
 
-    def is_any(self):
+    @classmethod
+    def instance(cls) -> Any:
+        if cls._instance is None:
+            cls._instance = cls.create()
+        return cls._instance
+
+    def is_any(self) -> bool:
         return True
 
-    def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
+    def _resolve_polymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: s_types.Type
+    ) -> s_types.Type:
         if concrete_type.is_scalar():
             return concrete_type.get_topmost_concrete_base(schema)
         return concrete_type
 
-    def _to_nonpolymorphic(self, schema, concrete_type: s_types.Type):
+    def _to_nonpolymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: s_types.Type
+    ) -> s_types.Type:
         return concrete_type
 
-    def _test_polymorphic(self, schema, other: s_types.Type):
+    def _test_polymorphic(
+        self,
+        schema: s_schema.Schema,
+        other: s_types.Type
+    ) -> bool:
         return other.is_any()
 
-    def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
+    def implicitly_castable_to(
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema
+    ) -> bool:
         return other.is_any()
 
     def find_common_implicitly_castable_type(
-            self, other: s_types.Type,
-            schema) -> typing.Optional[s_types.Type]:
-
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema
+    ) -> typing.Optional[s_types.Type]:
         if self == other:
             return self
 
     def get_common_parent_type_distance(
-            self, other: s_types.Type, schema) -> int:
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema
+    ) -> int:
         if other.is_any():
             return 0
         else:
@@ -131,45 +144,66 @@ class AnyObjectRef(so.ObjectRef):
     def __init__(self, *, name=sn.UnqualifiedName('anytype')):
         super().__init__(name=name)
 
-    def _resolve_ref(self, schema):
-        return Any.instance
+    def _resolve_ref(self, schema: s_schema.Schema) -> Any:
+        return Any.instance()
 
 
-class AnyTuple(PseudoType, metaclass=AnyMeta):
+class AnyTuple(PseudoType):
 
-    _instance = None
+    _instance: typing.Optional[AnyTuple] = None
 
     @classmethod
-    def create(cls):
+    def create(cls) -> AnyTuple:
         return cls._create(None, name=sn.UnqualifiedName('anytuple'))
 
-    def is_anytuple(self):
+    @classmethod
+    def instance(cls) -> AnyTuple:
+        if cls._instance is None:
+            cls._instance = cls.create()
+        return cls._instance
+
+    def is_anytuple(self) -> bool:
         return True
 
-    def is_tuple(self):
+    def is_tuple(self) -> bool:
         return True
 
-    def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
+    def implicitly_castable_to(
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema
+    ) -> bool:
         return other.is_anytuple()
 
-    def _reduce_to_ref(self, schema):
+    def _reduce_to_ref(
+        self,
+        schema: s_schema.Schema
+    ) -> typing.Tuple[AnyTupleRef, sn.UnqualifiedName]:
         return AnyTupleRef(), sn.UnqualifiedName('anytuple')
 
-    def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
+    def _resolve_polymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: s_types.Type
+    ) -> typing.Optional[s_types.Type]:
         if (not concrete_type.is_tuple() or
                 concrete_type.is_polymorphic(schema)):
             return None
         else:
             return concrete_type
 
-    def _to_nonpolymorphic(self, schema, concrete_type: s_types.Type):
+    def _to_nonpolymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: s_types.Type
+    ) -> s_types.Type:
         return concrete_type
 
 
 class AnyTupleRef(so.ObjectRef):
 
-    def __init__(self, *, name=sn.UnqualifiedName('anytuple')):
+    def __init__(self, *, name=sn.UnqualifiedName('anytuple')) -> None:
         super().__init__(name=name)
 
-    def _resolve_ref(self, schema):
-        return AnyTuple.instance
+    def _resolve_ref(self, schema: s_schema.Schema) -> AnyTuple:
+        return AnyTuple.instance()

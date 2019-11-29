@@ -50,7 +50,7 @@ class EDBPlugin(mypy_plugin.Plugin):
 
     def handle_schema_class(self, ctx: mypy_plugin.ClassDefContext):
         mcls = ctx.cls.info.metaclass_type
-        if not mcls or mcls.type.fullname() not in BASE_METACLASSES:
+        if not mcls or mcls.type.fullname not in BASE_METACLASSES:
             return
 
         transformer = SchemaClassTransformer(ctx)
@@ -204,7 +204,7 @@ class SchemaClassTransformer:
             ancestor_fields = []
 
             ctx.api.add_plugin_dependency(
-                mypy_trigger.make_wildcard_trigger(ancestor_info.fullname()))
+                mypy_trigger.make_wildcard_trigger(ancestor_info.fullname))
 
             for name, data in metadata['fields'].items():
                 if name not in known_fields:
