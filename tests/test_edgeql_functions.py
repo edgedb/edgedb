@@ -2314,6 +2314,23 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.fetchall('''SELECT to_float32('1', '')''')
 
+    async def test_edgeql_functions_to_bigint_01(self):
+        await self.assert_query_result(
+            r'''SELECT to_bigint(' 123', '999');''',
+            {123},
+        )
+
+        with self.assertRaisesRegex(edgedb.InvalidValueError,
+                                    '"fmt" argument must be'):
+            async with self.con.transaction():
+                await self.con.fetchall('''SELECT to_bigint('1', '')''')
+
+    async def test_edgeql_functions_to_bigint_02(self):
+        with self.assertRaisesRegex(edgedb.InvalidValueError,
+                                    'invalid syntax'):
+            async with self.con.transaction():
+                await self.con.fetchall('''SELECT to_bigint('1.02')''')
+
     async def test_edgeql_functions_to_decimal_01(self):
         await self.assert_query_result(
             r'''SELECT to_decimal(' 123', '999');''',
@@ -2991,6 +3008,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_round_02(self):
         await self.assert_query_result(
+            r'''SELECT round(1) IS int64;''',
+            [True],
+        )
+
+        await self.assert_query_result(
             r'''SELECT round(<float32>1.2) IS float64;''',
             [True],
         )
@@ -3002,6 +3024,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT round(1.2) IS float64;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT round(<bigint>1) IS bigint;''',
             [True],
         )
 
@@ -3627,17 +3654,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_math_ceil_02(self):
         await self.assert_query_result(
-            r'''SELECT math::ceil(<int16>2) IS float64;''',
+            r'''SELECT math::ceil(<int16>2) IS int64;''',
             {True},
         )
 
         await self.assert_query_result(
-            r'''SELECT math::ceil(<int32>2) IS float64;''',
+            r'''SELECT math::ceil(<int32>2) IS int64;''',
             {True},
         )
 
         await self.assert_query_result(
-            r'''SELECT math::ceil(<int64>2) IS float64;''',
+            r'''SELECT math::ceil(<int64>2) IS int64;''',
             {True},
         )
 
@@ -3648,6 +3675,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT math::ceil(<float64>2.5) IS float64;''',
+            {True},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT math::ceil(<bigint>2) IS bigint;''',
             {True},
         )
 
@@ -3684,17 +3716,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_math_floor_02(self):
         await self.assert_query_result(
-            r'''SELECT math::floor(<int16>2) IS float64;''',
+            r'''SELECT math::floor(<int16>2) IS int64;''',
             {True},
         )
 
         await self.assert_query_result(
-            r'''SELECT math::floor(<int32>2) IS float64;''',
+            r'''SELECT math::floor(<int32>2) IS int64;''',
             {True},
         )
 
         await self.assert_query_result(
-            r'''SELECT math::floor(<int64>2) IS float64;''',
+            r'''SELECT math::floor(<int64>2) IS int64;''',
             {True},
         )
 
@@ -3705,6 +3737,11 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT math::floor(<float64>2.5) IS float64;''',
+            {True},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT math::floor(<bigint>2) IS bigint;''',
             {True},
         )
 

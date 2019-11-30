@@ -469,6 +469,7 @@ String
                   std::to_str(val: duration, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: int64, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: float64, fmt: OPTIONAL str={}) -> str
+                  std::to_str(val: bigint, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: decimal, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: json, fmt: OPTIONAL str={}) -> str
                   std::to_str(array: array<str>, delimiter: str) -> str
@@ -501,8 +502,8 @@ String
         {'21st century'}
 
     When converting one of the numeric types, this function is the
-    reverse of: :eql:func:`to_decimal`, :eql:func:`to_int16`,
-    :eql:func:`to_int32`, :eql:func:`to_int64`,
+    reverse of: :eql:func:`to_bigint`, :eql:func:`to_decimal`,
+    :eql:func:`to_int16`, :eql:func:`to_int32`, :eql:func:`to_int64`,
     :eql:func:`to_float32`, :eql:func:`to_float64`.
 
     For valid number formatting patterns see

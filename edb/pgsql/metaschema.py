@@ -103,6 +103,58 @@ class ExpressionType(dbops.CompositeType):
         ])
 
 
+class BigintDomain(dbops.Domain):
+    """Bigint: a variant of numeric that enforces zero digits after the dot.
+
+    We're using an explicit scale check as opposed to simply specifying
+    the numeric bounds, because using bounds severly restricts the range
+    of the numeric type (1000 vs 131072 digits).
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'bigint_t'),
+            base='numeric',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'bigint_t'),
+                    expr=("scale(VALUE) = 0 AND VALUE != 'NaN'"),
+                ),
+            ),
+        ),
+
+
+class StrToBigint(dbops.Function):
+    """Parse bigint from text."""
+    text = r'''
+        SELECT
+            (CASE WHEN scale(v.column1) = 0 THEN
+                v.column1
+            ELSE
+                edgedb._raise_specific_exception(
+                    'invalid_text_representation',
+                    'invalid syntax for edgedb.bigint_t: '
+                        || quote_literal(val),
+                    '',
+                    NULL::numeric
+                )
+            END)::edgedb.bigint_t
+        FROM
+            (VALUES (
+                val::numeric
+            )) AS v
+        ;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_bigint'),
+            args=[('val', ('text',))],
+            returns=('edgedb', 'bigint_t'),
+            # Stable because it's raising exceptions.
+            volatility='stable',
+            text=self.text)
+
+
 class GetObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
@@ -2023,6 +2075,8 @@ async def bootstrap(conn):
         dbops.CreateCompositeType(TriggerDescType()),
         dbops.CreateFunction(IntrospectTriggersFunction()),
         dbops.CreateCompositeType(TableInheritanceDescType()),
+        dbops.CreateDomain(BigintDomain()),
+        dbops.CreateFunction(StrToBigint()),
         dbops.CreateFunction(GetTableDescendantsFunction()),
         dbops.CreateFunction(ParseTriggerConditionFunction()),
         dbops.CreateFunction(NormalizeArrayIndexFunction()),

@@ -347,3 +347,13 @@ CREATE CAST FROM std::json TO std::decimal {
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::numeric;
     $$;
 };
+
+
+CREATE CAST FROM std::json TO std::bigint {
+    SET volatility := 'STABLE';
+    USING SQL $$
+    SELECT edgedb.str_to_bigint(
+        edgedb.jsonb_extract_scalar(val, 'number')
+    );
+    $$;
+};

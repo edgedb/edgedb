@@ -181,7 +181,7 @@ def int_const_to_python(
         schema: s_schema.Schema) -> object:
 
     stype = schema.get_by_id(ir.typeref.id)
-    if stype.issubclass(schema, schema.get('std::decimal')):
+    if stype.issubclass(schema, schema.get('std::bigint')):
         return decimal.Decimal(ir.value)
     else:
         return int(ir.value)
@@ -255,6 +255,7 @@ def scalar_type_to_python_type(
         'std::anyint': int,
         'std::anyfloat': float,
         'std::decimal': decimal.Decimal,
+        'std::bigint': decimal.Decimal,
         'std::bool': bool,
         'std::json': str,
         'std::uuid': uuidgen.UUID,

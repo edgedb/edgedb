@@ -176,6 +176,7 @@ def compile_BytesConstant(
 
 @dispatch.compile.register(irast.FloatConstant)
 @dispatch.compile.register(irast.DecimalConstant)
+@dispatch.compile.register(irast.BigintConstant)
 @dispatch.compile.register(irast.IntegerConstant)
 def compile_FloatConstant(
         expr: irast.BaseConstant, *,
@@ -360,15 +361,38 @@ def compile_operator(
                 )
 
             if rexpr is not None:
-                rexpr = pgast.TypeCast(
-                    arg=rexpr,
-                    type_name=pgast.TypeName(
-                        name=(expr.sql_operator[2],)
+                rexpr_qry = None
+
+                if (isinstance(rexpr, pgast.SubLink)
+                        and isinstance(rexpr.expr, pgast.SelectStmt)):
+                    rexpr_qry = rexpr.expr
+                elif isinstance(rexpr, pgast.SelectStmt):
+                    rexpr_qry = rexpr
+
+                if rexpr_qry is not None:
+                    # Handle cases like foo <op> ANY (SELECT) and
+                    # foo <OP> (SELECT).
+                    rexpr_qry.target_list[0] = pgast.ResTarget(
+                        name=rexpr_qry.target_list[0].name,
+                        val=pgast.TypeCast(
+                            arg=rexpr_qry.target_list[0].val,
+                            type_name=pgast.TypeName(
+                                name=(expr.sql_operator[2],)
+                            )
+                        )
                     )
-                )
+                else:
+                    rexpr = pgast.TypeCast(
+                        arg=rexpr,
+                        type_name=pgast.TypeName(
+                            name=(expr.sql_operator[2],)
+                        )
+                    )
+
     elif expr.origin_name is not None:
         sql_oper = common.get_operator_backend_name(
             expr.origin_name, expr.origin_module_id)[1]
+
     else:
         sql_oper = common.get_operator_backend_name(
             expr.func_shortname, expr.func_module_id)[1]

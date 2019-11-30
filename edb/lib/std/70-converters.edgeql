@@ -238,6 +238,34 @@ std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
 
 
 CREATE FUNCTION
+std::to_str(d: std::bigint, fmt: OPTIONAL str={}) -> std::str
+{
+    # Helper functions raising exceptions are STABLE.
+    SET volatility := 'STABLE';
+    USING SQL $$
+    SELECT (
+        CASE WHEN "fmt" IS NULL THEN
+            "d"::text
+        WHEN "fmt" = '' THEN
+            edgedb._raise_specific_exception(
+                'invalid_parameter_value',
+                'to_str(): "fmt" argument must be a non-empty string',
+                '',
+                NULL::text)
+        ELSE
+            edgedb._raise_exception_on_null(
+                to_char("d", "fmt"),
+                'invalid_parameter_value',
+                'to_str(): format ''' || "fmt" || ''' is invalid',
+                ''
+            )
+        END
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
 std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 {
     # Helper functions raising exceptions are STABLE.
@@ -557,6 +585,34 @@ std::to_duration(
         "hours"::int,
         "minutes"::int,
         "seconds"
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
+{
+    # Helper functions raising exceptions are STABLE.
+    SET volatility := 'STABLE';
+    USING SQL $$
+    SELECT (
+        CASE WHEN "fmt" IS NULL THEN
+            edgedb.str_to_bigint("s")
+        WHEN "fmt" = '' THEN
+            edgedb._raise_specific_exception(
+                'invalid_parameter_value',
+                'to_bigint(): "fmt" argument must be a non-empty string',
+                '',
+                NULL::edgedb.bigint_t)
+        ELSE
+            edgedb._raise_exception_on_null(
+                to_number("s", "fmt")::edgedb.bigint_t,
+                'invalid_parameter_value',
+                'to_bigint(): format ''' || "fmt" || ''' is invalid',
+                ''
+            )
+        END
     )
     $$;
 };

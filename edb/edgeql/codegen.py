@@ -565,6 +565,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('-')
         self.write(node.value)
 
+    def visit_BigintConstant(self, node: qlast.BigintConstant) -> None:
+        if node.is_negative:
+            self.write('-')
+        self.write(node.value)
+
     def visit_BooleanConstant(self, node: qlast.BooleanConstant) -> None:
         self.write(node.value)
 

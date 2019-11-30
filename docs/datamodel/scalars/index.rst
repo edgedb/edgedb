@@ -16,6 +16,7 @@ The standard EdgeDB scalar types are:
   * :eql:type:`int64`
   * :eql:type:`float32`
   * :eql:type:`float64`
+  * :eql:type:`bigint`
   * :eql:type:`decimal`
 
 - :ref:`String type <ref_datamodel_scalars_str>`

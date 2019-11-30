@@ -191,11 +191,15 @@ class T_ICONST(Token):
     pass
 
 
-class T_NCONST(Token):
+class T_NICONST(Token):
     pass
 
 
 class T_FCONST(Token):
+    pass
+
+
+class T_NFCONST(Token):
     pass
 
 

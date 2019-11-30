@@ -56,6 +56,16 @@ std::len(array: array<anytype>) -> std::int64
 # --------
 
 CREATE FUNCTION
+std::sum(s: SET OF std::bigint) -> std::bigint
+{
+    SET volatility := 'IMMUTABLE';
+    SET initial_value := 0;
+    SET force_return_cast := true;
+    USING SQL FUNCTION 'sum';
+};
+
+
+CREATE FUNCTION
 std::sum(s: SET OF std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
@@ -188,11 +198,11 @@ std::enumerate(
 # ----------
 
 CREATE FUNCTION
-std::round(val: std::int64) -> std::float64
+std::round(val: std::int64) -> std::int64
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT round("val")
+    SELECT "val"
     $$;
 };
 
@@ -208,11 +218,21 @@ std::round(val: std::float64) -> std::float64
 
 
 CREATE FUNCTION
+std::round(val: std::bigint) -> std::bigint
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL $$
+    SELECT "val";
+    $$;
+};
+
+
+CREATE FUNCTION
 std::round(val: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT round("val")
+    SELECT round("val");
     $$;
 };
 

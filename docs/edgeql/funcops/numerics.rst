@@ -38,6 +38,9 @@ Numerics
         :eql:op:`anyreal \< anyreal <LT>`, ...
       - Comparison operators.
 
+    * - :eql:func:`to_bigint`
+      - :eql:func-desc:`to_bigint`
+
     * - :eql:func:`to_decimal`
       - :eql:func-desc:`to_decimal`
 
@@ -161,7 +164,7 @@ Numerics
         db> SELECT -10 // 4;
         {-3}
 
-    It also works on :eql:type:`float <anyfloat>` or
+    It also works on :eql:type:`float <anyfloat>`, :eql:type:`bigint`, and
     :eql:type:`decimal` types. The type of the result corresponds to
     the type of the operands:
 
@@ -237,6 +240,30 @@ Numerics
 ------------
 
 
+.. eql:function:: std::to_bigint(s: str, fmt: OPTIONAL str={}) -> bigint
+
+    :index: parse bigint
+
+    Create a :eql:type:`bigint` value.
+
+    Parse a :eql:type:`bigint` from the input *s* and optional format
+    specification *fmt*.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_bigint('-000,012,345', 'S099,999,999,999');
+        {-12345n}
+        db> SELECT to_bigint('31st', '999th');
+        {31n}
+
+    For more details on formatting see :ref:`here
+    <ref_eql_functions_converters_number_fmt>`.
+
+
+------------
+
+
+
 .. eql:function:: std::to_decimal(s: str, fmt: OPTIONAL str={}) -> decimal
 
     :index: parse decimal
@@ -249,11 +276,11 @@ Numerics
     .. code-block:: edgeql-repl
 
         db> SELECT to_decimal('-000,012,345', 'S099,999,999,999');
-        {-12345n}
+        {-12345.0n}
         db> SELECT to_decimal('-012.345');
         {-12.345n}
         db> SELECT to_decimal('31st', '999th');
-        {31n}
+        {31.0n}
 
     For more details on formatting see :ref:`here
     <ref_eql_functions_converters_number_fmt>`.

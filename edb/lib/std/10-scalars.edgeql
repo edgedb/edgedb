@@ -55,7 +55,11 @@ CREATE SCALAR TYPE std::float32 EXTENDING std::anyfloat;
 
 CREATE SCALAR TYPE std::float64 EXTENDING std::anyfloat;
 
-CREATE SCALAR TYPE std::decimal EXTENDING std::anyreal;
+CREATE ABSTRACT SCALAR TYPE std::anynumeric EXTENDING std::anyreal;
+
+CREATE SCALAR TYPE std::decimal EXTENDING std::anynumeric;
+
+CREATE SCALAR TYPE std::bigint EXTENDING std::anynumeric, std::anyint;
 
 CREATE ABSTRACT SCALAR TYPE std::sequence EXTENDING std::int64;
 

@@ -403,6 +403,14 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT (INTROSPECT TYPEOF
+                        sum({<int16>1, <int32>2, <bigint>3})).name;
+            ''',
+            {'std::bigint'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (INTROSPECT TYPEOF
                         sum({<int16>1, 2, <decimal>3})).name;
             ''',
             {'std::decimal'},

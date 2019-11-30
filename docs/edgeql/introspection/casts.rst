@@ -57,6 +57,11 @@ types:
         Object {
             allow_assignment: false,
             allow_implicit: true,
+            to_type: Object { name: 'std::bigint' }
+        },
+        Object {
+            allow_assignment: false,
+            allow_implicit: true,
             to_type: Object { name: 'std::decimal' }
         },
         Object {
@@ -95,7 +100,7 @@ The ``allow_implicit`` property tells whether this is an *implicit cast*
 in all contexts (such as when determining the type of a set of mixed
 literals or resolving the argument types of functions or operators if
 there's no exact match). For example, a literal ``1`` is an
-:eql:type:`int64` and it is implicitly cast into a :eql:type:`decimal`
+:eql:type:`int64` and it is implicitly cast into a :eql:type:`bigint`
 or :eql:type:`float64` if it is added to a set containing either one
 of those types:
 

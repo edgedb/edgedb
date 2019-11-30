@@ -337,6 +337,7 @@ Generic
 
 .. eql:function:: std::round(value: int64) -> float64
                   std::round(value: float64) -> float64
+                  std::round(value: bigint) -> bigint
                   std::round(value: decimal) -> decimal
                   std::round(value: decimal, d: int64) -> decimal
 

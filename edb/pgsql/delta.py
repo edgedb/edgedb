@@ -736,15 +736,18 @@ class CreateOperator(OperatorCommand, CreateObject,
                     raise RuntimeError(
                         f'unexpected operator kind: {oper_kind!r}')
 
+                rtype = self.get_pgtype(
+                    oper, oper.get_return_type(schema), schema)
+
                 oper_func = dbops.Function(
                     name=common.get_backend_name(
                         schema, oper, catenate=False, aspect='function'),
-                    args=[a for a in args if a],
+                    args=[(None, a) for a in args if a],
                     volatility=oper.get_volatility(schema),
-                    returns=self.get_pgtype(
-                        oper, oper.get_return_type(schema), schema),
-                    text=f'SELECT {op}',
+                    returns=rtype,
+                    text=f'SELECT ({op})::{qt(rtype)}',
                 )
+
                 self.pgops.add(dbops.CreateFunction(oper_func))
                 oper_func_name = common.qname(*oper_func.name)
 
@@ -1104,8 +1107,8 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
             self.pgops.add(dbops.RenameDomain(domain_name, new_name))
             target_type = domain_name
 
-            self.pgops.add(dbops.CreateDomain(
-                name=domain_name, base=new_type))
+            domain = dbops.Domain(name=domain_name, base=new_type)
+            self.pgops.add(dbops.CreateDomain(domain=domain))
 
             for constraint in new_constraints.objects(schema):
                 bconstr = schemac_to_backendc(scalar, constraint, schema)
@@ -1116,7 +1119,8 @@ class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
             domain_name = new_name
 
         elif intent == 'create':
-            self.pgops.add(dbops.CreateDomain(name=domain_name, base=base))
+            domain = dbops.Domain(name=domain_name, base=base)
+            self.pgops.add(dbops.CreateDomain(domain=domain))
 
         for _host_class, item_class in users:
             ptr_stor_info = types.get_pointer_storage_info(
@@ -1177,7 +1181,8 @@ class CreateScalarType(ScalarTypeMetaCommand,
                     schema, scalar, catenate=False, aspect='sequence')
                 self.pgops.add(dbops.CreateSequence(name=seq_name))
 
-            self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
+            domain = dbops.Domain(name=new_domain_name, base=base)
+            self.pgops.add(dbops.CreateDomain(domain=domain))
 
             default = updates.get('default')
             if default:

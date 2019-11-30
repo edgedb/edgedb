@@ -245,6 +245,7 @@ Set
                   std::sum(s: SET OF int64) -> int64
                   std::sum(s: SET OF float32) -> float32
                   std::sum(s: SET OF float64) -> float64
+                  std::sum(s: SET OF bigint) -> bigint
                   std::sum(s: SET OF decimal) -> decimal
 
     :index: aggregate

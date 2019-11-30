@@ -77,6 +77,47 @@ from :eql:type:`str` and :eql:type:`json`.
 ----------
 
 
+.. eql:type:: std::bigint
+
+    :index: numeric bigint
+
+    Arbitrary precision integer.
+
+    The EdgeDB philosophy is that using bigint type should be an
+    explicit opt-in, but once used, the values should not be
+    accidentally cast into a numeric type with less precision.
+
+    In accordance with this :ref:`the mathematical functions
+    <ref_eql_functions_math>` are designed to keep the separation
+    between bigint values and the rest of the numeric types.
+
+    All of the following types can be explicitly cast into bigint:
+    :eql:type:`str`, :eql:type:`json`, :eql:type:`int16`,
+    :eql:type:`int32`, :eql:type:`int64`, :eql:type:`float32`,
+    :eql:type:`float64`, and :eql:type:`decimal`.
+
+    A bigint literal is an integer literal followed by 'n':
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 42n IS bigint;
+        {true}
+
+    Note that is a float literal followed by 'n' produces a
+    :eql:type:`decimal`:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 1.23n IS decimal;
+        {true}
+
+        db> SELECT 1e+100n IS decimal;
+        {true}
+
+
+----------
+
+
 .. eql:type:: std::decimal
 
     :index: numeric float
@@ -93,16 +134,25 @@ from :eql:type:`str` and :eql:type:`json`.
 
     All of the following types can be explicitly cast into decimal:
     :eql:type:`str`, :eql:type:`json`, :eql:type:`int16`,
-    :eql:type:`int32`, :eql:type:`int64`, :eql:type:`float32`, and
-    :eql:type:`float64`.
+    :eql:type:`int32`, :eql:type:`int64`, :eql:type:`float32`,
+    :eql:type:`float64`, and :eql:type:`bigint`.
 
-    A decimal type has it's own literal:
+    A decimal literal is a float literal followed by 'n':
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 42n IS decimal;
-        {true}
         db> SELECT 1.23n IS decimal;
+        {true}
+
+        db> SELECT 1e+100n IS decimal;
+        {true}
+
+    Note that an integer literal (without a dot or exponent) followed by 'n'
+    produces a :eql:type:`bigint`:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 42n IS bigint;
         {true}
 
 

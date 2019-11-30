@@ -274,10 +274,7 @@ class BaseConstant(Expr):
         elif isinstance(val, int):
             return IntegerConstant(value=str(val))
         elif isinstance(val, decimal.Decimal):
-            if val.to_integral_value() == val:
-                return IntegerConstant(value=str(val.to_integral_value()))
-            else:
-                return FloatConstant(value=str(val))
+            return DecimalConstant(value=str(val))
         elif isinstance(val, float):
             return FloatConstant(value=str(val))
         elif isinstance(val, bytes):
@@ -314,11 +311,15 @@ class IntegerConstant(BaseRealConstant):
     pass
 
 
-class DecimalConstant(BaseRealConstant):
+class FloatConstant(BaseRealConstant):
     pass
 
 
-class FloatConstant(BaseRealConstant):
+class BigintConstant(BaseRealConstant):
+    pass
+
+
+class DecimalConstant(BaseRealConstant):
     pass
 
 

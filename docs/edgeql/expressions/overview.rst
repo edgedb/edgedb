@@ -26,8 +26,9 @@ EdgeQL supports the following scalar literals:
  :eql:code:`SELECT 42;`                 :eql:type:`int64`
  :eql:code:`SELECT -1.1;`               :eql:type:`float64`
  :eql:code:`SELECT 1e-3;`               :eql:type:`float64`
- :eql:code:`SELECT -42n;`               :eql:type:`decimal`
+ :eql:code:`SELECT -42n;`               :eql:type:`bigint`
  :eql:code:`SELECT 100.1n;`             :eql:type:`decimal`
+ :eql:code:`SELECT 1e+100n;`            :eql:type:`decimal`
  :eql:code:`SELECT 'hello';`            :eql:type:`str`
  :eql:code:`SELECT r'hello';`           :eql:type:`str` (raw string)
  :eql:code:`SELECT $$ CREATE .. $$;`    :eql:type:`str` (raw string)

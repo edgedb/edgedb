@@ -222,3 +222,25 @@ class TestEdgeQLDT(tb.QueryTestCase):
             await self.con.execute(
                 'SELECT <enum_t>"bad";'
             )
+
+    async def test_edgeql_dt_bigint_01(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'invalid syntax for std::bigint'
+        ):
+            await self.con.execute(
+                r'''
+                    SELECT <bigint>'NaN'
+                '''
+            )
+
+    async def test_edgeql_dt_bigint_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "invalid value for scalar type 'std::bigint'",
+        ):
+            await self.con.execute(
+                r'''
+                    SELECT <bigint><decimal>'NaN'
+                '''
+            )

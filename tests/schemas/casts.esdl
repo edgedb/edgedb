@@ -34,6 +34,7 @@ type Test {
     property p_int64 -> int64;
     property p_float32 -> float32;
     property p_float64 -> float64;
+    property p_bigint -> bigint;
     property p_decimal -> decimal;
 }
 
@@ -50,6 +51,7 @@ type JSONTest {
     property j_int64 -> json;
     property j_float32 -> json;
     property j_float64 -> json;
+    property j_bigint -> json;
     property j_decimal -> json;
 }
 
@@ -67,6 +69,7 @@ type ScalarTest {
     property p_int64 -> int64;
     property p_float32 -> float32;
     property p_float64 -> float64;
+    property p_bigint -> bigint;
     property p_decimal -> decimal;
     property p_json -> json;
 }

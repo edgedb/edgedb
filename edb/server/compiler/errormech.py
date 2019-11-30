@@ -104,6 +104,7 @@ constraint_res = {
     'newconstraint': re.compile(r'^.*violate the new constraint.*$'),
     'id': re.compile(r'^.*"(?:\w+)_data_pkey".*$'),
     'link_target_del': re.compile(r'^.*link target policy$'),
+    'scalar': re.compile(r'^value for domain (\w+) violates check constraint'),
 }
 
 
@@ -268,6 +269,9 @@ def static_interpret_backend_error(fields):
             else:
                 return errors.InternalServerError(err_details.message)
 
+        elif error_type == 'scalar':
+            return SchemaRequired
+
         elif error_type == 'id':
             return errors.ConstraintViolationError(
                 'unique link constraint violation')
@@ -339,11 +343,13 @@ def interpret_backend_error(schema, fields):
 
     elif err_details.code in constraint_errors:
         error_type = None
+        match = None
 
         for errtype, ere in constraint_res.items():
             m = ere.match(err_details.message)
             if m:
                 error_type = errtype
+                match = m
                 break
         # no need for else clause since it would have been handled by
         # the static version
@@ -368,6 +374,14 @@ def interpret_backend_error(schema, fields):
 
             return errors.ConstraintViolationError(
                 f'Existing {pname} values violate the new constraint')
+        elif error_type == 'scalar':
+            domain_name = match.group(1)
+            stype_name = types.base_type_name_map_r.get(domain_name)
+            if stype_name:
+                msg = f'invalid value for scalar type {stype_name!r}'
+            else:
+                msg = translate_pgtype(schema, err_details.message)
+            return errors.InvalidValueError(msg)
 
     elif err_details.code == PGErrorCode.InvalidTextRepresentation:
         return errors.InvalidValueError(

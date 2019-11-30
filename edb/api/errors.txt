@@ -140,5 +140,6 @@
 0x_FF_02_01_00   QueryArgumentError
 0x_FF_02_01_01   MissingArgumentError
 0x_FF_02_01_02   UnknownArgumentError
+0x_FF_02_01_03   InvalidArgumentError
 
 0x_FF_03_00_00   NoDataError

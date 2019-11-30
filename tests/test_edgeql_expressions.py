@@ -34,7 +34,7 @@ class value(typing.NamedTuple):
     anyreal: bool
     anyint: bool
     anyfloat: bool
-    decimal: bool
+    anynumeric: bool
 
     signed: bool
     datetime: bool
@@ -44,97 +44,107 @@ VALUES = {
     '<bool>True':
         value(typename='bool',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=False, signed=False, decimal=False),
+              datetime=False, signed=False, anynumeric=False),
 
     '<uuid>"d4288330-eea3-11e8-bc5f-7faf132b1d84"':
         value(typename='uuid',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=False, signed=False, decimal=False),
+              datetime=False, signed=False, anynumeric=False),
 
     '<bytes>b"Hello"':
         value(typename='bytes',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=False, signed=False, decimal=False),
+              datetime=False, signed=False, anynumeric=False),
 
     '<str>"Hello"':
         value(typename='str',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=False, signed=False, decimal=False),
+              datetime=False, signed=False, anynumeric=False),
 
     '<json>"Hello"':
         value(typename='json',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=False, signed=False, decimal=False),
+              datetime=False, signed=False, anynumeric=False),
 
     '<datetime>"2018-05-07T20:01:22.306916+00:00"':
         value(typename='datetime',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=True, signed=False, decimal=False),
+              datetime=True, signed=False, anynumeric=False),
 
     '<local_datetime>"2018-05-07T20:01:22.306916"':
         value(typename='local_datetime',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=True, signed=False, decimal=False),
+              datetime=True, signed=False, anynumeric=False),
 
     '<local_date>"2018-05-07"':
         value(typename='local_date',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=True, signed=False, decimal=False),
+              datetime=True, signed=False, anynumeric=False),
 
     '<local_time>"20:01:22.306916"':
         value(typename='local_time',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=True, signed=False, decimal=False),
+              datetime=True, signed=False, anynumeric=False),
 
     '<duration>"20:01:22.306916"':
         value(typename='duration',
               anyreal=False, anyint=False, anyfloat=False,
-              datetime=True, signed=True, decimal=False),
+              datetime=True, signed=True, anynumeric=False),
 
     '<int16>1':
         value(typename='int16',
               anyreal=True, anyint=True, anyfloat=False,
-              datetime=False, signed=True, decimal=False),
+              datetime=False, signed=True, anynumeric=False),
 
     '<int32>1':
         value(typename='int32',
               anyreal=True, anyint=True, anyfloat=False,
-              datetime=False, signed=True, decimal=False),
+              datetime=False, signed=True, anynumeric=False),
 
     '<int64>1':
         value(typename='int64',
               anyreal=True, anyint=True, anyfloat=False,
-              datetime=False, signed=True, decimal=False),
+              datetime=False, signed=True, anynumeric=False),
 
     '1':  # same as <int64>1
         value(typename='int64',
               anyreal=True, anyint=True, anyfloat=False,
-              datetime=False, signed=True, decimal=False),
+              datetime=False, signed=True, anynumeric=False),
 
     '<float32>1':
         value(typename='float32',
               anyreal=True, anyint=False, anyfloat=True,
-              datetime=False, signed=True, decimal=False),
+              datetime=False, signed=True, anynumeric=False),
 
     '<float64>1':
         value(typename='float64',
               anyreal=True, anyint=False, anyfloat=True,
-              datetime=False, signed=True, decimal=False),
+              datetime=False, signed=True, anynumeric=False),
 
     '1.0':  # same as <float64>1
         value(typename='float64',
               anyreal=True, anyint=False, anyfloat=True,
-              datetime=False, signed=True, decimal=False),
+              datetime=False, signed=True, anynumeric=False),
 
-    '<decimal>1':
-        value(typename='decimal',
-              anyreal=True, anyint=False, anyfloat=False,
-              datetime=False, signed=True, decimal=True),
+    '<bigint>1':
+        value(typename='bigint',
+              anyreal=True, anyint=True, anyfloat=False,
+              datetime=False, signed=True, anynumeric=True),
 
     '1n':
+        value(typename='bigint',
+              anyreal=True, anyint=True, anyfloat=False,
+              datetime=False, signed=True, anynumeric=True),
+
+    '<decimal>1.0':
         value(typename='decimal',
               anyreal=True, anyint=False, anyfloat=False,
-              datetime=False, signed=True, decimal=True),
+              datetime=False, signed=True, anynumeric=True),
+
+    '1.0n':
+        value(typename='decimal',
+              anyreal=True, anyint=False, anyfloat=False,
+              datetime=False, signed=True, anynumeric=True),
 }
 
 
@@ -341,6 +351,11 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT (INTROSPECT TYPEOF 1n).name;''',
+            {'std::bigint'},
+        )
+
+        await self.assert_query_result(
+            r'''SELECT (INTROSPECT TYPEOF 1.0n).name;''',
             {'std::decimal'},
         )
 
@@ -1336,8 +1351,8 @@ class TestExpressions(tb.QueryTestCase):
         # Test (5) - decimal is incompatible with everything except integers
         expected_error_msg = 'cannot be applied to operands'
 
-        for left in get_test_values(decimal=True):
-            for right in get_test_values(anyint=False, decimal=False):
+        for left in get_test_values(anynumeric=True):
+            for right in get_test_values(anyint=False, anynumeric=False):
                 for op in ['+', '-', '*', '/', '//', '%', '^']:
                     query = f"""SELECT {left} {op} {right};"""
                     with self.assertRaisesRegex(edgedb.QueryError,
@@ -1346,13 +1361,59 @@ class TestExpressions(tb.QueryTestCase):
                         async with self.con.transaction():
                             await self.con.execute(query)
 
-        for left in get_test_values(decimal=True):
+        for left, ldesc in get_test_items(anynumeric=True):
             for right in get_test_values(anyint=True):
-                for op in ['+', '-', '*', '/', '//', '%', '^']:
-                    # decimal is "contagious"
+                for op in ['+', '-', '*', '%']:
+                    # bigint/decimal are "contagious"
                     await self.assert_query_result(
-                        f"""SELECT ({left} {op} {right}) IS decimal;""",
-                        [True])
+                        f"""
+                            SELECT ({left} {op} {right}) IS {ldesc.typename};
+                        """,
+                        [True],
+                    )
+
+                    await self.assert_query_result(
+                        f"""
+                            SELECT ({right} {op} {left}) IS {ldesc.typename};
+                        """,
+                        [True],
+                    )
+
+        for left, ldesc in get_test_items(anynumeric=True):
+            for right in get_test_values(anyint=True):
+                op = '//'
+                await self.assert_query_result(
+                    f"""
+                        SELECT ({left} {op} {right}) IS {ldesc.typename};
+                    """,
+                    [True],
+                )
+
+                await self.assert_query_result(
+                    f"""
+                        SELECT ({right} {op} {left}) IS {ldesc.typename};
+                    """,
+                    [True],
+                )
+
+        for left in get_test_values(anynumeric=True):
+            for right in get_test_values(anyint=True):
+                # regular division and power with anynumeric always
+                # results in decimal.
+                for op in ['/', '^']:
+                    await self.assert_query_result(
+                        f"""
+                            SELECT ({left} {op} {right}) IS decimal;
+                        """,
+                        [True],
+                    )
+
+                    await self.assert_query_result(
+                        f"""
+                            SELECT ({right} {op} {left}) IS decimal;
+                        """,
+                        [True],
+                    )
 
     async def test_edgeql_expr_valid_arithmetic_09(self):
         # Test (5) '+', '-', '*' for non-decimals. These operators are
@@ -1366,8 +1427,8 @@ class TestExpressions(tb.QueryTestCase):
         # the result is always smaller in magnitude than either
         # operand and can be represented in terms of operand types.
 
-        for left, ldesc in get_test_items(anyreal=True, decimal=False):
-            for right, rdesc in get_test_items(anyreal=True, decimal=False):
+        for left, ldesc in get_test_items(anyreal=True, anynumeric=False):
+            for right, rdesc in get_test_items(anyreal=True, anynumeric=False):
                 for op in ['+', '-', '*', '//', '%']:
                     types = [ldesc.typename, rdesc.typename]
                     types.sort()
@@ -1394,8 +1455,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_arithmetic_10(self):
         # Test (5) '/', '^' for non-decimals.
 
-        for left, ldesc in get_test_items(anyreal=True, decimal=False):
-            for right, rdesc in get_test_items(anyreal=True, decimal=False):
+        for left, ldesc in get_test_items(anyreal=True, anynumeric=False):
+            for right, rdesc in get_test_items(anyreal=True, anynumeric=False):
                 for op in ['/', '^']:
                     # The result type is always a float because power
                     # can act as division.
@@ -1430,7 +1491,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_setop_02(self):
         expected_error_msg = "operator 'UNION' cannot be applied"
         # UNION all non-decimal numerics with all other scalars
-        for left in get_test_values(anyreal=True, decimal=False):
+        for left in get_test_values(anyreal=True, anynumeric=False):
             for right in get_test_values(anyreal=False):
                 query = f"""SELECT {left} UNION {right};"""
                 # every combination must produce an error
@@ -1442,8 +1503,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_setop_03(self):
         # UNION all non-decimal numerics with each other
-        for left, ldesc in get_test_items(anyreal=True, decimal=False):
-            for right, rdesc in get_test_items(anyreal=True, decimal=False):
+        for left, ldesc in get_test_items(anyreal=True, anynumeric=False):
+            for right, rdesc in get_test_items(anyreal=True, anynumeric=False):
                 query = f"""SELECT {left} UNION {right};"""
                 # every combination must be valid and be {1, 1}
                 await self.assert_query_result(query, [1, 1])
@@ -1505,7 +1566,7 @@ class TestExpressions(tb.QueryTestCase):
         # them and floats don't
         expected_error_msg = "operator 'UNION' cannot be applied"
         # decimal UNION non-numerics
-        for left in get_test_values(decimal=True):
+        for left in get_test_values(anynumeric=True):
             for right in get_test_values(anyreal=False):
                 query = f"""SELECT {left} UNION {right};"""
                 # every combination must produce an error
@@ -1520,7 +1581,7 @@ class TestExpressions(tb.QueryTestCase):
         # them and floats don't
         expected_error_msg = "operator 'UNION' cannot be applied"
         # decimal UNION numerics
-        for left in get_test_values(decimal=True):
+        for left, left_t in get_test_items(anynumeric=True):
             for right in get_test_values(anyint=True):
                 query = f"""SELECT count({left} UNION {right});"""
                 # decimals and integers can be UNIONed in any
@@ -1532,9 +1593,9 @@ class TestExpressions(tb.QueryTestCase):
                 """
                 # this operation should always be valid
                 await self.assert_query_result(
-                    query, {'std::decimal'})
+                    query, {f'std::{left_t.typename}'})
 
-        for left in get_test_values(decimal=True):
+        for left in get_test_values(anynumeric=True):
             for right in get_test_values(anyfloat=True):
                 query = f"""SELECT count({left} UNION {right});"""
 
@@ -1566,7 +1627,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_setop_08(self):
         expected_error_msg = "cannot be applied to operands"
         # test all non-decimal numerics with all other scalars
-        for left in get_test_values(anyreal=True, decimal=False):
+        for left in get_test_values(anyreal=True, anynumeric=False):
             for right in get_test_values(anyreal=False):
                 # random is used in the IF to prevent constant
                 # folding, because we really care about both of the
@@ -1582,8 +1643,8 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_valid_setop_09(self):
         # test all non-decimal numerics with each other
-        for left, ldesc in get_test_items(anyreal=True, decimal=False):
-            for right, rdesc in get_test_items(anyreal=True, decimal=False):
+        for left, ldesc in get_test_items(anyreal=True, anynumeric=False):
+            for right, rdesc in get_test_items(anyreal=True, anynumeric=False):
                 for op in ['??', 'IF random() > 0.5 ELSE']:
                     query = f"""SELECT {left} {op} {right};"""
                     # every combination must be valid and be 1
@@ -1646,7 +1707,7 @@ class TestExpressions(tb.QueryTestCase):
         # them and floats don't
         expected_error_msg = 'cannot be applied to operands'
         # decimal combined with non-numerics
-        for left in get_test_values(decimal=True):
+        for left in get_test_values(anynumeric=True):
             for right in get_test_values(anyreal=False):
                 for op in ['??', 'IF random() > 0.5 ELSE']:
                     query = f"""SELECT {left} {op} {right};"""
@@ -1662,7 +1723,7 @@ class TestExpressions(tb.QueryTestCase):
         # them and floats don't
         expected_error_msg = 'cannot be applied to operands'
         # decimal combined with numerics
-        for left in get_test_values(decimal=True):
+        for left in get_test_values(anynumeric=True):
             for right in get_test_values(anyfloat=True):
                 for op in ['??', 'IF random() > 0.5 ELSE']:
                     query = f"""SELECT {left} {op} {right};"""
@@ -1673,8 +1734,8 @@ class TestExpressions(tb.QueryTestCase):
                         async with self.con.transaction():
                             await self.con.execute(query)
 
-        for left in get_test_values(decimal=True):
-            for right in get_test_values(anyreal=True, anyfloat=False):
+        for left, left_t in get_test_items(anynumeric=True):
+            for right in get_test_values(anyint=True):
                 for op in ['??', 'IF random() > 0.5 ELSE']:
                     query = f"""SELECT {left} {op} {right};"""
 
@@ -1682,7 +1743,9 @@ class TestExpressions(tb.QueryTestCase):
                     # combination
                     await self.assert_query_result(query, [1])
 
-                    query = f"""SELECT ({left} {op} {right}) IS decimal;"""
+                    query = f"""
+                        SELECT ({left} {op} {right}) IS {left_t.typename};
+                    """
                     # this operation should always be valid
                     await self.assert_query_result(query, {True})
 

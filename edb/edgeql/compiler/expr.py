@@ -200,6 +200,13 @@ def compile_BaseConstant(
             value = f'-{value}'
         std_type = 'std::decimal'
         node_cls = irast.DecimalConstant
+    elif isinstance(expr, qlast.BigintConstant):
+        assert value[-1] == 'n'
+        value = value[:-1]
+        if expr.is_negative:
+            value = f'-{value}'
+        std_type = 'std::bigint'
+        node_cls = irast.BigintConstant
     elif isinstance(expr, qlast.BooleanConstant):
         std_type = 'std::bool'
         node_cls = irast.BooleanConstant

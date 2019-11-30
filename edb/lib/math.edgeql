@@ -28,10 +28,10 @@ math::abs(x: std::anyreal) -> std::anyreal
 
 
 CREATE FUNCTION
-math::ceil(x: std::int64) -> std::float64
+math::ceil(x: std::int64) -> std::int64
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL FUNCTION 'ceil';
+    USING SQL 'SELECT "x";';
 };
 
 
@@ -39,7 +39,15 @@ CREATE FUNCTION
 math::ceil(x: std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL FUNCTION 'ceil';
+    USING SQL 'SELECT ceil("x");'
+};
+
+
+CREATE FUNCTION
+math::ceil(x: std::bigint) -> std::bigint
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL 'SELECT "x";'
 };
 
 
@@ -47,15 +55,15 @@ CREATE FUNCTION
 math::ceil(x: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL FUNCTION 'ceil';
+    USING SQL 'SELECT ceil("x");'
 };
 
 
 CREATE FUNCTION
-math::floor(x: std::int64) -> std::float64
+math::floor(x: std::int64) -> std::int64
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL FUNCTION 'floor';
+    USING SQL 'SELECT "x";';
 };
 
 
@@ -63,7 +71,15 @@ CREATE FUNCTION
 math::floor(x: std::float64) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL FUNCTION 'floor';
+    USING SQL 'SELECT floor("x");';
+};
+
+
+CREATE FUNCTION
+math::floor(x: std::bigint) -> std::bigint
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL 'SELECT "x";'
 };
 
 
@@ -71,7 +87,7 @@ CREATE FUNCTION
 math::floor(x: std::decimal) -> std::decimal
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL FUNCTION 'floor';
+    USING SQL 'SELECT floor("x");';
 };
 
 

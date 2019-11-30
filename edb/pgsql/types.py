@@ -42,22 +42,23 @@ from .common import quote_literal as ql
 
 
 base_type_name_map = {
-    s_obj.get_known_type_id('std::str'): 'text',
-    s_obj.get_known_type_id('std::int64'): 'int8',
-    s_obj.get_known_type_id('std::int32'): 'int4',
-    s_obj.get_known_type_id('std::int16'): 'int2',
-    s_obj.get_known_type_id('std::decimal'): 'numeric',
-    s_obj.get_known_type_id('std::bool'): 'bool',
-    s_obj.get_known_type_id('std::float64'): 'float8',
-    s_obj.get_known_type_id('std::float32'): 'float4',
-    s_obj.get_known_type_id('std::uuid'): 'uuid',
-    s_obj.get_known_type_id('std::datetime'): 'timestamptz',
-    s_obj.get_known_type_id('std::local_datetime'): 'timestamp',
-    s_obj.get_known_type_id('std::local_date'): 'date',
-    s_obj.get_known_type_id('std::local_time'): 'time',
-    s_obj.get_known_type_id('std::duration'): 'interval',
-    s_obj.get_known_type_id('std::bytes'): 'bytea',
-    s_obj.get_known_type_id('std::json'): 'jsonb',
+    s_obj.get_known_type_id('std::str'): ('text',),
+    s_obj.get_known_type_id('std::int64'): ('int8',),
+    s_obj.get_known_type_id('std::int32'): ('int4',),
+    s_obj.get_known_type_id('std::int16'): ('int2',),
+    s_obj.get_known_type_id('std::decimal'): ('numeric',),
+    s_obj.get_known_type_id('std::bigint'): ('edgedb', 'bigint_t'),
+    s_obj.get_known_type_id('std::bool'): ('bool',),
+    s_obj.get_known_type_id('std::float64'): ('float8',),
+    s_obj.get_known_type_id('std::float32'): ('float4',),
+    s_obj.get_known_type_id('std::uuid'): ('uuid',),
+    s_obj.get_known_type_id('std::datetime'): ('timestamptz',),
+    s_obj.get_known_type_id('std::local_datetime'): ('timestamp',),
+    s_obj.get_known_type_id('std::local_date'): ('date',),
+    s_obj.get_known_type_id('std::local_time'): ('time',),
+    s_obj.get_known_type_id('std::duration'): ('interval',),
+    s_obj.get_known_type_id('std::bytes'): ('bytea',),
+    s_obj.get_known_type_id('std::json'): ('jsonb',),
 }
 
 base_type_name_map_r = {
@@ -65,6 +66,8 @@ base_type_name_map_r = {
     'character': sn.Name('std::str'),
     'text': sn.Name('std::str'),
     'numeric': sn.Name('std::decimal'),
+    'edgedb.bigint_t': sn.Name('std::bigint'),
+    'bigint_t': sn.Name('std::bigint'),
     'int4': sn.Name('std::int32'),
     'integer': sn.Name('std::int32'),
     'bigint': sn.Name('std::int64'),
@@ -93,7 +96,7 @@ def is_builtin_scalar(schema, scalar):
     return scalar.id in base_type_name_map
 
 
-def get_scalar_base(schema, scalar):
+def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
     base = base_type_name_map.get(scalar.id)
     if base is not None:
         return base
@@ -105,7 +108,8 @@ def get_scalar_base(schema, scalar):
             try:
                 base = base_type_name_map[ancestor.id]
             except KeyError:
-                base = common.get_backend_name(schema, ancestor)
+                base = common.get_backend_name(
+                    schema, ancestor, catenate=False)
 
             return base
 
@@ -130,7 +134,7 @@ def pg_type_from_scalar(
 
     column_type = base_type_name_map.get(scalar.id)
     if column_type:
-        column_type = (base,)
+        column_type = base
     else:
         column_type = common.get_backend_name(schema, scalar, catenate=False)
 
@@ -226,8 +230,6 @@ def pg_type_from_ir_typeref(
                 # User-defined scalar type
                 pg_type = common.get_scalar_backend_name(
                     material.id, material.module_id, catenate=False)
-            else:
-                pg_type = (pg_type,)
 
             return pg_type
 

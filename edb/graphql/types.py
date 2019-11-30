@@ -70,6 +70,7 @@ EDB_TO_GQL_SCALARS_MAP = {
     'std::float64': GraphQLFloat,
     'std::anyreal': GraphQLFloat,
     'std::decimal': GraphQLFloat,
+    'std::bigint': GraphQLFloat,
     'std::bool': GraphQLBoolean,
     'std::uuid': GraphQLID,
     'std::datetime': GraphQLString,

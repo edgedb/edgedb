@@ -55,7 +55,6 @@ from . import datasources
 from .datasources import introspection
 
 from . import schemamech
-from . import types
 
 
 class IntrospectionMech:
@@ -946,20 +945,3 @@ class IntrospectionMech:
             bases.append(base['name'])
 
         return tuple(bases)
-
-    def pg_type_to_scalar_name_and_constraints(self, typname, typmods):
-        if len(typname) > 1 and typname[0] != 'pg_catalog':
-            return None
-        else:
-            typname = typname[-1]
-
-        typeconv = types.base_type_name_map_r.get(typname)
-        if typeconv:
-            if isinstance(typeconv, sn.Name):
-                name = typeconv
-                constraints = ()
-            else:
-                name, constraints = typeconv(
-                    self.connection, typname, *typmods)
-            return name, constraints
-        return None

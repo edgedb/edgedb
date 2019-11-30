@@ -166,6 +166,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 SELECT <bytes>to_decimal('2');
             """)
 
+    async def test_edgeql_casts_bytes_16(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError, r'cannot cast'):
+            await self.con.execute("""
+                SELECT <bytes>to_bigint('2');
+            """)
+
     # NOTE: casts are idempotent
 
     async def test_edgeql_casts_idempotence_01(self):
@@ -253,6 +260,15 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT <float64><float64>to_float64('2.5') IS float64;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <bigint><bigint>to_bigint(
+                    '123456789123456789123456789')
+                IS bigint;
+            ''',
             [True],
         )
 
@@ -365,6 +381,16 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
+                SELECT <bigint><bigint>to_bigint(
+                    '123456789123456789123456789')
+                = to_bigint(
+                    '123456789123456789123456789');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
                 SELECT <decimal><decimal>to_decimal(
                     '123456789123456789123456789.123456789123456789123456789')
                 = to_decimal(
@@ -467,6 +493,16 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT <float64><str>to_float64('2.5') = 2.5;''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <bigint><str>to_bigint(
+                    '123456789123456789123456789')
+                = to_bigint(
+                    '123456789123456789123456789');
+            ''',
             [True],
         )
 
@@ -1070,6 +1106,14 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <bigint><str>T.p_bigint = T.p_bigint;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
                 SELECT <decimal><str>T.p_decimal = T.p_decimal;
             ''',
             [True],
@@ -1078,44 +1122,49 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_numeric_01(self):
         # Casting to decimal and back should be lossless for any other
         # integer type.
-        await self.assert_query_result(
-            # technically we're already casting a literal int64 to int16 first
-            r'''
-                WITH x := <int16>{-32768, -32767, -100, 0, 13, 32766, 32767}
-                SELECT <int16><decimal>x = x;
-            ''',
-            [True, True, True, True, True, True, True],
-        )
+        for numtype in {'bigint', 'decimal'}:
+            await self.assert_query_result(
+                # technically we're already casting a literal int64
+                # to int16 first
+                f'''
+                    WITH x := <int16>{{-32768, -32767, -100,
+                                      0, 13, 32766, 32767}}
+                    SELECT <int16><{numtype}>x = x;
+                ''',
+                [True, True, True, True, True, True, True],
+            )
 
-        await self.assert_query_result(
-            # technically we're already casting a literal int64 to int32 first
-            r'''
-                WITH x := <int32>{-2147483648, -2147483647, -65536, -100, 0,
-                                  13, 32768, 2147483646, 2147483647}
-                SELECT <int32><decimal>x = x;
-            ''',
-            [True, True, True, True, True, True, True, True, True],
-        )
+            await self.assert_query_result(
+                # technically we're already casting a literal int64
+                # to int32 first
+                f'''
+                    WITH x := <int32>{{-2147483648, -2147483647, -65536, -100,
+                                      0, 13, 32768, 2147483646, 2147483647}}
+                    SELECT <int32><{numtype}>x = x;
+                ''',
+                [True, True, True, True, True, True, True, True, True],
+            )
 
-        await self.assert_query_result(
-            r'''
-                WITH x := <int64>{
-                    -9223372036854775808,
-                    -9223372036854775807,
-                    -4294967296,
-                    -65536,
-                    -100,
-                    0,
-                    13,
-                    65536,
-                    4294967296,
-                    9223372036854775806,
-                    9223372036854775807
-                }
-                SELECT <int64><decimal>x = x;
-            ''',
-            [True, True, True, True, True, True, True, True, True, True, True],
-        )
+            await self.assert_query_result(
+                f'''
+                    WITH x := <int64>{{
+                        -9223372036854775808,
+                        -9223372036854775807,
+                        -4294967296,
+                        -65536,
+                        -100,
+                        0,
+                        13,
+                        65536,
+                        4294967296,
+                        9223372036854775806,
+                        9223372036854775807
+                    }}
+                    SELECT <int64><{numtype}>x = x;
+                ''',
+                [True, True, True, True, True, True,
+                 True, True, True, True, True],
+            )
 
     async def test_edgeql_casts_numeric_02(self):
         # Casting to decimal and back should be lossless for any other
@@ -1267,12 +1316,18 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
+            r'''SELECT <bigint>1;''',
+            [{}],
+        )
+
+        await self.assert_query_result(
             r'''SELECT <decimal>1;''',
             [{}],
         )
 
     async def test_edgeql_casts_numeric_07(self):
-        numerics = ['int16', 'int32', 'int64', 'float32', 'float64', 'decimal']
+        numerics = ['int16', 'int32', 'int64', 'float32', 'float64', 'bigint',
+                    'decimal']
 
         for t1, t2 in itertools.product(numerics, numerics):
             await self.assert_query_result(
@@ -1495,6 +1550,16 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
+                SELECT <bigint><json>to_bigint(
+                    '123456789123456789123456789')
+                = to_bigint(
+                    '123456789123456789123456789');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
                 SELECT <decimal><json>to_decimal(
                     '123456789123456789123456789.123456789123456789123456789')
                 = to_decimal(
@@ -1597,6 +1662,14 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
                 SELECT <float64><json>T.p_float64 = T.p_float64;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                SELECT <bigint><json>T.p_bigint = T.p_bigint;
             ''',
             [True],
         )
@@ -1738,6 +1811,17 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <float64>J.j_float64 = T.p_float64;
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH
+                    MODULE test,
+                    T := (SELECT Test FILTER .p_str = 'Hello'),
+                    J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
+                SELECT <bigint>J.j_bigint = T.p_bigint;
             ''',
             [True],
         )
@@ -2044,6 +2128,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     p_int64 := 1,
                     p_float32 := 1,
                     p_float64 := 1,
+                    p_bigint := 1,
                     p_decimal := 1,
                 };
             """)
@@ -2056,6 +2141,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                         p_int64,
                         p_float32,
                         p_float64,
+                        p_bigint,
                         p_decimal,
                     };
                 """,
@@ -2065,6 +2151,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     'p_int64': 1,
                     'p_float32': 1,
                     'p_float64': 1,
+                    'p_bigint': 1,
                     'p_decimal': 1,
                 }],
             )
@@ -2093,7 +2180,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_assignment_03(self):
         async with self._run_and_rollback():
-            # in particular, decimal is not assignment-castable
+            # in particular, bigint and decimal are not assignment-castable
             # into any other numeric type
             for typename in ['int16',
                              'int32',
@@ -2101,22 +2188,25 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                              'float32',
                              'float64']:
 
-                query = f'''
-                    INSERT test::ScalarTest {{
-                        p_{typename} := <decimal>3,
-                        p_decimal := 1001,
-                    }};
-                '''
-                async with self.assertRaisesRegexTx(
-                        edgedb.QueryError,
-                        r'invalid target for property',
-                        msg=query):
-                    await self.con.execute(query + r'''
-                        # clean up, so other tests can proceed
-                        DELETE (
-                            SELECT test::ScalarTest FILTER .p_decimal = 1001
-                        );
-                    ''')
+                for numtype in {'bigint', 'decimal'}:
+
+                    query = f'''
+                        INSERT test::ScalarTest {{
+                            p_{typename} := <{numtype}>3,
+                            p_{numtype} := 1001,
+                        }};
+                    '''
+                    async with self.assertRaisesRegexTx(
+                            edgedb.QueryError,
+                            r'invalid target for property',
+                            msg=query):
+                        await self.con.execute(query + f'''
+                            # clean up, so other tests can proceed
+                            DELETE (
+                                SELECT test::ScalarTest
+                                FILTER .p_{numtype} = 1001
+                            );
+                        ''')
 
     async def test_edgeql_casts_custom_scalar_01(self):
         await self.assert_query_result(

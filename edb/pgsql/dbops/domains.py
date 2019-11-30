@@ -24,6 +24,7 @@ import textwrap
 from ..common import qname as qn
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
+from ..common import quote_type as qt
 
 from . import base
 from . import constraints
@@ -46,17 +47,34 @@ class DomainExists(base.Condition):
         ''')
 
 
+class Domain(base.DBObject):
+
+    def __init__(self, name, *, base, constraints=(), metadata=None):
+        self.constraints = tuple(constraints)
+        self.base = base
+        self.name = name
+        super().__init__(metadata=metadata)
+
+
 class CreateDomain(ddl.SchemaObjectOperation):
     def __init__(
-            self, name, base, *, conditions=None, neg_conditions=None,
+            self, domain, *, conditions=None, neg_conditions=None,
             priority=0):
         super().__init__(
-            name, conditions=conditions, neg_conditions=neg_conditions,
+            domain.name, conditions=conditions, neg_conditions=neg_conditions,
             priority=priority)
-        self.base = base
+        self.domain = domain
 
     def code(self, block: base.PLBlock) -> str:
-        return f'CREATE DOMAIN {qn(*self.name)} AS {self.base}'
+        extra = []
+        for constraint in self.domain.constraints:
+            extra.append(constraint.constraint_code(block))
+
+        return textwrap.dedent(f'''\
+            CREATE DOMAIN {qn(*self.domain.name)}
+            AS {qt(self.domain.base)}
+            {' '.join(extra) if extra else ''}
+        ''').strip()
 
 
 class RenameDomain(base.CommandGroup):
@@ -167,6 +185,28 @@ class AlterDomainAlterConstraint(AlterDomain):
 class DomainConstraint(constraints.Constraint):
     def get_subject_type(self):
         return 'DOMAIN'
+
+
+class DomainCheckConstraint(DomainConstraint):
+
+    def __init__(self, domain_name, constraint_name=None, *, expr):
+        super().__init__(domain_name, constraint_name=constraint_name)
+        self.expr = expr
+
+    def constraint_code(self, block: base.PLBlock) -> str:
+        if isinstance(self.expr, base.Query):
+            var = block.declare_var(self.expr.type)
+            indent = len(var) + 5
+            expr_text = textwrap.indent(self.expr.text, ' ' * indent).strip()
+            block.add_command(f'{var} := ({expr_text})')
+
+            code = f"'CHECK (' || {var} || ')'"
+            code = base.PLExpression(code)
+
+        else:
+            code = f'CHECK ({self.expr})'
+
+        return code
 
 
 class AlterDomainAddConstraint(AlterDomainAlterConstraint):

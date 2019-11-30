@@ -68,6 +68,7 @@ Math
 
 .. eql:function:: math::ceil(x: int64) -> float64
                   math::ceil(x: float64) -> float64
+                  math::ceil(x: bigint) -> bigint
                   math::ceil(x: decimal) -> decimal
 
     :index: round
@@ -87,6 +88,7 @@ Math
 
 .. eql:function:: math::floor(x: int64) -> float64
                   math::floor(x: float64) -> float64
+                  math::floor(x: bigint) -> bigint
                   math::floor(x: decimal) -> decimal
 
     :index: round

@@ -352,6 +352,10 @@ class DecimalConstant(BaseStrConstant):
     pass
 
 
+class BigintConstant(BaseStrConstant):
+    pass
+
+
 class BooleanConstant(BaseStrConstant):
     pass
 
