@@ -42,7 +42,9 @@ def regular_function(arg):
 class ProfilingTestCase(unittest.TestCase):
     def test_tools_profiling_basic(self) -> None:
         atexit = FakeAtexit()
-        with unittest.mock.patch("edb.tools.profiling.atexit", atexit):
+        with unittest.mock.patch(
+            "edb.tools.profiling.profiler.atexit", atexit
+        ):
             with tempfile.TemporaryDirectory() as tmpdir:
                 self._inner_basic(tmpdir, atexit)
 
