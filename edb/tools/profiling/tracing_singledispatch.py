@@ -2,6 +2,12 @@
 # Portions copyright 2001-2019 Python Software Foundation.
 # License: PSFL.
 
+"""A replacement for functools.singledispatch() that records usage.
+
+See README.md in this package for more details.
+"""
+
+
 # flake8: NoQA
 
 from __future__ import annotations

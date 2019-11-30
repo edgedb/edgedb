@@ -16,6 +16,11 @@
 # limitations under the License.
 #
 
+"""Provides a `profile()` decorator with aggregation capabilities.
+
+See README.md in this package for more details.
+"""
+
 from __future__ import annotations
 from typing import *  # NoQA
 
@@ -33,14 +38,12 @@ import sys
 import tempfile
 from xml.sax import saxutils
 
-import click
-
-from edb.common.vendor import tracing_singledispatch
+from edb.tools.profiling import tracing_singledispatch
 
 
 CURRENT_DIR = pathlib.Path(__file__).resolve().parent
-EDGEDB_DIR = CURRENT_DIR.parent.parent
-PROFILING_JS = CURRENT_DIR / "profiling_svg_helpers.js"
+EDGEDB_DIR = CURRENT_DIR.parent.parent.parent
+PROFILING_JS = CURRENT_DIR / "svg_helpers.js"
 PREFIX = "edgedb_"
 STAT_SUFFIX = ".pstats"
 PROF_SUFFIX = ".prof"
@@ -89,9 +92,10 @@ class profile:
     ):
         """Create the decorator.
 
-        If `reuse` is True, a single profiler is reused for the lifetime
-        of the process and results are only dumped at exit.  Otherwise a new
-        profile file is created on every function call.
+        If `save_every_n_calls` is greater than 1, the profiler will not
+        dump data to files on every call to the profiled function.  This speeds
+        up the running program but risks incomplete data if the process is
+        terminated non-gracefully.
 
         `dir`, `prefix`, and `suffix` after `tempfile.mkstemp`.
         """
@@ -842,34 +846,3 @@ DETAILS = """
 """
 
 TOOLTIP = "{0:.2%} (calls={1} pcalls={2} tottime={3:.2f} cumtime={4:.2f})"
-
-
-@click.command()
-@click.option("--prefix", default=PREFIX)
-@click.option("--suffix", default=PROF_SUFFIX)
-@click.option("--sort-by", default="cumulative")
-@click.option("--out", default=EDGEDB_DIR)
-@click.option("--width", default=1920)
-@click.option("--threshold", default=0.0001)
-@click.argument("dirs", nargs=-1)
-def cli(
-    dirs: List[str],
-    prefix: str,
-    suffix: str,
-    sort_by: str,
-    out: Union[pathlib.Path, str],
-    width: int,
-    threshold: float,
-) -> None:
-    if len(dirs) > 1:
-        raise click.UsageError("Specify at most one directory")
-
-    dir: Optional[str] = dirs[0] if dirs else None
-    prof = profile(dir=dir, prefix=prefix, suffix=suffix, save_every_n_calls=1)
-    prof.aggregate(
-        pathlib.Path(out), sort_by=sort_by, width=width, threshold=threshold
-    )
-
-
-if __name__ == "__main__":
-    cli()
