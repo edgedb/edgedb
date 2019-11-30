@@ -16,6 +16,11 @@
 # limitations under the License.
 #
 
+"""Provides a `profile()` decorator with aggregation capabilities.
+
+See README.md in this package for more details.
+"""
+
 from __future__ import annotations
 from typing import *  # NoQA
 
@@ -26,21 +31,24 @@ import dataclasses
 import functools
 import os
 import pathlib
+import pickle
 import pstats
+import re
 import sys
 import tempfile
 from xml.sax import saxutils
 
-import click
+from edb.tools.profiling import tracing_singledispatch
 
 
 CURRENT_DIR = pathlib.Path(__file__).resolve().parent
-EDGEDB_DIR = CURRENT_DIR.parent.parent
-PROFILING_JS = CURRENT_DIR / "profiling_svg_helpers.js"
+EDGEDB_DIR = CURRENT_DIR.parent.parent.parent
+PROFILING_JS = CURRENT_DIR / "svg_helpers.js"
 PREFIX = "edgedb_"
 STAT_SUFFIX = ".pstats"
 PROF_SUFFIX = ".prof"
 SVG_SUFFIX = ".svg"
+SINGLEDISPATCH_SUFFIX = ".singledispatch"
 
 
 T = TypeVar("T", bound=Callable[..., Any])
@@ -56,22 +64,19 @@ if TYPE_CHECKING:
     CallCount = int  # with recursion
     TotalTime = float
     CumulativeTime = float
+    Stat = Tuple[PrimitiveCallCount, CallCount, TotalTime, CumulativeTime]
     StatWithCallers = Tuple[
         PrimitiveCallCount,
         CallCount,
         TotalTime,
         CumulativeTime,
-        # values below are also StatWithCallers but Mypy does not support
-        # recursive definitions
-        Dict[FunctionID, Any],
+        Dict[FunctionID, Stat],  # callers
     ]
     Stats = Dict[FunctionID, StatWithCallers]
-    Stat = Tuple[
-        PrimitiveCallCount, CallCount, TotalTime, CumulativeTime,
-    ]
     Caller = FunctionID
     Callee = FunctionID
     Call = Tuple[Caller, Optional[Callee]]
+    CallCounts = Dict[Caller, Dict[Callee, CallCount]]
 
 
 class profile:
@@ -87,17 +92,18 @@ class profile:
     ):
         """Create the decorator.
 
-        If `reuse` is True, a single profiler is reused for the lifetime
-        of the process and results are only dumped at exit.  Otherwise a new
-        profile file is created on every function call.
+        If `save_every_n_calls` is greater than 1, the profiler will not
+        dump data to files on every call to the profiled function.  This speeds
+        up the running program but risks incomplete data if the process is
+        terminated non-gracefully.
 
         `dir`, `prefix`, and `suffix` after `tempfile.mkstemp`.
         """
         self.prefix = prefix
         self.suffix = suffix
-        self.dir = dir
         self.save_every_n_calls = save_every_n_calls
         self.n_calls = 0
+        self._dir: Union[str, pathlib.Path, None] = dir
         self._profiler: Optional[cProfile.Profile] = None
         self._dump_file_path: Optional[str] = None
 
@@ -113,9 +119,16 @@ class profile:
             finally:
                 self.profiler.disable()
                 if self.n_calls % self.save_every_n_calls == 0:
-                    self.profiler.dump_stats(self.dump_file)
+                    self.dump_stats()
 
         return cast(T, wrapper)
+
+    @property
+    def dir(self) -> pathlib.Path:
+        if self._dir is None:
+            with tempfile.NamedTemporaryFile() as tmp:
+                self._dir = pathlib.Path(tmp.name).parent
+        return pathlib.Path(self._dir)
 
     @property
     def profiler(self) -> cProfile.Profile:
@@ -125,7 +138,7 @@ class profile:
                 # This is attached here so the registration is in the right
                 # process (relevant for multiprocessing workers).  This is
                 # still sadly flimsy, hence the `save every n calls`.
-                atexit.register(self.dump_at_exit)
+                atexit.register(self.dump_stats)
         return self._profiler
 
     @property
@@ -143,11 +156,15 @@ class profile:
 
         return self._dump_file_path
 
-    def dump_at_exit(self) -> None:
-        # Note: this will also dump in case the profiler was never enabled
-        # (the function was not called).  That's by design.  The presence of
-        # the file lets us know the profiling scaffolding worked.
+    def dump_stats(self) -> None:
         self.profiler.dump_stats(self.dump_file)
+        try:
+            done_dispatches = tracing_singledispatch.done_dispatches
+        except AttributeError:
+            return  # we're at program exit; `tracing_singledispatch` went away
+        if done_dispatches:
+            with open(self.dump_file + ".singledispatch", "wb") as sd_file:
+                pickle.dump(done_dispatches, sd_file, pickle.HIGHEST_PROTOCOL)
 
     def aggregate(
         self,
@@ -175,18 +192,13 @@ class profile:
         if quiet:
             print = lambda *args, **kwargs: None
 
-        if not self.dir:
-            with tempfile.NamedTemporaryFile() as tmp:
-                directory = pathlib.Path(tmp.name).parent
-        else:
-            directory = pathlib.Path(self.dir)
         if out_path.is_dir():
             out_path = out_path / "profile_analysis"
         prof_path = out_path.with_suffix(PROF_SUFFIX)
         pstats_path = out_path.with_suffix(STAT_SUFFIX)
         svg_path = out_path.with_suffix(SVG_SUFFIX)
         files = list(
-            str(f) for f in directory.glob(self.prefix + "*" + self.suffix)
+            str(f) for f in self.dir.glob(self.prefix + "*" + self.suffix)
         )
         success = 0
         failure = 0
@@ -205,13 +217,18 @@ class profile:
             if sort_by:
                 ps.sort_stats(sort_by)
             ps.print_stats()
+        singledispatch_traces = self.accumulate_singledispatch_traces()
+        if singledispatch_traces:
+            singledispatch_path = out_path.with_suffix(SINGLEDISPATCH_SUFFIX)
+            with singledispatch_path.open("wb") as sd_file:
+                pickle.dump(singledispatch_traces, sd_file)
+
+        # Mypy is wrong below, `stats` is there on all pstats.Stats objects
+        stats = ps.stats  # type: ignore
+        filter_singledispatch_in_place(stats, singledispatch_traces)
         try:
-            # Mypy is wrong below, `stats` is there on all pstats.Stats objects
             render_svg(
-                ps.stats,  # type: ignore
-                svg_path,
-                width=width,
-                threshold=threshold,
+                stats, svg_path, width=width, threshold=threshold,
             )
         except ValueError as ve:
             print(f"Cannot display flame graph: {ve}", file=sys.stderr)
@@ -221,12 +238,26 @@ class profile:
         )
         return success, failure
 
+    def accumulate_singledispatch_traces(self) -> Dict[FunctionID, CallCounts]:
+        result: Dict[FunctionID, CallCounts] = {}
+        d = self.dir.glob(self.prefix + "*" + self.suffix + ".singledispatch")
+        for f in d:
+            with open(str(f), "rb") as file:
+                dispatches = pickle.load(file)
+            for singledispatch_funcid, call_counts in dispatches.items():
+                for caller, calls in call_counts.items():
+                    for impl, call_count in calls.items():
+                        r_d = result.setdefault(singledispatch_funcid, {})
+                        c_d = r_d.setdefault(caller, {})
+                        c_d[impl] = c_d.get(impl, 0) + call_count
+        return result
+
 
 @dataclasses.dataclass
 class Function:
     id: FunctionID
-    calls: List
-    calledby: List
+    calls: List[FunctionID]
+    calledby: List[FunctionID]
     stat: Stat
 
 
@@ -287,16 +318,6 @@ def calc_callers(
 
     total = sum(funcs[r].stat[3] for r in roots)
     ttotal = sum(funcs[r].stat[2] for r in funcs)
-    if total < threshold or ttotal < threshold:
-        raise ValueError(
-            f"Not enough profiling data to draw a meaningful graph"
-        )
-
-    if not (0.8 < total / ttotal < 1.2):
-        raise ValueError(
-            f"invalid data: root cumulative time is {total} but the sum of "
-            f"total time is {ttotal}"
-        )
 
     # Try to find suitable root
     newroot = max(
@@ -387,6 +408,149 @@ def count_calls(funcs: Dict[FunctionID, Function]) -> Counter[Call]:
 
     _counts(ROOT_ID, set())
     return call_counter
+
+
+def find_singledispatch_wrapper(
+    stats: Stats, *, regular_location: bool = False
+) -> FunctionID:
+    """Returns the singledispatch wrapper function ID tuple.
+
+    Raises LookupError if not found.
+    """
+    if regular_location:
+        functools_path = re.compile(r"python3.\d+/functools.py$")
+        dispatch_name = "dispatch"
+        wrapper_name = "wrapper"
+    else:
+        functools_path = re.compile(r"vendor/tracing_singledispatch.py$")
+        dispatch_name = "dispatch"
+        wrapper_name = "sd_wrapper"
+
+    for (modpath, _lineno, funcname), (_, _, _, _, callers) in stats.items():
+        if funcname != dispatch_name:
+            continue
+
+        m = functools_path.search(modpath)
+        if not m:
+            continue
+
+        # Using this opportunity, we're figuring out which `wrapper` from
+        # functools in the trace is the singledispatch `wrapper` (there
+        # are three more others in functools.py).
+        for caller_modpath, caller_lineno, caller_funcname in callers:
+            if caller_funcname == wrapper_name:
+                m = functools_path.search(modpath)
+                if not m:
+                    continue
+
+                return (caller_modpath, caller_lineno, caller_funcname)
+
+        raise LookupError("singledispatch.dispatch without wrapper?")
+
+    raise LookupError("No singledispatch use in provided stats")
+
+
+def filter_singledispatch_in_place(
+    stats: Stats,
+    dispatches: Dict[FunctionID, CallCounts],
+    regular_location: bool = False,
+) -> None:
+    """Removes singledispatch `wrapper` from the `stats.`
+
+    Given that:
+    - W is a wrapper function hiding original function O;
+    - D is the internal dispatching function of singledispatch;
+    - W calls D first to select which function to call;
+    - then, W calls the concrete registered implementations F1, F2, F3, and
+      rather rarely, O.
+
+    This filter changes this ( -> means "calls"):
+
+    A -> W -> F1
+    A -> W -> D
+
+    into this:
+
+    A -> F1
+    A -> D
+    """
+
+    try:
+        wrapper = find_singledispatch_wrapper(
+            stats, regular_location=regular_location
+        )
+    except LookupError:
+        return
+
+    # Delete the function from stats
+    del stats[wrapper]
+
+    # Fix up all "callers" stats
+    singledispatch_functions = {d: (0, 0, 0, 0) for d in dispatches}
+    for funcid, (_, _, _, _, callers) in stats.items():
+        if wrapper not in callers:
+            continue
+
+        new_direct_calls = {}
+        for call_counts in dispatches.values():
+            for caller, calls in call_counts.items():
+                if funcid not in calls:
+                    continue
+
+                if caller not in stats:
+                    # Callers from times when the profiler was disabled.
+                    # TODO: we should probably only trace in
+                    # tracing_singledispatch when profiling is enabled.
+                    continue
+
+                new_direct_calls[caller] = calls[funcid]
+
+        pcc, cc, tottime, cumtime = callers.pop(wrapper)
+        all_calls = sum(new_direct_calls.values())
+        if all_calls == 0:
+            count = len(singledispatch_functions)
+            for sdfid, old_stats in singledispatch_functions.items():
+                cur_stats = (
+                    round(pcc / count),
+                    round(cc / count),
+                    tottime / count,
+                    cumtime / count,
+                )
+                callers[sdfid] = cur_stats
+                new_stats = tuple(
+                    old_stats[i] + cur_stats[i] for i in range(4)
+                )
+                singledispatch_functions[sdfid] = new_stats  # type: ignore
+
+            continue
+
+        factor = all_calls / cc
+        pcc_fl = pcc * factor
+        cc_fl = cc * factor
+        tottime *= factor
+        cumtime *= factor
+
+        for caller, count in new_direct_calls.items():
+            factor = count / cc_fl
+            callers[caller] = (
+                round(pcc_fl * factor),
+                count,
+                tottime * factor,
+                cumtime * factor,
+            )
+
+    # Insert original single dispatch generic functions back
+    for sdfid, sd_stats in singledispatch_functions.items():
+        o_pcc, o_cc, o_tottime, o_cumtime, callers = stats.get(
+            sdfid, (0, 0, 0, 0, {})
+        )
+        stats[sdfid] = (
+            sd_stats[0] + o_pcc,
+            sd_stats[1] + o_cc,
+            sd_stats[2] + o_tottime,
+            sd_stats[3] + o_cumtime,
+            callers,
+        )
 
 
 def build_svg_blocks(
@@ -482,10 +646,11 @@ def build_svg_blocks(
         visited: AbstractSet[Call] = frozenset(),
         parent_width: float = 0,
     ) -> None:
+        factor = 1.0
         if ids and to is not None:
-            factor = parent_width / sum(calls[fid, to][3] for fid in ids)
-        else:
-            factor = 1.0
+            calls_tottime = sum(calls[fid, to][3] for fid in ids)
+            if calls_tottime:
+                factor = parent_width / calls_tottime
 
         for fid in sorted(ids):
             call = fid, to
@@ -579,12 +744,15 @@ def render_svg(
     width: int = 1920,  # in pixels
     block_height: int = 24,  # in pixels
     font_size: int = 12,
+    raw: bool = False,
 ) -> None:
     """Render an SVG file to `out`.
 
     Raises ValueError if rendering cannot be done with the given `stats`.
 
     Functions whose runtime is below `threshold` percentage are not included.
+    Unless `raw` is True, functions are filtered to exclude common wrappers
+    that make the resulting SVG too busy but are themselves harmless.
     """
     funcs, calls = calc_callers(stats, threshold)
     call_blocks, usage_blocks, maxw = build_svg_blocks(
@@ -678,34 +846,3 @@ DETAILS = """
 """
 
 TOOLTIP = "{0:.2%} (calls={1} pcalls={2} tottime={3:.2f} cumtime={4:.2f})"
-
-
-@click.command()
-@click.option("--prefix", default=PREFIX)
-@click.option("--suffix", default=PROF_SUFFIX)
-@click.option("--sort-by", default="cumulative")
-@click.option("--out", default=EDGEDB_DIR)
-@click.option("--width", default=1920)
-@click.option("--threshold", default=0.0001)
-@click.argument("dirs", nargs=-1)
-def cli(
-    dirs: List[str],
-    prefix: str,
-    suffix: str,
-    sort_by: str,
-    out: Union[pathlib.Path, str],
-    width: int,
-    threshold: float,
-) -> None:
-    if len(dirs) > 1:
-        raise click.UsageError("Specify at most one directory")
-
-    dir: Optional[str] = dirs[0] if dirs else None
-    prof = profile(dir=dir, prefix=prefix, suffix=suffix, save_every_n_calls=1)
-    prof.aggregate(
-        pathlib.Path(out), sort_by=sort_by, width=width, threshold=threshold
-    )
-
-
-if __name__ == "__main__":
-    cli()
