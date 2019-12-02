@@ -27,18 +27,20 @@ class TestIndexes(tb.DDLTestCase):
     async def test_index_01(self):
         await self.con.execute(r"""
             # setup delta
-            CREATE MIGRATION test::d1 TO {
-                type Person {
-                    property first_name -> str;
-                    property last_name -> str;
+            CREATE MIGRATION d1 TO {
+                module test {
+                    type Person {
+                        property first_name -> str;
+                        property last_name -> str;
 
-                    index on ((.first_name, .last_name));
+                        index on ((.first_name, .last_name));
+                    };
+
+                    type Person2 extending Person;
                 };
-
-                type Person2 extending Person;
             };
 
-            COMMIT MIGRATION test::d1;
+            COMMIT MIGRATION d1;
         """)
 
         await self.assert_query_result(

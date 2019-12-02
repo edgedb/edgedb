@@ -24,21 +24,23 @@ from edb.testbase import server as tb
 
 class TestEdgeQLDT(tb.QueryTestCase):
     SETUP = '''
-        CREATE MIGRATION default::m TO {
-            scalar type seq_t extending sequence;
-            scalar type seq2_t extending sequence;
-            scalar type enum_t extending enum<'foo', 'bar'>;
+        CREATE MIGRATION mig TO {
+            module default {
+                scalar type seq_t extending sequence;
+                scalar type seq2_t extending sequence;
+                scalar type enum_t extending enum<'foo', 'bar'>;
 
-            type Obj {
-                property seq_prop -> seq_t;
-            };
+                type Obj {
+                    property seq_prop -> seq_t;
+                };
 
-            type Obj2 {
-                property seq_prop -> seq2_t;
+                type Obj2 {
+                    property seq_prop -> seq2_t;
+                };
             };
         };
 
-        COMMIT MIGRATION default::m;
+        COMMIT MIGRATION mig;
     '''
 
     async def test_edgeql_dt_datetime_01(self):

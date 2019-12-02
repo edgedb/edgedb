@@ -48,7 +48,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             mname = self.migration_name
             await self.con.execute(f"""
                 CREATE MIGRATION {mname} TO {{
-                    {migration}
+                    module test {{
+                        {migration}
+                    }}
                 }};
                 COMMIT MIGRATION {mname};
             """)

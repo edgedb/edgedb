@@ -54,7 +54,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "'name'.*must be declared using the `overloaded` keyword",
-                  position=214)
+                  position=228)
     def test_schema_overloaded_02(self):
         """
             type UniqueName {
@@ -72,7 +72,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "'name'.*cannot be declared `overloaded`",
-                  position=47)
+                  position=61)
     def test_schema_overloaded_03(self):
         """
             type UniqueName {
@@ -82,7 +82,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.InvalidLinkTargetError,
                   'invalid link target, expected object type, got scalar type',
-                  position=55)
+                  position=69)
     def test_schema_bad_link_01(self):
         """
             type Object {
@@ -92,7 +92,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.InvalidLinkTargetError,
                   'invalid link target, expected object type, got scalar type',
-                  position=55)
+                  position=69)
     def test_schema_bad_link_02(self):
         """
             type Object {
@@ -102,7 +102,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   'link or property name length exceeds the maximum.*',
-                  position=43)
+                  position=57)
     def test_schema_bad_link_03(self):
         """
             type Object {
@@ -114,7 +114,7 @@ _123456789_123456789_123456789 -> Object
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
-                  position=59)
+                  position=73)
     def test_schema_bad_prop_01(self):
         """
             type Object {
@@ -125,7 +125,7 @@ _123456789_123456789_123456789 -> Object
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
-                  position=59)
+                  position=73)
     def test_schema_bad_prop_02(self):
         """
             type Object {
@@ -135,7 +135,7 @@ _123456789_123456789_123456789 -> Object
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   'link or property name length exceeds the maximum.*',
-                  position=43)
+                  position=57)
     def test_schema_bad_prop_03(self):
         """
             type Object {
@@ -146,7 +146,7 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.InvalidReferenceError,
                   "type 'int' does not exist",
-                  position=59,
+                  position=73,
                   hint='did you mean one of these: int16, int32, int64?')
     def test_schema_bad_type_01(self):
         """
@@ -158,7 +158,7 @@ _123456789_123456789_123456789 -> str
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
                   "got collection 'array<test::Foo>'",
-                  position=80)
+                  position=94)
     def test_schema_bad_type_02(self):
         """
             type Foo;
@@ -171,7 +171,7 @@ _123456789_123456789_123456789 -> str
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
                   "got collection 'tuple<test::Foo>'",
-                  position=80)
+                  position=94)
     def test_schema_bad_type_03(self):
         """
             type Foo;
@@ -184,7 +184,7 @@ _123456789_123456789_123456789 -> str
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "expected a scalar type, or a scalar collection, "
                   "got collection 'tuple<std::str, array<test::Foo>>'",
-                  position=80)
+                  position=94)
     def test_schema_bad_type_04(self):
         """
             type Foo;
@@ -613,13 +613,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     def setUpClass(cls):
         super().setUpClass()
         cls.std_schema = tb._load_std_schema()
-        cls.schema = cls.run_ddl(cls.schema, 'CREATE MODULE default;')
 
     def _assert_migration_consistency(self, schema_text):
 
         migration_text = f'''
             CREATE MIGRATION m TO {{
-                {schema_text}
+                module default {{
+                    {schema_text}
+                }}
             }};
         '''
 
@@ -696,7 +697,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         for i, state in enumerate(migrations):
             mig_text = f'''
                 CREATE MIGRATION m{i} TO {{
-                    {state}
+                    module default {{
+                        {state}
+                    }}
                 }};
                 COMMIT MIGRATION m{i};
             '''

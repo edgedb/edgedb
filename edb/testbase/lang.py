@@ -279,7 +279,8 @@ class BaseSchemaTest(BaseDocTest):
                     stmt, schema=current_schema,
                     modaliases={None: default_module},
                     testmode=True)
-                migration = current_schema.get(migration_cmd.classname)
+                migration = current_schema.get_global(
+                    s_migrations.Migration, migration_cmd.classname)
                 ddl_plan = migration.get_delta(current_schema)
 
             elif isinstance(stmt, qlast.DDL):
@@ -301,8 +302,11 @@ class BaseSchemaTest(BaseDocTest):
 
     @classmethod
     def load_schema(cls, source: str, modname: str='test') -> s_schema.Schema:
+        target = qlparser.parse_sdl(f'module {modname} {{ {source} }}')
         decls = [
-            (modname, qlparser.parse_sdl(source))
+            # The target is a Schema with a single module block. We
+            # want to extract the declarations from it.
+            (modname, target.declarations[0].declarations)
         ]
 
         schema = _load_std_schema()
@@ -314,7 +318,7 @@ class BaseSchemaTest(BaseDocTest):
         script = ''
 
         # look at all SCHEMA entries and potentially create multiple modules
-        #
+        schema = []
         for name, val in cls.__dict__.items():
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
@@ -323,24 +327,18 @@ class BaseSchemaTest(BaseDocTest):
 
                 if '\n' in val:
                     # Inline schema source
-                    schema = val
+                    module = val
                 else:
                     with open(val, 'r') as sf:
-                        schema = sf.read()
+                        module = sf.read()
 
-                if module_name != 'test':
-                    script += f'\nCREATE MODULE {module_name};'
+                schema.append(f'\nmodule {module_name} {{ {module} }}')
 
-                script += f'\nCREATE MIGRATION {module_name}::d1'
-                script += f' TO {{ {schema} }};'
-                script += f'\nCOMMIT MIGRATION {module_name}::d1;'
+        script += f'\nCREATE MIGRATION test_migration'
+        script += f' TO {{ {"".join(schema)} }};'
+        script += f'\nCOMMIT MIGRATION test_migration;'
 
-        if script:
-            # Always create the test module.
-            script = 'CREATE MODULE test;\n' + script
-            return script.strip(' \n')
-        else:
-            return script
+        return script.strip(' \n')
 
 
 class BaseSchemaLoadTest(BaseSchemaTest):

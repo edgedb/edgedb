@@ -394,8 +394,8 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 
         async with self.con.transaction():
             await self.con.execute(f'''
-                CREATE MIGRATION test::d1 TO {{ {new_schema} }};
-                COMMIT MIGRATION test::d1;
+                CREATE MIGRATION d1 TO {{ module test {{ {new_schema} }} }};
+                COMMIT MIGRATION d1;
             ''')
 
         async with self._run_and_rollback():
@@ -1026,11 +1026,13 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
     async def test_constraints_ddl_error_05(self):
         # Test that constraint expression returns a boolean.
         qry = """
-            CREATE MIGRATION test::ddl_error_05 TO {
-                type User {
-                    required property login -> str {
-                        constraint expression on (len(__subject__))
-                    }
+            CREATE MIGRATION ddl_error_05 TO {
+                module test {
+                    type User {
+                        required property login -> str {
+                            constraint expression on (len(__subject__))
+                        }
+                    };
                 };
             };
         """

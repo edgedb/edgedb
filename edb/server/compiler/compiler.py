@@ -435,7 +435,8 @@ class Compiler(BaseCompiler):
         if isinstance(cmd, s_migrations.CreateMigration):
             migration = None
         else:
-            migration = schema.get(cmd.classname)
+            migration = schema.get_global(
+                s_migrations.Migration, cmd.classname)
 
         with context(s_migrations.MigrationCommandContext(
                 schema, cmd, migration)):
@@ -528,13 +529,24 @@ class Compiler(BaseCompiler):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema()
 
+        # SDL migrations cannot have any modaliases, because
+        # unqualified names inside them should either be enclosed in
+        # their own 'module' block (which will enforce its own
+        # modalias) or can only refer to 'std'.
+        if (isinstance(ql, qlast.CreateMigration) and
+                isinstance(ql.target, qlast.Schema)):
+            modaliases = {}
+        else:
+            modaliases = current_tx.get_modaliases()
+
         cmd = s_ddl.cmd_from_ddl(
             ql,
             schema=schema,
-            modaliases=current_tx.get_modaliases(),
+            modaliases=modaliases,
             testmode=self._in_testmode(ctx))
 
         if (isinstance(ql, qlast.CreateMigration) and
+                # only SDL migrations have a target
                 cmd.get_attribute_value('target')):
 
             if current_tx.is_implicit():

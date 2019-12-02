@@ -664,7 +664,6 @@ class Delta:
 
 class CreateMigration(CreateObject, Delta):
     parents: typing.List[ObjectRef]
-    language: str
     target: typing.Any
 
 
@@ -1017,8 +1016,15 @@ class SDL(Base):
     __abstract_node__ = True
 
 
-class Schema(SDL):
+class ModuleDeclaration(SDL):
+    # The 'name' is treated same as in CreateModule, for consistency,
+    # since this declaration also implies creating a module.
+    name: ObjectRef
     declarations: typing.List[DDL]
+
+
+class Schema(SDL):
+    declarations: typing.List[typing.Union[DDL, ModuleDeclaration]]
 
 
 #

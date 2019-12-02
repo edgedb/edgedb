@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import *  # noqa
 
 from edb import edgeql
@@ -315,34 +316,39 @@ def compile_migration(
     current_schema: s_schema.Schema,
 ) -> migrations.CreateMigration:
 
-    declarations = cmd.get_attribute_value('target')
-    if not declarations:
+    target = cmd.get_attribute_value('target')
+    if not target:
         return cmd
 
+    # group declarations by module
+    documents: Dict[str, List[qlast.DDL]] = defaultdict(list)
+    # initialize the "default" module
+    documents['default'] = []
+    for decl in target.declarations:
+        # declarations are either in a module block or fully-qualified
+        if isinstance(decl, qlast.ModuleDeclaration):
+            documents[decl.name.name].extend(decl.declarations)
+        else:
+            documents[decl.name.module].append(decl)
+
     target_schema = apply_sdl(
-        [(cmd.classname.module, declarations)],
+        documents.items(),
+        # This target_schema is actually the base schema to which SDL
+        # will be applied. Typically it'll be the "builtin" schema.
+        #
+        # In the future it may have already been updated by some
+        # prefixed DDL, though.
         target_schema=target_schema,
         current_schema=current_schema)
 
-    stdmodules = s_schema.STD_MODULES
-    moditems = target_schema.get_objects(type=modules.Module)
-    modnames = (
-        {m.get_name(target_schema) for m in moditems}
-        - stdmodules
-    )
-
-    if len(modnames - {'__derived__'}) > 1:
-        raise RuntimeError('unexpected delta module structure')
-
-    diff = delta_schemas(current_schema, target_schema,
-                         included_modules=modnames)
+    diff = delta_schemas(current_schema, target_schema)
     cmd.set_attribute_value('delta', diff)
 
     return cmd
 
 
 def apply_sdl(
-    documents: Sequence[Tuple[str, qlast.Schema]],
+    documents: Iterable[Tuple[str, Sequence[qlast.DDL]]],
     *,
     target_schema: s_schema.Schema,
     current_schema: s_schema.Schema,

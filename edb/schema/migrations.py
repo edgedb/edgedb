@@ -29,7 +29,7 @@ from . import delta as sd
 from . import objects as so
 
 
-class Migration(so.Object, s_abc.Migration):
+class Migration(so.UnqualifiedObject, s_abc.Migration):
 
     parents = so.SchemaField(
         so.ObjectList,
@@ -49,7 +49,7 @@ class MigrationCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class MigrationCommand(sd.ObjectCommand, schema_metaclass=Migration,
+class MigrationCommand(sd.UnqualifiedObjectCommand, schema_metaclass=Migration,
                        context_class=MigrationCommandContext):
     pass
 

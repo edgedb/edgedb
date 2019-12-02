@@ -29,16 +29,18 @@ specific schema state. For example:
     db> START TRANSACTION;
     START TRANSACTION
     db> CREATE MIGRATION movies TO {
-    ...     type Movie {
-    ...         required property title -> str;
-    ...         # the year of release
-    ...         property year -> int64;
-    ...         required link director -> Person;
-    ...         required multi link cast -> Person;
-    ...     }
-    ...     type Person {
-    ...         required property first_name -> str;
-    ...         required property last_name -> str;
+    ...     module default {
+    ...         type Movie {
+    ...             required property title -> str;
+    ...             # the year of release
+    ...             property year -> int64;
+    ...             required link director -> Person;
+    ...             required multi link cast -> Person;
+    ...         }
+    ...         type Person {
+    ...             required property first_name -> str;
+    ...             required property last_name -> str;
+    ...         }
     ...     }
     ... };
     CREATE MIGRATION

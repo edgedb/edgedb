@@ -964,18 +964,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(node.parents)
 
             if node.target:
-                if node.language:
-                    self.write(' TO ', node.language, ' ')
-                    # generate source from the target node
-                    self.write(
-                        edgeql_quote.dollar_quote_literal(
-                            generate_source(node.target)))
-                else:
-                    self.write(' TO {')
-                    self._block_ws(1)
-                    self.visit(node.target)
-                    self.indentation -= 1
-                    self.write('}')
+                self.write(' TO {')
+                self._block_ws(1)
+                self.visit(node.target)
+                self.indentation -= 1
+                self.write('}')
 
         self._visit_CreateObject(node, 'MIGRATION', after_name=after_name)
 
@@ -1622,6 +1615,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         sdl_codegen.current_line = self.current_line
         sdl_codegen.visit_list(node.declarations, terminator=';')
         self.result.extend(sdl_codegen.result)
+
+    def visit_ModuleDeclaration(self, node: qlast.ModuleDeclaration) -> None:
+        self.write('module ')
+        # the name is always unqualified here
+        self.write(ident_to_str(node.name.name))
+        self.write('{')
+        self._block_ws(1)
+        self.visit_list(node.declarations, terminator=';')
+        self._block_ws(-1)
+        self.write('}')
 
     @classmethod
     def to_source(  # type: ignore

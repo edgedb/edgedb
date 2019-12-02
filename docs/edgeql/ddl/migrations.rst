@@ -80,8 +80,10 @@ syntax:
 .. code-block:: edgeql
 
     CREATE MIGRATION init TO {
-        type User {
-            property username -> str
+        module default {
+            type User {
+                property username -> str
+            }
         }
     };
 
@@ -91,12 +93,12 @@ Create a new migration for the "payments" module using explicit DDL:
 
     START TRANSACTION;
 
-    CREATE MIGRATION payments::alter_tx {
-        ALTER TYPE Payment CREATE PROPERTY amount -> str;
-        ALTER TYPE CreditCard CREATE PROPERTY cvv -> str;
+    CREATE MIGRATION alter_tx {
+        ALTER TYPE payments::Payment CREATE PROPERTY amount -> str;
+        ALTER TYPE payments::CreditCard CREATE PROPERTY cvv -> str;
     };
 
-    COMMIT MIGRATION payments::alter_tx;
+    COMMIT MIGRATION alter_tx;
 
     COMMIT;
 

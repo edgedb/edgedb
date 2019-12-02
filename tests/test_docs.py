@@ -254,7 +254,7 @@ class TestDocSnippets(unittest.TestCase):
                 if lang == 'edgeql':
                     ql_parser.parse_block(snippet)
                 elif lang == 'sdl':
-                    ql_parser.parse_sdl(snippet)
+                    ql_parser.parse_sdl(f'module default {{ {snippet} }}')
                 elif lang == 'edgeql-result':
                     # REPL results
                     pass

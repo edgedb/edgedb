@@ -30,16 +30,18 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
         await self.con.execute(r'''
             START TRANSACTION;
             CREATE MIGRATION movies TO {
-                type Movie {
-                    required property title -> str;
-                    # the year of release
-                    property year -> int64;
-                    required link director -> Person;
-                    multi link cast -> Person;
-                }
-                type Person {
-                    required property first_name -> str;
-                    required property last_name -> str;
+                module default {
+                    type Movie {
+                        required property title -> str;
+                        # the year of release
+                        property year -> int64;
+                        required link director -> Person;
+                        multi link cast -> Person;
+                    }
+                    type Person {
+                        required property first_name -> str;
+                        required property last_name -> str;
+                    }
                 }
             };
             COMMIT MIGRATION movies;
@@ -203,20 +205,22 @@ class TestEdgeQLTutorial(tb.QueryTestCase):
         await self.con.execute(r'''
             START TRANSACTION;
             CREATE MIGRATION movies TO {
-                type Movie {
-                    required property title -> str;
-                    # the year of release
-                    property year -> int64;
-                    required link director -> Person;
-                    multi link cast -> Person;
-                }
-                type Person {
-                    property first_name -> str;
-                    required property last_name -> str;
-                    property name :=
-                        .first_name ++ ' ' ++ .last_name
-                        IF EXISTS .first_name
-                        ELSE .last_name;
+                module default {
+                    type Movie {
+                        required property title -> str;
+                        # the year of release
+                        property year -> int64;
+                        required link director -> Person;
+                        multi link cast -> Person;
+                    }
+                    type Person {
+                        property first_name -> str;
+                        required property last_name -> str;
+                        property name :=
+                            .first_name ++ ' ' ++ .last_name
+                            IF EXISTS .first_name
+                            ELSE .last_name;
+                    }
                 }
             };
             COMMIT MIGRATION movies;

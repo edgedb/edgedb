@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import sys
 import types
+from typing import *  # noqa
 
 from edb.errors import EdgeQLSyntaxError
 
@@ -48,6 +49,20 @@ def _parse_language(node):
         raise EdgeQLSyntaxError(
             f'{node.val} is not a valid language',
             context=node.context) from None
+
+
+def _validate_declarations(
+    declarations: Sequence[Union[qlast.ModuleDeclaration, qlast.DDLCommand]]
+) -> None:
+    # Check that top-level declarations either use fully-qualified
+    # names or are module blocks.
+    for decl in declarations:
+        if (not isinstance(decl, qlast.ModuleDeclaration) and
+                decl.name.module is None):
+            raise EdgeQLSyntaxError(
+                "only fully-qualified name is allowed in "
+                "top-level declaration",
+                context=decl.name.context)
 
 
 class NewNontermHelper:

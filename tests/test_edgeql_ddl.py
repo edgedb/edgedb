@@ -2003,15 +2003,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute("""
-            CREATE MIGRATION test::mig1 TO {
-                abstract annotation attr2;
+            CREATE MIGRATION mig1 TO {
+                module test {
+                    abstract annotation attr2;
 
-                scalar type TestAttrType1 extending std::str {
-                    annotation attr2 := 'aaaa';
+                    scalar type TestAttrType1 extending std::str {
+                        annotation attr2 := 'aaaa';
+                    };
                 };
             };
 
-            COMMIT MIGRATION test::mig1;
+            COMMIT MIGRATION mig1;
         """)
 
         await self.assert_query_result(
@@ -2039,15 +2041,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
         await self.con.execute("""
-            CREATE MIGRATION test::mig1 TO {
-                abstract annotation attr2;
+            CREATE MIGRATION mig1 TO {
+                module test {
+                    abstract annotation attr2;
 
-                type TestAttrType2 {
-                    annotation attr2 := 'aaaa';
+                    type TestAttrType2 {
+                        annotation attr2 := 'aaaa';
+                    };
                 };
             };
 
-            COMMIT MIGRATION test::mig1;
+            COMMIT MIGRATION mig1;
         """)
 
         await self.assert_query_result(
@@ -2296,11 +2300,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute(r'''
-            SET MODULE test;
             CREATE MIGRATION m TO {
-                type BaseAnno07 {
-                    property name -> str;
-                    index ON (.name);
+                module test {
+                    type BaseAnno07 {
+                        property name -> str;
+                        index ON (.name);
+                    }
                 }
             };
             COMMIT MIGRATION m;
@@ -2362,12 +2367,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute(r'''
-            SET MODULE test;
             CREATE MIGRATION m TO {
-                type BaseAnno08 {
-                    property name -> str;
-                    index ON (.name) {
-                        annotation title := 'name index';
+                module test {
+                    type BaseAnno08 {
+                        property name -> str;
+                        index ON (.name) {
+                            annotation title := 'name index';
+                        }
                     }
                 }
             };
@@ -2801,10 +2807,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         try:
             async with self.con.transaction():
                 await self.con.execute(r"""
-                    CREATE MIGRATION test::d1 TO {
-                        type Status extending test_other::UniquelyNamed;
+                    CREATE MIGRATION d1 TO {
+                        type test::Status extending test_other::UniquelyNamed;
                     };
-                    COMMIT MIGRATION test::d1;
+                    COMMIT MIGRATION d1;
                 """)
 
             await self.con.execute("""
@@ -3377,10 +3383,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute(r'''
-            SET MODULE test;
             CREATE MIGRATION m TO {
-                scalar type contest3_t extending int64 {
-                    constraint expression on (__subject__ > 0);
+                module test {
+                    scalar type contest3_t extending int64 {
+                        constraint expression on (__subject__ > 0);
+                    };
                 };
             };
             COMMIT MIGRATION m;
@@ -3443,12 +3450,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
         await self.con.execute(r'''
-            SET MODULE test;
             CREATE MIGRATION m TO {
-                scalar type contest4_t extending int64 {
-                    constraint expression on (__subject__ > 0) {
-                        annotation title := 'my constraint 5';
-                    }
+                module test {
+                    scalar type contest4_t extending int64 {
+                        constraint expression on (__subject__ > 0) {
+                            annotation title := 'my constraint 5';
+                        }
+                    };
                 };
             };
             COMMIT MIGRATION m;
@@ -3619,12 +3627,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_unicode_01(self):
         await self.con.execute(r"""
             # setup delta
-            CREATE MIGRATION test::u1 TO {
-                type Пример {
-                    required property номер -> int16;
+            CREATE MIGRATION u1 TO {
+                module test {
+                    type Пример {
+                        required property номер -> int16;
+                    };
                 };
             };
-            COMMIT MIGRATION test::u1;
+            COMMIT MIGRATION u1;
             SET MODULE test;
 
             INSERT Пример {

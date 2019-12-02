@@ -227,20 +227,22 @@ the ``first_name`` and ``last_name`` properties. This time we will use
     tutorial> START TRANSACTION;
     START TRANSACTION
     tutorial> CREATE MIGRATION movies TO {
-    .........     type Movie {
-    .........         required property title -> str;
-    .........         # the year of release
-    .........         property year -> int64;
-    .........         required link director -> Person;
-    .........         multi link cast -> Person;
-    .........     }
-    .........     type Person {
-    .........         property first_name -> str;
-    .........         required property last_name -> str;
-    .........         property name :=
-    .........             .first_name ++ ' ' ++ .last_name
-    .........             IF EXISTS .first_name
-    .........             ELSE .last_name;
+    .........     module default {
+    .........         type Movie {
+    .........             required property title -> str;
+    .........             # the year of release
+    .........             property year -> int64;
+    .........             required link director -> Person;
+    .........             multi link cast -> Person;
+    .........         }
+    .........         type Person {
+    .........             property first_name -> str;
+    .........             required property last_name -> str;
+    .........             property name :=
+    .........                 .first_name ++ ' ' ++ .last_name
+    .........                 IF EXISTS .first_name
+    .........                 ELSE .last_name;
+    .........         }
     .........     }
     ......... };
     CREATE MIGRATION

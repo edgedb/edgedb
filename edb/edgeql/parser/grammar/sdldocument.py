@@ -19,33 +19,43 @@
 
 from __future__ import annotations
 
-from edb.edgeql import ast as esast
+from edb.edgeql import ast as qlast
 
 from .expressions import Nonterm
 from .sdl import *  # NOQA
+
+from . import commondl
 
 
 class SDLDocument(Nonterm):
     "%start"
 
     def reduce_OptSemicolons_EOF(self, *kids):
-        self.val = esast.Schema(declarations=[])
+        self.val = qlast.Schema(declarations=[])
 
     def reduce_statement_without_semicolons(self, *kids):
         r"""%reduce \
             OptSemicolons SDLShortStatement EOF
         """
-        self.val = esast.Schema(declarations=[kids[1].val])
+        declarations = [kids[1].val]
+        commondl._validate_declarations(declarations)
+        self.val = qlast.Schema(declarations=declarations)
 
     def reduce_statements_without_optional_trailing_semicolons(self, *kids):
         r"""%reduce \
             OptSemicolons SDLStatements \
             OptSemicolons SDLShortStatement EOF
         """
-        self.val = esast.Schema(declarations=kids[1].val + [kids[3].val])
+        declarations = kids[1].val + [kids[3].val]
+        commondl._validate_declarations(declarations)
+        self.val = qlast.Schema(declarations=declarations)
 
     def reduce_OptSemicolons_SDLStatements_EOF(self, *kids):
-        self.val = esast.Schema(declarations=kids[1].val)
+        declarations = kids[1].val
+        commondl._validate_declarations(declarations)
+        self.val = qlast.Schema(declarations=declarations)
 
     def reduce_OptSemicolons_SDLStatements_Semicolons_EOF(self, *kids):
-        self.val = esast.Schema(declarations=kids[1].val)
+        declarations = kids[1].val
+        commondl._validate_declarations(declarations)
+        self.val = qlast.Schema(declarations=declarations)

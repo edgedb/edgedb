@@ -431,51 +431,21 @@ class OptDeltaTarget(Nonterm):
 #
 
 
-class SDLCommandBlock(Nonterm):
-    # this command block can be empty
-    def reduce_LBRACE_OptSemicolons_RBRACE(self, *kids):
-        self.val = qlast.Schema(declarations=[])
-
-    def reduce_statement_without_semicolons(self, *kids):
-        r"""%reduce LBRACE \
-                OptSemicolons SDLShortStatement \
-            RBRACE
-        """
-        self.val = qlast.Schema(declarations=[kids[2].val])
-
-    def reduce_statements_without_optional_trailing_semicolons(self, *kids):
-        r"""%reduce LBRACE \
-                OptSemicolons SDLStatements \
-                OptSemicolons SDLShortStatement \
-            RBRACE
-        """
-        self.val = qlast.Schema(declarations=kids[2].val + [kids[4].val])
-
-    def reduce_LBRACE_OptSemicolons_SDLStatements_RBRACE(self, *kids):
-        self.val = qlast.Schema(declarations=kids[2].val)
-
-    def reduce_statements_without_optional_trailing_semicolons2(self, *kids):
-        r"""%reduce LBRACE \
-                OptSemicolons SDLStatements \
-                Semicolons \
-            RBRACE
-        """
-        self.val = qlast.Schema(declarations=kids[2].val)
-
-
 class CreateMigrationStmt(Nonterm):
     def reduce_CreateMigration_SDL(self, *kids):
-        r"""%reduce CREATE MIGRATION NodeName \
+        r"""%reduce CREATE MIGRATION ShortNodeName \
                     OptDeltaParents TO SDLCommandBlock
         """
+        declarations = kids[5].val
+        commondl._validate_declarations(declarations)
         self.val = qlast.CreateMigration(
             name=kids[2].val,
             parents=kids[3].val,
-            target=kids[5].val,
+            target=qlast.Schema(declarations=declarations),
         )
 
     def reduce_CreateMigration_Commands(self, *kids):
-        r"""%reduce CREATE MIGRATION NodeName \
+        r"""%reduce CREATE MIGRATION ShortNodeName \
                     OptDeltaParents LBRACE InnerDDLStmtBlock OptSemicolons \
                     RBRACE
         """

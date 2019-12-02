@@ -1635,16 +1635,18 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_tx_15(self):
         commands = [
             '''
-            CREATE MIGRATION test::ttt TO {
-                type User {
-                    required property login -> str {
-                        constraint exclusive;
+            CREATE MIGRATION ttt TO {
+                module default {
+                    type User {
+                        required property login -> str {
+                            constraint exclusive;
+                        };
                     };
                 };
             };
             ''',
-            '''GET MIGRATION test::ttt;''',
-            '''COMMIT MIGRATION test::ttt;''',
+            '''GET MIGRATION ttt;''',
+            '''COMMIT MIGRATION ttt;''',
         ]
 
         for command in commands:

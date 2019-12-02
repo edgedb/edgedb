@@ -99,17 +99,17 @@ class DepTraceContext(TraceContextBase):
         self.inhgraph = {}
 
 
-def sdl_to_ddl(schema, declarations):
+def sdl_to_ddl(schema, documents):
     ddlgraph = {}
     mods = []
 
     ctx = LayoutTraceContext(
         schema,
-        local_modules=frozenset(mod for mod, schema_decl in declarations),
+        local_modules=frozenset(mod for mod, schema_decl in documents),
     )
 
-    for module_name, schema_ast in declarations:
-        for decl_ast in schema_ast.declarations:
+    for module_name, declarations in documents:
+        for decl_ast in declarations:
             if isinstance(decl_ast, qlast.CreateObject):
                 fq_name = f'{module_name}::{decl_ast.name.name}'
                 if isinstance(decl_ast, (qlast.CreateObjectType,
@@ -124,17 +124,22 @@ def sdl_to_ddl(schema, declarations):
                     ctx.objects[fq_name] = qltracer.Pointer(
                         fq_name, source=None, target=None)
 
-    for module_name, decl_ast in declarations:
+    for module_name, declarations in documents:
         ctx.set_module(module_name)
-        trace_layout(decl_ast, ctx=ctx)
+        for decl_ast in declarations:
+            trace_layout(decl_ast, ctx=ctx)
 
     topological.normalize(ctx.inh_graph, _merge_items)
 
     ctx = DepTraceContext(schema, ddlgraph, ctx.objects)
-    for module_name, decl_ast in declarations:
+    for module_name, declarations in documents:
         ctx.set_module(module_name)
-        trace_dependencies(decl_ast, ctx=ctx)
-        mods.append(qlast.CreateModule(name=qlast.ObjectRef(name=module_name)))
+        # module needs to be created regardless of whether its
+        # contents are empty or not
+        mods.append(qlast.CreateModule(
+            name=qlast.ObjectRef(name=module_name)))
+        for decl_ast in declarations:
+            trace_dependencies(decl_ast, ctx=ctx)
 
     return mods + list(topological.sort(ddlgraph, allow_unresolved=False))
 
@@ -240,13 +245,6 @@ def _trace_item_layout(node: qlast.CreateObject, *,
 def trace_dependencies(node: qlast.Base, *, ctx: DepTraceContext):
     raise NotImplementedError(
         f"no SDL dep tracer handler for {node.__class__}")
-
-
-@trace_dependencies.register
-def trace_Schema(node: qlast.Schema, *, ctx: DepTraceContext):
-
-    for decl in node.declarations:
-        trace_dependencies(decl, ctx=ctx)
 
 
 @trace_dependencies.register

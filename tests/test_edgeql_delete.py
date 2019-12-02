@@ -24,17 +24,19 @@ from edb.testbase import server as tb
 
 class TestDelete(tb.QueryTestCase):
     SETUP = """
-        CREATE MIGRATION test::d_delete01 TO {
-            type DeleteTest {
-                property name -> str;
-            };
+        CREATE MIGRATION d_delete01 TO {
+            module test {
+                type DeleteTest {
+                    property name -> str;
+                };
 
-            type DeleteTest2 {
-                property name -> str;
+                type DeleteTest2 {
+                    property name -> str;
+                };
             };
         };
 
-        COMMIT MIGRATION test::d_delete01;
+        COMMIT MIGRATION d_delete01;
     """
 
     async def test_edgeql_delete_bad_01(self):

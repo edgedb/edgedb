@@ -24,43 +24,35 @@ from edb.testbase import server as tb
 
 class TestSession(tb.QueryTestCase):
     SETUP = """
-        CREATE MODULE foo;
-        CREATE MODULE fuz;
+        CREATE MIGRATION mig TO {
+            module default {
+                type User {
+                    required property name -> str;
+                    property name_len := len(User.name);
+                };
 
-        CREATE MIGRATION default::m TO {
-            type User {
-                required property name -> str;
-                property name_len := len(User.name);
+                type Flag {
+                    required property value -> bool;
+                };
             };
-
-            type Flag {
-                required property value -> bool;
+            module foo {
+                type Entity {
+                    required property name -> str;
+                };
+            }
+            module fuz {
+                type Entity {
+                    required property name -> str;
+                };
             };
         };
 
-        COMMIT MIGRATION default::m;
+        COMMIT MIGRATION mig;
 
         # Needed for validating that "ALTER TYPE User" DDL commands work.
         CREATE VIEW UserOneToOneView := (SELECT User);
 
         WITH MODULE default INSERT User {name := 'user'};
-
-        CREATE MIGRATION foo::m TO {
-            type Entity {
-                required property name -> str;
-            };
-        };
-
-        COMMIT MIGRATION foo::m;
-
-        CREATE MIGRATION fuz::m TO {
-            type Entity {
-                required property name -> str;
-            };
-        };
-
-        COMMIT MIGRATION fuz::m;
-
         WITH MODULE foo INSERT Entity {name := 'entity'};
         WITH MODULE fuz INSERT Entity {name := 'fuzentity'};
     """
@@ -284,7 +276,7 @@ class TestSession(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE MIGRATION bad TO {
-                        view BadView := Object {
+                        view test::BadView := Object {
                             sess := sys::sleep(0)
                         }
                     };
@@ -298,7 +290,7 @@ class TestSession(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE MIGRATION bad TO {
-                        type BadType {
+                        type test::BadType {
                             property bad -> bool {
                                 default := sys::sleep(0)
                             }
