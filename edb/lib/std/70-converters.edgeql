@@ -626,7 +626,7 @@ std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
-            "s"::numeric
+            edgedb.str_to_decimal("s")
         WHEN "fmt" = '' THEN
             edgedb._raise_specific_exception(
                 'invalid_parameter_value',

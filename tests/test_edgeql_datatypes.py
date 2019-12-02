@@ -241,6 +241,50 @@ class TestEdgeQLDT(tb.QueryTestCase):
         ):
             await self.con.execute(
                 r'''
-                    SELECT <bigint><decimal>'NaN'
+                    SELECT <bigint><float64>'NaN'
+                '''
+            )
+
+    async def test_edgeql_dt_decimal_01(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "invalid value for std::decimal",
+        ):
+            await self.con.execute(
+                r'''
+                    SELECT <decimal><float64>'NaN'
+                '''
+            )
+
+    async def test_edgeql_dt_decimal_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "invalid value for std::decimal",
+        ):
+            await self.con.execute(
+                r'''
+                    SELECT <decimal><float64>'Infinity'
+                '''
+            )
+
+    async def test_edgeql_dt_decimal_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "invalid value for std::decimal",
+        ):
+            await self.con.execute(
+                r'''
+                    SELECT <decimal><float64>'-Infinity'
+                '''
+            )
+
+    async def test_edgeql_dt_decimal_04(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "invalid value for std::decimal",
+        ):
+            await self.con.execute(
+                r'''
+                    SELECT <decimal>(<float64>'Infinity' / <float64>'Infinity')
                 '''
             )

@@ -1781,8 +1781,24 @@ CREATE CAST FROM std::float32 TO std::bigint {
 
 
 CREATE CAST FROM std::float32 TO std::decimal {
-    SET volatility := 'IMMUTABLE';
-    USING SQL CAST;
+    SET volatility := 'STABLE';
+    USING SQL $$
+        SELECT
+            (CASE WHEN val != 'NaN'
+                       AND val != 'Infinity'
+                       AND val != '-Infinity'
+            THEN
+                val::numeric
+            ELSE
+                edgedb._raise_specific_exception(
+                    'invalid_text_representation',
+                    'invalid value for numeric: ' || quote_literal(val),
+                    '',
+                    NULL::numeric
+                )
+            END)
+        ;
+    $$;
 };
 
 
@@ -1811,8 +1827,24 @@ CREATE CAST FROM std::float64 TO std::bigint {
 
 
 CREATE CAST FROM std::float64 TO std::decimal {
-    SET volatility := 'IMMUTABLE';
-    USING SQL CAST;
+    SET volatility := 'STABLE';
+    USING SQL $$
+        SELECT
+            (CASE WHEN val != 'NaN'
+                       AND val != 'Infinity'
+                       AND val != '-Infinity'
+            THEN
+                val::numeric
+            ELSE
+                edgedb._raise_specific_exception(
+                    'invalid_text_representation',
+                    'invalid value for numeric: ' || quote_literal(val),
+                    '',
+                    NULL::numeric
+                )
+            END)
+        ;
+    $$;
 };
 
 
@@ -1849,14 +1881,14 @@ CREATE CAST FROM std::str TO std::float64 {
 
 
 CREATE CAST FROM std::str TO std::bigint {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'STABLE';
     USING SQL FUNCTION 'edgedb.str_to_bigint';
 };
 
 
 CREATE CAST FROM std::str TO std::decimal {
-    SET volatility := 'IMMUTABLE';
-    USING SQL CAST;
+    SET volatility := 'STABLE';
+    USING SQL FUNCTION 'edgedb.str_to_decimal';
 };
 
 

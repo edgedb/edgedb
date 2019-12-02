@@ -344,7 +344,9 @@ CREATE CAST FROM std::json TO std::float64 {
 CREATE CAST FROM std::json TO std::decimal {
     SET volatility := 'STABLE';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'number')::numeric;
+    SELECT edgedb.str_to_decimal(
+        edgedb.jsonb_extract_scalar(val, 'number')
+    );
     $$;
 };
 

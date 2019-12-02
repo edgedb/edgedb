@@ -155,6 +155,39 @@ class StrToBigint(dbops.Function):
             text=self.text)
 
 
+class StrToDecimal(dbops.Function):
+    """Parse decimal from text."""
+    text = r'''
+        SELECT
+            (CASE WHEN v.column1 != 'NaN' THEN
+                v.column1
+            ELSE
+                edgedb._raise_specific_exception(
+                    'invalid_text_representation',
+                    'invalid syntax for numeric: '
+                        || quote_literal(val),
+                    '',
+                    NULL::numeric
+                )
+            END)
+        FROM
+            (VALUES (
+                val::numeric
+            )) AS v
+        ;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_decimal'),
+            args=[('val', ('text',))],
+            returns=('numeric',),
+            # Stable because it's raising exceptions.
+            volatility='stable',
+            text=self.text,
+        )
+
+
 class GetObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
@@ -2077,6 +2110,7 @@ async def bootstrap(conn):
         dbops.CreateCompositeType(TableInheritanceDescType()),
         dbops.CreateDomain(BigintDomain()),
         dbops.CreateFunction(StrToBigint()),
+        dbops.CreateFunction(StrToDecimal()),
         dbops.CreateFunction(GetTableDescendantsFunction()),
         dbops.CreateFunction(ParseTriggerConditionFunction()),
         dbops.CreateFunction(NormalizeArrayIndexFunction()),
