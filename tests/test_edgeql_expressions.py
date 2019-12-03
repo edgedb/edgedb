@@ -798,7 +798,7 @@ class TestExpressions(tb.QueryTestCase):
         # floats or floats into decimal.
         await self.assert_query_result(
             r'''
-            SELECT <decimal>0.797693134862311111111 = 0.797693134862311111111;
+            SELECT 0.797693134862311111111n = <decimal>0.797693134862311111111;
             ''',
             [False],
         )
@@ -806,9 +806,9 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             SELECT
-                <decimal>0.797693134862311111111 >= 0.797693134862311111111
+                0.797693134862311111111n >= <decimal>0.797693134862311111111
                 AND
-                <decimal>0.797693134862311111111 <= 0.797693134862311111111;
+                0.797693134862311111111n <= <decimal>0.797693134862311111111;
             ''',
             [False],
         )
@@ -869,11 +869,18 @@ class TestExpressions(tb.QueryTestCase):
         # compare all numerics to each other via equality
         ops = [('=', '!='), ('?=', '?!='), ('IN', 'NOT IN')]
 
-        for left in get_test_values(anyreal=True):
-            for right in get_test_values(anyreal=True):
+        for left, ldesc in get_test_items(anyreal=True):
+            for right, rdesc in get_test_items(anyreal=True):
+                if (ldesc.anynumeric and rdesc.anyfloat
+                        or rdesc.anynumeric and ldesc.anyfloat):
+                    # decimals are not implicitly comparable to floats
+                    expected = 'cannot be applied to operands'
+                else:
+                    expected = True
+
                 for op, not_op in ops:
                     await self._test_boolop(
-                        left, right, op, not_op, True
+                        left, right, op, not_op, expected
                     )
 
     async def test_edgeql_expr_valid_eq_03(self):
@@ -902,14 +909,20 @@ class TestExpressions(tb.QueryTestCase):
                     )
 
     async def test_edgeql_expr_valid_comp_03(self):
-        expected_error_msg = 'cannot be applied to operands'
         # compare numerics to all scalars via ordering comparators
-        for left in get_test_values(anyreal=True):
+        for left, ldesc in get_test_items(anyreal=True):
             for right, rdesc in get_test_items():
+                if (ldesc.anynumeric and rdesc.anyfloat
+                        or rdesc.anynumeric and ldesc.anyfloat
+                        or not rdesc.anyreal):
+                    # decimals are not implicitly comparable to floats
+                    expected = 'cannot be applied to operands'
+                else:
+                    expected = True
+
                 for op, not_op in [('>=', '<'), ('<=', '>')]:
                     await self._test_boolop(
-                        left, right, op, not_op,
-                        True if rdesc.anyreal else expected_error_msg
+                        left, right, op, not_op, expected
                     )
 
     async def test_edgeql_expr_valid_comp_04(self):
