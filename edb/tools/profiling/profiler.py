@@ -200,6 +200,10 @@ class profile:
         files = list(
             str(f) for f in self.dir.glob(self.prefix + "*" + self.suffix)
         )
+        if not files:
+            print(f"warning: no files to process", file=sys.stderr)
+            return 0, 0
+
         success = 0
         failure = 0
         with open(pstats_path, "w") as out:
@@ -240,7 +244,9 @@ class profile:
 
     def accumulate_singledispatch_traces(self) -> Dict[FunctionID, CallCounts]:
         result: Dict[FunctionID, CallCounts] = {}
-        d = self.dir.glob(self.prefix + "*" + self.suffix + ".singledispatch")
+        d = self.dir.glob(
+            self.prefix + "*" + self.suffix + SINGLEDISPATCH_SUFFIX
+        )
         for f in d:
             with open(str(f), "rb") as file:
                 dispatches = pickle.load(file)
@@ -422,7 +428,7 @@ def find_singledispatch_wrapper(
         dispatch_name = "dispatch"
         wrapper_name = "wrapper"
     else:
-        functools_path = re.compile(r"vendor/tracing_singledispatch.py$")
+        functools_path = re.compile(r"profiling/tracing_singledispatch.py$")
         dispatch_name = "dispatch"
         wrapper_name = "sd_wrapper"
 
