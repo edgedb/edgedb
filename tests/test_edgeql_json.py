@@ -19,11 +19,11 @@
 
 import json
 import os.path
-import unittest
 
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLJSON(tb.QueryTestCase):
@@ -183,10 +183,11 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [False],
         )
 
-    @unittest.expectedFailure
-    async def test_edgeql_json_cast_06(self):
-        # XXX: casting into tuples or other deeply nested structures
+    @test.not_implemented('''
+        # casting into tuples or other deeply nested structures
         # is not currently implemented
+    ''')
+    async def test_edgeql_json_cast_06(self):
         await self.assert_query_result(
             r'''SELECT <tuple<int64, str>><json>[1, 2];''',
             [[1, '2']],
