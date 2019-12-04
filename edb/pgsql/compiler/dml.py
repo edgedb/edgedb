@@ -470,10 +470,6 @@ def process_update_body(
 
     external_updates = []
 
-    toplevel = ctx.toplevel_stmt
-    toplevel.ctes.append(range_cte)
-    toplevel.ctes.append(update_cte)
-
     with ctx.newscope() as subctx:
         # It is necessary to process the expressions in
         # the UpdateStmt shape body in the context of the
@@ -541,6 +537,10 @@ def process_update_body(
             view_path_id_map=update_stmt.view_path_id_map.copy(),
             ptr_join_map=update_stmt.ptr_join_map.copy(),
         )
+
+    toplevel = ctx.toplevel_stmt
+    toplevel.ctes.append(range_cte)
+    toplevel.ctes.append(update_cte)
 
     # Process necessary updates to the link tables.
     for expr, _props_only in external_updates:
