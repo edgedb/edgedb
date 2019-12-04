@@ -353,10 +353,10 @@ aa';
     def test_edgeql_syntax_constants_31(self):
         r"""
         SELECT 'aa\
-        bb \
-        aa';
+                bb \
+                aa';
 % OK %
-        SELECT 'aa bb aa';
+        SELECT 'aabb aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -365,8 +365,8 @@ aa';
     def test_edgeql_syntax_constants_32(self):
         r"""
         SELECT 'aa\
-        bb \
-        aa\';
+                bb \
+                aa\';
 % OK %
         SELECT 'aabb aa';
         """

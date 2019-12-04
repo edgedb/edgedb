@@ -151,3 +151,10 @@ def unescape_string(st):
         return chr(int(m.group(g), 16))
 
     return STRING_ESCAPE_RE.sub(cb, st)
+
+
+STRING_LINE_CONT_RE = re.compile(r'\\\n\s*')
+
+
+def collapse_newline_whitespace(st):
+    return STRING_LINE_CONT_RE.sub(r'', st)

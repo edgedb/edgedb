@@ -3039,16 +3039,17 @@ class TestExpressions(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT 'aa\
-            bb \
-            aa';
-            ''',
-            ['aa            bb             aa'],
-        )
-
-        await self.assert_query_result(
             r'''SELECT r'\n';''',
             ['\\n'],
+        )
+
+    async def test_edgeql_expr_string_09(self):
+        await self.assert_query_result(
+            r'''SELECT 'bb\
+            aa \
+            bb';
+            ''',
+            ['bbaa bb'],
         )
 
         await self.assert_query_result(

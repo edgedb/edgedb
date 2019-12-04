@@ -20,7 +20,6 @@
 from __future__ import annotations
 
 import collections
-import re
 import typing
 
 from edb.common import parsing, context
@@ -939,8 +938,8 @@ class EscapedStringConstant(Nonterm):
         quote = match.group('Q')
         val = match.group('body')
 
-        # handle line continuations
-        val = re.sub(r'\\\n', '', val)
+        # collapse the whitespace after a line continuation
+        val = lexutils.collapse_newline_whitespace(val)
 
         self.val = qlast.StringConstant(value=val, quote=quote)
 

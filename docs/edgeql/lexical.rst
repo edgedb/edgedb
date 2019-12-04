@@ -143,7 +143,8 @@ Here's a list of valid :token:`str_escapes`:
 +--------------------+---------------------------------------------+
 | Escape Sequence    | Meaning                                     |
 +====================+=============================================+
-| ``\[newline]``     | Backslash and newline ignored               |
+| ``\[newline]``     | Backslash and all whitespace up to next     |
+|                    | non-whitespace character is ignored         |
 +--------------------+---------------------------------------------+
 | ``\\``             | Backslash (\\)                              |
 +--------------------+---------------------------------------------+
@@ -182,8 +183,13 @@ Here's some examples of regular strings using escape sequences
     world'}
 
     db> SELECT 'hello \
-    ... world';
+    ...         world';
     {'hello world'}
+
+    db> SELECT 'https://edgedb.com/\
+    ...         docs/edgeql/lexical\
+    ...         #constants';
+    {'https://edgedb.com/docs/edgeql/lexical#constants'}
 
     db> SELECT 'hello \\ world';
     {'hello \ world'}
