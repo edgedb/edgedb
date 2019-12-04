@@ -112,6 +112,7 @@ class profile:
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            tracing_singledispatch.profiling_in_progress.set()
             self.n_calls += 1
             self.profiler.enable()
             try:
@@ -120,6 +121,7 @@ class profile:
                 self.profiler.disable()
                 if self.n_calls % self.save_every_n_calls == 0:
                     self.dump_stats()
+                tracing_singledispatch.profiling_in_progress.clear()
 
         return cast(T, wrapper)
 
@@ -225,7 +227,9 @@ class profile:
         if singledispatch_traces:
             singledispatch_path = out_path.with_suffix(SINGLEDISPATCH_SUFFIX)
             with singledispatch_path.open("wb") as sd_file:
-                pickle.dump(singledispatch_traces, sd_file)
+                pickle.dump(
+                    singledispatch_traces, sd_file, pickle.HIGHEST_PROTOCOL
+                )
 
         # Mypy is wrong below, `stats` is there on all pstats.Stats objects
         stats = ps.stats  # type: ignore
@@ -501,12 +505,6 @@ def filter_singledispatch_in_place(
         for call_counts in dispatches.values():
             for caller, calls in call_counts.items():
                 if funcid not in calls:
-                    continue
-
-                if caller not in stats:
-                    # Callers from times when the profiler was disabled.
-                    # TODO: we should probably only trace in
-                    # tracing_singledispatch when profiling is enabled.
                     continue
 
                 new_direct_calls[caller] = calls[funcid]

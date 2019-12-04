@@ -15,12 +15,16 @@ from typing import *
 
 import functools
 import sys
+import threading
 
 
 # Aliases to minimize code changes in the vendored singledispatch below.
 get_cache_token = functools.get_cache_token
 update_wrapper = functools.update_wrapper
 _find_impl = functools._find_impl
+
+
+profiling_in_progress = threading.Event()
 
 
 if TYPE_CHECKING:
@@ -120,14 +124,22 @@ def tracing_singledispatch(func: T) -> T:
             raise TypeError(f'{funcname} requires at least '
                             '1 positional argument')
 
-        caller = sys._getframe().f_back.f_code
-        caller_id = (caller.co_filename, caller.co_firstlineno, caller.co_name)
         impl = dispatch(args[0].__class__)
-        _icode = impl.__code__
-        impl_id = (_icode.co_filename, _icode.co_firstlineno, _icode.co_name)
-        our_dispatches = done_dispatches.setdefault(func_id, {})
-        caller_dispatches = our_dispatches.setdefault(caller_id, {})
-        caller_dispatches[impl_id] = caller_dispatches.get(impl_id, 0) + 1
+        if profiling_in_progress.is_set():
+            caller = sys._getframe().f_back.f_code
+            caller_id = (
+                caller.co_filename,
+                caller.co_firstlineno,
+                caller.co_name,
+            )
+            impl_id = (
+                impl.__code__.co_filename,
+                impl.__code__.co_firstlineno,
+                impl.__code__.co_name,
+            )
+            our_dispatches = done_dispatches.setdefault(func_id, {})
+            caller_dispatches = our_dispatches.setdefault(caller_id, {})
+            caller_dispatches[impl_id] = caller_dispatches.get(impl_id, 0) + 1
         return impl(*args, **kw)
 
     funcname = getattr(func, '__name__', 'singledispatch function')
