@@ -1544,10 +1544,6 @@ class TestInsert(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: cannot cast type record to
-        "338fc9bb-51be-555d-b2f7-abe53ff0567f_t"
-    ''')
     async def test_edgeql_insert_collection_01(self):
         await self.con.execute(r"""
             INSERT test::CollectionTest {

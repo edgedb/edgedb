@@ -1770,10 +1770,6 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError:
-        subquery must return only one column
-    ''')
     async def test_edgeql_update_collection_01(self):
         # test and UPDATE with a collection
         await self.con.execute(
