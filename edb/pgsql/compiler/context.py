@@ -75,6 +75,9 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: the top-level SQL statement
     toplevel_stmt: pgast.Query
 
+    #: Record of DML CTEs generated for the corresponding IR DML.
+    dml_stmts: Dict[irast.MutatingStmt, pgast.CommonTableExpr]
+
     #: SQL statement corresponding to the IR statement
     #: currently being compiled.
     stmt: pgast.SelectStmt
@@ -167,6 +170,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = NO_STMT
             self.rel = NO_STMT
             self.rel_hierarchy = {}
+            self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
 
@@ -193,6 +197,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = prevlevel.stmt
             self.rel = prevlevel.rel
             self.rel_hierarchy = prevlevel.rel_hierarchy
+            self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
 
