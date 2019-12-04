@@ -24,6 +24,8 @@ from __future__ import annotations
 
 from typing import *  # NoQA
 
+from edb import errors
+
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
@@ -904,13 +906,16 @@ def range_for_ptrref(
 
     set_ops = []
 
-    if only_self:
+    if ptrref.union_components:
+        refs = ptrref.union_components
+        if only_self and len(refs) > 1:
+            raise errors.InternalServerError(
+                'unexpected union link'
+            )
+    elif only_self:
         refs = {ptrref}
     else:
-        if ptrref.union_components:
-            refs = ptrref.union_components
-        else:
-            refs = {ptrref} | ptrref.descendants
+        refs = {ptrref} | ptrref.descendants
 
     for src_ptrref in refs:
         assert isinstance(src_ptrref, irast.PointerRef), \
