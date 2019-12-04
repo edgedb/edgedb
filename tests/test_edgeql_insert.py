@@ -420,12 +420,6 @@ class TestInsert(tb.QueryTestCase):
             'subordinates': [{'name': 'nested sub 8.1'}]
         }])
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: could not find std::target
-        in insert computable
-
-        Probably related to `test_edgeql_insert_derived_02`.
-    ''')
     async def test_edgeql_insert_nested_09(self):
         # test a single link with a link property
         await self.con.execute(r'''
