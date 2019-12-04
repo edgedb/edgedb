@@ -3298,6 +3298,31 @@ class TestExpressions(tb.QueryTestCase):
             [[1, 2]],
         )
 
+    async def test_edgeql_expr_tuple_18(self):
+        await self.assert_query_result(
+            '''
+                WITH TUP := (1, (2, 3))
+                SELECT TUP.1.1;
+            ''',
+            [3],
+        )
+
+        await self.assert_query_result(
+            '''
+                WITH TUP := (1, (2, 3))
+                SELECT TUP.>1.1;
+            ''',
+            [3],
+        )
+
+        await self.assert_query_result(
+            '''
+                WITH TUP := (1, (2, 3))
+                SELECT TUP.>1.>1;
+            ''',
+            [3],
+        )
+
     async def test_edgeql_expr_tuple_indirection_01(self):
         await self.assert_query_result(
             r"""

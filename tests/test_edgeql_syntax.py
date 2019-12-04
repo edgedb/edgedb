@@ -1763,6 +1763,19 @@ aa';
         SELECT TUP.0.1n.2;
         """
 
+    def test_edgeql_syntax_path_28(self):
+        """
+        SELECT TUP.1.1;
+        SELECT TUP.>1.1;
+        SELECT TUP.>1.>1;
+
+% OK %
+
+        SELECT TUP.1.1;
+        SELECT TUP.1.1;
+        SELECT TUP.1.1;
+        """
+
     def test_edgeql_syntax_type_interpretation_01(self):
         """
         SELECT Foo[IS Bar].spam;
