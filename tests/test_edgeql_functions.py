@@ -1077,7 +1077,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <local_datetime>'2018-05-07T15:01:22.306916', 'year');
+                    <cal::local_datetime>'2018-05-07T15:01:22.306916', 'year');
             ''',
             {2018},
         )
@@ -1085,7 +1085,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <local_datetime>'2018-05-07T15:01:22.306916', 'month');
+                  <cal::local_datetime>'2018-05-07T15:01:22.306916', 'month');
             ''',
             {5},
         )
@@ -1093,7 +1093,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <local_datetime>'2018-05-07T15:01:22.306916', 'day');
+                    <cal::local_datetime>'2018-05-07T15:01:22.306916', 'day');
             ''',
             {7},
         )
@@ -1101,7 +1101,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <local_datetime>'2018-05-07T15:01:22.306916', 'hour');
+                    <cal::local_datetime>'2018-05-07T15:01:22.306916', 'hour');
             ''',
             {15},
         )
@@ -1109,7 +1109,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <local_datetime>'2018-05-07T15:01:22.306916', 'minute');
+                  <cal::local_datetime>'2018-05-07T15:01:22.306916', 'minute');
             ''',
             {1},
         )
@@ -1117,7 +1117,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <local_datetime>'2018-05-07T15:01:22.306916', 'second');
+                  <cal::local_datetime>'2018-05-07T15:01:22.306916', 'second');
             ''',
             {22.306916},
         )
@@ -1128,40 +1128,49 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 'timestamp units "timezone_hour" not supported'):
             await self.con.fetchall('''
                 SELECT datetime_get(
-                    <local_datetime>'2018-05-07T15:01:22.306916',
+                    <cal::local_datetime>'2018-05-07T15:01:22.306916',
                     'timezone_hour'
                 );
             ''')
 
     async def test_edgeql_functions_date_get_01(self):
         await self.assert_query_result(
-            r'''SELECT date_get(<local_date>'2018-05-07', 'year');''',
+            r'''SELECT cal::date_get(<cal::local_date>'2018-05-07', 'year');
+            ''',
             {2018},
         )
 
         await self.assert_query_result(
-            r'''SELECT date_get(<local_date>'2018-05-07', 'month');''',
+            r'''SELECT cal::date_get(<cal::local_date>'2018-05-07', 'month');
+            ''',
             {5},
         )
 
         await self.assert_query_result(
-            r'''SELECT date_get(<local_date>'2018-05-07', 'day');''',
+            r'''SELECT cal::date_get(<cal::local_date>'2018-05-07', 'day');
+            ''',
             {7},
         )
 
     async def test_edgeql_functions_time_get_01(self):
         await self.assert_query_result(
-            r'''SELECT time_get(<local_time>'15:01:22.306916', 'hour')''',
+            r'''SELECT
+                    cal::time_get(<cal::local_time>'15:01:22.306916', 'hour')
+            ''',
             {15},
         )
 
         await self.assert_query_result(
-            r'''SELECT time_get(<local_time>'15:01:22.306916', 'minute')''',
+            r'''SELECT
+                    cal::time_get(<cal::local_time>'15:01:22.306916', 'minute')
+            ''',
             {1},
         )
 
         await self.assert_query_result(
-            r'''SELECT time_get(<local_time>'15:01:22.306916', 'second')''',
+            r'''SELECT
+                    cal::time_get(<cal::local_time>'15:01:22.306916', 'second')
+            ''',
             {22.306916},
         )
 
@@ -1314,7 +1323,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>to_datetime(
-                    to_local_datetime(2018, 5, 7, 15, 1, 22.306916),
+                    cal::to_local_datetime(2018, 5, 7, 15, 1, 22.306916),
                     'EST')
             ''',
             ['2018-05-07T20:01:22.306916+00:00'],
@@ -1384,7 +1393,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_local_datetime_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_local_datetime(
+                SELECT <str>cal::to_local_datetime(
                     <datetime>'2018-05-07T20:01:22.306916+00:00',
                     'US/Pacific');
             ''',
@@ -1394,7 +1403,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_local_datetime_02(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_local_datetime(2018, 5, 7, 15, 1, 22.306916);
+              SELECT <str>cal::to_local_datetime(2018, 5, 7, 15, 1, 22.306916);
             ''',
             ['2018-05-07T15:01:22.306916'],
         )
@@ -1405,9 +1414,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             # specifies arbitrary characters in its place.
             r'''
                 SELECT
-                    to_local_datetime('2019/01/01 00:00:00 0715',
+                    cal::to_local_datetime('2019/01/01 00:00:00 0715',
                                       'YYYY/MM/DD H24:MI:SS "NOTZ"') =
-                    <local_datetime>'2019-01-01T00:00:00';
+                    <cal::local_datetime>'2019-01-01T00:00:00';
             ''',
             [True],
         )
@@ -1417,9 +1426,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             # not expect to parse it.
             r'''
                 SELECT
-                    to_local_datetime('2019/01/01 00:00:00 0715',
+                    cal::to_local_datetime('2019/01/01 00:00:00 0715',
                                       'YYYY/MM/DD H24:MI:SS') =
-                    <local_datetime>'2019-01-01T00:00:00';
+                    <cal::local_datetime>'2019-01-01T00:00:00';
             ''',
             [True],
         )
@@ -1431,9 +1440,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 await self.con.fetchall(
                     r'''
                         SELECT
-                            to_local_datetime('2019/01/01 00:00:00 0715',
-                                              'YYYY/MM/DD H24:MI:SS TZH') =
-                            <local_datetime>'2019-01-01T00:00:00';
+                          cal::to_local_datetime('2019/01/01 00:00:00 0715',
+                                                 'YYYY/MM/DD H24:MI:SS TZH') =
+                          <cal::local_datetime>'2019-01-01T00:00:00';
                     ''')
 
     async def test_edgeql_functions_to_local_datetime_05(self):
@@ -1441,10 +1450,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             # Make sure that time zone change (while converting
             # `to_local_datetime`) is not leaking.
             r'''
-                SELECT (<str><local_datetime>'2019-01-01 00:00:00',
-                        <str>to_local_datetime('2019/01/01 00:00:00 0715',
-                                               'YYYY/MM/DD H24:MI:SS'),
-                        <str><local_datetime>'2019-02-01 00:00:00');
+                SELECT (<str><cal::local_datetime>'2019-01-01 00:00:00',
+                        <str>cal::to_local_datetime('2019/01/01 00:00:00 0715',
+                                                    'YYYY/MM/DD H24:MI:SS'),
+                        <str><cal::local_datetime>'2019-02-01 00:00:00');
             ''',
             [['2019-01-01T00:00:00',
               '2019-01-01T00:00:00',
@@ -1458,13 +1467,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 # including time zone
                 await self.con.fetchall(r'''
                     SELECT
-                        to_local_datetime('2019/01/01 00:00:00 0715');
+                        cal::to_local_datetime('2019/01/01 00:00:00 0715');
                 ''')
 
     async def test_edgeql_functions_to_local_date_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_local_date(2018, 5, 7);
+                SELECT <str>cal::to_local_date(2018, 5, 7);
             ''',
             ['2018-05-07'],
         )
@@ -1473,12 +1482,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(
-                    'SELECT to_local_date("2017-10-10", "")')
+                    'SELECT cal::to_local_date("2017-10-10", "")')
 
     async def test_edgeql_functions_to_local_date_02(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_local_date(
+                SELECT <str>cal::to_local_date(
                     <datetime>'2018-05-07T20:01:22.306916+00:00',
                     'US/Pacific');
             ''',
@@ -1492,9 +1501,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 await self.con.fetchall(
                     r'''
                         SELECT
-                            to_local_date('2019/01/01 00:00:00 0715',
-                                          'YYYY/MM/DD H24:MI:SS TZH') =
-                            <local_date>'2019-01-01';
+                            cal::to_local_date('2019/01/01 00:00:00 0715',
+                                               'YYYY/MM/DD H24:MI:SS TZH') =
+                            <cal::local_date>'2019-01-01';
                     ''')
 
     async def test_edgeql_functions_to_local_date_04(self):
@@ -1504,13 +1513,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 # including too much
                 await self.con.fetchall(r'''
                     SELECT
-                        to_local_datetime('2019/01/01 00:00:00 0715');
+                        cal::to_local_datetime('2019/01/01 00:00:00 0715');
                 ''')
 
     async def test_edgeql_functions_to_local_time_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_local_time(15, 1, 22.306916);
+                SELECT <str>cal::to_local_time(15, 1, 22.306916);
             ''',
             ['15:01:22.306916'],
         )
@@ -1518,12 +1527,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
                                     '"fmt" argument must be'):
             async with self.con.transaction():
-                await self.con.fetchall('SELECT to_local_time("12:00:00", "")')
+                await self.con.fetchall(
+                    'SELECT cal::to_local_time("12:00:00", "")')
 
     async def test_edgeql_functions_to_local_time_02(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>to_local_time(
+                SELECT <str>cal::to_local_time(
                     <datetime>'2018-05-07T20:01:22.306916+00:00',
                     'US/Pacific');
             ''',
@@ -1537,9 +1547,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 await self.con.fetchall(
                     r'''
                         SELECT
-                            to_local_time('00:00:00 0715',
+                            cal::to_local_time('00:00:00 0715',
                                           'H24:MI:SS TZH') =
-                            <local_time>'00:00:00';
+                            <cal::local_time>'00:00:00';
                     ''')
 
     async def test_edgeql_functions_to_local_time_04(self):
@@ -1549,7 +1559,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 # including time zone
                 await self.con.fetchall(r'''
                     SELECT
-                        to_local_datetime('00:00:00 0715');
+                        cal::to_local_datetime('00:00:00 0715');
                 ''')
 
     async def test_edgeql_functions_to_duration_01(self):
@@ -1658,7 +1668,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH D := to_local_date(datetime_current(), 'UTC')
+            WITH D := cal::to_local_date(datetime_current(), 'UTC')
             SELECT <str>D = to_str(D);
             ''',
             [True],
@@ -1666,7 +1676,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH NT := to_local_time(datetime_current(), 'UTC')
+            WITH NT := cal::to_local_time(datetime_current(), 'UTC')
             SELECT <str>NT = to_str(NT);
             ''',
             [True],
@@ -1805,7 +1815,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_str_04(self):
         await self.assert_query_result(
             r'''
-            WITH DT := <local_date>'2018-05-07'
+            WITH DT := <cal::local_date>'2018-05-07'
             SELECT to_str(DT, 'YYYY-MM-DD');
             ''',
             {'2018-05-07'},
@@ -1813,7 +1823,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH DT := <local_date>'2018-05-07'
+            WITH DT := <cal::local_date>'2018-05-07'
             SELECT to_str(DT, 'YYYYBC');
             ''',
             {'2018AD'},
@@ -1821,7 +1831,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH DT := <local_date>'2018-05-07'
+            WITH DT := <cal::local_date>'2018-05-07'
             SELECT to_str(DT, 'FMDDth of FMMonth, YYYY');
             ''',
             {'7th of May, 2018'},
@@ -1829,7 +1839,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH DT := <local_date>'2018-05-07'
+            WITH DT := <cal::local_date>'2018-05-07'
             SELECT to_str(DT, 'CCth "century"');
             ''',
             {'21st century'},
@@ -1837,7 +1847,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH DT := <local_date>'2018-05-07'
+            WITH DT := <cal::local_date>'2018-05-07'
             SELECT to_str(DT, 'Y,YYY Month DD Day');
             ''',
             {'2,018 May       07 Monday   '},
@@ -1846,7 +1856,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             # the format string doesn't have any special characters
-            WITH DT := <local_date>'2018-05-07'
+            WITH DT := <cal::local_date>'2018-05-07'
             SELECT to_str(DT, 'foo');
             ''',
             {'foo'},
@@ -1856,7 +1866,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(r'''
-                    WITH DT := <local_time>'12:00:00'
+                    WITH DT := <cal::local_time>'12:00:00'
                     SELECT to_str(DT, '');
                 ''')
 
@@ -1864,7 +1874,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(r'''
-                    WITH DT := <local_date>'2018-05-07'
+                    WITH DT := <cal::local_date>'2018-05-07'
                     SELECT to_str(DT, '');
                 ''')
 
@@ -2008,22 +2018,22 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_to_str_07(self):
         await self.assert_query_result(
-            r'''SELECT to_str(<local_time>'15:01:22', 'HH:MI A.M.');''',
+            r'''SELECT to_str(<cal::local_time>'15:01:22', 'HH:MI A.M.');''',
             {'03:01 P.M.'},
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<local_time>'15:01:22', 'HH:MI:SSam.');''',
+            r'''SELECT to_str(<cal::local_time>'15:01:22', 'HH:MI:SSam.');''',
             {'03:01:22pm.'},
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<local_time>'15:01:22', 'HH24:MI');''',
+            r'''SELECT to_str(<cal::local_time>'15:01:22', 'HH24:MI');''',
             {'15:01'},
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<local_time>'15:01:22', ' ');''',
+            r'''SELECT to_str(<cal::local_time>'15:01:22', ' ');''',
             {' '},
         )
 
@@ -2031,7 +2041,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(
-                    r'''SELECT to_str(<local_time>'15:01:22', '');''',)
+                    r'''SELECT to_str(<cal::local_time>'15:01:22', '');''',)
 
     async def test_edgeql_functions_to_str_08(self):
         await self.assert_query_result(
@@ -2495,7 +2505,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>min(<local_datetime>{
+                SELECT <str>min(<cal::local_datetime>{
                     '2018-05-07T15:01:22.306916',
                     '2017-05-07T16:01:22.306916',
                     '2017-01-07T11:01:22.306916',
@@ -2507,7 +2517,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>min(<local_date>{
+                SELECT <str>min(<cal::local_date>{
                     '2018-05-07',
                     '2017-05-07',
                     '2017-01-07',
@@ -2519,7 +2529,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>min(<local_time>{
+                SELECT <str>min(<cal::local_time>{
                     '15:01:22',
                     '16:01:22',
                     '11:01:22',
@@ -2631,7 +2641,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>max(<local_datetime>{
+                SELECT <str>max(<cal::local_datetime>{
                     '2018-05-07T15:01:22.306916',
                     '2017-05-07T16:01:22.306916',
                     '2017-01-07T11:01:22.306916',
@@ -2643,7 +2653,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>max(<local_date>{
+                SELECT <str>max(<cal::local_date>{
                     '2018-05-07',
                     '2017-05-07',
                     '2017-01-07',
@@ -2655,7 +2665,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>max(<local_time>{
+                SELECT <str>max(<cal::local_time>{
                     '15:01:22',
                     '16:01:22',
                     '11:01:22',

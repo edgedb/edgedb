@@ -109,7 +109,7 @@ JSON
         {'5'}
         db> SELECT j := <json>(schema::Type {
         ...     name,
-        ...     timestamp := to_local_date(datetime_current(), 'UTC')
+        ...     timestamp := cal::to_local_date(datetime_current(), 'UTC')
         ... })
         ... FILTER j['name'] = <json>'std::bool';
         {'{"name": "std::bool", "timestamp": "2019-04-02"}'}

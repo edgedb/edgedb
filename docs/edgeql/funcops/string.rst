@@ -463,9 +463,6 @@ String
 
 
 .. eql:function:: std::to_str(val: datetime, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: local_datetime, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: local_date, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: local_time, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: duration, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: int64, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: float64, fmt: OPTIONAL str={}) -> str
@@ -473,6 +470,12 @@ String
                   std::to_str(val: decimal, fmt: OPTIONAL str={}) -> str
                   std::to_str(val: json, fmt: OPTIONAL str={}) -> str
                   std::to_str(array: array<str>, delimiter: str) -> str
+                  std::to_str(val: cal::local_datetime, \
+                              fmt: OPTIONAL str={}) -> str
+                  std::to_str(val: cal::local_date, \
+                              fmt: OPTIONAL str={}) -> str
+                  std::to_str(val: cal::local_time, \
+                              fmt: OPTIONAL str={}) -> str
 
     :index: stringify dumps join array_to_string
 
@@ -483,11 +486,11 @@ String
     converter functions from :eql:type:`str` back to the specific
     types, which share the meaning of the format argument *fmt*.
 
-    When converting :eql:type:`datetime`, :eql:type:`local_datetime`,
-    :eql:type:`local_date`, :eql:type:`local_time`,
+    When converting :eql:type:`datetime`, :eql:type:`cal::local_datetime`,
+    :eql:type:`cal::local_date`, :eql:type:`cal::local_time`,
     :eql:type:`duration` this function is the inverse of
-    :eql:func:`to_datetime`, :eql:func:`to_local_datetime`,
-    :eql:func:`to_local_date`, :eql:func:`to_local_time`,
+    :eql:func:`to_datetime`, :eql:func:`cal::to_local_datetime`,
+    :eql:func:`cal::to_local_date`, :eql:func:`cal::to_local_time`,
     :eql:func:`to_duration`, correspondingly.
 
     For valid date and time formatting patterns see
@@ -498,7 +501,7 @@ String
         db> SELECT to_str(<datetime>'2018-05-07 15:01:22.306916-05',
         ...               'FMDDth of FMMonth, YYYY');
         {'7th of May, 2018'}
-        db> SELECT to_str(<local_date>'2018-05-07', 'CCth "century"');
+        db> SELECT to_str(<cal::local_date>'2018-05-07', 'CCth "century"');
         {'21st century'}
 
     When converting one of the numeric types, this function is the
@@ -810,10 +813,10 @@ the *FX* prefix modifier is used. For example:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT to_local_date(
+    db> SELECT cal::to_local_date(
     ...     '2000    JUN', 'YYYY MON');
-    {<local_date>'2000-06-01'}
-    db> SELECT to_local_date(
+    {<cal::local_date>'2000-06-01'}
+    db> SELECT cal::to_local_date(
     ...     '2000    JUN', 'FXYYYY MON');
     InternalServerError: invalid value "   " for "MON"
 

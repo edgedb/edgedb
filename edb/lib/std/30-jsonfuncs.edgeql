@@ -176,24 +176,6 @@ CREATE CAST FROM std::datetime TO std::json {
 };
 
 
-CREATE CAST FROM std::local_datetime TO std::json {
-    SET volatility := 'STABLE';
-    USING SQL FUNCTION 'to_jsonb';
-};
-
-
-CREATE CAST FROM std::local_date TO std::json {
-    SET volatility := 'STABLE';
-    USING SQL FUNCTION 'to_jsonb';
-};
-
-
-CREATE CAST FROM std::local_time TO std::json {
-    SET volatility := 'STABLE';
-    USING SQL FUNCTION 'to_jsonb';
-};
-
-
 CREATE CAST FROM std::duration TO std::json {
     SET volatility := 'STABLE';
     USING SQL FUNCTION 'to_jsonb';
@@ -264,31 +246,6 @@ CREATE CAST FROM std::json TO std::datetime {
     SET volatility := 'STABLE';
     USING SQL $$
     SELECT edgedb.datetime_in(edgedb.jsonb_extract_scalar(val, 'string'));
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO std::local_datetime {
-    SET volatility := 'STABLE';
-    USING SQL $$
-    SELECT edgedb.local_datetime_in(
-        edgedb.jsonb_extract_scalar(val, 'string'));
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO std::local_date {
-    SET volatility := 'STABLE';
-    USING SQL $$
-    SELECT edgedb.local_date_in(edgedb.jsonb_extract_scalar(val, 'string'));
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO std::local_time {
-    SET volatility := 'STABLE';
-    USING SQL $$
-    SELECT edgedb.local_time_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 };
 

@@ -288,10 +288,10 @@ encoded as:
 
 .. _ref_protocol_fmt_local_datetime:
 
-std::local_datetime
+cal::local_datetime
 ===================
 
-The :eql:type:`std::local_datetime` values are represented as a 64-bit integer,
+The :eql:type:`cal::local_datetime` values are represented as a 64-bit integer,
 most sigificant byte first.  The value is the number of *microseconds*
 between the encoded datetime and January 1st 2000, 00:00.
 
@@ -305,10 +305,10 @@ encoded as:
 
 .. _ref_protocol_fmt_local_date:
 
-std::local_date
+cal::local_date
 ===============
 
-The :eql:type:`std::local_date` values are represented as a 32-bit integer,
+The :eql:type:`cal::local_date` values are represented as a 32-bit integer,
 most sigificant byte first.  The value is the number of *days*
 between the encoded date and January 1st 2000.
 
@@ -322,10 +322,10 @@ encoded as:
 
 .. _ref_protocol_fmt_local_time:
 
-std::local_time
+cal::local_time
 ===============
 
-The :eql:type:`std::local_time` values are represented as a 64-bit integer,
+The :eql:type:`cal::local_time` values are represented as a 64-bit integer,
 most sigificant byte first.  The value is the number of *microseconds*
 since midnight.
 

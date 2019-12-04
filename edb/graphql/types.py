@@ -75,10 +75,11 @@ EDB_TO_GQL_SCALARS_MAP = {
     'std::uuid': GraphQLID,
     'std::datetime': GraphQLString,
     'std::duration': GraphQLString,
-    'std::local_datetime': GraphQLString,
-    'std::local_date': GraphQLString,
-    'std::local_time': GraphQLString,
     'std::bytes': None,
+
+    'cal::local_datetime': GraphQLString,
+    'cal::local_date': GraphQLString,
+    'cal::local_time': GraphQLString,
 }
 
 

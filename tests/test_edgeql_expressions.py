@@ -71,18 +71,18 @@ VALUES = {
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
 
-    '<local_datetime>"2018-05-07T20:01:22.306916"':
-        value(typename='local_datetime',
+    '<cal::local_datetime>"2018-05-07T20:01:22.306916"':
+        value(typename='cal::local_datetime',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
 
-    '<local_date>"2018-05-07"':
-        value(typename='local_date',
+    '<cal::local_date>"2018-05-07"':
+        value(typename='cal::local_date',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
 
-    '<local_time>"20:01:22.306916"':
-        value(typename='local_time',
+    '<cal::local_time>"20:01:22.306916"':
+        value(typename='cal::local_time',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
 
@@ -1133,7 +1133,7 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH A := <local_datetime>{
+                WITH A := <cal::local_datetime>{
                     "2018-05-07T20:01:22.306916",
                     "2017-05-07T20:01:22.306916"
                 }
@@ -1147,7 +1147,7 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH A := <local_date>{
+                WITH A := <cal::local_date>{
                     "2018-05-07",
                     "2017-05-07"
                 }
@@ -1161,7 +1161,7 @@ class TestExpressions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH A := <local_time>{
+                WITH A := <cal::local_time>{
                     "20:01:22.306916",
                     "19:01:22.306916"
                 }
@@ -1563,8 +1563,12 @@ class TestExpressions(tb.QueryTestCase):
                         SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name;
                     """
                     # this operation should always be valid
+                    if rdesc.typename.startswith('cal::'):
+                        desc_typename = rdesc.typename
+                    else:
+                        desc_typename = 'std::' + rdesc.typename
                     await self.assert_query_result(
-                        query, {f'std::{rdesc.typename}'})
+                        query, {desc_typename})
 
                 else:
                     # every other combination must produce an error

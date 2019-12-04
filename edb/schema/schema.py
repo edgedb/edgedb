@@ -42,8 +42,8 @@ if TYPE_CHECKING:
     from edb.common import parsing
 
 
-STD_LIB = ('std', 'schema', 'math', 'sys', 'cfg')
-STD_MODULES = frozenset({'std', 'schema', 'stdgraphql', 'math', 'sys', 'cfg'})
+STD_LIB = ('std', 'schema', 'math', 'sys', 'cfg', 'cal')
+STD_MODULES = frozenset(STD_LIB + ('stdgraphql',))
 
 
 _void = object()
