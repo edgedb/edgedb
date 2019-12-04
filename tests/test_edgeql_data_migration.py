@@ -4534,14 +4534,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [('test', 42, [1.2, 4.5])],
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError:
-        subquery must return only one column
-
-        The error occurs on UPDATE.
-
-        See `test_edgeql_update_collection_01` for a minimal test.
-    ''')
     async def test_edgeql_migration_collections_04(self):
         await self.con.execute("""
             SET MODULE test;

@@ -45,8 +45,10 @@ from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
+from . import output
 from . import pathctx
 from . import relctx
+from . import relgen
 from . import shapecomp
 
 
@@ -383,6 +385,15 @@ def process_insert_body(
                 insvalue = pathctx.get_path_value_var(
                     rel, shape_el.path_id, env=ctx.env)
 
+                if irtyputils.is_tuple(shape_el.typeref):
+                    # Tuples require an explicit cast.
+                    insvalue = pgast.TypeCast(
+                        arg=output.output_as_value(insvalue, env=ctx.env),
+                        type_name=pgast.TypeName(
+                            name=ptr_info.column_type,
+                        ),
+                    )
+
                 values.append(pgast.ResTarget(val=insvalue))
 
             ptr_info = pg_types.get_ptrref_storage_info(
@@ -479,13 +490,28 @@ def process_update_body(
 
             if ptr_info.table_type == 'ObjectType' and updvalue is not None:
                 with subctx.newscope() as scopectx:
-                    # First, process all internal link updates
-                    updtarget = pgast.UpdateTarget(
-                        name=ptr_info.column_name,
-                        val=pgast.TypeCast(
+                    val: pgast.BaseExpr
+
+                    if irtyputils.is_tuple(shape_el.typeref):
+                        # When target is a tuple type, make sure
+                        # the expression is compiled into a subquery
+                        # returning a single column that is explicitly
+                        # cast into the appropriate composite type.
+                        val = relgen.set_as_subquery(
+                            shape_el,
+                            as_value=True,
+                            explicit_cast=ptr_info.column_type,
+                            ctx=scopectx,
+                        )
+                    else:
+                        val = pgast.TypeCast(
                             arg=dispatch.compile(updvalue, ctx=scopectx),
                             type_name=pgast.TypeName(name=ptr_info.column_type)
                         )
+
+                    updtarget = pgast.UpdateTarget(
+                        name=ptr_info.column_name,
+                        val=val,
                     )
 
                     update_stmt.targets.append(updtarget)

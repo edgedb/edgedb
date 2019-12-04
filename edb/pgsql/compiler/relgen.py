@@ -306,14 +306,13 @@ def _get_set_rvar(
 def set_as_subquery(
         ir_set: irast.Set, *,
         as_value: bool=False,
+        explicit_cast: Optional[Tuple[str, ...]] = None,
         ctx: context.CompilerContextLevel) -> pgast.Query:
     # Compile *ir_set* into a subquery as follows:
     #     (
     #         SELECT <set_rel>.v
     #         FROM <set_rel>
     #     )
-    # If *aggregate* is True, then the return value will
-    # be aggregated into an array.
     with ctx.subrel() as subctx:
         wrapper = subctx.rel
         dispatch.visit(ir_set, ctx=subctx)
@@ -330,6 +329,12 @@ def set_as_subquery(
                 var = pathctx.get_path_value_var(
                     rel=wrapper, path_id=ir_set.path_id, env=ctx.env)
                 value = output.output_as_value(var, env=ctx.env)
+
+                if explicit_cast is not None:
+                    value = pgast.TypeCast(
+                        arg=value,
+                        type_name=pgast.TypeName(name=explicit_cast),
+                    )
 
                 wrapper.target_list = [
                     pgast.ResTarget(val=value)
