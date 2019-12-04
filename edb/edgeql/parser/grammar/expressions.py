@@ -240,6 +240,12 @@ class WithBlock(Nonterm):
             aliases.append(w)
         self.val = WithBlockData(aliases=aliases)
 
+    def reduce_WITH_WithDeclList_COMMA(self, *kids):
+        aliases = []
+        for w in kids[1].val:
+            aliases.append(w)
+        self.val = WithBlockData(aliases=aliases)
+
 
 class AliasDecl(Nonterm):
     def reduce_MODULE_ModuleName(self, *kids):

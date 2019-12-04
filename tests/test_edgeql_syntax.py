@@ -1958,6 +1958,32 @@ aa';
         WITH MODULE `~all.abstract.bar` SELECT Foo;
         """
 
+    def test_edgeql_syntax_with_09(self):
+        # trailing commas in WITH block
+        """
+        WITH MODULE foo, SELECT Bar;
+        WITH
+            MODULE foo,
+            x := {1, 2, 3},
+        SELECT Bar;
+        WITH
+            x := {1, 2, 3},
+            MODULE foo,
+        SELECT Bar;
+
+% OK %
+
+        WITH MODULE foo SELECT Bar;
+        WITH
+            MODULE foo,
+            x := {1, 2, 3}
+        SELECT Bar;
+        WITH
+            x := {1, 2, 3},
+            MODULE foo
+        SELECT Bar;
+        """
+
     def test_edgeql_syntax_detached_01(self):
         """
         WITH F := DETACHED Foo
