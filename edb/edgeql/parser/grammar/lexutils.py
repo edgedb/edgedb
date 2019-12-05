@@ -60,6 +60,13 @@ VALID_STRING_RE = re.compile(r'''
 
 ''' + _STRING_ESCAPE_RE + r''' |    # valid escape sequences above
 
+            (?P<err_cont>           # capture invalid line continuation
+                \\\s+\n             # \s+ won't match a \n here because
+                                    # there's already an explicit match for
+                                    # '\\\n' which will match the newline
+                                    # immediately after '\'
+            )
+            |
             (?P<err_esc>            # capture any invalid \escape sequence
                 \\x.{1,2} |
                 \\u.{1,4} |

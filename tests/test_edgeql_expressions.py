@@ -3053,11 +3053,39 @@ class TestExpressions(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
+            r'''SELECT 'bb\
+            aa \
+
+
+            bb';
+            ''',
+            ['bbaa bb'],
+        )
+
+        await self.assert_query_result(
             r'''SELECT r'aa\
             bb \
             aa';''',
             ['aa\\\n            bb \\\n            aa'],
         )
+
+    async def test_edgeql_expr_string_10(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'invalid string literal: invalid line continuation',
+                _hint="newline has to immediately follow '\\'"):
+            await self.con.execute(
+                r"SELECT 'bb\   "
+                "\naa';"
+            )
+
+    async def test_edgeql_expr_string_11(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"invalid string literal: invalid escape sequence '\\ '"):
+            await self.con.execute(
+                r"SELECT 'bb\   aa';"
+            )
 
     async def test_edgeql_expr_tuple_01(self):
         await self.assert_query_result(
