@@ -616,11 +616,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        The result is *almost* correct, but oddly "l" is not a
-        singleton, even though it's equal to a tuple element, which
-        should be a singleton by definition.
-    ''')
     async def test_edgeql_scope_tuple_13(self):
         # Test that the tuple elements are interpreted as singletons.
         await self.assert_query_result(
@@ -635,9 +630,70 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         FILTER .name[0] = letter
                     )
                 )
-            SELECT _ := tup.1 {
+            SELECT tup.1 {
                 name,
                 l := tup.0,
+            }
+            ORDER BY .name;
+            """,
+            [
+                {'name': 'Alice', 'l': 'A'},
+                {'name': 'Bob', 'l': 'B'}
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                letter := {'A', 'B'},
+                tup := (
+                    (
+                        letter,
+                        (
+                            SELECT User
+                            FILTER .name[0] = letter
+                        ),
+                    ),
+                    'foo',
+                )
+            SELECT tup.0.1 {
+                name,
+                l := tup.0.0,
+            }
+            ORDER BY .name;
+            """,
+            [
+                {'name': 'Alice', 'l': 'A'},
+                {'name': 'Bob', 'l': 'B'}
+            ]
+        )
+
+    @test.xfail('''
+        Fails due to incorrect scoping of the "l" computable due
+        to an intermediate view.
+    ''')
+    async def test_edgeql_scope_tuple_14(self):
+        # Test that the tuple elements are interpreted as singletons.
+
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                letter := {'A', 'B'},
+                tup := (
+                    letter,
+                    (
+                        SELECT User
+                        FILTER .name[0] = letter
+                    )
+                ),
+                result := tup.1 {
+                    l := tup.0
+                },
+            SELECT result {
+                name,
+                l,
             }
             ORDER BY .name;
             """,

@@ -299,7 +299,29 @@ class ScopeTreeNode:
             new_child = ScopeTreeNode(path_id=prefix)
             parent.attach_child(new_child)
 
-            if not (is_lprop or prefix.is_linkprop_path()):
+            # If the path is a link property, or a tuple
+            # indirection, then its prefix is added at
+            # the *same* scope level, otherwise, the prefix
+            # is nested.
+            #
+            # For example, Foo.bar.baz, where Foo is an object type,
+            # forms this scope shape:
+            #   Foo.bar.baz
+            #    |-Foo.bar
+            #       |-Foo
+            #
+            # Whereas, <tuple>.bar.baz results in this:
+            #   <tuple>
+            #   <tuple>.bar
+            #   <tuple>.bar.baz
+            #
+            # This is because both link properties and tuples are
+            # *always* singletons, and so there is no semantic ambiguity
+            # as to the cardinality of the path prefix in different
+            # contexts.
+            if (not (is_lprop or prefix.is_linkprop_path())
+                    and (prefix.src_path() is None
+                         or not prefix.src_path().is_tuple_path())):
                 parent = new_child
 
             is_lprop = False

@@ -1371,8 +1371,8 @@ def process_set_as_tuple_indirection(
             stmt.view_path_id_map[ir_set.path_id] = expr.path_id
             rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
 
-        source_rvar = pathctx.maybe_get_path_rvar(
-            stmt, tuple_set.path_id, aspect='source', env=subctx.env)
+        source_rvar = relctx.maybe_get_path_rvar(
+            stmt, tuple_set.path_id, aspect='source', ctx=subctx)
 
         if source_rvar is None:
             # Lack of visible tuple source means we are
