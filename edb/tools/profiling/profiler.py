@@ -198,7 +198,8 @@ class profile:
             out_path = out_path / "profile_analysis"
         prof_path = out_path.with_suffix(PROF_SUFFIX)
         pstats_path = out_path.with_suffix(STAT_SUFFIX)
-        svg_path = out_path.with_suffix(SVG_SUFFIX)
+        call_svg_path = out_path.with_suffix(".call_stack" + SVG_SUFFIX)
+        usage_svg_path = out_path.with_suffix(".usage" + SVG_SUFFIX)
         files = list(
             str(f) for f in self.dir.glob(self.prefix + "*" + self.suffix)
         )
@@ -236,7 +237,11 @@ class profile:
         filter_singledispatch_in_place(stats, singledispatch_traces)
         try:
             render_svg(
-                stats, svg_path, width=width, threshold=threshold,
+                stats,
+                call_svg_path,
+                usage_svg_path,
+                width=width,
+                threshold=threshold,
             )
         except ValueError as ve:
             print(f"Cannot display flame graph: {ve}", file=sys.stderr)
@@ -742,15 +747,16 @@ def render_svg_section(
 
 def render_svg(
     stats: Stats,
-    out: Union[pathlib.Path, str],
+    call_out: Union[pathlib.Path, str],
+    usage_out: Union[pathlib.Path, str],
     *,
-    threshold: float = 0.0001,  # 1.0 is 100%
+    threshold: float = 0.00001,  # 1.0 is 100%
     width: int = 1920,  # in pixels
     block_height: int = 24,  # in pixels
     font_size: int = 12,
     raw: bool = False,
 ) -> None:
-    """Render an SVG file to `out`.
+    """Render an SVG file to `call_out` and `usage_out`.
 
     Raises ValueError if rendering cannot be done with the given `stats`.
 
@@ -762,11 +768,11 @@ def render_svg(
     call_blocks, usage_blocks, maxw = build_svg_blocks(
         funcs, calls, threshold=threshold
     )
-    lines1: List[str] = []
-    lines2: List[str] = []
+    call_lines: List[str] = []
+    usage_lines: List[str] = []
     current_height = 0
     if call_blocks:
-        lines1, current_height = render_svg_section(
+        call_lines, current_height = render_svg_section(
             call_blocks,
             maxw,
             [COLORS, CCOLORS],
@@ -777,30 +783,41 @@ def render_svg(
         )
         # a visual distinction between the call graph and the usage graph
         current_height += block_height
-    lines1.append(DETAILS.format(font_size=font_size, y=current_height))
+    details = [DETAILS.format(font_size=font_size, y=current_height)]
     if usage_blocks:
-        lines2, current_height = render_svg_section(
+        usage_lines, current_height = render_svg_section(
             usage_blocks,
             maxw,
             [COLORS, ECOLORS, DCOLORS],
             block_height=block_height,
             font_size=font_size,
             width=width,
-            top=current_height + block_height,
-            invert=True,
+            top=0,
         )
     with PROFILING_JS.open() as js_file:
         javascript = js_file.read()
-    with open(out, "w") as outf:
-        svg = SVG.format(
-            "\n".join(lines1 + lines2),
-            javascript=javascript,
-            width=width,
-            height=current_height,
-            unzoom_button_x=width - 100,
-            ui_font_size=1.33 * font_size,
-        )
-        outf.write(svg)
+    if call_blocks:
+        with open(call_out, "w") as outf:
+            svg = SVG.format(
+                "\n".join(call_lines + details),
+                javascript=javascript,
+                width=width,
+                height=current_height,
+                unzoom_button_x=width - 100,
+                ui_font_size=1.33 * font_size,
+            )
+            outf.write(svg)
+    if usage_blocks:
+        with open(usage_out, "w") as outf:
+            svg = SVG.format(
+                "\n".join(usage_lines + details),
+                javascript=javascript,
+                width=width,
+                height=current_height,
+                unzoom_button_x=width - 100,
+                ui_font_size=1.33 * font_size,
+            )
+            outf.write(svg)
 
 
 SVG = """\
