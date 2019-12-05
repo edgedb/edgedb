@@ -645,6 +645,7 @@ def process_set_as_link_property_ref(
 
     with ctx.new() as newctx:
         link_path_id = ir_set.path_id.src_path()
+        assert link_path_id is not None
         source_scope_stmt = relctx.get_scope_stmt(
             ir_source.path_id, ctx=newctx)
 

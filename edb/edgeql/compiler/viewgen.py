@@ -74,7 +74,7 @@ def process_view(
         if ctx.expr_exposed or is_insert or is_update:
             view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
             scopectx.path_id_namespace |= {view_path_id_ns}
-            scopectx.path_scope.add_namespaces((view_path_id_ns,))
+            scopectx.path_scope.add_namespaces({view_path_id_ns})
 
         view_scls = _process_view(
             stype=stype, path_id=path_id, elements=elements,
@@ -452,6 +452,7 @@ def _normalize_view_ptr_expr(
                 # so set up a rptr for abbreviated link property
                 # paths.
                 src_path_id = path_id.src_path()
+                assert src_path_id is not None
                 prefix_rptr = irast.Pointer(
                     source=setgen.class_set(
                         irtyputils.ir_typeref_to_type(

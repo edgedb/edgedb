@@ -215,7 +215,7 @@ class ConstraintMech:
             anchors={qlast.Subject: subject},
         )
 
-        terminal_refs = ir_utils.get_terminal_references(ir.expr.expr.result)
+        terminal_refs = ir_utils.get_longest_paths(ir.expr.expr.result)
         ref_tables = cls._get_ref_storage_info(ir.schema, terminal_refs)
 
         if len(ref_tables) > 1:

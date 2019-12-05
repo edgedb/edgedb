@@ -345,13 +345,14 @@ def new_root_rvar(
 
         if ptr_info.table_type == 'ObjectType':
             # Inline link
+            prefix_path_id = ir_set.path_id.src_path()
+            assert prefix_path_id is not None, 'expected a path'
             rref = pgast.ColumnRef(
                 name=[ptr_info.column_name],
                 nullable=not ptrref.required)
-            pathctx.put_rvar_path_bond(
-                set_rvar, ir_set.path_id.src_path())
+            pathctx.put_rvar_path_bond(set_rvar, prefix_path_id)
             pathctx.put_rvar_path_output(
-                set_rvar, ir_set.path_id.src_path(),
+                set_rvar, prefix_path_id,
                 aspect='identity', var=rref, env=ctx.env)
 
             if astutils.is_set_op_query(set_rvar.query):
@@ -375,7 +376,9 @@ def new_poly_rvar(
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
     rvar = new_root_rvar(ir_set, ctx=ctx)
-    pathctx.put_rvar_path_bond(rvar, ir_set.path_id.src_path())
+    prefix_path_id = ir_set.path_id.src_path()
+    assert prefix_path_id is not None, 'expected a path'
+    pathctx.put_rvar_path_bond(rvar, prefix_path_id)
     return rvar
 
 
@@ -504,6 +507,7 @@ def semi_join(
     if ptr_info.table_type == 'ObjectType':
         if irtyputils.is_inbound_ptrref(ptrref):
             far_pid = ir_set.path_id.src_path()
+            assert far_pid is not None
         else:
             far_pid = ir_set.path_id
     else:

@@ -325,6 +325,7 @@ def tuple_var_as_json_object(
 
         for element in tvar.elements:
             rptr = element.path_id.rptr()
+            assert rptr is not None
             name = rptr.shortname.name
             if rptr.parent_ptr is not None:
                 name = '@' + name

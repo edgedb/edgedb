@@ -1928,7 +1928,7 @@ class ObjectDict(ObjectCollection, container=tuple):
         return type(v).create(schema, result), frozenset(comparison_v)
 
 
-class ObjectSet(ObjectCollection, container=frozenset):
+class ObjectSet(ObjectCollection, Generic[Object_T], container=frozenset):
 
     def __repr__(self) -> str:
         return f'{{{", ".join(str(id) for id in self._ids)}}}'

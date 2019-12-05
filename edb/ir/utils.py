@@ -16,11 +16,13 @@
 # limitations under the License.
 #
 
+"""Miscellaneous utilities for the IR."""
+
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import json
-from typing import *  # NoQA
 
 from edb import errors
 
@@ -32,7 +34,12 @@ from . import ast as irast
 from . import typeutils
 
 
-def get_terminal_references(ir):
+def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
+    """Return a distinct set of longest paths found in an expression.
+
+    For example in SELECT (A.B.C, D.E.F, A.B, D.E) the result would
+    be {A.B.C, D.E.F}.
+    """
     result = set()
     parents = set()
 
@@ -46,21 +53,24 @@ def get_terminal_references(ir):
     return result - parents
 
 
-def get_variables(ir):
-    result = set()
+def get_parameters(ir: irast.Base) -> Set[irast.Parameter]:
+    """Return all parameters found in *ir*."""
+    result: Set[irast.Parameter] = set()
     flt = lambda n: isinstance(n, irast.Parameter)
     result.update(ast.find_children(ir, flt))
     return result
 
 
-def is_const(ir):
+def is_const(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is constant."""
     flt = lambda n: isinstance(n, irast.Set) and n.expr is None
     ir_sets = ast.find_children(ir, flt)
-    variables = get_variables(ir)
+    variables = get_parameters(ir)
     return not ir_sets and not variables
 
 
-def is_coalesce_expr(ir):
+def is_coalesce_expr(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is a coalesce expression."""
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.INFIX and
@@ -68,7 +78,8 @@ def is_coalesce_expr(ir):
     )
 
 
-def is_set_membership_expr(ir):
+def is_set_membership_expr(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is a set membership test."""
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.INFIX and
@@ -76,7 +87,8 @@ def is_set_membership_expr(ir):
     )
 
 
-def is_distinct_expr(ir):
+def is_distinct_expr(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is a DISTINCT expression."""
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.PREFIX and
@@ -84,7 +96,8 @@ def is_distinct_expr(ir):
     )
 
 
-def is_union_expr(ir):
+def is_union_expr(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is a UNION expression."""
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.INFIX and
@@ -92,7 +105,8 @@ def is_union_expr(ir):
     )
 
 
-def is_exists_expr(ir):
+def is_exists_expr(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is an EXISTS expression."""
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.PREFIX and
@@ -100,7 +114,8 @@ def is_exists_expr(ir):
     )
 
 
-def is_ifelse_expr(ir):
+def is_ifelse_expr(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is an IF expression."""
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.TERNARY and
@@ -108,45 +123,49 @@ def is_ifelse_expr(ir):
     )
 
 
-def is_empty_array_expr(ir):
+def is_empty_array_expr(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is an empty array expression.
+    """
     return (
         isinstance(ir, irast.Array)
         and not ir.elements
     )
 
 
-def is_untyped_empty_array_expr(ir):
+def is_untyped_empty_array_expr(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is an empty
+       array expression of an uknown type.
+    """
     return (
         is_empty_array_expr(ir)
-        and (ir.typeref is None or typeutils.is_generic(ir.typeref))
+        and (ir.typeref is None                    # type: ignore
+             or typeutils.is_generic(ir.typeref))  # type: ignore
     )
 
 
-def is_empty(ir_expr):
+def is_empty(ir: irast.Base) -> bool:
+    """Return True if the given *ir* expression is an empty set
+       or an empty array.
+    """
     return (
-        isinstance(ir_expr, irast.EmptySet) or
-        (isinstance(ir_expr, irast.Array) and not ir_expr.elements) or
-        (isinstance(ir_expr, irast.Set) and is_empty(ir_expr.expr))
+        isinstance(ir, irast.EmptySet) or
+        (isinstance(ir, irast.Array) and not ir.elements) or
+        (isinstance(ir, irast.Set) and is_empty(ir.expr))
     )
 
 
-def is_view_set(ir_expr):
-    return (
-        isinstance(ir_expr, irast.Set) and
-        (isinstance(ir_expr.expr, irast.SelectStmt) and
-            isinstance(ir_expr.expr.result, irast.Set)) or
-        ir_expr.view_source is not None
-    )
-
-
-def is_subquery_set(ir_expr):
+def is_subquery_set(ir_expr: irast.Base) -> bool:
+    """Return True if the given *ir_expr* expression is a subquery."""
     return (
         isinstance(ir_expr, irast.Set) and
         isinstance(ir_expr.expr, irast.Stmt)
     )
 
 
-def is_scalar_view_set(ir_expr):
+def is_scalar_view_set(ir_expr: irast.Base) -> bool:
+    """Return True if the given *ir_expr* expression is a view
+       of scalar type.
+    """
     return (
         isinstance(ir_expr, irast.Set) and
         len(ir_expr.path_id) == 1 and
@@ -155,29 +174,20 @@ def is_scalar_view_set(ir_expr):
     )
 
 
-def is_inner_view_reference(ir_expr):
-    return (
-        isinstance(ir_expr, irast.Set) and
-        ir_expr.view_source is not None
-    )
-
-
-def is_simple_path(ir_expr):
-    return (
-        isinstance(ir_expr, irast.Set) and
-        ir_expr.expr is None and
-        (ir_expr.rptr is None or is_simple_path(ir_expr.rptr.source))
-    )
-
-
-def is_implicit_wrapper(ir_expr):
+def is_implicit_wrapper(ir_expr: irast.Base) -> bool:
+    """Return True if the given *ir_expr* expression is an implicit
+       SELECT wrapper.
+    """
     return (
         isinstance(ir_expr, irast.SelectStmt) and
         ir_expr.implicit_wrapper
     )
 
 
-def is_trivial_select(ir_expr):
+def is_trivial_select(ir_expr: irast.Base) -> bool:
+    """Return True if the given *ir_expr* expression is a trivial
+       SELECT expression, i.e `SELECT <expr>`.
+    """
     if not isinstance(ir_expr, irast.SelectStmt):
         return False
 
@@ -191,31 +201,20 @@ def is_trivial_select(ir_expr):
 
 
 def unwrap_set(ir_set: irast.Set) -> irast.Set:
+    """If the give *ir_set* is an implicit SELECT wrapper, return the
+       wrapped set.
+    """
     if is_implicit_wrapper(ir_set.expr):
-        return ir_set.expr.result
+        return ir_set.expr.result  # type: ignore
     else:
         return ir_set
 
 
-def wrap_stmt_set(ir_set):
-    if is_subquery_set(ir_set):
-        src_stmt = ir_set.expr
-    elif is_inner_view_reference(ir_set):
-        src_stmt = ir_set.view_source.expr
-    else:
-        raise ValueError('expecting subquery IR set or a view reference')
-
-    stmt = irast.SelectStmt(
-        result=ir_set,
-        path_scope=src_stmt.path_scope,
-        specific_path_scope=src_stmt.specific_path_scope
-    )
-    return stmt
-
-
 def get_source_context_as_json(
-        expr: irast.Base,
-        exctype=errors.InternalServerError) -> Optional[str]:
+    expr: irast.Base,
+    exctype: Type[errors.EdgeDBError] = errors.InternalServerError,
+) -> Optional[str]:
+    details: Optional[str]
     if expr.context:
         details = json.dumps({
             'line': expr.context.start.line,
@@ -230,7 +229,10 @@ def get_source_context_as_json(
     return details
 
 
-def is_type_indirection_reference(ir_expr):
+def is_type_indirection_reference(ir_expr: irast.Base) -> bool:
+    """Return True if the given *ir_expr* is a type indirection, i.e
+       ``Foo[IS Type]``.
+    """
     if not isinstance(ir_expr, irast.Set):
         return False
 
@@ -242,17 +244,16 @@ def is_type_indirection_reference(ir_expr):
 
     if ir_source.path_id.is_type_indirection_path():
         source_is_type_indirection = True
-    elif ir_source.expr is not None:
-        src_expr_path_id = ir_source.expr.result.path_id.src_path()
-        source_is_type_indirection = (
-            src_expr_path_id and src_expr_path_id.is_type_indirection_path())
     else:
         source_is_type_indirection = False
 
     return source_is_type_indirection
 
 
-def get_nearest_dml_stmt(ir_set) -> Optional[irast.MutatingStmt]:
+def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
+    """For a given *ir_set* representing a Path, return the nearest path
+       step that is a DML expression.
+    """
     while ir_set is not None:
         if isinstance(ir_set.expr, irast.MutatingStmt):
             return ir_set.expr

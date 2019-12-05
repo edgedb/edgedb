@@ -55,7 +55,7 @@ class Operation(NamedTuple):
     opcode: OpCode
     level: OpLevel
     setting_name: str
-    value: Union[str, int, bool]
+    value: Union[str, int, bool, None]
 
     def get_setting(self, spec: spec.Spec):
         try:

@@ -292,7 +292,10 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
 
         return False
 
-    def get_union_of(self, schema: s_schema.Schema) -> None:
+    def get_union_of(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[so.ObjectSet[Type]]:
         return None
 
     def get_is_opaque_union(self, schema: s_schema.Schema) -> bool:

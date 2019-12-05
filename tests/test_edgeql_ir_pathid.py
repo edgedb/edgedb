@@ -146,7 +146,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         self.assertEqual(prop_pid.src_path().namespace, ns_1 | ns_2)
         self.assertEqual(prop_pid.src_path().src_path().namespace, ns_1)
-        self.assertIsNone(prop_pid.src_path().src_path().src_path().namespace)
+        self.assertFalse(prop_pid.src_path().src_path().src_path().namespace)
 
         prefixes = [str(p) for p in pid_3.iter_prefixes()]
 

@@ -922,7 +922,9 @@ def process_link_values(
         for element in shape_tuple.elements:
             if not element.path_id.is_linkprop_path():
                 continue
-            colname = element.path_id.rptr_name().name
+            rptr_name = element.path_id.rptr_name()
+            assert rptr_name is not None
+            colname = rptr_name.name
             val = pathctx.get_rvar_path_value_var(
                 input_rvar, element.path_id, env=ctx.env)
             source_data.setdefault(colname, val)

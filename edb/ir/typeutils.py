@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+"""Utilities for IR type descriptors."""
 
 from __future__ import annotations
 
@@ -27,17 +28,24 @@ from edb.schema import abc as s_abc
 from edb.schema import modules as s_mod
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
+from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
 from . import ast as irast
 
+if TYPE_CHECKING:
+    from edb.schema import name as s_name
+    from edb.schema import schema as s_schema
+
 
 def is_scalar(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes a scalar type."""
     return typeref.is_scalar
 
 
 def is_object(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes an object type."""
     return (
         not is_scalar(typeref)
         and not is_collection(typeref)
@@ -46,30 +54,37 @@ def is_object(typeref: irast.TypeRef) -> bool:
 
 
 def is_view(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes a view."""
     return typeref.is_view
 
 
 def is_collection(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes an collection type."""
     return bool(typeref.collection)
 
 
 def is_array(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes an array type."""
     return typeref.collection == s_types.Array.schema_name
 
 
 def is_tuple(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes an tuple type."""
     return typeref.collection == s_types.Tuple.schema_name
 
 
 def is_any(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes the ``anytype`` generic type."""
     return isinstance(typeref, irast.AnyTypeRef)
 
 
 def is_anytuple(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes the ``anytuple`` generic type."""
     return isinstance(typeref, irast.AnyTupleRef)
 
 
 def is_generic(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes a generic type."""
     if is_collection(typeref):
         return any(is_generic(st) for st in typeref.subtypes)
     else:
@@ -77,11 +92,35 @@ def is_generic(typeref: irast.TypeRef) -> bool:
 
 
 def is_abstract(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes an abstract type."""
     return typeref.is_abstract
 
 
-def type_to_typeref(schema, t: s_types.Type, *,
-                    _name=None, typename=None) -> irast.TypeRef:
+def type_to_typeref(
+    schema: s_schema.Schema,
+    t: s_types.Type,
+    *,
+    typename: Optional[s_name.Name] = None,
+    _name: Optional[str] = None,
+) -> irast.TypeRef:
+    """Return an instance of :class:`ir.ast.TypeRef` for a given type.
+
+    An IR TypeRef is an object that fully describes a schema type for
+    the purposes of query compilation.
+
+    Args:
+        schema:
+            A schema instance, in which the type *t* is defined.
+        t:
+            A schema type instance.
+        typename:
+            Optional name hint to use for the type in the returned
+            TypeRef.  If ``None``, the type name is used.
+
+    Returns:
+        A ``TypeRef`` instance corresponding to the given schema type.
+    """
+    result: irast.TypeRef
 
     if t.is_anytuple():
         result = irast.AnyTupleRef(
@@ -102,12 +141,14 @@ def type_to_typeref(schema, t: s_types.Type, *,
             children = frozenset()
 
         material_type = t.material_type(schema)
+
+        material_typeref: Optional[irast.TypeRef]
         if material_type is not t:
             material_typeref = type_to_typeref(schema, material_type)
         else:
             material_typeref = None
 
-        if (material_type.is_scalar()
+        if (isinstance(material_type, s_scalars.ScalarType)
                 and not material_type.get_is_abstract(schema)):
             base_type = material_type.get_topmost_concrete_base(schema)
             if base_type is material_type:
@@ -123,6 +164,7 @@ def type_to_typeref(schema, t: s_types.Type, *,
             name = t.get_name(schema)
         module = schema.get_global(s_mod.Module, name.module)
 
+        common_parent_ref: Optional[irast.TypeRef]
         if union_of:
             common_parent = s_utils.get_class_nearest_common_ancestor(
                 schema, union_of.objects(schema))
@@ -172,7 +214,25 @@ def type_to_typeref(schema, t: s_types.Type, *,
     return result
 
 
-def ir_typeref_to_type(schema, typeref: irast.TypeRef) -> s_types.Type:
+def ir_typeref_to_type(
+    schema: s_schema.Schema,
+    typeref: irast.TypeRef,
+) -> s_types.Type:
+    """Return a schema type for a given IR TypeRef.
+
+    This is the reverse of :func:`~type_to_typeref`.
+
+    Args:
+        schema:
+            A schema instance. The result type must exist in it.
+        typeref:
+            A :class:`ir.ast.TypeRef` instance for which to return
+            the corresponding schema type.
+
+    Returns:
+        A :class:`schema.types.Type` instance corresponding to the
+        given *typeref*.
+    """
     if is_anytuple(typeref):
         return s_pseudo.AnyTuple.instance()
 
@@ -181,7 +241,7 @@ def ir_typeref_to_type(schema, typeref: irast.TypeRef) -> s_types.Type:
 
     elif is_tuple(typeref):
         named = False
-        subtypes = {}
+        tuple_subtypes = {}
         for si, st in enumerate(typeref.subtypes):
             if st.element_name:
                 named = True
@@ -189,46 +249,86 @@ def ir_typeref_to_type(schema, typeref: irast.TypeRef) -> s_types.Type:
             else:
                 type_name = str(si)
 
-            subtypes[type_name] = ir_typeref_to_type(schema, st)
+            tuple_subtypes[type_name] = ir_typeref_to_type(schema, st)
 
         return s_types.Tuple.from_subtypes(
-            schema, subtypes, {'named': named})
+            schema, tuple_subtypes, {'named': named})
 
     elif is_array(typeref):
-        subtypes = []
+        array_subtypes = []
         for st in typeref.subtypes:
-            subtypes.append(ir_typeref_to_type(schema, st))
+            array_subtypes.append(ir_typeref_to_type(schema, st))
 
-        return s_types.Array.from_subtypes(schema, subtypes)
+        return s_types.Array.from_subtypes(schema, array_subtypes)
 
     else:
-        return schema.get_by_id(typeref.id)
+        t = schema.get_by_id(typeref.id)
+        assert isinstance(t, s_types.Type), 'expected a Type instance'
+        return t
 
 
 def ptrref_from_ptrcls(
-        *,
-        source_ref: irast.TypeRef,
-        target_ref: irast.TypeRef,
-        ptrcls: s_pointers.PointerLike,
-        direction: s_pointers.PointerDirection,
-        parent_ptr: Optional[irast.PointerRef]=None,
-        include_descendants: bool=True,
-        schema) -> irast.BasePointerRef:
+    *,
+    schema: s_schema.Schema,
+    ptrcls: s_pointers.PointerLike,
+    source_ref: Optional[irast.TypeRef],
+    target_ref: irast.TypeRef,
+    direction: s_pointers.PointerDirection,
+    parent_ptr: Optional[irast.BasePointerRef] = None,
+    include_descendants: bool = True,
+) -> irast.BasePointerRef:
+    """Return an IR pointer descriptor for a given schema pointer.
 
-    kwargs = {}
+    An IR PointerRef is an object that fully describes a schema pointer for
+    the purposes of query compilation.
 
-    if ptrcls.is_tuple_indirection():
+    Args:
+        schema:
+            A schema instance, in which the type *t* is defined.
+        ptrcls:
+            A :class:`schema.pointers.Pointer` instance for which to
+            return the PointerRef.
+        source_ref:
+            A :class:`ir.ast.TypeRef` instance describing the directional
+            source of the pointer.  If the pointer is a link property,
+            this will be ``None``.
+        target_ref:
+            A :class:`ir.ast.TypeRef` instance describing the directional
+            target of the pointer.
+        direction:
+            The direction of the pointer in the path expression.
+        parent_ptr:
+            If *ptrcls* is a link property, this should be a
+            ``PointerRef`` instance describing the link.
+        include_descendants:
+            Whether to include the corresponding pointer of the
+            subtypes of the source type.
+
+    Returns:
+        An instance of a subclass of :class:`ir.ast.BasePointerRef`
+        corresponding to the given schema pointer.
+    """
+
+    kwargs: Dict[str, Any] = {}
+
+    ircls: Type[irast.BasePointerRef]
+
+    if isinstance(ptrcls, irast.TupleIndirectionLink):
         ircls = irast.TupleIndirectionPointerRef
-    elif ptrcls.is_type_indirection():
+    elif isinstance(ptrcls, irast.TypeIndirectionLink):
         ircls = irast.TypeIndirectionPointerRef
         kwargs['optional'] = ptrcls.is_optional()
         kwargs['ancestral'] = ptrcls.is_ancestral()
-    else:
+    elif isinstance(ptrcls, s_pointers.Pointer):
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
         name = ptrcls.get_name(schema)
         kwargs['module_id'] = schema.get_global(
             s_mod.Module, name.module).id
+    else:
+        raise AssertionError(f'unexpected pointer class: {ptrcls}')
+
+    out_source: Optional[irast.TypeRef]
 
     if direction is s_pointers.PointerDirection.Inbound:
         out_source = target_ref
@@ -247,6 +347,7 @@ def ptrref_from_ptrcls(
         dir_cardinality = qltypes.Cardinality.MANY
 
     material_ptrcls = ptrcls.material_type(schema)
+    material_ptr: Optional[irast.BasePointerRef]
     if material_ptrcls is not None and material_ptrcls is not ptrcls:
         material_ptr = ptrref_from_ptrcls(
             source_ref=source_ref,
@@ -289,7 +390,7 @@ def ptrref_from_ptrcls(
                 )
             )
 
-    descendants = set()
+    descendants: Set[irast.BasePointerRef] = set()
 
     if not union_components:
         source = ptrcls.get_source(schema)
@@ -345,14 +446,32 @@ def ptrref_from_ptrcls(
 
 
 def ptrcls_from_ptrref(
-        ptrref: irast.BasePointerRef, *,
-        schema) -> s_pointers.PointerLike:
+    ptrref: irast.BasePointerRef, *,
+    schema: s_schema.Schema,
+) -> s_pointers.PointerLike:
+    """Return a schema pointer for a given IR PointerRef.
+
+    This is the reverse of :func:`~type_to_typeref`.
+
+    Args:
+        schema:
+            A schema instance. The result type must exist in it.
+        ptrref:
+            A :class:`ir.ast.BasePointerRef` instance for which to return
+            the corresponding schema pointer.
+
+    Returns:
+        A :class:`schema.pointers.PointerLike` instance corresponding to the
+        given *ptrref*.
+    """
 
     ptrcls: s_pointers.PointerLike
 
     if isinstance(ptrref, irast.TupleIndirectionPointerRef):
         ptrcls = irast.TupleIndirectionLink(
-            ptrref.name.name
+            source=ir_typeref_to_type(schema, ptrref.out_source),
+            target=ir_typeref_to_type(schema, ptrref.out_target),
+            element_name=ptrref.name.name,
         )
     elif isinstance(ptrref, irast.TypeIndirectionPointerRef):
         ptrcls = irast.TypeIndirectionLink(
@@ -370,18 +489,18 @@ def ptrcls_from_ptrref(
     return ptrcls
 
 
-def is_id_ptrref(
-        ptrref: irast.BasePointerRef):
+def is_id_ptrref(ptrref: irast.BasePointerRef) -> bool:
+    """Return True if *ptrref* describes the id property."""
     return (
         ptrref.std_parent_name == 'std::id'
     )
 
 
-def is_inbound_ptrref(
-        ptrref: irast.BasePointerRef):
+def is_inbound_ptrref(ptrref: irast.BasePointerRef) -> bool:
+    """Return True if pointer described by *ptrref* is inbound."""
     return ptrref.direction is s_pointers.PointerDirection.Inbound
 
 
-def is_computable_ptrref(
-        ptrref: irast.BasePointerRef):
+def is_computable_ptrref(ptrref: irast.BasePointerRef) -> bool:
+    """Return True if pointer described by *ptrref* is computed."""
     return ptrref.is_derived

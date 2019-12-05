@@ -155,11 +155,9 @@ def get_path_var(
                     else:
                         break
 
-                src_src_is_visible = env.ptrref_source_visibility.get(src_rptr)
-
                 if (src_rptr is not None
                         and not irtyputils.is_computable_ptrref(src_rptr)
-                        and src_src_is_visible):
+                        and env.ptrref_source_visibility.get(src_rptr)):
                     src_ptr_info = pg_types.get_ptrref_storage_info(
                         src_rptr, resolve_type=False, link_bias=False)
                     if src_ptr_info.table_type == 'ObjectType':
@@ -222,7 +220,9 @@ def get_path_var(
         if ptr_info.table_type != 'link' and not is_inbound:
             # This is a link prop that is stored in source rel,
             # step back to link source rvar.
-            src_path_id = path_id.src_path().src_path()
+            _prefix_pid = path_id.src_path()
+            assert _prefix_pid is not None
+            src_path_id = _prefix_pid.src_path()
 
     elif (is_type_indirection or
             (ptr_info.table_type != 'ObjectType' and not is_inbound)):
@@ -252,8 +252,10 @@ def get_path_var(
                 rel, src_path_id, aspect=src_aspect, env=env)
 
             if rel_rvar is None:
-                rel_rvar = maybe_get_path_rvar(
-                    rel, src_path_id.src_path(), aspect=src_aspect, env=env)
+                _src_path_id_prefix = src_path_id.src_path()
+                if _src_path_id_prefix is not None:
+                    rel_rvar = maybe_get_path_rvar(
+                        rel, _src_path_id_prefix, aspect=src_aspect, env=env)
         else:
             rel_rvar = maybe_get_path_rvar(
                 rel, src_path_id, aspect=src_aspect, env=env)
@@ -765,6 +767,7 @@ def _get_path_output(
         # A value reference to Object.id is the same as a value
         # reference to the Object itself.
         src_path_id = path_id.src_path()
+        assert src_path_id is not None
         id_output = rel.path_outputs.get((src_path_id, 'value'))
         if id_output is not None:
             _put_path_output_var(rel, path_id, aspect, id_output, env=env)

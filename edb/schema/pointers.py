@@ -433,6 +433,9 @@ class Pointer(referencing.ReferencedInheritingObject,
             if b.get_source(schema) != my_source
         ]
 
+    def has_user_defined_properties(self, schema):
+        return False
+
 
 class PseudoPointer(s_abc.Pointer):
     # An abstract base class for pointer-like objects, i.e.
@@ -486,8 +489,19 @@ class PseudoPointer(s_abc.Pointer):
     def get_expr(self, schema):
         return None
 
+    def get_source(self, schema) -> so.Object:
+        raise NotImplementedError
+
     def get_target(self, schema) -> s_types.Type:
         raise NotImplementedError
+
+    def get_far_endpoint(self, schema, direction):
+        if direction is PointerDirection.Outbound:
+            return self.get_target(schema)
+        else:
+            raise AssertionError(
+                f'inbound direction is not valid for {type(self)}'
+            )
 
     def is_link_property(self, schema):
         return False
@@ -506,6 +520,9 @@ class PseudoPointer(s_abc.Pointer):
 
     def is_pure_computable(self, schema):
         return False
+
+    def as_locally_defined(self, schema):
+        return [self]
 
 
 PointerLike = Union[Pointer, PseudoPointer]

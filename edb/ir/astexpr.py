@@ -16,19 +16,24 @@
 # limitations under the License.
 #
 
+# type: ignore
+# AST matching is done via module attribute injection magic, which
+# mypy does not understand.
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from edb.common.ast import match as astmatch
 
+from . import ast as irast
 from . import astmatch as irastmatch
 
 
 class DistinctConjunctionExpr:
-    def __init__(self):
+    def __init__(self) -> None:
         self.pattern = None
 
-    def get_pattern(self):
+    def get_pattern(self) -> astmatch.MatchASTNode:
         if self.pattern is None:
             # Basic std::_is_exclusive(blah) expression
             pure_distinct_expr = irastmatch.FunctionCall(
@@ -73,7 +78,7 @@ class DistinctConjunctionExpr:
 
         return self.pattern
 
-    def match(self, tree):
+    def match(self, tree: irast.Base) -> Optional[List[irast.Base]]:
         m = astmatch.match(self.get_pattern(), tree)
         if m:
             return [mg.node for mg in m.expr]

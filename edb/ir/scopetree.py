@@ -20,9 +20,9 @@
 """Query scope tree implementation."""
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import textwrap
-from typing import *  # NoQA
 import weakref
 
 from . import pathid
@@ -59,7 +59,7 @@ class ScopeTreeNode:
     children: Set[ScopeTreeNode]
     """A set of child nodes."""
 
-    namespaces: Set[str]
+    namespaces: Set[pathid.AnyNamespace]
     """A set of namespaces used by paths in this branch.
 
     When a path node is pulled up from this branch,
@@ -68,8 +68,13 @@ class ScopeTreeNode:
     implement "semi-detached" semantics used by
     views declared in a WITH block."""
 
-    def __init__(self, *, path_id: Optional[pathid.PathId]=None,
-                 fenced: bool=False, unique_id: Optional[int]=None):
+    def __init__(
+        self,
+        *,
+        path_id: Optional[pathid.PathId]=None,
+        fenced: bool=False,
+        unique_id: Optional[int]=None,
+    ) -> None:
         self.unique_id = unique_id
         self.path_id = path_id
         self.fenced = fenced
@@ -78,13 +83,13 @@ class ScopeTreeNode:
         self.optional = False
         self.children = set()
         self.namespaces = set()
-        self._parent = None
+        self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         name = 'ScopeFenceNode' if self.fenced else 'ScopeTreeNode'
         return (f'<{name} {self.path_id!r} at {id(self):0x}>')
 
-    def _copy(self, parent: ScopeTreeNode) -> ScopeTreeNode:
+    def _copy(self, parent: Optional[ScopeTreeNode]) -> ScopeTreeNode:
         cp = self.__class__(
             path_id=self.path_id,
             fenced=self.fenced)
@@ -100,17 +105,17 @@ class ScopeTreeNode:
         return cp
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name(debug=False)
 
-    def _name(self, debug):
+    def _name(self, debug: bool) -> str:
         if self.path_id is None:
             return f'FENCE' if self.fenced else f'BRANCH'
         else:
             pid = self.path_id.pformat_internal(debug=debug)
             return f'{pid}{" [OPT]" if self.optional else ""}'
 
-    def debugname(self, fuller=False):
+    def debugname(self, fuller: bool=False) -> str:
         parts = [f'{self._name(debug=fuller)}']
         if self.unique_id:
             parts.append(f'uid:{self.unique_id}')
@@ -124,7 +129,7 @@ class ScopeTreeNode:
     @property
     def ancestors(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's ancestors, including self."""
-        node = self
+        node: Optional[ScopeTreeNode] = self
         while node is not None:
             yield node
             node = node.parent
@@ -132,28 +137,39 @@ class ScopeTreeNode:
     @property
     def strict_ancestors(self) -> Iterator[ScopeTreeNode]:
         """An iterator of node's ancestors, not including self."""
-        node = self.parent
+        node: Optional[ScopeTreeNode] = self.parent
         while node is not None:
             yield node
             node = node.parent
 
     @property
     def ancestors_and_namespaces(self) \
-            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[str]]]:
+            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[pathid.AnyNamespace]]]:
         """An iterator of node's ancestors and namespaces, including self."""
-        namespaces = frozenset()
-        node = self
+        namespaces: FrozenSet[str] = frozenset()
+        node: Optional[ScopeTreeNode] = self
         while node is not None:
             namespaces |= node.namespaces
             yield node, namespaces
             node = node.parent
 
     @property
-    def path_children(self) -> Iterator[ScopeTreeNode]:
+    def path_children(self) -> Iterator[ScopeTreeNodeWithPathId]:
         """An iterator of node's children that have path ids."""
-        return filter(lambda p: p.path_id is not None, self.children)
+        return cast(
+            Iterator[ScopeTreeNodeWithPathId],
+            filter(lambda p: p.path_id is not None, self.children),
+        )
 
-    def get_all_paths(self):
+    @property
+    def path_descendants(self) -> Iterator[ScopeTreeNodeWithPathId]:
+        """An iterator of node's descendants that have path ids."""
+        return cast(
+            Iterator[ScopeTreeNodeWithPathId],
+            filter(lambda p: p.path_id is not None, self.descendants),
+        )
+
+    def get_all_paths(self) -> Set[pathid.PathId]:
         paths = set()
 
         if self.path_id:
@@ -177,8 +193,9 @@ class ScopeTreeNode:
             yield from child.strict_descendants
 
     @property
-    def strict_descendants_and_namespaces(self) \
-            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[str]]]:
+    def strict_descendants_and_namespaces(
+        self,
+    ) -> Iterator[Tuple[ScopeTreeNode, AbstractSet[pathid.AnyNamespace]]]:
         """An iterator of node's descendants and namespaces.
 
         Does not include self. Top-first.
@@ -190,15 +207,7 @@ class ScopeTreeNode:
                 yield desc, child.namespaces | desc_namespaces
 
     @property
-    def path_descendants(self) -> Iterator[ScopeTreeNode]:
-        """An iterator of node's descendants that have path ids."""
-        return filter(lambda p: p.path_id is not None, self.descendants)
-
-    def get_all_path_nodes(self, *, include_subpaths: bool=True):  # XXX
-        return list(self.path_descendants)
-
-    @property
-    def descendant_namespaces(self) -> Set[str]:
+    def descendant_namespaces(self) -> Set[pathid.AnyNamespace]:
         """An set of namespaces declared by descendants."""
         namespaces = set()
         for child in self.descendants:
@@ -227,7 +236,7 @@ class ScopeTreeNode:
         if self.fenced:
             return self
         else:
-            return self.parent_fence
+            return cast(ScopeTreeNode, self.parent_fence)
 
     @property
     def parent(self) -> Optional[ScopeTreeNode]:
@@ -264,7 +273,10 @@ class ScopeTreeNode:
             for child in self.children:
                 if child.path_id == node.path_id:
                     raise InvalidScopeConfiguration(
-                        f'{node.path_id} is already present in {self!r}')
+                        f'{node.path_id} is already present in {self!r}',
+                        existing_node=child,
+                        offending_node=node,
+                    )
 
         if node.unique_id is not None:
             for child in self.children:
@@ -320,8 +332,7 @@ class ScopeTreeNode:
             # as to the cardinality of the path prefix in different
             # contexts.
             if (not (is_lprop or prefix.is_linkprop_path())
-                    and (prefix.src_path() is None
-                         or not prefix.src_path().is_tuple_path())):
+                    and not prefix.is_tuple_indirection_path()):
                 parent = new_child
 
             is_lprop = False
@@ -373,15 +384,21 @@ class ScopeTreeNode:
                 else:
                     parent_fence = self.fence
 
-                if existing is not None:
+                if existing is not None and parent_fence is not None:
                     if parent_fence.find_child(path_id) is None:
+                        assert existing.path_id is not None
+
                         if (unnest_fence
                                 and parent_fence.find_child(
                                     path_id, in_branches=True) is None):
-                            if descendant.parent.path_id:
+                            if (descendant.parent is not None
+                                    and descendant.parent.path_id):
                                 offending_node = descendant.parent
                             else:
                                 offending_node = descendant
+
+                            assert offending_node.path_id is not None
+
                             raise InvalidScopeConfiguration(
                                 f'reference to '
                                 f'{offending_node.path_id.pformat()!r} '
@@ -400,16 +417,16 @@ class ScopeTreeNode:
                     # Discard the node from the subtree being attached.
                     existing.fuse_subtree(descendant)
 
-        for descendant in tuple(node.children):
+        for child in tuple(node.children):
             # Attach whatever is remaining in the subtree.
-            for pd in descendant.path_descendants:
+            for pd in child.path_descendants:
                 if pd.path_id.namespace:
                     to_strip = set(pd.path_id.namespace) & node.namespaces
                     pd.path_id = pd.path_id.strip_namespace(to_strip)
 
-            self.attach_child(descendant)
+            self.attach_child(child)
 
-    def fuse_subtree(self, node):
+    def fuse_subtree(self, node: ScopeTreeNode) -> None:
         node.remove()
 
         if node.path_id is not None:
@@ -423,7 +440,7 @@ class ScopeTreeNode:
 
         self.attach_subtree(subtree)
 
-    def remove_subtree(self, node):
+    def remove_subtree(self, node: ScopeTreeNode) -> None:
         """Remove the given subtree from this node."""
         if node not in self.children:
             raise KeyError(f'{node} is not a child of {self}')
@@ -436,7 +453,8 @@ class ScopeTreeNode:
         matching = set()
 
         for node in self.descendants:
-            if _paths_equal_to_shortest_ns(node.path_id, path_id):
+            if (node.path_id is not None
+                    and _paths_equal_to_shortest_ns(node.path_id, path_id)):
                 matching.add(node)
 
         for node in matching:
@@ -448,34 +466,37 @@ class ScopeTreeNode:
         if node is not None:
             node.optional = True
 
-    def is_optional(self, path_id) -> bool:
+    def is_optional(self, path_id: pathid.PathId) -> bool:
         node = self.find_visible(path_id)
         if node is not None:
             return node.optional
         else:
             return False
 
-    def add_namespaces(self, namespaces):
+    def add_namespaces(
+        self,
+        namespaces: AbstractSet[pathid.AnyNamespace],
+    ) -> None:
         # Make sure we don't add namespaces that already appear
         # in on of the ancestors.
         namespaces = frozenset(namespaces) - self.get_effective_namespaces()
         self.namespaces.update(namespaces)
 
-    def get_effective_namespaces(self):
-        namespaces = set()
+    def get_effective_namespaces(self) -> AbstractSet[pathid.AnyNamespace]:
+        namespaces: Set[pathid.AnyNamespace] = set()
 
         for _node, ans in self.ancestors_and_namespaces:
             namespaces |= ans
 
         return namespaces
 
-    def remove(self):
+    def remove(self) -> None:
         """Remove this node from the tree (subtree becomes independent)."""
         parent = self.parent
         if parent is not None:
             parent.remove_subtree(self)
 
-    def collapse(self):
+    def collapse(self) -> None:
         """Remove the node, reattaching the children to the parent."""
         parent = self.parent
         if parent is None:
@@ -492,7 +513,7 @@ class ScopeTreeNode:
         self.remove()
         parent.attach_subtree(subtree)
 
-    def unfence(self):
+    def unfence(self) -> ScopeTreeNode:
         """Remove the node, reattaching the children as an unfenced branch."""
         parent = self.parent
         if parent is None:
@@ -512,7 +533,7 @@ class ScopeTreeNode:
 
         return subtree
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         if self.path_id is not None:
             return False
         else:
@@ -534,17 +555,21 @@ class ScopeTreeNode:
 
         return paths
 
-    def find_visible(self, path_id: pathid.PathId) \
-            -> Optional[ScopeTreeNode]:
+    def find_visible(
+        self,
+        path_id: pathid.PathId,
+    ) -> Optional[ScopeTreeNode]:
         """Find the visible node with the given *path_id*."""
-        namespaces = set()
+        namespaces: Set[str] = set()
 
         for node, ans in self.ancestors_and_namespaces:
-            if _paths_equal(node.path_id, path_id, namespaces):
+            if (node.path_id is not None
+                    and _paths_equal(node.path_id, path_id, namespaces)):
                 return node
 
             for child in node.children:
-                if _paths_equal(child.path_id, path_id, namespaces):
+                if (child.path_id is not None
+                        and _paths_equal(child.path_id, path_id, namespaces)):
                     return child
 
             namespaces |= ans
@@ -576,7 +601,8 @@ class ScopeTreeNode:
     def find_descendant(self, path_id: pathid.PathId) \
             -> Optional[ScopeTreeNode]:
         for descendant, dns in self.strict_descendants_and_namespaces:
-            if _paths_equal(descendant.path_id, path_id, dns):
+            if (descendant.path_id is not None
+                    and _paths_equal(descendant.path_id, path_id, dns)):
                 return descendant
 
         return None
@@ -584,9 +610,10 @@ class ScopeTreeNode:
     def find_descendant_and_ns(self, path_id: pathid.PathId) \
             -> Tuple[
                 Optional[ScopeTreeNode],
-                FrozenSet[str]]:
+                AbstractSet[str]]:
         for descendant, dns in self.strict_descendants_and_namespaces:
-            if _paths_equal(descendant.path_id, path_id, dns):
+            if (descendant.path_id is not None
+                    and _paths_equal(descendant.path_id, path_id, dns)):
                 return descendant, dns
 
         return None, frozenset()
@@ -594,12 +621,14 @@ class ScopeTreeNode:
     def find_unfenced(self, path_id: pathid.PathId) \
             -> Tuple[Optional[ScopeTreeNode], bool]:
         """Find the unfenced node with the given *path_id*."""
-        namespaces = set()
+        namespaces: Set[str] = set()
         unnest_fence_seen = False
 
         for node, ans in self.ancestors_and_namespaces:
             for descendant in node.unfenced_descendants:
-                if _paths_equal(descendant.path_id, path_id, namespaces):
+                if (descendant.path_id is not None
+                        and _paths_equal(descendant.path_id,
+                                         path_id, namespaces)):
                     return descendant, unnest_fence_seen
 
             namespaces |= ans
@@ -618,7 +647,7 @@ class ScopeTreeNode:
         """Return a complete copy of this subtree."""
         return self._copy(parent=None)
 
-    def pformat(self):
+    def pformat(self) -> str:
         if self.children:
             child_formats = []
             for c in self.children:
@@ -636,7 +665,7 @@ class ScopeTreeNode:
         else:
             return ''
 
-    def pdebugformat(self, fuller=False):
+    def pdebugformat(self, fuller: bool=False) -> str:
         if self.children:
             child_formats = []
             for c in self.children:
@@ -650,7 +679,7 @@ class ScopeTreeNode:
         else:
             return f'"{self.debugname(fuller=fuller)}"'
 
-    def _set_parent(self, parent):
+    def _set_parent(self, parent: Optional[ScopeTreeNode]) -> None:
         current_parent = self.parent
         if parent is current_parent:
             return
@@ -666,11 +695,13 @@ class ScopeTreeNode:
             self._parent = None
 
 
-def _paths_equal(path_id_1: pathid.PathId, path_id_2: pathid.PathId,
-                 namespaces: Set[str]) -> bool:
-    if path_id_1 is None or path_id_2 is None:
-        return False
+class ScopeTreeNodeWithPathId(ScopeTreeNode):
 
+    path_id: pathid.PathId
+
+
+def _paths_equal(path_id_1: pathid.PathId, path_id_2: pathid.PathId,
+                 namespaces: AbstractSet[str]) -> bool:
     if namespaces:
         path_id_1 = path_id_1.strip_namespace(namespaces)
         path_id_2 = path_id_2.strip_namespace(namespaces)
@@ -680,11 +711,8 @@ def _paths_equal(path_id_1: pathid.PathId, path_id_2: pathid.PathId,
 
 def _paths_equal_to_shortest_ns(path_id_1: pathid.PathId,
                                 path_id_2: pathid.PathId) -> bool:
-    if path_id_1 is None or path_id_2 is None:
-        return False
-
-    ns1 = path_id_1.namespace or set()
-    ns2 = path_id_2.namespace or set()
+    ns1: AbstractSet[str] = path_id_1.namespace or set()
+    ns2: AbstractSet[str] = path_id_2.namespace or set()
 
     if not ns1 and not ns2:
         return path_id_1 == path_id_2
@@ -696,7 +724,7 @@ def _paths_equal_to_shortest_ns(path_id_1: pathid.PathId,
             # neither namespace is a proper subset of another
             return False
         else:
-            path_id_1 = path_id_1.replace_namespace(None)
-            path_id_2 = path_id_2.replace_namespace(None)
+            path_id_1 = path_id_1.replace_namespace(set())
+            path_id_2 = path_id_2.replace_namespace(set())
 
             return path_id_1 == path_id_2

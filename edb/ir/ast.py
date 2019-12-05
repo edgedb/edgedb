@@ -34,11 +34,11 @@ from edb.schema import types as s_types
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
-from .pathid import PathId, WeakNamespace
+from .pathid import PathId, AnyNamespace, WeakNamespace  # noqa
 from .scopetree import InvalidScopeConfiguration, ScopeTreeNode  # noqa
 
 
-def new_scope_tree():
+def new_scope_tree() -> ScopeTreeNode:
     return ScopeTreeNode(fenced=True)
 
 
@@ -48,7 +48,7 @@ class Base(ast.AST):
 
     context: parsing.ParserContext
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f'<ir.{self.__class__.__name__} at 0x{id(self):x}>'
         )
@@ -148,48 +148,50 @@ class PointerRef(BasePointerRef):
 class TupleIndirectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in tuple indirection path ids."""
 
-    def __init__(self, source, target, *, element_name):
+    def __init__(
+        self,
+        source: so.Object,
+        target: s_types.Type,
+        *,
+        element_name: str,
+    ) -> None:
         self._source = source
         self._target = target
         self._name = sn.Name(module='__tuple__', name=str(element_name))
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.__class__, self._name))
 
-    def __eq__(self, other):
+    def __eq__(self, other: typing.Any) -> bool:
         if not isinstance(other, self.__class__):
             return False
 
         return self._name == other._name
 
-    def get_name(self, schema):
+    def get_name(self, schema: s_schema.Schema) -> str:
         return self._name
 
-    def get_cardinality(self, schema):
+    def get_cardinality(self, schema: s_schema.Schema) -> qltypes.Cardinality:
         return qltypes.Cardinality.ONE
 
-    def singular(self, schema,
-                 direction=s_pointers.PointerDirection.Outbound) -> bool:
+    def singular(
+        self,
+        schema: s_schema.Schema,
+        direction: s_pointers.PointerDirection =
+            s_pointers.PointerDirection.Outbound
+    ) -> bool:
         return True
 
-    def scalar(self):
+    def scalar(self) -> bool:
         return self._target.is_scalar()
 
-    def get_far_endpoint(self, schema, direction):
-        if direction is s_pointers.PointerDirection.Outbound:
-            return self.get_target(schema)
-        else:
-            raise AssertionError(
-                f'inbound direction is not valid for {type(self)}'
-            )
-
-    def get_source(self, schema):
+    def get_source(self, schema: s_schema.Schema) -> so.Object:
         return self._source
 
-    def get_target(self, schema):
+    def get_target(self, schema: s_schema.Schema) -> s_types.Type:
         return self._target
 
-    def is_tuple_indirection(self):
+    def is_tuple_indirection(self) -> bool:
         return True
 
 
@@ -200,7 +202,15 @@ class TupleIndirectionPointerRef(BasePointerRef):
 class TypeIndirectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in type indirection path ids."""
 
-    def __init__(self, source, target, *, optional, ancestral, cardinality):
+    def __init__(
+        self,
+        source: so.Object,
+        target: s_types.Type,
+        *,
+        optional: bool,
+        ancestral: bool,
+        cardinality: qltypes.Cardinality,
+    ) -> None:
         name = 'optindirection' if optional else 'indirection'
         self._name = sn.Name(module='__type__', name=name)
         self._source = source
@@ -209,43 +219,39 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
         self._optional = optional
         self._ancestral = ancestral
 
-    def get_name(self, schema):
+    def get_name(self, schema: s_schema.Schema) -> sn.Name:
         return self._name
 
-    def get_cardinality(self, schema):
+    def get_cardinality(self, schema: s_schema.Schema) -> qltypes.Cardinality:
         return self._cardinality
 
-    def is_type_indirection(self):
+    def is_type_indirection(self) -> bool:
         return True
 
-    def is_optional(self):
+    def is_optional(self) -> bool:
         return self._optional
 
-    def is_ancestral(self):
+    def is_ancestral(self) -> bool:
         return self._ancestral
 
-    def get_source(self, schema):
+    def get_source(self, schema: s_schema.Schema) -> so.Object:
         return self._source
 
-    def get_target(self, schema):
+    def get_target(self, schema: s_schema.Schema) -> s_types.Type:
         return self._target
 
-    def singular(self, schema,
-                 direction=s_pointers.PointerDirection.Outbound) -> bool:
+    def singular(
+        self,
+        schema: s_schema.Schema,
+        direction: s_pointers.PointerDirection =
+            s_pointers.PointerDirection.Outbound
+    ) -> bool:
         if direction is s_pointers.PointerDirection.Outbound:
             return self.get_cardinality(schema) is qltypes.Cardinality.ONE
         else:
             return True
 
-    def get_far_endpoint(self, schema, direction):
-        if direction is s_pointers.PointerDirection.Outbound:
-            return self.get_target(schema)
-        else:
-            raise AssertionError(
-                f'inbound direction is not valid for {type(self)}'
-            )
-
-    def scalar(self):
+    def scalar(self) -> bool:
         return self._target.is_scalar()
 
 
@@ -265,7 +271,7 @@ class Pointer(Base):
     show_as_anchor: typing.Union[str, ast.MetaAST]
 
     @property
-    def is_inbound(self):
+    def is_inbound(self) -> bool:
         return self.direction == s_pointers.PointerDirection.Inbound
 
 
@@ -295,7 +301,7 @@ class Set(Base):
     show_as_anchor: typing.Union[str, ast.MetaAST]
     shape: typing.List[Set]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
 
 
@@ -340,7 +346,12 @@ class BaseConstant(ConstExpr):
     __abstract_node__ = True
     value: typing.Any
 
-    def __init__(self, *args, typeref, **kwargs):
+    def __init__(
+        self,
+        *args: typing.Any,
+        typeref: TypeRef,
+        **kwargs: typing.Any,
+    ) -> None:
         super().__init__(*args, typeref=typeref, **kwargs)
         if self.typeref is None:
             raise ValueError('cannot create irast.Constant without a type')

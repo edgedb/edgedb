@@ -890,7 +890,9 @@ def computable_ptr_set(
     if ptrcls.is_link_property(ctx.env.schema):
         source_path_id = rptr.source.path_id.ptr_path()
     else:
-        source_path_id = rptr.target.path_id.src_path()
+        src_path = rptr.target.path_id.src_path()
+        assert src_path is not None
+        source_path_id = src_path
 
     result_path_id = pathctx.extend_path_id(
         source_path_id,
@@ -971,7 +973,7 @@ def _get_computable_ctx(
             if path_id_ns is not None:
                 subctx.path_id_namespace |= {path_id_ns}
 
-            pending_pid_ns = {
+            pending_pid_ns: Set[irast.AnyNamespace] = {
                 irast.WeakNamespace(ctx.aliases.get('ns')),
             }
 
