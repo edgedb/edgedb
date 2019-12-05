@@ -128,11 +128,11 @@ To begin a session, a client opens a connection to the server, and sends
 the :ref:`ref_protocol_msg_client_handshake`.  Server responds in one of
 the three ways:
 
-1. One of the authentication messages (see :ref:`below <ref_authentication>`)
+1. One of the authentication messages (see :ref:`below <ref_authentication>`);
 2. :ref:`ref_protocol_msg_server_handshake` followed by one of the
-   authentication messages
+   authentication messages;
 3. :ref:`ref_protocol_msg_error` which indicates invalid client handshake
-   message
+   message.
 
 :ref:`ref_protocol_msg_server_handshake` is only sent if the requested
 connection parameters cannot be fully satisfied, the server responds to
