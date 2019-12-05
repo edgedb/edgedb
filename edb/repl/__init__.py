@@ -45,6 +45,7 @@ from edb.errors import base as base_errors
 from edb.common import term
 from edb.edgeql import pygments as eql_pygments
 from edb.edgeql import quote as eql_quote
+from edb.schema import schema
 
 from edb.server import buildmeta
 
@@ -54,6 +55,8 @@ from . import render
 from . import table
 from . import utils
 
+
+STD_RE = '|'.join(schema.STD_LIB)
 
 STATUSES_WITH_OUTPUT = frozenset({
     'SELECT', 'INSERT', 'DELETE', 'UPDATE',
@@ -594,7 +597,7 @@ class Cli:
         filter_and = ''
         if 'system' not in flags:
             filter_and = f'''
-                NOT (re_test("^(std|schema|sys|cfg|stdgraphql)::", .name))
+                NOT (re_test("^({STD_RE})::", .name))
             '''
 
         filter_clause, qkw = utils.get_filter_based_on_pattern(
@@ -665,7 +668,7 @@ class Cli:
         filter_and = ''
         if 'system' not in flags:
             filter_and = f'''
-                NOT (re_test("^(std|schema|sys|cfg|stdgraphql)::", .name))
+                NOT (re_test("^({STD_RE})::", .name))
             '''
 
         filter_clause, qkw = utils.get_filter_based_on_pattern(
