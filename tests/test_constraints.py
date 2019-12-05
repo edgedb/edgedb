@@ -54,28 +54,33 @@ class TestConstraintsSchema(tb.QueryTestCase):
     async def test_constraints_scalar_length(self):
         data = {
             # max-length is 10
-            (10 ** 10, 'must be no longer than 10 characters.'),
+            (10 ** 10,
+             'constraint_length must be no longer than 10 characters.'),
             (10 ** 10 - 1, 'good'),
-            (10 ** 7 - 1, 'must be no shorter than 8 characters'),
+            (10 ** 7 - 1,
+             'constraint_length must be no shorter than 8 characters'),
             (10 ** 7, 'good'),
         }
 
         await self._run_link_tests(data, 'test::Object', 'c_length')
 
         data = {
-            (10 ** 10, 'must be no longer than 10 characters.'),
+            (10 ** 10,
+             'constraint_length must be no longer than 10 characters.'),
             (10 ** 10 - 1, 'good'),
 
-            (10 ** 8 - 1, 'must be no shorter than 9 characters'),
+            (10 ** 8 - 1,
+             'constraint_length_2 must be no shorter than 9 characters'),
             (10 ** 8, 'good'),
         }
 
         await self._run_link_tests(data, 'test::Object', 'c_length_2')
 
         data = {
-            (10 ** 10, 'must be no longer than 10 characters.'),
+            (10 ** 10,
+             'constraint_length must be no longer than 10 characters.'),
             (10 ** 10 - 1, 'good'),
-            (10 ** 9 - 1, 'must be no shorter than 10 characters'),
+            (10 ** 9 - 1, 'c_length_3 must be no shorter than 10 characters'),
         }
 
         await self._run_link_tests(data, 'test::Object', 'c_length_3')

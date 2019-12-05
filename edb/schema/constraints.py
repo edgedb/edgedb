@@ -159,8 +159,8 @@ class Constraint(referencing.ReferencedInheritingObject,
             qlutils.inline_anchors(expr_ql, anchors={qlast.Subject: subject})
             subject = orig_subject
 
-        args_map = None
         if args:
+            args_map = None
             args_ql = [
                 qlast.Path(steps=[qlast.Subject()]),
             ]
@@ -175,16 +175,6 @@ class Constraint(referencing.ReferencedInheritingObject,
                 schema=schema)
 
             qlutils.inline_parameters(expr_ql, args_map)
-
-            args_map = {name: edgeql.generate_source(val, pretty=False)
-                        for name, val in args_map.items()}
-
-            args_map['__subject__'] = '{__subject__}'
-            message_template = attrs['errmessage']
-            formatted_message = message_template.format(**args_map)
-            if message_template != formatted_message:
-                attrs['errmessage'] = formatted_message
-                inherited['errmessage'] = False
 
         attrs['args'] = args
 
@@ -228,7 +218,37 @@ class Constraint(referencing.ReferencedInheritingObject,
         else:
             subjtitle = titleattr
 
-        formatted = errmsg.format(__subject__=subjtitle)
+        args = self.get_args(schema)
+        if args:
+            from edb.edgeql import parser as qlparser
+            from edb.edgeql import utils as qlutils
+
+            args_ql = [
+                qlast.Path(steps=[qlast.ObjectRef(name=subjtitle)]),
+            ]
+
+            args_ql.extend(
+                qlparser.parse(arg.text) for arg in args
+            )
+
+            constr_base = schema.get(self.get_name(schema))
+
+            args_map = qlutils.index_parameters(
+                args_ql,
+                parameters=constr_base.get_params(schema),
+                schema=schema)
+
+            expr = constr_base.get_field_value(schema, 'expr')
+            expr_ql = qlparser.parse(expr.text)
+
+            qlutils.inline_parameters(expr_ql, args_map)
+
+            args_map = {name: edgeql.generate_source(val, pretty=False)
+                        for name, val in args_map.items()}
+        else:
+            args_map = {'__subject__': subjtitle}
+
+        formatted = errmsg.format(**args_map)
 
         return formatted
 
