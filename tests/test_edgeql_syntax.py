@@ -424,7 +424,7 @@ aa';
 
     def test_edgeql_syntax_constants_42(self):
         """
-        SELECT $ select;
+        SELECT $select;
         """
 
     def test_edgeql_syntax_constants_43(self):
@@ -1776,6 +1776,46 @@ aa';
         SELECT TUP.1.1;
         """
 
+    def test_edgeql_syntax_path_29(self):
+        # legal when `$0`, `$1`, `$a` and `$abc` are tuples
+        """
+        SELECT $0.0;
+        SELECT $0.0.name;
+        SELECT $0.0.1.name;
+        SELECT $0.0.1.n;
+        SELECT $abc.0;
+        SELECT $abc.0.name;
+        SELECT $abc.0.1.name;
+        SELECT $abc.0.1.n;
+        """
+
+    def test_edgeql_syntax_path_30(self):
+        # legal when `$0`, `$1`, `$a` and `$abc` are tuples
+        """
+        SELECT $1.1.1;
+        SELECT $1.>1.1;
+        SELECT $1.>1.>1;
+        SELECT $a.1.1;
+        SELECT $a.>1.1;
+        SELECT $a.>1.>1;
+
+% OK %
+
+        SELECT $1.1.1;
+        SELECT $1.1.1;
+        SELECT $1.1.1;
+        SELECT $a.1.1;
+        SELECT $a.1.1;
+        SELECT $a.1.1;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '\$'",
+                  line=2, col=16)
+    def test_edgeql_syntax_path_31(self):
+        """
+        SELECT $ a;
+        """
+
     def test_edgeql_syntax_type_interpretation_01(self):
         """
         SELECT Foo[IS Bar].spam;
@@ -2623,7 +2663,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"named arguments do not need a '\$' prefix: "
+                  r"named arguments do not need a '\$' prefix, "
                   r"rewrite as 'a := \.\.\.'",
                   line=2, col=25)
     def test_edgeql_syntax_function_08(self):

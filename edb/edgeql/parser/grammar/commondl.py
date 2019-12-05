@@ -179,16 +179,16 @@ class FuncDeclArgName(Nonterm):
         self.val = dp.val
         self.context = dp.context
 
-    def reduce_DOLLAR_AnyIdentifier(self, dk, dp):
-        raise EdgeQLSyntaxError(
-            f"function parameters do not need a $ prefix, "
-            f"rewrite as '{dp.val}'",
-            context=dk.context)
-
-    def reduce_DOLLAR_ICONST(self, dk, di):
-        raise EdgeQLSyntaxError(
-            f'numeric parameters are not supported',
-            context=dk.context)
+    def reduce_ARGUMENT(self, dp):
+        if dp.val[1].isdigit():
+            raise EdgeQLSyntaxError(
+                f'numeric parameters are not supported',
+                context=dp.context)
+        else:
+            raise EdgeQLSyntaxError(
+                f"function parameters do not need a $ prefix, "
+                f"rewrite as '{dp.val[1:]}'",
+                context=dp.context)
 
 
 class FuncDeclArg(Nonterm):

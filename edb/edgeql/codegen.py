@@ -446,7 +446,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                                         qlast.Set,
                                         qlast.Tuple,
                                         qlast.NamedTuple,
-                                        qlast.TypeIndirection)):
+                                        qlast.TypeIndirection,
+                                        qlast.Parameter)):
                     self.write('(')
                     self.visit(e)
                     self.write(')')

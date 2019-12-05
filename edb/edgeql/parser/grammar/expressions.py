@@ -872,14 +872,14 @@ class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
 
 
 class Constant(Nonterm):
-    # ArgConstant
+    # ARGUMENT
     # | BaseNumberConstant
     # | BaseStringConstant
     # | BaseBooleanConstant
     # | BaseBytesConstant
 
-    def reduce_ArgConstant(self, *kids):
-        self.val = kids[0].val
+    def reduce_ARGUMENT(self, *kids):
+        self.val = qlast.Parameter(name=kids[0].val[1:])
 
     def reduce_BaseNumberConstant(self, *kids):
         self.val = kids[0].val
@@ -892,14 +892,6 @@ class Constant(Nonterm):
 
     def reduce_BaseBytesConstant(self, *kids):
         self.val = kids[0].val
-
-
-class ArgConstant(Nonterm):
-    def reduce_DOLLAR_ICONST(self, *kids):
-        self.val = qlast.Parameter(name=str(kids[1].val))
-
-    def reduce_DOLLAR_AnyIdentifier(self, *kids):
-        self.val = qlast.Parameter(name=kids[1].val)
 
 
 class BaseNumberConstant(Nonterm):
@@ -1197,16 +1189,16 @@ class FuncCallArgExpr(Nonterm):
             kids[2].val,
         )
 
-    def reduce_DOLLAR_ICONST_ASSIGN_Expr(self, *kids):
-        raise EdgeQLSyntaxError(
-            f"numeric named arguments are not supported",
-            context=kids[0].context)
-
-    def reduce_DOLLAR_AnyIdentifier_ASSIGN_Expr(self, *kids):
-        raise EdgeQLSyntaxError(
-            f"named arguments do not need a '$' prefix: "
-            f"rewrite as '{kids[1].val} := ...'",
-            context=kids[0].context)
+    def reduce_ARGUMENT_ASSIGN_Expr(self, *kids):
+        if kids[0].val[1].isdigit():
+            raise EdgeQLSyntaxError(
+                f"numeric named arguments are not supported",
+                context=kids[0].context)
+        else:
+            raise EdgeQLSyntaxError(
+                f"named arguments do not need a '$' prefix, "
+                f"rewrite as '{kids[0].val[1:]} := ...'",
+                context=kids[0].context)
 
 
 class FuncCallArg(Nonterm):
