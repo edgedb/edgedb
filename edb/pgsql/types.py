@@ -53,12 +53,13 @@ base_type_name_map = {
     s_obj.get_known_type_id('std::float32'): ('float4',),
     s_obj.get_known_type_id('std::uuid'): ('uuid',),
     s_obj.get_known_type_id('std::datetime'): ('timestamptz',),
-    s_obj.get_known_type_id('std::local_datetime'): ('timestamp',),
-    s_obj.get_known_type_id('std::local_date'): ('date',),
-    s_obj.get_known_type_id('std::local_time'): ('time',),
     s_obj.get_known_type_id('std::duration'): ('interval',),
     s_obj.get_known_type_id('std::bytes'): ('bytea',),
     s_obj.get_known_type_id('std::json'): ('jsonb',),
+
+    s_obj.get_known_type_id('cal::local_datetime'): ('timestamp',),
+    s_obj.get_known_type_id('cal::local_date'): ('date',),
+    s_obj.get_known_type_id('cal::local_time'): ('time',),
 }
 
 base_type_name_map_r = {
@@ -83,12 +84,13 @@ base_type_name_map_r = {
     'uuid': sn.Name('std::uuid'),
     'timestamp with time zone': sn.Name('std::datetime'),
     'timestamptz': sn.Name('std::datetime'),
-    'timestamp': sn.Name('std::local_datetime'),
-    'date': sn.Name('std::local_date'),
-    'time': sn.Name('std::local_time'),
     'interval': sn.Name('std::duration'),
     'bytea': sn.Name('std::bytes'),
     'jsonb': sn.Name('std::json'),
+
+    'timestamp': sn.Name('cal::local_datetime'),
+    'date': sn.Name('cal::local_date'),
+    'time': sn.Name('cal::local_time'),
 }
 
 

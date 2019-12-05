@@ -113,7 +113,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
     async def test_edgeql_dt_local_datetime_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <local_datetime>'2017-10-10T13:11' +
+                SELECT <cal::local_datetime>'2017-10-10T13:11' +
                     <duration>'1 day';
             ''',
             ['2017-10-11T13:11:00'],
@@ -122,14 +122,14 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <duration>'1 day' +
-                    <local_datetime>'2017-10-10T13:11';
+                    <cal::local_datetime>'2017-10-10T13:11';
             ''',
             ['2017-10-11T13:11:00'],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_datetime>'2017-10-10T13:11' -
+                SELECT <cal::local_datetime>'2017-10-10T13:11' -
                     <duration>'1 day';
             ''',
             ['2017-10-09T13:11:00'],
@@ -137,33 +137,33 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
     async def test_edgeql_dt_local_date_01(self):
         await self.assert_query_result(
-            r'''SELECT <local_date>'2017-10-10' + <duration>'1 day';''',
+            r'''SELECT <cal::local_date>'2017-10-10' + <duration>'1 day';''',
             ['2017-10-11'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <duration>'1 day' + <local_date>'2017-10-10';''',
+            r'''SELECT <duration>'1 day' + <cal::local_date>'2017-10-10';''',
             ['2017-10-11'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <local_date>'2017-10-10' - <duration>'1 day';''',
+            r'''SELECT <cal::local_date>'2017-10-10' - <duration>'1 day';''',
             ['2017-10-09'],
         )
 
     async def test_edgeql_dt_local_time_01(self):
         await self.assert_query_result(
-            r'''SELECT <local_time>'10:01:01' + <duration>'1 hour';''',
+            r'''SELECT <cal::local_time>'10:01:01' + <duration>'1 hour';''',
             ['11:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <duration>'1 hour' + <local_time>'10:01:01';''',
+            r'''SELECT <duration>'1 hour' + <cal::local_time>'10:01:01';''',
             ['11:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <local_time>'10:01:01' - <duration>'1 hour';''',
+            r'''SELECT <cal::local_time>'10:01:01' - <duration>'1 hour';''',
             ['09:01:01'],
         )
 

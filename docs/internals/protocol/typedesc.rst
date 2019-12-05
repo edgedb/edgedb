@@ -137,20 +137,20 @@ The following table lists all EdgeDB base types descriptor IDs:
    * - ``00000000-0000-0000-0000-00000000010A``
      - :ref:`std::datetime <ref_protocol_fmt_datetime>`
 
-   * - ``00000000-0000-0000-0000-00000000010B``
-     - :ref:`std::local_datetime <ref_protocol_fmt_local_datetime>`
-
-   * - ``00000000-0000-0000-0000-00000000010C``
-     - :ref:`std::local_date <ref_protocol_fmt_local_date>`
-
-   * - ``00000000-0000-0000-0000-00000000010D``
-     - :ref:`std::local_time <ref_protocol_fmt_local_time>`
-
    * - ``00000000-0000-0000-0000-00000000010E``
      - :ref:`std::duration <ref_protocol_fmt_duration>`
 
    * - ``00000000-0000-0000-0000-00000000010F``
      - :ref:`std::json <ref_protocol_fmt_json>`
+
+   * - ``00000000-0000-0000-0000-00000000010B``
+     - :ref:`cal::local_datetime <ref_protocol_fmt_local_datetime>`
+
+   * - ``00000000-0000-0000-0000-00000000010C``
+     - :ref:`cal::local_date <ref_protocol_fmt_local_date>`
+
+   * - ``00000000-0000-0000-0000-00000000010D``
+     - :ref:`cal::local_time <ref_protocol_fmt_local_time>`
 
 
 Scalar Type Descriptor

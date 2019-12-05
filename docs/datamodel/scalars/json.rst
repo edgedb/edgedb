@@ -70,7 +70,7 @@ Anything in EdgeDB can be cast into :eql:type:`json`:
 
     db> SELECT <json>2019;
     {'2019'}
-    db> SELECT <json>to_local_date(datetime_current(), 'UTC');
+    db> SELECT <json>cal::to_local_date(datetime_current(), 'UTC');
     {'"2019-04-02"'}
 
 Any :eql:type:`Object` can be cast into :eql:type:`json`. This
@@ -84,7 +84,7 @@ type shape.
     db> SELECT <json>(
     ...     SELECT schema::Object {
     ...         name,
-    ...         timestamp := to_local_date(
+    ...         timestamp := cal::to_local_date(
     ...             datetime_current(), 'UTC')
     ...     }
     ...     FILTER .name = 'std::bool');

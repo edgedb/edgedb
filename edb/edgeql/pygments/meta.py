@@ -205,6 +205,7 @@ class EdgeQL:
         "std",
         "stdgraphql",
         "sys",
+        "cal",
     )
     constraint_builtins = (
         "constraint",

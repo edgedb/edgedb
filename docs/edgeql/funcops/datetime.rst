@@ -26,14 +26,14 @@ Date and Time
     * - :eql:func:`to_datetime`
       - :eql:func-desc:`to_datetime`
 
-    * - :eql:func:`to_local_datetime`
-      - :eql:func-desc:`to_local_datetime`
+    * - :eql:func:`cal::to_local_datetime`
+      - :eql:func-desc:`cal::to_local_datetime`
 
-    * - :eql:func:`to_local_date`
-      - :eql:func-desc:`to_local_date`
+    * - :eql:func:`cal::to_local_date`
+      - :eql:func-desc:`cal::to_local_date`
 
-    * - :eql:func:`to_local_time`
-      - :eql:func-desc:`to_local_time`
+    * - :eql:func:`cal::to_local_time`
+      - :eql:func-desc:`cal::to_local_time`
 
     * - :eql:func:`to_duration`
       - :eql:func-desc:`to_duration`
@@ -70,9 +70,9 @@ Date and Time
 
 
 .. eql:operator:: DTPLUS: datetime + duration -> datetime
-                          local_datetime + duration -> local_datetime
-                          local_date + duration -> local_date
-                          local_time + duration -> local_time
+                          cal::local_datetime + duration -> cal::local_datetime
+                          cal::local_date + duration -> cal::local_date
+                          cal::local_time + duration -> cal::local_time
                           duration + duration -> duration
 
     Time interval addition.
@@ -81,10 +81,10 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <local_time>'22:00' + <duration>'1 hour';
-        {<local_time>'23:00:00'}
-        db> SELECT <duration>'1 hour' + <local_time>'22:00';
-        {<local_time>'23:00:00'}
+        db> SELECT <cal::local_time>'22:00' + <duration>'1 hour';
+        {<cal::local_time>'23:00:00'}
+        db> SELECT <duration>'1 hour' + <cal::local_time>'22:00';
+        {<cal::local_time>'23:00:00'}
         db> SELECT <duration>'1 hour' + <duration>'2 hours';
         {<duration>'3:00:00'}
 
@@ -94,11 +94,13 @@ Date and Time
 
 .. eql:operator:: DTMINUS: duration - duration -> duration
                            datetime - datetime -> duration
-                           local_datetime - local_datetime -> duration
+                           cal::local_datetime - cal::local_datetime \
+                                -> duration
                            local_time - local_time -> duration
                            local_date - local_date -> duration
                            datetime - duration -> datetime
-                           local_datetime - duration -> local_datetime
+                           cal::local_datetime - duration \
+                                -> cal::local_datetime
                            local_time - duration -> local_time
                            local_date - duration -> local_date
 
@@ -125,12 +127,12 @@ Date and Time
         QueryError: operator '-' cannot be applied to operands ...
 
     It is also an error to subtract timezone-aware :eql:type:`std::datetime`
-    to or from :eql:type:`std::local_datetime`:
+    to or from :eql:type:`cal::local_datetime`:
 
     .. code-block:: edgeql-repl
 
         db> SELECT <datetime>'January 01 2019 UTC' -
-        ...   <local_datetime>'January 02 2019';
+        ...   <cal::local_datetime>'January 02 2019';
         QueryError: operator '-' cannot be applied to operands ...
 
 
@@ -166,7 +168,8 @@ Date and Time
 
 
 .. eql:function:: std::datetime_get(dt: datetime, el: str) -> float64
-                  std::datetime_get(dt: local_datetime, el: str) -> float64
+                  std::datetime_get(dt: cal::local_datetime, \
+                                    el: str) -> float64
 
     Extract a specific element of input datetime by name.
 
@@ -175,7 +178,7 @@ Date and Time
 
     - ``'epoch'`` - the number of seconds since 1970-01-01 00:00:00
       UTC for :eql:type:`datetime` or local time for
-      :eql:type:`local_datetime`. It can be negative.
+      :eql:type:`cal::local_datetime`. It can be negative.
     - ``'century'`` - the century according to the Gregorian calendar
     - ``'day'`` - the day of the month (1-31)
     - ``'decade'`` - the decade (year divided by 10 and rounded down)
@@ -232,11 +235,11 @@ Date and Time
 ----------
 
 
-.. eql:function:: std::time_get(dt: local_time, el: str) -> float64
+.. eql:function:: std::time_get(dt: cal::local_time, el: str) -> float64
 
     Extract a specific element of input time by name.
 
-    The :eql:type:`local_time` scalar has the following elements
+    The :eql:type:`cal::local_time` scalar has the following elements
     available for extraction:
 
     - ``'epoch'``
@@ -252,11 +255,11 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT time_get(
-        ...     <local_time>'15:01:22.306916', 'minute');
+        ...     <cal::local_time>'15:01:22.306916', 'minute');
         {1}
 
         db> SELECT time_get(
-        ...     <local_time>'15:01:22.306916', 'milliseconds');
+        ...     <cal::local_time>'15:01:22.306916', 'milliseconds');
         {22306.916}
 
 
@@ -267,28 +270,28 @@ Date and Time
 
     Extract a specific element of input date by name.
 
-    Valid elements for :eql:type:`local_date` are the same as for
-    :eql:type:`local_datetime` in :eql:func:`datetime_get`.
+    Valid elements for :eql:type:`cal::local_date` are the same as for
+    :eql:type:`cal::local_datetime` in :eql:func:`datetime_get`.
 
     .. code-block:: edgeql-repl
 
         db> SELECT date_get(
-        ...     <local_date>'2018-05-07T15:01:22.306916',
+        ...     <cal::local_date>'2018-05-07T15:01:22.306916',
         ...     'century');
         {21}
 
         db> SELECT date_get(
-        ...     <local_date>'2018-05-07T15:01:22.306916',
+        ...     <cal::local_date>'2018-05-07T15:01:22.306916',
         ...     'year');
         {2018}
 
         db> SELECT date_get(
-        ...     <local_date>'2018-05-07T15:01:22.306916',
+        ...     <cal::local_date>'2018-05-07T15:01:22.306916',
         ...     'month');
         {5}
 
         db> SELECT date_get(
-        ...     <local_date>'2018-05-07T15:01:22.306916',
+        ...     <cal::local_date>'2018-05-07T15:01:22.306916',
         ...     'doy');
         {127}
 
@@ -438,7 +441,7 @@ Date and Time
 
 
 .. eql:function:: std::to_datetime(s: str, fmt: OPTIONAL str={}) -> datetime
-                  std::to_datetime(local: local_datetime, zone: str) \
+                  std::to_datetime(local: cal::local_datetime, zone: str) \
                     -> datetime
                   std::to_datetime(year: int64, month: int64, day: int64, \
                     hour: int64, min: int64, sec: float64, timezone: str) \
@@ -465,12 +468,12 @@ Date and Time
         {<datetime>'2018-05-07T15:01:22+00:00'}
 
     Alternatively, the :eql:type:`datetime` value can be constructed
-    from a :eql:type:`std::local_datetime` value:
+    from a :eql:type:`cal::local_datetime` value:
 
     .. code-block:: edgeql-repl
 
         db> SELECT to_datetime(
-        ...   <local_datetime>'January 1, 2019 12:00AM', 'HKT');
+        ...   <cal::local_datetime>'January 1, 2019 12:00AM', 'HKT');
         {<datetime>'2018-12-31T16:00:00+00:00'}
 
     Yet another way to construct a the :eql:type:`datetime` value
@@ -487,19 +490,19 @@ Date and Time
 ------------
 
 
-.. eql:function:: std::to_local_datetime(s: str, fmt: OPTIONAL str={}) \
+.. eql:function:: cal::to_local_datetime(s: str, fmt: OPTIONAL str={}) \
                     -> local_datetime
-                  std::to_local_datetime(dt: datetime, zone: str) \
+                  cal::to_local_datetime(dt: datetime, zone: str) \
                     -> local_datetime
-                  std::to_local_datetime(year: int64, month: int64, \
+                  cal::to_local_datetime(year: int64, month: int64, \
                     day: int64, hour: int64, min: int64, sec: float64) \
                     -> local_datetime
 
     :index: parse local_datetime
 
-    Create a :eql:type:`local_datetime` value.
+    Create a :eql:type:`cal::local_datetime` value.
 
-    Similar to :eql:func:`to_datetime`, the :eql:type:`local_datetime`
+    Similar to :eql:func:`to_datetime`, the :eql:type:`cal::local_datetime`
     value can be parsed from the input :eql:type:`str` *s* with an
     optional *fmt* argument or it can be given in terms of its
     component parts: *year*, *month*, *day*, *hour*, *min*, *sec*.
@@ -509,40 +512,40 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_datetime('2018-05-07T15:01:22.306916');
-        {<local_datetime>'2018-05-07T15:01:22.306916'}
-        db> SELECT to_local_datetime('May 7th, 2018 15:01:22',
+        db> SELECT cal::to_local_datetime('2018-05-07T15:01:22.306916');
+        {<cal::local_datetime>'2018-05-07T15:01:22.306916'}
+        db> SELECT cal::to_local_datetime('May 7th, 2018 15:01:22',
         ...                          'Mon DDth, YYYY HH24:MI:SS');
-        {<local_datetime>'2018-05-07T15:01:22'}
-        db> SELECT to_local_datetime(
+        {<cal::local_datetime>'2018-05-07T15:01:22'}
+        db> SELECT cal::to_local_datetime(
         ...     2018, 5, 7, 15, 1, 22.306916);
-        {<local_datetime>'2018-05-07T15:01:22.306916'}
+        {<cal::local_datetime>'2018-05-07T15:01:22.306916'}
 
     A timezone-aware :eql:type:`datetime` type can be converted
     to local datetime in the specified timezone:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_datetime(
+        db> SELECT cal::to_local_datetime(
         ...   <datetime>'December 31, 2018 10:00PM GMT+8',
         ...   'US/Central');
-        {<local_datetime>'2019-01-01T00:00:00'}
+        {<cal::local_datetime>'2019-01-01T00:00:00'}
 
 
 ------------
 
 
-.. eql:function:: std::to_local_date(s: str, fmt: OPTIONAL str={}) \
+.. eql:function:: cal::to_local_date(s: str, fmt: OPTIONAL str={}) \
                     -> local_date
-                  std::to_local_date(dt: datetime, zone: str) -> local_date
-                  std::to_local_date(year: int64, month: int64, \
+                  cal::to_local_date(dt: datetime, zone: str) -> local_date
+                  cal::to_local_date(year: int64, month: int64, \
                     day: int64) -> local_date
 
     :index: parse local_date
 
-    Create a :eql:type:`local_date` value.
+    Create a :eql:type:`cal::local_date` value.
 
-    Similar to :eql:func:`to_datetime`, the :eql:type:`local_date`
+    Similar to :eql:func:`to_datetime`, the :eql:type:`cal::local_date`
     value can be parsed from the input :eql:type:`str` *s* with an
     optional *fmt* argument or it can be given in terms of its
     component parts: *year*, *month*, *day*.
@@ -553,11 +556,11 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT to_local_date('2018-05-07');
-        {<local_date>'2018-05-07'}
+        {<cal::local_date>'2018-05-07'}
         db> SELECT to_local_date('May 7th, 2018', 'Mon DDth, YYYY');
-        {<local_date>'2018-05-07'}
+        {<cal::local_date>'2018-05-07'}
         db> SELECT to_local_date(2018, 5, 7);
-        {<local_date>'2018-05-07'}
+        {<cal::local_date>'2018-05-07'}
 
     A timezone-aware :eql:type:`datetime` type can be converted
     to local date in the specified timezone:
@@ -567,24 +570,24 @@ Date and Time
         db> SELECT to_local_date(
         ...   <datetime>'December 31, 2018 10:00PM GMT+8',
         ...   'US/Central');
-        {<local_date>'2019-01-01'}
+        {<cal::local_date>'2019-01-01'}
 
 
 ------------
 
 
-.. eql:function:: std::to_local_time(s: str, fmt: OPTIONAL str={}) \
+.. eql:function:: cal::to_local_time(s: str, fmt: OPTIONAL str={}) \
                     -> local_time
-                  std::to_local_time(dt: datetime, zone: str) \
+                  cal::to_local_time(dt: datetime, zone: str) \
                     -> local_time
-                  std::to_local_time(hour: int64, min: int64, sec: float64) \
+                  cal::to_local_time(hour: int64, min: int64, sec: float64) \
                     -> local_time
 
     :index: parse local_time
 
-    Create a :eql:type:`local_time` value.
+    Create a :eql:type:`cal::local_time` value.
 
-    Similar to :eql:func:`to_datetime`, the :eql:type:`local_time`
+    Similar to :eql:func:`to_datetime`, the :eql:type:`cal::local_time`
     value can be parsed from the input :eql:type:`str` *s* with an
     optional *fmt* argument or it can be given in terms of its
     component parts: *hour*, *min*, *sec*.
@@ -594,22 +597,22 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_time('15:01:22.306916');
-        {<local_time>'15:01:22.306916'}
-        db> SELECT to_local_time('03:01:22pm', 'HH:MI:SSam');
-        {<local_time>'15:01:22'}
-        db> SELECT to_local_time(15, 1, 22.306916);
-        {<local_time>'15:01:22.306916'}
+        db> SELECT cal::to_local_time('15:01:22.306916');
+        {<cal::local_time>'15:01:22.306916'}
+        db> SELECT cal::to_local_time('03:01:22pm', 'HH:MI:SSam');
+        {<cal::local_time>'15:01:22'}
+        db> SELECT cal::to_local_time(15, 1, 22.306916);
+        {<cal::local_time>'15:01:22.306916'}
 
     A timezone-aware :eql:type:`datetime` type can be converted
     to local date in the specified timezone:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_local_time(
+        db> SELECT cal::to_local_time(
         ...   <datetime>'December 31, 2018 10:00PM GMT+8',
         ...   'US/Pacific');
-        {<local_date>'22:00:00'}
+        {<cal::local_date>'22:00:00'}
 
 
 ------------

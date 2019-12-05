@@ -26,10 +26,10 @@ The standard EdgeDB scalar types are:
 - :ref:`Date and Time types <ref_datamodel_scalars_datetime>`:
 
   * :eql:type:`datetime`
-  * :eql:type:`local_datetime`
-  * :eql:type:`local_date`
-  * :eql:type:`local_time`
   * :eql:type:`duration`
+  * :eql:type:`cal::local_datetime`
+  * :eql:type:`cal::local_date`
+  * :eql:type:`cal::local_time`
 
 - :ref:`UUID type <ref_datamodel_scalars_uuid>`
 

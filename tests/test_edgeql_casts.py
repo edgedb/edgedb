@@ -100,21 +100,22 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot cast'):
             await self.con.execute("""
-                SELECT <bytes>to_local_datetime('2018-05-07T20:01:22.306916');
+                SELECT
+                  <bytes>cal::to_local_datetime('2018-05-07T20:01:22.306916');
             """)
 
     async def test_edgeql_casts_bytes_07(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot cast'):
             await self.con.execute("""
-                SELECT <bytes>to_local_date('2018-05-07');
+                SELECT <bytes>cal::to_local_date('2018-05-07');
             """)
 
     async def test_edgeql_casts_bytes_08(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot cast'):
             await self.con.execute("""
-                SELECT <bytes>to_local_time('20:01:22.306916');
+                SELECT <bytes>cal::to_local_time('20:01:22.306916');
             """)
 
     async def test_edgeql_casts_bytes_09(self):
@@ -208,24 +209,25 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <local_datetime><local_datetime>to_local_datetime(
-                    '2018-05-07T20:01:22.306916') IS local_datetime;
+                SELECT <cal::local_datetime><cal::local_datetime>
+                    cal::to_local_datetime(
+                    '2018-05-07T20:01:22.306916') IS cal::local_datetime;
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_date><local_date>to_local_date(
-                    '2018-05-07') IS local_date;
+                SELECT <cal::local_date><cal::local_date>cal::to_local_date(
+                    '2018-05-07') IS cal::local_date;
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_time><local_time>to_local_time(
-                    '20:01:22.306916') IS local_time;
+                SELECT <cal::local_time><cal::local_time>cal::to_local_time(
+                    '20:01:22.306916') IS cal::local_time;
             ''',
             [True],
         )
@@ -320,25 +322,26 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <local_datetime><local_datetime>to_local_datetime(
-                    '2018-05-07T20:01:22.306916') =
-                to_local_datetime('2018-05-07T20:01:22.306916');
+                SELECT <cal::local_datetime><cal::local_datetime>
+                    cal::to_local_datetime('2018-05-07T20:01:22.306916') =
+                    cal::to_local_datetime('2018-05-07T20:01:22.306916');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_date><local_date>to_local_date('2018-05-07') =
-                    to_local_date('2018-05-07');
+                SELECT <cal::local_date><cal::local_date>
+                    cal::to_local_date('2018-05-07') =
+                    cal::to_local_date('2018-05-07');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_time><local_time>to_local_time(
-                    '20:01:22.306916') = to_local_time('20:01:22.306916');
+                SELECT <cal::local_time><cal::local_time>cal::to_local_time(
+                    '20:01:22.306916') = cal::to_local_time('20:01:22.306916');
             ''',
             [True],
         )
@@ -437,25 +440,26 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <local_datetime><str>to_local_datetime(
+                SELECT <cal::local_datetime><str>cal::to_local_datetime(
                         '2018-05-07T20:01:22.306916') =
-                    to_local_datetime('2018-05-07T20:01:22.306916');
+                    cal::to_local_datetime('2018-05-07T20:01:22.306916');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_date><str>to_local_date('2018-05-07') =
-                    to_local_date('2018-05-07');
+                SELECT <cal::local_date><str>cal::to_local_date('2018-05-07') =
+                    cal::to_local_date('2018-05-07');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_time><str>to_local_time('20:01:22.306916') =
-                    to_local_time('20:01:22.306916');
+                SELECT <cal::local_time><str>
+                    cal::to_local_time('20:01:22.306916') =
+                    cal::to_local_time('20:01:22.306916');
             ''',
             [True],
         )
@@ -671,7 +675,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := '2018-05-07T20:01:22.306916'
-                SELECT <str><local_datetime>x = x;
+                SELECT <str><cal::local_datetime>x = x;
             ''',
             [True],
         )
@@ -686,8 +690,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2018-05-07 20:01:22.306916',
                     '2018-05-07t20:01:22.306916',
                 }
-                SELECT <local_datetime>x =
-                    <local_datetime>'2018-05-07T20:01:22.306916';
+                SELECT <cal::local_datetime>x =
+                    <cal::local_datetime>'2018-05-07T20:01:22.306916';
             ''',
             [True, True, True],
         )
@@ -696,31 +700,37 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_datetime>"2018-05-07;20:01:22.306916"')
+                'SELECT <cal::local_datetime>"2018-05-07;20:01:22.306916"')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_datetime>"2018-05-07T20:01:22.306916+01:00"')
+                '''
+                    SELECT
+                        <cal::local_datetime>"2018-05-07T20:01:22.306916+01:00"
+                ''')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_datetime>"2018-05-07T20:01:22.306916 GMT"')
+                'SELECT <cal::local_datetime>"2018-05-07T20:01:22.306916 GMT"')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_datetime>"2018-05-07T20:01:22.306916 GMT0"')
+                '''
+                    SELECT
+                      <cal::local_datetime>"2018-05-07T20:01:22.306916 GMT0"
+                ''')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                '''SELECT <local_datetime>
+                '''SELECT <cal::local_datetime>
                     "2018-05-07T20:01:22.306916 US/Central"
                 ''')
 
@@ -730,7 +740,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := '2018-05-07'
-                SELECT <str><local_date>x = x;
+                SELECT <str><cal::local_date>x = x;
             ''',
             [True],
         )
@@ -742,7 +752,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     # the '-' separators may be omitted
                     '20180507',
                 }
-                SELECT <local_date>x = <local_date>'2018-05-07';
+                SELECT <cal::local_date>x = <cal::local_date>'2018-05-07';
             ''',
             [True],
         )
@@ -751,25 +761,25 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_date>"2018-05-07T20:01:22.306916"')
+                'SELECT <cal::local_date>"2018-05-07T20:01:22.306916"')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_date>"2018/05/07"')
+                'SELECT <cal::local_date>"2018/05/07"')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_date>"2018.05.07"')
+                'SELECT <cal::local_date>"2018.05.07"')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_date>"2018-05-07+01:00"')
+                'SELECT <cal::local_date>"2018-05-07+01:00"')
 
     async def test_edgeql_casts_str_08(self):
         # Canonical date and time str representations must follow ISO
@@ -777,7 +787,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := '20:01:22.306916'
-                SELECT <str><local_time>x = x;
+                SELECT <str><cal::local_time>x = x;
             ''',
             [True],
         )
@@ -791,21 +801,22 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2001',
                     '200100',
                 }
-                SELECT <local_time>x = <local_time>'20:01:00';
+                SELECT <cal::local_time>x = <cal::local_time>'20:01:00';
             ''',
             [True, True, True, True],
         )
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                'invalid input syntax for type std::local_time'):
-            await self.con.fetchone("SELECT <local_time>'2018-05-07 20:01:22'")
+                'invalid input syntax for type cal::local_time'):
+            await self.con.fetchone(
+                "SELECT <cal::local_time>'2018-05-07 20:01:22'")
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_time>"20:01:22.306916+01:00"')
+                'SELECT <cal::local_time>"20:01:22.306916+01:00"')
 
     async def test_edgeql_casts_str_09(self):
         # Canonical duration is a bit weird.
@@ -1033,7 +1044,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <local_datetime><str>T.p_local_datetime =
+                SELECT <cal::local_datetime><str>T.p_local_datetime =
                     T.p_local_datetime;
             ''',
             [True],
@@ -1042,7 +1053,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <local_date><str>T.p_local_date = T.p_local_date;
+                SELECT <cal::local_date><str>T.p_local_date = T.p_local_date;
             ''',
             [True],
         )
@@ -1050,7 +1061,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <local_time><str>T.p_local_time = T.p_local_time;
+                SELECT <cal::local_time><str>T.p_local_time = T.p_local_time;
             ''',
             [True],
         )
@@ -1489,25 +1500,26 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <local_datetime><json>to_local_datetime(
+                SELECT <cal::local_datetime><json>cal::to_local_datetime(
                         '2018-05-07T20:01:22.306916') =
-                    to_local_datetime('2018-05-07T20:01:22.306916');
+                    cal::to_local_datetime('2018-05-07T20:01:22.306916');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_date><json>to_local_date('2018-05-07') =
-                    to_local_date('2018-05-07');
+                SELECT <cal::local_date><json>cal::to_local_date('2018-05-07')
+                    = cal::to_local_date('2018-05-07');
             ''',
             [True],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <local_time><json>to_local_time('20:01:22.306916') =
-                    to_local_time('20:01:22.306916');
+                SELECT <cal::local_time><json>
+                    cal::to_local_time('20:01:22.306916') =
+                    cal::to_local_time('20:01:22.306916');
             ''',
             [True],
         )
@@ -1596,7 +1608,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <local_datetime><json>T.p_local_datetime =
+                SELECT <cal::local_datetime><json>T.p_local_datetime =
                     T.p_local_datetime;
             ''',
             [True],
@@ -1605,7 +1617,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <local_date><json>T.p_local_date = T.p_local_date;
+                SELECT <cal::local_date><json>T.p_local_date = T.p_local_date;
             ''',
             [True],
         )
@@ -1613,7 +1625,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
-                SELECT <local_time><json>T.p_local_time = T.p_local_time;
+                SELECT <cal::local_time><json>T.p_local_time = T.p_local_time;
             ''',
             [True],
         )
@@ -1722,7 +1734,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-                SELECT <local_datetime>J.j_local_datetime = T.p_local_datetime;
+                SELECT <cal::local_datetime>J.j_local_datetime =
+                    T.p_local_datetime;
             ''',
             [True],
         )
@@ -1733,7 +1746,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-                SELECT <local_date>J.j_local_date = T.p_local_date;
+                SELECT <cal::local_date>J.j_local_date = T.p_local_date;
             ''',
             [True],
         )
@@ -1744,7 +1757,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
-                SELECT <local_time>J.j_local_time = T.p_local_time;
+                SELECT <cal::local_time>J.j_local_time = T.p_local_time;
             ''',
             [True],
         )
@@ -1966,7 +1979,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := <json>'2018-05-07T20:01:22.306916'
-                SELECT <json><local_datetime>x = x;
+                SELECT <json><cal::local_datetime>x = x;
             ''',
             [True],
         )
@@ -1981,8 +1994,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2018-05-07 20:01:22.306916',
                     '2018-05-07t20:01:22.306916',
                 }
-                SELECT <local_datetime>x =
-                    <local_datetime><json>'2018-05-07T20:01:22.306916';
+                SELECT <cal::local_datetime>x =
+                    <cal::local_datetime><json>'2018-05-07T20:01:22.306916';
             ''',
             [True, True, True],
         )
@@ -1991,13 +2004,15 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_datetime><json>"2018-05-07;20:01:22.306916"')
+                '''SELECT
+                    <cal::local_datetime><json>"2018-05-07;20:01:22.306916"
+                ''')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                '''SELECT <local_datetime><json>
+                '''SELECT <cal::local_datetime><json>
                     "2018-05-07T20:01:22.306916+01:00"
                 ''')
 
@@ -2005,21 +2020,21 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                '''SELECT <local_datetime><json>
+                '''SELECT <cal::local_datetime><json>
                     "2018-05-07T20:01:22.306916 GMT"''')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                '''SELECT <local_datetime><json>
+                '''SELECT <cal::local_datetime><json>
                     "2018-05-07T20:01:22.306916 GMT0"''')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                '''SELECT <local_datetime><json>
+                '''SELECT <cal::local_datetime><json>
                     "2018-05-07T20:01:22.306916 US/Central"
                 ''')
 
@@ -2034,7 +2049,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := <json>'2018-05-07'
-                SELECT <json><local_date>x = x;
+                SELECT <json><cal::local_date>x = x;
             ''',
             [True],
         )
@@ -2044,7 +2059,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             r'''
                 # the '-' separators may be omitted
                 WITH x := <json>'20180507'
-                SELECT <local_date>x = <local_date><json>'2018-05-07';
+                SELECT
+                    <cal::local_date>x = <cal::local_date><json>'2018-05-07';
             ''',
             [True],
         )
@@ -2053,25 +2069,25 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_date><json>"2018-05-07T20:01:22.306916"')
+                'SELECT <cal::local_date><json>"2018-05-07T20:01:22.306916"')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_date><json>"2018/05/07"')
+                'SELECT <cal::local_date><json>"2018/05/07"')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_date><json>"2018.05.07"')
+                'SELECT <cal::local_date><json>"2018.05.07"')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_date><json>"2018-05-07+01:00"')
+                'SELECT <cal::local_date><json>"2018-05-07+01:00"')
 
     async def test_edgeql_casts_json_10(self):
         # This is the same suite of tests as for str. The point is
@@ -2084,7 +2100,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH x := <json>'20:01:22.306916'
-                SELECT <json><local_time>x = x;
+                SELECT <json><cal::local_time>x = x;
             ''',
             [True],
         )
@@ -2098,22 +2114,22 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                     '2001',
                     '200100',
                 }
-                SELECT <local_time>x = <local_time>'20:01:00';
+                SELECT <cal::local_time>x = <cal::local_time>'20:01:00';
             ''',
             [True, True, True, True],
         )
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                'invalid input syntax for type std::local_time'):
+                'invalid input syntax for type cal::local_time'):
             await self.con.fetchone(
-                "SELECT <local_time><json>'2018-05-07 20:01:22'")
+                "SELECT <cal::local_time><json>'2018-05-07 20:01:22'")
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for type'):
             await self.con.fetchone(
-                'SELECT <local_time><json>"20:01:22.306916+01:00"')
+                'SELECT <cal::local_time><json>"20:01:22.306916+01:00"')
 
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():

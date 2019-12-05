@@ -65,9 +65,9 @@ type ScalarTest {
     property p_bool -> bool;
     property p_str -> str;
     property p_datetime -> datetime;
-    property p_local_datetime -> local_datetime;
-    property p_local_date -> local_date;
-    property p_local_time -> local_time;
+    property p_local_datetime -> cal::local_datetime;
+    property p_local_date -> cal::local_date;
+    property p_local_time -> cal::local_time;
     property p_duration -> duration;
     property p_int16 -> int16;
     property p_int32 -> int32;

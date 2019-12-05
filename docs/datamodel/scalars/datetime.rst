@@ -11,8 +11,8 @@ EdgeDB has two classes of date/time types:
 * a timezone-aware :eql:type:`std::datetime` type;
 
 * a set of "local" date/time objects, not attached to any particular
-  timezone: :eql:type:`std::local_datetime`, :eql:type:`std::local_date`,
-  and :eql:type:`std::local_time`.
+  timezone: :eql:type:`cal::local_datetime`, :eql:type:`cal::local_date`,
+  and :eql:type:`cal::local_time`.
 
 All date/time :ref:`functions and operators <ref_eql_funcops_datetime>`
 and type casts are designed to maintain a strict separation between
@@ -61,85 +61,85 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 ----------
 
 
-.. eql:type:: std::local_datetime
+.. eql:type:: cal::local_datetime
 
     A type representing date and time without time zone.
 
     :eql:op:`Casting <CAST>` is a simple way to obtain a
-    :eql:type:`local_datetime` value in an expression:
+    :eql:type:`cal::local_datetime` value in an expression:
 
     .. code-block:: edgeql
 
-        SELECT <local_datetime>'2018-05-07T15:01:22.306916';
-        SELECT <local_datetime>'2018-05-07T15:01:22';
+        SELECT <cal::local_datetime>'2018-05-07T15:01:22.306916';
+        SELECT <cal::local_datetime>'2018-05-07T15:01:22';
 
     Note that when casting from strings, the string should be in ISO
     8601 format without timezone:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <local_datetime>'2019-01-01T15:01:22+00';
+        db> SELECT <cal::local_datetime>'2019-01-01T15:01:22+00';
         InvalidValueError: invalid input syntax for type
-        std::local_datetime: '2019-01-01T15:01:22+00'
+        cal::local_datetime: '2019-01-01T15:01:22+00'
         Hint: Please use ISO8601 format. Alternatively
-        "to_local_datetime" function provides custom formatting
+        "cal::to_local_datetime" function provides custom formatting
         options.
 
-        db> SELECT <local_datetime>'January 01 2019';
+        db> SELECT <cal::local_datetime>'January 01 2019';
         InvalidValueError: invalid input syntax for type
-        std::local_datetime: 'January 01 2019'
+        cal::local_datetime: 'January 01 2019'
         Hint: Please use ISO8601 format. Alternatively
-        "to_local_datetime" function provides custom formatting
+        "cal::to_local_datetime" function provides custom formatting
         options.
 
-    See functions :eql:func:`datetime_get`, :eql:func:`to_local_datetime`,
+    See functions :eql:func:`datetime_get`, :eql:func:`cal::to_local_datetime`,
     and :eql:func:`to_str` for more ways of working with
-    :eql:type:`local_datetime`.
+    :eql:type:`cal::local_datetime`.
 
 
 ----------
 
 
-.. eql:type:: std::local_date
+.. eql:type:: cal::local_date
 
     A type representing date without time zone.
 
     :eql:op:`Casting <CAST>` is a simple way to obtain a
-    :eql:type:`local_date` value in an expression:
+    :eql:type:`cal::local_date` value in an expression:
 
     .. code-block:: edgeql
 
-        SELECT <local_date>'2018-05-07';
+        SELECT <cal::local_date>'2018-05-07';
 
     Note that when casting from strings, the string should be in ISO
     8601 date format.
 
-    See functions :eql:func:`date_get`, :eql:func:`to_local_date`,
+    See functions :eql:func:`date_get`, :eql:func:`cal::to_local_date`,
     and :eql:func:`to_str` for more ways of working with
-    :eql:type:`local_date`.
+    :eql:type:`cal::local_date`.
 
 
 ----------
 
 
-.. eql:type:: std::local_time
+.. eql:type:: cal::local_time
 
     A type representing time without time zone.
 
     :eql:op:`Casting <CAST>` is a simple way to obtain a
-    :eql:type:`local_time` value in an expression:
+    :eql:type:`cal::local_time` value in an expression:
 
     .. code-block:: edgeql
 
-        SELECT <local_time>'15:01:22.306916';
-        SELECT <local_time>'15:01:22';
+        SELECT <cal::local_time>'15:01:22.306916';
+        SELECT <cal::local_time>'15:01:22';
 
     Note that when casting from strings, the string should be in ISO
     8601 time format.
 
-    See functions :eql:func:`time_get`, :eql:func:`to_local_time`,
+    See functions :eql:func:`time_get`, :eql:func:`cal::to_local_time`,
     and :eql:func:`to_str` for more ways of working with
-    :eql:type:`local_time`.
+    :eql:type:`cal::local_time`.
 
 
 ----------
@@ -195,8 +195,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
         db> select <datetime>'2019-01-01T00:00:00Z' - <duration>'1 day';
         {<datetime>'2018-12-31T00:00:00+00:00'}
-        db> select <local_time>'22:00' + <duration>'1 hour';
-        {<local_time>'23:00:00'}
+        db> select <cal::local_time>'22:00' + <duration>'1 hour';
+        {<cal::local_time>'23:00:00'}
 
     See functions :eql:func:`duration_get`, :eql:func:`to_duration`,
     and :eql:func:`to_str` and date/time :eql:op:`operators <DTMINUS>`
