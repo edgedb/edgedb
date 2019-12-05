@@ -32,7 +32,9 @@ from __future__ import annotations
 
 import copy
 import functools
+import re
 from typing import *  # NoQA
+from collections import defaultdict
 
 from edb import errors
 
@@ -43,25 +45,47 @@ from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import tracer as qltracer
 
 from edb.schema import name as s_name
+from edb.schema import schema as s_schema
+
+
+STD_PREFIX_RE = re.compile(rf'^({"|".join(s_schema.STD_MODULES)})::')
 
 
 class TraceContextBase:
     def __init__(self, schema):
         self.schema = schema
         self.module = None
+        self.depstack = []
         self.modaliases = {}
         self.objects = {}
+        self.parents = {}
+        self.ancestors = {}
+        self.defdeps = defaultdict(set)
 
     def set_module(self, module):
         self.module = module
         self.modaliases = {None: module}
 
-    def get_local_name(self, ref: qlast.ObjectRef) -> s_name.Name:
+    def get_local_name(
+        self,
+        ref: qlast.ObjectRef,
+        *,
+        type: Optional[Type[qltracer.NamedObject]] = None
+    ) -> s_name.Name:
         if isinstance(ref, qlast.ObjectRef):
             if ref.module:
                 return s_name.Name(module=ref.module, name=ref.name)
             else:
-                return s_name.Name(module=self.module, name=ref.name)
+                if type is None:
+                    return s_name.Name(module=self.module, name=ref.name)
+                else:
+                    # check if there's a name in default module
+                    # actually registered to the right type
+                    name = f'{self.module}::{ref.name}'
+                    if isinstance(self.objects.get(name), type):
+                        return s_name.Name(module=self.module, name=ref.name)
+                    else:
+                        return s_name.Name(module='std', name=ref.name)
         else:
             raise TypeError(
                 "ObjectRef expected "
@@ -82,6 +106,47 @@ class TraceContextBase:
                 "(got type {!r})".format(type(ref).__name__)
             )
 
+    def get_fq_name(self, decl: qlast.CreateObject) -> Tuple[str, str]:
+        # Get the basic name form.
+        if isinstance(decl, qlast.CreateConcretePointer):
+            name = decl.name.name
+        elif isinstance(decl, qlast.BaseSetField):
+            name = decl.name
+        else:
+            name = self.get_local_name(decl.name)
+
+        # The name may need to be augmented if it's a pointer.
+        if self.depstack:
+            fq_name = self.depstack[-1][1] + "@" + name
+        else:
+            fq_name = name
+
+        # Additionally, functions and concrete constraints may need an
+        # extra name piece.
+        extra_name = None
+        if isinstance(decl, qlast.CreateFunction):
+            # Functions are defined by their name + call signature, so we
+            # need to add that to the "extra_name".
+            extra_name = f'({qlcodegen.generate_source(decl.params)})'
+
+        elif isinstance(decl, qlast.CreateConcreteConstraint):
+            # Concrete constraints are defined by their expr, so we need
+            # to add that to the "extra_name".
+            exprs = list(decl.args)
+            if decl.subjectexpr:
+                exprs.append(decl.subjectexpr)
+
+            for cmd in decl.commands:
+                if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
+                    exprs.append(decl.value)
+
+            extra_name = '|'.join(qlcodegen.generate_source(e) for e in exprs)
+
+        if extra_name is not None:
+            fq_name = f'{fq_name}:{extra_name}'
+
+        return name, fq_name
+
 
 class LayoutTraceContext(TraceContextBase):
     def __init__(self, schema, local_modules):
@@ -91,12 +156,14 @@ class LayoutTraceContext(TraceContextBase):
 
 
 class DepTraceContext(TraceContextBase):
-    def __init__(self, schema, ddlgraph, objects):
+    def __init__(self, schema, ddlgraph, objects, parents, ancestors,
+                 defdeps):
         super().__init__(schema)
         self.ddlgraph = ddlgraph
-        self.depstack = []
         self.objects = objects
-        self.inhgraph = {}
+        self.parents = parents
+        self.ancestors = ancestors
+        self.defdeps = defdeps
 
 
 def sdl_to_ddl(schema, documents):
@@ -109,9 +176,10 @@ def sdl_to_ddl(schema, documents):
     )
 
     for module_name, declarations in documents:
+        ctx.set_module(module_name)
         for decl_ast in declarations:
             if isinstance(decl_ast, qlast.CreateObject):
-                fq_name = f'{module_name}::{decl_ast.name.name}'
+                _, fq_name = ctx.get_fq_name(decl_ast)
                 if isinstance(decl_ast, (qlast.CreateObjectType,
                                          qlast.CreateAlias)):
                     ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
@@ -123,15 +191,32 @@ def sdl_to_ddl(schema, documents):
                                            qlast.CreateProperty)):
                     ctx.objects[fq_name] = qltracer.Pointer(
                         fq_name, source=None, target=None)
+                elif isinstance(decl_ast, qlast.CreateFunction):
+                    ctx.objects[fq_name] = qltracer.Function(fq_name)
+                elif isinstance(decl_ast, qlast.CreateConstraint):
+                    ctx.objects[fq_name] = qltracer.Constraint(fq_name)
+                elif isinstance(decl_ast, qlast.CreateAnnotation):
+                    ctx.objects[fq_name] = qltracer.Annotation(fq_name)
+                else:
+                    raise AssertionError(
+                        f'unexpected SDL declaration: {decl_ast}')
 
     for module_name, declarations in documents:
         ctx.set_module(module_name)
         for decl_ast in declarations:
             trace_layout(decl_ast, ctx=ctx)
 
+    # compute the ancestors graph
+    for fq_name in ctx.parents.keys():
+        ctx.ancestors[fq_name] = get_ancestors(
+            fq_name, ctx.ancestors, ctx.parents)
+
     topological.normalize(ctx.inh_graph, _merge_items)
 
-    ctx = DepTraceContext(schema, ddlgraph, ctx.objects)
+    ctx = DepTraceContext(
+        schema, ddlgraph, ctx.objects, ctx.parents, ctx.ancestors,
+        ctx.defdeps
+    )
     for module_name, declarations in documents:
         ctx.set_module(module_name)
         # module needs to be created regardless of whether its
@@ -196,14 +281,20 @@ def trace_layout_CreateProperty(
 def _trace_item_layout(node: qlast.CreateObject, *,
                        obj=None, fq_name=None, ctx: LayoutTraceContext):
     if obj is None:
-        fq_name = f'{ctx.module}::{node.name.name}'
+        fq_name = ctx.get_local_name(node.name)
         obj = ctx.objects[fq_name]
 
     if hasattr(node, "bases"):
         bases = []
+        # construct the parents set, used later in ancestors graph
+        parents = set()
 
         for ref in _get_bases(node, ctx=ctx):
             bases.append(ref)
+
+            # ignore std modules dependencies
+            if ref.module not in s_schema.STD_MODULES:
+                parents.add(ref)
 
             if (ref.module not in ctx.local_modules
                     and ref not in ctx.inh_graph):
@@ -219,6 +310,7 @@ def _trace_item_layout(node: qlast.CreateObject, *,
                     "item": base_obj,
                 }
 
+        ctx.parents[fq_name] = parents
         ctx.inh_graph[fq_name] = {
             "item": obj,
             "deps": bases,
@@ -236,9 +328,30 @@ def _trace_item_layout(node: qlast.CreateObject, *,
             obj.pointers[decl.name.name] = ptr
             ptr_name = f'{fq_name}@{decl.name.name}'
             ctx.objects[ptr_name] = ptr
+            ctx.defdeps[fq_name].add(ptr_name)
 
             _trace_item_layout(
                 decl, obj=ptr, fq_name=ptr_name, ctx=ctx)
+
+
+def get_ancestors(fq_name, ancestors, parents):
+    '''Recursively compute ancestors (in place) from the parents graph.'''
+
+    # value already computed
+    result = ancestors.get('fq_name', set())
+    if result:
+        return result
+
+    parent_set = parents.get(fq_name, set())
+    # base case: include the parents
+    result = set(parent_set)
+    for fq_parent in parent_set:
+        # recursive step: include parents' ancestors
+        result |= get_ancestors(fq_parent, ancestors, parents)
+
+    ancestors[fq_name] = result
+
+    return result
 
 
 @functools.singledispatch
@@ -257,7 +370,8 @@ def trace_SetField(node: qlast.SetField, *, ctx: DepTraceContext):
         module=ctx.module,
         objects=ctx.objects,
     ):
-        if dep.startswith(f"{ctx.module}::"):
+        # ignore std module dependencies
+        if not STD_PREFIX_RE.match(dep):
             deps.add(dep)
 
     _register_item(node, deps=deps, ctx=ctx)
@@ -270,7 +384,7 @@ def trace_ConcreteConstraint(
     deps = set()
 
     base_name = ctx.get_ref_name(node.name)
-    if base_name.module == ctx.module:
+    if base_name.module not in s_schema.STD_MODULES:
         deps.add(base_name)
 
     exprs = list(node.args)
@@ -289,18 +403,25 @@ def trace_ConcreteConstraint(
     else:
         loop_control = None
 
-    if exprs:
-        extra_name = '|'.join(qlcodegen.generate_source(e) for e in exprs)
-    else:
-        extra_name = None
-
     _register_item(
         node,
         deps=deps,
         hard_dep_exprs=exprs,
         loop_control=loop_control,
         subject=ctx.depstack[-1][1],
-        extra_name=extra_name,
+        ctx=ctx,
+    )
+
+
+@trace_dependencies.register
+def trace_Index(
+    node: qlast.CreateIndex, *, ctx: DepTraceContext
+):
+    _register_item(
+        node,
+        hard_dep_exprs=[node.expr],
+        source=ctx.depstack[-1][1],
+        subject=ctx.depstack[-1][1],
         ctx=ctx,
     )
 
@@ -309,7 +430,6 @@ def trace_ConcreteConstraint(
 def trace_ConcretePointer(
     node: qlast.CreateConcretePointer, *, ctx: DepTraceContext
 ):
-
     _register_item(
         node,
         hard_dep_exprs=[node.target],
@@ -325,7 +445,8 @@ def trace_Alias(
     hard_dep_exprs = []
 
     for cmd in node.commands:
-        if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
+        # SetField or SetSpecialField are equivalent here
+        if isinstance(cmd, qlast.BaseSetField) and cmd.name == "expr":
             hard_dep_exprs.append(cmd.value)
             break
 
@@ -334,10 +455,16 @@ def trace_Alias(
 
 @trace_dependencies.register
 def trace_Function(node: qlast.CreateFunction, *, ctx: DepTraceContext):
-    # Functions are defined by their name + call signature, so we need
-    # to add that to the "extra_name".
-    extra_name = f'({qlcodegen.generate_source(node.params)})'
-    _register_item(node, ctx=ctx, extra_name=extra_name)
+    # We also need to add all the signature types as dependencies
+    # to make sure that DDL linearization of SDL will define the types
+    # before the function.
+    deps = [param.type for param in node.params]
+    deps.append(node.returning)
+
+    # XXX: hard_dep_expr is used because it ultimately calls the
+    # _get_hard_deps helper that extracts the proper dependency list
+    # from types.
+    _register_item(node, ctx=ctx, hard_dep_exprs=deps)
 
 
 @trace_dependencies.register
@@ -348,8 +475,10 @@ def trace_default(node: qlast.CreateObject, *, ctx: DepTraceContext):
 
 def _register_item(
     decl, *, deps=None, hard_dep_exprs=None, loop_control=None,
-    source=None, subject=None, extra_name=None, ctx: DepTraceContext
+    source=None, subject=None, ctx: DepTraceContext
 ):
+
+    name, fq_name = ctx.get_fq_name(decl)
 
     if deps:
         deps = set(deps)
@@ -357,13 +486,6 @@ def _register_item(
         deps = set()
 
     op = orig_op = copy.copy(decl)
-
-    if isinstance(decl, qlast.CreateConcretePointer):
-        name = decl.name.name
-    elif isinstance(decl, qlast.BaseSetField):
-        name = decl.name
-    else:
-        name = ctx.get_local_name(decl.name)
 
     if ctx.depstack:
         op.sdl_alter_if_exists = True
@@ -377,14 +499,8 @@ def _register_item(
 
         parent.commands.append(op)
         op = top_parent
-
-        fq_name = ctx.depstack[-1][1] + "@" + name
     else:
         op.aliases = [qlast.ModuleAliasDecl(alias=None, module=ctx.module)]
-        fq_name = name
-
-    if extra_name is not None:
-        fq_name = f'{fq_name}:{extra_name}'
 
     node = {
         "item": op,
@@ -393,20 +509,18 @@ def _register_item(
     ctx.ddlgraph[fq_name] = node
 
     if hasattr(decl, "bases"):
-        bases = set()
-
-        for ref in _get_bases(decl, ctx=ctx):
-            if ref.module == ctx.module:
-                bases.add(ref)
-
-        deps.update(bases)
-        ctx.inhgraph[fq_name] = bases
+        # add parents to dependencies
+        parents = ctx.parents.get(fq_name)
+        if parents is not None:
+            deps.update(parents)
 
     if ctx.depstack:
-        parent_bases = ctx.inhgraph.get(ctx.depstack[-1][1])
-        if parent_bases:
-            for parent_base in parent_bases:
-                base_item = f'{parent_base}@{name}'
+        # all ancestors should be seen as dependencies
+        ancestor_bases = ctx.ancestors.get(ctx.depstack[-1][1])
+        if ancestor_bases:
+            for ancestor_base in ancestor_bases:
+                base_item = f'{ancestor_base}@{name}'
+
                 if base_item in ctx.objects:
                     deps.add(base_item)
 
@@ -415,6 +529,18 @@ def _register_item(
     if ast_subcommands:
         subcmds = []
         for cmd in ast_subcommands:
+            # include dependency on constraints or annotations if present
+            if isinstance(cmd, qlast.CreateConcreteConstraint):
+                cmd_name = ctx.get_local_name(
+                    cmd.name, type=qltracer.Constraint)
+                if cmd_name.module not in s_schema.STD_MODULES:
+                    deps.add(cmd_name)
+            elif isinstance(cmd, qlast.CreateAnnotationValue):
+                cmd_name = ctx.get_local_name(
+                    cmd.name, type=qltracer.Annotation)
+                if cmd_name.module not in s_schema.STD_MODULES:
+                    deps.add(cmd_name)
+
             if isinstance(cmd, qlast.ObjectDDL):
                 subcmds.append(cmd)
             elif (isinstance(cmd, qlast.SetField)
@@ -461,7 +587,7 @@ def _register_item(
             if isinstance(expr, qlast.TypeExpr):
                 deps |= _get_hard_deps(expr, ctx=ctx)
             else:
-                for dep in qltracer.trace_refs(
+                tdeps = qltracer.trace_refs(
                     expr,
                     schema=ctx.schema,
                     module=ctx.module,
@@ -469,9 +595,20 @@ def _register_item(
                     path_prefix=source,
                     subject=subject or fq_name,
                     objects=ctx.objects,
-                ):
-                    if dep.startswith(f"{ctx.module}::"):
+                )
+
+                for dep in tdeps:
+                    # ignore std module dependencies
+                    if not STD_PREFIX_RE.match(dep):
                         deps.add(dep)
+
+                        # If the declaration is a view, we need to be
+                        # dependent on all the types and their props
+                        # used in the view.
+                        if isinstance(decl, qlast.CreateAlias):
+                            vdeps = {dep} | ctx.ancestors.get(dep, set())
+                            for vdep in vdeps:
+                                deps |= ctx.defdeps.get(vdep, set())
 
     orig_op.commands = commands
 
@@ -506,13 +643,17 @@ def _get_hard_deps(
         else:
             # Base case.
             name = ctx.get_ref_name(target.maintype)
-            if name.module == ctx.module:
+            if name.module not in s_schema.STD_MODULES:
                 deps.add(name)
 
     return deps
 
 
-def _get_bases(decl, *, ctx):
+def _get_bases(
+    decl: qlast.BasesMixin,
+    *,
+    ctx: LayoutTraceContext
+) -> List[s_name.Name]:
     """Resolve object bases from the "extends" declaration."""
     bases = []
 

@@ -371,6 +371,7 @@ def apply_sdl(
             cmd = cmd_from_ddl(
                 ddl_stmt, schema=target_schema, modaliases={},
                 context=context, testmode=testmode)
+
             delta.add(cmd)
             target_schema, _ = delta.apply(target_schema, context)
             context.schema = target_schema

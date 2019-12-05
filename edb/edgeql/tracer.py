@@ -22,19 +22,37 @@ from __future__ import annotations
 import functools
 import typing
 
+from contextlib import contextmanager
 from edb.schema import name as sn
 from edb.schema import objects as so
 
 from edb.edgeql import ast as qlast
 
 
-class Type:
+class NamedObject:
+    '''Generic tracing object with an explicit name.'''
 
     def __init__(self, name):
         self.name = name
 
     def get_name(self, schema):
         return self.name
+
+
+class Function(NamedObject):
+    pass
+
+
+class Constraint(NamedObject):
+    pass
+
+
+class Annotation(NamedObject):
+    pass
+
+
+class Type(NamedObject):
+    pass
 
 
 class ObjectType(Type):
@@ -91,13 +109,14 @@ def trace_refs(
     """Return a list of schema item names used in an expression."""
 
     ctx = TracerContext(schema, module, objects,
-                        source, subject, path_prefix)
+                        source, subject, path_prefix, {})
     trace(qltree, ctx=ctx)
     return frozenset(ctx.refs)
 
 
 class TracerContext:
-    def __init__(self, schema, module, objects, source, subject, path_prefix):
+    def __init__(self, schema, module, objects, source, subject, path_prefix,
+                 modaliases):
         self.schema = schema
         self.refs = set()
         self.module = module
@@ -105,14 +124,73 @@ class TracerContext:
         self.source = source
         self.subject = subject
         self.path_prefix = path_prefix
+        self.modaliases = modaliases
 
     def get_ref_name(self, ref: qlast.ObjectRef) -> sn.Name:
         if ref.module:
-            return sn.Name(module=ref.module, name=ref.name)
+            # replace the module alias with the real name
+            module = self.modaliases.get(ref.module, ref.module)
+            return sn.Name(module=module, name=ref.name)
         elif f'{self.module}::{ref.name}' in self.objects:
             return sn.Name(module=self.module, name=ref.name)
         else:
             return sn.Name(module="std", name=ref.name)
+
+    def get_ref_name_starstwith(
+        self, ref: qlast.ObjectRef
+    ) -> typing.Set[sn.Name]:
+        refs = set()
+        prefixes = []
+
+        if ref.module:
+            # replace the module alias with the real name
+            module = self.modaliases.get(ref.module, ref.module)
+            prefixes.append(f'{module}::{ref.name}')
+        else:
+            prefixes.append(f'{self.module}::{ref.name}')
+            prefixes.append(f'std::{ref.name}')
+
+        for objname in self.objects.keys():
+            for prefix in prefixes:
+                if objname.startswith(prefix):
+                    parts = objname.split('::', 1)
+                    name = sn.Name(module=parts[0], name=parts[1])
+                    refs.add(name)
+
+        return refs
+
+
+@contextmanager
+def alias_context(ctx, aliases):
+    module = None
+    modaliases = {}
+
+    for alias in aliases:
+        # module and modalias in ctx needs to be amended
+        if isinstance(alias, qlast.ModuleAliasDecl):
+            if alias.alias:
+                modaliases[alias.alias] = alias.module
+            else:
+                # default module
+                module = alias.module
+
+        elif isinstance(alias, qlast.AliasedExpr):
+            trace(alias.expr, ctx=ctx)
+
+    if module or modaliases:
+        nctx = TracerContext(ctx.schema, module or ctx.module, ctx.objects,
+                             ctx.source, ctx.subject, ctx.path_prefix,
+                             modaliases or ctx.modaliases)
+        # use the same refs set
+        nctx.refs = ctx.refs
+    else:
+        nctx = ctx
+
+    try:
+        yield nctx
+    finally:
+        # refs are already updated
+        pass
 
 
 @functools.singledispatch
@@ -168,7 +246,8 @@ def trace_UnaryOp(node: qlast.UnaryOp, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_Detached(node: qlast.DetachedExpr, *, ctx: TracerContext) -> None:
-    trace(node.expr, ctx=ctx)
+    # DETACHED works with partial paths same as its inner expression.
+    return trace(node.expr, ctx=ctx)
 
 
 @trace.register
@@ -194,6 +273,18 @@ def trace_Introspect(node: qlast.Introspect, *, ctx: TracerContext) -> None:
 @trace.register
 def trace_FunctionCall(node: qlast.FunctionCall, *,
                        ctx: TracerContext) -> None:
+
+    if isinstance(node.func, tuple):
+        fname = qlast.ObjectRef(module=node.func[0], name=node.func[1])
+    else:
+        fname = qlast.ObjectRef(name=node.func)
+    # The function call is dependent on the function actually being
+    # present, so we add all variations of that function name to the
+    # dependency list.
+
+    names = ctx.get_ref_name_starstwith(fname)
+    ctx.refs.update(names)
+
     for arg in node.args:
         trace(arg, ctx=ctx)
     for arg in node.kwargs.values():
@@ -255,7 +346,8 @@ def trace_Path(node: qlast.Path, *,
                     return
 
                 if isinstance(lprop, Pointer):
-                    ctx.refs.add(f'{lprop.source}@{step.ptr.name}')
+                    source_name = lprop.source.get_name(ctx.schema)
+                    ctx.refs.add(f'{source_name}@{step.ptr.name}')
             else:
                 if step.direction == '<':
                     if plen > i + 1 and isinstance(node.steps[i + 1],
@@ -394,19 +486,21 @@ def trace_IfElse(node: qlast.IfElse, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_Shape(node: qlast.Shape, *, ctx: TracerContext) -> None:
+    tip = trace(node.expr, ctx=ctx)
     if isinstance(node.expr, qlast.Path):
-        tip = trace(node.expr, ctx=ctx)
         orig_prefix = ctx.path_prefix
         if tip is not None:
             ctx.path_prefix = tip.get_name(ctx.schema)
         else:
             ctx.path_prefix = None
-    else:
-        trace(node.expr, ctx=ctx)
+
     for element in node.elements:
         trace(element, ctx=ctx)
+
     if isinstance(node.expr, qlast.Path):
         ctx.path_prefix = orig_prefix
+
+    return tip
 
 
 @trace.register
@@ -425,20 +519,22 @@ def trace_ShapeElement(node: qlast.ShapeElement, *,
 
 @trace.register
 def trace_Select(node: qlast.SelectQuery, *, ctx: TracerContext) -> None:
-    for alias in node.aliases:
-        if isinstance(alias, qlast.AliasedExpr):
-            trace(alias.expr, ctx=ctx)
+    with alias_context(ctx, node.aliases) as ctx:
+        tip = trace(node.result, ctx=ctx)
+        if tip is not None:
+            ctx.path_prefix = tip.get_name(ctx.schema)
 
-    trace(node.result, ctx=ctx)
-    if node.where is not None:
-        trace(node.where, ctx=ctx)
-    if node.orderby:
-        for expr in node.orderby:
-            trace(expr, ctx=ctx)
-    if node.offset is not None:
-        trace(node.offset, ctx=ctx)
-    if node.limit is not None:
-        trace(node.limit, ctx=ctx)
+        if node.where is not None:
+            trace(node.where, ctx=ctx)
+        if node.orderby:
+            for expr in node.orderby:
+                trace(expr, ctx=ctx)
+        if node.offset is not None:
+            trace(node.offset, ctx=ctx)
+        if node.limit is not None:
+            trace(node.limit, ctx=ctx)
+
+        return tip
 
 
 @trace.register
@@ -448,57 +544,53 @@ def trace_SortExpr(node: qlast.SortExpr, *, ctx: TracerContext) -> None:
 
 @trace.register
 def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext) -> None:
+    with alias_context(ctx, node.aliases) as ctx:
+        trace(node.subject, ctx=ctx)
 
-    for alias in node.aliases:
-        if isinstance(alias, qlast.AliasedExpr):
-            trace(alias.expr, ctx=ctx)
-
-    trace(node.subject, ctx=ctx)
-
-    for element in node.shape:
-        trace(element, ctx=ctx)
+        for element in node.shape:
+            trace(element, ctx=ctx)
 
 
 @trace.register
 def trace_UpdateQuery(node: qlast.UpdateQuery, *, ctx: TracerContext) -> None:
+    with alias_context(ctx, node.aliases) as ctx:
+        tip = trace(node.subject, ctx=ctx)
+        ctx.path_prefix = tip.get_name(ctx.schema)
 
-    for alias in node.aliases:
-        if isinstance(alias, qlast.AliasedExpr):
-            trace(alias.expr, ctx=ctx)
+        for element in node.shape:
+            trace(element, ctx=ctx)
 
-    trace(node.subject, ctx=ctx)
+        trace(node.where, ctx=ctx)
 
-    for element in node.shape:
-        trace(element, ctx=ctx)
-
-    trace(node.where, ctx=ctx)
+        return tip
 
 
 @trace.register
 def trace_DeleteQuery(node: qlast.DeleteQuery, *, ctx: TracerContext) -> None:
-    for alias in node.aliases:
-        if isinstance(alias, qlast.AliasedExpr):
-            trace(alias.expr, ctx=ctx)
+    with alias_context(ctx, node.aliases) as ctx:
+        tip = trace(node.subject, ctx=ctx)
+        if tip is not None:
+            ctx.path_prefix = tip.get_name(ctx.schema)
 
-    trace(node.subject, ctx=ctx)
-    if node.where is not None:
-        trace(node.where, ctx=ctx)
-    if node.orderby:
-        for expr in node.orderby:
-            trace(expr, ctx=ctx)
-    if node.offset is not None:
-        trace(node.offset, ctx=ctx)
-    if node.limit is not None:
-        trace(node.limit, ctx=ctx)
+        if node.where is not None:
+            trace(node.where, ctx=ctx)
+        if node.orderby:
+            for expr in node.orderby:
+                trace(expr, ctx=ctx)
+        if node.offset is not None:
+            trace(node.offset, ctx=ctx)
+        if node.limit is not None:
+            trace(node.limit, ctx=ctx)
+
+        return tip
 
 
 @trace.register
 def trace_For(node: qlast.ForQuery, *, ctx: TracerContext) -> None:
-    for alias in node.aliases:
-        if isinstance(alias, qlast.AliasedExpr):
-            trace(alias.expr, ctx=ctx)
+    with alias_context(ctx, node.aliases) as ctx:
+        tip = trace(node.result, ctx=ctx)
 
-    trace(node.result, ctx=ctx)
+        return tip
 
 
 @trace.register

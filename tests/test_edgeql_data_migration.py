@@ -3105,6 +3105,40 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 ['hello15'],
             )
 
+    async def test_edgeql_migration_function_16(self):
+        # Test prop default and function order of definition. The
+        # function happens to be shadowing a "std" function. We expect
+        # that the function `test::to_upper` will actually be used.
+        #
+        # See also `test_get_migration_21`
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Foo16 {
+                property name -> str {
+                    default := str_upper('some_name');
+                };
+            }
+
+            function str_upper(val: str) -> str {
+                using (SELECT '^^' ++ str_upper(val) ++ '^^');
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""SELECT str_upper('hello');""",
+            ['^^HELLO^^'],
+        )
+
+        await self.con.execute("""
+            INSERT Foo16;
+        """)
+        await self.assert_query_result(
+            r"""SELECT Foo16.name;""",
+            ['^^SOME_NAME^^'],
+        )
+
     async def test_edgeql_migration_linkprops_01(self):
         await self.con.execute("""
             SET MODULE test;

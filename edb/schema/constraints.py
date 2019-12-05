@@ -501,7 +501,6 @@ class CreateConstraint(ConstraintCommand,
             props.pop('subject', None)
             fullname = self.classname
             shortname = sn.shortname_from_fullname(fullname)
-
             constr_base, attrs, inh = Constraint.get_concrete_constraint_attrs(
                 schema,
                 subject,

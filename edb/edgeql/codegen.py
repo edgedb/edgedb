@@ -810,7 +810,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.write(ident_to_str(node.name.module), '::',
                            ident_to_str(node.name.name))
-        if node.create_if_not_exists:
+        if node.create_if_not_exists and not self.sdlmode:
             self.write(' IF NOT EXISTS')
         if after_name:
             after_name()
@@ -1002,6 +1002,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateModule(self, node: qlast.CreateModule) -> None:
         self._visit_CreateObject(node, 'MODULE')
+        # Hack to handle the SDL version of this with an empty block.
+        if self.sdlmode and not node.commands:
+            self.write('{}')
 
     def visit_AlterModule(self, node: qlast.AlterModule) -> None:
         self._visit_AlterObject(node, 'MODULE')

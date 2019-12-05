@@ -527,6 +527,68 @@ _123456789_123456789_123456789 -> str
         self.assertTrue(base_names[0].startswith(
             'default::std|exclusive@@default|__|name@@default|Named@'))
 
+    def test_schema_constraint_inheritance_03(self):
+        schema = tb._load_std_schema()
+
+        schema = self.run_ddl(schema, r'''
+            CREATE MODULE default;
+            CREATE ABSTRACT TYPE default::Named {
+                CREATE SINGLE PROPERTY name -> std::str;
+            };
+            ALTER TYPE default::Named {
+                ALTER PROPERTY name {
+                    CREATE DELEGATED CONSTRAINT std::exclusive;
+                };
+            };
+            CREATE TYPE default::Recipe EXTENDING default::Named;
+            CREATE ALIAS default::VegRecipes := (
+                SELECT default::Recipe
+                FILTER .name ILIKE 'veg%'
+            );
+        ''')
+
+        VegRecipes = schema.get('default::VegRecipes')
+        name_prop = VegRecipes.getptr(schema, 'name')
+        constr = name_prop.get_constraints(schema).objects(schema)
+        self.assertEqual(
+            len(constr), 0,
+            'there should be no constraints on alias links or properties',
+        )
+
+    @test.xfail('''
+        This DDL sequence results in a constraint propagated to the alias.
+
+        Issue #1005.
+    ''')
+    def test_schema_constraint_inheritance_04(self):
+        schema = tb._load_std_schema()
+
+        schema = self.run_ddl(schema, r'''
+            CREATE MODULE default;
+            CREATE ABSTRACT TYPE default::Named {
+                CREATE SINGLE PROPERTY name -> std::str;
+            };
+            CREATE TYPE default::Recipe EXTENDING default::Named;
+            CREATE ALIAS default::VegRecipes := (
+                SELECT default::Recipe
+                FILTER .name ILIKE 'veg%'
+            );
+            ALTER TYPE default::Named {
+                ALTER PROPERTY name {
+                    CREATE DELEGATED CONSTRAINT std::exclusive;
+                };
+            };
+        ''')
+
+        VegRecipes = schema.get('default::VegRecipes')
+        name_prop = VegRecipes.getptr(schema, 'name')
+        constr = name_prop.get_constraints(schema).objects(schema)
+
+        self.assertEqual(
+            len(constr), 0,
+            'there should be no constraints on alias links or properties',
+        )
+
     def test_schema_object_verbosename(self):
         schema = self.load_schema("""
             abstract inheritable annotation attr;
@@ -666,15 +728,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         super().setUpClass()
         cls.std_schema = tb._load_std_schema()
 
-    def _assert_migration_consistency(self, schema_text):
+    def _assert_migration_consistency(self, schema_text, multi_module=False):
 
-        migration_text = f'''
-            CREATE MIGRATION m TO {{
-                module default {{
+        if multi_module:
+            migration_text = f'''
+                CREATE MIGRATION m TO {{
                     {schema_text}
-                }}
-            }};
-        '''
+                }};
+            '''
+        else:
+            migration_text = f'''
+                CREATE MIGRATION m TO {{
+                    module default {{
+                        {schema_text}
+                    }}
+                }};
+            '''
 
         migration_ql = edgeql.parse_block(migration_text)
 
@@ -713,16 +782,26 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 f'DDL text was:\n{ddl_text}'
             )
 
-        # Now, dump the final schema into DDL and see if reapplying
-        # the DDL results in the same schema.
+        # Now, dump the final schema into DDL and SDL and see if
+        # reapplying those representations produces in the same
+        # schema. This tests the codepath used by DESCRIBE command as
+        # well and validates that DESCRIBE is producing valid grammar.
         ddl_text = s_ddl.ddl_text_from_schema(baseline_schema)
+        sdl_text = s_ddl.sdl_text_from_schema(baseline_schema)
 
         try:
-            test_schema = self.run_ddl(self.std_schema, ddl_text)
+            ddl_schema = self.run_ddl(self.std_schema, ddl_text)
+            sdl_schema = self.run_ddl(
+                self.std_schema,
+                f'''
+                CREATE MIGRATION m TO {{ {sdl_text} }};
+                COMMIT MIGRATION m;
+                ''',
+            )
         except errors.EdgeDBError as e:
             self.fail(markup.dumps(e))
 
-        diff = s_ddl.delta_schemas(test_schema, baseline_schema)
+        diff = s_ddl.delta_schemas(ddl_schema, baseline_schema)
 
         if list(diff.get_subcommands()):
             self.fail(
@@ -730,6 +809,16 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 f'COMMIT MIGRATION and DDL obtained from dumping the schema:\n'
                 f'{markup.dumps(diff)}\n'
                 f'DDL text was:\n{ddl_text}'
+            )
+
+        diff = s_ddl.delta_schemas(sdl_schema, baseline_schema)
+
+        if list(diff.get_subcommands()):
+            self.fail(
+                f'unexpected difference in schema produced by\n'
+                f'COMMIT MIGRATION and SDL obtained from dumping the schema:\n'
+                f'{markup.dumps(diff)}\n'
+                f'SDL text was:\n{sdl_text}'
             )
 
     def _assert_migration_equivalence(self, migrations):
@@ -771,8 +860,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
 
     def test_get_migration_01(self):
-
-        schema = '''
+        schema = r'''
             abstract inheritable annotation my_anno;
 
             abstract type Named {
@@ -790,24 +878,25 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 }
             };
 
-            abstract link special;
-            abstract property annotated_name {
-                annotation title := 'Name';
-            }
-
             type SpecialUser extending User {
                 overloaded property name extending annotated_name -> str;
                 overloaded link friends extending special -> SpecialUser;
             };
+
+            abstract link special;
+            abstract property annotated_name {
+                annotation title := 'Name';
+            }
         '''
 
         self._assert_migration_consistency(schema)
 
     def test_get_migration_02(self):
-        schema = '''
+        schema = r'''
             abstract type Named {
                 property name -> str {
-                    delegated constraint exclusive;
+                    # legal, albeit superfluous std
+                    delegated constraint std::exclusive;
                 }
             }
 
@@ -847,11 +936,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 }
             }
 
-            alias VegRecipes := (
-                SELECT Recipe
-                FILTER all(.ingredients.vegetarian)
-            );
-
             function get_ingredients(
                 recipe: Recipe
             ) -> tuple<name: str, quantity: decimal> {
@@ -867,28 +951,40 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         self._assert_migration_consistency(schema)
 
     def test_get_migration_04(self):
-        # validate that we can trace DETACHED
+        # validate that we can trace partial paths
         schema = r'''
+            alias X := (SELECT Foo{num := .bar});
+
             type Foo {
                 property bar -> int64;
             };
-
-            alias X := (SELECT Foo FILTER .bar > count(DETACHED Foo));
         '''
 
         self._assert_migration_consistency(schema)
 
     def test_get_migration_05(self):
-        # validate that we can trace INTROSPECT
+        # validate that we can trace partial paths
         schema = r'''
-            type Foo;
+            alias X := (SELECT Foo FILTER .bar > 2);
 
-            alias X := (SELECT INTROSPECT Foo);
+            type Foo {
+                property bar -> int64;
+            };
         '''
 
         self._assert_migration_consistency(schema)
 
     def test_get_migration_06(self):
+        # validate that we can trace INTROSPECT
+        schema = r'''
+            alias X := (SELECT INTROSPECT Foo);
+
+            type Foo;
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_07(self):
         # validate that we can trace DELETE
         schema = r'''
             type Bar {
@@ -906,7 +1002,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_07(self):
+    def test_get_migration_08(self):
         schema = r'''
             type Bar {
                 property data -> str {
@@ -917,7 +1013,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    def test_get_migration_08(self):
+    def test_get_migration_09(self):
         schema = r'''
             type Foo;
             type Spam {
@@ -936,20 +1032,544 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    # def test_get_migration_09(self):
-    #     # validate that we can trace DETACHED
-    #     schema = r'''
-    #         type Foo {
-    #             property bar -> int64;
-    #         };
+    def test_get_migration_10(self):
+        schema = r'''
+            # The two types declared are mutually dependent.
+            type Foo {
+                link bar -> Bar;
+            };
 
-    #         alias X {
-    #             using (SELECT Foo FILTER .bar > count(DETACHED Foo));
-    #             annotation title := 'A Foo alias';
-    #         }
-    #     '''
+            type Bar {
+                link foo -> Foo;
+            };
+        '''
 
-    #     self._assert_migration_consistency(schema)
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_11(self):
+        schema = r'''
+            # The two types declared are mutually dependent.
+            type Foo {
+                link bar -> Bar {
+                    default := (
+                        SELECT Bar FILTER .name > 'a'
+                        LIMIT 1
+                    );
+                };
+                property name -> str;
+            };
+
+            type Bar {
+                link foo -> Foo {
+                    default := (
+                        SELECT Foo FILTER .name < 'z'
+                        LIMIT 1
+                    );
+                };
+                property name -> str;
+            };
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_12(self):
+        schema = r'''
+            # The function declaration appears earlier in the document
+            # than the declaration for the argument type, which should
+            # not matter.
+            function get_name(obj: Foo) -> str
+                using (SELECT obj.name);
+
+            type Foo {
+                required property name -> str;
+            };
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_13(self):
+        # validate that we can trace alias declared before type
+        schema = r'''
+            alias X := (SELECT Foo.name);
+
+            type Foo {
+                property name -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_14(self):
+        # validate that we can trace alias with DETACHED expr declared
+        # before type
+        schema = r'''
+            alias X := (DETACHED Foo.name);
+
+            type Foo {
+                property name -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_15(self):
+        schema = r'''
+            type Foo {
+                property bar -> int64;
+                annotation title := 'Foo';
+            };
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    @test.xfail('''
+        AssertionError: unexpected difference in schema produced by
+        COMMIT MIGRATION and DDL obtained from GET MIGRATION
+        <DeltaRoot source_context=None, canonical=True> (
+            <AlterObjectType classname=default::X ...> (
+                <CreateAnnotationValue
+                 classname=default::std|title@@default|X ...>
+        ...
+
+        DDL text was:
+        CREATE TYPE default::Foo {
+            CREATE SINGLE PROPERTY bar -> std::int64;
+        };
+        CREATE ALIAS default::X {
+            USING (WITH
+                MODULE default
+            SELECT
+                Foo
+            );
+            SET ANNOTATION std::title := 'A Foo alias';
+        };
+    ''')
+    def test_get_migration_16(self):
+        schema = r'''
+            type Foo {
+                property bar -> int64;
+            };
+
+            alias X {
+                using (SELECT Foo);
+                annotation title := 'A Foo alias';
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_17(self):
+        # Test abstract and concrete constraints order of declaration.
+        schema = r'''
+        type Foo {
+            property color -> str {
+                constraint my_one_of(['red', 'green', 'blue']);
+            }
+        }
+
+        abstract constraint my_one_of(one_of: array<anytype>) {
+            using (contains(one_of, __subject__));
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_18(self):
+        # Test abstract and concrete constraints order of declaration.
+        schema = r'''
+        type Foo {
+            property color -> constraint_my_enum;
+        }
+
+        scalar type constraint_my_enum extending str {
+           constraint my_one_of(['red', 'green', 'blue']);
+        }
+
+        abstract constraint my_one_of(one_of: array<anytype>) {
+            using (contains(one_of, __subject__));
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_19(self):
+        # Test abstract and concrete annotations order of declaration.
+        schema = r'''
+        type Foo {
+            property name -> str;
+            annotation my_anno := 'Foo';
+        }
+
+        abstract annotation my_anno;
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_20(self):
+        # Test abstract and concrete annotations order of declaration.
+        schema = r'''
+        type Foo {
+            property name -> str {
+                annotation my_anno := 'Foo';
+            }
+        }
+
+        abstract annotation my_anno;
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_21(self):
+        # Test index and function order of definition.
+        schema = r'''
+        type Foo {
+            # an index defined before property & function
+            index on (idx(.bar));
+            property bar -> int64;
+        }
+
+        function idx(num: int64) -> bool {
+            using (SELECT (num % 2) = 0);
+            volatility := 'IMMUTABLE';
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_22(self):
+        # Test prop default and function order of definition.
+        schema = r'''
+        type Foo {
+            property name -> str {
+                default := name_def();
+            };
+        }
+
+        function name_def() -> str {
+            using (SELECT 'some_name' ++ <str>uuid_generate_v1mc());
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_23(self):
+        # Test prop default and function order of definition. The
+        # function happens to be shadowing a "std" function. We expect
+        # that the function `default::to_upper` will actually be used.
+        schema = r'''
+        type Foo {
+            property name -> str {
+                default := str_upper('some_name');
+            };
+        }
+
+        function str_upper(val: str) -> str {
+            using (SELECT '^^' ++ str_upper(val) ++ '^^');
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_24(self):
+        # Test constraint and computable using a function defined in
+        # the same SDL.
+        schema = r'''
+        type Tagged {
+            property tag := make_tag(.title);
+            required property title -> str {
+                constraint exclusive on (make_tag(__subject__))
+            }
+        }
+
+        function make_tag(s: str) -> str {
+            using (
+                select str_lower(
+                    re_replace( r' ', r'-',
+                        re_replace( r'[^(\w|\s)]', r'', s, flags := 'g'),
+                    flags := 'g')
+                )
+            );
+            volatility := 'IMMUTABLE';  # needed for the constraint
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_25(self):
+        # Test dependency tracking across distant ancestors.
+        schema = r'''
+        # declaring SpecialUser before User and Named
+        type SpecialUser extending User {
+            overloaded property name -> str {
+                annotation title := 'Name';
+            }
+        };
+
+        type User extending Named;
+
+        abstract type Named {
+            property name -> str;
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_26(self):
+        # Test index issues.
+        schema = r'''
+        type Dictionary {
+            required property name -> str;
+            index on (__subject__.name);
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_27(self):
+        # Test index issues.
+        schema = r'''
+        abstract link translated_label {
+            property lang -> str;
+            property prop1 -> str;
+        }
+
+        type Label {
+            property text -> str;
+        }
+
+        type UniqueName {
+            link translated_label extending translated_label -> Label {
+                constraint exclusive on
+                    ((__subject__@source, __subject__@lang));
+                constraint exclusive on
+                    (__subject__@prop1);
+            }
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_28(self):
+        # Test standard library dependencies that aren't specifically 'std'.
+        schema = r'''
+        type Foo {
+            required property date -> cal::local_date;
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_29(self):
+        # Test dependency due to a long path (more than 1 step).
+        schema = r'''
+        alias View01 := (
+            # now this alias refers to another alias
+            SELECT Base {
+                child_foo := .bar.foo
+            }
+        );
+
+        # exchange a type for a alias
+        alias Base := (
+            SELECT Child {
+                # bar is the same as the root object
+                bar := Child
+            }
+        );
+
+        type Child {
+            property foo -> str;
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_get_migration_multi_module_01(self):
+        schema = r'''
+            # The two declared types declared are from different
+            # modules and have linear dependency.
+            module default {
+                type Foo extending other::Bar {
+                    property foo -> str;
+                };
+            }
+
+            module other {
+                type Bar {
+                    property bar -> str;
+                };
+            }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_02(self):
+        schema = r'''
+            # The two types declared are mutually dependent and are from
+            # different modules.
+            type default::Foo {
+                link bar -> other::Bar;
+            };
+
+            type other::Bar {
+                link foo -> default::Foo;
+            };
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_03(self):
+        # Test abstract and concrete constraints order of declaration,
+        # when the components are spread across different modules.
+        schema = r'''
+        type default::Foo {
+            property color -> scal_mod::constraint_my_enum;
+        }
+
+        scalar type scal_mod::constraint_my_enum extending str {
+           constraint cons_mod::my_one_of(['red', 'green', 'blue']);
+        }
+
+        abstract constraint cons_mod::my_one_of(one_of: array<anytype>) {
+            using (contains(one_of, __subject__));
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_04(self):
+        # View and type from different modules
+        schema = r'''
+            alias default::X := (SELECT other::Foo.name);
+
+            type other::Foo {
+                property name -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_05(self):
+        # View and type from different modules
+        schema = r'''
+            alias default::X := (SELECT other::Foo FILTER .name > 'a');
+
+            type other::Foo {
+                property name -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_06(self):
+        # Type and annotation from different modules.
+        schema = r'''
+        type default::Foo {
+            property name -> str;
+            annotation other::my_anno := 'Foo';
+        }
+
+        abstract annotation other::my_anno;
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_07(self):
+        # Type and annotation from different modules.
+        schema = r'''
+        type default::Foo {
+            property name -> str {
+                annotation other::my_anno := 'Foo';
+            }
+        }
+
+        abstract annotation other::my_anno;
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_08(self):
+        schema = r'''
+        # The function declaration appears in a different module
+        # from the type.
+        function default::get_name(val: other::foo_t) -> str
+            using (SELECT val[0]);
+
+        scalar type other::foo_t extending str {
+            constraint min_len_value(3);
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_09(self):
+        schema = r'''
+        type default::Foo {
+            property bar -> int64;
+            # an index
+            index on (other::idx(.bar));
+        }
+
+        function other::idx(num: int64) -> bool {
+            using (SELECT (num % 2) = 0);
+            volatility := 'IMMUTABLE';
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_10(self):
+        # Test prop default and function order of definition.
+        schema = r'''
+        type default::Foo {
+            property name -> str {
+                default := other::name_def();
+            };
+        }
+
+        function other::name_def() -> str {
+            using (SELECT 'some_name' ++ <str>uuid_generate_v1mc());
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_11(self):
+        # Test prop default and function order of definition.
+        schema = r'''
+        type default::Foo {
+            property name -> str {
+                # use WITH instead of fully-qualified name
+                default := (WITH MODULE other SELECT name_def());
+            };
+        }
+
+        function other::name_def() -> str {
+            using (SELECT 'some_name' ++ <str>uuid_generate_v1mc());
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_get_migration_multi_module_12(self):
+        # Test prop default and function order of definition.
+        schema = r'''
+        type default::Foo {
+            property name -> str {
+                # use WITH instead of fully-qualified name
+                default := (
+                    WITH mod AS MODULE other
+                    SELECT mod::name_def()
+                );
+            };
+        }
+
+        function other::name_def() -> str {
+            using (SELECT 'some_name' ++ <str>uuid_generate_v1mc());
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
 
     def test_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
