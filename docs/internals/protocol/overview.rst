@@ -125,10 +125,36 @@ Connection Phase
 ----------------
 
 To begin a session, a client opens a connection to the server, and sends
-the :ref:`ref_protocol_msg_client_handshake`.  If the requested connection
-parameters cannot be fully satisfied, the server responds with
-:ref:`ref_protocol_msg_server_handshake` to offer the protocol parameters
-it is willing to support.
+the :ref:`ref_protocol_msg_client_handshake`.  Server responds in one of
+the three ways:
+
+1. One of the authentication messages (see :ref:`below <ref_authentication>`);
+2. :ref:`ref_protocol_msg_server_handshake` followed by one of the
+   authentication messages;
+3. :ref:`ref_protocol_msg_error` which indicates invalid client handshake
+   message.
+
+:ref:`ref_protocol_msg_server_handshake` is only sent if the requested
+connection parameters cannot be fully satisfied, the server responds to
+offer the protocol parameters it is willing to support. Client may proceed
+by noting lower protocol version and/or absent extensions. Client *MUST* close
+the connection if protocol version is unsupported. Server *MUST* send subset
+of the extensions received in :ref:`ref_protocol_msg_client_handshake` (i.e.
+it never adds extra ones).
+
+While it's not required by the protocol specification itself, current EdgeDB
+server requires setting the following params in
+:ref:`ref_protocol_msg_client_handshake`:
+
+* ``user`` -- username for authentication
+* ``database`` -- database to connect to
+
+
+.. _ref_authentication:
+
+Authentication
+--------------
+
 
 The server then initiates the authentication cycle by sending an authentication
 request message, to which the client must respond with an appropriate
