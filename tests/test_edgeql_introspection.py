@@ -535,7 +535,7 @@ class TestIntrospection(tb.QueryTestCase):
                                 'return_type': {'name': 'std::bool'},
                                 'errmessage':
                                     '{__subject__} must be no longer than '
-                                    '10000 characters.'
+                                    '{max} characters.'
                             }
                         ]
                     },
@@ -598,7 +598,7 @@ class TestIntrospection(tb.QueryTestCase):
                         'return_typemod': 'SINGLETON',
                         'return_type': {'name': 'std::bool'},
                         'errmessage':
-                            "{__subject__} must be one of: ['ONE', 'MANY']."
+                            "{__subject__} must be one of: {vals}."
                     }
                 ]
             }]

@@ -2864,10 +2864,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                         annotation test::anno := 'annotated constraint';
                     };
                     single property p -> test::int_t {
-                        constraint std::max_value(10) {
-                            errmessage := 'Maximum allowed value
-                                           for {__subject__} is 10.';
-                        };
+                        constraint std::max_value(10);
                     };
                 };
                 required single property id -> std::uuid {
@@ -2906,10 +2903,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             scalar type test::int_t extending std::int64 {
                 annotation test::anno := 'ext int';
-                constraint std::max_value(15) {
-                    errmessage := 'Maximum allowed value \
-                                   for {__subject__} is 15.';
-                };
+                constraint std::max_value(15);
             };
             """,
 
