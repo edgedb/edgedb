@@ -142,7 +142,7 @@ the connection if protocol version is unsupported. Server *MUST* send subset
 of the extensions received in :ref:`ref_protocol_msg_client_handshake` (i.e.
 it never adds extra ones).
 
-While it's not required by the protocol specification itself, current edgedb
+While it's not required by the protocol specification itself, current EdgeDB
 server requires setting the following params in
 :ref:`ref_protocol_msg_client_handshake`:
 
