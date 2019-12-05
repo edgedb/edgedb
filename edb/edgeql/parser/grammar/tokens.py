@@ -135,7 +135,7 @@ class T_AT(Token, lextoken='@'):
     pass
 
 
-class T_DOLLAR(Token, lextoken='$'):
+class T_ARGUMENT(Token):
     pass
 
 

@@ -244,7 +244,15 @@ class EdgeQLLexer(lexer.Lexer):
 
         Rule(token='self',
              next_state=STATE_KEEP,
-             regexp=r'[\{\}$]'),
+             regexp=r'[\{\}]'),
+
+        Rule(token='ARGUMENT',
+             next_state=STATE_KEEP,
+             regexp=r'\$(?:[0-9]+|[^\W\d]\w*|`(?:[^`]|``)*`)'),
+
+        Rule(token='BADARGUMENT',
+             next_state=STATE_KEEP,
+             regexp=r'\$[0-9]+[^\W\d]\w*'),
     ]
 
     states = {
@@ -290,6 +298,17 @@ class EdgeQLLexer(lexer.Lexer):
             elif '::' in txt:
                 self.handle_error(f'Identifiers cannot contain "::"',
                                   exact_message=True)
+        elif rule_token == 'ARGUMENT':
+            if txt == '$``':
+                self.handle_error(f'Backtick-quoted variable names '
+                                  f'cannot be empty',
+                                  exact_message=True)
+        elif rule_token == 'BADARGUMENT':
+            self.handle_error(f"Invalid argument name {txt!r} "
+                              f"should be either all digits or "
+                              f"start with letter",
+                              exact_message=True,
+                              exc_type=UnterminatedStringError)
 
         tok = super().token_from_text(rule_token, txt)
 
