@@ -1787,17 +1787,31 @@ aa';
         SELECT $abc.0.name;
         SELECT $abc.0.1.name;
         SELECT $abc.0.1.n;
+        """
+
+    def test_edgeql_syntax_path_30(self):
+        # legal when `$0`, `$1`, `$a` and `$abc` are tuples
+        """
         SELECT $1.1.1;
         SELECT $1.>1.1;
         SELECT $1.>1.>1;
         SELECT $a.1.1;
         SELECT $a.>1.1;
         SELECT $a.>1.>1;
+
+% OK %
+
+        SELECT $1.1.1;
+        SELECT $1.1.1;
+        SELECT $1.1.1;
+        SELECT $a.1.1;
+        SELECT $a.1.1;
+        SELECT $a.1.1;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '\$'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '\$'",
                   line=2, col=16)
-    def test_edgeql_syntax_path_30(self):
+    def test_edgeql_syntax_path_31(self):
         """
         SELECT $ a;
         """

@@ -872,14 +872,14 @@ class ExprList(ListNonterm, element=Expr, separator=tokens.T_COMMA):
 
 
 class Constant(Nonterm):
-    # ArgConstant
+    # ARGUMENT
     # | BaseNumberConstant
     # | BaseStringConstant
     # | BaseBooleanConstant
     # | BaseBytesConstant
 
-    def reduce_ArgConstant(self, *kids):
-        self.val = kids[0].val
+    def reduce_ARGUMENT(self, *kids):
+        self.val = qlast.Parameter(name=kids[0].val[1:])
 
     def reduce_BaseNumberConstant(self, *kids):
         self.val = kids[0].val
@@ -892,11 +892,6 @@ class Constant(Nonterm):
 
     def reduce_BaseBytesConstant(self, *kids):
         self.val = kids[0].val
-
-
-class ArgConstant(Nonterm):
-    def reduce_ARGUMENT(self, *kids):
-        self.val = qlast.Parameter(name=kids[0].val[1:])
 
 
 class BaseNumberConstant(Nonterm):
