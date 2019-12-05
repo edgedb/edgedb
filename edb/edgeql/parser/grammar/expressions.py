@@ -934,6 +934,11 @@ class EscapedStringConstant(Nonterm):
                 f"invalid string literal: invalid escape sequence "
                 f"'{match.group('err_esc')}'",
                 context=str_tok.context)
+        elif match.group('err_cont'):
+            raise EdgeQLSyntaxError(
+                f"invalid string literal: invalid line continuation",
+                hint="newline has to immediately follow '\\'",
+                context=str_tok.context)
 
         quote = match.group('Q')
         val = match.group('body')
