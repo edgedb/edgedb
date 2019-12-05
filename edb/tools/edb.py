@@ -55,3 +55,4 @@ from . import gen_types  # noqa
 from . import gen_meta_grammars  # noqa
 from . import inittestdb  # noqa
 from . import test  # noqa
+from .profiling import cli  # noqa

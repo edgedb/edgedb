@@ -28,10 +28,12 @@ import pathlib
 
 import click
 
+from edb.tools.edb import edbcommands
+
 from . import profiler
 
 
-@click.command()
+@edbcommands.command()
 @click.option(
     "--prefix",
     default=profiler.PREFIX,
@@ -73,7 +75,7 @@ from . import profiler
     ),
 )
 @click.argument("dirs", nargs=-1)  # one or zero
-def cli(
+def perfviz(
     dirs: List[str],
     prefix: str,
     suffix: str,
@@ -82,6 +84,13 @@ def cli(
     width: int,
     threshold: float,
 ) -> None:
+    """Aggregate raw profiling traces into textual and graphical formats.
+
+    Generates aggregate .prof and .singledispatch files, an aggregate textual
+    .pstats file, as well as two SVG flame graphs.
+
+    For more comprehensive documentation read edb/tools/profiling/README.md.
+    """
     if len(dirs) > 1:
         raise click.UsageError("Specify at most one directory")
 
@@ -92,7 +101,3 @@ def cli(
     prof.aggregate(
         pathlib.Path(out), sort_by=sort_by, width=width, threshold=threshold
     )
-
-
-if __name__ == "__main__":
-    cli()

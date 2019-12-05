@@ -37,7 +37,7 @@ profiled function is called many times.
 After the program is profiled, we can aggregate the results by running:
 
 ```
-$ python -m edb.tools.profiling
+$ edb perfviz
 ```
 
 This should produce a few files in the EdgeDB project directory by
@@ -52,7 +52,11 @@ default:
 * `profile_analysis.pstats` is a text file with "Top calls" sorted and
   formatted by the `pstats.Stats` class.
 
-* `profile_analysis.svg` is a zoomable and searchable SVG flame graph.
+* `profile_analysis.call_stack.svg` is a zoomable and searchable SVG
+  flame graph of the call stack.
+
+* `profile_analysis.usage.svg` is a zoomable and searchable SVG
+  reverse flame graph of most used functions.
 
 * `profile_analysis.singledispatch` is a single dispatch sidecar file,
   explained further down in this document.
@@ -63,8 +67,8 @@ The `profile()` decorator accepts a number of arguments.  I don't want
 to risk this file going out of date, so your best course of action is
 looking at the decorator's docstring.
 
-Similarly, `python -m edb.tools.profiling --help` lists all possible
-options of the aggregator.
+Similarly, `edb perfviz --help` lists all possible options of the
+aggregator.
 
 Here let me just show you an example customization:
 
@@ -81,7 +85,7 @@ def another_function() -> None:
 To aggregate this data, use for example:
 
 ```
-$ python -m edb.tools.profiling --prefix=another_function_ --out=/Users/ambv/Desktop/another_function.pstats /tmp/
+$ edb perfviz --prefix=another_function_ --out=/Users/ambv/Desktop/another_function.pstats /tmp/
 ```
 
 As you see, we filtered by the prefix, put the output on the desktop
@@ -103,7 +107,7 @@ Web browser doesn't like it, adjust the threshold and/or width of the
 generated file, like so:
 
 ```
-$ python -m edb.tools.profiling --threshold=0.001 --width=1280
+$ edb perfviz --threshold=0.001 --width=1280
 ```
 
 ## Singledispatch and the fog of war
