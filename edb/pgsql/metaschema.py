@@ -1478,6 +1478,38 @@ class DatetimeInFunction(dbops.Function):
             text=self.text)
 
 
+class DurationInFunction(dbops.Function):
+    """Cast text into duration, ensuring there is no month units"""
+    text = r'''
+        DECLARE
+            ivl interval;
+        BEGIN
+            ivl := (SELECT val::interval);
+            IF EXTRACT(MONTH FROM ivl) != 0 OR EXTRACT(YEAR FROM ivl) != 0 OR
+               EXTRACT(DAY FROM ivl) != 0
+            THEN
+                RAISE EXCEPTION USING
+                    ERRCODE = 'invalid_datetime_format',
+                    MESSAGE = 'invalid input syntax for type duration: ' ||
+                        quote_literal(val),
+                    DETAIL = '{"hint":"You can''t use days or units ' ||
+                        'larger, like weeks, months or years for duration."}';
+            END IF;
+            RETURN ivl;
+        END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'duration_in'),
+            args=[('val', ('text',))],
+            returns=('interval',),
+            # Same volatility as _raise_specific_exception (stable)
+            volatility='stable',
+            language='plpgsql',
+            text=self.text)
+
+
 class LocalDatetimeInFunction(dbops.Function):
     """Cast text into timestamp using ISO8601 spec."""
     text = r'''
@@ -2127,6 +2159,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(JSONIndexByIntFunction()),
         dbops.CreateFunction(JSONSliceFunction()),
         dbops.CreateFunction(DatetimeInFunction()),
+        dbops.CreateFunction(DurationInFunction()),
         dbops.CreateFunction(LocalDatetimeInFunction()),
         dbops.CreateFunction(LocalDateInFunction()),
         dbops.CreateFunction(LocalTimeInFunction()),

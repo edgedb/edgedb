@@ -56,16 +56,6 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::duration_get(dt: std::duration, el: std::str) -> std::float64
-{
-    SET volatility := 'IMMUTABLE';
-    USING SQL $$
-    SELECT date_part("el", "dt")
-    $$;
-};
-
-
-CREATE FUNCTION
 std::datetime_trunc(dt: std::datetime, unit: std::str) -> std::datetime
 {
     # date_trunc of timestamptz is STABLE in PostgreSQL
@@ -174,7 +164,9 @@ std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR r'-';
+    USING SQL $$
+        SELECT EXTRACT(epoch FROM "l" - "r")::text::interval
+    $$
 };
 
 
@@ -274,7 +266,7 @@ CREATE CAST FROM std::str TO std::datetime {
 
 CREATE CAST FROM std::str TO std::duration {
     SET volatility := 'STABLE';
-    USING SQL CAST;
+    USING SQL FUNCTION 'edgedb.duration_in';
 };
 
 

@@ -253,7 +253,7 @@ CREATE CAST FROM std::json TO std::datetime {
 CREATE CAST FROM std::json TO std::duration {
     SET volatility := 'STABLE';
     USING SQL $$
-    SELECT edgedb.jsonb_extract_scalar(val, 'string')::interval;
+    SELECT edgedb.duration_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
 };
 

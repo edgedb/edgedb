@@ -46,30 +46,30 @@ class TestEdgeQLDT(tb.QueryTestCase):
     async def test_edgeql_dt_datetime_01(self):
         await self.assert_query_result(
             r'''SELECT <datetime>'2017-10-10T00:00:00+00' +
-                <duration>'1 day';''',
+                <duration>'24 hours';''',
             ['2017-10-11T00:00:00+00:00'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <duration>'1 day' +
+            r'''SELECT <duration>'24 hours' +
                 <datetime>'2017-10-10 00:00:00+00';''',
             ['2017-10-11T00:00:00+00:00'],
         )
 
         await self.assert_query_result(
             r'''SELECT <datetime>'2017-10-10T00:00:00+00' -
-                <duration>'1 day';''',
+                <duration>'24 hours';''',
             ['2017-10-09T00:00:00+00:00'],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<duration>'1 day' + <duration>'1 day')''',
-            ['2 days'],
+            r'''SELECT to_str(<duration>'24 hours' + <duration>'24 hours')''',
+            ['48:00:00'],
         )
 
         await self.assert_query_result(
-            r'''SELECT to_str(<duration>'4 days' - <duration>'1 day')''',
-            ['3 days'],
+            r'''SELECT to_str(<duration>'4 hours' - <duration>'1 hour')''',
+            ['03:00:00'],
         )
 
         with self.assertRaisesRegex(
@@ -77,7 +77,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 "operator '-' cannot be applied.*duration.*datetime"):
 
             await self.con.fetchall("""
-                SELECT <duration>'1 day' - <datetime>'2017-10-10T00:00:00+00';
+                SELECT <duration>'1 hour' - <datetime>'2017-10-10T00:00:00+00';
             """)
 
     async def test_edgeql_dt_datetime_02(self):
@@ -88,7 +88,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT <str>(<datetime>'2017-10-10T00:00:00+00' -
-                             <duration>'1 day');
+                             <duration>'24 hours');
             ''',
             ['2017-10-09T00:00:00+00:00'],
         )
@@ -105,7 +105,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
             r'''
                 SELECT (<tuple<str,datetime>>(
                     'foo', '2017-10-10T00:00:00+00')).1 +
-                   <duration>'1 month';
+                   <duration>'744 hours';
             ''',
             ['2017-11-10T00:00:00+00:00'],
         )
@@ -114,14 +114,14 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <cal::local_datetime>'2017-10-10T13:11' +
-                    <duration>'1 day';
+                    <duration>'24 hours';
             ''',
             ['2017-10-11T13:11:00'],
         )
 
         await self.assert_query_result(
             r'''
-                SELECT <duration>'1 day' +
+                SELECT <duration>'24 hours' +
                     <cal::local_datetime>'2017-10-10T13:11';
             ''',
             ['2017-10-11T13:11:00'],
@@ -130,31 +130,36 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <cal::local_datetime>'2017-10-10T13:11' -
-                    <duration>'1 day';
+                    <duration>'24 hours';
             ''',
             ['2017-10-09T13:11:00'],
         )
 
     async def test_edgeql_dt_local_date_01(self):
         await self.assert_query_result(
-            r'''SELECT <cal::local_date>'2017-10-10' + <duration>'1 day';''',
+            r'''SELECT
+                    <cal::local_date>'2017-10-10' + <duration>'24 hours';
+            ''',
             ['2017-10-11'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <duration>'1 day' + <cal::local_date>'2017-10-10';''',
+            r'''SELECT
+                <duration>'24 hours' + <cal::local_date>'2017-10-10';
+            ''',
             ['2017-10-11'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <cal::local_date>'2017-10-10' - <duration>'1 day';''',
+            r'''SELECT <cal::local_date>'2017-10-10' - <duration>'24 hours';
+            ''',
             ['2017-10-09'],
         )
 
     async def test_edgeql_dt_local_time_01(self):
         await self.assert_query_result(
-            r'''SELECT <cal::local_time>'10:01:01' + <duration>'1 hour';''',
-            ['11:01:01'],
+            r'''SELECT <cal::local_time>'10:01:01' + <duration>'24 hours';''',
+            ['10:01:01'],
         )
 
         await self.assert_query_result(
