@@ -17,6 +17,7 @@
 #
 
 
+import binascii
 import os.path
 import pathlib
 import platform
@@ -82,6 +83,8 @@ EXTRA_DEPS = {
 EXT_CFLAGS = ['-O2']
 EXT_LDFLAGS = []
 
+ROOT_PATH = pathlib.Path(__file__).parent.resolve()
+
 
 if platform.uname().system != 'Windows':
     EXT_CFLAGS.extend([
@@ -96,18 +99,16 @@ def _compile_parsers(build_lib, inplace=False):
     import edb.edgeql.parser.grammar.block as edgeql_spec2
     import edb.edgeql.parser.grammar.sdldocument as schema_spec
 
-    base_path = pathlib.Path(__file__).parent.resolve()
-
     for spec in (edgeql_spec, edgeql_spec2, schema_spec):
         spec_path = pathlib.Path(spec.__file__).parent
-        subpath = pathlib.Path(str(spec_path)[len(str(base_path)) + 1:])
+        subpath = pathlib.Path(str(spec_path)[len(str(ROOT_PATH)) + 1:])
         pickle_name = spec.__name__.rpartition('.')[2] + '.pickle'
         pickle_path = subpath / pickle_name
         cache = build_lib / pickle_path
         cache.parent.mkdir(parents=True, exist_ok=True)
         parsing.Spec(spec, pickleFile=str(cache), verbose=True)
         if inplace:
-            shutil.copy2(cache, base_path / pickle_path)
+            shutil.copy2(cache, ROOT_PATH / pickle_path)
 
 
 def _compile_build_meta(build_lib, version, pg_config, runstatedir):
@@ -166,7 +167,7 @@ def _compile_postgres(build_base, *,
     source_stamp = proc.stdout[0] + revision
 
     postgres_build = (build_base / 'postgres').resolve()
-    postgres_src = (pathlib.Path(__file__).parent / 'postgres').resolve()
+    postgres_src = ROOT_PATH / 'postgres'
     postgres_build_stamp = postgres_build / 'stamp'
 
     if postgres_build_stamp.exists():
@@ -264,6 +265,31 @@ class develop(setuptools_develop.develop):
         self.distribution.entry_points['console_scripts'] = patched_scripts
 
         super().run(*args, **kwargs)
+
+
+class gen_build_cache_key(setuptools.Command):
+
+    description = "generate a hash of build dependencies"
+    user_options = []
+
+    def run(self, *args, **kwargs):
+        import edb.edgeql.parser.grammar as _grammar
+        from edb.common.devmode import hash_dirs
+
+        parser_hash = hash_dirs([(_grammar.__path__[0], '.py')])
+
+        proc = subprocess.run(
+            ['git', 'submodule', 'status', 'postgres'],
+            stdout=subprocess.PIPE, universal_newlines=True, check=True)
+        postgres_revision, _, _ = proc.stdout[1:].partition(' ')
+
+        print(f'{binascii.hexlify(parser_hash).decode()}-{postgres_revision}')
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
 
 
 class build_postgres(setuptools.Command):
@@ -389,6 +415,7 @@ setuptools.setup(
         'build_ext': build_ext,
         'develop': develop,
         'build_postgres': build_postgres,
+        'gen_build_cache_key': gen_build_cache_key,
     },
     entry_points={
         'console_scripts': [
