@@ -638,6 +638,60 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ]
         )
 
+    @test.xfail('''
+        Fails with the below on "CREATE VIEW View2":
+
+        edb.errors.InvalidReferenceError: schema item
+        'test::__test|View1@@w~1__user2' does not exist
+    ''')
+    async def test_edgeql_ddl_21(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE User {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE TYPE Award {
+                CREATE LINK user -> User;
+            };
+
+            CREATE VIEW View1 := (SELECT Award {
+                user2 := (SELECT .user {name2 := .name ++ '!'})
+            });
+
+            CREATE VIEW View2 := (SELECT View1);
+        """)
+
+        # TODO: Add an actual INSERT/SELECT test.
+
+    @test.xfail('''
+        Fails with the below on "CREATE VIEW View2":
+
+        edgedb.errors.SchemaError: ObjectType 'test::test|User@@view~1'
+        is already present in the schema <Schema gen:4121 at 0x109f222d0>
+    ''')
+    async def test_edgeql_ddl_22(self):
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE User {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE TYPE Award {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE VIEW View1 := (SELECT Award {
+                a_user := (SELECT User { name } LIMIT 1)
+            });
+
+            CREATE VIEW View2 := (SELECT View1);
+        """)
+
+        # TODO: Add an actual INSERT/SELECT test.
+
     async def test_edgeql_ddl_default_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
