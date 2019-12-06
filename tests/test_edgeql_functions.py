@@ -1567,6 +1567,28 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_functions_duration_to_seconds(self):
+        await self.assert_query_result(
+            r'''SELECT duration_to_seconds(<duration>'20 hours');''',
+            [72000.0],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT duration_to_seconds(<duration>'1:02:03.000123');''',
+            [3723.000123],
+        )
+
+    async def test_edgeql_functions_duration_to_micros(self):
+        await self.assert_query_result(
+            r'''SELECT duration_to_micros(<duration>'20 hours');''',
+            [72_000_000_000],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT duration_to_micros(<duration>'1:02:03.000123');''',
+            [3_723_000_123],
+        )
+
     async def test_edgeql_functions_to_str_01(self):
         # at the very least the cast <str> should be equivalent to
         # a call to to_str() without explicit format for simple scalars

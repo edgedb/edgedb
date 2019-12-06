@@ -76,6 +76,27 @@ std::duration_trunc(dt: std::duration, unit: std::str) -> std::duration
 };
 
 
+CREATE FUNCTION
+std::duration_to_seconds(dur: std::duration) -> std::float64
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL $$
+    SELECT EXTRACT(epoch FROM dur)
+    $$;
+};
+
+
+CREATE FUNCTION
+std::duration_to_micros(dur: std::duration) -> std::int64
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL $$
+    SELECT EXTRACT(epoch FROM date_trunc('minute', dur))::bigint*1000000 +
+           EXTRACT(microsecond FROM dur)::bigint
+    $$;
+};
+
+
 ## Date/time operators
 ## -------------------
 

@@ -1481,22 +1481,26 @@ class DatetimeInFunction(dbops.Function):
 class DurationInFunction(dbops.Function):
     """Cast text into duration, ensuring there is no month units"""
     text = r'''
-        DECLARE
-            ivl interval;
-        BEGIN
-            ivl := (SELECT val::interval);
-            IF EXTRACT(MONTH FROM ivl) != 0 OR EXTRACT(YEAR FROM ivl) != 0 OR
-               EXTRACT(DAY FROM ivl) != 0
+        SELECT
+            CASE WHEN
+                EXTRACT(MONTH FROM v.column1) != 0 OR
+                EXTRACT(YEAR FROM v.column1) != 0 OR
+                EXTRACT(DAY FROM v.column1) != 0
             THEN
-                RAISE EXCEPTION USING
-                    ERRCODE = 'invalid_datetime_format',
-                    MESSAGE = 'invalid input syntax for type duration: ' ||
-                        quote_literal(val),
-                    DETAIL = '{"hint":"You can''t use days or units ' ||
-                        'larger, like weeks, months or years for duration."}';
-            END IF;
-            RETURN ivl;
-        END;
+                edgedb._raise_specific_exception(
+                    'invalid_datetime_format',
+                    'invalid input syntax for type duration: '
+                        || quote_literal(val),
+                    '{"hint":"You can''t use days or units ' ||
+                        'larger, like weeks, months or years for duration."}',
+                    NULL::interval
+                )
+            ELSE v.column1
+            END
+        FROM
+            (VALUES (
+                val::interval
+            )) AS v
     '''
 
     def __init__(self) -> None:
@@ -1506,7 +1510,6 @@ class DurationInFunction(dbops.Function):
             returns=('interval',),
             # Same volatility as _raise_specific_exception (stable)
             volatility='stable',
-            language='plpgsql',
             text=self.text)
 
 
