@@ -709,9 +709,10 @@ def render_svg_section(
     block_height: int,
     font_size: int,
     width: int,
-    top: int,
+    top: int = 0,
+    javascript: str = "",
     invert: bool = False,
-) -> Tuple[List[str], int]:
+) -> str:
     maxlevel = max(r.level for r in blocks)
     height = (maxlevel + 1) * block_height
     content = []
@@ -741,8 +742,17 @@ def render_svg_section(
                 upsidedown="true" if invert else "false",
             )
         )
-
-    return content, top + height
+    height += block_height
+    content.append(DETAILS.format(font_size=font_size, y=height))
+    result = SVG.format(
+        "\n".join(content),
+        javascript=javascript,
+        width=width,
+        height=top + height + block_height,
+        unzoom_button_x=width - 100,
+        ui_font_size=1.33 * font_size,
+    )
+    return result
 
 
 def render_svg(
@@ -768,56 +778,32 @@ def render_svg(
     call_blocks, usage_blocks, maxw = build_svg_blocks(
         funcs, calls, threshold=threshold
     )
-    call_lines: List[str] = []
-    usage_lines: List[str] = []
-    current_height = 0
+    with PROFILING_JS.open() as js_file:
+        javascript = js_file.read()
     if call_blocks:
-        call_lines, current_height = render_svg_section(
+        call_svg = render_svg_section(
             call_blocks,
             maxw,
             [COLORS, CCOLORS],
             block_height=block_height,
             font_size=font_size,
             width=width,
-            top=0,
+            javascript=javascript,
         )
-        # a visual distinction between the call graph and the usage graph
-        current_height += block_height
-    details = [DETAILS.format(font_size=font_size, y=current_height)]
+        with open(call_out, "w") as outf:
+            outf.write(call_svg)
     if usage_blocks:
-        usage_lines, current_height = render_svg_section(
+        usage_svg = render_svg_section(
             usage_blocks,
             maxw,
             [COLORS, ECOLORS, DCOLORS],
             block_height=block_height,
             font_size=font_size,
             width=width,
-            top=0,
+            javascript=javascript,
         )
-    with PROFILING_JS.open() as js_file:
-        javascript = js_file.read()
-    if call_blocks:
-        with open(call_out, "w") as outf:
-            svg = SVG.format(
-                "\n".join(call_lines + details),
-                javascript=javascript,
-                width=width,
-                height=current_height,
-                unzoom_button_x=width - 100,
-                ui_font_size=1.33 * font_size,
-            )
-            outf.write(svg)
-    if usage_blocks:
         with open(usage_out, "w") as outf:
-            svg = SVG.format(
-                "\n".join(usage_lines + details),
-                javascript=javascript,
-                width=width,
-                height=current_height,
-                unzoom_button_x=width - 100,
-                ui_font_size=1.33 * font_size,
-            )
-            outf.write(svg)
+            outf.write(usage_svg)
 
 
 SVG = """\
