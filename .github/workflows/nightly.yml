@@ -15,6 +15,7 @@ jobs:
         target: [
           debian-stretch,
           ubuntu-xenial,
+          ubuntu-bionic,
           centos-7,
         ]
         include:
@@ -24,6 +25,9 @@ jobs:
           - target: ubuntu-xenial
             platform: ubuntu
             platform_version: xenial
+          - target: ubuntu-bionic
+            platform: ubuntu
+            platform_version: bionic
           - target: centos-7
             platform: centos
             platform_version: 7
@@ -61,6 +65,24 @@ jobs:
     - name: Test (${{ matrix.target }})
       uses: edgedb/edgedb-pkg/integration/containers/test/ubuntu-xenial@master
       if: matrix.target == 'ubuntu-xenial'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/containers/python/ubuntu-bionic@master
+      if: matrix.target == 'ubuntu-bionic'
+      env:
+        SRC_REVISION: "${{ github.sha }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+
+    - name: Test (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/containers/test/ubuntu-bionic@master
+      if: matrix.target == 'ubuntu-bionic'
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"
@@ -143,6 +165,7 @@ jobs:
         target: [
           debian-stretch,
           ubuntu-xenial,
+          ubuntu-bionic,
           centos-7,
         ]
         include:
@@ -152,6 +175,9 @@ jobs:
           - target: ubuntu-xenial
             platform: ubuntu
             platform_version: xenial
+          - target: ubuntu-bionic
+            platform: ubuntu
+            platform_version: bionic
           - target: centos-7
             platform: centos
             platform_version: 7
@@ -200,6 +226,25 @@ jobs:
     - name: Test Published (${{ matrix.target }})
       uses: edgedb/edgedb-pkg/integration/containers/testpublished/ubuntu-xenial@master
       if: matrix.target == 'ubuntu-xenial'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/containers/upload/debian@master
+      if: matrix.target == 'ubuntu-bionic'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Test Published (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/containers/testpublished/ubuntu-bionic@master
+      if: matrix.target == 'ubuntu-bionic'
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"

@@ -8,6 +8,10 @@ targets:
           platform: ubuntu
           platform_version: xenial
           family: debian
+        - name: ubuntu-bionic
+          platform: ubuntu
+          platform_version: bionic
+          family: debian
         - name: centos-7
           platform: centos
           platform_version: 7
