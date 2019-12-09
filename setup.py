@@ -29,9 +29,10 @@ import textwrap
 import distutils
 from distutils import extension as distutils_extension
 from distutils.command import build as distutils_build
-from distutils.command import build_ext as distutils_build_ext
 
 import setuptools
+import setuptools_rust
+from setuptools_rust import build_ext as base_build_ext
 from setuptools.command import develop as setuptools_develop
 
 try:
@@ -339,9 +340,9 @@ class build_postgres(setuptools.Command):
             build_contrib=self.build_contrib)
 
 
-class build_ext(distutils_build_ext.build_ext):
+class build_ext(base_build_ext):
 
-    user_options = distutils_build_ext.build_ext.user_options + [
+    user_options = base_build_ext.user_options + [
         ('cython-annotate', None,
             'Produce a colorized HTML version of the Cython source.'),
         ('cython-directives=', None,
@@ -491,6 +492,12 @@ setuptools.setup(
             'edgedb-server = edb.server.main:main',
         ]
     },
+    rust_extensions=[
+        setuptools_rust.RustExtension(
+            "edb.edgeql._edgeql_rust",
+            path="edgedb-rust/edgeql-python/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython),
+    ],
     ext_modules=[
         distutils_extension.Extension(
             "edb.server.pgproto.pgproto",
