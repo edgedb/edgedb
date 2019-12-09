@@ -20,6 +20,7 @@
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLDT(tb.QueryTestCase):
@@ -191,6 +192,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09T13:11:00'],
         )
 
+    @test.not_implemented('local time diff should return cal::relativedelta')
     async def test_edgeql_dt_local_datetime_02(self):
         await self.assert_query_result(
             r'''SELECT <cal::local_datetime>'2017-10-11T00:00:00' -
