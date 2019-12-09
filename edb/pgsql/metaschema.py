@@ -1491,8 +1491,8 @@ class DurationInFunction(dbops.Function):
                     'invalid_datetime_format',
                     'invalid input syntax for type std::duration: '
                         || quote_literal(val),
-                    '{"hint":"You can''t use days or units ' ||
-                        'larger, like weeks, months or years for duration."}',
+                    '{"hint":"Units bigger than days cannot be used ' ||
+                    'for std::duration."}',
                     NULL::interval
                 )
             ELSE v.column1
