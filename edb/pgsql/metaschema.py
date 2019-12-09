@@ -1479,7 +1479,7 @@ class DatetimeInFunction(dbops.Function):
 
 
 class DurationInFunction(dbops.Function):
-    """Cast text into duration, ensuring there is no month units"""
+    """Cast text into duration, ensuring there is no days or months units"""
     text = r'''
         SELECT
             CASE WHEN
@@ -1489,7 +1489,7 @@ class DurationInFunction(dbops.Function):
             THEN
                 edgedb._raise_specific_exception(
                     'invalid_datetime_format',
-                    'invalid input syntax for type duration: '
+                    'invalid input syntax for type std::duration: '
                         || quote_literal(val),
                     '{"hint":"You can''t use days or units ' ||
                         'larger, like weeks, months or years for duration."}',

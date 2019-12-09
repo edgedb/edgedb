@@ -110,6 +110,62 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-11-10T00:00:00+00:00'],
         )
 
+    async def test_edgeql_dt_datetime_04(self):
+        await self.assert_query_result(
+            r'''SELECT <datetime>'2017-10-11T00:00:00+00' -
+                <datetime>'2017-10-10T00:00:00+00';''',
+            ['24:00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <datetime>'2018-10-10T00:00:00+00' -
+                <datetime>'2017-10-10T00:00:00+00';''',
+            ['8760:00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <datetime>'2017-10-17T01:02:03.004005+00' -
+                <datetime>'2017-10-10T00:00:00+00';''',
+            ['169:02:03.004005'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <datetime>'2017-10-10T01:02:03.004005-02' -
+                <datetime>'2017-10-10T00:00:00+00';''',
+            ['03:02:03.004005'],
+        )
+
+    async def test_edgeql_dt_duration_01_err(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                "invalid input syntax for type std::duration: '7 days'"):
+            await self.con.execute("SELECT <duration>'7 days';")
+
+    async def test_edgeql_dt_duration_02_err(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                "invalid input syntax for type std::duration: '13 months'"):
+            await self.con.execute("SELECT <duration>'13 months';")
+
+    async def test_edgeql_dt_duration_03_err(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                "invalid input syntax for type std::duration: '17 years'"):
+            await self.con.execute("SELECT <duration>'17 years';")
+
+    async def test_edgeql_dt_duration_04_err(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                "invalid input syntax for type std::duration: "
+                "'100 centuries'"):
+            await self.con.execute("SELECT <duration>'100 centuries';")
+
+    async def test_edgeql_dt_duration_05_err(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid input syntax for type std::duration: "100 cats"'):
+            await self.con.execute("SELECT <duration>'100 cats';")
+
     async def test_edgeql_dt_local_datetime_01(self):
         await self.assert_query_result(
             r'''
@@ -135,6 +191,31 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09T13:11:00'],
         )
 
+    async def test_edgeql_dt_local_datetime_02(self):
+        await self.assert_query_result(
+            r'''SELECT <cal::local_datetime>'2017-10-11T00:00:00' -
+                <cal::local_datetime>'2017-10-10T00:00:00';''',
+            ['24:00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <cal::local_datetime>'2018-10-10T00:00:00' -
+                <cal::local_datetime>'2017-10-10T00:00:00';''',
+            ['8760:00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <cal::local_datetime>'2017-10-17T01:02:03.004005' -
+                <cal::local_datetime>'2017-10-10T00:00:00';''',
+            ['169:02:03.004005'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <cal::local_datetime>'2017-10-10T01:02:03.004005' -
+                <cal::local_datetime>'2017-10-10T00:00:00';''',
+            ['01:02:03.004005'],
+        )
+
     async def test_edgeql_dt_local_date_01(self):
         await self.assert_query_result(
             r'''SELECT
@@ -156,6 +237,18 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09'],
         )
 
+        await self.assert_query_result(
+            r'''SELECT <cal::local_date>'2017-10-11' -
+                <cal::local_date>'2017-10-10';''',
+            ['24:00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <cal::local_date>'2018-10-10' -
+                <cal::local_date>'2017-10-10';''',
+            ['8760:00:00'],
+        )
+
     async def test_edgeql_dt_local_time_01(self):
         await self.assert_query_result(
             r'''SELECT <cal::local_time>'10:01:01' + <duration>'24 hours';''',
@@ -170,6 +263,12 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT <cal::local_time>'10:01:01' - <duration>'1 hour';''',
             ['09:01:01'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT <cal::local_time>'01:02:03.004005' -
+                <cal::local_time>'00:00:00';''',
+            ['01:02:03.004005'],
         )
 
     async def test_edgeql_dt_sequence_01(self):

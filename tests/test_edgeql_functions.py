@@ -1578,15 +1578,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [3723.000123],
         )
 
-    async def test_edgeql_functions_duration_to_micros(self):
+    async def test_edgeql_functions_duration_to_seconds_exact(self):
+        # at this value extract(epoch from duration) is imprecise
         await self.assert_query_result(
-            r'''SELECT duration_to_micros(<duration>'20 hours');''',
-            [72_000_000_000],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT duration_to_micros(<duration>'1:02:03.000123');''',
-            [3_723_000_123],
+            r'''SELECT duration_to_seconds(
+                <duration>'1801439850 seconds 123456 microseconds');''',
+            [1801439850.123456],
         )
 
     async def test_edgeql_functions_to_str_01(self):

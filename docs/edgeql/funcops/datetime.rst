@@ -564,25 +564,13 @@ Date and Time
         {<duration>'1:20:45'}
 
 
-.. eql:function:: std::duration_to_seconds(cur: duration) -> float64
+.. eql:function:: std::duration_to_seconds(cur: duration) -> decimal
 
     Return duration as total number of seconds in interval.
 
     .. code-block:: edgeql-repl
 
         db> SELECT duration_to_seconds(<duration>'1 hour');
-        {3600.0}
+        {3600.0d}
         db> SELECT duration_to_seconds(<duration>'10 second 100 millis');
-        {10.1}
-
-
-.. eql:function:: std::duration_to_micros(cur: duration) -> int64
-
-    Return duration as total number of microseconds.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT duration_to_micros(<duration>'1 hour');
-        {3600000000}
-        db> SELECT duration_to_micros(<duration>'10 second 100 millis');
-        {10100000}
+        {10.1d}
