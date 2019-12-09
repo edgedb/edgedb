@@ -148,7 +148,9 @@ class PointerRef(BasePointerRef):
 class TupleIndirectionLink(s_pointers.PseudoPointer):
     """A Link-alike that can be used in tuple indirection path ids."""
 
-    def __init__(self, element_name):
+    def __init__(self, source, target, *, element_name):
+        self._source = source
+        self._target = target
         self._name = sn.Name(module='__tuple__', name=str(element_name))
 
     def __hash__(self):
@@ -173,8 +175,19 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
     def scalar(self):
         return self._target.is_scalar()
 
+    def get_far_endpoint(self, schema, direction):
+        if direction is s_pointers.PointerDirection.Outbound:
+            return self.get_target(schema)
+        else:
+            raise AssertionError(
+                f'inbound direction is not valid for {type(self)}'
+            )
+
     def get_source(self, schema):
-        return None
+        return self._source
+
+    def get_target(self, schema):
+        return self._target
 
     def is_tuple_indirection(self):
         return True
@@ -223,6 +236,14 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
             return self.get_cardinality(schema) is qltypes.Cardinality.ONE
         else:
             return True
+
+    def get_far_endpoint(self, schema, direction):
+        if direction is s_pointers.PointerDirection.Outbound:
+            return self.get_target(schema)
+        else:
+            raise AssertionError(
+                f'inbound direction is not valid for {type(self)}'
+            )
 
     def scalar(self):
         return self._target.is_scalar()

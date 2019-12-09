@@ -27,7 +27,6 @@ from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
 if TYPE_CHECKING:
-    from edb.ir import ast as irast
     from edb.schema import schema as s_schema
 
 
@@ -392,7 +391,6 @@ class PathId:
         ptrcls: s_pointers.PointerLike,
         direction: s_pointers.PointerDirection = (
             s_pointers.PointerDirection.Outbound),
-        target: Union[None, s_types.Type, irast.TypeRef] = None,
         ns: AbstractSet[str] = frozenset(),
         schema: s_schema.Schema,
     ) -> PathId:
@@ -402,8 +400,7 @@ class PathId:
         if ptrcls.generic(schema):
             raise ValueError('path id must contain specialized pointers')
 
-        if target is None:
-            target = ptrcls.get_far_endpoint(schema, direction)
+        target = ptrcls.get_far_endpoint(schema, direction)
 
         if isinstance(target, s_types.Type):
             target_ref = typeutils.type_to_typeref(schema, target)

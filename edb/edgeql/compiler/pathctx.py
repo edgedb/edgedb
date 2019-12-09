@@ -51,9 +51,11 @@ def get_tuple_indirection_path_id(
         element_type: s_types.Type, *,
         ctx: context.ContextLevel) -> irast.PathId:
     return tuple_path_id.extend(
-        ptrcls=irast.TupleIndirectionLink(element_name),
-        direction=s_pointers.PointerDirection.Outbound,
-        target=element_type,
+        ptrcls=irast.TupleIndirectionLink(
+            tuple_path_id.target,
+            element_type,
+            element_name=element_name,
+        ),
         schema=ctx.env.schema
     )
 
@@ -64,12 +66,11 @@ def get_type_indirection_path_id(
         ctx: context.ContextLevel) -> irast.PathId:
     return path_id.extend(
         ptrcls=irast.TypeIndirectionLink(
-            path_id.target, target_type,
+            path_id.target,
+            target_type,
             optional=optional,
             ancestral=ancestral,
             cardinality=cardinality),
-        direction=s_pointers.PointerDirection.Outbound,
-        target=target_type,
         schema=ctx.env.schema
     )
 
@@ -133,12 +134,11 @@ def extend_path_id(
     ptrcls: s_pointers.PointerLike,
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound),
-    target: Union[None, s_types.Type, irast.TypeRef] = None,
     ns: AbstractSet[str] = frozenset(),
     ctx: context.ContextLevel,
 ) -> irast.PathId:
 
-    result = path_id.extend(ptrcls=ptrcls, direction=direction, target=target,
+    result = path_id.extend(ptrcls=ptrcls, direction=direction,
                             ns=ns, schema=ctx.env.schema)
 
     ptrref = result.rptr()

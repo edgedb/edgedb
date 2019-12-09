@@ -36,7 +36,6 @@ from edb.ir import typeutils as irtyputils
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
 from edb.schema import objtypes as s_objtypes
-from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
@@ -562,7 +561,6 @@ def compile_type_check_op(
     if ltype.is_object_type():
         left = setgen.ptr_step_set(
             left, source=ltype, ptr_name='__type__',
-            direction=s_pointers.PointerDirection.Outbound,
             source_context=expr.context, ctx=ctx)
         pathctx.register_set_in_scope(left, ctx=ctx)
         result = None

@@ -443,7 +443,7 @@ def ptr_step_set(
         path_tip: irast.Set, *,
         source: s_obj.Object,
         ptr_name: str,
-        direction: PtrDir,
+        direction: PtrDir = PtrDir.Outbound,
         source_context: parsing.ParserContext,
         ignore_computable: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -454,10 +454,8 @@ def ptr_step_set(
         source_context=source_context,
         ctx=ctx)
 
-    target = ptrcls.get_far_endpoint(ctx.env.schema, direction)
-
     return extend_path(
-        path_tip, ptrcls, direction, target,
+        path_tip, ptrcls, direction,
         ignore_computable=ignore_computable, ctx=ctx)
 
 
@@ -537,7 +535,7 @@ def extend_path(
         source_set: irast.Set,
         ptrcls: s_pointers.Pointer,
         direction: PtrDir=PtrDir.Outbound,
-        target: Optional[s_types.Type]=None, *,
+        *,
         ignore_computable: bool=False,
         is_mut_assign: bool=False,
         unnest_fence: bool=False,
@@ -558,13 +556,12 @@ def extend_path(
 
         src_path_id = source_set.path_id
 
-    if target is None:
-        target = ptrcls.get_far_endpoint(ctx.env.schema, direction)
     path_id = pathctx.extend_path_id(
         src_path_id,
-        ptrcls=ptrcls, direction=direction, target=target,
+        ptrcls=ptrcls, direction=direction,
         ns=ctx.path_id_namespace, ctx=ctx)
 
+    target = ptrcls.get_far_endpoint(ctx.env.schema, direction)
     target_set = new_set(stype=target, path_id=path_id, ctx=ctx)
 
     ptr = irast.Pointer(
@@ -895,15 +892,13 @@ def computable_ptr_set(
     else:
         source_path_id = rptr.target.path_id.src_path()
 
-    result_stype = ptrcls.get_target(ctx.env.schema)
     result_path_id = pathctx.extend_path_id(
         source_path_id,
         ptrcls=ptrcls,
-        direction=s_pointers.PointerDirection.Outbound,
-        target=result_stype,
         ns=ctx.path_id_namespace,
         ctx=ctx)
 
+    result_stype = ptrcls.get_target(ctx.env.schema)
     with newctx() as subctx:
         subctx.view_scls = result_stype
         assert isinstance(source_scls, s_sources.Source)

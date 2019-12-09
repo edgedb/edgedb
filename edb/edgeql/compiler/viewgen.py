@@ -369,7 +369,6 @@ def _normalize_view_ptr_expr(
             sub_path_id = pathctx.extend_path_id(
                 path_id,
                 ptrcls=base_ptrcls,
-                target=ptrcls.get_target(ctx.env.schema),
                 ns=ctx.path_id_namespace,
                 ctx=ctx)
 

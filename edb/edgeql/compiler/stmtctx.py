@@ -262,7 +262,6 @@ def compile_anchor(
                 setgen.class_set(src, ctx=ctx),
                 anchor,
                 s_pointers.PointerDirection.Outbound,
-                anchor.get_target(ctx.env.schema),
                 ctx=ctx,
             )
         else:
@@ -273,7 +272,6 @@ def compile_anchor(
                 setgen.class_set(src, ctx=ctx),
                 ptrcls,
                 s_pointers.PointerDirection.Outbound,
-                ptrcls.get_target(ctx.env.schema),
                 ctx=ctx)
 
         step = path
@@ -291,7 +289,6 @@ def compile_anchor(
                 setgen.class_set(anchor_source_source, ctx=ctx),
                 anchor_source,
                 s_pointers.PointerDirection.Outbound,
-                anchor_source.get_target(ctx.env.schema),
                 ctx=ctx,
             )
         else:
@@ -302,14 +299,12 @@ def compile_anchor(
                 setgen.class_set(src, ctx=ctx),
                 ptrcls,
                 s_pointers.PointerDirection.Outbound,
-                ptrcls.get_target(ctx.env.schema),
                 ctx=ctx)
 
         step = setgen.extend_path(
             path,
             anchor,
             s_pointers.PointerDirection.Outbound,
-            anchor.get_target(ctx.env.schema),
             ctx=ctx)
 
     elif isinstance(anchor, qlast.SubExpr):
