@@ -192,7 +192,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09T13:11:00'],
         )
 
-    @test.not_implemented('local time diff should return cal::relativedelta')
+    @test.not_implemented('local_datetime diff is cal::relativedelta')
     async def test_edgeql_dt_local_datetime_02(self):
         await self.assert_query_result(
             r'''SELECT <cal::local_datetime>'2017-10-11T00:00:00' -
@@ -239,6 +239,8 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09'],
         )
 
+    @test.not_implemented('local date diff should return cal::relativedelta')
+    async def test_edgeql_dt_local_date_02(self):
         await self.assert_query_result(
             r'''SELECT <cal::local_date>'2017-10-11' -
                 <cal::local_date>'2017-10-10';''',

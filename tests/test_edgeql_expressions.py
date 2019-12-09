@@ -1325,7 +1325,10 @@ class TestExpressions(tb.QueryTestCase):
                 if rdesc.signed:  # duration
                     restype = ldesc.typename
                 elif rdesc.typename == ldesc.typename:
-                    restype = 'duration'
+                    if rdesc.typename.startswith('cal::local_date'):
+                        restype = None
+                    else:
+                        restype = 'duration'
                 else:
                     restype = None
 
