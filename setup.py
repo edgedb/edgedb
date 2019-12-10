@@ -45,6 +45,7 @@ RUNTIME_DEPS = [
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
     'setuptools_scm~=3.2.0',
+    'setuptools-rust==0.10.6',
     'typing_inspect~=0.5.0',
     'uvloop~=0.14.0',
 
