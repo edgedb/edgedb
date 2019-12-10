@@ -281,10 +281,12 @@ class gen_build_cache_key(setuptools.Command):
     user_options = []
 
     def run(self, *args, **kwargs):
-        import edb.edgeql.parser.grammar as _grammar
+        import edb as _edb
         from edb.common.devmode import hash_dirs
 
-        parser_hash = hash_dirs([(_grammar.__path__[0], '.py')])
+        parser_hash = hash_dirs([(
+            os.path.join(_edb.__path__[0], 'edgeql/parser/grammar'),
+            '.py')])
 
         proc = subprocess.run(
             ['git', 'submodule', 'status', 'postgres'],
