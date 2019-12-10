@@ -92,14 +92,6 @@ def find_children(node, test_func, *args, force_traversal=False,
         return nodes
 
 
-def find_parent(node, test_func):
-    if node.parent and test_func(node.parent):
-        return node.parent
-    elif not node.parent:
-        return None
-    return find_parent(node.parent, test_func)
-
-
 class NodeVisitor:
     """Walk the AST and call a visitor function for every node found.
 

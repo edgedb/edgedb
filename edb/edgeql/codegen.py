@@ -25,6 +25,7 @@ import re
 
 from edb import errors
 from edb.common.ast import codegen, base
+from edb.common import typeutils
 
 from . import ast as qlast
 from . import quote as edgeql_quote
@@ -98,11 +99,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(kwstring)
 
     def _needs_parentheses(self, node) -> bool:  # type: ignore
+        # The "parent" attribute is set by calling `_fix_parent_links`
+        # before traversing the AST.  Since it's not an attribute that
+        # can be inferred by static typing we ignore typing for this
+        # function.
         return (
-            node.parent is not None and (
-                not isinstance(node.parent, qlast.Base)
-                or not isinstance(node.parent, qlast.DDL)
-                or isinstance(node.parent, qlast.SetField)
+            node._parent is not None and (
+                not isinstance(node._parent, qlast.Base)
+                or not isinstance(node._parent, qlast.DDL)
+                or isinstance(node._parent, qlast.SetField)
             )
         )
 
@@ -671,8 +676,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeName(self, node: qlast.TypeName) -> None:
         parenthesize = (
-            isinstance(node.parent, (qlast.IsOp, qlast.TypeOp,  # type: ignore
-                                     qlast.Introspect)) and
+            isinstance(node._parent, (qlast.IsOp, qlast.TypeOp,  # type: ignore
+                                      qlast.Introspect)) and
             node.subtypes is not None
         )
         if parenthesize:
@@ -1640,17 +1645,44 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             Optional[AbstractSet[qltypes.SchemaObjectClass]] = None,
         unsorted: bool = False,
     ) -> str:
-        # make sure that all the parents are properly set
         if isinstance(node, (list, tuple)):
             for n in node:
-                base.fix_parent_links(n)
+                _fix_parent_links(n)
         else:
-            base.fix_parent_links(node)
+            assert isinstance(node, qlast.Base)
+            _fix_parent_links(node)
 
         return super().to_source(
             node, indent_with, add_line_information, pretty,
             sdlmode=sdlmode, descmode=descmode, unsorted=unsorted,
             limit_ref_classes=limit_ref_classes)
+
+
+def _fix_parent_links(node: qlast.Base) -> qlast.Base:
+    # NOTE: Do not use this legacy function in new code!
+    # Using AST.parent is an anti-pattern. Instead write code
+    # that uses singledispatch and maintains a proper context.
+
+    node._parent = None
+
+    for _field, value in base.iter_fields(node):
+        if isinstance(value, dict):
+            for n in value.values():
+                if base.is_ast_node(n):
+                    _fix_parent_links(n)
+                    n._parent = node
+
+        elif typeutils.is_container(value):
+            for n in value:
+                if base.is_ast_node(n):
+                    _fix_parent_links(n)
+                    n._parent = node
+
+        elif base.is_ast_node(value):
+            _fix_parent_links(value)
+            value._parent = node
+
+    return node
 
 
 generate_source = EdgeQLSourceGenerator.to_source

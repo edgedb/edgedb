@@ -70,28 +70,6 @@ class NodeTransformer(visitor.NodeVisitor):
             elif isinstance(old_value, base.AST):
                 new_node = self.visit(old_value)
                 if new_node is not old_value:
-                    if new_node is not None:
-                        new_node.parent = node
                     setattr(node, field, new_node)
 
         return node
-
-    def replace_child(self, child, new_child):
-        if child.parent is None:
-            raise base.ASTError('ast node does not have parent')
-
-        node = child.parent
-        new_child.parent = node
-        child.parent = None
-
-        for field, value in base.iter_fields(node, include_meta=False):
-            if isinstance(value, list):
-                for i in range(0, len(value)):
-                    if value[i] == child:
-                        value[i] = new_child
-                        return True
-
-            elif isinstance(value, base.AST):
-                if value == child:
-                    setattr(node, field, new_child)
-                    return True

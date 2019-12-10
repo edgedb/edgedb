@@ -192,7 +192,6 @@ class AST(object, metaclass=MetaAST):
                 f'cannot instantiate abstract AST node '
                 f'{self.__class__.__name__!r}')
 
-        object.__setattr__(self, 'parent', kwargs.get('parent', None))
         self._init_fields(kwargs)
 
     def _init_fields(self, values):
@@ -292,27 +291,6 @@ def _is_ast_node_type(cls):
 
 def is_ast_node(obj):
     return _is_ast_node_type(obj.__class__)
-
-
-def fix_parent_links(node):
-    for _field, value in iter_fields(node):
-        if isinstance(value, dict):
-            for n in value.values():
-                if is_ast_node(n):
-                    n.parent = node
-                    fix_parent_links(n)
-
-        elif typeutils.is_container(value):
-            for n in value:
-                if is_ast_node(n):
-                    n.parent = node
-                    fix_parent_links(n)
-
-        elif is_ast_node(value):
-            value.parent = node
-            fix_parent_links(value)
-
-    return node
 
 
 _marker = object()
