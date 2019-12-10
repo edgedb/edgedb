@@ -264,15 +264,15 @@ class build(distutils_build.build):
 class develop(setuptools_develop.develop):
 
     def run(self, *args, **kwargs):
-        _compile_parsers(pathlib.Path('build/lib'), inplace=True)
-        _compile_postgres(pathlib.Path('build').resolve())
-
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = [s + '_dev' for s in scripts]
         patched_scripts.append('edb = edb.tools.edb:edbcommands')
         self.distribution.entry_points['console_scripts'] = patched_scripts
 
         super().run(*args, **kwargs)
+
+        _compile_parsers(pathlib.Path('build/lib'), inplace=True)
+        _compile_postgres(pathlib.Path('build').resolve())
 
 
 class gen_build_cache_key(setuptools.Command):
