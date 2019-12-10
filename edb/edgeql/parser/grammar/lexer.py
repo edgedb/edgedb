@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 
 from edb.common import lexer
-from edb.edgeql import _edgeql_rust
+from edb.edgeql import _edgeql_rust  # noqa
 
 from .keywords import edgeql_keywords
 
