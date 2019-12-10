@@ -192,29 +192,8 @@ class AST(object, metaclass=MetaAST):
                 f'cannot instantiate abstract AST node '
                 f'{self.__class__.__name__!r}')
 
-        object.__setattr__(self, 'parent', None)
+        object.__setattr__(self, 'parent', kwargs.get('parent', None))
         self._init_fields(kwargs)
-
-        # XXX: use weakref here
-        for arg, value in kwargs.items():
-            if hasattr(self, arg):
-                if is_ast_node(value):
-                    object.__setattr__(value, 'parent', self)
-                elif isinstance(value, list):
-                    for v in value:
-                        if is_ast_node(v):
-                            object.__setattr__(v, 'parent', self)
-                elif isinstance(value, dict):
-                    for v in value.values():
-                        if is_ast_node(v):
-                            object.__setattr__(v, 'parent', self)
-            else:
-                raise ASTError(
-                    'cannot set attribute "%s" in ast class "%s"' %
-                    (arg, self.__class__.__name__))
-
-        if 'parent' in kwargs:
-            object.__setattr__(self, 'parent', kwargs['parent'])
 
     def _init_fields(self, values):
         for field_name, field in self.__class__._fields.items():
