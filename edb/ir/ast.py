@@ -17,6 +17,50 @@
 #
 
 
+"""IR expression tree node definitions.
+
+The IR expression tree is produced by the EdgeQL compiler
+(see :mod:`edgeql.compiler`).  It is a self-contained representation
+of an EdgeQL expression, which, together with the accompanying scope tree
+(:mod:`ir.scopetree`) is sufficient to produce a backend query (e.g. SQL)
+without any other input or context.
+
+The most common part of the IR expression tree is the :class:`~Set` class.
+Every expression is encoded as a ``Set`` instance that contains all common
+metadata, such as the expression type, its symbolic identity (PathId) and
+other useful bits.  The ``Set.expr`` field contains the specific node for
+the expression.  The expression nodes usually refer to ``Set`` nodes
+rather than other nodes directly.
+
+For example, the EdgeQL expression ``SELECT str_lower('ABC') ++ 'd'``
+yields the following IR (roughly):
+
+Set (
+  expr = SelectStmt (
+    result = Set (
+      expr = OperatorCall (
+        args = [
+          CallArg (
+            expr = Set (
+              expr = FunctionCall (
+                args = [
+                  CallArg (
+                    expr = Set ( expr = StringConstant ( value = 'ABC' ) ),
+                  ),
+                  CallArg (
+                    expr = Set ( expr = StringConstant ( value = 'd' ) ),
+                  )
+                ]
+              )
+            )
+          )
+        ]
+      )
+    )
+  )
+)
+"""
+
 from __future__ import annotations
 
 import typing

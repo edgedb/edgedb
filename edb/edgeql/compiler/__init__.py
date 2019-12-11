@@ -17,7 +17,112 @@
 #
 
 
-"""EdgeQL to IR compiler."""
+"""EdgeQL to IR compiler.
+
+The purpose of this compilation phase is to produce a canonical, self-contained
+representation of an EdgeQL expression, aka the IR.  The validity of the
+expression and other schema-level checks and resolutions happen at this stage.
+Once the IR generation is successful, the expression is considered valid.
+
+The finalized IR consists of two tree structures: the expression tree and
+the scope tree.
+
+The *expression tree* is, essentially, another AST form that generally
+resembles the overall shape of the original EdgeQL AST annotated with type
+information and other metadata that is necessary to compile the IR into the
+backend query language.  The *scope tree* tracks the visibility of variables
+and determines how the aggregation functions are arranged in the expression.
+
+Every EdgeQL expression is essentially a giant functional map-reduce
+construct, or, Pythonically, a bunch of nested set comprehensions.
+In those terms, the expression tree encodes expressions inside comprehensions,
+and the scope tree determines how the comprehensions are nested, and at which
+comprehension level the variables are defined.
+
+The :mod:`ir.ast` and the :mod:`ir.scopetree` modules have more comments on
+the organization of the IR expression and scope trees, correspondingly.
+
+Operation
+---------
+
+The compiler has several entry points, are all in this file.  Each entry
+point sets the compilation context and then calls the generic compilation
+dispatch.  The compilation process is a straightforward EdgeQL AST traversal,
+where most AST nodes have a dedicated handler function, and the routing is
+done by singledispatch based on the AST node type.
+
+Context
+-------
+
+The compilation context object is passed to the vast majority of the compiler
+functions and contains the information necessary to correctly process an AST
+node in a given situation.  It is organized as a stack that resembles a
+ChainMap, albeit the elements are objects instead of dicts, and the chaining
+logic is controlled by the context itself.  See context.py for details.
+
+Organization
+------------
+
+The compiler code is organized into the following modules (in rough order
+of control flow):
+
+__init__.py
+    This file, contains compiler entry points that initialize
+    the compilation context and call into compilation dispatch.
+
+stmt.py
+    Handlers for statement expressions, like ``SELECT``, ``INSERT``.
+
+expr.py
+    Handlers for the majority of expressions that aren't statements or
+    that are handled elsewhere.
+
+func.py
+    Handlers for function calls and operator expressions.
+
+casts.py
+    Handlers for type cast expressions.
+
+clauses.py
+    Handlers for common statement clauses like ``FILTER`` and ``ORDER BY``.
+
+polyres.py
+    Logic for function, operator, and cast lookup via multiple dispatch
+    and generic type specialization.
+
+config.py
+    Handlers for ``CONFIGURE`` commands.
+
+setgen.py
+    Functions to generate ``ir.ast.Set`` nodes and process path expressions.
+
+viewgen.py
+    Functions that process shape expressions into view types.
+
+typegen.py
+    Helpers for type expressions.
+
+context.py
+    Compilation context definition.
+
+stmtctx.py
+    Functions to set up the overall compilation context as well as finalize
+    the result IR.
+
+pathctx.py
+    PathId and scope helpers.
+
+schemactx.py
+    Helpers that interface with the schema, such as object lookup and
+    derivation.
+
+astutils.py
+    Various helpers for EdgeQL AST analysis.
+
+dispatch.py
+    Compiler singledispatch decorator (separate module for ease of import).
+
+"""
 
 
 from __future__ import annotations
@@ -61,7 +166,7 @@ def compile_ast_to_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
     *,
-    parent_object_type: Optional[s_obj.ObjectMeta] = None,
+    modaliases: Optional[Mapping[Optional[str], str]] = None,
     anchors: Optional[
         Mapping[
             Union[str, qlast.SpecialAnchorT],
@@ -69,21 +174,102 @@ def compile_ast_to_ir(
         ]
     ] = None,
     path_prefix_anchor: Optional[qlast.SpecialAnchorT] = None,
-    modaliases: Optional[Mapping[Optional[str], str]] = None,
     singletons: Sequence[s_types.Type] = (),
     func_params: Optional[s_func.ParameterLikeList] = None,
-    derived_target_module: Optional[str] = None,
     result_view_name: Optional[s_name.SchemaName] = None,
+    derived_target_module: Optional[str] = None,
+    parent_object_type: Optional[s_obj.ObjectMeta] = None,
     implicit_id_in_shapes: bool = False,
     implicit_tid_in_shapes: bool = False,
     schema_view_mode: bool = False,
+    session_mode: bool = False,
     disable_constant_folding: bool = False,
     json_parameters: bool = False,
-    session_mode: bool = False,
-    allow_abstract_operators: bool = False,
     allow_generic_type_output: bool = False,
 ) -> irast.Command:
-    """Compile given EdgeQL AST into EdgeDB IR."""
+    """Compile given EdgeQL AST into EdgeDB IR.
+
+    This is the normal compiler entry point.  It assumes that *tree*
+    represents a complete statement.
+
+    Args:
+        tree:
+            EdgeQL AST.
+
+        schema:
+            Schema instance.  Must contain definitions for objects
+            referenced by the AST *tree*.
+
+        modaliases:
+            Module name resolution table.  Useful when this EdgeQL
+            expression is part of some other construct, such as a
+            DDL statement.
+
+        anchors:
+            Predefined symbol table.  Maps identifiers
+            (or ``qlast.SpecialAnchor`` instances) to specified
+            schema objects or IR fragments.
+
+        path_prefix_anchor:
+            Symbol name used to resolve the prefix of abbreviated
+            path expressions by default.  The symbol must be present
+            in *anchors*.
+
+        singletons:
+            An optional set of schema types that should be treated
+            as singletons in the context of this compilation.
+
+        func_params:
+            When compiling a function body, specifies function parameter
+            definitions.
+
+        result_view_name:
+            Optionally defines the name of the topmost generated view type.
+            Useful when compiling schema views.
+
+        derived_target_module:
+            The name of the module where derived types and pointers should
+            be placed.  When compiling a schema view, this would be the
+            name of the module where the view is defined.  By default,
+            the special ``__derived__`` module is used.
+
+        parent_object_type:
+            Optionaly specifies the class of the schema object, in the
+            context of which this expression is compiled.  Used in schema
+            definitions.
+
+        implicit_id_in_shapes:
+            Whether to include object id property in shapes by default.
+
+        implicit_tid_in_shapes:
+            Whether to implicitly include object type id in shapes as
+            the ``__tid__`` computable.
+
+        schema_view_mode:
+            When compiling a schema view, set this to ``True``.
+
+        session_mode:
+            When ``True``, assumes that the expression is compiled in
+            the presence of a persistent database session.  Otherwise,
+            the use of functions and other constructs that require a
+            persistent session will trigger an error.
+
+        disable_constant_folding:
+            When ``True``, the compile-time evaluation and substitution
+            of constant expressions is disabled.
+
+        json_parameters:
+            When ``True``, the argument values are assumed to be in JSON
+            format.
+
+        allow_generic_type_output:
+            If ``True``, allows the expression to return a generic type.
+            By default, expressions must resolve into concrete types.
+
+    Returns:
+        An instance of :class:`ir.ast.Command`.  Most frequently, this
+        would be an instance of :class:`ir.ast.Statement`.
+    """
 
     if debug.flags.edgeql_compile:
         debug.header('EdgeQL AST')
@@ -146,13 +332,44 @@ def compile_ast_fragment_to_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
     *,
+    modaliases: Optional[Mapping[Optional[str], str]] = None,
     anchors: Optional[
         Mapping[Union[str, qlast.SpecialAnchorT], s_obj.Object]
     ] = None,
     path_prefix_anchor: Optional[qlast.SpecialAnchorT] = None,
-    modaliases: Optional[Mapping[Optional[str], str]] = None,
 ) -> irast.Statement:
-    """Compile given EdgeQL AST fragment into EdgeDB IR."""
+    """Compile given EdgeQL AST fragment into EdgeDB IR.
+
+    Unlike :func:`~compile_ast_to_ir` above, this does not assume
+    that the AST *tree* is a complete statement.  The expression
+    doesn't even have to resolve to a specific type.
+
+    Args:
+        tree:
+            EdgeQL AST fragment.
+
+        schema:
+            Schema instance.  Must contain definitions for objects
+            referenced by the AST *tree*.
+
+        modaliases:
+            Module name resolution table.  Useful when this EdgeQL
+            expression is part of some other construct, such as a
+            DDL statement.
+
+        anchors:
+            Predefined symbol table.  Maps identifiers
+            (or ``qlast.SpecialAnchor`` instances) to specified
+            schema objects or IR fragments.
+
+        path_prefix_anchor:
+            Symbol name used to resolve the prefix of abbreviated
+            path expressions by default.  The symbol must be present
+            in *anchors*.
+
+    Returns:
+        An instance of :class:`ir.ast.Statement`.
+    """
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, modaliases=modaliases)
     if path_prefix_anchor is not None:
@@ -183,6 +400,29 @@ def evaluate_to_python_val(
     *,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
 ) -> Any:
+    """Evaluate the given EdgeQL string as a constant expression.
+
+    Args:
+        expr:
+            EdgeQL expression as a string.
+
+        schema:
+            Schema instance.  Must contain definitions for objects
+            referenced by *expr*.
+
+        modaliases:
+            Module name resolution table.  Useful when this EdgeQL
+            expression is part of some other construct, such as a
+            DDL statement.
+
+    Returns:
+        The result of the evaluation as a Python value.
+
+    Raises:
+        If the expression is not constant, or is otherwise not supported by
+        the const evaluator, the function will raise
+        :exc:`ir.staeval.UnsupportedExpressionError`.
+    """
     tree = ql_parser.parse_fragment(expr)
     return evaluate_ast_to_python_val(tree, schema, modaliases=modaliases)
 
@@ -193,73 +433,50 @@ def evaluate_ast_to_python_val(
     *,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
 ) -> Any:
+    """Evaluate the given EdgeQL AST as a constant expression.
+
+    Args:
+        tree:
+            EdgeQL AST.
+
+        schema:
+            Schema instance.  Must contain definitions for objects
+            referenced by AST *tree*.
+
+        modaliases:
+            Module name resolution table.  Useful when this EdgeQL
+            expression is part of some other construct, such as a
+            DDL statement.
+
+    Returns:
+        The result of the evaluation as a Python value.
+
+    Raises:
+        If the expression is not constant, or is otherwise not supported by
+        the const evaluator, the function will raise
+        :exc:`ir.staeval.UnsupportedExpressionError`.
+    """
     ir = compile_ast_fragment_to_ir(tree, schema, modaliases=modaliases)
     return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)
-
-
-def get_param_anchors_for_callable(
-    params: s_func.ParameterLikeList,
-    schema: s_schema.Schema,
-    *,
-    inlined_defaults: bool,
-) -> Tuple[
-    Dict[str, irast.Parameter],
-    List[qlast.AliasedExpr],
-]:
-    anchors = {}
-    aliases = []
-
-    if inlined_defaults:
-        anchors['__defaults_mask__'] = irast.Parameter(
-            name='__defaults_mask__',
-            typeref=irtyputils.type_to_typeref(
-                schema,
-                cast(s_scalars.ScalarType, schema.get('std::bytes')),
-            ),
-        )
-
-    pg_params = s_func.PgParams.from_params(schema, params)
-    for pi, p in enumerate(pg_params.params):
-        p_shortname = p.get_shortname(schema)
-        anchors[p_shortname] = irast.Parameter(
-            name=p_shortname,
-            typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
-
-        if p.get_default(schema) is None:
-            continue
-
-        if not inlined_defaults:
-            continue
-
-        aliases.append(
-            qlast.AliasedExpr(
-                alias=p_shortname,
-                expr=qlast.IfElse(
-                    condition=qlast.BinOp(
-                        left=qlast.FunctionCall(
-                            func=('std', 'bytes_get_bit'),
-                            args=[
-                                qlast.Path(steps=[
-                                    qlast.ObjectRef(
-                                        name='__defaults_mask__')
-                                ]),
-                                qlast.IntegerConstant(value=str(pi)),
-                            ]),
-                        right=qlast.IntegerConstant(value='0'),
-                        op='='),
-                    if_expr=qlast.Path(
-                        steps=[qlast.ObjectRef(name=p_shortname)]),
-                    else_expr=qlast._Optional(expr=p.get_ql_default(schema)))))
-
-    return anchors, aliases
 
 
 def compile_func_to_ir(
     func: s_func.Function,
     schema: s_schema.Schema,
 ) -> irast.Statement:
-    """Compile an EdgeQL function into EdgeDB IR."""
+    """Compile an EdgeQL function into EdgeDB IR.
 
+    Args:
+        func:
+            A function object.
+
+        schema:
+            A schema instance where the function is defined.
+
+    Returns:
+        An instance of :class:`ir.ast.Statement` representing the
+        function body.
+    """
     if debug.flags.edgeql_compile:
         debug.header('EdgeQL Function')
         debug.print(func.get_code(schema))
@@ -322,7 +539,30 @@ def compile_constant_tree_to_ir(
     styperef: Optional[irast.TypeRef] = None,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
 ) -> irast.Expr:
+    """Compile an EdgeQL constant into an IR ConstExpr.
 
+    Args:
+        const:
+            An EdgeQL AST representing a constant.
+
+        schema:
+            A schema instance.  Must contain the definition of the
+            constant type.
+
+        styperef:
+            Optionally overrides an IR type descriptor for the returned
+            ConstExpr.  If not specified, the inferred type of the constant
+            is used.
+
+        modaliases:
+            Module name resolution table.  Useful when this EdgeQL
+            expression is part of some other construct, such as a
+            DDL statement.
+
+    Returns:
+        An instance of :class:`ir.ast.ConstExpr` representing the
+        constant.
+    """
     ctx = stmtctx.init_context(
         schema=schema,
         modaliases=modaliases,
@@ -339,3 +579,60 @@ def compile_constant_tree_to_ir(
         result = type(result)(value=result.value, typeref=styperef)
 
     return result
+
+
+def get_param_anchors_for_callable(
+    params: s_func.ParameterLikeList,
+    schema: s_schema.Schema,
+    *,
+    inlined_defaults: bool,
+) -> Tuple[
+    Dict[str, irast.Parameter],
+    List[qlast.AliasedExpr],
+]:
+    anchors = {}
+    aliases = []
+
+    if inlined_defaults:
+        anchors['__defaults_mask__'] = irast.Parameter(
+            name='__defaults_mask__',
+            typeref=irtyputils.type_to_typeref(
+                schema,
+                cast(s_scalars.ScalarType, schema.get('std::bytes')),
+            ),
+        )
+
+    pg_params = s_func.PgParams.from_params(schema, params)
+    for pi, p in enumerate(pg_params.params):
+        p_shortname = p.get_shortname(schema)
+        anchors[p_shortname] = irast.Parameter(
+            name=p_shortname,
+            typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
+
+        if p.get_default(schema) is None:
+            continue
+
+        if not inlined_defaults:
+            continue
+
+        aliases.append(
+            qlast.AliasedExpr(
+                alias=p_shortname,
+                expr=qlast.IfElse(
+                    condition=qlast.BinOp(
+                        left=qlast.FunctionCall(
+                            func=('std', 'bytes_get_bit'),
+                            args=[
+                                qlast.Path(steps=[
+                                    qlast.ObjectRef(
+                                        name='__defaults_mask__')
+                                ]),
+                                qlast.IntegerConstant(value=str(pi)),
+                            ]),
+                        right=qlast.IntegerConstant(value='0'),
+                        op='='),
+                    if_expr=qlast.Path(
+                        steps=[qlast.ObjectRef(name=p_shortname)]),
+                    else_expr=qlast._Optional(expr=p.get_ql_default(schema)))))
+
+    return anchors, aliases
