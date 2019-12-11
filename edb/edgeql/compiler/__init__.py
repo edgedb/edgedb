@@ -103,7 +103,6 @@ def compile_ast_to_ir(
         disable_constant_folding=disable_constant_folding,
         json_parameters=json_parameters,
         session_mode=session_mode,
-        allow_abstract_operators=allow_abstract_operators,
         allow_generic_type_output=allow_generic_type_output,
         parent_object_type=parent_object_type,
     )

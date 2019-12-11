@@ -175,9 +175,6 @@ class Environment:
     session_mode: bool
     """Whether there is a specific session."""
 
-    allow_abstract_operators: bool
-    """Whether to allow the use of abstract operators."""
-
     schema_refs: Set[s_obj.Object]
     """A set of all schema objects referenced by an expression."""
 
@@ -197,7 +194,6 @@ class Environment:
         constant_folding: bool=True,
         json_parameters: bool=False,
         session_mode: bool=False,
-        allow_abstract_operators: bool=True,
         allow_generic_type_output: bool=False,
         func_params: Optional[s_func.ParameterLikeList]=None,
     ) -> None:
@@ -216,7 +212,6 @@ class Environment:
             irast.ViewShapeMetadata)
         self.json_parameters = json_parameters
         self.session_mode = session_mode
-        self.allow_abstract_operators = allow_abstract_operators
         self.allow_generic_type_output = allow_generic_type_output
         self.schema_refs = set()
         self.created_schema_objects = set()

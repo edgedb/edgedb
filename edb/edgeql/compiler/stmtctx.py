@@ -75,7 +75,6 @@ def init_context(
         schema_view_mode: bool=False,
         disable_constant_folding: bool=False,
         allow_generic_type_output: bool=False,
-        allow_abstract_operators: bool=False,
         implicit_id_in_shapes: bool=False,
         implicit_tid_in_shapes: bool=False,
         json_parameters: bool=False,
@@ -92,7 +91,6 @@ def init_context(
         schema_view_mode=schema_view_mode,
         json_parameters=json_parameters,
         session_mode=session_mode,
-        allow_abstract_operators=allow_abstract_operators,
         allow_generic_type_output=allow_generic_type_output)
     ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
     _ = context.CompilerContext(initial=ctx)
