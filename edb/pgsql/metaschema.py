@@ -1478,6 +1478,41 @@ class DatetimeInFunction(dbops.Function):
             text=self.text)
 
 
+class DurationInFunction(dbops.Function):
+    """Cast text into duration, ensuring there is no days or months units"""
+    text = r'''
+        SELECT
+            CASE WHEN
+                EXTRACT(MONTH FROM v.column1) != 0 OR
+                EXTRACT(YEAR FROM v.column1) != 0 OR
+                EXTRACT(DAY FROM v.column1) != 0
+            THEN
+                edgedb._raise_specific_exception(
+                    'invalid_datetime_format',
+                    'invalid input syntax for type std::duration: '
+                        || quote_literal(val),
+                    '{"hint":"Units bigger than days cannot be used ' ||
+                    'for std::duration."}',
+                    NULL::interval
+                )
+            ELSE v.column1
+            END
+        FROM
+            (VALUES (
+                val::interval
+            )) AS v
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'duration_in'),
+            args=[('val', ('text',))],
+            returns=('interval',),
+            # Same volatility as _raise_specific_exception (stable)
+            volatility='stable',
+            text=self.text)
+
+
 class LocalDatetimeInFunction(dbops.Function):
     """Cast text into timestamp using ISO8601 spec."""
     text = r'''
@@ -2127,6 +2162,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(JSONIndexByIntFunction()),
         dbops.CreateFunction(JSONSliceFunction()),
         dbops.CreateFunction(DatetimeInFunction()),
+        dbops.CreateFunction(DurationInFunction()),
         dbops.CreateFunction(LocalDatetimeInFunction()),
         dbops.CreateFunction(LocalDateInFunction()),
         dbops.CreateFunction(LocalTimeInFunction()),

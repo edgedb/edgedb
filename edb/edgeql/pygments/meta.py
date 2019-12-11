@@ -241,7 +241,6 @@ class EdgeQL:
         "datetime_of_statement",
         "datetime_of_transaction",
         "datetime_trunc",
-        "duration_get",
         "duration_trunc",
         "enumerate",
         "find",

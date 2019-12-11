@@ -1325,7 +1325,11 @@ class TestExpressions(tb.QueryTestCase):
                 if rdesc.signed:  # duration
                     restype = ldesc.typename
                 elif rdesc.typename == ldesc.typename:
-                    restype = 'duration'
+                    if rdesc.typename.startswith('cal::local_'):
+                        # TODO(tailhook) restype = 'cal::relativedelta'
+                        restype = None
+                    else:
+                        restype = 'duration'
                 else:
                     restype = None
 

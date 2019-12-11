@@ -304,26 +304,23 @@ std::to_datetime(year: std::int64, month: std::int64, day: std::int64,
 
 CREATE FUNCTION
 std::to_duration(
-        NAMED ONLY years: std::int64=0,
-        NAMED ONLY months: std::int64=0,
-        NAMED ONLY weeks: std::int64=0,
-        NAMED ONLY days: std::int64=0,
         NAMED ONLY hours: std::int64=0,
         NAMED ONLY minutes: std::int64=0,
-        NAMED ONLY seconds: std::float64=0
+        NAMED ONLY seconds: std::float64=0,
+        NAMED ONLY microseconds: std::int64=0
     ) -> std::duration
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
     SELECT make_interval(
-        "years"::int,
-        "months"::int,
-        "weeks"::int,
-        "days"::int,
+        0,
+        0,
+        0,
+        0,
         "hours"::int,
         "minutes"::int,
         "seconds"
-    )
+    ) + (microseconds::text || ' microseconds')::interval
     $$;
 };
 

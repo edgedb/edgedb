@@ -47,9 +47,6 @@ Date and Time
     * - :eql:func:`date_get`
       - :eql:func-desc:`date_get`
 
-    * - :eql:func:`duration_get`
-      - :eql:func-desc:`duration_get`
-
     * - :eql:func:`datetime_trunc`
       - :eql:func-desc:`datetime_trunc`
 
@@ -299,82 +296,6 @@ Date and Time
 ----------
 
 
-.. eql:function:: std::duration_get(dt: duration, el: str) -> float64
-
-    Extract a specific element of input duration by name.
-
-    The :eql:type:`duration` scalar has the following elements
-    available for extraction:
-
-    - ``'century'`` - the number of centuries, rounded towards 0
-    - ``'day'`` - the number of days
-    - ``'decade'`` - the number of decades, rounded towards 0
-    - ``'epoch'`` - the total number of seconds in the duration
-    - ``'hour'`` - the hour (0-23)
-    - ``'microseconds'`` - the seconds including fractional value expressed
-      as microseconds
-    - ``'millennium'`` - the number of millennia, rounded towards 0
-    - ``'milliseconds'`` - the seconds including fractional value expressed
-      as milliseconds
-    - ``'minute'`` - the minutes (0-59)
-    - ``'month'`` - the number of months, modulo 12 (0-11)
-    - ``'quarter'`` - the quarter of the year (1-4), based on months
-    - ``'second'`` - the seconds, including fractional value from 0 up to and
-      not including 60
-    - ``'year'`` - the number of years
-
-    Due to inherent ambiguity of counting days, months, and years the
-    :eql:type:`duration` does not attempt to automatically convert
-    between them. So ``<duration>'24 hours'`` is not necessarily
-    the same as ``<duration>'1 day'``. So one must be careful
-    when adding or subtracting :eql:type:`duration` values.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT duration_get(<duration>'24 hours', 'day');
-        {0}
-
-        db> SELECT duration_get(<duration>'24 hours', 'hour');
-        {24}
-
-        db> SELECT duration_get(<duration>'1 day', 'day');
-        {1}
-
-        db> SELECT duration_get(<duration>'1 day', 'hour');
-        {0}
-
-        db> SELECT duration_get(
-        ...     <duration>'24 hours' - <duration>'1 day', 'hour');
-        {24}
-
-        db> SELECT duration_get(
-        ...     <duration>'24 hours' - <duration>'1 day', 'day');
-        {-1}
-
-    However, ``'epoch'`` calculations assume that 1 day = 24 hours, 1
-    month = 30 days and 1 year = 365.25 days or 12 months (depending
-    on what is being converted).
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT duration_get(
-        ...     <duration>'24 hours' - <duration>'1d', 'epoch');
-        {0}
-
-        db> SELECT duration_get(<duration>'1 year', 'epoch');
-        {31557600}
-
-        db> SELECT duration_get(<duration>'365.25 days', 'epoch');
-        {31557600}
-
-        db> SELECT duration_get(
-        ...     <duration>'365 days 6 hours', 'epoch');
-        {31557600}
-
-
-----------
-
-
 .. eql:function:: std::datetime_trunc(dt: datetime, unit: str) -> datetime
 
     Truncate the input datetime to a particular precision.
@@ -421,20 +342,22 @@ Date and Time
 
     Truncate the input duration to a particular precision.
 
-    The valid *unit* values are the same as for :eql:func:`datetime_trunc`.
+    The valid *unit* values are:
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
 
     .. code-block:: edgeql-repl
 
         db> SELECT duration_trunc(
-        ...     <duration>'3 days 15:01:22', 'day');
-        {'3 days'}
+        ...     <duration>'15:01:22', 'hours');
+        {'15:00:00'}
 
         db> SELECT duration_trunc(
-        ...     <duration>'15:01:22.306916', 'minute');
+        ...     <duration>'15:01:22.306916', 'minutes');
         {'15:01:00'}
-
-    The usual caveat that :eql:type:`duration` doesn't automatically
-    convert units applies to how truncation works.
 
 
 ----------
@@ -619,13 +542,10 @@ Date and Time
 
 
 .. eql:function:: std::to_duration( \
-                    NAMED ONLY years: int64=0, \
-                    NAMED ONLY months: int64=0, \
-                    NAMED ONLY weeks: int64=0, \
-                    NAMED ONLY days: int64=0, \
                     NAMED ONLY hours: int64=0, \
                     NAMED ONLY minutes: int64=0, \
-                    NAMED ONLY seconds: float64=0 \
+                    NAMED ONLY seconds: float64=0, \
+                    NAMED ONLY microseconds: int64=0 \
                   ) -> duration
 
     :index: duration
@@ -634,7 +554,7 @@ Date and Time
 
     This function uses ``NAMED ONLY`` arguments  to create a
     :eql:type:`duration` value. The available duration fields are:
-    *years*, *months*, *weeks*, *days*, *hours*, *minutes*, *seconds*.
+    *hours*, *minutes*, *seconds*, *microseconds*.
 
     .. code-block:: edgeql-repl
 
@@ -644,3 +564,15 @@ Date and Time
         {<duration>'1:20:45'}
         db> SELECT to_duration(seconds := 4845);
         {<duration>'1:20:45'}
+
+
+.. eql:function:: std::duration_to_seconds(cur: duration) -> decimal
+
+    Return duration as total number of seconds in interval.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT duration_to_seconds(<duration>'1 hour');
+        {3600.0d}
+        db> SELECT duration_to_seconds(<duration>'10 second 100 millis');
+        {10.1d}

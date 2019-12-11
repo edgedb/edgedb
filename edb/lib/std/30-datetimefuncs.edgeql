@@ -56,16 +56,6 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::duration_get(dt: std::duration, el: std::str) -> std::float64
-{
-    SET volatility := 'IMMUTABLE';
-    USING SQL $$
-    SELECT date_part("el", "dt")
-    $$;
-};
-
-
-CREATE FUNCTION
 std::datetime_trunc(dt: std::datetime, unit: std::str) -> std::datetime
 {
     # date_trunc of timestamptz is STABLE in PostgreSQL
@@ -81,7 +71,30 @@ std::duration_trunc(dt: std::duration, unit: std::str) -> std::duration
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT date_trunc("unit", "dt")
+    SELECT CASE WHEN "unit" in ('microseconds', 'milliseconds',
+                                'seconds', 'minutes', 'hours')
+        THEN date_trunc("unit", "dt")
+        ELSE
+            edgedb._raise_specific_exception(
+                'invalid_datetime_format',
+                'invalid input syntax for type std::duration_trunc: '
+                    || quote_literal("dt"),
+                '{"hint":"Supported units: microseconds, milliseconds, ' ||
+                'seconds, minutes, hours."}',
+                NULL::interval
+            )
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
+std::duration_to_seconds(dur: std::duration) -> std::decimal
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL $$
+    SELECT EXTRACT(epoch FROM date_trunc('minute', dur))::bigint::decimal +
+           '0.000001'::decimal*EXTRACT(microsecond FROM dur)::decimal
     $$;
 };
 
@@ -174,7 +187,9 @@ std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR r'-';
+    USING SQL $$
+        SELECT EXTRACT(epoch FROM "l" - "r")::text::interval
+    $$
 };
 
 
@@ -274,7 +289,7 @@ CREATE CAST FROM std::str TO std::datetime {
 
 CREATE CAST FROM std::str TO std::duration {
     SET volatility := 'STABLE';
-    USING SQL CAST;
+    USING SQL FUNCTION 'edgedb.duration_in';
 };
 
 

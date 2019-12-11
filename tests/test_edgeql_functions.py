@@ -1174,39 +1174,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {22.306916},
         )
 
-    async def test_edgeql_functions_duration_get_01(self):
-        await self.assert_query_result(
-            r'''
-                SELECT duration_get(
-                    <duration>'15:01:22.306916', 'hour');
-            ''',
-            {15},
-        )
-
-        await self.assert_query_result(
-            r'''
-                SELECT duration_get(
-                    <duration>'15:01:22.306916', 'minute');
-            ''',
-            {1},
-        )
-
-        await self.assert_query_result(
-            r'''
-                SELECT duration_get(
-                    <duration>'15:01:22.306916', 'second');
-            ''',
-            {22.306916},
-        )
-
-        await self.assert_query_result(
-            r'''
-                SELECT duration_get(
-                    <duration>'3 days 15:01:22', 'day');
-            ''',
-            {3},
-        )
-
     async def test_edgeql_functions_datetime_trunc_01(self):
         await self.assert_query_result(
             r'''
@@ -1268,15 +1235,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             SELECT <str>duration_trunc(
-                <duration>'3 days 15:01:22', 'day');
-            ''',
-            {'3 days'},
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT <str>duration_trunc(
-                <duration>'15:01:22.306916', 'hour');
+                <duration>'15:01:22.306916', 'hours');
             ''',
             {'15:00:00'},
         )
@@ -1284,7 +1243,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             SELECT <str>duration_trunc(
-                <duration>'15:01:22.306916', 'minute');
+                <duration>'15:01:22.306916', 'minutes');
             ''',
             {'15:01:00'},
         )
@@ -1292,10 +1251,37 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             SELECT <str>duration_trunc(
-                <duration>'15:01:22.306916', 'second');
+                <duration>'15:01:22.306916', 'seconds');
             ''',
             {'15:01:22'},
         )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_trunc(
+                <duration>'15:01:22.306916', 'milliseconds');
+            ''',
+            {'15:01:22.306'},
+        )
+
+        # Currently no-op but may be useful if precision is improved
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_trunc(
+                <duration>'15:01:22.306916', 'microseconds');
+            ''',
+            {'15:01:22.306916'},
+        )
+
+    async def test_edgeql_functions_duration_trunc_02(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid input syntax for type std::duration_trunc'):
+            await self.con.execute(
+                r'''
+                SELECT <str>duration_trunc(
+                    <duration>'73 hours', 'day');
+                ''')
 
     async def test_edgeql_functions_to_datetime_01(self):
         await self.assert_query_result(
@@ -1564,46 +1550,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_to_duration_01(self):
         await self.assert_query_result(
-            r'''SELECT <str>to_duration(years:=20);''',
-            ['20 years'],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <str>to_duration(months:=20);''',
-            ['1 year 8 months'],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <str><duration>'1 year 8 months';''',
-            ['1 year 8 months'],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <str><duration>'13 months';''',
-            ['1 year 1 month'],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <str><duration>'13 months 1 day';''',
-            ['1 year 1 month 1 day'],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <str><duration>'14 months 1 day';''',
-            ['1 year 2 months 1 day'],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <str>to_duration(weeks:=20);''',
-            ['140 days'],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT <str>to_duration(days:=20);''',
-            ['20 days'],
-        )
-
-        await self.assert_query_result(
             r'''SELECT <str>to_duration(hours:=20);''',
             ['20:00:00'],
         )
@@ -1623,27 +1569,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ['00:00:20.15'],
         )
 
+        await self.assert_query_result(
+            r'''SELECT <str>to_duration(microseconds:=100);''',
+            ['00:00:00.0001'],
+        )
+
     async def test_edgeql_functions_to_duration_02(self):
-        await self.assert_query_result(
-            r'''SELECT to_duration(years:=20) > to_duration(months:=20);''',
-            [True],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT to_duration(months:=20) > to_duration(weeks:=20);''',
-            [True],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT to_duration(weeks:=20) > to_duration(days:=20);''',
-            [True],
-        )
-
-        await self.assert_query_result(
-            r'''SELECT to_duration(days:=20) > to_duration(hours:=20);''',
-            [True],
-        )
-
         await self.assert_query_result(
             r'''SELECT to_duration(hours:=20) > to_duration(minutes:=20);''',
             [True],
@@ -1652,6 +1583,25 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT to_duration(minutes:=20) > to_duration(seconds:=20);''',
             [True],
+        )
+
+    async def test_edgeql_functions_duration_to_seconds(self):
+        await self.assert_query_result(
+            r'''SELECT duration_to_seconds(<duration>'20 hours');''',
+            [72000.0],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT duration_to_seconds(<duration>'1:02:03.000123');''',
+            [3723.000123],
+        )
+
+    async def test_edgeql_functions_duration_to_seconds_exact(self):
+        # at this value extract(epoch from duration) is imprecise
+        await self.assert_query_result(
+            r'''SELECT duration_to_seconds(
+                <duration>'1801439850 seconds 123456 microseconds');''',
+            [1801439850.123456],
         )
 
     async def test_edgeql_functions_to_str_01(self):
@@ -1798,7 +1748,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                                     '"fmt" argument must be'):
             async with self.con.transaction():
                 await self.con.fetchall(r'''
-                    WITH DT := to_duration(months:=20)
+                    WITH DT := to_duration(hours:=20)
                     SELECT to_str(DT, '');
                 ''')
 
