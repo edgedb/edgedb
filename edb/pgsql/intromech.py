@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import collections
 import json
 
 import immutables as immu
@@ -76,7 +77,7 @@ class IntrospectionMech:
                 schema)
             schema = await self.read_modules(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_scalars(
+            schema, scalar_exprmap = await self.read_scalars(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_annotations(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
@@ -92,20 +93,22 @@ class IntrospectionMech:
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_functions(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_constraints(
+            schema, constr_exprmap = await self.read_constraints(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_indexes(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
             schema = await self.read_annotation_values(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
-            schema = await self.read_views(
+            schema, view_exprmap = await self.read_views(
                 schema, only_modules=modules, exclude_modules=exclude_modules)
 
-            schema = await self.order_scalars(schema)
+            schema = await self.order_scalars(schema, scalar_exprmap)
             schema = await self.order_operators(schema)
             schema = await self.order_link_properties(schema, prop_exprmap)
             schema = await self.order_links(schema, link_exprmap)
             schema = await self.order_objtypes(schema, obj_exprmap)
+            schema = await self.order_constraints(schema, constr_exprmap)
+            schema = await self.order_views(schema, view_exprmap)
 
         return schema
 
@@ -195,6 +198,7 @@ class IntrospectionMech:
             exclude_modules=exclude_modules)
 
         basemap = {}
+        exprmap = collections.defaultdict(dict)
 
         for row in scalar_list:
             name = sn.Name(row['name'])
@@ -209,10 +213,6 @@ class IntrospectionMech:
                 'view_type': (s_types.ViewType(row['view_type'])
                               if row['view_type'] else None),
                 'view_is_persistent': row['view_is_persistent'],
-                'default': (self.unpack_expr(row['default'], schema)
-                            if row['default'] else None),
-                'expr': (self.unpack_expr(row['expr'], schema)
-                         if row['expr'] else None),
                 'enum_values': row['enum_values'],
                 'backend_id': row['backend_id'],
             }
@@ -223,6 +223,12 @@ class IntrospectionMech:
             )
 
             basemap[scalar] = (row['bases'], row['ancestors'])
+
+            if row['default']:
+                exprmap[scalar]['default'] = row['default']
+
+            if row['expr']:
+                exprmap[scalar]['expr'] = row['expr']
 
         for scls, (basenames, ancestors) in basemap.items():
             schema = self._set_reflist(schema, scls, 'bases', basenames)
@@ -249,9 +255,14 @@ class IntrospectionMech:
                 ', '.join(common.qname(*t) for t in extra_seqs))
             raise errors.SchemaError(msg, details=details)
 
-        return schema
+        return schema, exprmap
 
-    async def order_scalars(self, schema):
+    async def order_scalars(self, schema, exprmap):
+        for scalar, items in exprmap.items():
+            for field, expr_text in items.items():
+                expr_obj = self.unpack_expr(expr_text, schema)
+                schema = scalar.set_field_value(schema, field, expr_obj)
+
         return schema
 
     def _set_reflist(self, schema, scls, field, namelist):
@@ -437,6 +448,7 @@ class IntrospectionMech:
         param_map = {p['name']: p for p in param_list}
 
         basemap = {}
+        exprmap = collections.defaultdict(dict)
 
         for name, r in constraints_list.items():
             subject = schema.get(r['subject']) if r['subject'] else None
@@ -455,19 +467,22 @@ class IntrospectionMech:
                 is_final=r['is_final'],
                 is_local=r['is_local'],
                 delegated=r['delegated'],
-                expr=(self.unpack_expr(r['expr'], schema)
-                      if r['expr'] else None),
-                subjectexpr=(self.unpack_expr(r['subjectexpr'], schema)
-                             if r['subjectexpr'] else None),
                 orig_subjectexpr=r['orig_subjectexpr'],
-                finalexpr=(self.unpack_expr(r['finalexpr'], schema)
-                           if r['finalexpr'] else None),
                 errmessage=r['errmessage'],
                 args=([self.unpack_expr(arg, schema) for arg in r['args']]
                       if r['args'] is not None else None),
                 return_type=self.unpack_typeref(r['return_type'], schema),
                 return_typemod=r['return_typemod'],
             )
+
+            if r['expr']:
+                exprmap[constraint]['expr'] = r['expr']
+
+            if r['subjectexpr']:
+                exprmap[constraint]['subjectexpr'] = r['subjectexpr']
+
+            if r['finalexpr']:
+                exprmap[constraint]['finalexpr'] = r['finalexpr']
 
             basemap[constraint] = (r['bases'], r['ancestors'])
 
@@ -477,6 +492,14 @@ class IntrospectionMech:
         for scls, (basenames, ancestors) in basemap.items():
             schema = self._set_reflist(schema, scls, 'bases', basenames)
             schema = self._set_reflist(schema, scls, 'ancestors', ancestors)
+
+        return schema, exprmap
+
+    async def order_constraints(self, schema, exprmap):
+        for constraint, items in exprmap.items():
+            for field, expr_text in items.items():
+                expr_obj = self.unpack_expr(expr_text, schema)
+                schema = constraint.set_field_value(schema, field, expr_obj)
 
         return schema
 
@@ -638,7 +661,7 @@ class IntrospectionMech:
         links_list = {sn.Name(r['name']): r for r in links_list}
 
         basemap = {}
-        exprmap = {}
+        exprmap = collections.defaultdict(dict)
 
         for name, r in links_list.items():
             bases = tuple()
@@ -673,12 +696,13 @@ class IntrospectionMech:
                 is_final=r['is_final'],
                 is_local=r['is_local'],
                 readonly=r['readonly'],
-                expr=(self.unpack_expr(r['expr'], schema)
-                      if r['expr'] else None),
             )
 
             if r['default']:
-                exprmap[link] = r['default']
+                exprmap[link]['default'] = r['default']
+
+            if r['expr']:
+                exprmap[link]['expr'] = r['expr']
 
             basemap[link] = (bases, r['ancestors'])
 
@@ -694,9 +718,10 @@ class IntrospectionMech:
         return schema, exprmap
 
     async def order_links(self, schema, exprmap):
-        for link, deflt in exprmap.items():
-            default = self.unpack_expr(deflt, schema)
-            schema = link.set_field_value(schema, 'default', default)
+        for link, items in exprmap.items():
+            for field, expr_text in items.items():
+                expr_obj = self.unpack_expr(expr_text, schema)
+                schema = link.set_field_value(schema, field, expr_obj)
 
         return schema
 
@@ -707,7 +732,7 @@ class IntrospectionMech:
             exclude_modules=exclude_modules)
         link_props = {sn.Name(r['name']): r for r in link_props}
         basemap = {}
-        exprmap = {}
+        exprmap = collections.defaultdict(dict)
 
         for name, r in link_props.items():
 
@@ -738,8 +763,6 @@ class IntrospectionMech:
                     r['inherited_fields']),
                 name=name, source=source, target=target, required=required,
                 readonly=r['readonly'],
-                expr=(self.unpack_expr(r['expr'], schema)
-                      if r['expr'] else None),
                 cardinality=cardinality,
                 is_derived=r['is_derived'],
                 is_local=r['is_local'],
@@ -748,7 +771,10 @@ class IntrospectionMech:
             basemap[prop] = (bases, r['ancestors'])
 
             if r['default']:
-                exprmap[prop] = r['default']
+                exprmap[prop]['default'] = r['default']
+
+            if r['expr']:
+                exprmap[prop]['expr'] = r['expr']
 
             if bases and bases[0] in {'std::target', 'std::source'}:
                 if bases[0] == 'std::target' and source is not None:
@@ -768,9 +794,10 @@ class IntrospectionMech:
         return schema, exprmap
 
     async def order_link_properties(self, schema, exprmap):
-        for prop, deflt in exprmap.items():
-            default = self.unpack_expr(deflt, schema)
-            schema = prop.set_field_value(schema, 'default', default)
+        for prop, items in exprmap.items():
+            for field, expr_text in items.items():
+                expr_obj = self.unpack_expr(expr_text, schema)
+                schema = prop.set_field_value(schema, field, expr_obj)
 
         return schema
 
@@ -895,6 +922,8 @@ class IntrospectionMech:
             self.connection, modules=only_modules,
             exclude_modules=exclude_modules)
 
+        exprmap = collections.defaultdict(dict)
+
         for r in tuple_views:
             eltypes = self.unpack_typeref(r['element_types'], schema)
 
@@ -905,10 +934,11 @@ class IntrospectionMech:
                 view_type=s_types.ViewType(r['view_type']),
                 view_is_persistent=r['view_is_persistent'],
                 named=r['named'],
-                expr=self.unpack_expr(r['expr'], schema),
                 element_types=s_obj.ObjectDict.create(
                     schema, dict(eltypes.iter_subtypes(schema))),
             )
+
+            exprmap[tview]['expr'] = r['expr']
 
         array_views = await datasources.schema.types.fetch_array_views(
             self.connection, modules=only_modules,
@@ -923,10 +953,19 @@ class IntrospectionMech:
                 name=sn.Name(r['name']),
                 view_type=s_types.ViewType(r['view_type']),
                 view_is_persistent=r['view_is_persistent'],
-                expr=self.unpack_expr(r['expr'], schema),
                 element_type=eltype,
                 dimensions=r['dimensions'],
             )
+
+            exprmap[tview]['expr'] = r['expr']
+
+        return schema, exprmap
+
+    async def order_views(self, schema, exprmap):
+        for view, items in exprmap.items():
+            for field, expr_text in items.items():
+                expr_obj = self.unpack_expr(expr_text, schema)
+                schema = view.set_field_value(schema, field, expr_obj)
 
         return schema
 

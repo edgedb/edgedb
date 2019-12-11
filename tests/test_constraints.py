@@ -1002,6 +1002,24 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
                 };
             """)
 
+    async def test_constraints_ddl_function(self):
+        await self.con.execute('''\
+            CREATE FUNCTION test::comp_func(s: str) -> str {
+                USING (
+                    SELECT str_lower(s)
+                );
+                SET volatility := 'IMMUTABLE';
+            };
+
+            CREATE TYPE test::CompPropFunction {
+                CREATE PROPERTY title -> str {
+                    CREATE CONSTRAINT exclusive ON
+                        (test::comp_func(__subject__));
+                };
+                CREATE PROPERTY comp_prop := test::comp_func(.title);
+            };
+        ''')
+
     async def test_constraints_ddl_error_02(self):
         # testing that subjectexpr cannot be overridden after it is
         # specified explicitly
