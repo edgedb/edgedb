@@ -327,9 +327,6 @@ class ContextLevel(compiler.ContextLevel):
     clause: Optional[str]
     """Statement clause the compiler is currently in."""
 
-    toplevel_clause: Optional[str]
-    """Top-level statement clause the compiler is currently in."""
-
     toplevel_stmt: Optional[irast.Stmt]
     """Top-level statement."""
 
@@ -432,8 +429,6 @@ class ContextLevel(compiler.ContextLevel):
             self.shape_type_cache = {}
             self.class_view_overrides = {}
 
-            self.clause = None
-            self.toplevel_clause = None
             self.toplevel_stmt = None
             self.stmt = None
             self.path_id_namespace = frozenset()
@@ -486,7 +481,6 @@ class ContextLevel(compiler.ContextLevel):
             self.view_scls = prevlevel.view_scls
             self.expr_exposed = prevlevel.expr_exposed
             self.partial_path_prefix = prevlevel.partial_path_prefix
-            self.toplevel_clause = prevlevel.toplevel_clause
             self.toplevel_stmt = prevlevel.toplevel_stmt
             self.implicit_id_in_shapes = prevlevel.implicit_id_in_shapes
             self.implicit_tid_in_shapes = prevlevel.implicit_tid_in_shapes
@@ -508,7 +502,6 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.view_rptr = None
                 self.view_scls = None
-                self.clause = None
                 self.stmt = None
 
                 self.view_rptr = None
@@ -530,7 +523,6 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.view_rptr = None
                 self.view_scls = None
-                self.clause = None
                 self.stmt = prevlevel.stmt
 
                 self.partial_path_prefix = None
@@ -543,7 +535,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.aliased_views = prevlevel.aliased_views
                 self.class_view_overrides = prevlevel.class_view_overrides
 
-                self.clause = prevlevel.clause
                 self.stmt = prevlevel.stmt
 
                 self.view_rptr = prevlevel.view_rptr

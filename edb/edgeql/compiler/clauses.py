@@ -47,7 +47,6 @@ def compile_where_clause(
 
     with ctx.newscope(fenced=True) as subctx:
         subctx.path_scope.unnest_fence = True
-        subctx.clause = 'where'
         ir_expr = dispatch.compile(where, ctx=subctx)
         bool_t = ctx.env.get_track_schema_type('std::bool')
         ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
@@ -67,8 +66,6 @@ def compile_orderby_clause(
         return result
 
     with ctx.new() as subctx:
-        subctx.clause = 'orderby'
-
         for sortexpr in sortexprs:
             with subctx.newscope(fenced=True) as exprctx:
                 exprctx.path_scope.unnest_fence = True
@@ -130,7 +127,6 @@ def compile_limit_offset_clause(
         ctx: context.ContextLevel) -> Optional[irast.Set]:
     if expr is not None:
         with ctx.newscope(fenced=True) as subctx:
-            subctx.clause = 'offsetlimit'
             ir_expr = dispatch.compile(expr, ctx=subctx)
             int_t = ctx.env.get_track_schema_type('std::int64')
             ir_set = setgen.scoped_set(

@@ -147,7 +147,6 @@ def compile_ast_fragment_to_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
     *,
-    location: Optional[str] = None,
     anchors: Optional[
         Mapping[Union[str, qlast.SpecialAnchorT], s_obj.Object]
     ] = None,
@@ -157,7 +156,6 @@ def compile_ast_fragment_to_ir(
     """Compile given EdgeQL AST fragment into EdgeDB IR."""
     ctx = stmtctx.init_context(
         schema=schema, anchors=anchors, modaliases=modaliases)
-    ctx.clause = location or 'where'
     if path_prefix_anchor is not None:
         assert anchors is not None
         path_prefix = anchors[path_prefix_anchor]

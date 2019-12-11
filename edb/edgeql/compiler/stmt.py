@@ -168,8 +168,6 @@ def compile_GroupQuery(
         pathctx.register_set_in_scope(stmt.group_path_id, ctx=ictx)
 
         with ictx.newscope(fenced=True) as subjctx:
-            subjctx.clause = 'input'
-
             subject_set = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=subjctx), ctx=subjctx)
 
@@ -630,9 +628,7 @@ def compile_result_clause(
         forward_rptr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     with ctx.new() as sctx:
-        sctx.clause = 'result'
         if sctx.stmt is ctx.toplevel_stmt:
-            sctx.toplevel_clause = sctx.clause
             sctx.expr_exposed = True
 
         if forward_rptr:
@@ -802,8 +798,6 @@ def compile_groupby_clause(
         return result
 
     with ctx.new() as sctx:
-        sctx.clause = 'groupby'
-
         ir_groupexprs = []
         for groupexpr in groupexprs:
             with sctx.newscope(fenced=True) as scopectx:
