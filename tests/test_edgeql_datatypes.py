@@ -253,6 +253,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['8760:00:00'],
         )
 
+    @test.not_implemented('local_time diff is cal::relativedelta')
     async def test_edgeql_dt_local_time_01(self):
         await self.assert_query_result(
             r'''SELECT <cal::local_time>'10:01:01' + <duration>'24 hours';''',

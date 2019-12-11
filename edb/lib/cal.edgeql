@@ -459,13 +459,6 @@ std::`-` (l: cal::local_time, r: std::duration) -> cal::local_time {
 };
 
 
-CREATE INFIX OPERATOR
-std::`-` (l: cal::local_time, r: cal::local_time) -> std::duration {
-    SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR r'-';
-};
-
-
 ## Date/time casts
 ## ---------------
 
