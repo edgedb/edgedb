@@ -342,20 +342,22 @@ Date and Time
 
     Truncate the input duration to a particular precision.
 
-    The valid *unit* values are the same as for :eql:func:`datetime_trunc`.
+    The valid *unit* values are:
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
 
     .. code-block:: edgeql-repl
 
         db> SELECT duration_trunc(
-        ...     <duration>'3 days 15:01:22', 'day');
-        {'3 days'}
+        ...     <duration>'15:01:22', 'hours');
+        {'15:00:00'}
 
         db> SELECT duration_trunc(
-        ...     <duration>'15:01:22.306916', 'minute');
+        ...     <duration>'15:01:22.306916', 'minutes');
         {'15:01:00'}
-
-    The usual caveat that :eql:type:`duration` doesn't automatically
-    convert units applies to how truncation works.
 
 
 ----------

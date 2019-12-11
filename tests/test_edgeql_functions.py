@@ -1232,19 +1232,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
     async def test_edgeql_functions_duration_trunc_01(self):
-        # basically this doesn't make sense
         await self.assert_query_result(
             r'''
             SELECT <str>duration_trunc(
-                <duration>'73 hours', 'day');
-            ''',
-            {'00:00:00'},
-        )
-
-        await self.assert_query_result(
-            r'''
-            SELECT <str>duration_trunc(
-                <duration>'15:01:22.306916', 'hour');
+                <duration>'15:01:22.306916', 'hours');
             ''',
             {'15:00:00'},
         )
@@ -1252,7 +1243,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             SELECT <str>duration_trunc(
-                <duration>'15:01:22.306916', 'minute');
+                <duration>'15:01:22.306916', 'minutes');
             ''',
             {'15:01:00'},
         )
@@ -1260,10 +1251,37 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             SELECT <str>duration_trunc(
-                <duration>'15:01:22.306916', 'second');
+                <duration>'15:01:22.306916', 'seconds');
             ''',
             {'15:01:22'},
         )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_trunc(
+                <duration>'15:01:22.306916', 'milliseconds');
+            ''',
+            {'15:01:22.306'},
+        )
+
+        # Currently no-op but may be useful if precision is improved
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_trunc(
+                <duration>'15:01:22.306916', 'microseconds');
+            ''',
+            {'15:01:22.306916'},
+        )
+
+    async def test_edgeql_functions_duration_trunc_02(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid input syntax for type std::duration_trunc'):
+            await self.con.execute(
+                r'''
+                SELECT <str>duration_trunc(
+                    <duration>'73 hours', 'day');
+                ''')
 
     async def test_edgeql_functions_to_datetime_01(self):
         await self.assert_query_result(

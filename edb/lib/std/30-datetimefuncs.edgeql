@@ -71,7 +71,20 @@ std::duration_trunc(dt: std::duration, unit: std::str) -> std::duration
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT date_trunc("unit", "dt")
+    SELECT CASE WHEN "unit" in ('microseconds', 'milliseconds')
+        THEN date_trunc("unit", "dt")
+        WHEN "unit" in ('seconds', 'minutes', 'hours')
+        THEN date_trunc(substring("unit" for length("unit")-1), "dt")
+        ELSE
+            edgedb._raise_specific_exception(
+                'invalid_datetime_format',
+                'invalid input syntax for type std::duration_trunc: '
+                    || quote_literal("dt"),
+                '{"hint":"Supported units: microseconds, milliseconds, ' ||
+                'seconds, minutes, hours."}',
+                NULL::interval
+            )
+        END
     $$;
 };
 
