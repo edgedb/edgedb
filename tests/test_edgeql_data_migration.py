@@ -4430,6 +4430,43 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_migration_index_05(self):
+        await self.con.execute("""
+            SET MODULE test;
+        """)
+        await self._migrate(r"""
+            type Base {
+                property name -> str;
+                # an index with a verbose definition (similar to
+                # DESCRIBE AS SDL)
+                index on (
+                    WITH MODULE test
+                    SELECT .name
+                ) {
+                    origexpr := '.name';
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    name,
+                    indexes: {
+                        expr
+                    }
+                }
+                FILTER .name = 'test::Base';
+            """,
+            [{
+                'name': 'test::Base',
+                'indexes': [{
+                    'expr': '.name'
+                }]
+            }],
+        )
+
     async def test_edgeql_migration_collections_01(self):
         await self.con.execute("""
             SET MODULE test;

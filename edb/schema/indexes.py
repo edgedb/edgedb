@@ -162,16 +162,24 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
         schema = super()._create_begin(schema, context)
         index = self.scls
 
+        expr = self.get_attribute_value('expr')
+        origexpr = index.get_field_value(schema, 'origexpr')
         # Check if the index doesn't have "origexpr" explicitly specified.
-        if index.get_field_value(schema, 'origexpr') is None:
+        if origexpr is None:
             # Add annotation with the original expression.
-            expr = self.get_attribute_value('expr')
             self.set_attribute_value('origexpr', expr.origtext)
             # Because we already called super()._create_begin, we need
             # to manually reflect the attribute change into and actual
             # field change.
             schema = index.set_field_value(
                 schema, 'origexpr', expr.origtext)
+        else:
+            # If we have an explicit "origexpr", set the "origtext"
+            # value of expr.
+            expr_dict = expr.__getstate__()
+            expr_dict['origtext'] = origexpr
+            newexpr = s_expr.Expression(**expr_dict)
+            self.set_attribute_value('expr', newexpr)
 
         return schema
 

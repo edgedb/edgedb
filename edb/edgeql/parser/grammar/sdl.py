@@ -541,6 +541,7 @@ class AnnotationDeclarationShort(Nonterm):
 #
 sdl_commands_block(
     'CreateIndex',
+    SetField,
     SetAnnotation)
 
 
