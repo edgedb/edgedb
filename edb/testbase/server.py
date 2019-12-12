@@ -32,6 +32,7 @@ import pprint
 import re
 import unittest
 import uuid
+from datetime import timedelta
 
 import click.testing
 
@@ -462,7 +463,7 @@ class ConnectedTestCaseMixin:
                 # since the data comes from JSON, it will only have a str
                 if data != str(shape):
                     self.fail(f'{message}: {data!r} != {shape!r}')
-            elif isinstance(shape, (str, int)):
+            elif isinstance(shape, (str, int, timedelta)):
                 if data != shape:
                     self.fail(f'{message}: {data!r} != {shape!r}')
             elif shape is None:
