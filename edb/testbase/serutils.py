@@ -25,7 +25,6 @@ import functools
 import uuid
 
 import edgedb
-from edgedb.datatypes.datatypes import Duration
 
 
 @functools.singledispatch
@@ -86,7 +85,6 @@ def _set(o):
 
 
 @serialize.register(uuid.UUID)
-@serialize.register(Duration)
 def _stringify(o):
     return str(o)
 
@@ -97,6 +95,7 @@ def _stringify(o):
 @serialize.register(bool)
 @serialize.register(type(None))
 @serialize.register(decimal.Decimal)
+@serialize.register(datetime.timedelta)
 def _scalar(o):
     return o
 

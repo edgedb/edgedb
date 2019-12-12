@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+from datetime import timedelta
 
 import edgedb
 
@@ -116,24 +117,28 @@ class TestEdgeQLDT(tb.QueryTestCase):
             r'''SELECT <datetime>'2017-10-11T00:00:00+00' -
                 <datetime>'2017-10-10T00:00:00+00';''',
             ['24:00:00'],
+            [timedelta(days=1)],
         )
 
         await self.assert_query_result(
             r'''SELECT <datetime>'2018-10-10T00:00:00+00' -
                 <datetime>'2017-10-10T00:00:00+00';''',
             ['8760:00:00'],
+            [timedelta(days=365)],
         )
 
         await self.assert_query_result(
             r'''SELECT <datetime>'2017-10-17T01:02:03.004005+00' -
                 <datetime>'2017-10-10T00:00:00+00';''',
             ['169:02:03.004005'],
+            [timedelta(days=7, seconds=3723, microseconds=4005)],
         )
 
         await self.assert_query_result(
             r'''SELECT <datetime>'2017-10-10T01:02:03.004005-02' -
                 <datetime>'2017-10-10T00:00:00+00';''',
             ['03:02:03.004005'],
+            [timedelta(seconds=10923, microseconds=4005)],
         )
 
     async def test_edgeql_dt_duration_01_err(self):

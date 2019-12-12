@@ -310,7 +310,7 @@ def _time(
 
 @walk.register
 def _duration(
-    o: edgedb.Duration,
+    o: datetime.timedelta,
     repl_ctx: context.ReplContext,
     buf: terminal.Buffer
 ) -> None:
