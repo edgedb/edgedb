@@ -3288,6 +3288,58 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_ddl_constraint_01(self):
+        # Test that the inherited constraint doesn't end up with some
+        # bad name like 'default::std::exclusive'.
+        await self.con.execute(r"""
+            CREATE ABSTRACT TYPE test::BaseTypeCon01;
+            CREATE TYPE test::TypeCon01 EXTENDING test::BaseTypeCon01;
+            ALTER TYPE test::BaseTypeCon01
+                CREATE SINGLE PROPERTY name -> std::str;
+            # make sure that we can create a constraint in the base
+            # type now
+            ALTER TYPE test::BaseTypeCon01
+                ALTER PROPERTY name
+                    CREATE DELEGATED CONSTRAINT exclusive;
+        """)
+
+        await self.assert_query_result("""
+            WITH MODULE schema
+            SELECT ObjectType {
+                name,
+                properties: {
+                    name,
+                    constraints: {
+                        name,
+                        delegated,
+                    }
+                } FILTER .name = 'name'
+            }
+            FILTER .name LIKE 'test::%TypeCon01'
+            ORDER BY .name;
+        """, [
+            {
+                'name': 'test::BaseTypeCon01',
+                'properties': [{
+                    'name': 'name',
+                    'constraints': [{
+                        'name': 'std::exclusive',
+                        'delegated': True,
+                    }],
+                }]
+            },
+            {
+                'name': 'test::TypeCon01',
+                'properties': [{
+                    'name': 'name',
+                    'constraints': [{
+                        'name': 'std::exclusive',
+                        'delegated': False,
+                    }],
+                }]
+            }
+        ])
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::ConTest01 {
