@@ -236,12 +236,11 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
     def create_object(self, schema, context, scls):
         schema, rec, updates = self.fill_record(
             schema, context, use_defaults=True)
-        self.pgops.add(
-            dbops.Insert(
-                table=self.get_table(schema),
-                records=[rec],
-                priority=self.op_priority))
-        return schema, updates
+        op = dbops.Insert(
+            table=self.get_table(schema),
+            records=[rec],
+            priority=self.op_priority)
+        return schema, updates, op
 
     def update(self, schema, context):
         schema, updaterec, updates = self.fill_record(schema, context)
@@ -292,7 +291,8 @@ class CreateObject(ObjectMetaCommand):
     def apply(self, schema, context):
         schema, obj = self.__class__.get_adaptee().apply(self, schema, context)
         schema, _ = ObjectMetaCommand.apply(self, schema, context)
-        schema, updates = self.create_object(schema, context, obj)
+        schema, updates, op = self.create_object(schema, context, obj)
+        self.pgops.add(op)
         self.updates = updates
         return schema, obj
 
@@ -1157,7 +1157,8 @@ class CreateScalarType(ScalarTypeMetaCommand,
 
         schema, _ = ScalarTypeMetaCommand.apply(self, schema, context)
 
-        schema, updates = self.create_object(schema, context, scalar)
+        schema, updates, op = self.create_object(schema, context, scalar)
+        self.pgops.add(op)
 
         if scalar.get_is_abstract(schema):
             return schema, scalar
@@ -1797,7 +1798,8 @@ class CreateObjectType(ObjectTypeMetaCommand,
             self, schema, context)
         if objtype.get_union_of(schema) or objtype.get_is_derived(schema):
             schema, _ = ObjectTypeMetaCommand.apply(self, schema, context)
-            schema, _ = self.create_object(schema, context, objtype)
+            schema, _, op = self.create_object(schema, context, objtype)
+            self.pgops.add(op)
             return schema, objtype
 
         new_table_name = common.get_backend_name(
@@ -1817,7 +1819,8 @@ class CreateObjectType(ObjectTypeMetaCommand,
 
         schema, _ = ObjectTypeMetaCommand.apply(self, schema, context)
 
-        schema, _ = self.create_object(schema, context, objtype)
+        schema, _, op = self.create_object(schema, context, objtype)
+        self.pgops.add(op)
 
         if objtype.get_name(schema).module != 'schema':
             constr_name = common.edgedb_name_to_pg_name(
@@ -3564,11 +3567,17 @@ class CreateModule(ModuleMetaCommand, adapts=s_mod.CreateModule):
         schema_name = common.get_backend_name(schema, module)
         condition = dbops.SchemaExists(name=schema_name)
 
-        cmd = dbops.CommandGroup(neg_conditions={condition})
-        cmd.add_command(dbops.CreateSchema(name=schema_name))
-        self.pgops.add(cmd)
+        if self.if_not_exists:
+            cmd = dbops.CommandGroup(neg_conditions={condition})
+        else:
+            cmd = dbops.CommandGroup()
 
-        schema, _ = self.create_object(schema, context, module)
+        cmd.add_command(dbops.CreateSchema(name=schema_name))
+
+        schema, _, op = self.create_object(schema, context, module)
+        cmd.add_command(op)
+
+        self.pgops.add(cmd)
 
         return schema, module
 

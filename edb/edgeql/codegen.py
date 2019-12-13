@@ -810,6 +810,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.write(ident_to_str(node.name.module), '::',
                            ident_to_str(node.name.name))
+        if node.create_if_not_exists:
+            self.write(' IF NOT EXISTS')
         if after_name:
             after_name()
 

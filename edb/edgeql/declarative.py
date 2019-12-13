@@ -366,7 +366,7 @@ def _register_item(
         name = ctx.get_local_name(decl.name)
 
     if ctx.depstack:
-        op.alter_if_exists = True
+        op.sdl_alter_if_exists = True
         top_parent = parent = copy.copy(ctx.depstack[0][0])
         parent.commands = []
         for entry, _entry_name in ctx.depstack[1:]:

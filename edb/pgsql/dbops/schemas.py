@@ -52,7 +52,6 @@ class CreateSchema(ddl.DDLOperation):
 
         self.name = name
         self.opid = name
-        self.neg_conditions.add(SchemaExists(self.name))
 
     def code(self, block: base.PLBlock) -> str:
         return f'CREATE SCHEMA {qi(self.name)}'
