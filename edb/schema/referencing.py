@@ -274,12 +274,19 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
                 ref_field_type = referrer_cls.get_field(refdict.attr).type
                 refname = ref_field_type.get_key_for(schema, self.scls)
 
+                # Mimicking the get_inherited_ref_layout behavior and
+                # reducing refname to shortname.
+                if sn.Name.is_qualified(refname):
+                    shortname = sn.shortname_from_fullname(sn.Name(refname))
+                else:
+                    shortname = refname
+
                 if context.enable_recursion:
                     for child in referrer.children(schema):
                         alter = alter_cmd(classname=child.get_name(schema))
                         with alter.new_context(schema, context, child):
                             schema, cmd = self._propagate_ref_creation(
-                                schema, context, refdict, refname, child)
+                                schema, context, refdict, shortname, child)
                             alter.add(cmd)
                         self.add(alter)
             else:
