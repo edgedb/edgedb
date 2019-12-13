@@ -278,16 +278,9 @@ class PathId:
                 raise ValueError(
                     'link property path extension on a non-link path')
 
-            ptr_ref = typeutils.ptrref_from_ptrcls(
-                source_ref=None, target_ref=target_ref,
-                parent_ptr=self.rptr(), ptrcls=ptrcls,
-                direction=direction, schema=schema,
-            )
-        else:
-            ptr_ref = typeutils.ptrref_from_ptrcls(
-                source_ref=self.target, target_ref=target_ref,
-                ptrcls=ptrcls, direction=direction, schema=schema,
-            )
+        ptr_ref = typeutils.ptrref_from_ptrcls(
+            ptrcls=ptrcls, direction=direction, schema=schema,
+        )
 
         result = self.__class__()
         result._path = self._path + ((ptr_ref, direction), target_ref)
@@ -425,7 +418,7 @@ class PathId:
             else:
                 ptr = ptrspec[0].shortname.name
             ptrdir = ptrspec[1]
-            is_lprop = ptrspec[0].parent_ptr is not None
+            is_lprop = ptrspec[0].source_ptr is not None
 
             if tgtspec.material_type is not None:
                 mat_tgt = tgtspec.material_type
@@ -471,7 +464,7 @@ class PathId:
 
             ptr_name = ptrspec[0].shortname
             ptrdir = ptrspec[1]
-            is_lprop = ptrspec[0].parent_ptr is not None
+            is_lprop = ptrspec[0].source_ptr is not None
 
             if is_lprop:
                 step = '@'

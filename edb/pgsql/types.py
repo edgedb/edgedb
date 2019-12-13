@@ -388,11 +388,11 @@ def get_ptrref_storage_info(
             f'cannot determine backend storage parameters for the '
             f'{ptrref.name!r} pointer: the cardinality is not known')
 
-    is_lprop = ptrref.parent_ptr is not None
+    is_lprop = ptrref.source_ptr is not None
 
     if source is None:
         if is_lprop:
-            source = ptrref.parent_ptr
+            source = ptrref.source_ptr
         else:
             source = ptrref.out_source
 

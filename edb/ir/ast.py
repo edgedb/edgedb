@@ -164,12 +164,11 @@ class BasePointerRef(ImmutableBase):
     name: sn.Name
     shortname: sn.Name
     std_parent_name: sn.Name
-    dir_source: TypeRef
-    dir_target: TypeRef
     out_source: TypeRef
     out_target: TypeRef
     direction: s_pointers.PointerDirection
-    parent_ptr: PointerRef
+    source_ptr: PointerRef
+    base_ptr: typing.Optional[BasePointerRef]
     material_ptr: BasePointerRef
     descendants: typing.Set[BasePointerRef]
     union_components: typing.Set[BasePointerRef]

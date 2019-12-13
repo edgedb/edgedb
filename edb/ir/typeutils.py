@@ -25,7 +25,10 @@ from typing import *  # NoQA
 from edb.edgeql import qltypes
 
 from edb.schema import abc as s_abc
+from edb.schema import links as s_links
+from edb.schema import lproperties as s_props
 from edb.schema import modules as s_mod
+from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
@@ -271,10 +274,7 @@ def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
-    source_ref: Optional[irast.TypeRef],
-    target_ref: irast.TypeRef,
     direction: s_pointers.PointerDirection,
-    parent_ptr: Optional[irast.BasePointerRef] = None,
     include_descendants: bool = True,
 ) -> irast.BasePointerRef:
     """Return an IR pointer descriptor for a given schema pointer.
@@ -288,18 +288,8 @@ def ptrref_from_ptrcls(
         ptrcls:
             A :class:`schema.pointers.Pointer` instance for which to
             return the PointerRef.
-        source_ref:
-            A :class:`ir.ast.TypeRef` instance describing the directional
-            source of the pointer.  If the pointer is a link property,
-            this will be ``None``.
-        target_ref:
-            A :class:`ir.ast.TypeRef` instance describing the directional
-            target of the pointer.
         direction:
             The direction of the pointer in the path expression.
-        parent_ptr:
-            If *ptrcls* is a link property, this should be a
-            ``PointerRef`` instance describing the link.
         include_descendants:
             Whether to include the corresponding pointer of the
             subtypes of the source type.
@@ -330,6 +320,30 @@ def ptrref_from_ptrcls(
 
     out_source: Optional[irast.TypeRef]
 
+    target = ptrcls.get_far_endpoint(schema, direction)
+    if isinstance(target, s_types.Type):
+        target_ref = type_to_typeref(schema, target)
+    else:
+        target_ref = target
+
+    source = ptrcls.get_near_endpoint(schema, direction)
+
+    source_ptr: Optional[irast.BasePointerRef]
+    if (isinstance(ptrcls, s_props.Property)
+            and isinstance(source, s_links.Link)):
+        source_ptr = ptrref_from_ptrcls(
+            ptrcls=source,
+            direction=direction,
+            schema=schema,
+        )
+        source_ref = None
+    else:
+        if isinstance(source, s_types.Type):
+            source_ref = type_to_typeref(schema, source)
+        else:
+            source_ref = source
+        source_ptr = None
+
     if direction is s_pointers.PointerDirection.Inbound:
         out_source = target_ref
         out_target = source_ref
@@ -350,11 +364,8 @@ def ptrref_from_ptrcls(
     material_ptr: Optional[irast.BasePointerRef]
     if material_ptrcls is not None and material_ptrcls is not ptrcls:
         material_ptr = ptrref_from_ptrcls(
-            source_ref=source_ref,
-            target_ref=target_ref,
             ptrcls=material_ptrcls,
             direction=direction,
-            parent_ptr=parent_ptr,
             schema=schema)
     else:
         material_ptr = None
@@ -366,11 +377,8 @@ def ptrref_from_ptrcls(
             material_comp = component.material_type(schema)
             union_components.add(
                 ptrref_from_ptrcls(
-                    source_ref=source_ref,
-                    target_ref=target_ref,
                     ptrcls=material_comp,
                     direction=direction,
-                    parent_ptr=parent_ptr,
                     schema=schema,
                 )
             )
@@ -380,11 +388,8 @@ def ptrref_from_ptrcls(
         for base in ptrcls.as_locally_defined(schema):
             union_components.add(
                 ptrref_from_ptrcls(
-                    source_ref=source_ref,
-                    target_ref=target_ref,
                     ptrcls=base,
                     direction=direction,
-                    parent_ptr=parent_ptr,
                     schema=schema,
                     include_descendants=False,
                 )
@@ -393,8 +398,7 @@ def ptrref_from_ptrcls(
     descendants: Set[irast.BasePointerRef] = set()
 
     if not union_components:
-        source = ptrcls.get_source(schema)
-        if isinstance(source, s_abc.ObjectType) and include_descendants:
+        if isinstance(source, s_objtypes.ObjectType) and include_descendants:
             ptrs = {material_ptrcls}
             ptrname = ptrcls.get_shortname(schema).name
             for descendant in source.descendants(schema):
@@ -406,11 +410,8 @@ def ptrref_from_ptrcls(
                         ptrs.add(desc_material_ptr)
                         descendants.add(
                             ptrref_from_ptrcls(
-                                source_ref=source_ref,
-                                target_ref=target_ref,
                                 ptrcls=desc_material_ptr,
                                 direction=direction,
-                                parent_ptr=parent_ptr,
                                 schema=schema,
                             )
                         )
@@ -422,16 +423,27 @@ def ptrref_from_ptrcls(
             std_parent_name = ancestor_name
             break
 
+    is_derived = ptrcls.get_is_derived(schema)
+    base_ptr: Optional[irast.BasePointerRef]
+    if is_derived:
+        base_ptrcls = ptrcls.get_bases(schema).first(schema)
+        base_ptr = ptrref_from_ptrcls(
+            ptrcls=base_ptrcls,
+            direction=direction,
+            schema=schema,
+        )
+    else:
+        base_ptr = None
+
     kwargs.update(dict(
-        dir_source=source_ref,
-        dir_target=target_ref,
         out_source=out_source,
         out_target=out_target,
         name=ptrcls.get_name(schema),
         shortname=ptrcls.get_shortname(schema),
         std_parent_name=std_parent_name,
         direction=direction,
-        parent_ptr=parent_ptr,
+        source_ptr=source_ptr,
+        base_ptr=base_ptr,
         material_ptr=material_ptr,
         is_derived=ptrcls.get_is_derived(schema),
         descendants=descendants,

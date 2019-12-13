@@ -721,7 +721,7 @@ def process_set_as_path(
         ptrref, resolve_type=False, link_bias=False)
 
     # Path is a link property.
-    is_linkprop = ptrref.parent_ptr is not None
+    is_linkprop = ptrref.source_ptr is not None
     # Path is a reference to a relationship stored in the source table.
     is_inline_ref = ptr_info.table_type == 'ObjectType'
     is_primitive_ref = not irtyputils.is_object(ptrref.out_target)

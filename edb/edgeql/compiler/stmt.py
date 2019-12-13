@@ -733,7 +733,7 @@ def compile_query_subject(
         and expr_rptr.direction is s_pointers.PointerDirection.Outbound
         and (
             view_rptr.ptrcls_is_linkprop
-            == (expr_rptr.ptrref.parent_ptr is not None)
+            == (expr_rptr.ptrref.source_ptr is not None)
         )
     )
 

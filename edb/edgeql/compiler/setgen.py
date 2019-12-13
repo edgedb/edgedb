@@ -807,35 +807,13 @@ def computable_ptr_set(
             source_set, stype=source_set_stype,
             preserve_scope_ns=True, ctx=ctx)
         source_set.shape = []
-
         if source_set.rptr is not None:
-            schema = ctx.env.schema
-            source_rptrref = source_set.rptr.ptrref
-            source_rptrcls = irtyputils.ptrcls_from_ptrref(
-                source_rptrref, schema=schema)
-            bases = source_rptrcls.get_bases(schema)
-            if bases:
-                base = bases.first(schema)
-                if (not base.generic(schema)
-                        and ptrcls.is_link_property(schema)):
-                    source_rptrref = irtyputils.ptrref_from_ptrcls(
-                        source_ref=source_rptrref.dir_source,
-                        target_ref=source_rptrref.dir_target,
-                        direction=source_rptrref.direction,
-                        parent_ptr=source_rptrref.parent_ptr,
-                        ptrcls=base,
-                        schema=schema,
-                    )
-
-                    source_set.rptr = irast.Pointer(
-                        source=source_set.rptr.source,
-                        target=source_set,
-                        ptrref=source_rptrref,
-                        direction=source_set.rptr.direction,
-                    )
-
-                    stmtctx.ensure_ptrref_cardinality(
-                        base, source_set.rptr.ptrref, ctx=ctx)
+            source_set.rptr = irast.Pointer(
+                source=source_set.rptr.source,
+                target=source_set,
+                ptrref=source_set.rptr.ptrref.base_ptr,
+                direction=source_set.rptr.direction,
+            )
 
     qlctx: Optional[context.ContextLevel]
     inner_source_path_id: Optional[irast.PathId]

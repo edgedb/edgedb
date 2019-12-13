@@ -216,7 +216,7 @@ def get_path_var(
             # This is an scalar set derived from an expression.
             src_path_id = path_id
 
-    elif ptrref.parent_ptr is not None:
+    elif ptrref.source_ptr is not None:
         if ptr_info.table_type != 'link' and not is_inbound:
             # This is a link prop that is stored in source rel,
             # step back to link source rvar.

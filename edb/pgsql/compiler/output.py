@@ -327,7 +327,7 @@ def tuple_var_as_json_object(
             rptr = element.path_id.rptr()
             assert rptr is not None
             name = rptr.shortname.name
-            if rptr.parent_ptr is not None:
+            if rptr.source_ptr is not None:
                 name = '@' + name
             keyvals.append(pgast.StringConstant(val=name))
             val = serialize_expr(

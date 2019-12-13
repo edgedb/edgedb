@@ -630,7 +630,7 @@ def _compile_set_in_singleton_mode(
             ptrref = node.rptr.ptrref
             source = node.rptr.source
 
-            if ptrref.parent_ptr is None and source.rptr is not None:
+            if ptrref.source_ptr is None and source.rptr is not None:
                 raise RuntimeError(
                     'unexpectedly long path in simple expr')
 

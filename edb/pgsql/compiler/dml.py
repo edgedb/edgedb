@@ -363,7 +363,7 @@ def process_insert_body(
             if ptrref.material_ptr is not None:
                 ptrref = ptrref.material_ptr
 
-            if (ptrref.parent_ptr is not None and
+            if (ptrref.source_ptr is not None and
                     rptr.source.path_id != ir_stmt.subject.path_id):
                 continue
 
@@ -562,7 +562,7 @@ def is_props_only_update(shape_el: irast.Set, *,
     """
     return (
         bool(shape_el.shape) and
-        all(el.rptr.ptrref.parent_ptr is not None for el in shape_el.shape)
+        all(el.rptr.ptrref.source_ptr is not None for el in shape_el.shape)
     )
 
 
@@ -598,7 +598,7 @@ def process_link_update(
     rptr = ir_set.rptr
     ptrref = rptr.ptrref
     assert isinstance(ptrref, irast.PointerRef)
-    target_is_scalar = irtyputils.is_scalar(ptrref.dir_target)
+    target_is_scalar = irtyputils.is_scalar(ir_set.typeref)
     path_id = ir_set.path_id
 
     # The links in the dml class shape have been derived,

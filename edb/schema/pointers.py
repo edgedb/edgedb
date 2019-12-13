@@ -495,6 +495,14 @@ class PseudoPointer(s_abc.Pointer):
     def get_target(self, schema) -> s_types.Type:
         raise NotImplementedError
 
+    def get_near_endpoint(self, schema, direction):
+        if direction is PointerDirection.Outbound:
+            return self.get_source(schema)
+        else:
+            raise AssertionError(
+                f'inbound direction is not valid for {type(self)}'
+            )
+
     def get_far_endpoint(self, schema, direction):
         if direction is PointerDirection.Outbound:
             return self.get_target(schema)
