@@ -904,9 +904,12 @@ class GlobalObjectCommand(UnqualifiedObjectCommand):
 class CreateObject(ObjectCommand):
     _delta_action = 'create'
 
+    # If the command is conditioned with IF NOT EXISTS
+    if_not_exists = struct.Field(bool, default=False)
+
     @classmethod
     def _command_for_ast_node(cls, astnode, schema, context):
-        if astnode.alter_if_exists:
+        if astnode.sdl_alter_if_exists:
             modaliases = cls._modaliases_from_ast(schema, astnode, context)
             with context(CommandContextToken(schema, modaliases=modaliases)):
                 classname = cls._classname_from_ast(schema, astnode, context)
@@ -919,6 +922,8 @@ class CreateObject(ObjectCommand):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        cmd.if_not_exists = astnode.create_if_not_exists
 
         cmd.add(
             AlterObjectProperty(
@@ -951,6 +956,12 @@ class CreateObject(ObjectCommand):
                 property='id', new_value=self.scls.id))
 
         return schema
+
+    def _get_ast(self, schema, context):
+        node = super()._get_ast(schema, context)
+        if self.if_not_exists:
+            node.create_if_not_exists = True
+        return node
 
     def _prepare_create_fields(self, schema, context):
         return self._prepare_field_updates(schema, context)
@@ -987,6 +998,14 @@ class CreateObject(ObjectCommand):
 
     def apply(self, schema, context):
         with self.new_context(schema, context, None):
+            if self.if_not_exists:
+                try:
+                    obj = self.get_object(schema, context)
+                except errors.InvalidReferenceError:
+                    pass
+                else:
+                    return schema, obj
+
             schema = self._create_begin(schema, context)
             context.current().scls = self.scls
             schema = self._create_innards(schema, context)

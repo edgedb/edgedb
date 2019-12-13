@@ -635,7 +635,8 @@ class ObjectDDL(DDLCommand, CompositeDDL):
 
 class CreateObject(ObjectDDL):
     is_abstract: bool = False
-    alter_if_exists: bool = False
+    sdl_alter_if_exists: bool = False
+    create_if_not_exists: bool = False
 
 
 class AlterObject(ObjectDDL):

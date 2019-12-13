@@ -1432,6 +1432,14 @@ class CreateModuleStmt(Nonterm):
             commands=kids[3].val
         )
 
+    def reduce_CREATE_MODULE_ModuleName_IF_NOT_EXISTS_OptCreateCommandsBlock(
+            self, *kids):
+        self.val = qlast.CreateModule(
+            name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
+            create_if_not_exists=True,
+            commands=kids[6].val
+        )
+
 
 #
 # ALTER MODULE

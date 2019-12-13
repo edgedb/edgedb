@@ -215,7 +215,8 @@ def delta_schemas(
 
     if include_module_diff:
         for added_module in added_modules:
-            create = modules.CreateModule(classname=added_module)
+            create = modules.CreateModule(classname=added_module,
+                                          if_not_exists=True)
             create.set_attribute_value('name', added_module)
             result.add(create)
 

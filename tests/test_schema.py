@@ -3023,7 +3023,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA',
 
             """
-            CREATE MODULE test;
+            CREATE MODULE test IF NOT EXISTS;
 
             CREATE SCALAR TYPE test::custom_str_t EXTENDING std::str {
                 CREATE CONSTRAINT std::regexp('[A-Z]+');
@@ -3042,7 +3042,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA',
 
             """
-            CREATE MODULE test;
+            CREATE MODULE test IF NOT EXISTS;
 
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
                 USING (WITH
@@ -3428,7 +3428,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA',
 
             """
-            CREATE MODULE test;
+            CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY name -> std::str;
             };
@@ -3460,7 +3460,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA',
 
             """
-            CREATE MODULE test;
+            CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY name -> std::str;
             };
@@ -3487,7 +3487,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA',
 
             """
-            CREATE MODULE test;
+            CREATE MODULE test IF NOT EXISTS;
             CREATE ALIAS test::scalar_alias :=
                 (WITH
                     MODULE test
@@ -3507,7 +3507,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA',
 
             """
-            CREATE MODULE test;
+            CREATE MODULE test IF NOT EXISTS;
             CREATE ALIAS test::array_alias :=
                 ([1, 2, 3]);
             CREATE ALIAS test::tuple_alias :=
@@ -3539,7 +3539,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE SCHEMA',
 
             """
-            CREATE MODULE test;
+            CREATE MODULE test IF NOT EXISTS;
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY annotated_compprop {
                     USING ('foo');
