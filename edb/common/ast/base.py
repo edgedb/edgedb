@@ -192,12 +192,10 @@ class AST(object, metaclass=MetaAST):
                 f'cannot instantiate abstract AST node '
                 f'{self.__class__.__name__!r}')
 
-        self._init_fields(kwargs)
-
-    def _init_fields(self, values):
+        should_check_types = __debug__ and _check_type is _check_type_real
         for field_name, field in self.__class__._fields.items():
-            if field_name in values:
-                value = values[field_name]
+            if field_name in kwargs:
+                value = kwargs[field_name]
             elif field.default is not None:
                 if callable(field.default):
                     value = field.default()
@@ -206,7 +204,7 @@ class AST(object, metaclass=MetaAST):
             else:
                 value = None
 
-            if __debug__:
+            if should_check_types:
                 self.check_field_type(field, value)
 
             # Bypass overloaded setattr
