@@ -51,31 +51,39 @@ def get_tuple_indirection_path_id(
         tuple_path_id: irast.PathId, element_name: str,
         element_type: s_types.Type, *,
         ctx: context.ContextLevel) -> irast.PathId:
-    return tuple_path_id.extend(
-        ptrcls=irast.TupleIndirectionLink(
-            irtyputils.ir_typeref_to_type(
-                ctx.env.schema, tuple_path_id.target),
-            element_type,
-            element_name=element_name,
-        ),
-        schema=ctx.env.schema
+
+    ptrcls = irast.TupleIndirectionLink(
+        irtyputils.ir_typeref_to_type(ctx.env.schema, tuple_path_id.target),
+        element_type,
+        element_name=element_name,
     )
+
+    ptrref = irtyputils.ptrref_from_ptrcls(
+        schema=ctx.env.schema,
+        ptrcls=ptrcls,
+    )
+
+    return tuple_path_id.extend(schema=ctx.env.schema, ptrref=ptrref)
 
 
 def get_type_indirection_path_id(
         path_id: irast.PathId, target_type: s_types.Type, *,
         optional: bool, ancestral: bool, cardinality: qltypes.Cardinality,
         ctx: context.ContextLevel) -> irast.PathId:
-    return path_id.extend(
-        ptrcls=irast.TypeIndirectionLink(
-            irtyputils.ir_typeref_to_type(
-                ctx.env.schema, path_id.target),
-            target_type,
-            optional=optional,
-            ancestral=ancestral,
-            cardinality=cardinality),
-        schema=ctx.env.schema
+    ptrcls = irast.TypeIndirectionLink(
+        irtyputils.ir_typeref_to_type(ctx.env.schema, path_id.target),
+        target_type,
+        optional=optional,
+        ancestral=ancestral,
+        cardinality=cardinality,
     )
+
+    ptrref = irtyputils.ptrref_from_ptrcls(
+        schema=ctx.env.schema,
+        ptrcls=ptrcls,
+    )
+
+    return path_id.extend(schema=ctx.env.schema, ptrref=ptrref,)
 
 
 def get_expression_path_id(
@@ -144,14 +152,15 @@ def extend_path_id(
        the cardinality of *ptrcls* is known at the end of compilation.
     """
 
-    result = path_id.extend(ptrcls=ptrcls, direction=direction,
-                            ns=ns, schema=ctx.env.schema)
-
-    ptrref = result.rptr()
-    assert ptrref is not None
+    ptrref = irtyputils.ptrref_from_ptrcls(
+        schema=ctx.env.schema,
+        ptrcls=ptrcls,
+        direction=direction,
+    )
     stmtctx.ensure_ptrref_cardinality(ptrcls, ptrref, ctx=ctx)
 
-    return result
+    return path_id.extend(ptrref=ptrref, direction=direction,
+                          ns=ns, schema=ctx.env.schema)
 
 
 def ban_path(

@@ -163,6 +163,7 @@ class BasePointerRef(ImmutableBase):
 
     name: sn.Name
     shortname: sn.Name
+    path_id_name: typing.Optional[sn.Name]
     std_parent_name: sn.Name
     out_source: TypeRef
     out_target: TypeRef

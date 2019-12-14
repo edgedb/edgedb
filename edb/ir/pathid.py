@@ -226,7 +226,7 @@ class PathId:
     def extend(
         self,
         *,
-        ptrcls: s_pointers.PointerLike,
+        ptrref: irast.BasePointerRef,
         direction: s_pointers.PointerDirection = (
             s_pointers.PointerDirection.Outbound),
         ns: AbstractSet[AnyNamespace] = frozenset(),
@@ -239,8 +239,8 @@ class PathId:
         ``path_id_for_A.extend(ptrcls=pointer_object_b, schema=schema)``.
 
         Args:
-            ptrcls:
-                A ``schema.pointers.PointerLike`` instance that corresponds
+            ptrref:
+                A ``ir.ast.BasePointerRef`` instance that corresponds
                 to the path step.  This may be a regular link or property
                 object, or a pseudo-pointer, like a tuple or type indirection
                 step.
@@ -262,29 +262,19 @@ class PathId:
         if not self:
             raise ValueError('cannot extend empty PathId')
 
-        if ptrcls.generic(schema):
-            raise ValueError('path id must contain specialized pointers')
-
-        target = ptrcls.get_far_endpoint(schema, direction)
-
-        if isinstance(target, s_types.Type):
-            target_ref = typeutils.type_to_typeref(schema, target)
+        if direction is s_pointers.PointerDirection.Outbound:
+            target_ref = ptrref.out_target
         else:
-            target_ref = target
+            target_ref = ptrref.out_source
 
-        is_linkprop = ptrcls.is_link_property(schema)
-        if is_linkprop:
-            if not self._is_ptr:
-                raise ValueError(
-                    'link property path extension on a non-link path')
-
-        ptr_ref = typeutils.ptrref_from_ptrcls(
-            ptrcls=ptrcls, direction=direction, schema=schema,
-        )
+        is_linkprop = ptrref.source_ptr is not None
+        if is_linkprop and not self._is_ptr:
+            raise ValueError(
+                'link property path extension on a non-link path')
 
         result = self.__class__()
-        result._path = self._path + ((ptr_ref, direction), target_ref)
-        link_name = ptrcls.get_path_id_name(schema) or ptrcls.get_name(schema)
+        result._path = self._path + ((ptrref, direction), target_ref)
+        link_name = ptrref.path_id_name or ptrref.name
         lnk = (link_name, direction, is_linkprop)
         result._is_linkprop = is_linkprop
 

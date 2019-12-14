@@ -274,7 +274,8 @@ def ptrref_from_ptrcls(
     *,
     schema: s_schema.Schema,
     ptrcls: s_pointers.PointerLike,
-    direction: s_pointers.PointerDirection,
+    direction: s_pointers.PointerDirection = (
+        s_pointers.PointerDirection.Outbound),
     include_descendants: bool = True,
 ) -> irast.BasePointerRef:
     """Return an IR pointer descriptor for a given schema pointer.
@@ -440,6 +441,7 @@ def ptrref_from_ptrcls(
         out_target=out_target,
         name=ptrcls.get_name(schema),
         shortname=ptrcls.get_shortname(schema),
+        path_id_name=ptrcls.get_path_id_name(schema),
         std_parent_name=std_parent_name,
         direction=direction,
         source_ptr=source_ptr,
