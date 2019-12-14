@@ -684,8 +684,8 @@ def process_set_as_path(
 
     if is_type_indirection:
         ptrref = cast(irast.TypeIndirectionPointerRef, ptrref)
-        if ptrref.ancestral:
-            # This is an ancestral type indirection, i.e. the
+        if ptrref.is_supertype:
+            # This is a supertype indirection, i.e. the
             # target type is an ancestor of the current type,
             # which means we don't have to restrict the set
             # and can simply forward to the source rvar.
@@ -693,13 +693,18 @@ def process_set_as_path(
             stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
             relctx.include_rvar(stmt, source_rvar, ir_set.path_id, ctx=ctx)
 
-        elif (not source_is_visible and ir_source.rptr is not None
+        elif (not source_is_visible
+                and ir_source.rptr is not None
                 and not ir_source.path_id.is_type_indirection_path()
-                and pg_types.get_ptrref_storage_info(
-                    ir_source.rptr.ptrref).table_type != 'ObjectType'):
-            # Otherwise, if the source link path is not visible
-            # and is not inline, we have an opportunity to opmimize
-            # the target join by directly replacing the target type.
+                and (
+                    ptrref.is_subtype
+                    or pg_types.get_ptrref_storage_info(
+                        ir_source.rptr.ptrref).table_type != 'ObjectType'
+                )):
+            # Otherwise, if the source link path is not visible,
+            # and this is a subtype indirection, or the pointer is not inline,
+            # we have an opportunity to opmimize the target join by
+            # directly replacing the target type.
             with ctx.new() as subctx:
                 subctx.join_target_type_filter = (
                     subctx.join_target_type_filter.copy())

@@ -315,7 +315,8 @@ def ptrref_from_ptrcls(
     elif isinstance(ptrcls, irast.TypeIndirectionLink):
         ircls = irast.TypeIndirectionPointerRef
         kwargs['optional'] = ptrcls.is_optional()
-        kwargs['ancestral'] = ptrcls.is_ancestral()
+        kwargs['is_supertype'] = ptrcls.is_supertype()
+        kwargs['is_subtype'] = ptrcls.is_subtype()
     elif isinstance(ptrcls, s_pointers.Pointer):
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
@@ -510,7 +511,8 @@ def ptrcls_from_ptrref(
             source=schema.get_by_id(ptrref.out_source.id),
             target=schema.get_by_id(ptrref.out_target.id),
             optional=ptrref.optional,
-            ancestral=ptrref.ancestral,
+            is_supertype=ptrref.is_supertype,
+            is_subtype=ptrref.is_subtype,
             cardinality=ptrref.out_cardinality,
         )
     elif isinstance(ptrref, irast.PointerRef):

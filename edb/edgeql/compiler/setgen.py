@@ -642,10 +642,17 @@ def class_indirection_set(
     else:
         cardinality = qltypes.Cardinality.ONE
     stype = get_set_type(source_set, ctx=ctx)
-    ancestral = stype.issubclass(ctx.env.schema, target_scls)
+    is_supertype = stype.issubclass(ctx.env.schema, target_scls)
+    is_subtype = target_scls.issubclass(ctx.env.schema, stype)
     poly_set.path_id = pathctx.get_type_indirection_path_id(
-        source_set.path_id, target_scls, optional=optional,
-        ancestral=ancestral, cardinality=cardinality, ctx=ctx)
+        source_set.path_id,
+        target_scls,
+        optional=optional,
+        is_supertype=is_supertype,
+        is_subtype=is_subtype,
+        cardinality=cardinality,
+        ctx=ctx,
+    )
 
     ptr = irast.TypeIndirectionPointer(
         source=source_set,

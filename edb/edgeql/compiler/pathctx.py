@@ -67,14 +67,21 @@ def get_tuple_indirection_path_id(
 
 
 def get_type_indirection_path_id(
-        path_id: irast.PathId, target_type: s_types.Type, *,
-        optional: bool, ancestral: bool, cardinality: qltypes.Cardinality,
-        ctx: context.ContextLevel) -> irast.PathId:
+    path_id: irast.PathId,
+    target_type: s_types.Type,
+    *,
+    optional: bool,
+    is_supertype: bool,
+    is_subtype: bool,
+    cardinality: qltypes.Cardinality,
+    ctx: context.ContextLevel,
+) -> irast.PathId:
     ptrcls = irast.TypeIndirectionLink(
         irtyputils.ir_typeref_to_type(ctx.env.schema, path_id.target),
         target_type,
         optional=optional,
-        ancestral=ancestral,
+        is_supertype=is_supertype,
+        is_subtype=is_subtype,
         cardinality=cardinality,
     )
 
