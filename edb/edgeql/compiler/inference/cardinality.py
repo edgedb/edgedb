@@ -30,6 +30,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 
 from .. import context
 
@@ -133,12 +134,11 @@ def __infer_type_introspection(
     return ONE
 
 
-@_infer_cardinality.register
-def __infer_set(
+def _is_visible(
     ir: irast.Set,
     scope_tree: irast.ScopeTreeNode,
     env: context.Environment,
-) -> qltypes.Cardinality:
+) -> bool:
     parent_fence = scope_tree.parent_fence
     if parent_fence is not None:
         if scope_tree.namespaces:
@@ -146,13 +146,65 @@ def __infer_set(
         else:
             path_id = ir.path_id
 
-        if parent_fence.is_visible(path_id):
-            return ONE
+        return parent_fence.is_visible(path_id)
+    else:
+        return False
 
-    if ir.rptr is not None:
-        if ir.rptr.ptrref.dir_cardinality is qltypes.Cardinality.ONE:
+
+@_infer_cardinality.register
+def __infer_set(
+    ir: irast.Set,
+    scope_tree: irast.ScopeTreeNode,
+    env: context.Environment,
+) -> qltypes.Cardinality:
+    if _is_visible(ir, scope_tree, env):
+        return ONE
+
+    rptr = ir.rptr
+    if rptr is not None:
+
+        rptrref = rptr.ptrref
+        if isinstance(rptrref, irast.TypeIndirectionPointerRef):
+            ind_prefix, ind_ptrs = irutils.collapse_type_indirection(ir)
             new_scope = _get_set_scope(ir, scope_tree)
-            return infer_cardinality(ir.rptr.source, new_scope, env)
+            if ind_prefix.rptr is None:
+                return infer_cardinality(ind_prefix, new_scope, env)
+            else:
+                # Expression before type indirection is a path,
+                # i.e Foo.<bar[IS Type].  In this case we must
+                # take possible indirection specialization of the
+                # link union into account.
+                # We're basically restating the body of this function
+                # in this block, but with extra conditions.
+                if _is_visible(ind_prefix, new_scope, env):
+                    return ONE
+                else:
+                    rptr_spec: Set[irast.PointerRef] = set()
+                    for ind_ptr in ind_ptrs:
+                        rptr_spec.update(ind_ptr.ptrref.rptr_specialization)
+
+                    if not rptr_spec:
+                        # The type indirection does not narrow the
+                        # pointer union (or there is no union), so
+                        # use the rptr cardinality as if there was no
+                        # indirection.
+                        if rptrref.dir_cardinality is qltypes.Cardinality.ONE:
+                            return infer_cardinality(
+                                rptr.source, new_scope, env)
+                        else:
+                            return MANY
+                    else:
+                        if any(s.dir_cardinality is qltypes.Cardinality.MANY
+                               for s in rptr_spec):
+                            return MANY
+                        else:
+                            new_scope = _get_set_scope(ind_prefix, scope_tree)
+                            return infer_cardinality(
+                                ind_prefix.rptr.source, new_scope, env)
+
+        elif rptrref.dir_cardinality is qltypes.Cardinality.ONE:
+            new_scope = _get_set_scope(ir, scope_tree)
+            return infer_cardinality(rptr.source, new_scope, env)
         else:
             return MANY
     elif ir.expr is not None:

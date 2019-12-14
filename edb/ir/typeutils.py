@@ -317,6 +317,7 @@ def ptrref_from_ptrcls(
         kwargs['optional'] = ptrcls.is_optional()
         kwargs['is_supertype'] = ptrcls.is_supertype()
         kwargs['is_subtype'] = ptrcls.is_subtype()
+        kwargs['rptr_specialization'] = ptrcls.get_rptr_specialization()
     elif isinstance(ptrcls, s_pointers.Pointer):
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id

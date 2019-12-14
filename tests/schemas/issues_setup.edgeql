@@ -61,7 +61,14 @@ INSERT File {
 
 WITH MODULE test
 INSERT LogEntry {
-    owner := (SELECT User FILTER User.name = 'Elvis'),
+    owner := (
+        SELECT
+            User {
+                @note := 'reassigned'
+            }
+        FILTER
+            User.name = 'Elvis'
+    ),
     spent_time := 50000,
     body := 'Rewriting everything.'
 };
@@ -71,7 +78,11 @@ INSERT Issue {
     number := '1',
     name := 'Release EdgeDB',
     body := 'Initial public release of EdgeDB.',
-    owner := (SELECT User FILTER User.name = 'Elvis'),
+    owner := (SELECT User {
+                @since := <datetime>'2018-01-01T00:00+00',
+                @note := 'automatic assignment',
+              }
+              FILTER User.name = 'Elvis'),
     watchers := (SELECT User FILTER User.name = 'Yury'),
     status := (SELECT Status FILTER Status.name = 'Open'),
     time_spent_log := (SELECT LogEntry),

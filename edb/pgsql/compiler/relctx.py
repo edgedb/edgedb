@@ -441,7 +441,7 @@ def _new_mapped_pointer_rvar(
     if (irtyputils.is_object(ptrref.out_target)
             and not irtyputils.is_computable_ptrref(ptrref)):
         tgt_ptr_info = pg_types.get_ptrref_storage_info(
-            ptrref, resolve_type=False)
+            ptrref, link_bias=True, resolve_type=False)
         tgt_col = tgt_ptr_info.column_name
     else:
         tgt_col = 'target'
@@ -878,7 +878,10 @@ def table_from_ptrref(
     relation = pgast.Relation(
         schemaname=table_schema_name, name=table_name)
 
+    # Pseudo pointers (tuple and type indirection) have no schema id.
+    sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
     rvar = pgast.RelRangeVar(
+        schema_object_id=sobj_id,
         relation=relation,
         alias=pgast.Alias(
             aliasname=ctx.env.aliases.get(ptrref.shortname.name)
@@ -928,7 +931,6 @@ def range_for_ptrref(
 
         qry = pgast.SelectStmt()
         qry.from_clause.append(table)
-        qry.rptr_rvar = table
 
         # Make sure all property references are pulled up properly
         for colname in cols:

@@ -335,7 +335,10 @@ class ScopeTreeNode:
                     and not prefix.is_tuple_indirection_path()):
                 parent = new_child
 
-            is_lprop = False
+            # Skip through type indirections (i.e [IS Foo]) until
+            # we actually get to the link.
+            if not prefix.is_type_indirection_path():
+                is_lprop = False
 
         self.attach_subtree(subtree)
 

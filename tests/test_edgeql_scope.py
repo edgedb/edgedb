@@ -520,10 +520,10 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         name,
                         percent_cost := (
                             SELECT <int64>(100 * Card.cost /
-                                           Card.<deck.deck_cost)
+                                           Card.<deck[IS User].deck_cost)
                         ),
                     },
-                    Card.<deck { name }
+                    Card.<deck[IS User] { name }
                 )
                 ORDER BY x.1.name THEN x.0.name;
             ''',
@@ -964,7 +964,9 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         WITH
                             F := (
                                 SELECT User
-                                FILTER User.<friends@nickname = 'Firefighter'
+                                FILTER
+                                    User.<friends[IS User]@nickname
+                                    = 'Firefighter'
                             )
                         SELECT
                             # cardinality should be inferable here:
@@ -1053,7 +1055,9 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         WITH
                             F := (
                                 SELECT User
-                                FILTER User.<friends@nickname = 'Firefighter'
+                                FILTER
+                                    User.<friends[IS User]@nickname
+                                    = 'Firefighter'
                             )
                         SELECT
                             # cardinality should be inferable here:
@@ -1536,7 +1540,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                             FILTER .<friends = User
                         )
                         SELECT F0 {name}
-                        FILTER .<friends@nickname = 'Firefighter'
+                        FILTER .<friends[IS User]@nickname = 'Firefighter'
                     )
                 }
                 ORDER BY .name;

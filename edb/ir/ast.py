@@ -182,6 +182,13 @@ class BasePointerRef(ImmutableBase):
     # Outbound cardinality of the pointer.
     out_cardinality: qltypes.Cardinality
 
+    @property
+    def dir_target(self) -> TypeRef:
+        if self.direction is s_pointers.PointerDirection.Outbound:
+            return self.out_target
+        else:
+            return self.out_source
+
 
 class PointerRef(BasePointerRef):
 
@@ -254,6 +261,7 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
         optional: bool,
         is_supertype: bool,
         is_subtype: bool,
+        rptr_specialization: typing.Iterable[PointerRef] = (),
         cardinality: qltypes.Cardinality,
     ) -> None:
         name = 'optindirection' if optional else 'indirection'
@@ -264,6 +272,7 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
         self._optional = optional
         self._is_supertype = is_supertype
         self._is_subtype = is_subtype
+        self._rptr_specialization = frozenset(rptr_specialization)
 
     def get_name(self, schema: s_schema.Schema) -> sn.Name:
         return self._name
@@ -282,6 +291,9 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
 
     def is_subtype(self) -> bool:
         return self._is_subtype
+
+    def get_rptr_specialization(self) -> typing.FrozenSet[PointerRef]:
+        return self._rptr_specialization
 
     def get_source(self, schema: s_schema.Schema) -> so.Object:
         return self._source
@@ -309,6 +321,7 @@ class TypeIndirectionPointerRef(BasePointerRef):
     optional: bool
     is_supertype: bool
     is_subtype: bool
+    rptr_specialization: typing.FrozenSet[PointerRef]
 
 
 class Pointer(Base):
@@ -328,6 +341,7 @@ class Pointer(Base):
 class TypeIndirectionPointer(Pointer):
 
     optional: bool
+    ptrref: TypeIndirectionPointerRef
 
 
 class Expr(Base):

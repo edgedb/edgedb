@@ -646,6 +646,20 @@ def process_set_as_link_property_ref(
     with ctx.new() as newctx:
         link_path_id = ir_set.path_id.src_path()
         assert link_path_id is not None
+        orig_link_path_id = link_path_id
+
+        rptr_specialization: Set[irast.PointerRef] = set()
+
+        if link_path_id.is_type_indirection_path():
+            link_prefix, ind_ptrs = (
+                irutils.collapse_type_indirection(ir_source))
+            for ind_ptr in ind_ptrs:
+                rptr_specialization.update(ind_ptr.ptrref.rptr_specialization)
+
+            link_path_id = link_prefix.path_id.ptr_path()
+        else:
+            link_prefix = ir_source
+
         source_scope_stmt = relctx.get_scope_stmt(
             ir_source.path_id, ctx=newctx)
 
@@ -654,7 +668,36 @@ def process_set_as_link_property_ref(
 
         if link_rvar is None:
             link_rvar = relctx.new_pointer_rvar(
-                ir_source.rptr, src_rvar=src_rvar, link_bias=True, ctx=newctx)
+                link_prefix.rptr, src_rvar=src_rvar,
+                link_bias=True, ctx=newctx)
+
+        if rptr_specialization and astutils.is_set_op_query(link_rvar.query):
+            # This is a link property reference to a link union narrowed
+            # by a type indirection.  We already know which union components
+            # match the indirection expression, and can route the link
+            # property references to correct UNION subqueries.
+            ptr_ids = {spec.id for spec in rptr_specialization}
+
+            def cb(subquery: pgast.Query) -> None:
+                if isinstance(subquery, pgast.SelectStmt):
+                    rvar = subquery.from_clause[0]
+                    assert isinstance(rvar, pgast.PathRangeVar)
+                    if rvar.schema_object_id in ptr_ids:
+                        pathctx.put_path_source_rvar(
+                            subquery, orig_link_path_id, rvar, env=ctx.env
+                        )
+                        return
+                # Spare get_path_var() from attempting to rebalance
+                # the UNION by recording an explicit NULL as as the
+                # link property var.
+                pathctx.put_path_value_var(
+                    subquery, ir_set.path_id,
+                    pgast.NullConstant(),
+                    env=ctx.env,
+                )
+
+            assert isinstance(link_rvar.query, pgast.Query)
+            astutils.for_each_query_in_set(link_rvar.query, cb)
 
         rvars.append(SetRVar(
             link_rvar, link_path_id, aspects=['value', 'source']))
@@ -733,9 +776,16 @@ def process_set_as_path(
     is_inline_primitive_ref = is_inline_ref and is_primitive_ref
     is_id_ref_to_inline_source = False
 
+    if is_linkprop:
+        backtrack_src = ir_source
+        ctx.disable_semi_join.add(backtrack_src.path_id)
+        while backtrack_src.path_id.is_type_indirection_path():
+            backtrack_src = ir_source.rptr.source
+            ctx.disable_semi_join.add(backtrack_src.path_id)
+
     semi_join = (
         not source_is_visible and
-        ir_source.path_id not in ctx.disable_semi_join and
+        ir_set.path_id not in ctx.disable_semi_join and
         not (is_linkprop or is_primitive_ref)
     )
 
@@ -783,9 +833,6 @@ def process_set_as_path(
 
     elif not source_is_visible:
         with ctx.subrel() as srcctx:
-            if is_linkprop:
-                srcctx.disable_semi_join.add(ir_source.path_id)
-
             get_set_rvar(ir_source, ctx=srcctx)
 
             if is_inline_primitive_ref:

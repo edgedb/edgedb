@@ -242,8 +242,33 @@ def get_class_nearest_common_ancestor(schema, classes):
         return None
 
 
-def minimize_class_set_by_least_generic(schema, classes):
-    """Minimize the given Object set by filtering out all superclasses."""
+def minimize_class_set_by_most_generic(
+    schema: s_schema.Schema,
+    classes: Iterable[so.InheritingObjectBase]
+) -> List[so.InheritingObjectBase]:
+    """Minimize the given set of objects by filtering out all subclasses."""
+
+    classes = list(classes)
+    mros = [set(p.get_ancestors(schema).objects(schema)) for p in classes]
+    count = len(classes)
+    smap = itertools.starmap
+
+    # Return only those entries that do not have other entries in their mro
+    result = [
+        scls for i, scls in enumerate(classes)
+        if not any(smap(set.__contains__,
+                        ((mros[i], classes[j])
+                         for j in range(count) if j != i)))
+    ]
+
+    return result
+
+
+def minimize_class_set_by_least_generic(
+    schema: s_schema.Schema,
+    classes: Iterable[so.InheritingObjectBase]
+) -> List[so.InheritingObjectBase]:
+    """Minimize the given set of objects by filtering out all superclasses."""
 
     classes = list(classes)
     mros = [set(p.get_ancestors(schema).objects(schema)) | {p}
@@ -422,10 +447,10 @@ def ensure_union_type(
         else:
             components.add(t)
 
+    components = minimize_class_set_by_most_generic(schema, components)
+
     if len(components) == 1 and not opaque:
         return schema, next(iter(components)), False
-
-    components = list(components)
 
     seen_scalars = False
     seen_objtypes = False

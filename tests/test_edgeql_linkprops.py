@@ -20,7 +20,6 @@
 import os.path
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLLinkproperties(tb.QueryTestCase):
@@ -349,7 +348,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     cost
                 }
                 FILTER
-                    .cost = .<deck@count
+                    .cost = .<deck[IS User]@count
                 ORDER BY .name;
             ''',
             [
@@ -392,10 +391,6 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: column avatar~1.avatar does
-        not exist
-    ''')
     async def test_edgeql_props_basic_06(self):
         await self.assert_query_result(
             r'''
@@ -429,7 +424,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 SELECT Card {
                     name,
                 }
-                FILTER .cost = .<deck@count
+                FILTER .cost = .<deck[IS User]@count
                 ORDER BY .name;
             ''',
             [
@@ -505,7 +500,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 SELECT Card {
                     name,
                     same := (
-                        SELECT _ := Card.cost = Card.<deck@count
+                        SELECT _ := Card.cost = Card.<deck[IS User]@count
                         ORDER BY _ DESC LIMIT 1
                     )
                 }
@@ -532,11 +527,15 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 SELECT Card {
                     name,
                     element,
-                    count := (SELECT _ := Card.<deck@count ORDER BY _),
+                    count := (
+                        SELECT _ := Card.<deck[IS User]@count ORDER BY _
+                    ),
                     expr := (
-                        SELECT _ := NOT EXISTS (SELECT Card
-                                                FILTER Card.<deck@count = 1) OR
-                                    Card.element = 'Fire'
+                        SELECT
+                            _ := NOT EXISTS (
+                                SELECT Card
+                                FILTER Card.<deck[IS User]@count = 1
+                            ) OR Card.element = 'Fire'
                         ORDER BY _ DESC LIMIT 1
                     )
                 }
@@ -609,7 +608,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 SELECT Card {
                     name,
                 }
-                FILTER NOT (NOT .<deck@count = 1 OR .element = 'Fire')
+                FILTER NOT (NOT .<deck[IS User]@count = 1 OR .element = 'Fire')
                 ORDER BY .name;
             ''',
             [
@@ -630,7 +629,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 SELECT Card {
                     name,
                 }
-                FILTER .<deck@count = 1 AND .element != 'Fire'
+                FILTER .<deck[IS User]@count = 1 AND .element != 'Fire'
                 ORDER BY .name;
             ''',
             [
@@ -746,7 +745,8 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT DISTINCT (
                     SELECT (
-                        SELECT Card FILTER Card.element = 'Water').<deck@count
+                        SELECT Card FILTER Card.element = 'Water'
+                    ).<deck[IS User]@count
             );
             ''',
             {1, 2, 3},

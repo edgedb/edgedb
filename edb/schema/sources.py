@@ -60,7 +60,7 @@ class Source(indexes.IndexableSubject):
                 'references to concrete pointers must not be qualified')
         return self.get_pointers(schema).get(schema, name, None)
 
-    def getrptrs(self, schema, name):
+    def getrptrs(self, schema, name, *, sources=()):
         return set()
 
     def add_pointer(self, schema, pointer, *, replace=False):

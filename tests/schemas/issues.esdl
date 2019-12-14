@@ -48,7 +48,9 @@ type User extending Dictionary {
 
 abstract type Owned {
     # By default links are optional.
-    required link owner -> User;
+    required link owner -> User {
+        property note -> str;
+    }
 }
 
 type Status extending Dictionary;
@@ -70,6 +72,10 @@ type Comment extending Text, Owned {
 }
 
 type Issue extending Named, Owned, Text {
+    overloaded required link owner {
+        property since -> datetime;
+    }
+
     required property number -> issue_num_t {
         readonly := true;
         constraint exclusive;

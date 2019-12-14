@@ -256,9 +256,43 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
                 # link immediately preceding this step in the path.
-                ptr = typegen.ptrcls_from_ptrref(path_tip.rptr.ptrref, ctx=ctx)
-                assert isinstance(ptr, s_links.Link)
-                source = ptr
+                backtrack = path_tip
+                ptr = typegen.ptrcls_from_ptrref(
+                    backtrack.rptr.ptrref, ctx=ctx)
+                endpoints = []
+                while isinstance(ptr, irast.TypeIndirectionLink):
+                    endpoints.append(get_set_type(path_tip, ctx=ctx))
+                    backtrack = path_tip.rptr.source
+                    ptr = typegen.ptrcls_from_ptrref(
+                        backtrack.rptr.ptrref, ctx=ctx)
+
+                if endpoints:
+                    link_name = ptr.get_shortname(ctx.env.schema).name
+                    try:
+                        ptr = resolve_ptr(
+                            get_set_type(backtrack.rptr.source, ctx=ctx),
+                            link_name,
+                            far_endpoints=endpoints,
+                            direction=backtrack.rptr.direction,
+                            source_context=step.context,
+                            ctx=ctx,
+                        )
+                    except errors.InvalidReferenceError:
+                        raise errors.InvalidReferenceError(
+                            f"property {ptr_name!r} is not defined "
+                            f"on this link path",
+                            context=step.context,
+                        ) from None
+
+                if isinstance(ptr, s_links.Link):
+                    source = ptr
+                else:
+                    raise errors.QueryError(
+                        'improper reference to link property on '
+                        'a non-link object',
+                        context=step.context,
+                    )
+                    assert isinstance(ptr, s_links.Link)
             else:
                 source = get_set_type(path_tip, ctx=ctx)
 
@@ -462,6 +496,7 @@ def ptr_step_set(
 def resolve_ptr(
         near_endpoint: s_obj.Object,
         pointer_name: str, *,
+        far_endpoints: Iterable[s_obj.Object] = (),
         direction: s_pointers.PointerDirection=(
             s_pointers.PointerDirection.Outbound
         ),
@@ -473,62 +508,68 @@ def resolve_ptr(
         msg = 'invalid property reference on a primitive type expression'
         raise errors.InvalidReferenceError(msg, context=source_context)
 
-    ptr: Optional[s_pointers.Pointer]
+    ptr: Optional[s_pointers.Pointer] = None
 
     if direction is s_pointers.PointerDirection.Outbound:
         ptr = near_endpoint.getptr(ctx.env.schema, pointer_name)
+
+        if ptr is not None:
+            ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
+            ctx.env.schema_refs.add(ref)
+
     else:
-        ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name)
-        if not ptrs:
-            ptr = None
-        else:
-            if len(ptrs) == 1:
-                ptr = next(iter(ptrs))
-            else:
-                ctx.env.schema_refs.update(
-                    p.get_nearest_non_derived_parent(ctx.env.schema)
-                    for p in ptrs
-                )
-                ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
-                    ctx.env.schema,
-                    ptrname=pointer_name,
-                    source=near_endpoint,
-                    direction=direction,
-                    components=ptrs,
-                    modname=ctx.derived_target_module)
-
-    if ptr is None:
-        if isinstance(near_endpoint, s_links.Link):
-            msg = (f'{near_endpoint.get_verbosename(ctx.env.schema)} '
-                   f'has no property {pointer_name!r}')
-
-        elif direction == s_pointers.PointerDirection.Outbound:
-            msg = (f'{near_endpoint.get_verbosename(ctx.env.schema)} '
-                   f'has no link or property {pointer_name!r}')
-
-        else:
-            nep_name = near_endpoint.get_displayname(ctx.env.schema)
-            path = f'{nep_name}.{direction}{pointer_name}'
-            msg = f'{path!r} does not resolve to any known path'
-
-        err = errors.InvalidReferenceError(msg, context=source_context)
-
-        if direction == s_pointers.PointerDirection.Outbound:
-            near_enpoint_pointers = near_endpoint.get_pointers(
-                ctx.env.schema)
-            s_utils.enrich_schema_lookup_error(
-                err, pointer_name, modaliases=ctx.modaliases,
-                item_types=(s_pointers.Pointer,),
-                collection=near_enpoint_pointers.objects(ctx.env.schema),
-                schema=ctx.env.schema
+        ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
+                                      sources=far_endpoints)
+        if ptrs:
+            ctx.env.schema_refs.update(
+                p.get_nearest_non_derived_parent(ctx.env.schema)
+                for p in ptrs
             )
 
-        raise err
+            opaque = (
+                direction is s_pointers.PointerDirection.Inbound
+                and not far_endpoints
+            )
 
-    ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
-    ctx.env.schema_refs.add(ref)
+            ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
+                ctx.env.schema,
+                ptrname=pointer_name,
+                source=near_endpoint,
+                direction=direction,
+                components=ptrs,
+                opaque=opaque,
+                modname=ctx.derived_target_module,
+            )
 
-    return ptr
+    if ptr is not None:
+        return ptr
+
+    if isinstance(near_endpoint, s_links.Link):
+        msg = (f'{near_endpoint.get_verbosename(ctx.env.schema)} '
+               f'has no property {pointer_name!r}')
+
+    elif direction == s_pointers.PointerDirection.Outbound:
+        msg = (f'{near_endpoint.get_verbosename(ctx.env.schema)} '
+               f'has no link or property {pointer_name!r}')
+
+    else:
+        nep_name = near_endpoint.get_displayname(ctx.env.schema)
+        path = f'{nep_name}.{direction}{pointer_name}'
+        msg = f'{path!r} does not resolve to any known path'
+
+    err = errors.InvalidReferenceError(msg, context=source_context)
+
+    if direction == s_pointers.PointerDirection.Outbound:
+        near_enpoint_pointers = near_endpoint.get_pointers(
+            ctx.env.schema)
+        s_utils.enrich_schema_lookup_error(
+            err, pointer_name, modaliases=ctx.modaliases,
+            item_types=(s_pointers.Pointer,),
+            collection=near_enpoint_pointers.objects(ctx.env.schema),
+            schema=ctx.env.schema
+        )
+
+    raise err
 
 
 def extend_path(
@@ -636,28 +677,54 @@ def class_indirection_set(
 
     poly_set = new_set(stype=target_scls, ctx=ctx)
     rptr = source_set.rptr
-    if (rptr is not None
-            and rptr.ptrref.dir_cardinality is qltypes.Cardinality.MANY):
-        cardinality = qltypes.Cardinality.MANY
-    else:
-        cardinality = qltypes.Cardinality.ONE
+    rptr_specialization = []
+
+    if rptr is not None and rptr.ptrref.union_components:
+        # This is a type indirection of a union pointer, most likely
+        # a reverse link path specification.  If so, test the union
+        # components against the type expression and record which
+        # components match.  This information will be used later
+        # when evaluating the path cardinality, as well as to
+        # route link property references accordingly.
+        for component in rptr.ptrref.union_components:
+            component_endpoint_ref = component.dir_target
+            component_endpoint = irtyputils.ir_typeref_to_type(
+                ctx.env.schema, component_endpoint_ref)
+            if component_endpoint.issubclass(ctx.env.schema, target_scls):
+                assert isinstance(component, irast.PointerRef)
+                rptr_specialization.append(component)
+
     stype = get_set_type(source_set, ctx=ctx)
     is_supertype = stype.issubclass(ctx.env.schema, target_scls)
     is_subtype = target_scls.issubclass(ctx.env.schema, stype)
-    poly_set.path_id = pathctx.get_type_indirection_path_id(
-        source_set.path_id,
+
+    source_sobj = irtyputils.ir_typeref_to_type(
+        ctx.env.schema, source_set.path_id.target)
+    ptrcls = irast.TypeIndirectionLink(
+        source_sobj,
         target_scls,
         optional=optional,
         is_supertype=is_supertype,
         is_subtype=is_subtype,
-        cardinality=cardinality,
-        ctx=ctx,
+        rptr_specialization=rptr_specialization,
+        # The type indirection cannot increase the cardinality
+        # of the input set, so semantically, the cardinality
+        # of the type indirection "link" is, at most, ONE.
+        cardinality=qltypes.Cardinality.ONE,
     )
+
+    ptrref = irtyputils.ptrref_from_ptrcls(
+        schema=ctx.env.schema,
+        ptrcls=ptrcls,
+    )
+
+    poly_set.path_id = source_set.path_id.extend(
+        schema=ctx.env.schema, ptrref=ptrref,)
 
     ptr = irast.TypeIndirectionPointer(
         source=source_set,
         target=poly_set,
-        ptrref=poly_set.path_id.rptr(),
+        ptrref=ptrref,
         direction=poly_set.path_id.rptr_dir(),
         optional=optional,
     )

@@ -976,7 +976,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 # group by link property
                 WITH MODULE cards
                 GROUP Card
-                USING B := Card.<deck@count
+                USING B := Card.<deck[IS User]@count
                 BY B
                 INTO Card
                 UNION _ := (
@@ -1021,7 +1021,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     cards := array_agg(
                         DISTINCT Card.name ORDER BY Card.name),
                     element := El,
-                    count := sum(Card.<deck@count),
+                    count := sum(Card.<deck[IS User]@count),
                 ) ORDER BY _.count;
             """,
             [
@@ -1056,8 +1056,8 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 GROUP User
                 # get the nickname that this user from Alice (if any)
                 USING B := (
-                    SELECT User.<friends@nickname
-                    FILTER User.<friends.name = 'Alice'
+                    SELECT User.<friends[IS User]@nickname
+                    FILTER User.<friends[IS User].name = 'Alice'
                 )
                 BY B
                 INTO F

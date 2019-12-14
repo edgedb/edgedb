@@ -1305,6 +1305,51 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
+    async def test_edgeql_select_reverse_link_01(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT
+                (INTROSPECT TYPEOF User.<owner).name;
+            ''',
+            ['std::Object']
+        )
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidReferenceError,
+            "property 'since' is not defined",
+        ):
+            await self.con.execute(
+                r'''
+                WITH MODULE test
+                SELECT
+                    User.<owner[IS Text]@since
+                ''',
+            )
+
+    async def test_edgeql_select_reverse_link_02(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT
+                User.<owner[IS Issue]@since
+            ''',
+            ['2018-01-01T00:00:00+00:00'],
+        )
+
+    async def test_edgeql_select_reverse_link_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidReferenceError,
+            "no link or property 'number'",
+        ):
+            await self.con.execute(
+                r'''
+                WITH MODULE test
+                SELECT
+                    Issue.<related_to.number
+                ''',
+            )
+
     async def test_edgeql_select_view_01(self):
         await self.assert_query_result(
             r'''
@@ -2060,7 +2105,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT User {name}
             ORDER BY (
-                SELECT sum(<int64>User.<watchers.number)
+                SELECT sum(<int64>User.<watchers[IS Issue].number)
             );
             ''',
             [
@@ -4510,7 +4555,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
             WITH MODULE test
-            SELECT Issue.<todo@rank + <int64>Issue.number
+            SELECT Issue.<todo[IS User]@rank + <int64>Issue.number
             ORDER BY Issue.number;
             """,
             [43, 44, 45, 46]

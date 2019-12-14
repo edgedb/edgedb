@@ -363,7 +363,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
                 SELECT Card {
                     name,
                     owned := (
-                        WITH O := Card.<deck
+                        WITH O := Card.<deck[IS User]
                         SELECT O {
                             name,
                             # simple computable

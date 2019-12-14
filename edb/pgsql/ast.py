@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import enum
 import typing
+import uuid
 
 from edb.common import ast
 from edb.common import typeutils
@@ -143,7 +144,12 @@ class EdgeQLPathInfo(Base):
 class BaseRangeVar(ImmutableBaseExpr):
     """Range variable, used in FROM clauses."""
 
+    __ast_meta__ = {'schema_object_id'}
+
     alias: Alias
+
+    #: The id of the schema object this rvar represents
+    schema_object_id: typing.Optional[uuid.UUID] = None
 
 
 class BaseRelation(EdgeQLPathInfo, BaseExpr):

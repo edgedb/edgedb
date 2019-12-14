@@ -1076,7 +1076,7 @@ class TestInsert(tb.QueryTestCase):
                         name,
                         l2,
                         l3,
-                        subject := .<subject {
+                        subject := .<subject[IS Note] {
                             name,
                             note,
                         }

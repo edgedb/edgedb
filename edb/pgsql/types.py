@@ -459,10 +459,13 @@ def _storable_in_source(ptrref: irast.PointerRef) -> bool:
 
 
 def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
-    return (
-        ptrref.out_cardinality is qltypes.Cardinality.MANY
-        or ptrref.has_properties
-    )
+    if ptrref.union_components:
+        return all(_storable_in_pointer(c) for c in ptrref.union_components)
+    else:
+        return (
+            ptrref.out_cardinality is qltypes.Cardinality.MANY
+            or ptrref.has_properties
+        )
 
 
 _TypeDescNode = collections.namedtuple(

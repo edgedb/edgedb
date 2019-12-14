@@ -250,6 +250,23 @@ def is_type_indirection_reference(ir_expr: irast.Base) -> bool:
     return source_is_type_indirection
 
 
+def collapse_type_indirection(
+    ir_set: irast.Set,
+) -> Tuple[irast.Set, List[irast.TypeIndirectionPointer]]:
+
+    result: List[irast.TypeIndirectionPointer] = []
+
+    source = ir_set
+    while True:
+        rptr = source.rptr
+        if not isinstance(rptr, irast.TypeIndirectionPointer):
+            break
+        result.append(rptr)
+        source = rptr.source
+
+    return source, result
+
+
 def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
     """For a given *ir_set* representing a Path, return the nearest path
        step that is a DML expression.

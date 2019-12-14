@@ -88,7 +88,7 @@ class BaseObjectType(sources.Source,
             else:
                 return mtype.get_displayname(schema)
 
-    def getrptrs(self, schema, name):
+    def getrptrs(self, schema, name, *, sources=()):
         if sn.Name.is_qualified(name):
             raise ValueError(
                 'references to concrete pointers must not be qualified')
@@ -96,18 +96,24 @@ class BaseObjectType(sources.Source,
         ptrs = {
             l for l in schema.get_referrers(self, scls_type=links.Link,
                                             field_name='target')
-            if (l.get_shortname(schema).name == name
+            if (
+                l.get_shortname(schema).name == name
                 and not l.get_source(schema).is_view(schema)
-                and l.get_is_local(schema))
+                and l.get_is_local(schema)
+                and (not sources or l.get_source(schema) in sources)
+            )
         }
 
         for obj in self.get_ancestors(schema).objects(schema):
             ptrs.update(
                 l for l in schema.get_referrers(obj, scls_type=links.Link,
                                                 field_name='target')
-                if (l.get_shortname(schema).name == name
+                if (
+                    l.get_shortname(schema).name == name
                     and not l.get_source(schema).is_view(schema)
-                    and l.get_is_local(schema))
+                    and l.get_is_local(schema)
+                    and (not sources or l.get_source(schema) in sources)
+                )
             )
 
         return ptrs

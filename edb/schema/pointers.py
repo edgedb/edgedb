@@ -969,12 +969,18 @@ def get_or_create_union_pointer(
     source,
     direction: PointerDirection,
     components: Iterable[Pointer], *,
-    modname: Optional[str]=None,
+    opaque: bool = False,
+    modname: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, Pointer]:
+
+    components = list(components)
+
+    if len(components) == 1 and direction is PointerDirection.Outbound:
+        return components[0]
 
     targets = [p.get_far_endpoint(schema, direction) for p in components]
     schema, target = utils.get_union_type(
-        schema, targets, opaque=False, module=modname)
+        schema, targets, opaque=opaque, module=modname)
 
     cardinality = qltypes.Cardinality.ONE
     for component in components:
@@ -982,7 +988,6 @@ def get_or_create_union_pointer(
             cardinality = qltypes.Cardinality.MANY
             break
 
-    components = list(components)
     metacls = type(components[0])
     genptr = schema.get(metacls.get_default_base_name())
 
