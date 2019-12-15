@@ -115,6 +115,34 @@ class PendingCardinality(NamedTuple):
     callbacks: List[PointerCardinalityCallback]
 
 
+class PointerRefCache(
+    Dict[
+        Tuple[s_pointers.PointerLike, s_pointers.PointerDirection],
+        irast.BasePointerRef,
+    ]
+):
+
+    _rcache: Dict[irast.BasePointerRef, s_pointers.PointerLike]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._rcache = {}
+
+    def __setitem__(
+        self,
+        key: Tuple[s_pointers.PointerLike, s_pointers.PointerDirection],
+        val: irast.BasePointerRef,
+    ) -> None:
+        super().__setitem__(key, val)
+        self._rcache[val] = key[0]
+
+    def get_ptrcls_for_ref(
+        self,
+        ref: irast.BasePointerRef,
+    ) -> Optional[s_pointers.PointerLike]:
+        return self._rcache.get(ref)
+
+
 class Environment:
     """Compilation environment."""
 
@@ -184,6 +212,8 @@ class Environment:
     allow_generic_type_output: bool
     """Whether to allow the expression to be of a generic type."""
 
+    ptr_ref_cache: PointerRefCache
+
     def __init__(
         self,
         *,
@@ -217,6 +247,7 @@ class Environment:
         self.created_schema_objects = set()
         self.func_params = func_params
         self.parent_object_type = parent_object_type
+        self.ptr_ref_cache = PointerRefCache()
 
     def get_track_schema_object(
         self,

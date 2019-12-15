@@ -52,6 +52,7 @@ from . import setgen
 from . import viewgen
 from . import schemactx
 from . import stmtctx
+from . import typegen
 
 
 @dispatch.compile.register(qlast.SelectQuery)
@@ -743,8 +744,7 @@ def compile_query_subject(
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
         # its properties.
-        base_ptrcls = irtyputils.ptrcls_from_ptrref(
-            expr_rptr.ptrref, schema=ctx.env.schema)
+        base_ptrcls = typegen.ptrcls_from_ptrref(expr_rptr.ptrref, ctx=ctx)
         assert isinstance(base_ptrcls, s_pointers.Pointer)
         view_rptr.base_ptrcls = base_ptrcls
         view_rptr.ptrcls_is_alias = True

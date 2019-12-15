@@ -30,6 +30,7 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
+from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -127,3 +128,15 @@ def _ql_typename_to_type(
             return coll.from_subtypes(ctx.env.schema, a_subtypes)
     else:
         return schemactx.get_schema_type(ql_t.maintype, ctx=ctx)
+
+
+def ptrcls_from_ptrref(
+    ptrref: irast.BasePointerRef, *,
+    ctx: context.ContextLevel,
+) -> s_pointers.PointerLike:
+
+    cached = ctx.env.ptr_ref_cache.get_ptrcls_for_ref(ptrref)
+    if cached is not None:
+        return cached
+
+    return irtyputils.ptrcls_from_ptrref(ptrref, schema=ctx.env.schema)

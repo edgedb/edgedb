@@ -276,7 +276,11 @@ def ptrref_from_ptrcls(
     ptrcls: s_pointers.PointerLike,
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound),
-    include_descendants: bool = True,
+    cache: Optional[Dict[
+        Tuple[s_pointers.PointerLike, s_pointers.PointerDirection],
+        irast.BasePointerRef,
+    ]] = None,
+    _include_descendants: bool = True,
 ) -> irast.BasePointerRef:
     """Return an IR pointer descriptor for a given schema pointer.
 
@@ -291,14 +295,16 @@ def ptrref_from_ptrcls(
             return the PointerRef.
         direction:
             The direction of the pointer in the path expression.
-        include_descendants:
-            Whether to include the corresponding pointer of the
-            subtypes of the source type.
 
     Returns:
         An instance of a subclass of :class:`ir.ast.BasePointerRef`
         corresponding to the given schema pointer.
     """
+
+    if cache is not None:
+        cached = cache.get((ptrcls, direction))
+        if cached is not None:
+            return cached
 
     kwargs: Dict[str, Any] = {}
 
@@ -336,6 +342,7 @@ def ptrref_from_ptrcls(
             ptrcls=source,
             direction=direction,
             schema=schema,
+            cache=cache,
         )
         source_ref = None
     else:
@@ -367,7 +374,9 @@ def ptrref_from_ptrcls(
         material_ptr = ptrref_from_ptrcls(
             ptrcls=material_ptrcls,
             direction=direction,
-            schema=schema)
+            schema=schema,
+            cache=cache,
+        )
     else:
         material_ptr = None
 
@@ -381,6 +390,7 @@ def ptrref_from_ptrcls(
                     ptrcls=material_comp,
                     direction=direction,
                     schema=schema,
+                    cache=cache,
                 )
             )
     elif (material_ptr is None
@@ -392,14 +402,15 @@ def ptrref_from_ptrcls(
                     ptrcls=base,
                     direction=direction,
                     schema=schema,
-                    include_descendants=False,
+                    cache=None,
+                    _include_descendants=False,
                 )
             )
 
     descendants: Set[irast.BasePointerRef] = set()
 
     if not union_components:
-        if isinstance(source, s_objtypes.ObjectType) and include_descendants:
+        if isinstance(source, s_objtypes.ObjectType) and _include_descendants:
             ptrs = {material_ptrcls}
             ptrname = ptrcls.get_shortname(schema).name
             for descendant in source.descendants(schema):
@@ -414,6 +425,7 @@ def ptrref_from_ptrcls(
                                 ptrcls=desc_material_ptr,
                                 direction=direction,
                                 schema=schema,
+                                cache=cache,
                             )
                         )
 
@@ -432,6 +444,7 @@ def ptrref_from_ptrcls(
             ptrcls=base_ptrcls,
             direction=direction,
             schema=schema,
+            cache=cache,
         )
     else:
         base_ptr = None
@@ -456,7 +469,12 @@ def ptrref_from_ptrcls(
         out_cardinality=out_cardinality,
     ))
 
-    return ircls(**kwargs)
+    ptrref = ircls(**kwargs)
+
+    if cache is not None:
+        cache[ptrcls, direction] = ptrref
+
+    return ptrref
 
 
 def ptrcls_from_ptrref(

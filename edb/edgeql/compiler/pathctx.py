@@ -156,6 +156,7 @@ def extend_path_id(
         schema=ctx.env.schema,
         ptrcls=ptrcls,
         direction=direction,
+        cache=ctx.env.ptr_ref_cache,
     )
     stmtctx.ensure_ptrref_cardinality(ptrcls, ptrref, ctx=ctx)
 

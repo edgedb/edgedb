@@ -46,6 +46,7 @@ from . import pathctx
 from . import schemactx
 from . import setgen
 from . import stmtctx
+from . import typegen
 
 if TYPE_CHECKING:
     from edb.schema import lproperties as s_props
@@ -758,8 +759,7 @@ def _get_shape_configuration(
         rptr = ir_set.rptr
 
     if rptr is not None:
-        rptrcls = irtyputils.ptrcls_from_ptrref(
-            rptr.ptrref, schema=ctx.env.schema)
+        rptrcls = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
     else:
         rptrcls = None
 
