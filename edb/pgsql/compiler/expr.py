@@ -153,19 +153,6 @@ def compile_RawStringConstant(
     )
 
 
-@dispatch.compile.register(irast.StringConstant)
-def compile_StringConstant(
-        expr: irast.StringConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-
-    return pgast.TypeCast(
-        arg=pgast.EscapedStringConstant(val=expr.value),
-        type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
-        )
-    )
-
-
 @dispatch.compile.register(irast.BytesConstant)
 def compile_BytesConstant(
         expr: irast.StringConstant, *,

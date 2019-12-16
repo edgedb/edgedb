@@ -33,6 +33,21 @@ from . import qltypes
 
 
 _module_name_re = re.compile(r'^(?!=\d)\w+(\.(?!=\d)\w+)*$')
+_BYTES_ESCAPE_RE = re.compile(b'[\\\'\x00-\x1f\x7e-\xff]')
+_ESCAPES = {
+    b'\\': b'\\\\',
+    b'\'': b'\\\'',
+    b'\t': b'\\t',
+    b'\n': b'\\n',
+}
+
+
+def _bytes_escape(match):
+    char = match.group(0)
+    try:
+        return _ESCAPES[char]
+    except KeyError:
+        return b'\\x%02x' % char[0]
 
 
 def any_ident_to_str(ident: str) -> str:
@@ -545,13 +560,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(param_to_str(node.name))
 
     def visit_StringConstant(self, node: qlast.StringConstant) -> None:
-        self.write(node.quote, node.value, node.quote)
+        raise NotImplementedError()
 
     def visit_RawStringConstant(self, node: qlast.RawStringConstant) -> None:
-        if node.quote.startswith('$'):
-            self.write(node.quote, node.value, node.quote)
-        else:
-            self.write('r', node.quote, node.value, node.quote)
+        if node.value.isprintable():
+            for d in ("'", '"', '$$'):
+                if d not in node.value:
+                    if '\\' in node.value and d != '$$':
+                        self.write('r', d, node.value, d)
+                    else:
+                        self.write(d, node.value, d)
+                    return
+        self.write(repr(node.value))
 
     def visit_IntegerConstant(self, node: qlast.IntegerConstant) -> None:
         if node.is_negative:
@@ -577,7 +597,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.value)
 
     def visit_BytesConstant(self, node: qlast.BytesConstant) -> None:
-        self.write('b', node.quote, node.value, node.quote)
+        val = _BYTES_ESCAPE_RE.sub(_bytes_escape, node.value)
+        self.write("b'", val.decode('utf-8', 'backslashreplace'), "'")
 
     def visit_FunctionCall(self, node: qlast.FunctionCall) -> None:
         if isinstance(node.func, tuple):

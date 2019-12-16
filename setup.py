@@ -495,7 +495,8 @@ setuptools.setup(
     },
     rust_extensions=[
         setuptools_rust.RustExtension(
-            "edb.edgeql._edgeql_rust",
+            "edb._edgeql_rust",
+            debug=False,
             path="edgedb-rust/edgeql-python/Cargo.toml",
             binding=setuptools_rust.Binding.RustCPython),
     ],
