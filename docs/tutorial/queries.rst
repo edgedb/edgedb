@@ -5,7 +5,7 @@
 
 After the database and schema are set up, we can add some actual data.
 For example, let's add "Blade Runner 2049" to the database. It's possible to
-add movie, director and cast data all at once:
+add movie, director and actors data all at once:
 
 .. code-block:: edgeql-repl
 
@@ -18,7 +18,7 @@ add movie, director and cast data all at once:
     .........             last_name := 'Villeneuve',
     .........         }
     .........     ),
-    .........     cast := {
+    .........     actors := {
     .........         (INSERT Person {
     .........             first_name := 'Harrison',
     .........             last_name := 'Ford',
@@ -47,7 +47,7 @@ records and then refer to them using :ref:`SELECT
 <ref_eql_statements_select>` when creating a ``Movie``. To show how
 existing data can be combined with new data let's add another movie
 directed by Denis Villeneuve - "Dune". Since the movie is still not
-finished, we can omit the ``year`` and ``cast``, populating only the
+finished, we can omit the ``year`` and ``actors``, populating only the
 ``title`` and ``director``:
 
 .. code-block:: edgeql-repl
@@ -122,7 +122,7 @@ Let's get more details about the ``Movie``:
     .........         first_name,
     .........         last_name
     .........     },
-    .........     cast: {
+    .........     actors: {
     .........         first_name,
     .........         last_name
     .........     }
@@ -136,7 +136,7 @@ Let's get more details about the ``Movie``:
                 first_name: 'Denis',
                 last_name: 'Villeneuve'
             },
-            cast: {
+            actors: {
                 Object { first_name: 'Harrison', last_name: 'Ford' },
                 Object { first_name: 'Ryan', last_name: 'Gosling' },
                 Object { first_name: 'Ana', last_name: 'de Armas' }
@@ -144,15 +144,15 @@ Let's get more details about the ``Movie``:
         }
     }
 
-Instead of listing the ``cast`` let's just count how many people are
-there in the ``cast`` by using a :ref:`computable
+Instead of listing the ``actors`` let's just count how many people are
+there in the ``actors`` by using a :ref:`computable
 <ref_datamodel_computables>`:
 
 .. code-block:: edgeql-repl
 
     tutorial> SELECT Movie {
     .........     title,
-    .........     num_actors := count(Movie.cast)
+    .........     num_actors := count(Movie.actors)
     ......... };
     {
         Object { title: 'Blade Runner 2049', num_actors: 3 },
@@ -160,7 +160,7 @@ there in the ``cast`` by using a :ref:`computable
     }
 
 Let's add some more information about "Dune". For example, we can add
-some of the cast members, like Jason Momoa, Zendaya and Oscar Isaac:
+some of the actors members, like Jason Momoa, Zendaya and Oscar Isaac:
 
 .. code-block:: edgeql-repl
 
@@ -206,7 +206,7 @@ And we can update "Dune":
     tutorial> UPDATE Movie
     ......... FILTER Movie.title = 'Dune'
     ......... SET {
-    .........     cast := (
+    .........     actors := (
     .........         SELECT Person
     .........         FILTER .last_name IN {
     .........             'Momoa',
@@ -233,7 +233,7 @@ the ``first_name`` and ``last_name`` properties. This time we will use
     .........             # the year of release
     .........             property year -> int64;
     .........             required link director -> Person;
-    .........             multi link cast -> Person;
+    .........             multi link actors -> Person;
     .........         }
     .........         type Person {
     .........             property first_name -> str;
@@ -259,7 +259,7 @@ Let's try out the new schema with the "Dune" ``Movie``:
     .........     title,
     .........     year,
     .........     director: { name },
-    .........     cast: { name }
+    .........     actors: { name }
     ......... }
     ......... FILTER .title = 'Dune';
     {
@@ -267,7 +267,7 @@ Let's try out the new schema with the "Dune" ``Movie``:
             title: 'Dune',
             year: {},
             director: Object { name: 'Denis Villeneuve' },
-            cast: {
+            actors: {
                 Object { name: 'Jason Momoa' },
                 Object { name: 'Zendaya' },
                 Object { name: 'Oscar Isaac' }
