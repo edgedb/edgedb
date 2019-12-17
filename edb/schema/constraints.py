@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -358,6 +359,11 @@ class ConstraintCommand(
         return (cls._name_qual_from_exprs(schema, exprs),)
 
     @classmethod
+    def _classname_quals_from_name(cls, name: sn.SchemaName) -> Tuple[str]:
+        quals = sn.quals_from_fullname(name)
+        return (quals[-1],)
+
+    @classmethod
     def _constraint_args_from_ast(cls, schema, astnode, context):
         args = []
 
@@ -396,6 +402,51 @@ class ConstraintCommand(
             )
         else:
             return super().compile_expr_field(schema, context, field, value)
+
+    @classmethod
+    def get_inherited_ref_name(cls, schema, context, parent, name):
+        refctx = cls.get_referrer_context(context)
+        # reduce name to shortname
+        if sn.Name.is_qualified(name):
+            shortname = sn.shortname_from_fullname(sn.Name(name))
+        else:
+            shortname = name
+
+        nref = qlast.ObjectRef(
+            name=shortname,
+            module=refctx.op.classname.module,
+        )
+
+        return nref
+
+    def _get_ref_rebase(self, schema, context, refcls, implicit_bases):
+        mcls = type(self.scls)
+        ref_rebase_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
+            inheriting.RebaseInheritingObject, mcls)
+
+        child_bases = refcls.get_bases(schema).objects(schema)
+
+        default_base = refcls.get_default_base_name()
+        explicit_bases = [
+            b for b in child_bases
+            # abstract constraints play a similar role to default_base
+            if not b.get_is_abstract(schema)
+            and b.generic(schema) and b.get_name(schema) != default_base
+        ]
+
+        new_bases = implicit_bases + explicit_bases
+        removed_bases, added_bases = inheriting.delta_bases(
+            [b.get_name(schema) for b in child_bases],
+            [b.get_name(schema) for b in new_bases],
+        )
+
+        rebase_cmd = ref_rebase_cmd(
+            classname=refcls.get_name(schema),
+            added_bases=added_bases,
+            removed_bases=removed_bases,
+        )
+
+        return rebase_cmd
 
 
 class CreateConstraint(ConstraintCommand,
@@ -485,20 +536,8 @@ class CreateConstraint(ConstraintCommand,
 
     @classmethod
     def as_inherited_ref_ast(cls, schema, context, name, parent):
-        refctx = cls.get_referrer_context(context)
         astnode_cls = cls.referenced_astnode
-
-        if sn.Name.is_qualified(name):
-            nref = qlast.ObjectRef(
-                name=name.name,
-                module=name.module,
-            )
-        else:
-            nref = qlast.ObjectRef(
-                name=name,
-                module=refctx.op.classname.module,
-            )
-
+        nref = cls.get_inherited_ref_name(schema, context, parent, name)
         args = []
 
         parent_args = parent.get_args(schema)
@@ -729,3 +768,8 @@ class AlterConstraint(ConstraintCommand,
 class DeleteConstraint(ConstraintCommand, s_func.DeleteCallableObject):
     astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
     referenced_astnode = qlast.DropConcreteConstraint
+
+
+class RebaseConstraint(ConstraintCommand,
+                       inheriting.RebaseInheritingObject):
+    pass

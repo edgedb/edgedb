@@ -1013,7 +1013,6 @@ class AlterConstraint(
             return schema
 
         subject = constraint.get_subject(schema)
-        ctx = context.get(s_constr.ConstraintCommandContext)
 
         subcommands = list(self.get_subcommands())
         if (not subcommands or
@@ -1029,7 +1028,8 @@ class AlterConstraint(
 
             bconstr = schemac_to_backendc(subject, constraint, schema)
 
-            orig_schema = ctx.original_schema
+            delta_root_ctx = context.top()
+            orig_schema = delta_root_ctx.original_schema
             orig_bconstr = schemac_to_backendc(
                 constraint.get_subject(orig_schema),
                 constraint, orig_schema)
@@ -1064,6 +1064,12 @@ class DeleteConstraint(
 
         schema, _ = super().apply(schema, context)
         return schema, constraint
+
+
+class RebaseConstraint(
+        ConstraintCommand, RebaseObject,
+        adapts=s_constr.RebaseConstraint):
+    pass
 
 
 class ViewCapableObjectMetaCommand(ObjectMetaCommand):

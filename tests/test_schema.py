@@ -475,6 +475,58 @@ _123456789_123456789_123456789 -> str
         no_anno = annos.get(schema, 'default::noinh_anno', default=None)
         self.assertIsNone(no_anno)
 
+    def test_schema_constraint_inheritance_01(self):
+        schema = tb._load_std_schema()
+
+        schema = self.run_ddl(schema, r'''
+            CREATE MODULE default;
+            CREATE ABSTRACT TYPE default::Named;
+            CREATE TYPE default::User EXTENDING default::Named;
+            ALTER TYPE default::Named CREATE SINGLE PROPERTY name -> std::str;
+            # unusual ordering of constraint definition
+            ALTER TYPE default::Named
+                ALTER PROPERTY name
+                    CREATE DELEGATED CONSTRAINT exclusive;
+            ALTER TYPE default::User
+                ALTER PROPERTY name
+                    ALTER CONSTRAINT exclusive {
+                        SET DELEGATED;
+                    };
+        ''')
+
+        User = schema.get('default::User')
+        name_prop = User.getptr(schema, 'name')
+        constr = name_prop.get_constraints(schema).objects(schema)[0]
+        base_names = constr.get_bases(schema).names(schema)
+        self.assertEqual(len(base_names), 1)
+        self.assertTrue(base_names[0].startswith(
+            'default::std|exclusive@@default|__|name@@default|Named@'))
+
+    def test_schema_constraint_inheritance_02(self):
+        schema = tb._load_std_schema()
+
+        schema = self.run_ddl(schema, r'''
+            CREATE MODULE default;
+            CREATE ABSTRACT TYPE default::Named;
+            CREATE TYPE default::User EXTENDING default::Named;
+            ALTER TYPE default::Named CREATE SINGLE PROPERTY name -> std::str;
+            # unusual ordering of constraint definition
+            ALTER TYPE default::User
+                ALTER PROPERTY name
+                    CREATE DELEGATED CONSTRAINT exclusive;
+            ALTER TYPE default::Named
+                ALTER PROPERTY name
+                    CREATE DELEGATED CONSTRAINT exclusive;
+        ''')
+
+        User = schema.get('default::User')
+        name_prop = User.getptr(schema, 'name')
+        constr = name_prop.get_constraints(schema).objects(schema)[0]
+        base_names = constr.get_bases(schema).names(schema)
+        self.assertEqual(len(base_names), 1)
+        self.assertTrue(base_names[0].startswith(
+            'default::std|exclusive@@default|__|name@@default|Named@'))
+
     def test_schema_object_verbosename(self):
         schema = self.load_schema("""
             abstract inheritable annotation attr;

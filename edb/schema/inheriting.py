@@ -114,13 +114,8 @@ class InheritingObjectCommand(sd.ObjectCommand):
                 create_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
                     sd.CreateObject, mcls)
 
-                if sn.Name.is_qualified(k):
-                    shortname = sn.shortname_from_fullname(sn.Name(k))
-                else:
-                    shortname = k
-
                 astnode = create_cmd.as_inherited_ref_ast(
-                    schema, context, shortname, v)
+                    schema, context, k, v)
 
                 fqname = create_cmd._classname_from_ast(
                     schema, astnode, context)
@@ -139,17 +134,12 @@ class InheritingObjectCommand(sd.ObjectCommand):
         dropped_refs = {}
         for k, v in local_refs.items(schema):
             if not v.get_is_local(schema):
-                if sn.Name.is_qualified(k):
-                    shortname = sn.shortname_from_fullname(sn.Name(k))
-                else:
-                    shortname = k
-
                 mcls = type(v)
                 create_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
                     sd.CreateObject, mcls)
 
                 astnode = create_cmd.as_inherited_ref_ast(
-                    schema, context, shortname, v)
+                    schema, context, k, v)
 
                 fqname = create_cmd._classname_from_ast(
                     schema, astnode, context)

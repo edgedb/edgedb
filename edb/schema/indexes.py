@@ -197,6 +197,7 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
 
     @classmethod
     def as_inherited_ref_ast(cls, schema, context, name, parent):
+        nref = cls.get_inherited_ref_name(schema, context, parent, name)
         astnode_cls = cls.referenced_astnode
         expr = parent.get_expr(schema)
         if expr is not None:
@@ -205,10 +206,7 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
             expr_ql = None
 
         return astnode_cls(
-            name=qlast.ObjectRef(
-                name=name,
-                module=parent.get_shortname(schema).module,
-            ),
+            name=nref,
             expr=expr_ql,
         )
 
