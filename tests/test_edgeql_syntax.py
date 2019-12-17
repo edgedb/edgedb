@@ -1531,25 +1531,19 @@ aa';
     def test_edgeql_syntax_path_01(self):
         """
         SELECT Foo.bar;
-        SELECT Foo.>bar;
         SELECT Foo.<bar;
         SELECT Foo.bar@spam;
-        SELECT Foo.>bar@spam;
         SELECT Foo.<bar@spam;
         SELECT Foo.bar[IS Baz];
-        SELECT Foo.>bar[IS Baz];
         SELECT Foo.<bar[IS Baz];
         SELECT Foo.<var[IS Baz][IS Spam].bar[IS Foo];
 
 % OK %
 
         SELECT Foo.bar;
-        SELECT Foo.bar;
         SELECT Foo.<bar;
         SELECT Foo.bar@spam;
-        SELECT Foo.bar@spam;
         SELECT Foo.<bar@spam;
-        SELECT Foo.bar[IS Baz];
         SELECT Foo.bar[IS Baz];
         SELECT Foo.<bar[IS Baz];
         SELECT Foo.<var[IS Baz][IS Spam].bar[IS Foo];
@@ -1558,24 +1552,18 @@ aa';
     def test_edgeql_syntax_path_02(self):
         """
         SELECT Foo.event;
-        SELECT Foo.>event;
         SELECT Foo.<event;
         SELECT Foo.event@action;
-        SELECT Foo.>event@action;
         SELECT Foo.<event@action;
         SELECT Foo.event[IS Action];
-        SELECT Foo.>event[IS Action];
         SELECT Foo.<event[IS Action];
 
 % OK %
 
         SELECT Foo.event;
-        SELECT Foo.event;
         SELECT Foo.<event;
         SELECT Foo.event@action;
-        SELECT Foo.event@action;
         SELECT Foo.<event@action;
-        SELECT Foo.event[IS Action];
         SELECT Foo.event[IS Action];
         SELECT Foo.<event[IS Action];
         """
@@ -1766,14 +1754,6 @@ aa';
     def test_edgeql_syntax_path_28(self):
         """
         SELECT TUP.1.1;
-        SELECT TUP.>1.1;
-        SELECT TUP.>1.>1;
-
-% OK %
-
-        SELECT TUP.1.1;
-        SELECT TUP.1.1;
-        SELECT TUP.1.1;
         """
 
     def test_edgeql_syntax_path_29(self):
@@ -1793,19 +1773,6 @@ aa';
         # legal when `$0`, `$1`, `$a` and `$abc` are tuples
         """
         SELECT $1.1.1;
-        SELECT $1.>1.1;
-        SELECT $1.>1.>1;
-        SELECT $a.1.1;
-        SELECT $a.>1.1;
-        SELECT $a.>1.>1;
-
-% OK %
-
-        SELECT $1.1.1;
-        SELECT $1.1.1;
-        SELECT $1.1.1;
-        SELECT $a.1.1;
-        SELECT $a.1.1;
         SELECT $a.1.1;
         """
 
