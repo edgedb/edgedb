@@ -79,9 +79,9 @@ consider the following:
 
 .. code-block:: sdl
 
-    scalar type color_enum_t extending enum<'red', 'green', 'blue'>;
+    scalar type Color extending enum<'red', 'green', 'blue'>;
 
-Introspection of the enum scalar ``color_enum_t``:
+Introspection of the enum scalar ``Color``:
 
 .. code-block:: edgeql-repl
 
@@ -97,10 +97,10 @@ Introspection of the enum scalar ``color_enum_t``:
     ...     annotations: { name, @value },
     ...     constraints: { name },
     ... }
-    ... FILTER .name = 'default::color_enum_t';
+    ... FILTER .name = 'default::Color';
     {
         Object {
-            name: 'default::color_enum_t',
+            name: 'default::Color',
             default: {},
             enum_values: ['red', 'green', 'blue'],
             is_abstract: {},
