@@ -41,12 +41,13 @@ Links also have a policy of handling link target *deletion*. There are
 This :ref:`section <ref_eql_ddl_links_syntax>` covers the syntax of
 how to set these policies in more detail.
 
-
 See Also
 --------
+
+:ref:`Cookbook <ref_cookbook_links>` section about links.
 
 Link
 :ref:`SDL <ref_eql_sdl_links>`,
 :ref:`DDL <ref_eql_ddl_links>`,
-and :ref:`introspection <ref_eql_introspection_object_types>`
+:ref:`introspection <ref_eql_introspection_object_types>`
 (as part of overall object introspection).

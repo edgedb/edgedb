@@ -15,6 +15,16 @@ Glossary
       syntax used to define the structuring of schemas. Common DDL
       statements include ``CREATE``, ``DROP``, and ``ALTER``.
 
+   link
+      Link items define a specific relationship between two object types. Link
+      instances relate one object to one or more different objects.
+
+      Comparing to SQL link is a way to define relationship, foreign key,
+      and optional junction table.
+
+      More on links in :ref:`Data Model <ref_datamodel_links>` and
+      :ref:`Cookbook <ref_cookbook_links>`.
+
    set reference
       An identifier that represents a set of values. It can be the name of an
       object type or an *expression alias* (defined in a statement :ref:`WITH
