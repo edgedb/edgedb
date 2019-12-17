@@ -1029,23 +1029,6 @@ class Path(Nonterm):
             steps=self._float_to_path(kids[1], kids[0].context),
             partial=True)
 
-    @parsing.precedence(precedence.P_DOT)
-    def reduce_Expr_DOTFW_FCONST(self, *kids):
-        # this is a valid link-like syntax for accessing unnamed tuples
-        path = kids[0].val
-        if not isinstance(path, qlast.Path):
-            path = qlast.Path(steps=[path])
-
-        path.steps.extend(self._float_to_path(kids[2], kids[1].context))
-        self.val = path
-
-    @parsing.precedence(precedence.P_DOT)
-    def reduce_DOTFW_FCONST(self, *kids):
-        # this is a valid link-like syntax for accessing unnamed tuples
-        self.val = qlast.Path(
-            steps=self._float_to_path(kids[1], kids[0].context),
-            partial=True)
-
     def _float_to_path(self, token, context):
         from edb.schema import pointers as s_pointers
 
@@ -1092,23 +1075,6 @@ class PathStep(Nonterm):
 
         self.val = qlast.Ptr(
             ptr=qlast.ObjectRef(name=kids[1].val),
-            direction=s_pointers.PointerDirection.Outbound
-        )
-
-    def reduce_DOTFW_ICONST(self, *kids):
-        # this is a valid link-like syntax for accessing unnamed tuples
-        from edb.schema import pointers as s_pointers
-
-        self.val = qlast.Ptr(
-            ptr=qlast.ObjectRef(name=kids[1].val),
-            direction=s_pointers.PointerDirection.Outbound
-        )
-
-    def reduce_DOTFW_PathStepName(self, *kids):
-        from edb.schema import pointers as s_pointers
-
-        self.val = qlast.Ptr(
-            ptr=kids[1].val,
             direction=s_pointers.PointerDirection.Outbound
         )
 

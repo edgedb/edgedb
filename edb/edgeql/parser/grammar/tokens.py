@@ -47,10 +47,6 @@ class T_DOT(Token, lextoken='.'):
     pass
 
 
-class T_DOTFW(Token, lextoken='.>'):
-    pass
-
-
 class T_DOTBW(Token, lextoken='.<'):
     pass
 

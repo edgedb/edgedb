@@ -109,10 +109,6 @@ class EdgeQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'\.<'),
 
-        Rule(token='.>',
-             next_state=STATE_KEEP,
-             regexp=r'\.>'),
-
         Rule(token='//',
              next_state=STATE_KEEP,
              regexp=r'//'),

@@ -34,7 +34,7 @@ The individual path components are:
 :eql:synopsis:`<step-direction>`
     It can be one of the following:
 
-    - ``.`` or ``.>`` for an outgoing or "forward" link reference
+    - ``.`` for an outgoing or "forward" link reference
     - ``.<`` for an incoming or "backward" link reference
     - ``@`` for a link property reference
 
