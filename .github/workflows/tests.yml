@@ -7,7 +7,7 @@ on:
       - ci
   pull_request:
     branches:
-      - master
+      - '*'
 
 jobs:
   test:
