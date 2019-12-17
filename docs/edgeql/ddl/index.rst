@@ -26,7 +26,7 @@ another, the other type has to be created first. For example:
     ...     # the year of release
     ...     CREATE PROPERTY year -> int64;
     ...     CREATE REQUIRED LINK director -> Person;
-    ...     CREATE MULTI LINK cast -> Person;
+    ...     CREATE MULTI LINK actors -> Person;
     ... };
     CREATE
 

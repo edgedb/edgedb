@@ -72,7 +72,7 @@ get a specific ``Movie``:
             title
             year
             director { name }
-            cast { name }
+            actors { name }
         }
     }
 
@@ -89,7 +89,7 @@ Which results in:
             "director": {
               "name": "Denis Villeneuve"
             },
-            "cast": [
+            "actors": [
               {
                 "name": "Jason Momoa"
               },
@@ -114,7 +114,7 @@ instead. Let's add that view to the schema via EdgeDB :ref:`DDL
 .. code-block:: edgeql-repl
 
     tutorial> CREATE VIEW PersonView := Person {
-    .........     acted_in := Person.<cast[IS Movie]
+    .........     acted_in := Person.<actors[IS Movie]
     ......... };
     CREATE VIEW
 

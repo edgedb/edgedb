@@ -66,7 +66,7 @@ Migrations have to be done inside a :ref:`transaction
     .........             # the year of release
     .........             property year -> int64;
     .........             required link director -> Person;
-    .........             multi link cast -> Person;
+    .........             multi link actors -> Person;
     .........         }
     .........         type Person {
     .........             required property first_name -> str;
@@ -125,7 +125,7 @@ Now a ``Movie`` :ref:`type <ref_eql_ddl_object_types>` can be created with
     .........     # the year of release
     .........     CREATE PROPERTY year -> int64;
     .........     CREATE REQUIRED LINK director -> Person;
-    .........     CREATE MULTI LINK cast -> Person;
+    .........     CREATE MULTI LINK actors -> Person;
     ......... };
     CREATE
 

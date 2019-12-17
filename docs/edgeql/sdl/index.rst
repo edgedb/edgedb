@@ -35,7 +35,7 @@ specific schema state. For example:
     ...             # the year of release
     ...             property year -> int64;
     ...             required link director -> Person;
-    ...             required multi link cast -> Person;
+    ...             required multi link actors -> Person;
     ...         }
     ...         type Person {
     ...             required property first_name -> str;
