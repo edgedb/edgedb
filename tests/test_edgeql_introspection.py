@@ -289,6 +289,42 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_introspection_bases_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT ObjectType {
+                    bases: {
+                        name
+                    } ORDER BY @index,
+                    ancestors: {
+                        name
+                    } ORDER BY @index
+                }
+                FILTER
+                    .name = 'test::Issue';
+            """,
+            [{
+                'bases': [{
+                    'name': 'test::Named',
+                }, {
+                    'name': 'test::Owned',
+                }, {
+                    'name': 'test::Text',
+                }],
+
+                'ancestors': [{
+                    'name': 'test::Named',
+                }, {
+                    'name': 'test::Owned',
+                }, {
+                    'name': 'test::Text',
+                }, {
+                    'name': 'std::Object',
+                }],
+            }]
+        )
+
     async def test_edgeql_introspection_link_01(self):
         await self.assert_query_result(
             r"""
