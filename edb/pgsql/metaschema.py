@@ -2249,18 +2249,7 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
         else:
             ftype = type(None)
 
-        if issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
-            if ptr.singular(schema):
-                raise RuntimeError(
-                    'introspection schema error: {!r} must not be '
-                    'singular'.format(
-                        '(' + schema_cls.name + ')' + '.' + pn.name))
-
-            # ObjectSet and ObjectList fields are stored as uuid[],
-            # so we just need to unnest the array here.
-            refattr = 'UNNEST(' + qi(pn.name) + ')'
-
-        elif pn.name == 'args' and mcls is s_constraints.Constraint:
+        if pn.name == 'args' and mcls is s_constraints.Constraint:
             # Constraint args need special handling.
             link_query = f'''
                 SELECT
@@ -2312,6 +2301,29 @@ def _get_link_view(mcls, schema_cls, field, ptr, refdict, schema):
                 WHERE
                     s.subject IS NOT NULL
             '''
+
+        elif pn.name == 'bases' or pn.name == 'ancestors':
+            link_query = f'''
+                SELECT
+                    s.id       AS source,
+                    t.id       AS target,
+                    t.pos      AS index
+                FROM
+                    edgedb.{mcls.__name__} AS s,
+                    LATERAL UNNEST (s.{qi(pn.name)})
+                        WITH ORDINALITY AS t(id, pos)
+            '''
+
+        elif issubclass(ftype, (s_obj.ObjectSet, s_obj.ObjectList)):
+            if ptr.singular(schema):
+                raise RuntimeError(
+                    'introspection schema error: {!r} must not be '
+                    'singular'.format(
+                        '(' + schema_cls.name + ')' + '.' + pn.name))
+
+            # ObjectSet and ObjectList fields are stored as uuid[],
+            # so we just need to unnest the array here.
+            refattr = 'UNNEST(' + qi(pn.name) + ')'
 
         elif issubclass(ftype, (s_obj.Object, s_obj.ObjectCollection)):
             # All other type fields are encoded as typedesc_t.

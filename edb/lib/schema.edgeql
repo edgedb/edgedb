@@ -61,6 +61,11 @@ CREATE ABSTRACT LINK schema::reference {
 };
 
 
+CREATE ABSTRACT LINK schema::ordered {
+    CREATE PROPERTY index -> std::int64;
+};
+
+
 CREATE TYPE schema::Module EXTENDING schema::Object;
 
 
@@ -106,8 +111,10 @@ CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
 
 
 CREATE ABSTRACT TYPE schema::InheritingObject EXTENDING schema::Object {
-    CREATE MULTI LINK bases -> schema::InheritingObject;
-    CREATE MULTI LINK ancestors -> schema::InheritingObject;
+    CREATE MULTI LINK bases EXTENDING schema::ordered
+        -> schema::InheritingObject;
+    CREATE MULTI LINK ancestors EXTENDING schema::ordered
+        -> schema::InheritingObject;
     CREATE PROPERTY inherited_fields -> array<std::str>;
 
     CREATE REQUIRED PROPERTY is_abstract -> std::bool {

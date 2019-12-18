@@ -2566,10 +2566,22 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT (SELECT schema::ObjectType
-                        FILTER .name = 'test::ExtC3').ancestors.name;
+                SELECT schema::ObjectType {
+                    ancestors: {
+                        name
+                    } ORDER BY @index
+                }
+                FILTER .name = 'test::ExtC3'
             """,
-            {'std::Object', 'test::ExtA3', 'test::ExtB3'}
+            [{
+                'ancestors': [{
+                    'name': 'test::ExtB3',
+                }, {
+                    'name': 'test::ExtA3',
+                }, {
+                    'name': 'std::Object',
+                }],
+            }]
         )
 
         await self.con.execute(r"""
@@ -2578,10 +2590,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT (SELECT schema::ObjectType
-                        FILTER .name = 'test::ExtC3').ancestors.name;
+                SELECT schema::ObjectType {
+                    ancestors: {
+                        name
+                    } ORDER BY @index
+                }
+                FILTER .name = 'test::ExtC3'
             """,
-            {'std::Object', 'test::ExtB3'}
+            [{
+                'ancestors': [{
+                    'name': 'test::ExtB3',
+                }, {
+                    'name': 'std::Object',
+                }],
+            }]
         )
 
     async def test_edgeql_ddl_extending_04(self):
