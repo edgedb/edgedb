@@ -113,7 +113,7 @@ def sdl_to_ddl(schema, documents):
             if isinstance(decl_ast, qlast.CreateObject):
                 fq_name = f'{module_name}::{decl_ast.name.name}'
                 if isinstance(decl_ast, (qlast.CreateObjectType,
-                                         qlast.CreateView)):
+                                         qlast.CreateAlias)):
                     ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
 
                 elif isinstance(decl_ast, qlast.CreateScalarType):
@@ -319,8 +319,8 @@ def trace_ConcretePointer(
 
 
 @trace_dependencies.register
-def trace_View(
-    node: qlast.CreateView, *, ctx: DepTraceContext
+def trace_Alias(
+    node: qlast.CreateAlias, *, ctx: DepTraceContext
 ):
     hard_dep_exprs = []
 
@@ -419,7 +419,7 @@ def _register_item(
                 subcmds.append(cmd)
             elif (isinstance(cmd, qlast.SetField)
                   and not isinstance(cmd.value, qlast.BaseConstant)
-                  and not isinstance(op, qlast.CreateView)):
+                  and not isinstance(op, qlast.CreateAlias)):
                 subcmds.append(cmd)
             else:
                 commands.append(cmd)

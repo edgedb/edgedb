@@ -16,10 +16,10 @@ Glossary
       statements include ``CREATE``, ``DROP``, and ``ALTER``.
 
    set reference
-      A *name* (a simple identifier or a qualified schema name)
-      that represents a set of values.  It can be the name of an
-      object type, the name of a view, or an *expression alias* defined
-      in a statement.
+      An identifier that represents a set of values. It can be the name of an
+      object type or an *expression alias* (defined in a statement :ref:`WITH
+      block <ref_eql_with>` or in the schema via an :ref:`alias declaration
+      <ref_eql_sdl_aliases>`. or a qualified schema name).
 
    simple path
       A path which begins with a :term:`set reference`.

@@ -69,7 +69,7 @@ class BaseObjectType(sources.Source,
         return bool(self.get_union_of(schema))
 
     def get_displayname(self, schema):
-        if self.is_view(schema) and not self.get_view_is_persistent(schema):
+        if self.is_view(schema) and not self.get_alias_is_persistent(schema):
             mtype = self.material_type(schema)
         else:
             mtype = self
@@ -298,18 +298,18 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> Optional[qlast.Base]:
-        if (self.get_attribute_value('view_type')
+        if (self.get_attribute_value('expr_type')
                 and not self.get_attribute_value('expr')):
             # This is a nested view type, e.g
-            # __FooView_bar produced by  FooView := (SELECT Foo { bar: ... })
+            # __FooAlias_bar produced by  FooAlias := (SELECT Foo { bar: ... })
             # and should obviously not appear as a top level definition.
             return None
         else:
             return super()._get_ast(schema, context)
 
     def _get_ast_node(self, schema, context):
-        if self.get_attribute_value('view_type'):
-            return qlast.CreateView
+        if self.get_attribute_value('expr_type'):
+            return qlast.CreateAlias
         else:
             return super()._get_ast_node(schema, context)
 

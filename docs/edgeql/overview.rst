@@ -55,8 +55,9 @@ Set References and Paths
 ========================
 
 A *set reference* is a *name* (a simple identifier or a qualified schema name)
-that represents a set of values.  It can be the name of an object type, the
-name of a view, or an *expression alias* defined in a statement.
+that represents a set of values.  It can be the name of an object type or
+an *expression alias* (defined in a statement :ref:`WITH block <ref_eql_with>`
+or in the schema via an :ref:`alias declaration <ref_eql_sdl_aliases>`).
 
 For example a reference to the ``User`` object type in the following
 query will resolve to a set of all ``User`` objects:

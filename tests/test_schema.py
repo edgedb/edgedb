@@ -847,7 +847,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 }
             }
 
-            view VegRecipes := (
+            alias VegRecipes := (
                 SELECT Recipe
                 FILTER all(.ingredients.vegetarian)
             );
@@ -873,7 +873,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property bar -> int64;
             };
 
-            view X := (SELECT Foo FILTER .bar > count(DETACHED Foo));
+            alias X := (SELECT Foo FILTER .bar > count(DETACHED Foo));
         '''
 
         self._assert_migration_consistency(schema)
@@ -883,7 +883,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         schema = r'''
             type Foo;
 
-            view X := (SELECT INTROSPECT Foo);
+            alias X := (SELECT INTROSPECT Foo);
         '''
 
         self._assert_migration_consistency(schema)
@@ -943,9 +943,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
     #             property bar -> int64;
     #         };
 
-    #         view X {
+    #         alias X {
     #             using (SELECT Foo FILTER .bar > count(DETACHED Foo));
-    #             annotation title := 'A Foo view';
+    #             annotation title := 'A Foo alias';
     #         }
     #     '''
 
@@ -1354,8 +1354,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property bar -> int64;
             }
 
-            # add a view to emulate the original
-            view Base := (
+            # add an alias to emulate the original
+            alias Base := (
                 SELECT NewBase {
                     foo := <str>.bar
                 }
@@ -1372,7 +1372,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 link bar -> Child;
             }
 
-            view View01 := (
+            alias Alias01 := (
                 SELECT Base {
                     child_foo := .bar.foo
                 }
@@ -1382,16 +1382,16 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property foo -> str;
             }
 
-            # exchange a type for a view
-            view Base := (
+            # exchange a type for an alias
+            alias Base := (
                 SELECT Child {
                     # bar is the same as the root object
                     bar := Child
                 }
             );
 
-            view View01 := (
-                # now this view refers to another view
+            alias Alias01 := (
+                # now this alias refers to another alias
                 SELECT Base {
                     child_foo := .bar.foo
                 }
@@ -1522,7 +1522,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property foo -> str;
             }
 
-            view Base := (
+            alias Base := (
                 SELECT Child {
                     bar := .foo
                 }
@@ -1760,42 +1760,42 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_migrations_equivalence_37(self):
-        # testing schema views
+        # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
-                    foo := 'base_view_37'
+                    foo := 'base_alias_37'
                 }
             )
         """, r"""
             type Base;
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     # "rename" a computable, since the value is given and
                     # not stored, this is no different from dropping
                     # original and creating a new property
-                    foo2 := 'base_view_37'
+                    foo2 := 'base_alias_37'
                 }
             )
         """])
 
     def test_migrations_equivalence_38(self):
-        # testing schema views
+        # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
-                    foo := 'base_view_38'
+                    foo := 'base_alias_38'
                 }
             )
         """, r"""
             type Base;
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     # keep the name, but change the type
                     foo := 38
@@ -1804,7 +1804,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_migrations_equivalence_39(self):
-        # testing schema views
+        # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
 
@@ -1812,9 +1812,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
-                    foo := (SELECT Foo FILTER .name = 'base_view_39')
+                    foo := (SELECT Foo FILTER .name = 'base_alias_39')
                 }
             )
         """, r"""
@@ -1824,18 +1824,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     # "rename" a computable, since the value is given and
                     # not stored, this is no different from dropping
                     # original and creating a new multi-link
-                    foo2 := (SELECT Foo FILTER .name = 'base_view_39')
+                    foo2 := (SELECT Foo FILTER .name = 'base_alias_39')
                 }
             )
         """])
 
     def test_migrations_equivalence_40(self):
-        # testing schema views
+        # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
 
@@ -1847,7 +1847,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (SELECT Foo FILTER .name = 'foo_40')
                 }
@@ -1863,7 +1863,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     # keep the name, but change the type
                     foo := (SELECT Bar FILTER .name = 'bar_40')
@@ -1872,7 +1872,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_migrations_equivalence_41(self):
-        # testing schema views
+        # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
 
@@ -1880,13 +1880,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (
                         SELECT Foo {
-                            @bar := 'foo_bar_view_41'
+                            @bar := 'foo_bar_alias_41'
                         }
-                        FILTER .name = 'base_view_41'
+                        FILTER .name = 'base_alias_41'
                     )
                 }
             )
@@ -1897,7 +1897,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (
                         SELECT Foo {
@@ -1905,16 +1905,16 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                             # the value is given and not stored, this is
                             # no different from dropping original and
                             # creating a new multi-link
-                            @baz := 'foo_bar_view_41'
+                            @baz := 'foo_bar_alias_41'
                         }
-                        FILTER .name = 'base_view_41'
+                        FILTER .name = 'base_alias_41'
                     )
                 }
             )
         """])
 
     def test_migrations_equivalence_42(self):
-        # testing schema views
+        # testing schema aliases
         self._assert_migration_equivalence([r"""
             type Base;
 
@@ -1922,13 +1922,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (
                         SELECT Foo {
-                            @bar := 'foo_bar_view_42'
+                            @bar := 'foo_bar_alias_42'
                         }
-                        FILTER .name = 'base_view_42'
+                        FILTER .name = 'base_alias_42'
                     )
                 }
             )
@@ -1939,14 +1939,14 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (
                         SELECT Foo {
                             # keep the name, but change the type
                             @bar := 42
                         }
-                        FILTER .name = 'base_view_42'
+                        FILTER .name = 'base_alias_42'
                     )
                 }
             )
@@ -2613,49 +2613,49 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """])
 
     def test_migrations_equivalence_collections_13(self):
-        # schema views & collection test
+        # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> float32;
             };
 
-            # views that don't have arrays
-            view BaseView := Base { bar := Base.foo };
-            view CollView := Base.foo;
+            # aliases that don't have arrays
+            alias BaseAlias := Base { bar := Base.foo };
+            alias CollAlias := Base.foo;
         """, r"""
             type Base {
                 property foo -> float32;
             };
 
-            # "same" views that now have arrays
-            view BaseView := Base { bar := [Base.foo] };
-            view CollView := [Base.foo];
+            # "same" aliases that now have arrays
+            alias BaseAlias := Base { bar := [Base.foo] };
+            alias CollAlias := [Base.foo];
         """])
 
     def test_migrations_equivalence_collections_14(self):
-        # schema views & collection test
+        # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
             };
 
-            # views that don't have tuples
-            view BaseView := Base { bar := Base.foo };
-            view CollView := Base.foo;
+            # aliases that don't have tuples
+            alias BaseAlias := Base { bar := Base.foo };
+            alias CollAlias := Base.foo;
         """, r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
             };
 
-            # "same" views that now have tuples
-            view BaseView := Base { bar := (Base.name, Base.foo) };
-            view CollView := (Base.name, Base.foo);
+            # "same" aliases that now have tuples
+            alias BaseAlias := Base { bar := (Base.name, Base.foo) };
+            alias CollAlias := (Base.name, Base.foo);
         """])
 
     def test_migrations_equivalence_collections_15(self):
-        # schema views & collection test
+        # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str;
@@ -2663,9 +2663,9 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property foo -> float32;
             };
 
-            # views that don't have nested collections
-            view BaseView := Base { bar := Base.foo };
-            view CollView := Base.foo;
+            # aliases that don't have nested collections
+            alias BaseAlias := Base { bar := Base.foo };
+            alias CollAlias := Base.foo;
         """, r"""
             type Base {
                 property name -> str;
@@ -2673,61 +2673,61 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property foo -> float32;
             };
 
-            # "same" views that now have nested collections
-            view BaseView := Base {
+            # "same" aliases that now have nested collections
+            alias BaseAlias := Base {
                 bar := (Base.name, Base.number, [Base.foo])
             };
-            view CollView := (Base.name, Base.number, [Base.foo]);
+            alias CollAlias := (Base.name, Base.number, [Base.foo]);
         """])
 
     def test_migrations_equivalence_collections_16(self):
-        # schema views & collection test
+        # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
             };
 
-            # views that don't have named tuples
-            view BaseView := Base { bar := Base.foo };
-            view CollView := Base.foo;
+            # aliases that don't have named tuples
+            alias BaseAlias := Base { bar := Base.foo };
+            alias CollAlias := Base.foo;
         """, r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
             };
 
-            # "same" views that now have named tuples
-            view BaseView := Base {
+            # "same" aliases that now have named tuples
+            alias BaseAlias := Base {
                 bar := (a := Base.name, b := Base.foo)
             };
-            view CollView := (a := Base.name, b := Base.foo);
+            alias CollAlias := (a := Base.name, b := Base.foo);
         """])
 
     def test_migrations_equivalence_collections_17(self):
-        # schema views & collection test
+        # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
                 property foo -> float32;
                 property bar -> int32;
             };
 
-            # views with array<int32>
-            view BaseView := Base { data := [Base.bar] };
-            view CollView := [Base.bar];
+            # aliases with array<int32>
+            alias BaseAlias := Base { data := [Base.bar] };
+            alias CollAlias := [Base.bar];
         """, r"""
             type Base {
                 property foo -> float32;
                 property bar -> int32;
             };
 
-            # views with array<flaot32>
-            view BaseView := Base { data := [Base.foo] };
-            view CollView := [Base.foo];
+            # aliases with array<flaot32>
+            alias BaseAlias := Base { data := [Base.foo] };
+            alias CollAlias := [Base.foo];
         """])
 
     def test_migrations_equivalence_collections_18(self):
-        # schema views & collection test
+        # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str;
@@ -2735,11 +2735,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property foo -> float32;
             };
 
-            # views with tuple<str, int32>
-            view BaseView := Base {
+            # aliases with tuple<str, int32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.number)
             };
-            view CollView := (Base.name, Base.number);
+            alias CollAlias := (Base.name, Base.number);
         """, r"""
             type Base {
                 property name -> str;
@@ -2747,15 +2747,15 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property foo -> float32;
             };
 
-            # views with tuple<str, int32, float32>
-            view BaseView := Base {
+            # aliases with tuple<str, int32, float32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.number, Base.foo)
             };
-            view CollView := (Base.name, Base.number, Base.foo);
+            alias CollAlias := (Base.name, Base.number, Base.foo);
         """])
 
     def test_migrations_equivalence_collections_20(self):
-        # schema views & collection test
+        # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str;
@@ -2763,11 +2763,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property foo -> float32;
             };
 
-            # views with tuple<str, int32>
-            view BaseView := Base {
+            # aliases with tuple<str, int32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.number)
             };
-            view CollView := (Base.name, Base.number);
+            alias CollAlias := (Base.name, Base.number);
         """, r"""
             type Base {
                 property name -> str;
@@ -2775,37 +2775,37 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property foo -> float32;
             };
 
-            # views with tuple<str, float32>
-            view BaseView := Base {
+            # aliases with tuple<str, float32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.foo)
             };
-            view CollView := (Base.name, Base.foo);
+            alias CollAlias := (Base.name, Base.foo);
         """])
 
     def test_migrations_equivalence_collections_21(self):
-        # schema views & collection test
+        # schema aliases & collection test
         self._assert_migration_equivalence([r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
             };
 
-            # views with tuple<str, float32>
-            view BaseView := Base {
+            # aliases with tuple<str, float32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.foo)
             };
-            view CollView := (Base.name, Base.foo);
+            alias CollAlias := (Base.name, Base.foo);
         """, r"""
             type Base {
                 property name -> str;
                 property foo -> float32;
             };
 
-            # views with named tuple<a: str, b: float32>
-            view BaseView := Base {
+            # aliases with named tuple<a: str, b: float32>
+            alias BaseAlias := Base {
                 data := (a := Base.name, b := Base.foo)
             };
-            view CollView := (a := Base.name, b := Base.foo);
+            alias CollAlias := (a := Base.name, b := Base.foo);
         """])
 
 
@@ -3415,14 +3415,14 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
         )
 
-    def test_describe_view_01(self):
+    def test_describe_alias_01(self):
         self._assert_describe(
             """
             type Foo {
                 property name -> str;
             };
 
-            view Bar := (SELECT Foo {name, calc := 1});
+            alias Bar := (SELECT Foo {name, calc := 1});
             """,
 
             'DESCRIBE SCHEMA',
@@ -3432,7 +3432,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY name -> std::str;
             };
-            CREATE VIEW test::Bar :=
+            CREATE ALIAS test::Bar :=
                 (WITH
                     MODULE test
                 SELECT
@@ -3444,16 +3444,16 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
         )
 
-    def test_describe_view_02(self):
+    def test_describe_alias_02(self):
         self._assert_describe(
             """
             type Foo {
                 property name -> str;
             };
 
-            view Bar {
+            alias Bar {
                 using (SELECT Foo {name, calc := 1});
-                annotation title := 'bar view';
+                annotation title := 'bar alias';
             };
             """,
 
@@ -3464,7 +3464,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY name -> std::str;
             };
-            CREATE VIEW test::Bar {
+            CREATE ALIAS test::Bar {
                 USING (WITH
                     MODULE test
                 SELECT
@@ -3473,22 +3473,22 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                         calc := 1
                     }
                 );
-                SET ANNOTATION std::title := 'bar view';
+                SET ANNOTATION std::title := 'bar alias';
             };
             """
         )
 
-    def test_describe_view_03(self):
+    def test_describe_alias_03(self):
         self._assert_describe(
             """
-            view scalar_view := {1, 2, 3};
+            alias scalar_alias := {1, 2, 3};
             """,
 
             'DESCRIBE SCHEMA',
 
             """
             CREATE MODULE test;
-            CREATE VIEW test::scalar_view :=
+            CREATE ALIAS test::scalar_alias :=
                 (WITH
                     MODULE test
                 SELECT
@@ -3497,20 +3497,20 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
         )
 
-    def test_describe_view_04(self):
+    def test_describe_alias_04(self):
         self._assert_describe(
             """
-            view tuple_view := (1, 2, 3);
-            view array_view := [1, 2, 3];
+            alias tuple_alias := (1, 2, 3);
+            alias array_alias := [1, 2, 3];
             """,
 
             'DESCRIBE SCHEMA',
 
             """
             CREATE MODULE test;
-            CREATE VIEW test::array_view :=
+            CREATE ALIAS test::array_alias :=
                 ([1, 2, 3]);
-            CREATE VIEW test::tuple_view :=
+            CREATE ALIAS test::tuple_alias :=
                 (WITH
                     MODULE test
                 SELECT

@@ -358,7 +358,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_16(self):
         # Apparent misplaced "(__derived__::__derived__|U@@w~1)" in the FILTER
-        # fence is due to a view_map replacement artifact.
+        # fence is due to a alias_map replacement artifact.
         """
         WITH MODULE test,
             U := (

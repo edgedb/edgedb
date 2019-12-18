@@ -2298,7 +2298,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'insert expression must be an object type or a view',
+                  'insert expression must be an object type reference',
                   line=2, col=16)
     def test_edgeql_syntax_insert_05(self):
         """
@@ -3620,39 +3620,39 @@ aa';
         CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
         """
 
-    def test_edgeql_syntax_ddl_view_01(self):
+    def test_edgeql_syntax_ddl_alias_01(self):
         """
-        CREATE VIEW Foo := (SELECT User);
+        CREATE ALIAS Foo := (SELECT User);
         """
 
-    def test_edgeql_syntax_ddl_view_02(self):
+    def test_edgeql_syntax_ddl_alias_02(self):
         """
-        CREATE VIEW Foo {
+        CREATE ALIAS Foo {
             USING (SELECT User);
         };
 
-        ALTER VIEW Foo
+        ALTER ALIAS Foo
             USING (SELECT Person);
 
-        DROP VIEW Foo;
+        DROP ALIAS Foo;
 
 % OK %
 
-        CREATE VIEW Foo := (SELECT User);
+        CREATE ALIAS Foo := (SELECT User);
 
-        ALTER VIEW Foo
+        ALTER ALIAS Foo
             USING (SELECT Person);
 
-        DROP VIEW Foo;
+        DROP ALIAS Foo;
         """
 
-    def test_edgeql_syntax_ddl_view_03(self):
+    def test_edgeql_syntax_ddl_alias_03(self):
         """
-        CREATE VIEW Foo := User;
+        CREATE ALIAS Foo := User;
 
 % OK %
 
-        CREATE VIEW Foo := (User);
+        CREATE ALIAS Foo := (User);
         """
 
     def test_edgeql_syntax_ddl_index_01(self):

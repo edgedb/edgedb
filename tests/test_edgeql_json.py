@@ -1381,7 +1381,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 SELECT <json>b'foo';
             """)
 
-    async def test_edgeql_json_view_01(self):
+    async def test_edgeql_json_alias_01(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
@@ -1435,7 +1435,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ['null', 'null', '{"bingo": "42!"}', '{"bingo": "42!"}']
         )
 
-    async def test_edgeql_json_view_02(self):
+    async def test_edgeql_json_alias_02(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
@@ -1464,7 +1464,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ['null'] * 2 + ['"N/A"'] * 68 + ['{"bingo": "42!"}'] * 2,
         )
 
-    async def test_edgeql_json_view_03(self):
+    async def test_edgeql_json_alias_03(self):
         await self.assert_query_result(
             r'''
             WITH
@@ -1516,7 +1516,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             }],
         )
 
-    async def test_edgeql_json_view_04(self):
+    async def test_edgeql_json_alias_04(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -1536,7 +1536,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
              '"nope"', '"nope"', '"nope"'],
         )
 
-    async def test_edgeql_json_view_05(self):
+    async def test_edgeql_json_alias_05(self):
         await self.assert_query_result(
             r'''
                 WITH

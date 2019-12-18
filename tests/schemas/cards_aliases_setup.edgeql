@@ -17,78 +17,78 @@
 #
 
 
-CREATE VIEW test::AirCard := (
+CREATE ALIAS test::AirCard := (
     WITH MODULE test
     SELECT Card
     FILTER Card.element = 'Air'
 );
 
 
-CREATE VIEW test::WaterCard := (
+CREATE ALIAS test::WaterCard := (
     WITH MODULE test
     SELECT Card
     FILTER Card.element = 'Water'
 );
 
 
-CREATE VIEW test::EarthCard := (
+CREATE ALIAS test::EarthCard := (
     WITH MODULE test
     SELECT Card
     FILTER Card.element = 'Earth'
 );
 
 
-CREATE VIEW test::FireCard := (
+CREATE ALIAS test::FireCard := (
     WITH MODULE test
     SELECT Card
     FILTER Card.element = 'Fire'
 );
 
 
-CREATE VIEW test::AliceCard := (
+CREATE ALIAS test::AliceCard := (
     WITH MODULE test
     SELECT Card
     FILTER Card.<deck[IS User].name = 'Alice'
 );
 
 
-CREATE VIEW test::BobCard := (
+CREATE ALIAS test::BobCard := (
     WITH MODULE test
     SELECT Card
     FILTER Card.<deck[IS User].name = 'Bob'
 );
 
 
-CREATE VIEW test::CarolCard := (
+CREATE ALIAS test::CarolCard := (
     WITH MODULE test
     SELECT Card
     FILTER Card.<deck[IS User].name = 'Carol'
 );
 
 
-CREATE VIEW test::DaveCard := (
+CREATE ALIAS test::DaveCard := (
     WITH MODULE test
     SELECT Card
     FILTER Card.<deck[IS User].name = 'Dave'
 );
 
 
-CREATE VIEW test::AliasedFriends := (
+CREATE ALIAS test::AliasedFriends := (
     WITH MODULE test
     SELECT User { my_friends := User.friends, my_name := User.name }
 );
 
 
-CREATE VIEW test::AwardView := (
+CREATE ALIAS test::AwardAlias := (
     test::Award {
         # this should be a single link, because awards are exclusive
         winner := test::Award.<awards[IS test::User]
     }
 );
 
-# This view is unnecessarily deep, but that shouldn't have
-# any impact as compared to AwardView.
-CREATE VIEW test::AwardView2 := (
+# This expression is unnecessarily deep, but that shouldn't have
+# any impact as compared to AwardAlias.
+CREATE ALIAS test::AwardAlias2 := (
     WITH MODULE test
     SELECT Award {
         winner := Award.<awards[IS test::User] {
@@ -99,8 +99,8 @@ CREATE VIEW test::AwardView2 := (
     }
 );
 
-# This view includes ordering
-CREATE VIEW test::UserView := (
+# This alias includes ordering
+CREATE ALIAS test::UserAlias := (
     WITH MODULE test
     SELECT User {
         deck: {

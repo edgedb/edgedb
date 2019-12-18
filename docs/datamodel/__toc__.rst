@@ -17,7 +17,7 @@ Data Model
     computables
     indexes
     constraints
-    views
+    aliases
     annotations
     modules
     databases

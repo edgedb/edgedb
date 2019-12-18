@@ -58,7 +58,7 @@ type SpecialCard extending Card;
 type Award extending Named;
 
 
-view WaterOrEarthCard := (
+alias WaterOrEarthCard := (
     SELECT Card {
         owned_by_alice := EXISTS (SELECT Card.<deck[IS User].name = 'Alice')
     }
@@ -66,11 +66,11 @@ view WaterOrEarthCard := (
 );
 
 
-view EarthOrFireCard {
+alias EarthOrFireCard {
     using (SELECT Card FILTER .element = 'Fire' OR .element = 'Earth')
 };
 
 
-view SpecialCardView := SpecialCard {
+alias SpecialCardAlias := SpecialCard {
     el_cost := (.element, .cost)
 };

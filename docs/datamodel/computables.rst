@@ -48,15 +48,15 @@ paths may also be used instead of explicit references to ``__source__``:
             .firstname ++ ' ' ++ .lastname);
     }
 
-Computables are also often used in :ref:`views <ref_datamodel_views>`.
-For example, using the ``User`` from the above example, a ``UserView``
+Computables are also often used in :ref:`aliases <ref_datamodel_aliases>`.
+For example, using the ``User`` from the above example, a ``UserAlias``
 can be defined with a ``lastname_first`` computable which lists the
 full name in the format which is often used in formal alphabetized
 lists:
 
 .. code-block:: sdl
 
-    view UserView := User {
+    alias UserAlias := User {
         lastname_first := (
             .lastname ++ ', ' ++ .firstname)
     }

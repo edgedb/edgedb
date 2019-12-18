@@ -1166,87 +1166,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "SettingType",
-                        "description": None,
-                        "fields": [
-                            {
-                                "__typename": "__Field",
-                                "name": "id",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "ID",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "name",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            },
-                            {
-                                "__typename": "__Field",
-                                "name": "value",
-                                "description": None,
-                                "type": {
-                                    "__typename": "__Type",
-                                    "name": None,
-                                    "kind": "NON_NULL",
-                                    "ofType": {
-                                        "__typename": "__Type",
-                                        "name": "String",
-                                        "kind": "SCALAR"
-                                    }
-                                },
-                                "isDeprecated": False,
-                                "deprecationReason": None
-                            }
-                        ],
-                        "interfaces": [
-                            {
-                                "__typename": "__Type",
-                                "name": "NamedObject",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "Object",
-                                "kind": "INTERFACE"
-                            },
-                            {
-                                "__typename": "__Type",
-                                "name": "Setting",
-                                "kind": "INTERFACE"
-                            },
-                        ],
-                        "possibleTypes": None,
-                        "enumValues": None,
-                        "inputFields": None,
-                        "ofType": None
-                    },
-                    {
-                        "__typename": "__Type",
-                        "kind": "OBJECT",
-                        "name": "SettingViewAugmentedType",
+                        "name": "SettingAliasAugmentedType",
                         "description": None,
                         "fields": [
                             {
@@ -1290,7 +1210,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                 "type": {
                                     "__typename": "__Type",
                                     "name":
-                                        "__SettingViewAugmented__of_group",
+                                        "__SettingAliasAugmented__of_group",
                                     "kind": "INTERFACE",
                                     "ofType": None
                                 },
@@ -1333,7 +1253,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             },
                             {
                                 "__typename": "__Type",
-                                "name": "SettingViewAugmented",
+                                "name": "SettingAliasAugmented",
                                 "kind": "INTERFACE"
                             },
                         ],
@@ -1345,7 +1265,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "SettingViewType",
+                        "name": "SettingAliasType",
                         "description": None,
                         "fields": [
                             {
@@ -1431,7 +1351,87 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             },
                             {
                                 "__typename": "__Type",
-                                "name": "SettingView",
+                                "name": "SettingAlias",
+                                "kind": "INTERFACE"
+                            },
+                        ],
+                        "possibleTypes": None,
+                        "enumValues": None,
+                        "inputFields": None,
+                        "ofType": None
+                    },
+                    {
+                        "__typename": "__Type",
+                        "kind": "OBJECT",
+                        "name": "SettingType",
+                        "description": None,
+                        "fields": [
+                            {
+                                "__typename": "__Field",
+                                "name": "id",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": None,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "ID",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "name",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": None,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "value",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": None,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            }
+                        ],
+                        "interfaces": [
+                            {
+                                "__typename": "__Type",
+                                "name": "NamedObject",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Object",
+                                "kind": "INTERFACE"
+                            },
+                            {
+                                "__typename": "__Type",
+                                "name": "Setting",
                                 "kind": "INTERFACE"
                             },
                         ],
@@ -1667,7 +1667,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "__SettingViewAugmented__of_groupType",
+                        "name": "__SettingAliasAugmented__of_groupType",
                         "description": None,
                         "fields": [
                             {
@@ -1752,7 +1752,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             },
                             {
                                 "__typename": "__Type",
-                                "name": "__SettingViewAugmented__of_group",
+                                "name": "__SettingAliasAugmented__of_group",
                                 "kind": "INTERFACE"
                             },
                         ],

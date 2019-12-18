@@ -107,24 +107,24 @@ Which results in:
 
 If we wanted to provide some customized information, like which
 ``Movie`` a ``Person`` acted in without altering the existing types,
-we could do that by creating a :ref:`view <ref_datamodel_views>`
-instead. Let's add that view to the schema via EdgeDB :ref:`DDL
+we could do that by creating an :ref:`alias <ref_datamodel_aliases>`
+instead. Let's add that alias to the schema via EdgeDB :ref:`DDL
 <ref_eql_ddl>`:
 
 .. code-block:: edgeql-repl
 
-    tutorial> CREATE VIEW PersonView := Person {
+    tutorial> CREATE ALIAS PersonAlias := Person {
     .........     acted_in := Person.<actors[IS Movie]
     ......... };
-    CREATE VIEW
+    CREATE ALIAS
 
 Now, after reloading the GraphiQL page, we will be able to access the
-``PersonView``:
+``PersonAlias``:
 
 .. code-block:: graphql
 
     {
-        PersonView(order: {last_name: {dir: ASC}}) {
+        PersonAlias(order: {last_name: {dir: ASC}}) {
             name
             acted_in { title }
         }
@@ -136,7 +136,7 @@ Which results in:
 
     {
       "data": {
-        "PersonView": [
+        "PersonAlias": [
           {
             "name": "Harrison Ford",
             "acted_in": [

@@ -201,7 +201,7 @@ def fini_expression(
     if ctx.must_use_views:
         alias, srcctx = next(iter(ctx.must_use_views.values()))
         raise errors.QueryError(
-            f'unused view definition: {alias!r}',
+            f'unused alias definition: {alias!r}',
             context=srcctx,
         )
 

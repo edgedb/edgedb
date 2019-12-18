@@ -32,19 +32,19 @@ async def fetch_tuple_views(
         SELECT
             c.id AS id,
             c.name AS name,
-            c.view_type AS view_type,
-            c.view_is_persistent AS view_is_persistent,
+            c.expr_type AS expr_type,
+            c.alias_is_persistent AS alias_is_persistent,
             c.expr AS expr,
             c.named AS named,
             c.element_types AS element_types
         FROM
-            edgedb.TupleView c
+            edgedb.TupleExprAlias c
         WHERE
             ($1::text[] IS NULL
                 OR split_part(c.name, '::', 1) = any($1::text[]))
             AND ($2::text[] IS NULL
                     OR split_part(c.name, '::', 1) != all($2::text[]))
-            AND view_type IS NOT NULL
+            AND expr_type IS NOT NULL
         ORDER BY
             c.id
     """, modules, exclude_modules)
@@ -59,19 +59,19 @@ async def fetch_array_views(
         SELECT
             c.id AS id,
             c.name AS name,
-            c.view_type AS view_type,
-            c.view_is_persistent AS view_is_persistent,
+            c.expr_type AS expr_type,
+            c.alias_is_persistent AS alias_is_persistent,
             c.expr AS expr,
             c.element_type AS element_type,
             c.dimensions AS dimensions
         FROM
-            edgedb.ArrayView c
+            edgedb.ArrayExprAlias c
         WHERE
             ($1::text[] IS NULL
                 OR split_part(c.name, '::', 1) = any($1::text[]))
             AND ($2::text[] IS NULL
                     OR split_part(c.name, '::', 1) != all($2::text[]))
-            AND view_type IS NOT NULL
+            AND expr_type IS NOT NULL
         ORDER BY
             c.id
     """, modules, exclude_modules)

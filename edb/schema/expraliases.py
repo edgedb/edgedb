@@ -29,46 +29,46 @@ from . import delta as sd
 from . import types as s_types
 
 
-class ViewCommandContext(sd.ObjectCommandContext,
-                         s_anno.AnnotationSubjectCommandContext):
+class AliasCommandContext(sd.ObjectCommandContext,
+                          s_anno.AnnotationSubjectCommandContext):
     pass
 
 
-class ViewCommand(s_types.TypeCommand, context_class=ViewCommandContext):
+class AliasCommand(s_types.TypeCommand, context_class=AliasCommandContext):
 
     _scalar_cmd_map = {
-        qlast.CreateView: s_scalars.CreateScalarType,
-        qlast.AlterView: s_scalars.AlterScalarType,
-        qlast.DropView: s_scalars.DeleteScalarType,
+        qlast.CreateAlias: s_scalars.CreateScalarType,
+        qlast.AlterAlias: s_scalars.AlterScalarType,
+        qlast.DropAlias: s_scalars.DeleteScalarType,
     }
 
     _objtype_cmd_map = {
-        qlast.CreateView: s_objtypes.CreateObjectType,
-        qlast.AlterView: s_objtypes.AlterObjectType,
-        qlast.DropView: s_objtypes.DeleteObjectType,
+        qlast.CreateAlias: s_objtypes.CreateObjectType,
+        qlast.AlterAlias: s_objtypes.AlterObjectType,
+        qlast.DropAlias: s_objtypes.DeleteObjectType,
     }
 
     _array_cmd_map = {
-        qlast.CreateView: s_types.CreateArrayView,
-        qlast.DropView: s_types.DeleteArrayView,
+        qlast.CreateAlias: s_types.CreateArrayExprAlias,
+        qlast.DropAlias: s_types.DeleteArrayExprAlias,
     }
 
     _tuple_cmd_map = {
-        qlast.CreateView: s_types.CreateTupleView,
-        qlast.DropView: s_types.DeleteTupleView,
+        qlast.CreateAlias: s_types.CreateTupleExprAlias,
+        qlast.DropAlias: s_types.DeleteTupleExprAlias,
     }
 
     @classmethod
     def _command_for_ast_node(cls, astnode, schema, context):
         modaliases = cls._modaliases_from_ast(schema, astnode, context)
 
-        with context(ViewCommandContext(schema,
-                                        op=None, modaliases=modaliases)):
+        with context(AliasCommandContext(
+                schema, op=None, modaliases=modaliases)):
 
             classname = cls._classname_from_ast(schema, astnode, context)
 
-            if isinstance(astnode, qlast.CreateView):
-                expr = cls._get_view_expr(astnode)
+            if isinstance(astnode, qlast.CreateAlias):
+                expr = cls._get_alias_expr(astnode)
                 ir = cls._compile_view_expr(expr, classname, schema, context)
                 scls = ir.stype
             else:
@@ -84,24 +84,24 @@ class ViewCommand(s_types.TypeCommand, context_class=ViewCommandContext):
                 mapping = cls._objtype_cmd_map
             else:
                 raise errors.InternalServerError(
-                    f'unsupported view type: '
+                    f'unsupported alias type: '
                     f'{scls.get_schema_class_displayname()}'
                 )
 
             return mapping[type(astnode)]
 
 
-class CreateView(ViewCommand):
-    astnode = qlast.CreateView
+class CreateAlias(AliasCommand):
+    astnode = qlast.CreateAlias
 
 
-class RenameView(ViewCommand):
+class RenameAlias(AliasCommand):
     pass
 
 
-class AlterView(ViewCommand):
-    astnode = qlast.AlterView
+class AlterAlias(AliasCommand):
+    astnode = qlast.AlterAlias
 
 
-class DeleteView(ViewCommand):
-    astnode = qlast.DropView
+class DeleteAlias(AliasCommand):
+    astnode = qlast.DropAlias

@@ -7,12 +7,12 @@ GraphQL over HTTP
 EdgeDB supports `GraphQL queries`__ natively out of the box. Not
 everything that can be expressed in EdgeQL can easily be queried using
 GraphQL, but generally for complex queries it is useful to set up
-Views and use GraphQL to query them.
+expression aliases and use GraphQL to query them.
 
-EdgeDB exposes the Types and :ref:`ref_datamodel_views` for GraphQL
-querying. Types and Views from thee ``default`` module are exposed
-using their short names, whereas items from another module use the
-module name as a prefix.
+EdgeDB exposes the Types and :ref:`ref_datamodel_aliases` for GraphQL
+querying. Types and expression aliases from the ``default`` module are
+exposed using their short names, whereas items from another module use
+the module name as a prefix.
 
 Here's an example of configuration that will set up GraphQL access to
 the database:

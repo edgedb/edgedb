@@ -58,7 +58,7 @@ specific schema state. For example:
     scalars
     links
     props
-    views
+    aliases
     indexes
     constraints
     functions

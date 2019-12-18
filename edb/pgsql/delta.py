@@ -383,24 +383,24 @@ class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
         return schema, self.scls
 
 
-class TupleViewCommand(ObjectMetaCommand):
+class TupleExprAliasCommand(ObjectMetaCommand):
 
-    _table = metaschema.get_metaclass_table(s_types.TupleView)
+    _table = metaschema.get_metaclass_table(s_types.TupleExprAlias)
 
     def get_table(self, schema):
         return self._table
 
 
-class CreateTupleView(
-        TupleViewCommand, CreateObject,
-        adapts=s_types.CreateTupleView):
+class CreateTupleExprAlias(
+        TupleExprAliasCommand, CreateObject,
+        adapts=s_types.CreateTupleExprAlias):
 
     pass
 
 
-class DeleteTupleView(
-        TupleViewCommand, DeleteObject,
-        adapts=s_types.DeleteTupleView):
+class DeleteTupleExprAlias(
+        TupleExprAliasCommand, DeleteObject,
+        adapts=s_types.DeleteTupleExprAlias):
 
     pass
 
@@ -428,24 +428,24 @@ class DeleteArray(ArrayCommand, adapts=s_types.DeleteArray):
         return schema, self.scls
 
 
-class ArrayViewCommand(ObjectMetaCommand):
+class ArrayExprAliasCommand(ObjectMetaCommand):
 
-    _table = metaschema.get_metaclass_table(s_types.ArrayView)
+    _table = metaschema.get_metaclass_table(s_types.ArrayExprAlias)
 
     def get_table(self, schema):
         return self._table
 
 
-class CreateArrayView(
-        ArrayViewCommand, CreateObject,
-        adapts=s_types.CreateArrayView):
+class CreateArrayExprAlias(
+        ArrayExprAliasCommand, CreateObject,
+        adapts=s_types.CreateArrayExprAlias):
 
     pass
 
 
-class DeleteArrayView(
-        ArrayViewCommand, DeleteObject,
-        adapts=s_types.DeleteArrayView):
+class DeleteArrayExprAlias(
+        ArrayExprAliasCommand, DeleteObject,
+        adapts=s_types.DeleteArrayExprAlias):
 
     pass
 
@@ -1072,11 +1072,11 @@ class RebaseConstraint(
     pass
 
 
-class ViewCapableObjectMetaCommand(ObjectMetaCommand):
+class AliasCapableObjectMetaCommand(ObjectMetaCommand):
     pass
 
 
-class ScalarTypeMetaCommand(ViewCapableObjectMetaCommand):
+class ScalarTypeMetaCommand(AliasCapableObjectMetaCommand):
     _table = metaschema.get_metaclass_table(s_scalars.ScalarType)
 
     def get_table(self, schema):
@@ -1771,7 +1771,7 @@ class RebaseIndex(
     pass
 
 
-class ObjectTypeMetaCommand(ViewCapableObjectMetaCommand,
+class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
     def get_table(self, schema):
         if self.scls.get_union_of(schema):

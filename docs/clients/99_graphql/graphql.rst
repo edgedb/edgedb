@@ -58,8 +58,8 @@ Consider this example:
     +---------------------------------+---------------------------------+
 
 The top-level field of the GraphQL query must be a valid
-``ObjectType`` or a ``View``. Nested fields must be valid links or
-properties.
+name of an object type or an expression alias of returning an object type.
+Nested fields must be valid links or properties.
 
 There are some specific conventions as to how *arguments* in GraphQL
 queries are used to allow filtering, ordering, and paginating data.

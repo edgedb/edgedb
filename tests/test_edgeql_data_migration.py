@@ -1072,8 +1072,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property bar -> int64;
             }
 
-            # add a view to emulate the original
-            view Base := (
+            # add a alias to emulate the original
+            alias Base := (
                 SELECT NewBase {
                     foo := <str>.bar
                 }
@@ -1111,7 +1111,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 link bar -> Child;
             }
 
-            view View01 := (
+            alias Alias01 := (
                 SELECT Base {
                     child_foo := .bar.foo
                 }
@@ -1132,16 +1132,16 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> str;
             }
 
-            # exchange a type for a view
-            view Base := (
+            # exchange a type for a alias
+            alias Base := (
                 SELECT Child {
                     # bar is the same as the root object
                     bar := Child
                 }
             );
 
-            view View01 := (
-                # now this view refers to another view
+            alias Alias01 := (
+                # now this alias refers to another alias
                 SELECT Base {
                     child_foo := .bar.foo
                 }
@@ -1150,7 +1150,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT View01 {
+                SELECT Alias01 {
                     child_foo,
                 };
             """,
@@ -1435,7 +1435,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> str;
             }
 
-            view Base := (
+            alias Base := (
                 SELECT Child {
                     bar := .foo
                 }
@@ -2029,16 +2029,16 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     async def test_edgeql_migration_37(self):
-        # testing schema views
+        # testing schema aliass
         await self.con.execute("""
             SET MODULE test;
         """)
         await self._migrate(r"""
             type Base;
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
-                    foo := 'base_view_37'
+                    foo := 'base_alias_37'
                 }
             )
         """)
@@ -2048,36 +2048,36 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo
                 };
             """,
             [{
-                'foo': 'base_view_37'
+                'foo': 'base_alias_37'
             }]
         )
 
         await self._migrate(r"""
             type Base;
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     # "rename" a computable, since the value is given and
                     # not stored, this is no different from dropping
                     # original and creating a new property
-                    foo2 := 'base_view_37'
+                    foo2 := 'base_alias_37'
                 }
             )
         """)
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo2
                 };
             """,
             [{
-                'foo2': 'base_view_37'
+                'foo2': 'base_alias_37'
             }]
         )
 
@@ -2085,22 +2085,22 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 edgedb.InvalidReferenceError,
                 r"object type 'test::Base' has no link or property 'foo'"):
             await self.con.execute(r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo
                 };
             """)
 
     async def test_edgeql_migration_38(self):
-        # testing schema views
+        # testing schema aliass
         await self.con.execute("""
             SET MODULE test;
         """)
         await self._migrate(r"""
             type Base;
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
-                    foo := 'base_view_38'
+                    foo := 'base_alias_38'
                 }
             )
         """)
@@ -2110,19 +2110,19 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo
                 };
             """,
             [{
-                'foo': 'base_view_38'
+                'foo': 'base_alias_38'
             }]
         )
 
         await self._migrate(r"""
             type Base;
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     # keep the name, but change the type
                     foo := 38
@@ -2132,7 +2132,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo
                 };
             """,
@@ -2142,7 +2142,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         )
 
     async def test_edgeql_migration_39(self):
-        # testing schema views
+        # testing schema aliass
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2153,20 +2153,20 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
-                    foo := (SELECT Foo FILTER .name = 'base_view_39')
+                    foo := (SELECT Foo FILTER .name = 'base_alias_39')
                 }
             )
         """)
         await self.con.execute(r"""
             INSERT Base;
-            INSERT Foo {name := 'base_view_39'};
+            INSERT Foo {name := 'base_alias_39'};
         """)
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name
                     }
@@ -2174,7 +2174,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """,
             [{
                 'foo': [{
-                    'name': 'base_view_39'
+                    'name': 'base_alias_39'
                 }]
             }]
         )
@@ -2186,19 +2186,19 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     # "rename" a computable, since the value is given and
                     # not stored, this is no different from dropping
                     # original and creating a new multi-link
-                    foo2 := (SELECT Foo FILTER .name = 'base_view_39')
+                    foo2 := (SELECT Foo FILTER .name = 'base_alias_39')
                 }
             )
         """)
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo2: {
                         name
                     }
@@ -2206,7 +2206,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """,
             [{
                 'foo2': [{
-                    'name': 'base_view_39'
+                    'name': 'base_alias_39'
                 }]
             }]
         )
@@ -2215,7 +2215,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 edgedb.InvalidReferenceError,
                 r"object type 'test::Base' has no link or property 'foo'"):
             await self.con.execute(r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name
                     }
@@ -2223,7 +2223,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """)
 
     async def test_edgeql_migration_40(self):
-        # testing schema views
+        # testing schema aliass
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2238,7 +2238,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (SELECT Foo FILTER .name = 'foo_40')
                 }
@@ -2252,7 +2252,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name
                     }
@@ -2276,7 +2276,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     # keep the name, but change the type
                     foo := (SELECT Bar FILTER .name = 'bar_40')
@@ -2286,7 +2286,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name
                     }
@@ -2306,7 +2306,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         The error appears to be the same as for test_migrations_equivalence_41
     ''')
     async def test_edgeql_migration_41(self):
-        # testing schema views
+        # testing schema aliass
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2317,25 +2317,25 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (
                         SELECT Foo {
-                            @bar := 'foo_bar_view_41'
+                            @bar := 'foo_bar_alias_41'
                         }
-                        FILTER .name = 'base_view_41'
+                        FILTER .name = 'base_alias_41'
                     )
                 }
             )
         """)
         await self.con.execute(r"""
             INSERT Base;
-            INSERT Foo {name := 'base_view_41'};
+            INSERT Foo {name := 'base_alias_41'};
         """)
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name,
                         @bar
@@ -2344,8 +2344,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """,
             [{
                 'foo': [{
-                    'name': 'base_view_41',
-                    '@bar': 'foo_bar_view_41',
+                    'name': 'base_alias_41',
+                    '@bar': 'foo_bar_alias_41',
                 }]
             }]
         )
@@ -2357,7 +2357,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (
                         SELECT Foo {
@@ -2365,9 +2365,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                             # the value is given and not stored, this is
                             # no different from dropping original and
                             # creating a new multi-link
-                            @baz := 'foo_bar_view_41'
+                            @baz := 'foo_bar_alias_41'
                         }
-                        FILTER .name = 'base_view_41'
+                        FILTER .name = 'base_alias_41'
                     )
                 }
             )
@@ -2375,7 +2375,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name,
                         @baz
@@ -2384,8 +2384,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """,
             [{
                 'foo': [{
-                    'name': 'base_view_41',
-                    '@baz': 'foo_bar_view_41'
+                    'name': 'base_alias_41',
+                    '@baz': 'foo_bar_alias_41'
                 }]
             }]
         )
@@ -2394,7 +2394,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 edgedb.InvalidReferenceError,
                 r"link 'fuu' has no property 'bar'"):
             await self.con.execute(r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name,
                         @bar
@@ -2409,7 +2409,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         The error appears to be the same as for test_migrations_equivalence_42
     ''')
     async def test_edgeql_migration_42(self):
-        # testing schema views
+        # testing schema aliass
         await self.con.execute("""
             SET MODULE test;
         """)
@@ -2420,25 +2420,25 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (
                         SELECT Foo {
-                            @bar := 'foo_bar_view_42'
+                            @bar := 'foo_bar_alias_42'
                         }
-                        FILTER .name = 'base_view_42'
+                        FILTER .name = 'base_alias_42'
                     )
                 }
             )
         """)
         await self.con.execute(r"""
             INSERT Base;
-            INSERT Foo {name := 'base_view_42'};
+            INSERT Foo {name := 'base_alias_42'};
         """)
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name,
                         @bar
@@ -2447,8 +2447,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """,
             [{
                 'foo': [{
-                    'name': 'base_view_42',
-                    '@bar': 'foo_bar_view_42',
+                    'name': 'base_alias_42',
+                    '@bar': 'foo_bar_alias_42',
                 }]
             }]
         )
@@ -2460,14 +2460,14 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property name -> str
             }
 
-            view BaseView := (
+            alias BaseAlias := (
                 SELECT Base {
                     foo := (
                         SELECT Foo {
                             # keep the name, but change the type
                             @bar := 42
                         }
-                        FILTER .name = 'base_view_42'
+                        FILTER .name = 'base_alias_42'
                     )
                 }
             )
@@ -2475,7 +2475,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT BaseView {
+                SELECT BaseAlias {
                     foo: {
                         name,
                         @bar
@@ -2484,7 +2484,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             """,
             [{
                 'foo': [{
-                    'name': 'base_view_42',
+                    'name': 'base_alias_42',
                     '@bar': 42,
                 }]
             }]
@@ -2769,8 +2769,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     SELECT <str>a
                 $$;
 
-            # use the function in a view directly
-            view foo := len(hello08(2) ++ hello08(123));
+            # use the function in a alias directly
+            alias foo := len(hello08(2) ++ hello08(123));
         """)
 
         await self.assert_query_result(
@@ -2785,8 +2785,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     SELECT [a]
                 $$;
 
-            # use the function in a view directly
-            view foo := len(hello08(2) ++ hello08(123));
+            # use the function in a alias directly
+            alias foo := len(hello08(2) ++ hello08(123));
         """)
 
         await self.assert_query_result(
@@ -2806,8 +2806,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base;
 
-            # use the function in a view directly
-            view BaseView := (
+            # use the function in a alias directly
+            alias BaseAlias := (
                 SELECT Base {
                     foo := len(hello09(2) ++ hello09(123))
                 }
@@ -2818,7 +2818,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView.foo;""",
+            r"""SELECT BaseAlias.foo;""",
             {4},
         )
 
@@ -2831,8 +2831,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             type Base;
 
-            # use the function in a view directly
-            view BaseView := (
+            # use the function in a alias directly
+            alias BaseAlias := (
                 SELECT Base {
                     foo := len(hello09(2) ++ hello09(123))
                 }
@@ -2840,7 +2840,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView.foo;""",
+            r"""SELECT BaseAlias.foo;""",
             {2},
         )
 
@@ -4769,9 +4769,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views that don't have arrays
-            view BaseView := Base { bar := Base.foo };
-            view CollView := Base.foo;
+            # aliass that don't have arrays
+            alias BaseAlias := Base { bar := Base.foo };
+            alias CollAlias := Base.foo;
         """)
 
         await self.con.execute(r"""
@@ -4780,13 +4780,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the views initialized correctly
+        # make sure that the aliass initialized correctly
         await self.assert_query_result(
-            r"""SELECT BaseView{bar};""",
+            r"""SELECT BaseAlias{bar};""",
             [{'bar': 13.5}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [13.5],
         )
 
@@ -4795,17 +4795,17 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # "same" views that now have arrays
-            view BaseView := Base { bar := [Base.foo] };
-            view CollView := [Base.foo];
+            # "same" aliass that now have arrays
+            alias BaseAlias := Base { bar := [Base.foo] };
+            alias CollAlias := [Base.foo];
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView{bar};""",
+            r"""SELECT BaseAlias{bar};""",
             [{'bar': [13.5]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [[13.5]],
         )
 
@@ -4819,9 +4819,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views that don't have tuples
-            view BaseView := Base { bar := Base.foo };
-            view CollView := Base.foo;
+            # aliass that don't have tuples
+            alias BaseAlias := Base { bar := Base.foo };
+            alias CollAlias := Base.foo;
         """)
 
         await self.con.execute(r"""
@@ -4831,13 +4831,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the views initialized correctly
+        # make sure that the aliass initialized correctly
         await self.assert_query_result(
-            r"""SELECT BaseView{bar};""",
+            r"""SELECT BaseAlias{bar};""",
             [{'bar': 14.5}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [14.5],
         )
 
@@ -4847,17 +4847,17 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # "same" views that now have tuples
-            view BaseView := Base { bar := (Base.name, Base.foo) };
-            view CollView := (Base.name, Base.foo);
+            # "same" aliass that now have tuples
+            alias BaseAlias := Base { bar := (Base.name, Base.foo) };
+            alias CollAlias := (Base.name, Base.foo);
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView{bar};""",
+            r"""SELECT BaseAlias{bar};""",
             [{'bar': ['coll_14', 14.5]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [['coll_14', 14.5]],
         )
 
@@ -4872,9 +4872,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views that don't have nested collections
-            view BaseView := Base { bar := Base.foo };
-            view CollView := Base.foo;
+            # aliass that don't have nested collections
+            alias BaseAlias := Base { bar := Base.foo };
+            alias CollAlias := Base.foo;
         """)
 
         await self.con.execute(r"""
@@ -4885,13 +4885,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the views initialized correctly
+        # make sure that the aliass initialized correctly
         await self.assert_query_result(
-            r"""SELECT BaseView{bar};""",
+            r"""SELECT BaseAlias{bar};""",
             [{'bar': 15.5}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [15.5],
         )
 
@@ -4902,19 +4902,19 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # "same" views that now have nested collections
-            view BaseView := Base {
+            # "same" aliass that now have nested collections
+            alias BaseAlias := Base {
                 bar := (Base.name, Base.number, [Base.foo])
             };
-            view CollView := (Base.name, Base.number, [Base.foo]);
+            alias CollAlias := (Base.name, Base.number, [Base.foo]);
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView{bar};""",
+            r"""SELECT BaseAlias{bar};""",
             [{'bar': ['coll_15', 15, [15.5]]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [['coll_15', 15, [15.5]]],
         )
 
@@ -4928,9 +4928,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views that don't have named tuples
-            view BaseView := Base { bar := Base.foo };
-            view CollView := Base.foo;
+            # aliass that don't have named tuples
+            alias BaseAlias := Base { bar := Base.foo };
+            alias CollAlias := Base.foo;
         """)
 
         await self.con.execute(r"""
@@ -4940,13 +4940,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the views initialized correctly
+        # make sure that the aliass initialized correctly
         await self.assert_query_result(
-            r"""SELECT BaseView{bar};""",
+            r"""SELECT BaseAlias{bar};""",
             [{'bar': 16.5}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [16.5],
         )
 
@@ -4956,19 +4956,19 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # "same" views that now have named tuples
-            view BaseView := Base {
+            # "same" aliass that now have named tuples
+            alias BaseAlias := Base {
                 bar := (a := Base.name, b := Base.foo)
             };
-            view CollView := (a := Base.name, b := Base.foo);
+            alias CollAlias := (a := Base.name, b := Base.foo);
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView{bar};""",
+            r"""SELECT BaseAlias{bar};""",
             [{'bar': {'a': 'coll_16', 'b': 16.5}}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [{'a': 'coll_16', 'b': 16.5}],
         )
 
@@ -4982,9 +4982,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property bar -> int32;
             };
 
-            # views with array<int32>
-            view BaseView := Base { data := [Base.bar] };
-            view CollView := [Base.bar];
+            # aliass with array<int32>
+            alias BaseAlias := Base { data := [Base.bar] };
+            alias CollAlias := [Base.bar];
         """)
 
         await self.con.execute(r"""
@@ -4994,13 +4994,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the views initialized correctly
+        # make sure that the aliass initialized correctly
         await self.assert_query_result(
-            r"""SELECT BaseView{data};""",
+            r"""SELECT BaseAlias{data};""",
             [{'data': [17]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [[17]],
         )
 
@@ -5010,17 +5010,17 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property bar -> int32;
             };
 
-            # views with array<flaot32>
-            view BaseView := Base { data := [Base.foo] };
-            view CollView := [Base.foo];
+            # aliass with array<flaot32>
+            alias BaseAlias := Base { data := [Base.foo] };
+            alias CollAlias := [Base.foo];
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView{data};""",
+            r"""SELECT BaseAlias{data};""",
             [{'data': [17.5]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [[17.5]],
         )
 
@@ -5035,11 +5035,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views with tuple<str, int32>
-            view BaseView := Base {
+            # aliass with tuple<str, int32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.number)
             };
-            view CollView := (Base.name, Base.number);
+            alias CollAlias := (Base.name, Base.number);
         """)
 
         await self.con.execute(r"""
@@ -5050,13 +5050,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the views initialized correctly
+        # make sure that the aliass initialized correctly
         await self.assert_query_result(
-            r"""SELECT BaseView{data};""",
+            r"""SELECT BaseAlias{data};""",
             [{'data': ['coll_18', 18]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [['coll_18', 18]],
         )
 
@@ -5067,19 +5067,19 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views with tuple<str, int32, float32>
-            view BaseView := Base {
+            # aliass with tuple<str, int32, float32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.number, Base.foo)
             };
-            view CollView := (Base.name, Base.number, Base.foo);
+            alias CollAlias := (Base.name, Base.number, Base.foo);
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView{data};""",
+            r"""SELECT BaseAlias{data};""",
             [{'data': ['coll_18', 18, 18.5]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [['coll_18', 18, 18.5]],
         )
 
@@ -5094,11 +5094,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views with tuple<str, int32>
-            view BaseView := Base {
+            # aliass with tuple<str, int32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.number)
             };
-            view CollView := (Base.name, Base.number);
+            alias CollAlias := (Base.name, Base.number);
         """)
 
         await self.con.execute(r"""
@@ -5109,13 +5109,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the views initialized correctly
+        # make sure that the aliass initialized correctly
         await self.assert_query_result(
-            r"""SELECT BaseView{data};""",
+            r"""SELECT BaseAlias{data};""",
             [{'data': ['test20', 20]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [['test20', 20]],
         )
 
@@ -5126,19 +5126,19 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views with tuple<str, float32>
-            view BaseView := Base {
+            # aliass with tuple<str, float32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.foo)
             };
-            view CollView := (Base.name, Base.foo);
+            alias CollAlias := (Base.name, Base.foo);
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView {data};""",
+            r"""SELECT BaseAlias {data};""",
             [{'data': ['test20', 123.5]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [['test20', 123.5]],
         )
 
@@ -5152,11 +5152,11 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views with tuple<str, float32>
-            view BaseView := Base {
+            # aliass with tuple<str, float32>
+            alias BaseAlias := Base {
                 data := (Base.name, Base.foo)
             };
-            view CollView := (Base.name, Base.foo);
+            alias CollAlias := (Base.name, Base.foo);
         """)
 
         await self.con.execute(r"""
@@ -5166,13 +5166,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         """)
 
-        # make sure that the views initialized correctly
+        # make sure that the aliass initialized correctly
         await self.assert_query_result(
-            r"""SELECT BaseView{data};""",
+            r"""SELECT BaseAlias{data};""",
             [{'data': ['coll_21', 21.5]}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [['coll_21', 21.5]],
         )
 
@@ -5182,18 +5182,18 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 property foo -> float32;
             };
 
-            # views with named tuple<a: str, b: float32>
-            view BaseView := Base {
+            # aliass with named tuple<a: str, b: float32>
+            alias BaseAlias := Base {
                 data := (a := Base.name, b := Base.foo)
             };
-            view CollView := (a := Base.name, b := Base.foo);
+            alias CollAlias := (a := Base.name, b := Base.foo);
         """)
 
         await self.assert_query_result(
-            r"""SELECT BaseView{data};""",
+            r"""SELECT BaseAlias{data};""",
             [{'data': {'a': 'coll_21', 'b': 21.5}}],
         )
         await self.assert_query_result(
-            r"""SELECT CollView;""",
+            r"""SELECT CollAlias;""",
             [{'a': 'coll_21', 'b': 21.5}],
         )

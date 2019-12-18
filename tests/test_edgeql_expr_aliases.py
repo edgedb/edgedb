@@ -24,8 +24,8 @@ from edb.testbase import server as tb
 from edb.tools import test
 
 
-class TestEdgeQLViews(tb.QueryTestCase):
-    '''The scope is to test views.'''
+class TestEdgeQLExprAliases(tb.QueryTestCase):
+    '''The scope is to test expression aliases.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'cards.esdl')
@@ -33,9 +33,9 @@ class TestEdgeQLViews(tb.QueryTestCase):
     SETUP = [os.path.join(os.path.dirname(__file__), 'schemas',
                           'cards_setup.edgeql'),
              os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards_views_setup.edgeql')]
+                          'cards_aliases_setup.edgeql')]
 
-    async def test_edgeql_views_basic_01(self):
+    async def test_edgeql_aliases_basic_01(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -62,9 +62,9 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_views_basic_02(self):
+    async def test_edgeql_aliases_basic_02(self):
         await self.con.execute('''
-            CREATE VIEW test::expert_map := (
+            CREATE ALIAS test::expert_map := (
                 SELECT {
                     ('Alice', 'pro'),
                     ('Bob', 'noob'),
@@ -89,12 +89,12 @@ class TestEdgeQLViews(tb.QueryTestCase):
         )
 
         await self.con.execute('''
-            DROP VIEW test::expert_map;
+            DROP ALIAS test::expert_map;
         ''')
 
-    async def test_edgeql_views_basic_03(self):
+    async def test_edgeql_aliases_basic_03(self):
         await self.con.execute('''
-            CREATE VIEW test::scores := (
+            CREATE ALIAS test::scores := (
                 SELECT {
                     (name := 'Alice', score := 100, games := 10),
                     (name := 'Bob', score := 11, games := 2),
@@ -146,12 +146,12 @@ class TestEdgeQLViews(tb.QueryTestCase):
         )
 
         await self.con.execute('''
-            DROP VIEW test::scores;
+            DROP ALIAS test::scores;
         ''')
 
-    async def test_edgeql_views_basic_04(self):
+    async def test_edgeql_aliases_basic_04(self):
         await self.con.execute('''
-            CREATE VIEW test::levels := {'pro', 'casual', 'noob'};
+            CREATE ALIAS test::levels := {'pro', 'casual', 'noob'};
         ''')
 
         await self.assert_query_result(
@@ -161,9 +161,9 @@ class TestEdgeQLViews(tb.QueryTestCase):
             {'pro', 'casual', 'noob'},
         )
 
-    async def test_edgeql_views_create_01(self):
+    async def test_edgeql_aliases_create_01(self):
         await self.con.execute(r'''
-            CREATE VIEW test::DCard := (
+            CREATE ALIAS test::DCard := (
                 WITH MODULE test
                 SELECT Card {
                     # This is an identical computable to the one
@@ -208,11 +208,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-        await self.con.execute('DROP VIEW test::DCard;')
+        await self.con.execute('DROP ALIAS test::DCard;')
 
-        # Check that we can recreate the view.
+        # Check that we can recreate the alias.
         await self.con.execute(r'''
-            CREATE VIEW test::DCard := (
+            CREATE ALIAS test::DCard := (
                 WITH MODULE test
                 SELECT Card {
                     owners := (
@@ -254,7 +254,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_views_filter_01(self):
+    async def test_edgeql_aliases_filter_01(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -265,7 +265,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             [{'name': 'Dragon'}],
         )
 
-    async def test_edgeql_views_filter02(self):
+    async def test_edgeql_aliases_filter02(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -368,7 +368,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
                             name,
                             # simple computable
                             fr0 := count(O.friends),
-                            # computable with a view defined
+                            # computable with an alias defined
                             fr1 := (WITH F := O.friends SELECT count(F)),
                         }
                         ORDER BY .name
@@ -386,7 +386,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_view_shape_propagation_01(self):
+    async def test_edgeql_aliases_shape_propagation_01(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -408,11 +408,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_view_shape_propagation_02(self):
+    async def test_edgeql_aliases_shape_propagation_02(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
-                # the view should be propagated through _ := DISTINCT since it
+                # the alias should be propagated through _ := DISTINCT since it
                 # maps `any` to `any`
                 SELECT _ := DISTINCT {
                     (SELECT User FILTER .name = 'Alice').deck,
@@ -430,11 +430,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_view_shape_propagation_03(self):
+    async def test_edgeql_aliases_shape_propagation_03(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
-                # the view should be propagated through _ := DETACHED
+                # the alias should be propagated through _ := DETACHED
                 SELECT _ := DETACHED {
                     (SELECT User FILTER .name = 'Alice').deck,
                     (SELECT User FILTER .name = 'Bob').deck
@@ -453,11 +453,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_view_shape_propagation_04(self):
+    async def test_edgeql_aliases_shape_propagation_04(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
-                # the view should be propagated through _ := DETACHED
+                # the alias should be propagated through _ := DETACHED
                 SELECT _ := DETACHED ({
                     (SELECT User FILTER .name = 'Alice').deck,
                     (SELECT User FILTER .name = 'Bob').deck
@@ -476,7 +476,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_views_if_else_01(self):
+    async def test_edgeql_aliases_if_else_01(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
@@ -487,7 +487,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ['no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'yes'],
         )
 
-    async def test_edgeql_views_if_else_02(self):
+    async def test_edgeql_aliases_if_else_02(self):
         await self.assert_query_result(
             r"""
                 # working with singletons
@@ -545,7 +545,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_views_if_else_03(self):
+    async def test_edgeql_aliases_if_else_03(self):
         res = [
             ['Air', 'Air', 'Air', 'Earth', 'Earth', 'Fire', 'Fire', 'Water',
              'Water'],
@@ -597,7 +597,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             sorted(res[1] + res[1] + res[1] + res[0] + res[0]),
         )
 
-    async def test_edgeql_views_if_else_04(self):
+    async def test_edgeql_aliases_if_else_04(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
@@ -626,7 +626,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             [['Alice', 110], ['Bob', 0], ['Carol', 0], ['Dave', 10]],
         )
 
-    async def test_edgeql_views_if_else_05(self):
+    async def test_edgeql_aliases_if_else_05(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
@@ -667,11 +667,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_views_nested_01(self):
+    async def test_edgeql_aliases_nested_01(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT AwardView {
+                SELECT AwardAlias {
                     name,
                     winner: {
                         name
@@ -685,13 +685,13 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_views_nested_02(self):
+    async def test_edgeql_aliases_nested_02(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
                 SELECT stdgraphql::Query {
                     foo := (
-                        SELECT AwardView {
+                        SELECT AwardAlias {
                             name,
                             winner: {
                                 name
@@ -711,11 +711,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_views_deep_01(self):
+    async def test_edgeql_aliases_deep_01(self):
         # fetch the result we will compare to
         res = await self.con.fetchall_json(r"""
             WITH MODULE test
-            SELECT AwardView {
+            SELECT AwardAlias {
                 winner: {
                     deck: {
                         owners
@@ -727,12 +727,12 @@ class TestEdgeQLViews(tb.QueryTestCase):
         """)
         res = json.loads(res)
 
-        # fetch the same data via a different view, that should be
+        # fetch the same data via a different alias, that should be
         # functionally identical
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT AwardView2 {
+                SELECT AwardAlias2 {
                     winner: {
                         deck: {
                             owners
@@ -744,7 +744,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             res
         )
 
-    async def test_edgeql_views_clauses_01(self):
+    async def test_edgeql_aliases_clauses_01(self):
         # fetch the result we will compare to
         res = await self.con.fetchall_json(r"""
             WITH MODULE test
@@ -758,12 +758,12 @@ class TestEdgeQLViews(tb.QueryTestCase):
         """)
         res = json.loads(res)
 
-        # fetch the same data via a view, that should be
+        # fetch the same data via an alias, that should be
         # functionally identical
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT UserView {
+                SELECT UserAlias {
                     deck,
                 }
                 FILTER .name = 'Alice';
@@ -771,11 +771,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             res
         )
 
-    async def test_edgeql_views_limit_01(self):
-        # Test interaction of views and the LIMIT clause
+    async def test_edgeql_aliases_limit_01(self):
+        # Test interaction of aliases and the LIMIT clause
         await self.con.execute("""
             WITH MODULE test
-            CREATE VIEW FirstUser := (
+            CREATE ALIAS FirstUser := (
                 SELECT User {
                     name_upper := str_upper(User.name)
                 }
@@ -798,11 +798,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_views_ignore_alias(self):
+    async def test_edgeql_aliases_ignore_alias(self):
         await self.con.execute('''
             SET MODULE test;
 
-            CREATE VIEW UserView2 := (
+            CREATE ALIAS UserAlias2 := (
                 SELECT User {
                     deck: {
                         id
@@ -813,14 +813,14 @@ class TestEdgeQLViews(tb.QueryTestCase):
         ''')
 
         # Explicitly reset the default module alias to test
-        # that views don't care.
+        # that aliases don't care.
         await self.con.execute('''
             SET MODULE std;
         ''')
 
         await self.assert_query_result(
             r"""
-                SELECT test::UserView2 {
+                SELECT test::UserAlias2 {
                     deck,
                 }
                 FILTER .name = 'Alice';
@@ -832,7 +832,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_views_esdl_01(self):
+    async def test_edgeql_aliases_esdl_01(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
@@ -874,11 +874,11 @@ class TestEdgeQLViews(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_views_collection_01(self):
+    async def test_edgeql_aliases_collection_01(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT SpecialCardView {
+                SELECT SpecialCardAlias {
                     name,
                     el_cost,
                 };
@@ -895,14 +895,14 @@ class TestEdgeQLViews(tb.QueryTestCase):
         edgedb.errors.InternalServerError: missing FROM-clause entry
         for table "SpecialCard~8"
 
-        See `test_edgeql_views_collection_04` or
-        `test_edgeql_views_collection_05` for minimal setup.
+        See `test_edgeql_aliases_collection_04` or
+        `test_edgeql_aliases_collection_05` for minimal setup.
     ''')
-    async def test_edgeql_views_collection_02(self):
+    async def test_edgeql_aliases_collection_02(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
-                SELECT SpecialCardView.el_cost;
+                SELECT SpecialCardAlias.el_cost;
             """,
             [
                 ['Air', 4],
@@ -913,10 +913,10 @@ class TestEdgeQLViews(tb.QueryTestCase):
         edgedb.errors.InternalServerError: missing FROM-clause entry
         for table "SpecialCard~8"
 
-        See `test_edgeql_views_collection_04` or
-        `test_edgeql_views_collection_05` for minimal setup.
+        See `test_edgeql_aliases_collection_04` or
+        `test_edgeql_aliases_collection_05` for minimal setup.
     ''')
-    async def test_edgeql_views_collection_03(self):
+    async def test_edgeql_aliases_collection_03(self):
         await self.assert_query_result(
             r"""
                 WITH
@@ -935,7 +935,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         edgedb.errors.InternalServerError: missing FROM-clause entry
         for table "SpecialCard~4"
     ''')
-    async def test_edgeql_views_collection_04(self):
+    async def test_edgeql_aliases_collection_04(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test
@@ -954,7 +954,7 @@ class TestEdgeQLViews(tb.QueryTestCase):
         edgedb.errors.InternalServerError: missing FROM-clause entry
         for table "SpecialCard~4"
     ''')
-    async def test_edgeql_views_collection_05(self):
+    async def test_edgeql_aliases_collection_05(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE test

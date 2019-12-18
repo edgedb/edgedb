@@ -37,8 +37,8 @@ async def fetch(
                 edgedb._resolve_type_name(c.union_of) AS union_of,
                 c.is_abstract AS is_abstract,
                 c.is_final AS is_final,
-                c.view_type AS view_type,
-                c.view_is_persistent AS view_is_persistent,
+                c.expr_type AS expr_type,
+                c.alias_is_persistent AS alias_is_persistent,
                 c.expr AS expr,
                 c.inherited_fields AS inherited_fields
 
@@ -65,8 +65,8 @@ async def fetch_derived(
                 edgedb._resolve_type_name(c.ancestors) AS ancestors,
                 c.is_abstract AS is_abstract,
                 c.is_final AS is_final,
-                c.view_type AS view_type,
-                c.view_is_persistent AS view_is_persistent,
+                c.expr_type AS expr_type,
+                c.alias_is_persistent AS alias_is_persistent,
                 c.expr AS expr,
                 c.inherited_fields AS inherited_fields
             FROM

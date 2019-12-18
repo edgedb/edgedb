@@ -355,7 +355,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_13(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                "object type or view 'self' does not exist"):
+                "object type or alias 'self' does not exist"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY foo -> std::str {
@@ -479,12 +479,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE REQUIRED PROPERTY foo -> str;
             };
 
-            CREATE VIEW View1 := ActualType {
+            CREATE ALIAS Alias1 := ActualType {
                 bar := 9
             };
 
-            CREATE VIEW View2 := ActualType {
-                connected := (SELECT View1 ORDER BY View1.foo)
+            CREATE ALIAS Alias2 := ActualType {
+                connected := (SELECT Alias1 ORDER BY Alias1.foo)
             };
 
             SET MODULE test;
@@ -499,14 +499,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT View2 {
+                SELECT Alias2 {
                     foo,
                     connected: {
                         foo,
                         bar
                     }
                 }
-                ORDER BY View2.foo;
+                ORDER BY Alias2.foo;
             """,
             [
                 {
@@ -639,10 +639,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
     @test.xfail('''
-        Fails with the below on "CREATE VIEW View2":
+        Fails with the below on "CREATE ALIAS Alias2":
 
         edb.errors.InvalidReferenceError: schema item
-        'test::__test|View1@@w~1__user2' does not exist
+        'test::__test|Alias1@@w~1__user2' does not exist
     ''')
     async def test_edgeql_ddl_21(self):
         await self.con.execute("""
@@ -656,17 +656,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE LINK user -> User;
             };
 
-            CREATE VIEW View1 := (SELECT Award {
+            CREATE ALIAS Alias1 := (SELECT Award {
                 user2 := (SELECT .user {name2 := .name ++ '!'})
             });
 
-            CREATE VIEW View2 := (SELECT View1);
+            CREATE ALIAS Alias2 := (SELECT Alias1);
         """)
 
         # TODO: Add an actual INSERT/SELECT test.
 
     @test.xfail('''
-        Fails with the below on "CREATE VIEW View2":
+        Fails with the below on "CREATE ALIAS Alias2":
 
         edgedb.errors.SchemaError: ObjectType 'test::test|User@@view~1'
         is already present in the schema <Schema gen:4121 at 0x109f222d0>
@@ -683,18 +683,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE REQUIRED PROPERTY name -> str;
             };
 
-            CREATE VIEW View1 := (SELECT Award {
+            CREATE ALIAS Alias1 := (SELECT Award {
                 a_user := (SELECT User { name } LIMIT 1)
             });
 
-            CREATE VIEW View2 := (SELECT View1);
+            CREATE ALIAS Alias2 := (SELECT Alias1);
         """)
 
         # TODO: Add an actual INSERT/SELECT test.
 
     async def test_edgeql_ddl_23(self):
         # Test that an unqualifed reverse link expression
-        # as a view pointer target is handled correctly and
+        # as an alias pointer target is handled correctly and
         # manifests as std::Object.
         await self.con.execute("""
             SET MODULE test;
@@ -704,7 +704,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE LINK user -> User;
             };
 
-            CREATE VIEW View1 := (SELECT User {
+            CREATE ALIAS Alias1 := (SELECT User {
                 awards := .<user
             });
         """)
@@ -713,7 +713,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"""
                 WITH
                     C := (SELECT schema::ObjectType
-                          FILTER .name = 'test::View1')
+                          FILTER .name = 'test::Alias1')
                 SELECT
                     C.pointers { target: { name } }
                 FILTER
@@ -3335,24 +3335,24 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE test::Foo RENAME TO test::FooRenamed;
             """)
 
-    async def test_edgeql_ddl_rename_view_01(self):
+    async def test_edgeql_ddl_rename_alias_01(self):
         await self.con.execute(r"""
-            CREATE VIEW test::RenameView01 := (
+            CREATE ALIAS test::RenameAlias01 := (
                 SELECT Object {
-                    view_computable := 'rename view 01'
+                    alias_computable := 'rename alias 01'
                 }
             );
 
-            ALTER VIEW test::RenameView01 {
-                RENAME TO test::NewView01;
+            ALTER ALIAS test::RenameAlias01 {
+                RENAME TO test::NewAlias01;
             };
         """)
 
         await self.assert_query_result(
             r'''
-                SELECT test::NewView01.view_computable LIMIT 1;
+                SELECT test::NewAlias01.alias_computable LIMIT 1;
             ''',
-            ['rename view 01']
+            ['rename alias 01']
         )
 
     async def test_edgeql_ddl_inheritance_alter_01(self):

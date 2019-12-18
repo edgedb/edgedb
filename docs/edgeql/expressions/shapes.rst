@@ -6,10 +6,9 @@
 Shapes
 ======
 
-A *shape* is a powerful syntactic construct that can be used to dynamically
-describe a portion of an object graph.  Shapes are used to describe
-``views``, ``insert`` and ``update`` data and to specify the format of
-statement output.
+A *shape* is a powerful syntactic construct that can be used to describe
+type variants in queries, data in ``INSERT`` and ``UPDATE`` statements,
+and to specify the format of statement output.
 
 Shapes always follow an expression, and are a list of *shape elements*
 enclosed in curly braces:

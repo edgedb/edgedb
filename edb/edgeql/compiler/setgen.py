@@ -216,12 +216,12 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         isinstance(o, s_types.Type)
                         and (o.is_object_type() or o.is_view(ctx.env.schema))
                     ),
-                    label='object type or view',
+                    label='object type or alias',
                     srcctx=step.context,
                     ctx=ctx,
                 )
 
-                if (stype.get_view_type(ctx.env.schema) is not None and
+                if (stype.get_expr_type(ctx.env.schema) is not None and
                         stype.get_name(ctx.env.schema) not in ctx.view_nodes):
                     # This is a schema-level view, as opposed to
                     # a WITH-block or inline alias view.

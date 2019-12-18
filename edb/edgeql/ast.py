@@ -787,15 +787,15 @@ class DropObjectType(DropObject):
     pass
 
 
-class CreateView(CreateObject):
+class CreateAlias(CreateObject):
     pass
 
 
-class AlterView(AlterObject):
+class AlterAlias(AlterObject):
     pass
 
 
-class DropView(DropObject):
+class DropAlias(DropObject):
     pass
 
 

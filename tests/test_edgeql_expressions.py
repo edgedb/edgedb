@@ -2481,7 +2481,7 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_introspect_bad_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'cannot introspect views'):
+                r'cannot introspect transient type variant'):
             await self.assert_query_result(
                 r"""
                     WITH A := (SELECT schema::Type { foo := 'bar' })
@@ -4106,7 +4106,7 @@ class TestExpressions(tb.QueryTestCase):
             [5],
         )
 
-    async def test_edgeql_expr_view_01(self):
+    async def test_edgeql_expr_alias_01(self):
         await self.assert_query_result(
             r"""
                 WITH
@@ -4118,7 +4118,7 @@ class TestExpressions(tb.QueryTestCase):
             [2],
         )
 
-    async def test_edgeql_expr_view_02(self):
+    async def test_edgeql_expr_alias_02(self):
         await self.assert_query_result(
             r"""
                 WITH
@@ -4129,7 +4129,7 @@ class TestExpressions(tb.QueryTestCase):
             [2],
         )
 
-    async def test_edgeql_expr_view_03(self):
+    async def test_edgeql_expr_alias_03(self):
         await self.assert_query_result(
             r"""
                 SELECT (
@@ -4143,7 +4143,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'a', 'foo': 1}, {'name': 'a', 'foo': 2}],
         )
 
-    async def test_edgeql_expr_view_04(self):
+    async def test_edgeql_expr_alias_04(self):
         await self.assert_query_result(
             r"""
                 SELECT (
@@ -4158,7 +4158,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'a', 'foo': 1}],
         )
 
-    async def test_edgeql_expr_view_05(self):
+    async def test_edgeql_expr_alias_05(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
@@ -4175,7 +4175,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'schema::Array', 'foo': {1, 2}}],
         )
 
-    async def test_edgeql_expr_view_06(self):
+    async def test_edgeql_expr_alias_06(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
@@ -4193,7 +4193,7 @@ class TestExpressions(tb.QueryTestCase):
             [{'name': 'schema::Array', 'foo': {1}}],
         )
 
-    async def test_edgeql_expr_view_07(self):
+    async def test_edgeql_expr_alias_07(self):
         await self.assert_query_result(
             r"""
                 # test variable masking
@@ -4205,7 +4205,7 @@ class TestExpressions(tb.QueryTestCase):
             [2, 3, 4, 4, 5],
         )
 
-    async def test_edgeql_expr_view_08(self):
+    async def test_edgeql_expr_alias_08(self):
         await self.assert_query_result(
             r"""
                 # test variable masking

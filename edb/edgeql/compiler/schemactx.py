@@ -145,18 +145,18 @@ def derive_view(
             derived_name_base=derived_name_base, ctx=ctx)
 
     if is_insert:
-        vtype = s_types.ViewType.Insert
+        exprtype = s_types.ExprType.Insert
     elif is_update:
-        vtype = s_types.ViewType.Update
+        exprtype = s_types.ExprType.Update
     else:
-        vtype = s_types.ViewType.Select
+        exprtype = s_types.ExprType.Select
 
     if attrs is None:
         attrs = {}
     else:
         attrs = dict(attrs)
 
-    attrs['view_type'] = vtype
+    attrs['expr_type'] = exprtype
 
     derived: s_types.Type
 

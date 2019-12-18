@@ -1546,7 +1546,7 @@ def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
         name = gqlcore.gql_to_edb_name(field)
 
         message += (
-            f' There\'s no corresponding type or view "{name}" exposed in '
+            f' There\'s no corresponding type or alias "{name}" exposed in '
             'EdgeDB. Please check the configuration settings for this port '
             'to make sure that you\'re connecting to the right database.'
         )

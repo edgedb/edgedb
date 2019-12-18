@@ -3,16 +3,16 @@
 WITH block
 ==========
 
-:index: alias module view detached
+:index: alias module
 
 .. eql:keyword:: WITH
 
     The ``WITH`` block in EdgeQL is used to define aliases.
 
-    In case of aliased expressions, those expressions are evaluated in
-    the lexical scope they appear in, not the scope where their alias
-    is used. This means that refactoring queries using aliases must be
-    done with care so as not to alter the query semantics.
+    The expression aliases are evaluated in the lexical scope they appear in,
+    not the scope where their alias is used. This means that refactoring
+    queries using aliases must be done with care so as not to alter the query
+    semantics.
 
 Specifying a module
 +++++++++++++++++++
@@ -83,13 +83,13 @@ Another use case is for giving short aliases to long module names
     FILTER .name = fbz::Baz.name;
 
 
-Ad-hoc Views
-++++++++++++
+Local Expression Aliases
+++++++++++++++++++++++++
 
-It is possible to define an ad-hoc view for some expression. The result
-set of a view expression behaves as a completely independent set of a
+It is possible to define an alias for an arbitrary expression. The result
+set of an alias expression behaves as a completely independent set of a
 given name. The contents of the set are determined by the expression
-at the point where the view is defined. In terms of scope, the view
+at the point where the alias is defined. In terms of scope, the alias
 expression in the ``WITH`` block is in a sibling scope to the rest
 of the query.
 
@@ -99,8 +99,8 @@ symbol in the ``WITH`` block. However, care must be taken to ensure
 that this refactoring doesn't alter the meaning of the expression due
 to scope change.
 
-All views defined in a ``WITH`` block must be referenced in the main
-part of the query.
+All expression aliases defined in a ``WITH`` block must be referenced in
+the body of the query.
 
 .. code-block:: edgeql
 

@@ -103,17 +103,17 @@ def _process_view(
 
     if (view_name is None and ctx.env.schema_view_mode
             and view_rptr is not None):
-        # Make sure persistent schema views have properly formed
+        # Make sure persistent schema exprssion aliases have properly formed
         # names as opposed to the usual mangled form of the ephemeral
-        # views.  This is needed for introspection readability, as well
+        # aliases.  This is needed for introspection readability, as well
         # as helps in maintaining proper type names for schema
         # representations that require alphanumeric names, such as
         # GraphQL.
         #
         # We use the name of the source together with the name
         # of the inbound link to form the name, so in e.g.
-        #    CREATE VIEW V := (SELECT Foo { bar: { baz: { ... } })
-        # The name of the innermost view would be "__V__bar__baz".
+        #    CREATE ALIAS V := (SELECT Foo { bar: { baz: { ... } })
+        # The name of the innermost alias would be "__V__bar__baz".
         source_name = view_rptr.source.get_name(ctx.env.schema).name
         if not source_name.startswith('__'):
             source_name = f'__{source_name}'
@@ -744,7 +744,7 @@ def has_implicit_tid(
 def _get_shape_configuration(
         ir_set: irast.Set, *,
         rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ViewType]=None,
+        parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) \
         -> List[Tuple[irast.Set, s_pointers.Pointer]]:
 
@@ -793,10 +793,10 @@ def _get_shape_configuration(
     if is_objtype:
         assert isinstance(stype, s_objtypes.ObjectType)
 
-        view_type = stype.get_view_type(ctx.env.schema)
-        is_mutation = view_type in (s_types.ViewType.Insert,
-                                    s_types.ViewType.Update)
-        is_parent_update = parent_view_type is s_types.ViewType.Update
+        view_type = stype.get_expr_type(ctx.env.schema)
+        is_mutation = view_type in (s_types.ExprType.Insert,
+                                    s_types.ExprType.Update)
+        is_parent_update = parent_view_type is s_types.ExprType.Update
 
         implicit_id = (
             # shape is not specified at all
@@ -824,8 +824,8 @@ def _get_shape_configuration(
                     break
 
     is_mutation = parent_view_type in {
-        s_types.ViewType.Insert,
-        s_types.ViewType.Update
+        s_types.ExprType.Insert,
+        s_types.ExprType.Update
     }
 
     implicit_tid = (
@@ -874,7 +874,7 @@ def _get_shape_configuration(
 def compile_view_shapes(
         expr: irast.Base, *,
         rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ViewType]=None,
+        parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) -> None:
     pass
 
@@ -883,7 +883,7 @@ def compile_view_shapes(
 def _compile_view_shapes_in_set(
         ir_set: irast.Set, *,
         rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ViewType]=None,
+        parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) -> None:
 
     shape_ptrs = _get_shape_configuration(
@@ -893,9 +893,9 @@ def _compile_view_shapes_in_set(
         pathctx.register_set_in_scope(ir_set, ctx=ctx)
 
         stype = setgen.get_set_type(ir_set, ctx=ctx)
-        view_type = stype.get_view_type(ctx.env.schema)
-        is_mutation = view_type in (s_types.ViewType.Update,
-                                    s_types.ViewType.Insert)
+        view_type = stype.get_expr_type(ctx.env.schema)
+        is_mutation = view_type in (s_types.ExprType.Update,
+                                    s_types.ExprType.Insert)
 
         for path_tip, ptr in shape_ptrs:
             element = setgen.extend_path(
@@ -917,7 +917,7 @@ def _compile_view_shapes_in_set(
                 scopectx.path_scope = element_scope
                 compile_view_shapes(
                     element,
-                    parent_view_type=stype.get_view_type(ctx.env.schema),
+                    parent_view_type=stype.get_expr_type(ctx.env.schema),
                     ctx=scopectx)
 
             ir_set.shape.append(element)
@@ -936,7 +936,7 @@ def _compile_view_shapes_in_set(
 def _compile_view_shapes_in_select(
         stmt: irast.SelectStmt, *,
         rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ViewType]=None,
+        parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) -> None:
     compile_view_shapes(stmt.result, ctx=ctx)
 
@@ -945,7 +945,7 @@ def _compile_view_shapes_in_select(
 def _compile_view_shapes_in_fcall(
         expr: irast.FunctionCall, *,
         rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ViewType]=None,
+        parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) -> None:
 
     if expr.func_polymorphic:
@@ -964,7 +964,7 @@ def _compile_view_shapes_in_fcall(
 def _compile_view_shapes_in_tuple(
         expr: irast.Tuple, *,
         rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ViewType]=None,
+        parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) -> None:
     for element in expr.elements:
         compile_view_shapes(element.val, ctx=ctx)
@@ -974,7 +974,7 @@ def _compile_view_shapes_in_tuple(
 def _compile_view_shapes_in_array(
         expr: irast.Array, *,
         rptr: Optional[irast.Pointer]=None,
-        parent_view_type: Optional[s_types.ViewType]=None,
+        parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) -> None:
     for element in expr.elements:
         compile_view_shapes(element, ctx=ctx)

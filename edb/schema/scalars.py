@@ -181,7 +181,7 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
                     break
             else:
                 raise errors.InternalServerError(
-                    'scalar view definition did not return CreateScalarType'
+                    'scalar alias definition did not return CreateScalarType'
                 )
         else:
             create_cmd = cmd
@@ -207,7 +207,7 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
 
     def _get_ast_node(self, schema, context):
         if self.get_attribute_value('expr'):
-            return qlast.CreateView
+            return qlast.CreateAlias
         else:
             return super()._get_ast_node(schema, context)
 

@@ -1411,20 +1411,20 @@ abstract property test::foo {
         };
         """
 
-    def test_eschema_syntax_view_01(self):
+    def test_eschema_syntax_alias_01(self):
         """
         module test {
-            view FooBaz {
+            alias FooBaz {
                 annotation description := 'Special Foo';
                 using (SELECT Foo FILTER Foo.bar = 'baz');
             };
         };
         """
 
-    def test_eschema_syntax_view_02(self):
+    def test_eschema_syntax_alias_02(self):
         """
         module test {
-            view FooBaz {
+            alias FooBaz {
                 using (
                     SELECT Foo
                     FILTER Foo.bar = 'baz'
@@ -1435,17 +1435,17 @@ abstract property test::foo {
 % OK %
 
         module test {
-            view FooBaz := (
+            alias FooBaz := (
                 SELECT Foo
                 FILTER Foo.bar = 'baz'
             );
         };
         """
 
-    def test_eschema_syntax_view_03(self):
+    def test_eschema_syntax_alias_03(self):
         """
         module test {
-            view FooBaz := (
+            alias FooBaz := (
                 SELECT Foo
                 FILTER Foo.bar = 'baz'
             );

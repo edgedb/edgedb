@@ -671,7 +671,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     @test.xfail('''
         Fails due to incorrect scoping of the "l" computable due
-        to an intermediate view.
+        to an intermediate subtype.
     ''')
     async def test_edgeql_scope_tuple_14(self):
         # Test that the tuple elements are interpreted as singletons.
@@ -1141,8 +1141,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # Semantically this is same as control query Q1, with lots
-                # of nested views. SELECT sets up A to be the longest
-                # common prefix to be iterated over, so the rest of views
+                # of nested shapes. SELECT sets up A to be the longest
+                # common prefix to be iterated over, so the rest of shapes
                 # work out because they all refer to a singleton with same
                 # value as A.
                 WITH
@@ -1168,7 +1168,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # semantically same as control query Q1, with lots of
-                # nested views
+                # nested shapes
                 WITH
                     MODULE test,
                     A := Card
@@ -1864,8 +1864,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
         )
 
     async def test_edgeql_scope_computables_02(self):
-        # Test that expressions in view link computables
-        # do not leak out into the query.
+        # Test that expressions in link computables
+        # of the type variant do not leak out into the query.
         await self.assert_query_result(
             r"""
                 WITH
@@ -2060,7 +2060,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"unused view definition: 'foo'",
+                r"unused alias definition: 'foo'",
                 _position=48):
             await self.con.fetchall("""\
                 WITH
@@ -2072,7 +2072,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"unused view definition: 'foo'",
+                r"unused alias definition: 'foo'",
                 _position=48):
             await self.con.fetchall("""\
                 WITH

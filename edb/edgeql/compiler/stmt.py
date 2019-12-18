@@ -263,7 +263,7 @@ def compile_InsertQuery(
 
         if subject_stype.is_view(ctx.env.schema):
             raise errors.QueryError(
-                f'cannot insert into view '
+                f'cannot insert into expression alias '
                 f'{subject_stype.get_shortname(ctx.env.schema)!r}',
                 context=expr.subject.context)
 

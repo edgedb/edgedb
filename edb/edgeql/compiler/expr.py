@@ -503,7 +503,7 @@ def compile_Introspect(
 
     if irtyputils.is_view(typeref):
         raise errors.QueryError(
-            f'cannot introspect views',
+            f'cannot introspect transient type variant',
             context=expr.type.context)
     if irtyputils.is_collection(typeref):
         raise errors.QueryError(

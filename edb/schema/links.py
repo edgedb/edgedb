@@ -439,12 +439,12 @@ class DeleteLink(LinkCommand, inheriting.DeleteInheritingObject):
 
         target = scls.get_target(schema)
 
-        # A link may only target a view only inside another view,
-        # which means that the target view must be dropped along
+        # A link may only target an alias only inside another alias,
+        # which means that the target alias must be dropped along
         # with this link.
         if (target is not None
                 and target.is_view(schema)
-                and target.get_view_is_persistent(schema)):
+                and target.get_alias_is_persistent(schema)):
 
             Cmd = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.DeleteObject, type(target))

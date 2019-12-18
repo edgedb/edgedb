@@ -50,7 +50,7 @@ class TestSession(tb.QueryTestCase):
         COMMIT MIGRATION mig;
 
         # Needed for validating that "ALTER TYPE User" DDL commands work.
-        CREATE VIEW UserOneToOneView := (SELECT User);
+        CREATE ALIAS UserOneToOneAlias := (SELECT User);
 
         WITH MODULE default INSERT User {name := 'user'};
         WITH MODULE foo INSERT Entity {name := 'entity'};
@@ -83,7 +83,7 @@ class TestSession(tb.QueryTestCase):
         await self.con.fetchall('SET MODULE foo;')
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                "object type or view 'User' does not exist"):
+                "object type or alias 'User' does not exist"):
             await self.con.fetchall('SELECT User {name};')
 
     async def test_session_set_command_03(self):
@@ -151,7 +151,7 @@ class TestSession(tb.QueryTestCase):
         try:
             await self.con.execute('''
                 ALTER TYPE User {
-                    # Test that UserOneToOneView doesn't block the alter.
+                    # Test that UserOneToOneAlias doesn't block the alter.
                     DROP PROPERTY name_len;
                 }
             ''')
@@ -227,7 +227,7 @@ class TestSession(tb.QueryTestCase):
                                     r'sys::sleep\(\) cannot be '
                                     r'called in a non-session context'):
             await self.con.execute(r"""
-                CREATE VIEW BadView := User {
+                CREATE ALIAS BadAlias := User {
                     sess := sys::sleep(0)
                 };
             """)
@@ -276,7 +276,7 @@ class TestSession(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE MIGRATION bad TO {
-                        view test::BadView := Object {
+                        alias test::BadAlias := Object {
                             sess := sys::sleep(0)
                         }
                     };

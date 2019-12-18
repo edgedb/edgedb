@@ -45,11 +45,11 @@ type User extending NamedObject {
     link profile -> Profile;
 }
 
-view SettingView := Setting {
+alias SettingAlias := Setting {
     of_group := .<settings[IS UserGroup]
 };
 
-view SettingViewAugmented := Setting {
+alias SettingAliasAugmented := Setting {
     of_group := .<settings[IS UserGroup] {
         name_upper := str_upper(.name)
     }

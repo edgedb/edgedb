@@ -1350,7 +1350,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
-    async def test_edgeql_select_view_01(self):
+    async def test_edgeql_select_alias_01(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
@@ -1383,7 +1383,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_view_02(self):
+    async def test_edgeql_select_alias_02(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
@@ -1411,7 +1411,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_view_03(self):
+    async def test_edgeql_select_alias_03(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
@@ -1443,14 +1443,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_view_04(self):
+    async def test_edgeql_select_alias_04(self):
         await self.assert_query_result(
             r"""
             WITH
                 MODULE test,
                 L := LogEntry   # there happens to only be 1 entry
             SELECT
-                # define a view that assigns a log to every Issue
+                # define a type variant that assigns a log to every Issue
                 Issue {
                     tsl := (Issue.time_spent_log ?? L)
                 }.tsl {
@@ -1464,7 +1464,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_view_05(self):
+    async def test_edgeql_select_alias_05(self):
         await self.assert_query_result(
             r"""
             WITH MODULE test
@@ -1496,7 +1496,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_view_06(self):
+    async def test_edgeql_select_alias_06(self):
         await self.assert_query_result(
             r"""
             WITH MODULE test
@@ -1518,7 +1518,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_view_07(self):
+    async def test_edgeql_select_alias_07(self):
         await self.assert_query_result(
             r"""
             # semantically identical to the previous test
@@ -1544,7 +1544,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_view_08(self):
+    async def test_edgeql_select_alias_08(self):
         await self.assert_query_result(
             r"""
             # semantically similar to previous test, but involving
@@ -1963,7 +1963,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_setops_14(self):
         await self.assert_query_result(
             r"""
-            # The computable in the view is omitted from the duck type
+            # The computable in the type variant is omitted from the duck type
             # of the UNION because ultimately it's the duck type of
             # the operands, which are both Issue with the real
             # property 'number'.
@@ -1979,7 +1979,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_setops_15(self):
         await self.assert_query_result(
             r"""
-            # The computable in the view is omitted from the duck type
+            # The computable in the type variant is omitted from the duck type
             # of the UNION because ultimately it's the duck type of
             # the operands, which are both Issue with the real
             # property 'number'.
@@ -3867,7 +3867,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {'ElvisElvis', 'ElvisYury', 'YuryElvis', 'YuryYury'},
         )
 
-    async def test_edgeql_select_view_indirection_01(self):
+    async def test_edgeql_select_alias_indirection_01(self):
         await self.assert_query_result(
             r"""
             # Direct reference to a computable element in a subquery
@@ -3882,11 +3882,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [2],
         )
 
-    async def test_edgeql_select_view_indirection_02(self):
+    async def test_edgeql_select_alias_indirection_02(self):
         await self.assert_query_result(
             r"""
             # Reference to a computable element in a subquery
-            # defined as an inline view.
+            # defined as an alias.
             WITH MODULE test,
                 U := (
                     SELECT User {
@@ -3899,10 +3899,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [2],
         )
 
-    async def test_edgeql_select_view_indirection_03(self):
+    async def test_edgeql_select_alias_indirection_03(self):
         await self.assert_query_result(
             r"""
-            # Reference a computed object set in a view.
+            # Reference a computed object set in an alias.
             WITH MODULE test,
                 U := (
                     WITH U2 := User
@@ -3918,9 +3918,9 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['Yury'],
         )
 
-    async def test_edgeql_select_view_indirection_04(self):
+    async def test_edgeql_select_alias_indirection_04(self):
         result = await self.con.fetchall(r"""
-            # Reference a constant expression in a view.
+            # Reference a constant expression in an alias.
             WITH MODULE test,
                 U := (
                     SELECT User {
@@ -3937,10 +3937,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         self.assertEqual(len(result), 2)
 
-    async def test_edgeql_select_view_indirection_05(self):
+    async def test_edgeql_select_alias_indirection_05(self):
         await self.assert_query_result(
             r"""
-            # Reference multiple views.
+            # Reference multiple aliases.
             WITH MODULE test,
                 U := (
                     SELECT User FILTER User.name = 'Elvis'
@@ -3954,10 +3954,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
-    async def test_edgeql_select_view_indirection_06(self):
+    async def test_edgeql_select_alias_indirection_06(self):
         await self.assert_query_result(
             r"""
-            # Reference another view from a view.
+            # Reference another alias from an alias.
             WITH MODULE test,
                 U := (
                     SELECT User FILTER User.name = 'Elvis'
@@ -3973,7 +3973,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['1', '4'],
         )
 
-    async def test_edgeql_select_view_indirection_07(self):
+    async def test_edgeql_select_alias_indirection_07(self):
         await self.assert_query_result(
             r"""
             # A combination of the above two.
@@ -3994,10 +3994,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [],
         )
 
-    async def test_edgeql_select_view_indirection_08(self):
+    async def test_edgeql_select_alias_indirection_08(self):
         await self.assert_query_result(
             r"""
-            # A slightly more complex view.
+            # A slightly more complex type variant.
              WITH MODULE test,
                  U := (
                      WITH U2 := User
@@ -4028,7 +4028,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_select_view_indirection_09(self):
+    async def test_edgeql_select_alias_indirection_09(self):
         await self.assert_query_result(
             r'''
             WITH
@@ -4061,7 +4061,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_select_view_indirection_10(self):
+    async def test_edgeql_select_alias_indirection_10(self):
         await self.assert_query_result(
             r'''
             WITH
@@ -4088,7 +4088,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             }]
         )
 
-    async def test_edgeql_select_view_indirection_11(self):
+    async def test_edgeql_select_alias_indirection_11(self):
         await self.assert_query_result(
             r'''
             WITH
@@ -4999,7 +4999,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_json_01(self):
         await self.assert_query_result(
             r'''
-            # cast an ad-hoc view into a set of json
+            # cast a type variant into a set of json
             WITH MODULE test
             SELECT (
                 SELECT <json>Issue {
@@ -5027,7 +5027,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_bad_reference_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"object type or view 'Usr' does not exist",
+                r"object type or alias 'Usr' does not exist",
                 _hint="did you mean one of these: User, URL?"):
 
             await self.con.fetchall("""

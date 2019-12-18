@@ -71,7 +71,7 @@ class SDLBlockStatement(Nonterm):
     def reduce_ObjectTypeDeclaration(self, *kids):
         self.val = kids[0].val
 
-    def reduce_ViewDeclaration(self, *kids):
+    def reduce_AliasDeclaration(self, *kids):
         self.val = kids[0].val
 
     def reduce_ConstraintDeclaration(self, *kids):
@@ -104,7 +104,7 @@ class SDLShortStatement(Nonterm):
     def reduce_ObjectTypeDeclarationShort(self, *kids):
         self.val = kids[0].val
 
-    def reduce_ViewDeclarationShort(self, *kids):
+    def reduce_AliasDeclarationShort(self, *kids):
         self.val = kids[0].val
 
     def reduce_ConstraintDeclarationShort(self, *kids):
@@ -946,11 +946,11 @@ class ObjectTypeDeclarationShort(Nonterm):
 
 
 #
-# Views
+# Aliases
 #
 
 sdl_commands_block(
-    'CreateView',
+    'CreateAlias',
     Using,
     SetField,
     SetAnnotation,
@@ -958,23 +958,23 @@ sdl_commands_block(
 )
 
 
-class ViewDeclaration(Nonterm):
-    def reduce_CreateViewRegularStmt(self, *kids):
-        r"""%reduce \
-            VIEW NodeName CreateViewSDLCommandsBlock \
+class AliasDeclaration(Nonterm):
+    def reduce_CreateAliasRegularStmt(self, *kids):
+        r"""%reduce
+            ALIAS NodeName CreateAliasSDLCommandsBlock
         """
-        self.val = qlast.CreateView(
+        self.val = qlast.CreateAlias(
             name=kids[1].val,
             commands=kids[2].val,
         )
 
 
-class ViewDeclarationShort(Nonterm):
-    def reduce_CreateViewShortStmt(self, *kids):
-        r"""%reduce \
-            VIEW NodeName ASSIGN Expr \
+class AliasDeclarationShort(Nonterm):
+    def reduce_CreateAliasShortStmt(self, *kids):
+        r"""%reduce
+            ALIAS NodeName ASSIGN Expr
         """
-        self.val = qlast.CreateView(
+        self.val = qlast.CreateAlias(
             name=kids[1].val,
             commands=[
                 qlast.SetSpecialField(
@@ -984,11 +984,11 @@ class ViewDeclarationShort(Nonterm):
             ]
         )
 
-    def reduce_CreateViewRegularStmt(self, *kids):
-        r"""%reduce \
-            VIEW NodeName CreateViewSingleSDLCommandBlock \
+    def reduce_CreateAliasRegularStmt(self, *kids):
+        r"""%reduce
+            ALIAS NodeName CreateAliasSingleSDLCommandBlock
         """
-        self.val = qlast.CreateView(
+        self.val = qlast.CreateAlias(
             name=kids[1].val,
             commands=kids[2].val,
         )

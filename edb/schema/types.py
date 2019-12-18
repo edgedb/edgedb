@@ -53,7 +53,8 @@ TYPE_ID_NAMESPACE = uuidgen.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
 MAX_TYPE_DISTANCE = 1_000_000_000
 
 
-class ViewType(enum.IntEnum):
+class ExprType(enum.IntEnum):
+    """Enumeration to identify the type of an expression in aliases."""
     Select = enum.auto()
     Insert = enum.auto()
     Update = enum.auto()
@@ -65,23 +66,23 @@ TypeT = typing.TypeVar('TypeT', bound='Type')
 class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     """A schema item that is a valid *type*."""
 
-    # For a type representing a view, this would contain the
-    # view type.  Non-view types have None here.
-    view_type = so.SchemaField(
-        ViewType,
-        default=None, compcoef=0.909)
-
-    # True for views defined by CREATE VIEW, false for ephemeral
-    # views in queries.
-    view_is_persistent = so.SchemaField(
-        bool,
-        default=False, compcoef=None)
-
-    # If this type is a view, expr may contain an expression that
-    # defines the view set.
+    # If this type is an alias, expr will contain an expression that
+    # defines it.
     expr = so.SchemaField(
         s_expr.Expression,
         default=None, coerce=True, compcoef=0.909)
+
+    # For a type representing an expression alias, this would contain the
+    # expressoin type.  Non-alias types have None here.
+    expr_type = so.SchemaField(
+        ExprType,
+        default=None, compcoef=0.909)
+
+    # True for aliases defined by CREATE ALIAS, false for local
+    # aliases in queries.
+    alias_is_persistent = so.SchemaField(
+        bool,
+        default=False, compcoef=None)
 
     # If this type is a view defined by a nested shape expression,
     # and the nested shape contains references to link properties,
@@ -264,7 +265,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
             f'{type(self)} does not support to_nonpolymorphic()')
 
     def is_view(self, schema: s_schema.Schema) -> bool:
-        return self.get_view_type(schema) is not None
+        return self.get_expr_type(schema) is not None
 
     def assignment_castable_to(
         self, other: Type, schema: s_schema.Schema
@@ -599,8 +600,8 @@ class EphemeralCollection(Collection):
         s_name.SchemaName,
         inheritable=False, compcoef=0.670)
 
-    view_type = so.Field(  # type: ignore
-        ViewType,
+    expr_type = so.Field(  # type: ignore
+        ExprType,
         default=None, ephemeral=True)
 
     expr = so.Field(  # type: ignore
@@ -621,8 +622,8 @@ class EphemeralCollection(Collection):
     def get_schema_class_displayname(cls) -> str:
         return 'collection'
 
-    def get_view_type(self, schema: s_schema.Schema) -> None:
-        return self.view_type  # type: ignore
+    def get_expr_type(self, schema: s_schema.Schema) -> None:
+        return self.expr_type  # type: ignore
 
     def get_expr(self, schema: s_schema.Schema) -> s_expr.Expression:
         return self.expr  # type: ignore
@@ -824,7 +825,7 @@ class BaseArray(Collection, s_abc.Array):
         view_name: Optional[str] = None,
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.CommandGroup:
-        ca: Union[CreateArray, CreateArrayView]
+        ca: Union[CreateArray, CreateArrayExprAlias]
         cmd = sd.CommandGroup()
         if view_name is None:
             name = str(self.id)
@@ -833,7 +834,7 @@ class BaseArray(Collection, s_abc.Array):
             )
         else:
             name = view_name
-            ca = CreateArrayView(
+            ca = CreateArrayExprAlias(
                 classname=name,
             )
 
@@ -856,8 +857,8 @@ class BaseArray(Collection, s_abc.Array):
 
     def as_delete_delta(
         self, schema: s_schema.Schema, *, view_name: str = None
-    ) -> Union[DeleteArray, DeleteArrayView]:
-        cmd: Union[DeleteArray, DeleteArrayView]
+    ) -> Union[DeleteArray, DeleteArrayExprAlias]:
+        cmd: Union[DeleteArray, DeleteArrayExprAlias]
         if view_name is None:
             name = str(self.id)
             cmd = DeleteArray(
@@ -865,7 +866,7 @@ class BaseArray(Collection, s_abc.Array):
             )
         else:
             name = view_name
-            cmd = DeleteArrayView(
+            cmd = DeleteArrayExprAlias(
                 classname=name,
             )
 
@@ -929,7 +930,7 @@ class SchemaCollection(so.Object, metaclass=SchemaCollectionMeta):
         )
 
 
-class CollectionView(SchemaCollection):
+class CollectionExprAlias(SchemaCollection):
 
     @classmethod
     def get_schema_class_displayname(cls):
@@ -981,7 +982,7 @@ class SchemaArray(SchemaAnonymousCollection, BaseSchemaArray):
     pass
 
 
-class ArrayView(CollectionView, BaseSchemaArray):
+class ArrayExprAlias(CollectionExprAlias, BaseSchemaArray):
     pass
 
 
@@ -1338,7 +1339,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         view_name: Optional[str] = None,
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.CommandGroup:
-        ct: Union[CreateTuple, CreateTupleView]
+        ct: Union[CreateTuple, CreateTupleExprAlias]
         cmd = sd.CommandGroup()
         if view_name is None:
             name = str(self.id)
@@ -1347,7 +1348,7 @@ class BaseTuple(Collection, s_abc.Tuple):
             )
         else:
             name = view_name
-            ct = CreateTupleView(
+            ct = CreateTupleExprAlias(
                 classname=name,
             )
 
@@ -1375,8 +1376,8 @@ class BaseTuple(Collection, s_abc.Tuple):
 
     def as_delete_delta(
         self, schema: s_schema.Schema, *, view_name: str = None
-    ) -> Union[DeleteTuple, DeleteTupleView]:
-        cmd: Union[DeleteTuple, DeleteTupleView]
+    ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
+        cmd: Union[DeleteTuple, DeleteTupleExprAlias]
         if view_name is None:
             name = str(self.id)
             cmd = DeleteTuple(
@@ -1384,7 +1385,7 @@ class BaseTuple(Collection, s_abc.Tuple):
             )
         else:
             name = view_name
-            cmd = DeleteTupleView(
+            cmd = DeleteTupleExprAlias(
                 classname=name,
             )
 
@@ -1506,7 +1507,7 @@ class SchemaTuple(SchemaAnonymousCollection, BaseSchemaTuple):
     pass
 
 
-class TupleView(CollectionView, BaseSchemaTuple):
+class TupleExprAlias(CollectionExprAlias, BaseSchemaTuple):
     pass
 
 
@@ -1576,7 +1577,7 @@ def ensure_schema_union_type(schema, union_type_ref, parent_cmd, *,
 
 class TypeCommand(sd.ObjectCommand):
     @classmethod
-    def _maybe_get_view_expr(
+    def _maybe_get_alias_expr(
         cls, astnode: qlast.ObjectDDL
     ) -> Optional[qlast.Expr]:
         for subcmd in astnode.commands:
@@ -1587,10 +1588,10 @@ class TypeCommand(sd.ObjectCommand):
         return None
 
     @classmethod
-    def _get_view_expr(cls, astnode: qlast.CreateView) -> qlast.Expr:
-        expr = cls._maybe_get_view_expr(astnode)
+    def _get_alias_expr(cls, astnode: qlast.CreateAlias) -> qlast.Expr:
+        expr = cls._maybe_get_alias_expr(astnode)
         if expr is None:
-            raise errors.InvalidViewDefinitionError(
+            raise errors.InvalidAliasDefinitionError(
                 f'missing required view expression', context=astnode.context)
         return expr
 
@@ -1626,7 +1627,7 @@ class TypeCommand(sd.ObjectCommand):
     ) -> sd.Command:
         from . import ordering as s_ordering
 
-        view_expr = cls._maybe_get_view_expr(astnode)
+        view_expr = cls._maybe_get_alias_expr(astnode)
         if view_expr is None:
             return cmd
 
@@ -1650,21 +1651,21 @@ class TypeCommand(sd.ObjectCommand):
 
         expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
 
-        coll_view_types: List[Collection] = []
-        prev_coll_view_types: List[Collection] = []
-        view_types: List[Type] = []
-        prev_view_types: List[Type] = []
+        coll_expr_aliases: List[Collection] = []
+        prev_coll_expr_aliases: List[Collection] = []
+        expr_aliases: List[Type] = []
+        prev_expr_aliases: List[Type] = []
         prev_ir: Optional[irast.Statement] = None
         old_schema: Optional[s_schema.Schema] = None
 
         for vt in ir.views.values():
             if isinstance(vt, Collection):
-                coll_view_types.append(vt)
+                coll_expr_aliases.append(vt)
             else:
                 new_schema = vt.set_field_value(
-                    new_schema, 'view_is_persistent', True)
+                    new_schema, 'alias_is_persistent', True)
 
-                view_types.append(vt)
+                expr_aliases.append(vt)
 
         if isinstance(astnode, qlast.AlterObject):
             prev = typing.cast(Type, schema.get(classname))
@@ -1675,28 +1676,28 @@ class TypeCommand(sd.ObjectCommand):
             old_schema = prev_ir.schema
             for vt in prev_ir.views.values():
                 if isinstance(vt, Collection):
-                    prev_coll_view_types.append(vt)
+                    prev_coll_expr_aliases.append(vt)
                 else:
-                    prev_view_types.append(vt)
+                    prev_expr_aliases.append(vt)
 
         derived_delta = sd.DeltaRoot()
 
         derived_delta.update(so.Object.delta_sets(
-            prev_view_types, view_types,
+            prev_expr_aliases, expr_aliases,
             old_schema=old_schema, new_schema=new_schema))
 
         if prev_ir is not None:
-            for vt in prev_coll_view_types:
+            for vt in prev_coll_expr_aliases:
                 dt = vt.as_delete_delta(prev_ir.schema, view_name=classname)
                 derived_delta.prepend(dt)
 
-        for vt in coll_view_types:
+        for vt in coll_expr_aliases:
             ct = vt.as_create_delta(
                 new_schema, view_name=classname,
                 attrs={
                     'expr': expr,
-                    'view_is_persistent': True,
-                    'view_type': ViewType.Select,
+                    'alias_is_persistent': True,
+                    'expr_type': ExprType.Select,
                 })
             new_schema, _ = ct.apply(new_schema, context)
             derived_delta.add(ct)
@@ -1748,13 +1749,13 @@ class CollectionTypeCommand(sd.UnqualifiedObjectCommand,
         return None
 
 
-class CollectionViewCommand(TypeCommand,
-                            context_class=CollectionTypeCommandContext):
+class CollectionExprAliasCommand(TypeCommand,
+                                 context_class=CollectionTypeCommandContext):
     @classmethod
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.CreateView,
+        astnode: qlast.CreateAlias,
         context: sd.CommandContext,
     ) -> sd.CommandGroup:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
@@ -1770,11 +1771,11 @@ class DeleteCollectionType(CollectionTypeCommand, sd.DeleteObject):
     pass
 
 
-class CreateCollectionView(CollectionViewCommand, sd.CreateObject):
+class CreateCollectionExprAlias(CollectionExprAliasCommand, sd.CreateObject):
     pass
 
 
-class DeleteCollectionView(CollectionViewCommand, sd.DeleteObject):
+class DeleteCollectionExprAlias(CollectionExprAliasCommand, sd.DeleteObject):
     pass
 
 
@@ -1782,33 +1783,36 @@ class CreateTuple(CreateCollectionType, schema_metaclass=SchemaTuple):
     pass
 
 
-class CreateTupleView(CreateCollectionView, schema_metaclass=TupleView):
+class CreateTupleExprAlias(CreateCollectionExprAlias,
+                           schema_metaclass=TupleExprAlias):
     def _get_ast_node(
         self, schema: s_schema.Schema, context: sd.CommandContext
-    ) -> typing.Type[qlast.CreateView]:
+    ) -> typing.Type[qlast.CreateAlias]:
         # Can't just use class-level astnode because that creates a
         # duplicate in ast -> command mapping.
-        return qlast.CreateView
+        return qlast.CreateAlias
 
 
 class CreateArray(CreateCollectionType, schema_metaclass=SchemaArray):
     pass
 
 
-class CreateArrayView(CreateCollectionView, schema_metaclass=ArrayView):
+class CreateArrayExprAlias(CreateCollectionExprAlias,
+                           schema_metaclass=ArrayExprAlias):
     def _get_ast_node(
         self, schema: s_schema.Schema, context: sd.CommandContext
-    ) -> typing.Type[qlast.CreateView]:
+    ) -> typing.Type[qlast.CreateAlias]:
         # Can't just use class-level astnode because that creates a
         # duplicate in ast -> command mapping.
-        return qlast.CreateView
+        return qlast.CreateAlias
 
 
 class DeleteTuple(DeleteCollectionType, schema_metaclass=SchemaTuple):
     pass
 
 
-class DeleteTupleView(DeleteCollectionView, schema_metaclass=TupleView):
+class DeleteTupleExprAlias(DeleteCollectionExprAlias,
+                           schema_metaclass=TupleExprAlias):
     pass
 
 
@@ -1816,5 +1820,6 @@ class DeleteArray(DeleteCollectionType, schema_metaclass=SchemaArray):
     pass
 
 
-class DeleteArrayView(DeleteCollectionView, schema_metaclass=ArrayView):
+class DeleteArrayExprAlias(DeleteCollectionExprAlias,
+                           schema_metaclass=ArrayExprAlias):
     pass

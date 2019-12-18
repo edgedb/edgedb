@@ -73,7 +73,7 @@
 0x_04_05_01_04   InvalidUserDefinitionError
 0x_04_05_01_05   InvalidDatabaseDefinitionError
 0x_04_05_01_06   InvalidOperatorDefinitionError
-0x_04_05_01_07   InvalidViewDefinitionError
+0x_04_05_01_07   InvalidAliasDefinitionError
 0x_04_05_01_08   InvalidFunctionDefinitionError
 0x_04_05_01_09   InvalidConstraintDefinitionError
 0x_04_05_01_0A   InvalidCastDefinitionError

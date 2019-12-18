@@ -39,6 +39,7 @@ from . import scalars  # NOQA
 from . import annos  # NOQA
 from . import casts  # NOQA
 from . import expr as s_expr
+from . import expraliases  # NOQA
 from . import objtypes  # NOQA
 from . import constraints  # NOQA
 from . import functions  # NOQA
@@ -51,7 +52,6 @@ from . import lproperties  # NOQA
 from . import modules  # NOQA
 from . import std  # NOQA
 from . import types
-from . import views  # NOQA
 
 
 def get_global_dep_order() -> Tuple[so.ObjectMeta, ...]:
@@ -63,9 +63,9 @@ def get_global_dep_order() -> Tuple[so.ObjectMeta, ...]:
         # schema arrays and tuples are UnqualifiedObject
         types.SchemaArray,
         types.SchemaTuple,
-        # views are treated separately because they are not UnqualifiedObject
-        types.ArrayView,
-        types.TupleView,
+        # aliases are treated separately because they are not UnqualifiedObject
+        types.ArrayExprAlias,
+        types.TupleExprAlias,
         lproperties.Property,
         links.Link,
         objtypes.BaseObjectType,

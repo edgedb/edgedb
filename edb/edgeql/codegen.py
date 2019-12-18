@@ -1007,12 +1007,12 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropModule(self, node: qlast.DropModule) -> None:
         self._visit_DropObject(node, 'MODULE')
 
-    def visit_CreateView(self, node: qlast.CreateView) -> None:
+    def visit_CreateAlias(self, node: qlast.CreateAlias) -> None:
         if (len(node.commands) == 1
                 and isinstance(node.commands[0], qlast.SetSpecialField)
                 and node.commands[0].name == 'expr'):
 
-            self._visit_CreateObject(node, 'VIEW', render_commands=False)
+            self._visit_CreateObject(node, 'ALIAS', render_commands=False)
             self.write(' := (')
             self.new_lines = 1
             self.indentation += 1
@@ -1021,13 +1021,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
             self.write(')')
         else:
-            self._visit_CreateObject(node, 'VIEW')
+            self._visit_CreateObject(node, 'ALIAS')
 
-    def visit_AlterView(self, node: qlast.AlterView) -> None:
-        self._visit_AlterObject(node, 'VIEW')
+    def visit_AlterAlias(self, node: qlast.AlterAlias) -> None:
+        self._visit_AlterObject(node, 'ALIAS')
 
-    def visit_DropView(self, node: qlast.DropView) -> None:
-        self._visit_DropObject(node, 'VIEW')
+    def visit_DropAlias(self, node: qlast.DropAlias) -> None:
+        self._visit_DropObject(node, 'ALIAS')
 
     def visit_SetField(self, node: qlast.SetField) -> None:
         if not self.sdlmode:

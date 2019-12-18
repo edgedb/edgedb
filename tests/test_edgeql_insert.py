@@ -1326,14 +1326,14 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Object;
             """)
 
-    async def test_edgeql_insert_view(self):
+    async def test_edgeql_insert_alias(self):
         await self.con.execute('''
-            CREATE VIEW test::Foo := (SELECT test::InsertTest);
+            CREATE ALIAS test::Foo := (SELECT test::InsertTest);
         ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"cannot insert into view 'test::Foo'",
+                r"cannot insert into expression alias 'test::Foo'",
                 _position=23):
             await self.con.execute("""\
                 INSERT test::Foo;

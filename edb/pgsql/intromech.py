@@ -210,9 +210,9 @@ class IntrospectionMech:
                 'name': name,
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
-                'view_type': (s_types.ViewType(row['view_type'])
-                              if row['view_type'] else None),
-                'view_is_persistent': row['view_is_persistent'],
+                'expr_type': (s_types.ExprType(row['expr_type'])
+                              if row['expr_type'] else None),
+                'alias_is_persistent': row['alias_is_persistent'],
                 'enum_values': row['enum_values'],
                 'backend_id': row['backend_id'],
             }
@@ -873,9 +873,9 @@ class IntrospectionMech:
                 'name': name,
                 'is_abstract': row['is_abstract'],
                 'is_final': row['is_final'],
-                'view_type': (s_types.ViewType(row['view_type'])
-                              if row['view_type'] else None),
-                'view_is_persistent': row['view_is_persistent'],
+                'expr_type': (s_types.ExprType(row['expr_type'])
+                              if row['expr_type'] else None),
+                'alias_is_persistent': row['alias_is_persistent'],
             }
 
             exprmap[name] = row['expr']
@@ -892,8 +892,8 @@ class IntrospectionMech:
                 is_abstract=objtype['is_abstract'],
                 union_of=union_of,
                 is_final=objtype['is_final'],
-                view_type=objtype['view_type'],
-                view_is_persistent=objtype['view_is_persistent'],
+                expr_type=objtype['expr_type'],
+                alias_is_persistent=objtype['alias_is_persistent'],
             )
 
             basemap[objtype] = (row['bases'], row['ancestors'])
@@ -927,12 +927,12 @@ class IntrospectionMech:
         for r in tuple_views:
             eltypes = self.unpack_typeref(r['element_types'], schema)
 
-            schema, tview = s_types.TupleView.create_in_schema(
+            schema, tview = s_types.TupleExprAlias.create_in_schema(
                 schema,
                 id=r['id'],
                 name=sn.Name(r['name']),
-                view_type=s_types.ViewType(r['view_type']),
-                view_is_persistent=r['view_is_persistent'],
+                expr_type=s_types.ExprType(r['expr_type']),
+                alias_is_persistent=r['alias_is_persistent'],
                 named=r['named'],
                 element_types=s_obj.ObjectDict.create(
                     schema, dict(eltypes.iter_subtypes(schema))),
@@ -947,12 +947,12 @@ class IntrospectionMech:
         for r in array_views:
             eltype = self.unpack_typeref(r['element_type'], schema)
 
-            schema, tview = s_types.ArrayView.create_in_schema(
+            schema, tview = s_types.ArrayExprAlias.create_in_schema(
                 schema,
                 id=r['id'],
                 name=sn.Name(r['name']),
-                view_type=s_types.ViewType(r['view_type']),
-                view_is_persistent=r['view_is_persistent'],
+                expr_type=s_types.ExprType(r['expr_type']),
+                alias_is_persistent=r['alias_is_persistent'],
                 element_type=eltype,
                 dimensions=r['dimensions'],
             )

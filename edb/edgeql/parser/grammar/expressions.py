@@ -193,7 +193,7 @@ class SimpleInsert(Nonterm):
 
         if not isinstance(objtype, qlast.Path):
             raise EdgeQLSyntaxError(
-                "insert expression must be an object type or a view",
+                "insert expression must be an object type reference",
                 context=subj.context)
 
         self.val = qlast.InsertQuery(

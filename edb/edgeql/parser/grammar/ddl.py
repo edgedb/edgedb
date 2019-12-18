@@ -131,13 +131,13 @@ class InnerDDLStmt(Nonterm):
     def reduce_DropObjectTypeStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_CreateViewStmt(self, *kids):
+    def reduce_CreateAliasStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AlterViewStmt(self, *kids):
+    def reduce_AlterAliasStmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DropViewStmt(self, *kids):
+    def reduce_DropAliasStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_CreateConstraintStmt(self, *kids):
@@ -1342,11 +1342,11 @@ class DropObjectTypeStmt(Nonterm):
 
 
 #
-# CREATE VIEW
+# CREATE ALIAS
 #
 
 commands_block(
-    'CreateView',
+    'CreateAlias',
     UsingStmt,
     SetFieldStmt,
     SetAnnotationValueStmt,
@@ -1354,12 +1354,12 @@ commands_block(
 )
 
 
-class CreateViewStmt(Nonterm):
-    def reduce_CreateViewShortStmt(self, *kids):
-        r"""%reduce \
-            CREATE VIEW NodeName ASSIGN Expr \
+class CreateAliasStmt(Nonterm):
+    def reduce_CreateAliasShortStmt(self, *kids):
+        r"""%reduce
+            CREATE ALIAS NodeName ASSIGN Expr
         """
-        self.val = qlast.CreateView(
+        self.val = qlast.CreateAlias(
             name=kids[2].val,
             commands=[
                 qlast.SetSpecialField(
@@ -1369,23 +1369,23 @@ class CreateViewStmt(Nonterm):
             ]
         )
 
-    def reduce_CreateViewRegularStmt(self, *kids):
-        r"""%reduce \
-            CREATE VIEW NodeName \
-            CreateViewCommandsBlock \
+    def reduce_CreateAliasRegularStmt(self, *kids):
+        r"""%reduce
+            CREATE ALIAS NodeName
+            CreateAliasCommandsBlock
         """
-        self.val = qlast.CreateView(
+        self.val = qlast.CreateAlias(
             name=kids[2].val,
             commands=kids[3].val,
         )
 
 
 #
-# ALTER VIEW
+# ALTER ALIAS
 #
 
 commands_block(
-    'AlterView',
+    'AlterAlias',
     UsingStmt,
     RenameStmt,
     SetFieldStmt,
@@ -1395,28 +1395,28 @@ commands_block(
 )
 
 
-class AlterViewStmt(Nonterm):
-    def reduce_AlterViewStmt(self, *kids):
-        r"""%reduce \
-            ALTER VIEW NodeName \
-            AlterViewCommandsBlock \
+class AlterAliasStmt(Nonterm):
+    def reduce_AlterAliasStmt(self, *kids):
+        r"""%reduce
+            ALTER ALIAS NodeName
+            AlterAliasCommandsBlock
         """
-        self.val = qlast.AlterView(
+        self.val = qlast.AlterAlias(
             name=kids[2].val,
             commands=kids[3].val
         )
 
 
 #
-# DROP VIEW
+# DROP ALIAS
 #
 
-class DropViewStmt(Nonterm):
-    def reduce_DropView(self, *kids):
-        r"""%reduce \
-            DROP VIEW NodeName \
+class DropAliasStmt(Nonterm):
+    def reduce_DropAlias(self, *kids):
+        r"""%reduce
+            DROP ALIAS NodeName
         """
-        self.val = qlast.DropView(
+        self.val = qlast.DropAlias(
             name=kids[2].val,
         )
 

@@ -83,7 +83,7 @@ class ScopeTreeNode:
     and its namespace matches anything in `namespaces`,
     the namespace will be stripped.  This is used to
     implement "semi-detached" semantics used by
-    views declared in a WITH block."""
+    aliases declared in a WITH block."""
 
     def __init__(
         self,

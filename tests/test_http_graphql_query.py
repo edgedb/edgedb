@@ -424,7 +424,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"Cannot query field \"gibberish\" on type \"Query\"\. "
-                r"There's no corresponding type or view \"gibberish\" "
+                r"There's no corresponding type or alias \"gibberish\" "
                 r"exposed in EdgeDB\. Please check the configuration settings "
                 r"for this port to make sure that you're connecting to the "
                 r"right database\.",
@@ -440,7 +440,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"Cannot query field \"more__gibberish\" on type \"Query\"\. "
-                r"There's no corresponding type or view \"more::gibberish\" "
+                r"There's no corresponding type or alias \"more::gibberish\" "
                 r"exposed in EdgeDB\. Please check the configuration settings "
                 r"for this port to make sure that you're connecting to the "
                 r"right database\.",
@@ -488,11 +488,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
-    def test_graphql_functional_view_01(self):
+    def test_graphql_functional_alias_01(self):
         self.assert_graphql_query_result(
             r"""
                 {
-                    SettingView {
+                    SettingAlias {
                         __typename
                         name
                         value
@@ -505,14 +505,14 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """,
             {
-                "SettingView": [
+                "SettingAlias": [
                     {
-                        "__typename": "SettingViewType",
+                        "__typename": "SettingAliasType",
                         "name": "perks",
                         "value": "full",
                     },
                     {
-                        "__typename": "SettingViewType",
+                        "__typename": "SettingAliasType",
                         "name": "template",
                         "value": "blue",
                     },
@@ -533,11 +533,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             sort=lambda x: x['name']
         )
 
-    def test_graphql_functional_view_02(self):
+    def test_graphql_functional_alias_02(self):
         self.assert_graphql_query_result(
             r"""
                 {
-                    SettingView {
+                    SettingAlias {
                         __typename
                         name
                         value
@@ -549,9 +549,9 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """,
             {
-                "SettingView": [
+                "SettingAlias": [
                     {
-                        "__typename": "SettingViewType",
+                        "__typename": "SettingAliasType",
                         "name": "perks",
                         "value": "full",
                         "of_group": {
@@ -560,7 +560,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         }
                     },
                     {
-                        "__typename": "SettingViewType",
+                        "__typename": "SettingAliasType",
                         "name": "template",
                         "value": "blue",
                         "of_group": {
@@ -573,11 +573,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             sort=lambda x: x['name']
         )
 
-    def test_graphql_functional_view_03(self):
+    def test_graphql_functional_alias_03(self):
         self.assert_graphql_query_result(
             r"""
                 {
-                    SettingViewAugmented {
+                    SettingAliasAugmented {
                         __typename
                         name
                         value
@@ -590,25 +590,25 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """,
             {
-                "SettingViewAugmented": [
+                "SettingAliasAugmented": [
                     {
-                        "__typename": "SettingViewAugmentedType",
+                        "__typename": "SettingAliasAugmentedType",
                         "name": "perks",
                         "value": "full",
                         "of_group": {
                             "__typename":
-                                "__SettingViewAugmented__of_groupType",
+                                "__SettingAliasAugmented__of_groupType",
                             "name": "upgraded",
                             "name_upper": "UPGRADED",
                         }
                     },
                     {
-                        "__typename": "SettingViewAugmentedType",
+                        "__typename": "SettingAliasAugmentedType",
                         "name": "template",
                         "value": "blue",
                         "of_group": {
                             "__typename":
-                                "__SettingViewAugmented__of_groupType",
+                                "__SettingAliasAugmented__of_groupType",
                             "name": "upgraded",
                             "name_upper": "UPGRADED",
                         }

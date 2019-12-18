@@ -342,7 +342,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                "object type or view 'Tmp' does not exist"):
+                "object type or alias 'Tmp' does not exist"):
             await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
@@ -368,7 +368,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                "object type or view 'Tmp' does not exist"):
+                "object type or alias 'Tmp' does not exist"):
             await self.con.fetchall('''
                 SELECT count(
                     Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
