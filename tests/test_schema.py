@@ -3839,7 +3839,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE MODULE test IF NOT EXISTS;
 
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
-                SET orig_expr := r'contains(one_of, __subject__)';
+                SET orig_expr := 'contains(one_of, __subject__)';
                 USING (WITH
                     MODULE test
                 SELECT
@@ -4025,7 +4025,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 SELECT
                     __subject__.image
                 ) {
-                    orig_expr := r'__subject__.image';
+                    orig_expr := '__subject__.image';
                 };
                 required single property image -> std::str;
             };
@@ -4041,7 +4041,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 SELECT
                     __subject__.image
                 ) {
-                    SET orig_expr := r'__subject__.image';
+                    SET orig_expr := '__subject__.image';
                 };
             };
             '''
@@ -4095,7 +4095,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>)
             {
-                SET orig_expr := r'contains(one_of, __subject__)';
+                SET orig_expr := 'contains(one_of, __subject__)';
                 USING (WITH
                     MODULE test
                 SELECT
@@ -4115,7 +4115,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     SELECT
                         __subject__@prop1
                     ) {
-                        orig_subjectexpr := r'__subject__@prop1';
+                        orig_subjectexpr := '__subject__@prop1';
                     };
                     constraint std::exclusive on (WITH
                         MODULE test
@@ -4123,7 +4123,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                         (__subject__@source, __subject__@lang)
                     ) {
                         orig_subjectexpr :=
-                            r'(__subject__@source, __subject__@lang)';
+                            '(__subject__@source, __subject__@lang)';
                     };
                 };
             };
@@ -4188,7 +4188,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             abstract constraint std::len_value on (len(<std::str>__subject__))
             {
                 errmessage := 'invalid {__subject__}';
-                orig_subjectexpr := r'len(<std::str>__subject__)';
+                orig_subjectexpr := 'len(<std::str>__subject__)';
             };
             ''',
 

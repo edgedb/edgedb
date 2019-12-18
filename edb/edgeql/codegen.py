@@ -42,7 +42,7 @@ _ESCAPES = {
 }
 
 
-def _bytes_escape(match):
+def _bytes_escape(match: Match[bytes]) -> bytes:
     char = match.group(0)
     try:
         return _ESCAPES[char]
@@ -560,7 +560,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(param_to_str(node.name))
 
     def visit_StringConstant(self, node: qlast.StringConstant) -> None:
-        raise NotImplementedError()
+        if node.value.isprintable():
+            for d in ("'", '"', '$$'):
+                if d not in node.value:
+                    if '\\' in node.value and d != '$$':
+                        self.write('r', d, node.value, d)
+                    else:
+                        self.write(d, node.value, d)
+                    return
+        self.write(repr(node.value))
 
     def visit_RawStringConstant(self, node: qlast.RawStringConstant) -> None:
         if node.value.isprintable():

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Deque, Optional
 from collections import deque
 from edb._edgeql_rust import tokenize as _tokenize, Token

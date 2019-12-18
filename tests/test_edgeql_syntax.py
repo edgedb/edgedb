@@ -174,8 +174,8 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-        "leading zeros are not allowed in numbers",
-        line=2, col=16)
+                  "leading zeros are not allowed in numbers",
+                  line=2, col=16)
     def test_edgeql_syntax_constants_07(self):
         """
         SELECT 02;
@@ -1715,8 +1715,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-            "unexpected char 'e', only integers are allowed after dot",
-            line=2, col=22)
+                  "unexpected char 'e', only integers are allowed after dot",
+                  line=2, col=22)
     def test_edgeql_syntax_path_22(self):
         """
         SELECT TUP.0.2e2;
@@ -1755,8 +1755,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-            "unexpected char 'n', only integers are allowed after dot",
-            line=2, col=22)
+                  "unexpected char 'n', only integers are allowed after dot",
+                  line=2, col=22)
     def test_edgeql_syntax_path_27(self):
         """
         SELECT TUP.0.1n.2;

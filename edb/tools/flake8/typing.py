@@ -56,6 +56,7 @@ def __init__(self, tree, filename='(none)', builtins=None, *args, **kwargs):
         typing_all.add("ForwardRef")  # added: 3.7.0; in __all__ since 3.7.4
         typing_all.add("OrderedDict")  # added: 3.7.2
         typing_all.add("Protocol")  # added: 3.8.0
+        typing_all.add("Match")  # is not in __all__ in 3.8.0
         if typing_star_import_re.search(source):
             if builtins:
                 builtins = set(builtins) | typing_all
