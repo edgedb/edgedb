@@ -20,7 +20,7 @@ To define a relationship we use ``link`` keyword:
         type Movie {
             required property title -> str;
             required link director -> Person;
-            multi link cast -> Person;
+            multi link actors -> Person;
         }
         type Person {
             required property first_name -> str;
@@ -41,12 +41,12 @@ Links allow fetching relatioships using single query:
 
     tutorial> select Movie {
     .........    director: { first_name },
-    .........    cast: { first_name },
+    .........    actors: { first_name },
     ......... };
     {
         Object {
             director: Object { first_name: 'Denis' },
-            cast: {
+            actors: {
                 Object { first_name: 'Harrison' },
                 Object { first_name: 'Ryan' },
                 Object { first_name: 'Ana' },
@@ -61,8 +61,8 @@ Similarly you can run some aggregates on the nested sets:
 
 .. code-block:: edgeql-repl
 
-    tutorial> SELECT Movie { title, cast_size:=count(.cast) };
-    {Object { title: 'Blade Runner 2049', cast_size: 3 }}
+    tutorial> SELECT Movie { title, actors_number:=count(.actors) };
+    {Object { title: 'Blade Runner 2049', actors_number: 3 }}
 
 You can find more information on aggregates in the
 :ref:`Cookbook <ref_cookbook_aggregates>` and the reference of
@@ -78,11 +78,11 @@ In the movie example above, we have only shown a forward link traversal:
 
 .. code-block:: edgeql-repl
 
-    tutorial> SELECT Movie { title, cast: { first_name } };
+    tutorial> SELECT Movie { title, actors: { first_name } };
     {
         Object {
             title: 'Blade Runner 2049',
-            cast: {
+            actors: {
                 Object { first_name: 'Harrison' },
                 Object { first_name: 'Ryan' },
                 Object { first_name: 'Ana' },
@@ -99,7 +99,7 @@ operator to make the code clearer:
 
     tutorial> SELECT Movie {
     .........     title,
-    .........     starring := Movie.>cast.last_name,
+    .........     starring := Movie.>actors.last_name,
     ......... };
     {Object {
         title: 'Blade Runner 2049',
@@ -117,7 +117,7 @@ To find all movies that a person is starred in we use a **backward link**
 
     tutorial> SELECT Person {
     .........     first_name,
-    .........     movies := Person.<cast[IS Movie].title,
+    .........     movies := Person.<actors[IS Movie].title,
     ......... } FILTER .first_name = 'Ryan';
     {Object {
         first_name: 'Ryan',
@@ -126,9 +126,9 @@ To find all movies that a person is starred in we use a **backward link**
         }
     }}
 
-You might also note that we've added ``[IS Movie]`` cast. This is how backward
+You might also note that we've added ``[IS Movie]`` actors. This is how backward
 links work: they fetch every object in the entire database having the field
-``cast`` which is a ``Person``. So we narrow down the set of objects to
+``actors`` which is a ``Person``. So we narrow down the set of objects to
 ``Movie`` and select a title from it.
 
 All other tools work on backward link:
@@ -137,7 +137,7 @@ All other tools work on backward link:
 
     tutorial> SELECT Person {
     .........     first_name,
-    .........     movies := Person.<cast[IS Movie] { title, year }
+    .........     movies := Person.<actors[IS Movie] { title, year }
     ......... } FILTER .first_name = 'Ryan';
     {Object {
         first_name: 'Ryan',
@@ -152,7 +152,7 @@ Or more complex example:
 
     tutorial>     SELECT Person {
     .........         first_name,
-    .........         colleagues := Person.<cast[IS Movie].cast {
+    .........         colleagues := Person.<actors[IS Movie].actors {
     .........             first_name
     .........         }
     .........     } FILTER .first_name = 'Ryan';
@@ -177,7 +177,7 @@ First note that the request above is an equivalent of:
     tutorial> SELECT Person {
     .........     first_name,
     .........     collegues := (
-    .........         SELECT Person.<cast[IS Movie].cast {
+    .........         SELECT Person.<actors[IS Movie].actors {
     .........             first_name,
     .........         }
     .........     ),
@@ -191,7 +191,7 @@ distinguish them. To make that work we should factor the inner query out:
 .. code-block:: edgeql-repl
 
     tutorial> WITH
-    .........     Peer := (SELECT Person.<cast[IS Movie].cast)
+    .........     Peer := (SELECT Person.<actors[IS Movie].actors)
     ......... SELECT Person {
     .........     first_name,
     .........     collegues := Peer { first_name },
@@ -218,7 +218,7 @@ Now the next step is quite simple, we wrap ``Peer`` selector by a
 .. code-block:: edgeql-repl
 
     tutorial> WITH
-    .........     Peer := (SELECT Person.<cast[IS Movie].cast { first_name })
+    .........     Peer := (SELECT Person.<actors[IS Movie].actors { first_name })
     ......... SELECT Person {
     .........     first_name,
     .........     collegues := (SELECT Peer { first_name }
