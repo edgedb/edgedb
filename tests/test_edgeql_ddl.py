@@ -692,6 +692,42 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         # TODO: Add an actual INSERT/SELECT test.
 
+    async def test_edgeql_ddl_23(self):
+        # Test that an unqualifed reverse link expression
+        # as a view pointer target is handled correctly and
+        # manifests as std::Object.
+        await self.con.execute("""
+            SET MODULE test;
+
+            CREATE TYPE User;
+            CREATE TYPE Award {
+                CREATE LINK user -> User;
+            };
+
+            CREATE VIEW View1 := (SELECT User {
+                awards := .<user
+            });
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    C := (SELECT schema::ObjectType
+                          FILTER .name = 'test::View1')
+                SELECT
+                    C.pointers { target: { name } }
+                FILTER
+                    C.pointers.name = 'awards'
+            """,
+            [
+                {
+                    'target': {
+                        'name': 'std::Object'
+                    }
+                },
+            ],
+        )
+
     async def test_edgeql_ddl_default_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
