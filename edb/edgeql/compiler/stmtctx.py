@@ -166,6 +166,16 @@ def fini_expression(
             for vptr in view_own_pointers.objects(ctx.env.schema):
                 _elide_derived_ancestors(vptr, ctx=ctx)
 
+                tgt = vptr.get_target(ctx.env.schema)
+                if (tgt.is_union_type(ctx.env.schema)
+                        and tgt.get_is_opaque_union(ctx.env.schema)):
+                    # Opaque unions should manifest as std::Object
+                    # in schema views.
+                    ctx.env.schema = vptr.set_target(
+                        ctx.env.schema,
+                        ctx.env.schema.get('std::Object'),
+                    )
+
                 if not hasattr(vptr, 'get_pointers'):
                     continue
 
