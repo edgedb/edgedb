@@ -117,3 +117,7 @@ type Publication {
 abstract constraint my_one_of(one_of: array<anytype>) {
     using (contains(one_of, __subject__));
 }
+
+scalar type EmulatedEnum extending str {
+    constraint one_of('v1', 'v2');
+}

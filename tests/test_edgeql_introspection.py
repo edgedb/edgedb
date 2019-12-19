@@ -218,7 +218,7 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER
                     ObjectType.name LIKE 'test::%'
                     AND
-                    ObjectType.links.cardinality = 'MANY'
+                    ObjectType.links.cardinality = <Cardinality>'MANY'
                 ORDER BY ObjectType.name;
             """,
             [
@@ -243,7 +243,7 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER
                     `ObjectType`.name LIKE 'test::%'
                     AND
-                    `ObjectType`.links.cardinality = 'MANY'
+                    ObjectType.links.cardinality = <Cardinality>'MANY'
                 ORDER BY `ObjectType`.name;
             """,
             [
@@ -613,22 +613,22 @@ class TestIntrospection(tb.QueryTestCase):
                         errmessage,
                     },
                 }
-                FILTER .name = 'schema::cardinality_t';
+                FILTER .name = 'test::EmulatedEnum';
             """,
             [{
 
-                'name': 'schema::cardinality_t',
+                'name': 'test::EmulatedEnum',
                 'constraints': [
                     {
                         'name': 'std::one_of',
                         'expr': 'contains(vals, __subject__)',
                         'annotations': {},
-                        'subject': {'name': 'schema::cardinality_t'},
+                        'subject': {'name': 'test::EmulatedEnum'},
                         'args': [
                             {
                                 'name': 'vals',
                                 'type': {'name': 'array'},
-                                '@value': "['ONE', 'MANY']"
+                                '@value': "['v1', 'v2']"
                             }
                         ],
                         'return_typemod': 'SINGLETON',

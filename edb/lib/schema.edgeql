@@ -22,9 +22,8 @@
 
 CREATE MODULE schema;
 
-CREATE SCALAR TYPE schema::cardinality_t EXTENDING std::str {
-    CREATE CONSTRAINT std::one_of ('ONE', 'MANY');
-};
+CREATE SCALAR TYPE schema::Cardinality
+    EXTENDING enum<'ONE', 'MANY'>;
 
 CREATE SCALAR TYPE schema::TargetDeleteAction
     EXTENDING enum<'RESTRICT', 'DELETE SOURCE', 'SET EMPTY',
@@ -201,7 +200,7 @@ CREATE ABSTRACT TYPE schema::Pointer
         schema::InheritingObject, schema::ConsistencySubject,
         schema::AnnotationSubject
 {
-    CREATE REQUIRED PROPERTY cardinality -> schema::cardinality_t;
+    CREATE REQUIRED PROPERTY cardinality -> schema::Cardinality;
     CREATE REQUIRED PROPERTY required -> std::bool;
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY expr -> std::str;
