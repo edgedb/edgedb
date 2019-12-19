@@ -977,6 +977,38 @@ class CreateConcretePropertyStmt(Nonterm):
             target=kids[5].val,
         )
 
+    def reduce_CreateComputablePropertyWithUsing(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals PROPERTY UnqualifiedPointerName
+            OptCreateConcretePropertyCommandsBlock
+        """
+        cmds = kids[4].val
+        new_cmds = []
+        target = None
+
+        for cmd in cmds:
+            if isinstance(cmd, qlast.SetSpecialField) and cmd.name == 'expr':
+                if target is not None:
+                    raise EdgeQLSyntaxError(
+                        f'computable property with more than one expression',
+                        context=kids[3].context)
+                target = cmd.value
+            else:
+                new_cmds.append(cmd)
+
+        if target is None:
+            raise EdgeQLSyntaxError(
+                f'computable property without expression',
+                context=kids[3].context)
+
+        self.val = qlast.CreateConcreteProperty(
+            name=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=target,
+            commands=new_cmds,
+        )
+
 
 #
 # ALTER LINK ... { ALTER PROPERTY

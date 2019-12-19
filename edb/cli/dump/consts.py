@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2019-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,35 +16,21 @@
 # limitations under the License.
 #
 
-
 from __future__ import annotations
 
-import sys
 
-import click
+# This should be a good hint that EdgeDB dumps are not text files:
+#
+# * "\xFF" is invalid utf-8;
+# * "\xD8\x00" is invalid utf-16-le
+# * "\xFF\xD8\x00\x00\xD8" is also invalid utf-16/32 both le & be
+#
+# Presense of "\x00" is also a hint to tools like "git" that this is
+# a binary file.
+HEADER_TITLE = b'\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00'
+HEADER_TITLE_LEN = len(HEADER_TITLE)
 
-from edb.common import devmode as dm
+COPY_BUFFER_SIZE = 1024 * 1024 * 10
 
-from edb import repl
-from . import utils
-
-
-@click.group(
-    invoke_without_command=True,
-    context_settings=dict(help_option_names=['-?', '--help']))
-@utils.connect_command
-def cli(ctx):
-    if ctx.invoked_subcommand is None:
-        status = repl.main(ctx.obj['connargs'])
-        sys.exit(status)
-
-
-def cli_dev():
-    dm.enable_dev_mode()
-    cli()
-
-
-# Import subcommands to register them
-
-from . import dump  # noqa
-from . import mng  # noqa
+DUMP_PROTO_VER = 1
+MAX_SUPPORTED_DUMP_VER = 1

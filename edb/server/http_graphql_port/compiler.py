@@ -52,11 +52,10 @@ class CompiledOperation:
 
 class Compiler(compiler.BaseCompiler):
 
-    def _wrap_schema(self, dbver, con_args, schema) -> CompilerDatabaseState:
+    def _wrap_schema(self, dbver, schema) -> CompilerDatabaseState:
         gqlcore = graphql.GQLCoreSchema(schema)
         return CompilerDatabaseState(
             dbver=dbver,
-            con_args=con_args,
             schema=schema,
             gqlcore=gqlcore)
 

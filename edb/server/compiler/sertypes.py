@@ -19,9 +19,14 @@
 
 from __future__ import annotations
 
+import dataclasses
+import io
 import struct
+import typing
+import uuid
 
 from edb import errors
+from edb.common import binwrapper
 from edb.common import uuidgen
 
 from edb.schema import links as s_links
@@ -41,6 +46,15 @@ UUID_TYPE_ID = s_obj.get_known_type_id('std::uuid')
 
 NULL_TYPE_ID = b'\x00' * 16
 NULL_TYPE_DESC = b''
+
+CTYPE_SET = b'\x00'
+CTYPE_SHAPE = b'\x01'
+CTYPE_BASE_SCALAR = b'\x02'
+CTYPE_SCALAR = b'\x03'
+CTYPE_TUPLE = b'\x04'
+CTYPE_NAMEDTUPLE = b'\x05'
+CTYPE_ARRAY = b'\x06'
+CTYPE_ENUM = b'\x07'
 
 
 class TypeSerializer:
@@ -100,7 +114,7 @@ class TypeSerializer:
         if set_id in self.uuid_to_pos:
             return set_id
 
-        self.buffer.append(b'\x00')
+        self.buffer.append(CTYPE_SET)
         self.buffer.append(set_id.bytes)
         self.buffer.append(_uint16_packer(self.uuid_to_pos[type_id]))
 
@@ -128,7 +142,7 @@ class TypeSerializer:
                 if type_id in self.uuid_to_pos:
                     return type_id
 
-                buf.append(b'\x05')
+                buf.append(CTYPE_NAMEDTUPLE)
                 buf.append(type_id.bytes)
                 buf.append(_uint16_packer(len(subtypes)))
                 for el_name, el_type in zip(element_names, subtypes):
@@ -143,7 +157,7 @@ class TypeSerializer:
                 if type_id in self.uuid_to_pos:
                     return type_id
 
-                buf.append(b'\x04')
+                buf.append(CTYPE_TUPLE)
                 buf.append(type_id.bytes)
                 buf.append(_uint16_packer(len(subtypes)))
                 for el_type in subtypes:
@@ -163,7 +177,7 @@ class TypeSerializer:
             if type_id in self.uuid_to_pos:
                 return type_id
 
-            buf.append(b'\x06')
+            buf.append(CTYPE_ARRAY)
             buf.append(type_id.bytes)
             buf.append(_uint16_packer(self.uuid_to_pos[subtypes[0]]))
             # Number of dimensions (currently always 1)
@@ -242,7 +256,7 @@ class TypeSerializer:
             if type_id in self.uuid_to_pos:
                 return type_id
 
-            buf.append(b'\x01')
+            buf.append(CTYPE_SHAPE)
             buf.append(type_id.bytes)
 
             assert len(subtypes) == len(element_names)
@@ -285,7 +299,7 @@ class TypeSerializer:
             enum_values = mt.get_enum_values(self.schema)
 
             if enum_values:
-                buf.append(b'\x07')
+                buf.append(CTYPE_ENUM)
                 buf.append(type_id.bytes)
                 buf.append(_uint16_packer(len(enum_values)))
                 for enum_val in enum_values:
@@ -294,14 +308,14 @@ class TypeSerializer:
                     buf.append(enum_val_bytes)
 
             elif mt is base_type:
-                buf.append(b'\x02')
+                buf.append(CTYPE_BASE_SCALAR)
                 buf.append(type_id.bytes)
 
             else:
                 bt_id = self._describe_type(
                     base_type, view_shapes, view_shapes_metadata)
 
-                buf.append(b'\x03')
+                buf.append(CTYPE_SCALAR)
                 buf.append(type_id.bytes)
                 buf.append(_uint16_packer(self.uuid_to_pos[bt_id]))
 
@@ -314,7 +328,7 @@ class TypeSerializer:
 
     @classmethod
     def describe(cls, schema, typ, view_shapes, view_shapes_metadata,
-                 *, follow_links: bool = True):
+                 *, follow_links: bool = True) -> bytes:
         builder = cls(schema)
         type_id = builder._describe_type(
             typ, view_shapes, view_shapes_metadata,
@@ -322,7 +336,7 @@ class TypeSerializer:
         return b''.join(builder.buffer), type_id
 
     @classmethod
-    def describe_json(cls):
+    def describe_json(cls) -> bytes:
         if cls._JSON_DESC is not None:
             return cls._JSON_DESC
 
@@ -330,7 +344,7 @@ class TypeSerializer:
         return cls._JSON_DESC
 
     @classmethod
-    def _describe_json(cls):
+    def _describe_json(cls) -> bytes:
         json_id = s_obj.get_known_type_id('std::str')
 
         buf = []
@@ -338,3 +352,136 @@ class TypeSerializer:
         buf.append(json_id.bytes)
 
         return b''.join(buf), json_id
+
+    @classmethod
+    def _parse(
+        cls,
+        desc: binwrapper.BinWrapper,
+        codecs_list: typing.List[TypeDesc]
+    ) -> typing.Optional[TypeDesc]:
+        t = desc.read_bytes(1)
+        tid = uuidgen.from_bytes(desc.read_bytes(16))
+
+        if t == CTYPE_SET:
+            pos = desc.read_ui16()
+            return SetDesc(tid=tid, subtype=codecs_list[pos])
+
+        elif t == CTYPE_SHAPE:
+            els = desc.read_ui16()
+            fields = {}
+            flags = {}
+            for _ in range(els):
+                flag = desc.read_bytes(1)[0]
+                name = desc.read_len16_prefixed_bytes().decode()
+                pos = desc.read_ui16()
+                fields[name] = codecs_list[pos]
+                flags[name] = flag
+            return ShapeDesc(tid=tid, flags=flags, fields=fields)
+
+        elif t == CTYPE_BASE_SCALAR:
+            return BaseScalarDesc(tid=tid)
+
+        elif t == CTYPE_SCALAR:
+            pos = desc.read_ui16()
+            return ScalarDesc(tid=tid, subtype=codecs_list[pos])
+
+        elif t == CTYPE_TUPLE:
+            els = desc.read_ui16()
+            fields = []
+            for _ in range(els):
+                pos = desc.read_ui16()
+                fields.append(codecs_list[pos])
+            return TupleDesc(tid=tid, fields=fields)
+
+        elif t == CTYPE_NAMEDTUPLE:
+            els = desc.read_ui16()
+            fields = {}
+            for _ in range(els):
+                name = desc.read_len16_prefixed_bytes().decode()
+                pos = desc.read_ui16()
+                fields[name] = codecs_list[pos]
+            return NamedTupleDesc(tid=tid, fields=fields)
+
+        elif t == CTYPE_ENUM:
+            els = desc.read_ui16()
+            names = []
+            for _ in range(els):
+                name = desc.read_len16_prefixed_bytes().decode()
+                names.append(name)
+            return EnumDesc(tid=tid, names=names)
+
+        elif t == CTYPE_ARRAY:
+            pos = desc.read_ui16()
+            els = desc.read_ui16()
+            if els != 1:
+                raise NotImplementedError(
+                    'cannot handle arrays with more than one dimension')
+            dim_len = desc.read_i32()
+            return ArrayDesc(
+                tid=tid, dim_len=dim_len, subtype=codecs_list[pos])
+
+        elif (t >= 0xf0 and t <= 0xff):
+            # Ignore all type annotations.
+            desc.read_len16_prefixed_bytes()
+
+        else:
+            raise NotImplementedError(
+                f'no codec implementation for EdgeDB data class {t}')
+
+    @classmethod
+    def parse(cls, typedesc: bytes) -> TypeDesc:
+        buf = io.BytesIO(typedesc)
+        wrapped = binwrapper.BinWrapper(buf)
+        codecs_list = []
+        while buf.tell() < len(typedesc):
+            desc = cls._parse(wrapped, codecs_list)
+            if desc is not None:
+                codecs_list.append(desc)
+        return desc
+
+
+@dataclasses.dataclass(frozen=True)
+class TypeDesc:
+    tid: uuid.UUID
+
+
+@dataclasses.dataclass(frozen=True)
+class SetDesc(TypeDesc):
+    subtype: TypeDesc
+
+
+@dataclasses.dataclass(frozen=True)
+class ShapeDesc(TypeDesc):
+    fields: typing.Dict[TypeDesc]
+    flags: typing.Dict[int]
+
+
+@dataclasses.dataclass(frozen=True)
+class ScalarDesc(TypeDesc):
+    subtype: TypeDesc
+
+
+@dataclasses.dataclass(frozen=True)
+class BaseScalarDesc(TypeDesc):
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class NamedTupleDesc(TypeDesc):
+    fields: typing.Dict[str, TypeDesc]
+
+
+@dataclasses.dataclass(frozen=True)
+class TupleDesc(TypeDesc):
+    fields: typing.List[TypeDesc]
+
+
+@dataclasses.dataclass(frozen=True)
+class EnumDesc(TypeDesc):
+    names: typing.List[str]
+
+
+@dataclasses.dataclass(frozen=True)
+class ArrayDesc(TypeDesc):
+    dim_len: int
+    subtype: TypeDesc

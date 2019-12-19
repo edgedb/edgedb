@@ -51,3 +51,7 @@ def uuid5(namespace: uuid.UUID, name: str) -> uuid.UUID:
     """Generate a UUID from the SHA-1 hash of a namespace UUID and a name."""
     hash = hashlib.sha1(namespace.bytes + bytes(name, "utf-8")).digest()
     return UUID(hash[:16])  # type: ignore
+
+
+def from_bytes(data: bytes) -> uuid.UUID:
+    return UUID(data)  # type: ignore
