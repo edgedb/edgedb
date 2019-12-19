@@ -21,8 +21,7 @@
 
 
 from __future__ import annotations
-
-import typing
+from typing import *  # NoQA
 
 from edb import errors
 
@@ -35,6 +34,7 @@ from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import operators as s_oper
+from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
@@ -137,7 +137,7 @@ def compile_FunctionCall(
         # form of the function is actually used.
         env.schema_refs.add(func)
 
-    func_initial_value: typing.Optional[irast.Set]
+    func_initial_value: Optional[irast.Set]
 
     if matched_func_initial_value is not None:
         iv_ql = qlast.TypeCast(
@@ -155,7 +155,7 @@ def compile_FunctionCall(
     path_id = pathctx.get_expression_path_id(rtype, ctx=ctx)
 
     if rtype.is_tuple():
-        rtype = typing.cast(s_types.Tuple, rtype)
+        rtype = cast(s_types.Tuple, rtype)
         tuple_path_ids = []
         nested_path_ids = []
         for n, st in rtype.iter_subtypes(ctx.env.schema):
@@ -209,7 +209,7 @@ CONDITIONAL_OPS = {
 
 
 def compile_operator(
-        qlexpr: qlast.Base, op_name: str, qlargs: typing.List[qlast.Base], *,
+        qlexpr: qlast.Base, op_name: str, qlargs: List[qlast.Base], *,
         ctx: context.ContextLevel) -> irast.Set:
 
     env = ctx.env
@@ -383,6 +383,19 @@ def compile_operator(
                 hint = (f"The IF and ELSE result clauses must be of "
                         f"compatible types, while the condition clause must "
                         f"be 'std::bool'. {hint}")
+            elif op_name == '+':
+                str_t = cast(s_scalars.ScalarType,
+                             env.schema.get('std::str'))
+                bytes_t = cast(s_scalars.ScalarType,
+                               env.schema.get('std::bytes'))
+                if (
+                    (ltype.issubclass(env.schema, str_t) and
+                        rtype.issubclass(env.schema, str_t)) or
+                    (ltype.issubclass(env.schema, bytes_t) and
+                        rtype.issubclass(env.schema, bytes_t)) or
+                    (ltype.is_array() and rtype.is_array())
+                ):
+                    hint = 'Consider using the "++" operator for concatenation'
 
             raise errors.QueryError(
                 f'operator {str(op_name)!r} cannot be applied to '
@@ -447,7 +460,7 @@ def compile_operator(
             not in_polymorphic_func):
         sql_operator = tuple(from_op)
 
-    origin_name: typing.Optional[sn.SchemaName]
+    origin_name: Optional[sn.SchemaName]
     if derivative_op is not None:
         origin_name = oper_name
         origin_module_id = env.schema.get_global(
@@ -480,12 +493,12 @@ def compile_operator(
 
 
 def validate_recursive_operator(
-        opers: typing.Iterable[s_func.CallableObject],
-        larg: typing.Tuple[s_types.Type, irast.Set],
-        rarg: typing.Tuple[s_types.Type, irast.Set], *,
-        ctx: context.ContextLevel) -> typing.List[polyres.BoundCall]:
+        opers: Iterable[s_func.CallableObject],
+        larg: Tuple[s_types.Type, irast.Set],
+        rarg: Tuple[s_types.Type, irast.Set], *,
+        ctx: context.ContextLevel) -> List[polyres.BoundCall]:
 
-    matched: typing.List[polyres.BoundCall] = []
+    matched: List[polyres.BoundCall] = []
 
     # if larg and rarg are tuples or arrays, recurse into their subtypes
     if (larg[0].is_tuple() and rarg[0].is_tuple() or
@@ -526,9 +539,9 @@ def compile_call_arg(arg_ql: qlast.Expr, *,
 def compile_call_args(
         expr: qlast.FunctionCall, funcname: str, *,
         ctx: context.ContextLevel) \
-        -> typing.Tuple[
-            typing.List[typing.Tuple[s_types.Type, irast.Set]],
-            typing.Dict[str, typing.Tuple[s_types.Type, irast.Set]]]:
+        -> Tuple[
+            List[Tuple[s_types.Type, irast.Set]],
+            Dict[str, Tuple[s_types.Type, irast.Set]]]:
 
     args = []
     kwargs = {}
@@ -562,11 +575,11 @@ def compile_call_args(
 
 def finalize_args(
     bound_call: polyres.BoundCall, *,
-    actual_typemods: typing.Sequence[ft.TypeModifier] = (),
+    actual_typemods: Sequence[ft.TypeModifier] = (),
     ctx: context.ContextLevel,
-) -> typing.Tuple[typing.List[irast.CallArg], typing.List[ft.TypeModifier]]:
+) -> Tuple[List[irast.CallArg], List[ft.TypeModifier]]:
 
-    args: typing.List[irast.CallArg] = []
+    args: List[irast.CallArg] = []
     typemods = []
 
     for i, barg in enumerate(bound_call.args):
