@@ -28,14 +28,13 @@ To define a relationship we use ``link`` keyword:
         }
     }
 
-In terms of SQL database we defined two foreign keys on the table containing
-movies. But link is much more than that.
+
 
 
 Nested Sets
 -----------
 
-Links allow fetching relatioships using single query:
+Links allow fetching relationships with a single query:
 
 .. code-block:: edgeql-repl
 
@@ -126,10 +125,10 @@ To find all movies that a person is starred in we use a **backward link**
         }
     }}
 
-You might also note that we've added ``[IS Movie]`` actors. This is how backward
-links work: they fetch every object in the entire database having the field
-``actors`` which is a ``Person``. So we narrow down the set of objects to
-``Movie`` and select a title from it.
+You might also note that we've added ``[IS Movie]`` type filter. This is how
+backward link traversal works: EdgeDB fetches every object in the entire
+database having the field ``actors`` which is a ``Person``. So we narrow down
+the set of objects to ``Movie`` and select a title from it.
 
 All other tools work on backward link:
 
@@ -176,7 +175,7 @@ First note that the request above is an equivalent of:
 
     tutorial> SELECT Person {
     .........     first_name,
-    .........     collegues := (
+    .........     colleagues := (
     .........         SELECT Person.<actors[IS Movie].actors {
     .........             first_name,
     .........         }

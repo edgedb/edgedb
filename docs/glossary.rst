@@ -19,9 +19,6 @@ Glossary
       Link items define a specific relationship between two object types. Link
       instances relate one object to one or more different objects.
 
-      Comparing to SQL link is a way to define relationship, foreign key,
-      and optional junction table.
-
       More on links in :ref:`Data Model <ref_datamodel_links>` and
       :ref:`Cookbook <ref_cookbook_links>`.
 
