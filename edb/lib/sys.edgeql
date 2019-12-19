@@ -17,7 +17,9 @@
 #
 
 
-CREATE MODULE sys;
+CREATE MODULE sys {
+    SET builtin := true;
+};
 
 
 CREATE SCALAR TYPE sys::TransactionIsolation

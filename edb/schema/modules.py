@@ -29,7 +29,9 @@ from . import objects as so
 
 class Module(so.UnqualifiedObject, s_anno.AnnotationSubject,
              qlkind=qltypes.SchemaObjectClass.MODULE):
-    pass
+
+    builtin = so.SchemaField(
+        bool, default=False, compcoef=0.4, introspectable=True)
 
 
 class ModuleCommandContext(sd.ObjectCommandContext):

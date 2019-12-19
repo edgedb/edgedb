@@ -154,7 +154,7 @@ class IntrospectionMech:
             exclude_modules=exclude_modules)
 
         modules = [
-            {'id': m['id'], 'name': m['name']}
+            {'id': m['id'], 'name': m['name'], 'builtin': m['builtin']}
             for m in modules
         ]
 
@@ -163,7 +163,8 @@ class IntrospectionMech:
             schema, mod = s_mod.Module.create_in_schema(
                 schema,
                 id=module['id'],
-                name=module['name'])
+                name=module['name'],
+                builtin=module['builtin'])
 
             recorded_schemas.add(common.get_backend_name(schema, mod))
 

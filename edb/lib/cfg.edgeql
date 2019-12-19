@@ -17,7 +17,9 @@
 #
 
 
-CREATE MODULE cfg;
+CREATE MODULE cfg {
+    SET builtin := true;
+};
 
 
 CREATE ABSTRACT ANNOTATION cfg::backend_setting;
