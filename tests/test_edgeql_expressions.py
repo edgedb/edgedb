@@ -1491,6 +1491,20 @@ class TestExpressions(tb.QueryTestCase):
                     await self.assert_query_result(
                         query, [True], msg=query)
 
+    async def test_edgeql_expr_valid_arithmetic_11(self):
+        # Test that we're suggesting to use the "++" operator instead
+        # of "+" for strings/bytes/arrays.
+
+        for query in {'SELECT "a" + "b"', 'SELECT b"a" + b"b"',
+                      'SELECT ["a"] + ["b"]'}:
+            with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"operator '\+' cannot be applied .*",
+                _hint='Consider using the "++" operator for concatenation'
+            ):
+                async with self.con.transaction():
+                    await self.con.fetchone(query)
+
     async def test_edgeql_expr_valid_setop_01(self):
         # use every scalar with DISTINCT
         for right, desc in get_test_items():
