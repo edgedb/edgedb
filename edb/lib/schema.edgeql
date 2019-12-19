@@ -31,9 +31,8 @@ CREATE SCALAR TYPE schema::target_delete_action_t EXTENDING std::str {
                                    'SET DEFAULT', 'DEFERRED RESTRICT');
 };
 
-CREATE SCALAR TYPE schema::operator_kind_t EXTENDING std::str {
-    CREATE CONSTRAINT std::one_of ('INFIX', 'POSTFIX', 'PREFIX', 'TERNARY');
-};
+CREATE SCALAR TYPE schema::OperatorKind
+    EXTENDING enum<'INFIX', 'POSTFIX', 'PREFIX', 'TERNARY'>;
 
 CREATE SCALAR TYPE schema::Volatility
     EXTENDING enum<'IMMUTABLE', 'STABLE', 'VOLATILE'>;
@@ -282,7 +281,7 @@ CREATE TYPE schema::Function
 CREATE TYPE schema::Operator
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
-    CREATE PROPERTY operator_kind -> schema::operator_kind_t;
+    CREATE PROPERTY operator_kind -> schema::OperatorKind;
     CREATE LINK commutator -> schema::Operator;
     CREATE PROPERTY is_abstract -> std::bool {
         SET default := false;
