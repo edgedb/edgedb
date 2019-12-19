@@ -17,16 +17,16 @@ Enum
 
     .. code-block:: sdl
 
-        scalar type color_enum_t extending enum<'red', 'green', 'blue'>;
+        scalar type Color extending enum<'red', 'green', 'blue'>;
 
     :eql:op:`Casting <CAST>` is required to obtain an
     enum value in an expression:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'red' IS color_enum_t;
+        db> SELECT 'red' IS Color;
         {false}
-        db> SELECT <color_enum_t>'red' IS color_enum_t;
+        db> SELECT <Color>'red' IS Color;
         {true}
 
 

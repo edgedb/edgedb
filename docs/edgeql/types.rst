@@ -113,4 +113,4 @@ enumerated scalar type:
 
 .. code-block:: sdl
 
-    scalar type color_enum_t extending enum<'red', 'green', 'blue'>;
+    scalar type Color extending enum<'red', 'green', 'blue'>;

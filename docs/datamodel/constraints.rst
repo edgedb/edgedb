@@ -30,7 +30,7 @@ The standard library defines the following constraints:
 
     .. code-block:: sdl
 
-        scalar type status_t extending str {
+        scalar type Status extending str {
             constraint one_of ('Open', 'Closed', 'Merged');
         }
 
@@ -78,7 +78,7 @@ The standard library defines the following constraints:
 
     .. code-block:: sdl
 
-        scalar type username_t extending str {
+        scalar type Username extending str {
             constraint max_len_value(30);
         }
 
@@ -129,7 +129,7 @@ The standard library defines the following constraints:
 
     .. code-block:: sdl
 
-        scalar type letters_only_t extending str {
+        scalar type LettersOnly extending str {
             constraint regexp(r'[A-Za-z]*');
         }
 
