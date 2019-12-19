@@ -58,6 +58,8 @@ class PGErrorCode(enum.Enum):
     TransactionSerializationFailure = '40001'
     TransactionDeadlockDetected = '40P01'
 
+    InvalidCatalogNameError = '3D000'
+
 
 class SchemaRequired:
     '''A sentinel used to signal that a particular error requires a schema.'''
@@ -307,6 +309,9 @@ def static_interpret_backend_error(fields):
 
     elif err_details.code == PGErrorCode.TransactionDeadlockDetected:
         return errors.TransactionDeadlockError(err_details.message)
+
+    elif err_details.code == PGErrorCode.InvalidCatalogNameError:
+        return errors.AuthenticationError(err_details.message)
 
     return errors.InternalServerError(err_details.message)
 

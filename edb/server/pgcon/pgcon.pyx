@@ -58,6 +58,8 @@ from . import errors as pgerror
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
 
+DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
+
 
 cdef object CARD_NA = compiler.ResultCardinality.NOT_APPLICABLE
 
@@ -175,6 +177,7 @@ cdef class PGProto:
 
         if self.msg_waiter and not self.msg_waiter.done():
             self.msg_waiter.set_exception(ConnectionAbortedError())
+            self.msg_waiter = None
 
     async def sync(self):
         if self.waiting_for_sync:
@@ -476,7 +479,7 @@ cdef class PGProto:
                         if buf is None:
                             buf = WriteBuffer.new()
 
-                        self.buffer.redirect_messages(buf, b'D')
+                        self.buffer.redirect_messages(buf, b'D', 0)
                         if buf.len() >= DATA_BUFFER_SIZE:
                             edgecon.write(buf)
                             buf = None
@@ -603,6 +606,177 @@ cdef class PGProto:
         if exc:
             raise pgerror.BackendError(fields=exc)
         return result
+
+    async def _dump(self, block, output_queue, fragment_suggested_size):
+        cdef:
+            WriteBuffer buf
+            WriteBuffer qbuf
+            WriteBuffer out
+
+        qbuf = WriteBuffer.new_message(b'Q')
+        qbuf.write_bytestring(block.sql_copy_stmt)
+        qbuf.end_message()
+
+        self.write(qbuf)
+        self.waiting_for_sync = True
+
+        er = None
+        out = None
+        i = 0
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == b'H':
+                # CopyOutResponse
+                self.buffer.discard_message()
+
+            elif mtype == b'd':
+                # CopyData
+                if out is None:
+                    out = WriteBuffer.new()
+
+                    if i == 0:
+                        # The first COPY IN message is prefixed with
+                        # `COPY_SIGNATURE` -- strip it.
+                        first = self.buffer.consume_message()
+                        if first[:len(COPY_SIGNATURE)] != COPY_SIGNATURE:
+                            raise RuntimeError('invalid COPY IN message')
+
+                        buf = WriteBuffer.new_message(b'd')
+                        buf.write_bytes(first[len(COPY_SIGNATURE) + 8:])
+                        buf.end_message()
+                        out.write_buffer(buf)
+
+                        if out._length >= fragment_suggested_size:
+                            await output_queue.put((block, i, out))
+                            i += 1
+                            out = None
+
+                        if (not self.buffer.take_message() or
+                                self.buffer.get_message_type() != b'd'):
+                            continue
+
+                self.buffer.redirect_messages(
+                    out, b'd', fragment_suggested_size)
+
+                if out._length >= fragment_suggested_size:
+                    await output_queue.put((block, i, out))
+                    i += 1
+                    out = None
+
+            elif mtype == b'c':
+                # CopyDone
+                self.buffer.discard_message()
+
+            elif mtype == b'C':
+                # CommandComplete
+                if out is not None:
+                    await output_queue.put((block, i, out))
+                self.buffer.discard_message()
+
+            elif mtype == b'E':
+                er = self.parse_error_message()
+
+            elif mtype == b'Z':
+                self.parse_sync_message()
+                break
+
+            else:
+                self.fallthrough()
+
+        if er:
+            raise pgerror.BackendError(fields=er)
+
+    async def dump(self, input_queue, output_queue, fragment_suggested_size):
+        while True:
+            try:
+                block = input_queue.pop()
+            except IndexError:
+                await output_queue.put(None)
+                return
+
+            await self._dump(block, output_queue, fragment_suggested_size)
+
+    async def restore(self, sql, bytes data):
+        cdef:
+            WriteBuffer buf
+            WriteBuffer qbuf
+            WriteBuffer out
+
+            char* cbuf
+            ssize_t clen
+
+
+        qbuf = WriteBuffer.new_message(b'Q')
+        qbuf.write_bytestring(sql)
+        qbuf.end_message()
+
+        self.write(qbuf)
+        self.waiting_for_sync = True
+
+        er = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == b'G':
+                # CopyInResponse
+                self.buffer.discard_message()
+                break
+
+            elif mtype == b'E':
+                er = self.parse_error_message()
+
+            elif mtype == b'Z':
+                self.parse_sync_message()
+                break
+
+            else:
+                self.fallthrough()
+
+        if er:
+            raise pgerror.BackendError(fields=er)
+
+        cpython.PyBytes_AsStringAndSize(data, &cbuf, &clen)
+        if cbuf[0] != b'd':
+            raise RuntimeError('unexpected dump data message structure')
+        ln = <uint32_t>hton.unpack_int32(cbuf + 1)
+
+        buf = WriteBuffer.new()
+        buf.write_byte(b'd')
+        buf.write_int32(ln + len(COPY_SIGNATURE) + 8)
+        buf.write_bytes(COPY_SIGNATURE)
+        buf.write_int32(0)
+        buf.write_int32(0)
+        buf.write_cstr(cbuf + 5, clen - 5)
+        self.write(buf)
+
+        qbuf = WriteBuffer.new_message(b'c')
+        qbuf.write_bytes(data)
+        qbuf.end_message()
+        self.write(qbuf)
+
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == b'C':
+                # CommandComplete
+                self.buffer.discard_message()
+
+            elif mtype == b'E':
+                er = self.parse_error_message()
+
+            elif mtype == b'Z':
+                self.parse_sync_message()
+                break
+
+        if er:
+            raise pgerror.BackendError(fields=er)
 
     async def connect(self):
         cdef:
@@ -808,7 +982,9 @@ cdef class PGProto:
     def data_received(self, data):
         self.buffer.feed_data(data)
 
-        if self.msg_waiter is not None and self.buffer.take_message():
+        if (self.msg_waiter is not None and
+                self.buffer.take_message() and
+                not self.msg_waiter.cancelled()):
             self.msg_waiter.set_result(True)
             self.msg_waiter = None
 

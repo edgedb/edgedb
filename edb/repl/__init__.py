@@ -26,7 +26,6 @@ import subprocess
 import sys
 
 import edgedb
-import immutables
 
 from prompt_toolkit import application as pt_app
 from prompt_toolkit import completion as pt_complete
@@ -48,6 +47,7 @@ from edb.edgeql import quote as eql_quote
 from edb.schema import schema
 
 from edb.server import buildmeta
+from edb.cli import utils as cli_utils
 
 from . import cmd
 from . import context
@@ -125,18 +125,17 @@ class Cli:
     exit_commands = {'exit', 'quit', R'\q', ':q'}
 
     _connection: Optional[edgedb.BlockingIOConnection]
-    conn_args: immutables.Map[str, Any]
+    cargs: cli_utils.ConnectionArgs
+    database: Optional[str]
 
     _prompt: Optional[pt_shortcuts.PromptSession]
 
-    def __init__(self, conn_args: Mapping[str, Any]) -> None:
+    def __init__(self, cargs: cli_utils.ConnectionArgs) -> None:
         self._connection = None
 
         self._prompt = None
-        conn_args = dict(conn_args)
-        self._password_prompt = conn_args.pop('password_prompt')
-        self._password_prompted = False
-        self.conn_args = immutables.Map(conn_args)
+        self.cargs = cargs
+        self.database = None
         self.context = context.ReplContext()
 
         self._parser = cmd.Parser(
@@ -251,6 +250,14 @@ class Cli:
                     desc='open psql to the current postgres process',
                     group='Development',
                     callback=self._command_psql,
+                    devonly=True,
+                ),
+
+                cmd.Command(
+                    trigger='pgaddr',
+                    desc='show the network addr of the postgres server',
+                    group='Development',
+                    callback=self._command_pgaddr,
                     devonly=True,
                 ),
             ]
@@ -391,34 +398,21 @@ class Cli:
 
     def ensure_connection(self) -> None:
         try:
-            if self._connection is None:
-                self._connection = edgedb.connect(**self.conn_args)
-            elif self._connection.is_closed():
-                self._connection = edgedb.connect(**self.conn_args)
+            if self._connection is None or self._connection.is_closed():
+                self._connection = self.cargs.new_connection(
+                    database=self.database,
+                    timeout=60,
+                )
         except edgedb.AuthenticationError:
-            if (self.conn_args['password'] is None
-                    and self._password_prompt is not None
-                    and not self._password_prompted):
-
-                try:
-                    password = self._password_prompt()
-                    self._password_prompted = True
-                    self._connection = edgedb.connect(
-                        **{**self.conn_args, 'password': password})
-                except Exception as e:
-                    self._connection = None
-                    reason = str(e)
-                else:
-                    self.conn_args = self.conn_args.set('password', password)
-            else:
-                reason = 'could not authenticate'
+            self._connection = None
+            reason = 'could not authenticate'
 
         except Exception as e:
             self._connection = None
             reason = str(e)
 
         if self._connection is None:
-            dbname = self.conn_args.get("database")
+            dbname = self.database or self.cargs.database
             if not dbname:
                 dbname = 'EdgeDB'
             print(f'Could not establish connection to {dbname}: {reason}')
@@ -495,19 +489,24 @@ class Cli:
         arg: Optional[str]
     ) -> None:
         new_db = arg
-        new_args = self.conn_args.set('database', new_db)
+        # No need to prompt for a password if a connect attempt failed.
+        self.cargs.allow_password_request = False
         try:
-            new_connection = edgedb.connect(**new_args)
+            new_connection = self.cargs.new_connection(
+                database=new_db,
+                timeout=60,
+            )
             if self.context.introspect_types:
                 self.introspect_db(new_connection)
         except Exception:
             print(f'Could not establish connection to {new_db!r}.', flush=True)
             return
 
+        self.database = new_db
+
         if self._connection:
             self._connection.close()
         self._connection = new_connection
-        self.conn_args = new_args
 
     def _command_list_dbs(
         self,
@@ -828,7 +827,20 @@ class Cli:
             lambda: _psql(cmd) == 0)
 
         self.prompt.app.current_buffer.reset()
+        # Fix 'psql' command stdout artefacts:
         print('\r                ')
+
+    def _command_pgaddr(
+        self,
+        *,
+        flags: AbstractSet[str],
+        arg: Optional[str]
+    ) -> None:
+        pgaddr = self.get_server_pgaddr()
+        if not pgaddr:
+            print('\\psqlport requires EdgeDB to run in DEV mode')
+            return
+        print(pgaddr)
 
     def _command_errverbose(
         self,
@@ -1010,16 +1022,8 @@ class Cli:
             return
 
 
-def execute_script(conn_args: Dict[str, Any], data: str) -> int:
-    password_prompt = conn_args.pop('password_prompt', None)
-    try:
-        con = edgedb.connect(**conn_args)
-    except edgedb.AuthenticationError:
-        if password_prompt:
-            password = password_prompt()
-            con = edgedb.connect(**{**conn_args, 'password': password})
-        else:
-            raise
+def execute_script(cargs: cli_utils.ConnectionArgs, data: str) -> int:
+    con = cargs.new_connection()
 
     try:
         queries = utils.split_edgeql(data)[0]
@@ -1043,27 +1047,7 @@ def execute_script(conn_args: Dict[str, Any], data: str) -> int:
         con.close()
 
 
-def main(
-    *,
-    host: str,
-    port: int,
-    user: str,
-    database: str,
-    password: str,
-    password_prompt: Optional[Callable[[], str]],
-    admin: bool,
-) -> int:
-    connect_kwargs = {
-        'user': user,
-        'password': password,
-        'password_prompt': password_prompt,
-        'database': database,
-        'host': host,
-        'port': port,
-        'admin': admin,
-        'timeout': 60,
-    }
-
+def main(cargs: cli_utils.ConnectionArgs) -> int:
     try:
         interactive = sys.stdin.isatty()
     except AttributeError:
@@ -1071,7 +1055,7 @@ def main(
         interactive = False
 
     if interactive:
-        Cli(connect_kwargs).run()
+        Cli(cargs).run()
         return 0
     else:
-        return execute_script(connect_kwargs, sys.stdin.read())
+        return execute_script(cargs, sys.stdin.read())

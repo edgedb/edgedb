@@ -64,7 +64,7 @@ cdef class EdgeConnection:
 
         object port
 
-        object backend
+        object _backend
         object loop
         readonly dbview.DatabaseConnectionView dbview
 
@@ -72,6 +72,7 @@ cdef class EdgeConnection:
 
         object _msg_take_waiter
         object _startup_msg_waiter
+        object _write_waiter
 
         object _main_task
 
@@ -103,3 +104,5 @@ cdef class EdgeConnection:
     cdef dict parse_headers(self)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
+
+    cdef get_backend(self)

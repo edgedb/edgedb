@@ -18,12 +18,13 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import collections
 import dataclasses
 import hashlib
 import pickle
-from typing import *  # NoQA
+import uuid
 
 import asyncpg
 import immutables
@@ -76,7 +77,6 @@ from . import status
 class CompilerDatabaseState:
 
     dbver: int
-    con_args: dict
     schema: s_schema.Schema
 
 
@@ -198,11 +198,31 @@ class BaseCompiler:
             h.update(val)
         return h.hexdigest().encode('latin1')
 
-    def _wrap_schema(self, dbver, con_args, schema) -> CompilerDatabaseState:
+    def _wrap_schema(self, dbver, schema) -> CompilerDatabaseState:
         return CompilerDatabaseState(
             dbver=dbver,
-            con_args=con_args,
             schema=schema)
+
+    async def new_connection(self):
+        con_args = self._connect_args.copy()
+        con_args['user'] = defines.EDGEDB_SUPERUSER
+        con_args['database'] = self._dbname
+        try:
+            return await asyncpg.connect(**con_args)
+        except asyncpg.InvalidCatalogNameError as ex:
+            raise errors.AuthenticationError(str(ex)) from ex
+        except Exception as ex:
+            raise errors.InternalServerError(str(ex)) from ex
+
+    async def introspect(
+            self, connection: asyncpg.Connection) -> s_schema.Schema:
+
+        im = intromech.IntrospectionMech(connection)
+        schema = await im.readschema(
+            schema=self._std_schema,
+            exclude_modules=s_schema.STD_MODULES)
+
+        return schema
 
     async def _get_database(self, dbver: int) -> CompilerDatabaseState:
         if self._cached_db is not None and self._cached_db.dbver == dbver:
@@ -210,25 +230,18 @@ class BaseCompiler:
 
         self._cached_db = None
 
-        con_args = self._connect_args.copy()
-        con_args['user'] = defines.EDGEDB_SUPERUSER
-        con_args['database'] = self._dbname
-
-        con = await asyncpg.connect(**con_args)
-        if self._std_schema is None:
-            self._std_schema = await load_std_schema(con)
-
-        if self._config_spec is None:
-            self._config_spec = config.load_spec_from_schema(self._std_schema)
-            config.set_settings(self._config_spec)
-
+        con = await self.new_connection()
         try:
-            im = intromech.IntrospectionMech(con)
-            schema = await im.readschema(
-                schema=self._std_schema,
-                exclude_modules=s_schema.STD_MODULES)
+            if self._std_schema is None:
+                self._std_schema = await load_std_schema(con)
 
-            db = self._wrap_schema(dbver, con_args, schema)
+            if self._config_spec is None:
+                self._config_spec = config.load_spec_from_schema(
+                    self._std_schema)
+                config.set_settings(self._config_spec)
+
+            schema = await self.introspect(con)
+            db = self._wrap_schema(dbver, schema)
             self._cached_db = db
             return db
         finally:
@@ -1026,12 +1039,14 @@ class Compiler(BaseCompiler):
         return units
 
     async def _ctx_new_con_state(
-            self, *, dbver: int, json_mode: bool, expect_one: bool,
-            modaliases,
-            session_config: Optional[immutables.Map],
-            stmt_mode: Optional[enums.CompileStatementMode],
-            capability: enums.Capability,
-            json_parameters: bool=False):
+        self, *, dbver: int, json_mode: bool, expect_one: bool,
+        modaliases,
+        session_config: Optional[immutables.Map],
+        stmt_mode: Optional[enums.CompileStatementMode],
+        capability: enums.Capability,
+        json_parameters: bool=False,
+        schema: Optional[s_schema.Schema] = None
+    ) -> CompileContext:
 
         if session_config is None:
             session_config = EMPTY_MAP
@@ -1041,10 +1056,13 @@ class Compiler(BaseCompiler):
         assert isinstance(modaliases, immutables.Map)
         assert isinstance(session_config, immutables.Map)
 
-        db = await self._get_database(dbver)
+        if schema is None:
+            db = await self._get_database(dbver)
+            schema = db.schema
+
         self._current_db_state = dbstate.CompilerConnectionState(
             dbver,
-            db.schema,
+            schema,
             modaliases,
             session_config,
             capability)
@@ -1190,13 +1208,29 @@ class Compiler(BaseCompiler):
             schema = t.set_field_value(schema, 'backend_id', backend_tid)
         state.current_tx().update_schema(schema)
 
+    async def _introspect_schema_in_snapshot(
+        self,
+        tx_snapshot_id: str
+    ) -> s_schema.Schema:
+        con = await self.new_connection()
+        try:
+            async with con.transaction(isolation='serializable',
+                                       readonly=True):
+                await con.execute(
+                    f'SET TRANSACTION SNAPSHOT {pg_ql(tx_snapshot_id)};')
+
+                return await self.introspect(con)
+        finally:
+            await con.close()
+
     async def describe_database_dump(
         self,
-        txid,
-    ) -> List[DumpBlockDescriptor]:
-        state = self._load_state(txid)
-        tx = state.current_tx()
-        schema = tx.get_schema()
+        tx_snapshot_id: str
+    ) -> DumpDescriptor:
+        schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
+
+        schema_ddl = s_ddl.ddl_text_from_schema(schema, emit_oids=True)
+
         objtypes = schema.get_objects(
             type=s_objtypes.ObjectType,
             excluded_modules=s_schema.STD_MODULES,
@@ -1204,9 +1238,14 @@ class Compiler(BaseCompiler):
         descriptors = []
 
         for objtype in objtypes:
+            if objtype.is_union_type(schema) or objtype.is_view(schema):
+                continue
             descriptors.extend(self._describe_object(schema, objtype))
 
-        return descriptors
+        return DumpDescriptor(
+            schema_ddl=schema_ddl,
+            blocks=descriptors,
+        )
 
     def _describe_object(
         self,
@@ -1224,6 +1263,7 @@ class Compiler(BaseCompiler):
                 {
                     'source': schema.get('std::uuid'),
                     'target': source.get_target(schema),
+                    'ptr_item_id': schema.get('std::uuid'),
                 },
                 {'named': True},
             )
@@ -1239,17 +1279,20 @@ class Compiler(BaseCompiler):
             cols.extend([
                 'source',
                 'target',
+                'ptr_item_id',
             ])
 
         elif isinstance(source, s_links.Link):
             props = {
                 'source': schema.get('std::uuid'),
                 'target': schema.get('std::uuid'),
+                'ptr_item_id': schema.get('std::uuid'),
             }
 
             cols.extend([
                 'source',
                 'target',
+                'ptr_item_id',
             ])
 
             for ptr in source.get_pointers(schema).objects(schema):
@@ -1324,6 +1367,115 @@ class Compiler(BaseCompiler):
             sql_copy_stmt=stmt,
         )] + ptrdesc
 
+    async def describe_database_restore(
+        self,
+        tx_snapshot_id: str,
+        schema_ddl: bytes,
+        blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
+    ) -> RestoreDescriptor:
+        schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
+        ctx = await self._ctx_new_con_state(
+            dbver=-1,
+            json_mode=False,
+            expect_one=False,
+            modaliases=DEFAULT_MODULE_ALIASES_MAP,
+            session_config=EMPTY_MAP,
+            stmt_mode=enums.CompileStatementMode.ALL,
+            capability=enums.Capability.ALL,
+            json_parameters=False,
+            schema=schema)
+        ctx.state.start_tx()
+
+        units = self._compile(ctx=ctx, eql=schema_ddl)
+        schema = ctx.state.current_tx().get_schema()
+
+        restore_blocks = []
+        tables = []
+        for schema_object_id, typedesc in blocks:
+            schema_object_id = uuidgen.from_bytes(schema_object_id)
+            obj = schema._id_to_type.get(schema_object_id)
+            desc = sertypes.TypeSerializer.parse(typedesc)
+
+            if isinstance(obj, s_props.Property):
+                assert isinstance(desc, sertypes.NamedTupleDesc)
+                desc_cols = list(desc.fields.keys())
+                if set(desc_cols) != {'source', 'target', 'ptr_item_id'}:
+                    raise RuntimeError(
+                        'Property table dump data has extra fields')
+
+            elif isinstance(obj, s_links.Link):
+                assert isinstance(desc, sertypes.NamedTupleDesc)
+                desc_cols = list(desc.fields.keys())
+
+                cols = ['source', 'target', 'ptr_item_id']
+                for ptr in obj.get_pointers(schema).objects(schema):
+                    if ptr.is_endpoint_pointer(schema):
+                        continue
+                    stor_info = pg_types.get_pointer_storage_info(
+                        ptr,
+                        schema=schema,
+                        source=obj,
+                        link_bias=True,
+                    )
+
+                    cols.append(pg_common.quote_ident(stor_info.column_name))
+
+                if set(desc_cols) != set(cols):
+                    raise RuntimeError(
+                        'Link table dump data has extra fields')
+
+            else:
+                assert isinstance(desc, sertypes.ShapeDesc)
+                desc_cols = list(desc.fields.keys())
+
+                cols = []
+                for ptr in obj.get_pointers(schema).objects(schema):
+                    if ptr.is_endpoint_pointer(schema):
+                        continue
+
+                    stor_info = pg_types.get_pointer_storage_info(
+                        ptr,
+                        schema=schema,
+                        source=obj,
+                    )
+
+                    if stor_info.table_type == 'ObjectType':
+                        cols.append(pg_common.quote_ident(
+                            stor_info.column_name))
+
+                if set(desc_cols) != set(cols):
+                    raise RuntimeError(
+                        'Object table dump data has extra fields')
+
+            table_name = pg_common.get_backend_name(
+                schema, obj, catenate=True)
+
+            stmt = (
+                f'COPY {table_name} ({", ".join(c for c in desc_cols)}) '
+                f'FROM STDIN WITH BINARY'
+            ).encode()
+
+            restore_blocks.append(
+                RestoreBlockDescriptor(
+                    schema_object_id=schema_object_id,
+                    sql_copy_stmt=stmt,
+                )
+            )
+
+            tables.append(table_name)
+
+        return RestoreDescriptor(
+            units=units,
+            blocks=restore_blocks,
+            tables=tables,
+        )
+
+
+class DumpDescriptor(NamedTuple):
+
+    schema_ddl: str
+    blocks: Sequence[DumpBlockDescriptor]
+
 
 class DumpBlockDescriptor(NamedTuple):
 
@@ -1332,4 +1484,17 @@ class DumpBlockDescriptor(NamedTuple):
     schema_deps: Tuple[uuid.UUID, ...]
     type_desc_id: uuid.UUID
     type_desc: bytes
+    sql_copy_stmt: bytes
+
+
+class RestoreDescriptor(NamedTuple):
+
+    units: Sequence[dbstate.QueryUnit]
+    blocks: Sequence[RestoreBlockDescriptor]
+    tables: Sequence[str]
+
+
+class RestoreBlockDescriptor(NamedTuple):
+
+    schema_object_id: uuid.UUID
     sql_copy_stmt: bytes
