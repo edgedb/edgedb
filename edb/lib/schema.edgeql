@@ -26,10 +26,9 @@ CREATE SCALAR TYPE schema::cardinality_t EXTENDING std::str {
     CREATE CONSTRAINT std::one_of ('ONE', 'MANY');
 };
 
-CREATE SCALAR TYPE schema::target_delete_action_t EXTENDING std::str {
-    CREATE CONSTRAINT std::one_of ('RESTRICT', 'DELETE SOURCE', 'SET EMPTY',
-                                   'SET DEFAULT', 'DEFERRED RESTRICT');
-};
+CREATE SCALAR TYPE schema::TargetDeleteAction
+    EXTENDING enum<'RESTRICT', 'DELETE SOURCE', 'SET EMPTY',
+                   'SET DEFAULT', 'DEFERRED RESTRICT'>;
 
 CREATE SCALAR TYPE schema::OperatorKind
     EXTENDING enum<'INFIX', 'POSTFIX', 'PREFIX', 'TERNARY'>;
@@ -259,7 +258,7 @@ ALTER TYPE schema::Pointer {
 
 ALTER TYPE schema::Link {
     CREATE LINK properties := .pointers;
-    CREATE PROPERTY on_target_delete -> schema::target_delete_action_t;
+    CREATE PROPERTY on_target_delete -> schema::TargetDeleteAction;
 };
 
 
