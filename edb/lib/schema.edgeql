@@ -35,7 +35,7 @@ CREATE SCALAR TYPE schema::operator_kind_t EXTENDING std::str {
     CREATE CONSTRAINT std::one_of ('INFIX', 'POSTFIX', 'PREFIX', 'TERNARY');
 };
 
-CREATE SCALAR TYPE schema::volatility_t
+CREATE SCALAR TYPE schema::Volatility
     EXTENDING enum<'IMMUTABLE', 'STABLE', 'VOLATILE'>;
 
 # Base type for all schema entities.
@@ -150,7 +150,7 @@ CREATE ABSTRACT TYPE schema::CallableObject
 
 
 CREATE ABSTRACT TYPE schema::VolatilitySubject {
-    CREATE REQUIRED PROPERTY volatility -> schema::volatility_t {
+    CREATE REQUIRED PROPERTY volatility -> schema::Volatility {
         # NOTE: this default indicates the default value in the python
         # implementation, but is not itself a source of truth
         SET default := 'VOLATILE';
