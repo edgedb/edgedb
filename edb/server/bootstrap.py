@@ -290,6 +290,15 @@ async def _make_stdlib(testmode: bool):
 
     sql_text = current_block.to_string()
 
+    mods = {
+        mod.get_name(schema)
+        for mod in schema.get_modules()
+        if mod.get_builtin(schema)
+    }
+    if mods != s_schema.STD_MODULES:
+        raise errors.SchemaError(
+            f'modules {s_schema.STD_MODULES - mods} are not marked as builtin')
+
     return schema, sql_text, new_types
 
 

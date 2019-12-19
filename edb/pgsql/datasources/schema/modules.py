@@ -30,7 +30,8 @@ async def fetch(
     return await conn.fetch("""
         SELECT
                 id,
-                name
+                name,
+                builtin
             FROM
                 edgedb.module AS m
             WHERE

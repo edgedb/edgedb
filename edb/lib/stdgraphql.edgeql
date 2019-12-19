@@ -17,7 +17,9 @@
 #
 
 
-CREATE MODULE stdgraphql;
+CREATE MODULE stdgraphql {
+    SET builtin := true;
+};
 
 
 # these are just some placeholders for packaging GraphQL queries

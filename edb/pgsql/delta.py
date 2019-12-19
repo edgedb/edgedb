@@ -3587,7 +3587,7 @@ class AlterModule(ModuleMetaCommand, adapts=s_mod.AlterModule):
                 dbops.Update(
                     table=table, record=updaterec, condition=condition))
 
-        self.attach_alter_table(context)
+        # self.attach_alter_table(context)
 
         return schema, module
 

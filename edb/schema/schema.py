@@ -687,6 +687,11 @@ class Schema(s_abc.Schema):
             extra_filters=extra_filters,
         )
 
+    def get_modules(self) -> Iterator[s_mod.Module]:
+        for (objtype, _), objid in self._globalname_to_id.items():
+            if objtype is s_mod.Module:
+                yield self.get_by_id(objid)
+
     def __repr__(self):
         return (
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')

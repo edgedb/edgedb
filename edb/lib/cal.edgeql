@@ -16,7 +16,9 @@
 # limitations under the License.
 #
 
-CREATE MODULE cal;
+CREATE MODULE cal {
+    SET builtin := true;
+};
 
 CREATE SCALAR TYPE cal::local_datetime EXTENDING std::anyscalar;
 

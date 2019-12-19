@@ -20,7 +20,9 @@
 ## INTROSPECTION SCHEMA
 
 
-CREATE MODULE schema;
+CREATE MODULE schema {
+    SET builtin := true;
+};
 
 CREATE SCALAR TYPE schema::Cardinality
     EXTENDING enum<'ONE', 'MANY'>;
@@ -63,7 +65,9 @@ CREATE ABSTRACT LINK schema::ordered {
 };
 
 
-CREATE TYPE schema::Module EXTENDING schema::Object;
+CREATE TYPE schema::Module EXTENDING schema::Object {
+    CREATE PROPERTY builtin -> std::bool;
+};
 
 
 CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::Type;
