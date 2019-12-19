@@ -253,6 +253,10 @@ class TypeSerializer:
 
             mt = t.material_type(self.schema)
             type_id = mt.id
+            if type_id in self.uuid_to_pos:
+                # already described
+                return type_id
+
             base_type = mt.get_topmost_concrete_base(self.schema)
             enum_values = mt.get_enum_values(self.schema)
 
@@ -266,20 +270,12 @@ class TypeSerializer:
                     buf.append(enum_val_bytes)
 
             elif mt is base_type:
-                if type_id in self.uuid_to_pos:
-                    # already described
-                    return type_id
-
                 buf.append(b'\x02')
                 buf.append(type_id.bytes)
 
             else:
                 bt_id = self._describe_type(
                     base_type, view_shapes, view_shapes_metadata)
-                type_id = mt.id
-
-                if type_id in self.uuid_to_pos:
-                    return type_id
 
                 buf.append(b'\x03')
                 buf.append(type_id.bytes)

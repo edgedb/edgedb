@@ -40,6 +40,9 @@ class TestServerProto(tb.QueryTestCase):
             CREATE PROPERTY name -> std::str;
         };
 
+        CREATE SCALAR TYPE test::RGB
+            EXTENDING enum<'RED', 'BLUE', 'GREEN'>;
+
         # Used by is_testmode_on() to ensure that config modifications
         # persist correctly when set inside and outside of (potentially
         # failing) transaction blocks.
@@ -516,6 +519,15 @@ class TestServerProto(tb.QueryTestCase):
                 await self.con.fetchone_json('SELECT <int64>{}')
 
         self.assertEqual(self.con._get_last_status(), 'SELECT')
+
+    async def test_server_proto_basic_datatypes_04(self):
+        # A regression test for enum typedescs being improperly
+        # serialized and screwing up client's decoder.
+        d = await self.con.fetchone('''
+            WITH MODULE test
+            SELECT (<RGB>"RED", <RGB>"GREEN", [1], [<RGB>"GREEN"], [2])
+        ''')
+        self.assertEqual(d[2], [1])
 
     async def test_server_proto_args_01(self):
         self.assertEqual(
