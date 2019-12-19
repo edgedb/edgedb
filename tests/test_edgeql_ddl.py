@@ -863,6 +863,104 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE test::Foo ALTER PROPERTY bar SET TYPE int32;
             """)
 
+    async def test_edgeql_ddl_link_property_01(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidPropertyDefinitionError,
+                r"link properties cannot be required"):
+            await self.con.execute("""
+                CREATE TYPE test::TestLinkPropType_01 {
+                    CREATE LINK test_linkprop_link_01 -> std::Object {
+                        CREATE REQUIRED PROPERTY test_link_prop_01
+                            -> std::int64;
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_link_property_02(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidPropertyDefinitionError,
+                r"multi properties aren't supported for links"):
+            await self.con.execute("""
+                CREATE TYPE test::TestLinkPropType_02 {
+                    CREATE LINK test_linkprop_link_02 -> std::Object {
+                        CREATE MULTI PROPERTY test_link_prop_02 -> std::int64;
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_link_property_03(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidPropertyDefinitionError,
+                r"link properties cannot be required"):
+            await self.con.execute("""
+                CREATE TYPE test::TestLinkPropType_03 {
+                    CREATE LINK test_linkprop_link_03 -> std::Object;
+                };
+
+                ALTER TYPE test::TestLinkPropType_03 {
+                    ALTER LINK test_linkprop_link_03 {
+                        CREATE REQUIRED PROPERTY test_link_prop_03
+                            -> std::int64;
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_link_property_04(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidPropertyDefinitionError,
+                r"multi properties aren't supported for links"):
+            await self.con.execute("""
+                CREATE TYPE test::TestLinkPropType_04 {
+                    CREATE LINK test_linkprop_link_04 -> std::Object;
+                };
+
+                ALTER TYPE test::TestLinkPropType_04 {
+                    ALTER LINK test_linkprop_link_04 {
+                        CREATE MULTI PROPERTY test_link_prop_04 -> std::int64;
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_link_property_05(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidPropertyDefinitionError,
+                r"link properties cannot be required"):
+            await self.con.execute("""
+                CREATE TYPE test::TestLinkPropType_05 {
+                    CREATE LINK test_linkprop_link_05 -> std::Object {
+                        CREATE PROPERTY test_link_prop_05 -> std::int64;
+                    };
+                };
+
+                ALTER TYPE test::TestLinkPropType_05 {
+                    ALTER LINK test_linkprop_link_05 {
+                        ALTER PROPERTY test_link_prop_05 {
+                            SET REQUIRED;
+                        };
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_link_property_06(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidPropertyDefinitionError,
+                r"multi properties aren't supported for links"):
+            await self.con.execute("""
+                CREATE TYPE test::TestLinkPropType_06 {
+                    CREATE LINK test_linkprop_link_06 -> std::Object {
+                        CREATE MULTI PROPERTY test_link_prop_06 -> std::int64;
+                    };
+                };
+
+                ALTER TYPE test::TestLinkPropType_06 {
+                    ALTER LINK test_linkprop_link_06 {
+                        ALTER PROPERTY test_link_prop_06 {
+                            SET MULTI;
+                        };
+                    };
+                };
+            """)
+
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,

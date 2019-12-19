@@ -173,6 +173,20 @@ class PropertyCommand(pointers.PointerCommand,
         if scls.is_special_pointer(schema):
             return
 
+        if scls.is_link_property(schema):
+            # link properties cannot be required or multi
+            if self.get_attribute_value('required'):
+                raise errors.InvalidPropertyDefinitionError(
+                    'link properties cannot be required',
+                    context=self.source_context,
+                )
+            if (self.get_attribute_value('cardinality')
+                    is qltypes.Cardinality.MANY):
+                raise errors.InvalidPropertyDefinitionError(
+                    "multi properties aren't supported for links",
+                    context=self.source_context,
+                )
+
         target_type = scls.get_target(schema)
 
         if target_type.is_polymorphic(schema):
