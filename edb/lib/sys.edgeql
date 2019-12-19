@@ -20,7 +20,7 @@
 CREATE MODULE sys;
 
 
-CREATE SCALAR TYPE sys::transaction_isolation_t
+CREATE SCALAR TYPE sys::TransactionIsolation
     EXTENDING enum<'REPEATABLE READ', 'SERIALIZABLE'>;
 
 
@@ -183,7 +183,7 @@ sys::get_version_as_str() -> std::str
 
 
 CREATE FUNCTION
-sys::get_transaction_isolation() -> sys::transaction_isolation_t
+sys::get_transaction_isolation() -> sys::TransactionIsolation
 {
     # This function only reads from a table.
     SET volatility := 'STABLE';

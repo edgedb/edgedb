@@ -136,12 +136,12 @@ System
 
 
 .. eql:function:: sys::get_transaction_isolation() -> \
-                        sys::transaction_isolation_t
+                        sys::TransactionIsolation
 
     Return the isolation level of the current transaction.
 
     Possible return values are given by
-    :eql:type:`sys::transaction_isolation_t`.
+    :eql:type:`sys::TransactionIsolation`.
 
     .. code-block:: edgeql-repl
 
@@ -152,7 +152,7 @@ System
 -----------
 
 
-.. eql:type:: sys::transaction_isolation_t
+.. eql:type:: sys::TransactionIsolation
 
     :index: enum transaction isolation
 
