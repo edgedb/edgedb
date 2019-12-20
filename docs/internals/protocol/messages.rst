@@ -305,6 +305,11 @@ Format:
     };
 
     enum Cardinality {
+
+        // Zero cardinality is used in statements which don't return
+        // any result, such as CREATE DATABASE
+        ZERO = 0x6e,
+
         ONE = 0x6f,
         MANY = 0x6d
     };
@@ -384,6 +389,11 @@ Format:
     };
 
     enum Cardinality {
+
+        // A cardinality used in statements which don't return
+        // any result, such as CREATE DATABASE
+        NO_RESULT = 0x6e,
+
         ONE = 0x6f,
         MANY = 0x6d
     };
@@ -627,6 +637,11 @@ Format:
     };
 
     enum Cardinality {
+
+        // Zero cardinality is used in statements which don't return
+        // any result, such as CREATE DATABASE
+        ZERO = 0x6e,
+
         ONE = 0x6f,
         MANY = 0x6d
     };
