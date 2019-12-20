@@ -321,6 +321,67 @@ def get_intersection_type(
     return intersection
 
 
+class TypeIntersectionResult(NamedTuple):
+
+    stype: s_types.Type
+    is_empty: bool = False
+    is_subtype: bool = False
+
+
+def apply_intersection(
+    left: s_types.Type,
+    right: s_types.Type,
+    *,
+    ctx: context.ContextLevel
+) -> TypeIntersectionResult:
+    """Compute an intersection of two types: *left* and *right*.
+
+    In theory, this should handle all combinations of unions and intersections
+    recursively, but currently this handles only the common case of
+    intersecting a regular type or a union type with a regular type.
+
+    Returns:
+        A :class:`~TypeIntersectionResult` named tuple containing the
+        result intersection type, whether the type system considers
+        the intersection empty and whether *left* is a subtype of *right*.
+    """
+
+    if left.issubclass(ctx.env.schema, right):
+        # The intersection type is a proper *superclass*
+        # of the argument, then this is, effectively, a NOP.
+        return TypeIntersectionResult(stype=left)
+
+    is_subtype = False
+    empty_intersection = False
+    union = left.get_union_of(ctx.env.schema)
+    if union:
+        # If the argument type is a union type, then we
+        # narrow it by the intersection type.
+        narrowed_union = []
+        for component_type in union.objects(ctx.env.schema):
+            if component_type.issubclass(ctx.env.schema, right):
+                narrowed_union.append(component_type)
+
+        if len(narrowed_union) == 0:
+            # No intersection.
+            empty_intersection = True
+            int_type = get_intersection_type((left, right), ctx=ctx)
+        elif len(narrowed_union) == 1:
+            int_type = narrowed_union[0]
+        else:
+            int_type = get_union_type(narrowed_union, ctx=ctx)
+    else:
+        is_subtype = right.issubclass(ctx.env.schema, left)
+        empty_intersection = not is_subtype
+        int_type = get_intersection_type((left, right), ctx=ctx)
+
+    return TypeIntersectionResult(
+        stype=int_type,
+        is_empty=empty_intersection,
+        is_subtype=is_subtype,
+    )
+
+
 def derive_dummy_ptr(
     ptr: s_pointers.Pointer,
     *,

@@ -653,39 +653,11 @@ def type_intersection_set(
 
     arg_type = get_set_type(source_set, ctx=ctx)
 
-    if arg_type.issubclass(ctx.env.schema, stype):
-        # The the intersection type is a proper *superclass*
-        # of the argument, then this is, effectively, a NOP.
+    result = schemactx.apply_intersection(arg_type, stype, ctx=ctx)
+    if result.stype is arg_type:
         return source_set
 
-    is_subtype = False
-    empty_intersection = False
-    union = arg_type.get_union_of(ctx.env.schema)
-    if union:
-        # If the argument type is a union type, then we
-        # narrow it by the intersection type.
-        narrowed_union = []
-        for component_type in union.objects(ctx.env.schema):
-            if component_type.issubclass(ctx.env.schema, stype):
-                narrowed_union.append(component_type)
-
-        if len(narrowed_union) == 0:
-            # No intersection.
-            empty_intersection = True
-            int_type = schemactx.get_intersection_type(
-                (arg_type, stype), ctx=ctx)
-        elif len(narrowed_union) == 1:
-            int_type = narrowed_union[0]
-        else:
-            int_type = schemactx.get_union_type(
-                narrowed_union, ctx=ctx)
-    else:
-        is_subtype = stype.issubclass(ctx.env.schema, arg_type)
-        empty_intersection = not is_subtype
-        int_type = schemactx.get_intersection_type(
-            (arg_type, stype), ctx=ctx)
-
-    poly_set = new_set(stype=int_type, ctx=ctx)
+    poly_set = new_set(stype=result.stype, ctx=ctx)
     rptr = source_set.rptr
     rptr_specialization = []
 
@@ -706,10 +678,10 @@ def type_intersection_set(
 
     ptrcls = irast.TypeIntersectionLink(
         arg_type,
-        int_type,
+        result.stype,
         optional=optional,
-        is_empty=empty_intersection,
-        is_subtype=is_subtype,
+        is_empty=result.is_empty,
+        is_subtype=result.is_subtype,
         rptr_specialization=rptr_specialization,
         # The type intersection cannot increase the cardinality
         # of the input set, so semantically, the cardinality

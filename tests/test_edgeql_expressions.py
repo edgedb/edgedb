@@ -3563,7 +3563,8 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError, r'cannot assign to __type__'):
             await self.con.fetchall(r"""
                 SELECT test::Text {
-                    __type__ := 42
+                    __type__ := (SELECT schema::ObjectType
+                                 FILTER .name = 'test::Named')
                 };
             """)
 

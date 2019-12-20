@@ -332,6 +332,15 @@ def new_root_rvar(
     if typeref is None:
         typeref = ir_set.typeref
 
+    if typeref.intersection:
+        wrapper = pgast.SelectStmt()
+        for component in typeref.intersection:
+            component_rvar = new_root_rvar(ir_set, typeref=component, ctx=ctx)
+            pathctx.put_rvar_path_bond(component_rvar, ir_set.path_id)
+            include_rvar(wrapper, component_rvar, ir_set.path_id, ctx=ctx)
+
+        return rvar_for_rel(wrapper, ctx=ctx)
+
     dml_source = irutils.get_nearest_dml_stmt(ir_set)
     set_rvar = range_for_typeref(
         typeref, ir_set.path_id, dml_source=dml_source, ctx=ctx)
@@ -369,17 +378,6 @@ def new_root_rvar(
                 )
 
     return set_rvar
-
-
-def new_poly_rvar(
-        ir_set: irast.Set, *,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-
-    rvar = new_root_rvar(ir_set, ctx=ctx)
-    prefix_path_id = ir_set.path_id.src_path()
-    assert prefix_path_id is not None, 'expected a path'
-    pathctx.put_rvar_path_bond(rvar, prefix_path_id)
-    return rvar
 
 
 def new_pointer_rvar(

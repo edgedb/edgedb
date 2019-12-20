@@ -966,16 +966,30 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT User {
                     name,
-                    deck := (SELECT x := User.deck.name
-                             ORDER BY x ASC
-                             LIMIT 2)
+                    deck := (SELECT x := User.deck
+                             ORDER BY x.name ASC
+                             LIMIT 2) {
+                                 name
+                             }
                 } ORDER BY .name;
             ''',
             [
-                {"deck": ["Bog monster", "Dragon"], "name": "Alice"},
-                {"deck": ["Bog monster", "Dwarf"], "name": "Bob"},
-                {"deck": ["Bog monster", "Djinn"], "name": "Carol"},
-                {"deck": ["Bog monster", "Djinn"], "name": "Dave"}
+                {
+                    "name": "Alice",
+                    "deck": [{"name": "Bog monster"}, {"name": "Dragon"}],
+                },
+                {
+                    "name": "Bob",
+                    "deck": [{"name": "Bog monster"}, {"name": "Dwarf"}],
+                },
+                {
+                    "name": "Carol",
+                    "deck": [{"name": "Bog monster"}, {"name": "Djinn"}],
+                },
+                {
+                    "name": "Dave",
+                    "deck": [{"name": "Bog monster"}, {"name": "Djinn"}],
+                },
             ]
         )
 

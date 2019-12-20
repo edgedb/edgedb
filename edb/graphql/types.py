@@ -1092,7 +1092,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         elif self.get_field_type(name).is_json:
             eql = filterable = parse_fragment(
-                f'''SELECT to_str({codegen.generate_source(parent)}.
+                f'''SELECT <json>to_str({codegen.generate_source(parent)}.
                         {codegen.generate_source(qlast.ObjectRef(name=name))})
                 ''')
 

@@ -1347,7 +1347,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ''',
             )
 
-    async def test_edgeql_select_alias_01(self):
+    async def test_edgeql_select_tvariant_01(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
@@ -1380,7 +1380,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_alias_02(self):
+    async def test_edgeql_select_tvariant_02(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
@@ -1408,7 +1408,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_alias_03(self):
+    async def test_edgeql_select_tvariant_03(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
@@ -1440,7 +1440,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_alias_04(self):
+    async def test_edgeql_select_tvariant_04(self):
         await self.assert_query_result(
             r"""
             WITH
@@ -1461,7 +1461,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_alias_05(self):
+    async def test_edgeql_select_tvariant_05(self):
         await self.assert_query_result(
             r"""
             WITH MODULE test
@@ -1493,7 +1493,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_alias_06(self):
+    async def test_edgeql_select_tvariant_06(self):
         await self.assert_query_result(
             r"""
             WITH MODULE test
@@ -1515,7 +1515,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_alias_07(self):
+    async def test_edgeql_select_tvariant_07(self):
         await self.assert_query_result(
             r"""
             # semantically identical to the previous test
@@ -1541,7 +1541,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_select_alias_08(self):
+    async def test_edgeql_select_tvariant_08(self):
         await self.assert_query_result(
             r"""
             # semantically similar to previous test, but involving
@@ -1564,6 +1564,62 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 },
             ],
         )
+
+    async def test_edgeql_select_tvariant_bad_01(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot redefine property 'name' of object type 'test::User' "
+            "as scalar type 'std::int64'",
+            _position=92,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT User {
+                    name := 1
+                }
+            """)
+
+    async def test_edgeql_select_tvariant_bad_02(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot redefine property 'name' of object type 'test::User' "
+            "as object type 'test::Issue'",
+            _position=92,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT User {
+                    name := Issue
+                }
+            """)
+
+    async def test_edgeql_select_tvariant_bad_03(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot redefine link 'related_to' of object type 'test::Issue' "
+            "as scalar type 'std::int64'",
+            _position=99,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT Issue {
+                    related_to := 1
+                }
+            """)
+
+    async def test_edgeql_select_tvariant_bad_04(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot redefine link 'related_to' of object type 'test::Issue' "
+            "as object type 'test::Text'",
+            _position=99,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT Issue {
+                    related_to := Text
+                }
+            """)
 
     async def test_edgeql_select_instance_01(self):
         await self.assert_query_result(
@@ -3293,7 +3349,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {
                 number,
-                name := <int64>{}
+                name := <str>{}
             } ORDER BY .number;
             """,
             [
@@ -4827,7 +4883,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT Issue.number FILTER .number > '1';
             ''')
 
-    async def test_edgeql_virtual_target_01(self):
+    async def test_edgeql_union_target_01(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test

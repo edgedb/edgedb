@@ -337,8 +337,16 @@ def _normalize_view_ptr_expr(
                 qlexpr.limit = shape_el.limit
 
         if target_typexpr is not None:
-            ptr_target = schemactx.get_schema_type(
+            intersector_type = schemactx.get_schema_type(
                 target_typexpr.maintype, ctx=ctx)
+
+            int_result = schemactx.apply_intersection(
+                ptrcls.get_target(ctx.env.schema),
+                intersector_type,
+                ctx=ctx,
+            )
+
+            ptr_target = int_result.stype
         else:
             ptr_target = ptrcls.get_target(ctx.env.schema)
 
@@ -415,16 +423,19 @@ def _normalize_view_ptr_expr(
             )
 
         else:
-            # Otherwise, assume no pointer inheritance.
-            # Every computable is a new pointer derived from
-            # std::link or std::property.  There is one exception:
-            # pointer aliases (Foo {some := Foo.other}), where `foo`
-            # gets derived from `Foo.other`.  This logic is applied
-            # in compile_query_subject() by populating the base_ptrcls.
             ptr_name = sn.Name(
                 module='__',
                 name=ptrname,
             )
+
+            try:
+                ptrcls = setgen.resolve_ptr(ptrsource, ptrname, ctx=ctx)
+
+                base_ptrcls = ptrcls.get_bases(
+                    ctx.env.schema).first(ctx.env.schema)
+            except errors.InvalidReferenceError:
+                # This is a NEW compitable pointer, it's fine.
+                pass
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
 
@@ -586,13 +597,22 @@ def _normalize_view_ptr_expr(
                     )
 
                 ctx.env.schema = existing.delete(ctx.env.schema)
-                ptrcls = schemactx.derive_ptr(
-                    derive_from, src_scls, ptr_target,
-                    is_insert=is_insert,
-                    is_update=is_update,
-                    derived_name=derived_name,
-                    inheritance_merge=False,
-                    ctx=ctx)
+
+                try:
+                    ptrcls = schemactx.derive_ptr(
+                        derive_from, src_scls, ptr_target,
+                        is_insert=is_insert,
+                        is_update=is_update,
+                        derived_name=derived_name,
+                        inheritance_merge=True,
+                        ctx=ctx,
+                    )
+                except errors.SchemaError as e:
+                    if shape_el.compexpr is not None:
+                        e.set_source_context(shape_el.compexpr.context)
+                    else:
+                        e.set_source_context(shape_el.expr.steps[-1].context)
+                    raise
 
                 if target_rptr_set:
                     ctx.env.schema = ptr_target.set_field_value(

@@ -248,33 +248,29 @@ class Pointer(referencing.ReferencedInheritingObject,
 
         if (isinstance(t1, s_abc.ScalarType) !=
                 isinstance(t2, s_abc.ScalarType)):
-            # Targets are not of the same node type
-
-            pn = ptr.get_shortname(schema)
-            ccn1 = type(t1).__name__
-            ccn2 = type(t2).__name__
-
-            detail = (
-                f'[{source.get_name(schema)}].[{pn}] '
-                f'targets {ccn1} "{t1.get_name(schema)}"'
-                f'while it also targets {ccn2} "{t2.get_name(schema)}"'
-                'in other parent.'
-            )
-
+            # Mixing a property with a link.
+            vnp = ptr.get_verbosename(schema, with_parent=True)
+            vn = ptr.get_verbosename(schema)
+            t1_vn = t1.get_verbosename(schema)
+            t2_vn = t2.get_verbosename(schema)
             raise errors.SchemaError(
-                f'could not merge "{pn}" pointer: invalid ' +
-                'target type mix', details=detail)
+                f'cannot redefine {vnp} as {t2_vn}',
+                details=f'{vn} is defined as a link to {t1_vn} in a '
+                        f'parent type'
+            )
 
         elif isinstance(t1, s_abc.ScalarType):
             # Targets are both scalars
             if t1 != t2:
-                vn = ptr.get_verbosename(schema, with_parent=True)
+                vnp = ptr.get_verbosename(schema, with_parent=True)
+                vn = ptr.get_verbosename(schema)
+                t1_vn = t1.get_verbosename(schema)
+                t2_vn = t2.get_verbosename(schema)
                 raise errors.SchemaError(
-                    f'could not merge {vn!r}: targets conflict',
-                    details=f'{vn} targets scalar type '
-                            f'{t1.get_displayname(schema)!r} while it also '
-                            f'targets incompatible scalar type '
-                            f'{t2.get_displayname(schema)!r} in a supertype.')
+                    f'cannot redefine {vnp} as {t2_vn}',
+                    details=f'{vn} is defined as {t1_vn} in a parent type, '
+                            f'which is incompatible with {t2_vn} ',
+                )
 
             return schema, t1
 
@@ -302,14 +298,14 @@ class Pointer(referencing.ReferencedInheritingObject,
                 # The link is neither a subclass, nor a superclass
                 # of the previously seen targets, which creates an
                 # unresolvable target requirement conflict.
-                vn = ptr.get_verbosename(schema, with_parent=True)
+                vnp = ptr.get_verbosename(schema, with_parent=True)
+                vn = ptr.get_verbosename(schema)
+                t2_vn = t2.get_verbosename(schema)
                 raise errors.SchemaError(
-                    f'could not merge {vn} pointer: targets conflict',
+                    f'cannot redefine {vnp} as {t2_vn}',
                     details=(
-                        f'{vn} targets '
-                        f'object {t2.get_verbosename(schema)!r} which '
-                        f'is not related to any of targets found in '
-                        f'other sources being merged: '
+                        f'{vn} targets {t2_vn} that is not related '
+                        f'to a type found in this link in the parent type: '
                         f'{t1.get_displayname(schema)!r}.'))
 
             if len(new_targets) > 1:

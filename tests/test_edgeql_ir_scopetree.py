@@ -279,9 +279,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         """
         WITH MODULE test
         SELECT User {
-            friends := (User.friends.name
+            friends := (User.friends
                         IF EXISTS User.friends
-                        ELSE User.deck.name)
+                        ELSE User.deck.<deck[IS User])
         }
         ORDER BY User.name
 
@@ -289,23 +289,25 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(test::User)",
             "FENCE": {
-                "(test::User).>name[IS std::str]"
-            },
-            "FENCE": {
+                "(test::User).>friends[IS test::User]",
                 "FENCE": {
-                    "(test::User).>deck[IS test::Card].>name[IS std::str]": {
-                        "(test::User).>deck[IS test::Card]"
+                    "(test::User).>deck[IS test::Card].\
+<deck[IS __derived__::@SID@].>indirection[IS test::User]": {
+                        "(test::User).>deck[IS test::Card].\
+<deck[IS __derived__::@SID@]": {
+                            "(test::User).>deck[IS test::Card]"
+                        }
                     }
                 },
                 "FENCE": {
                     "(test::User).>friends[IS test::User]"
                 },
                 "FENCE": {
-                    "(test::User).>friends[IS test::User]\
-.>name[IS std::str]": {
-                        "(test::User).>friends[IS test::User]"
-                    }
+                    "(test::User).>friends[IS test::User]"
                 }
+            },
+            "FENCE": {
+                "(test::User).>name[IS std::str]"
             }
         }
         """
