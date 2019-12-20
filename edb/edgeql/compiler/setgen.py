@@ -700,6 +700,7 @@ def class_indirection_set(
     ptrref = irtyputils.ptrref_from_ptrcls(
         schema=ctx.env.schema,
         ptrcls=ptrcls,
+        cache=ctx.env.ptr_ref_cache,
     )
 
     poly_set.path_id = source_set.path_id.extend(
