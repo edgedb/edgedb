@@ -9,3 +9,6 @@ CLI
     index
     edgedb
     edgedb_configure
+    edgedb_dump
+    edgedb_restore
+    edgedb_connopts
