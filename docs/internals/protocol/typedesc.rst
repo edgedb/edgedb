@@ -24,7 +24,7 @@ A *decoder* is used to decode data from EdgeDB native format to
 data types native to the driver.
 
 There is one special type with *type id* of zero:
-``00000000-0000-0000-0000-000000000000``. When you describe this type, result
+``00000000-0000-0000-0000-000000000000``. The describe result of this type
 contains zero *blocks*. It's used when a statement returns no meaningful results,
 e.g. the ``CREATE DATABASE example`` statement.
 
