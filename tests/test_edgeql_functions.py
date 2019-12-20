@@ -1177,7 +1177,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_datetime_trunc_01(self):
         await self.assert_query_result(
             r'''
-                SELECT <str>datetime_trunc(
+                SELECT <str>datetime_truncate(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'year');
             ''',
             {'2018-01-01T00:00:00+00:00'},
@@ -1185,7 +1185,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>datetime_trunc(
+                SELECT <str>datetime_truncate(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'quarter');
             ''',
             {'2018-04-01T00:00:00+00:00'},
@@ -1193,7 +1193,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>datetime_trunc(
+                SELECT <str>datetime_truncate(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'month');
             ''',
             {'2018-05-01T00:00:00+00:00'},
@@ -1201,7 +1201,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>datetime_trunc(
+                SELECT <str>datetime_truncate(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'day');
             ''',
             {'2018-05-07T00:00:00+00:00'},
@@ -1209,7 +1209,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>datetime_trunc(
+                SELECT <str>datetime_truncate(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'hour');
             ''',
             {'2018-05-07T20:00:00+00:00'},
@@ -1217,7 +1217,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>datetime_trunc(
+                SELECT <str>datetime_truncate(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'minute');
             ''',
             {'2018-05-07T20:01:00+00:00'},
@@ -1225,7 +1225,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT <str>datetime_trunc(
+                SELECT <str>datetime_truncate(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'second');
             ''',
             {'2018-05-07T20:01:22+00:00'},
@@ -1234,7 +1234,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_duration_trunc_01(self):
         await self.assert_query_result(
             r'''
-            SELECT <str>duration_trunc(
+            SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'hours');
             ''',
             {'15:00:00'},
@@ -1242,7 +1242,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            SELECT <str>duration_trunc(
+            SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'minutes');
             ''',
             {'15:01:00'},
@@ -1250,7 +1250,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            SELECT <str>duration_trunc(
+            SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'seconds');
             ''',
             {'15:01:22'},
@@ -1258,7 +1258,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            SELECT <str>duration_trunc(
+            SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'milliseconds');
             ''',
             {'15:01:22.306'},
@@ -1267,7 +1267,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         # Currently no-op but may be useful if precision is improved
         await self.assert_query_result(
             r'''
-            SELECT <str>duration_trunc(
+            SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'microseconds');
             ''',
             {'15:01:22.306916'},
@@ -1276,10 +1276,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_duration_trunc_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                'invalid input syntax for type std::duration_trunc'):
+                'invalid input syntax for type std::duration_truncate'):
             await self.con.execute(
                 r'''
-                SELECT <str>duration_trunc(
+                SELECT <str>duration_truncate(
                     <duration>'73 hours', 'day');
                 ''')
 

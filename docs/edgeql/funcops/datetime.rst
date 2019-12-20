@@ -47,11 +47,11 @@ Date and Time
     * - :eql:func:`date_get`
       - :eql:func-desc:`date_get`
 
-    * - :eql:func:`datetime_trunc`
-      - :eql:func-desc:`datetime_trunc`
+    * - :eql:func:`datetime_truncate`
+      - :eql:func-desc:`datetime_truncate`
 
-    * - :eql:func:`duration_trunc`
-      - :eql:func-desc:`duration_trunc`
+    * - :eql:func:`duration_truncate`
+      - :eql:func-desc:`duration_truncate`
 
     * - :eql:func:`datetime_current`
       - :eql:func-desc:`datetime_current`
@@ -296,7 +296,7 @@ Date and Time
 ----------
 
 
-.. eql:function:: std::datetime_trunc(dt: datetime, unit: str) -> datetime
+.. eql:function:: std::datetime_truncate(dt: datetime, unit: str) -> datetime
 
     Truncate the input datetime to a particular precision.
 
@@ -318,19 +318,19 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT datetime_trunc(
+        db> SELECT datetime_truncate(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'year');
         {'2018-01-01T00:00:00+00:00'}
 
-        db> SELECT datetime_trunc(
+        db> SELECT datetime_truncate(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'quarter');
         {'2018-04-01T00:00:00+00:00'}
 
-        db> SELECT datetime_trunc(
+        db> SELECT datetime_truncate(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'day');
         {'2018-05-07T00:00:00+00:00'}
 
-        db> SELECT datetime_trunc(
+        db> SELECT datetime_truncate(
         ...     <datetime>'2018-05-07T15:01:22.306916+00', 'hour');
         {'2018-05-07T15:00:00+00:00'}
 
@@ -338,7 +338,7 @@ Date and Time
 ----------
 
 
-.. eql:function:: std::duration_trunc(dt: duration, unit: str) -> duration
+.. eql:function:: std::duration_truncate(dt: duration, unit: str) -> duration
 
     Truncate the input duration to a particular precision.
 
@@ -351,11 +351,11 @@ Date and Time
 
     .. code-block:: edgeql-repl
 
-        db> SELECT duration_trunc(
+        db> SELECT duration_truncate(
         ...     <duration>'15:01:22', 'hours');
         {'15:00:00'}
 
-        db> SELECT duration_trunc(
+        db> SELECT duration_truncate(
         ...     <duration>'15:01:22.306916', 'minutes');
         {'15:01:00'}
 

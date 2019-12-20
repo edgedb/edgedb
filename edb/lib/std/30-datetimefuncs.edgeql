@@ -56,7 +56,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 
 
 CREATE FUNCTION
-std::datetime_trunc(dt: std::datetime, unit: std::str) -> std::datetime
+std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
 {
     # date_trunc of timestamptz is STABLE in PostgreSQL
     SET volatility := 'STABLE';
@@ -67,7 +67,7 @@ std::datetime_trunc(dt: std::datetime, unit: std::str) -> std::datetime
 
 
 CREATE FUNCTION
-std::duration_trunc(dt: std::duration, unit: std::str) -> std::duration
+std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
@@ -77,7 +77,7 @@ std::duration_trunc(dt: std::duration, unit: std::str) -> std::duration
         ELSE
             edgedb._raise_specific_exception(
                 'invalid_datetime_format',
-                'invalid input syntax for type std::duration_trunc: '
+                'invalid input syntax for type std::duration_truncate: '
                     || quote_literal("dt"),
                 '{"hint":"Supported units: microseconds, milliseconds, ' ||
                 'seconds, minutes, hours."}',
