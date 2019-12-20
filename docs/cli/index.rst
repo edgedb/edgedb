@@ -16,3 +16,7 @@ managing and using an EdgeDB instance.
     +---------------------------------+---------------------------------+
     | :ref:`ref_cli_edgedb_configure` | Configure an EdgeDB instance    |
     +---------------------------------+---------------------------------+
+    | :ref:`ref_cli_edgedb_dump`      | Backup an EdgeDB database       |
+    +---------------------------------+---------------------------------+
+    | :ref:`ref_cli_edgedb_restore`   | Restore an EdgeDB database      |
+    +---------------------------------+---------------------------------+
