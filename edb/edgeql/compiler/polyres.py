@@ -216,10 +216,11 @@ def try_bind_call_args(
             bargs: List[BoundArg] = []
             if has_inlined_defaults:
                 bytes_t = ctx.env.get_track_schema_type('std::bytes')
+                typeref = irtyputils.type_to_typeref(
+                    schema, bytes_t, cache=ctx.env.type_ref_cache
+                )
                 argval = setgen.ensure_set(
-                    irast.BytesConstant(
-                        value=b'\x00',
-                        typeref=irtyputils.type_to_typeref(schema, bytes_t)),
+                    irast.BytesConstant(value=b'\x00', typeref=typeref),
                     typehint=bytes_t,
                     ctx=ctx)
                 bargs = [BoundArg(None, bytes_t, argval, bytes_t, 0)]
@@ -438,10 +439,11 @@ def try_bind_call_args(
         # bit-mask as a first argument.
         bytes_t = ctx.env.get_track_schema_type('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
+        typeref = irtyputils.type_to_typeref(
+            ctx.env.schema, bytes_t, cache=ctx.env.type_ref_cache
+        )
         bm_set = setgen.ensure_set(
-            irast.BytesConstant(
-                value=bm,
-                typeref=irtyputils.type_to_typeref(ctx.env.schema, bytes_t)),
+            irast.BytesConstant(value=bm, typeref=typeref),
             typehint=bytes_t, ctx=ctx)
         bound_param_args.insert(0, BoundArg(None, bytes_t, bm_set, bytes_t, 0))
 

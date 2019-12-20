@@ -596,7 +596,7 @@ def get_param_anchors_for_callable(
     if inlined_defaults:
         anchors['__defaults_mask__'] = irast.Parameter(
             name='__defaults_mask__',
-            typeref=irtyputils.type_to_typeref(
+            typeref=irtyputils.type_to_typeref(  # note: no cache
                 schema,
                 cast(s_scalars.ScalarType, schema.get('std::bytes')),
             ),

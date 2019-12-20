@@ -71,7 +71,9 @@ def compile_cast(
 
     elif irutils.is_untyped_empty_array_expr(ir_expr):
         # Ditto for empty arrays.
-        new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
+        new_typeref = irtyputils.type_to_typeref(
+            ctx.env.schema, new_stype, cache=ctx.env.type_ref_cache
+        )
         return setgen.ensure_set(
             irast.Array(elements=[], typeref=new_typeref), ctx=ctx)
 
@@ -161,8 +163,12 @@ def _cast_to_ir(
         new_stype: s_types.Type, *,
         ctx: context.ContextLevel) -> irast.Set:
 
-    orig_typeref = irtyputils.type_to_typeref(ctx.env.schema, orig_stype)
-    new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
+    orig_typeref = irtyputils.type_to_typeref(
+        ctx.env.schema, orig_stype, cache=ctx.env.type_ref_cache
+    )
+    new_typeref = irtyputils.type_to_typeref(
+        ctx.env.schema, new_stype, cache=ctx.env.type_ref_cache,
+    )
     cast_name = cast.get_name(ctx.env.schema)
     cast_ir = irast.TypeCast(
         expr=ir_set,
@@ -185,8 +191,12 @@ def _inheritance_cast_to_ir(
         new_stype: s_types.Type, *,
         ctx: context.ContextLevel) -> irast.Set:
 
-    orig_typeref = irtyputils.type_to_typeref(ctx.env.schema, orig_stype)
-    new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
+    orig_typeref = irtyputils.type_to_typeref(
+        ctx.env.schema, orig_stype, cache=ctx.env.type_ref_cache,
+    )
+    new_typeref = irtyputils.type_to_typeref(
+        ctx.env.schema, new_stype, cache=ctx.env.type_ref_cache,
+    )
     cast_ir = irast.TypeCast(
         expr=ir_set,
         from_type=orig_typeref,
@@ -485,8 +495,12 @@ def _cast_array_literal(
 
     assert isinstance(ir_set.expr, irast.Array)
 
-    orig_typeref = irtyputils.type_to_typeref(ctx.env.schema, orig_stype)
-    new_typeref = irtyputils.type_to_typeref(ctx.env.schema, new_stype)
+    orig_typeref = irtyputils.type_to_typeref(
+        ctx.env.schema, orig_stype, cache=ctx.env.type_ref_cache,
+    )
+    new_typeref = irtyputils.type_to_typeref(
+        ctx.env.schema, new_stype, cache=ctx.env.type_ref_cache,
+    )
 
     direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 

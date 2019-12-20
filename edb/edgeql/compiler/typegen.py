@@ -58,7 +58,9 @@ def ql_typeexpr_to_ir_typeref(
         ctx: context.ContextLevel) -> irast.TypeRef:
 
     stype = ql_typeexpr_to_type(ql_t, ctx=ctx)
-    return irtyputils.type_to_typeref(ctx.env.schema, stype)
+    return irtyputils.type_to_typeref(
+        ctx.env.schema, stype, cache=ctx.env.type_ref_cache
+    )
 
 
 def ql_typeexpr_to_type(

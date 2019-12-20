@@ -219,6 +219,7 @@ def compile_BaseConstant(
     ct = irtyputils.type_to_typeref(
         ctx.env.schema,
         ctx.env.get_track_schema_type(std_type),
+        cache=ctx.env.type_ref_cache,
     )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
 
@@ -445,7 +446,10 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
             json_typeref = irtyputils.type_to_typeref(
-                ctx.env.schema, ctx.env.get_track_schema_type('std::json'))
+                ctx.env.schema,
+                ctx.env.get_track_schema_type('std::json'),
+                cache=ctx.env.type_ref_cache,
+            )
 
             param = casts.compile_cast(
                 irast.Parameter(
@@ -461,7 +465,11 @@ def compile_TypeCast(
         else:
             param = setgen.ensure_set(
                 irast.Parameter(
-                    typeref=irtyputils.type_to_typeref(ctx.env.schema, pt),
+                    typeref=irtyputils.type_to_typeref(
+                        ctx.env.schema,
+                        pt,
+                        cache=ctx.env.type_ref_cache,
+                    ),
                     name=param_name,
                     context=expr.expr.context,
                 ),
@@ -499,6 +507,7 @@ def compile_Introspect(
                 s_objtypes.ObjectType,
                 ctx.env.schema.get('std::Object'),
             ),
+            cache=ctx.env.type_ref_cache,
         )
 
     if irtyputils.is_view(typeref):

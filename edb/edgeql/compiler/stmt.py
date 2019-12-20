@@ -548,6 +548,7 @@ def compile_DescribeStmt(
         ct = irtyputils.type_to_typeref(
             ctx.env.schema,
             ctx.env.get_track_schema_type('std::str'),
+            cache=ctx.env.type_ref_cache,
         )
 
         stmt.result = setgen.ensure_set(

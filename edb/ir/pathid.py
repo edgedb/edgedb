@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     import uuid
 
     from edb.schema import schema as s_schema
+    from edb.edgeql.compiler import context as ql_compiler_ctx
 
 
 class WeakNamespace(str):
@@ -131,6 +132,7 @@ class PathId:
         schema: s_schema.Schema,
         t: s_types.Type,
         *,
+        env: Optional[ql_compiler_ctx.Environment] = None,
         namespace: AbstractSet[AnyNamespace] = frozenset(),
         typename: Optional[s_name.Name] = None,
     ) -> PathId:
@@ -145,6 +147,8 @@ class PathId:
                 A schema instance where the type *t* is defined.
             t:
                 The type of the variable being defined.
+            env:
+                Optional EdgeQL compiler environment, used for caching.
             namespace:
                 Optional namespace in which the variable is defined.
             typename:
@@ -158,7 +162,10 @@ class PathId:
             raise ValueError(
                 f'invalid PathId: bad source: {t!r}')
 
-        typeref = typeutils.type_to_typeref(schema, t, typename=typename)
+        cache = env.type_ref_cache if env is not None else None
+        typeref = typeutils.type_to_typeref(
+            schema, t, cache=cache, typename=typename
+        )
         return cls.from_typeref(typeref, namespace=namespace,
                                 typename=typename)
 

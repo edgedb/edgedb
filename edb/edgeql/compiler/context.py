@@ -46,6 +46,8 @@ if TYPE_CHECKING:
     from edb.schema import objtypes as s_objtypes
     from edb.schema import sources as s_sources
 
+    TypeRefCacheKey = Tuple[uuid.UUID, Optional[s_name.Name]]
+
 
 class ContextSwitchMode(enum.Enum):
     NEW = enum.auto()
@@ -213,7 +215,9 @@ class Environment:
     allow_generic_type_output: bool
     """Whether to allow the expression to be of a generic type."""
 
+    # Caches for costly operations in edb.ir.typeutils
     ptr_ref_cache: PointerRefCache
+    type_ref_cache: Dict[TypeRefCacheKey, irast.TypeRef]
 
     def __init__(
         self,
@@ -249,6 +253,7 @@ class Environment:
         self.func_params = func_params
         self.parent_object_type = parent_object_type
         self.ptr_ref_cache = PointerRefCache()
+        self.type_ref_cache = {}
 
     def get_track_schema_object(
         self,

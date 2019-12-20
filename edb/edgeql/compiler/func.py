@@ -120,7 +120,9 @@ def compile_FunctionCall(
     if variadic_param is not None:
         variadic_param_type = irtyputils.type_to_typeref(
             env.schema,
-            variadic_param.get_type(env.schema))
+            variadic_param.get_type(env.schema),
+            cache=env.type_ref_cache,
+        )
 
     matched_func_ret_type = func.get_return_type(env.schema)
     is_polymorphic = (
@@ -189,7 +191,9 @@ def compile_FunctionCall(
         error_on_null_result=func.get_error_on_null_result(env.schema),
         params_typemods=params_typemods,
         context=expr.context,
-        typeref=irtyputils.type_to_typeref(env.schema, rtype),
+        typeref=irtyputils.type_to_typeref(
+            env.schema, rtype, cache=env.type_ref_cache
+        ),
         typemod=matched_call.func.get_return_typemod(env.schema),
         has_empty_variadic=matched_call.has_empty_variadic,
         variadic_param_type=variadic_param_type,
@@ -485,7 +489,9 @@ def compile_operator(
         operator_kind=oper.get_operator_kind(env.schema),
         params_typemods=params_typemods,
         context=qlexpr.context,
-        typeref=irtyputils.type_to_typeref(env.schema, rtype),
+        typeref=irtyputils.type_to_typeref(
+            env.schema, rtype, cache=env.type_ref_cache
+        ),
         typemod=oper.get_return_typemod(env.schema),
     )
 
