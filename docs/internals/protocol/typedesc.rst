@@ -25,7 +25,7 @@ data types native to the driver.
 
 There is one special type with *type id* of zero:
 ``00000000-0000-0000-0000-000000000000``. When you describe this type, result
-contains zero *blocks*. It's used when statement returns no meaningful results,
+contains zero *blocks*. It's used when a statement returns no meaningful results,
 for example for ``CREATE DATABASE example`` statement.
 
 
