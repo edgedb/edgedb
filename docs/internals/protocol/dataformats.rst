@@ -212,7 +212,7 @@ The :eql:type:`std::decimal` values are represented as the following structure:
         uint16               dscale;
 
         // base-10000 digits.
-        int16                digits[ndigits];
+        uint16                digits[ndigits];
     };
 
     enum DecimalSign {
@@ -220,19 +220,20 @@ The :eql:type:`std::decimal` values are represented as the following structure:
         POS     = 0x0000;
         // Negative value.
         NEG     = 0x4000;
-        // NaN value.
-        NAN     = 0xC000;
     };
 
-The decimal values are represented as a sequence of base-10000 *digits*.
-The first digit is assumed to be multiplied by *weight* * 10000, i.e. there
-are weight + 1 digits before the decimal point.  It is possible to have
-negative weight.
+The decimal values are represented as a sequence of base-10000 *digits*.  The
+first digit is assumed to be multiplied by *weight* * 10000, i.e. there might
+be up to weight + 1 digits before the decimal point. Trailing zeros can be
+absent. It is possible to have negative weight.
 
 *dscale*, or display scale, is the nominal precision expressed as number of
 base-10 digits after the decimal point.  It is always non-negative.  dscale may
 be more than the number of physically present fractional digits, implying
-significant trailing zeroes.  It is never less that the number of digits.
+significant trailing zeroes.  The actual number of digits physically present in
+the *digits* array contains trailing zeros to the next 4-byte increment
+(meaning that integer and fractional part are always distinc base-10000
+digits).
 
 For example, the decimal value ``-15000.6250000`` is represented as:
 
@@ -382,3 +383,60 @@ The :eql:type:`std::json` values are represented as the following structure:
 
 *format* is currently always ``1``, and *jsondata* is a UTF-8 encoded JSON
 string.
+
+
+.. _ref_protocol_fmt_bigint:
+
+std::bigint
+============
+
+The :eql:type:`std::bigint` values are represented as the following structure:
+
+.. code-block:: c
+
+    struct BigInt {
+        // Number of digits in digits[], can be 0.
+        uint16               ndigits;
+
+        // Weight of first digit.
+        int16                weight;
+
+        // Sign of the value
+        uint16<DecimalSign>  sign;
+
+        // Reserved value, must be zero
+        uint16               reserved;
+
+        // base-10000 digits.
+        uint16                digits[ndigits];
+    };
+
+    enum BigIntSign {
+        // Positive value.
+        POS     = 0x0000;
+        // Negative value.
+        NEG     = 0x4000;
+    };
+
+The decimal values are represented as a sequence of base-10000 *digits*.
+The first digit is assumed to be multiplied by *weight* * 10000, i.e. there
+might be up to weight + 1 digits.  Trailing zeros can be absent.
+
+For example, the bigint value ``-15000`` is represented as:
+
+.. code-block:: c
+
+    // ndigits
+    0x00 0x02
+
+    // weight
+    0x00 0x01
+
+    // sign
+    0x40 0x00
+
+    // reserved
+    0x00 0x00
+
+    // digits
+    0x00 0x01 0x13 0x88
