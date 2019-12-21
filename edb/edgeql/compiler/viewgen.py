@@ -240,8 +240,8 @@ def _normalize_view_ptr_expr(
     target_typexpr = None
     source: qlast.Base
 
-    if plen >= 2 and isinstance(steps[-1], qlast.TypeIndirection):
-        # Target type indirection: foo: Type
+    if plen >= 2 and isinstance(steps[-1], qlast.TypeIntersection):
+        # Target type intersection: foo: Type
         target_typexpr = steps[-1].type
         plen -= 1
         steps = steps[:-1]
@@ -259,8 +259,8 @@ def _normalize_view_ptr_expr(
             assert isinstance(view_rptr.ptrcls, s_links.Link)
             ptrsource = view_rptr.ptrcls
         source = qlast.Source()
-    elif plen == 2 and isinstance(steps[0], qlast.TypeIndirection):
-        # Source type indirection: [IS Type].foo
+    elif plen == 2 and isinstance(steps[0], qlast.TypeIntersection):
+        # Source type intersection: [IS Type].foo
         source = qlast.Path(steps=[
             qlast.Source(),
             steps[0],
@@ -324,7 +324,7 @@ def _normalize_view_ptr_expr(
                 qlexpr = qlast.Path(steps=[
                     source,
                     lexpr,
-                    qlast.TypeIndirection(type=target_typexpr),
+                    qlast.TypeIntersection(type=target_typexpr),
                 ])
 
             qlexpr = astutils.ensure_qlstmt(qlexpr)

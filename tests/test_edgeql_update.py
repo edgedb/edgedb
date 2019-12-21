@@ -1188,7 +1188,7 @@ class TestUpdate(tb.QueryTestCase):
                 FILTER .name LIKE 'update-test-10-%'
                 SET {
                     # every test is .<related to 'update-test1'
-                    related := UpdateTest.related.<related
+                    related := UpdateTest.related.<related[IS UpdateTest]
                 };
             """,
             [{}],

@@ -157,7 +157,7 @@ Types
     It is illegal to cast one :eql:type:`Object` into another. The
     only way to construct a new :eql:type:`Object` is by using
     :ref:`INSERT <ref_eql_statements_insert>`. However, the
-    :eql:op:`type filter <ISFILTER>` can be used to achieve an
+    :eql:op:`type intersection <ISINTERSECT>` can be used to achieve an
     effect similar to casting for Objects.
 
     When a cast is applied to an expression of a known type, it represents a

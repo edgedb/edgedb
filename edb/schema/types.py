@@ -46,6 +46,7 @@ if typing.TYPE_CHECKING:
     # with local Tuple and Type classes.
     from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional
     from typing import Sequence, Union
+    from edb.common import parsing
     from edb.ir import ast as irast
     from edb.schema import scalars
 
@@ -302,6 +303,12 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def get_is_opaque_union(self, schema: s_schema.Schema) -> bool:
         return False
 
+    def get_intersection_of(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[so.ObjectSet[Type]]:
+        return None
+
     def material_type(
         self, schema: s_schema.Schema
     ) -> Type:
@@ -337,7 +344,10 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
             return ancestors.index(ancestor) + 1
 
 
-class UnionTypeRef(so.Object):
+TypeExprRefT = typing.TypeVar('TypeExprRefT', bound='TypeExprRef')
+
+
+class TypeExprRef(so.Object):
     _components: typing.Tuple[so.ObjectRef, ...]
     module: str
 
@@ -355,24 +365,28 @@ class UnionTypeRef(so.Object):
             for c in self._components
         )
 
-    def get_union_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
-        return self._components
-
-    def __repr__(self) -> str:
-        return f'<UnionTypeRef {self._components!r} at 0x{id(self):x}>'
-
     def __eq__(self, other) -> bool:
-        if not isinstance(other, UnionTypeRef):
+        if not isinstance(other, type(self)):
             return NotImplemented
-        return self._components == other._components
+        else:
+            return self._components == other._components
 
     def __hash__(self) -> int:
         return hash((type(self), self._components))
 
     def _reduce_to_ref(
-        self, schema: s_schema.Schema
-    ) -> typing.Tuple[UnionTypeRef, Any]:
+        self: TypeExprRefT, schema: s_schema.Schema
+    ) -> typing.Tuple[TypeExprRefT, Any]:
         return self, self._components
+
+
+class UnionTypeRef(TypeExprRef):
+
+    def get_union_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
+        return self._components
+
+    def __repr__(self) -> str:
+        return f'<UnionTypeRef {self._components!r} at 0x{id(self):x}>'
 
 
 # Breaking Liskov Substitution Principle
@@ -393,6 +407,37 @@ class ExistingUnionTypeRef(UnionTypeRef, so.ObjectRef):  # type: ignore
             schemaclass=schemaclass, sourcectx=sourcectx)
 
         UnionTypeRef.__init__(
+            self, components=components, module=name.module)
+
+
+class IntersectionTypeRef(TypeExprRef):
+
+    def get_intersection_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
+        return self._components
+
+    def __repr__(self) -> str:
+        return f'<IntersectionTypeRef {self._components!r} at 0x{id(self):x}>'
+
+
+# Breaking Liskov Substitution Principle
+class ExistingIntersectionTypeRef(  # type: ignore
+        IntersectionTypeRef, so.ObjectRef):
+
+    def __init__(
+        self,
+        *,
+        name: s_name.Name,
+        components: Iterable[so.ObjectRef],
+        origname: Optional[str]=None,
+        schemaclass: Optional[so.ObjectMeta]=None,
+        sourcectx=None,
+    ) -> None:
+
+        so.ObjectRef.__init__(
+            self, name=name, origname=origname,
+            schemaclass=schemaclass, sourcectx=sourcectx)
+
+        IntersectionTypeRef.__init__(
             self, components=components, module=name.module)
 
 
@@ -1515,64 +1560,86 @@ def generate_type_id(id_str: str) -> uuid.UUID:
     return uuidgen.uuid5(TYPE_ID_NAMESPACE, id_str)
 
 
-def ensure_schema_union_type(schema, union_type_ref, parent_cmd, *,
-                             src_context=None, context):
+def ensure_schema_type_expr_type(
+    schema: s_schema.Schema,
+    type_ref: TypeExprRef,
+    parent_cmd: sd.Command,
+    *,
+    src_context: typing.Optional[parsing.ParserContext] = None,
+    context: sd.CommandContext,
+) -> typing.Tuple[s_schema.Schema, Type]:
+
     from . import objtypes as s_objtypes
 
-    components = union_type_ref.resolve_components(schema)
-    module = union_type_ref.module
+    module = type_ref.module
 
-    union_type_attrs = s_objtypes.get_union_type_attrs(
-        schema,
-        components,
-        module=module,
-    )
+    components = type_ref.resolve_components(schema)
 
-    union_type = schema.get_by_id(union_type_attrs['id'], None)
+    if isinstance(type_ref, UnionTypeRef):
+        type_attrs = s_objtypes.get_union_type_attrs(
+            schema,
+            components,
+            module=module,
+        )
+    elif isinstance(type_ref, IntersectionTypeRef):
+        type_attrs = s_objtypes.get_intersection_type_attrs(
+            schema,
+            components,
+            module=module,
+        )
+    else:
+        raise AssertionError(f'unexpected typeref: {type_ref!r}')
 
-    if union_type is None:
-        schema, union_type = utils.get_union_type(
-            schema, components, module=module)
+    texpr_type = schema.get_by_id(type_attrs['id'], None)
 
-        if union_type.is_object_type():
-            create_union = s_objtypes.CreateObjectType(
-                classname=union_type_attrs['name'],
+    if texpr_type is None:
+        if isinstance(type_ref, UnionTypeRef):
+            schema, texpr_type = utils.get_union_type(
+                schema, components, module=module)
+            field = 'union_of'
+        else:
+            schema, texpr_type = utils.get_intersection_type(
+                schema, components, module=module)
+            field = 'intersection_of'
+
+        if texpr_type.is_object_type():
+            create_type = s_objtypes.CreateObjectType(
+                classname=type_attrs['name'],
                 metaclass=s_objtypes.ObjectType,
             )
 
-            create_union.update((
+            create_type.update((
                 sd.AlterObjectProperty(
                     property='id',
-                    new_value=union_type_attrs['id'],
+                    new_value=type_attrs['id'],
                 ),
                 sd.AlterObjectProperty(
                     property='bases',
                     new_value=so.ObjectList.create(
                         schema, [
                             so.ObjectRef(name=b.get_name(schema))
-                            for b in union_type_attrs['bases']
+                            for b in type_attrs['bases']
                         ],
                     ),
                 ),
                 sd.AlterObjectProperty(
                     property='name',
-                    new_value=union_type_attrs['name'],
+                    new_value=type_attrs['name'],
                 ),
                 sd.AlterObjectProperty(
-                    property='union_of',
+                    property=field,
                     new_value=so.ObjectSet.create(
                         schema, [
                             so.ObjectRef(name=c.get_name(schema))
-                            for c in union_type_attrs['union_of'].objects(
-                                schema)
+                            for c in type_attrs['union_of'].objects(schema)
                         ],
                     ),
                 ),
             ))
 
-            parent_cmd.add(create_union)
+            parent_cmd.add(create_type)
 
-    return schema, union_type
+    return schema, texpr_type
 
 
 class TypeCommand(sd.ObjectCommand):

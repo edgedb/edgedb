@@ -1254,7 +1254,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_polymorphic_09(self):
-        # Test simultaneous type indirection on source and target
+        # Test simultaneous type intersection on source and target
         # of a shape element.
         await self.assert_query_result(
             r'''
@@ -1315,24 +1315,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ['std::Object']
         )
 
-        with self.assertRaisesRegex(
-            edgedb.InvalidReferenceError,
-            "property 'since' is not defined",
-        ):
-            await self.con.execute(
-                r'''
-                WITH MODULE test
-                SELECT
-                    User.<owner[IS Text]@since
-                ''',
-            )
-
     async def test_edgeql_select_reverse_link_02(self):
         await self.assert_query_result(
             r'''
             WITH MODULE test
             SELECT
                 User.<owner[IS Issue]@since
+            ''',
+            ['2018-01-01T00:00:00+00:00'],
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test
+            SELECT
+                User.<owner[IS Text]@since
             ''',
             ['2018-01-01T00:00:00+00:00'],
         )
@@ -1993,13 +1990,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_setops_16(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError, r"has no link or property 'number'"):
-            await self.con.fetchall(r"""
-                # Named doesn't have a property number.
-                WITH MODULE test
-                SELECT Issue[IS Named].number;
-            """)
+        await self.assert_query_result(
+            r"""
+            # Named doesn't have a property number.
+            WITH MODULE test
+            SELECT Issue[IS Named].number;
+            """,
+            ['1', '2', '3', '4'],
+            sort=True,
+        )
 
     async def test_edgeql_select_setops_17(self):
         with self.assertRaisesRegex(

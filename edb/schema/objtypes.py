@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import *  # NoQA
 
+import collections
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -49,6 +51,11 @@ class BaseObjectType(sources.Source,
                      s_abc.ObjectType):
 
     union_of = so.SchemaField(
+        so.ObjectSet,
+        default=so.ObjectSet,
+        coerce=True)
+
+    intersection_of = so.SchemaField(
         so.ObjectSet,
         default=so.ObjectSet,
         coerce=True)
@@ -83,7 +90,12 @@ class BaseObjectType(sources.Source,
                 comps = sorted(union_of.objects(schema), key=lambda o: o.id)
                 return ' | '.join(c.get_displayname(schema) for c in comps)
         else:
-            if mtype is self:
+            intersection_of = mtype.get_intersection_of(schema)
+            if intersection_of:
+                comps = sorted(intersection_of.objects(schema),
+                               key=lambda o: o.id)
+                return ' & '.join(c.get_displayname(schema) for c in comps)
+            elif mtype is self:
                 return super().get_displayname(schema)
             else:
                 return mtype.get_displayname(schema)
@@ -137,24 +149,54 @@ class BaseObjectType(sources.Source,
         return sn.Name(module='std', name='Object')
 
     def _issubclass(self, schema, parent):
-        my_vchildren = self.get_union_of(schema)
+        if self == parent:
+            return True
 
-        if not my_vchildren:
-            lineage = so.compute_lineage(schema, self)
+        my_union = self.get_union_of(schema)
+        if my_union and not self.get_is_opaque_union(schema):
+            # A union is considered a subclass of a type, if
+            # ALL its components are subclasses of that type.
+            return all(
+                t._issubclass(schema, parent)
+                for t in my_union.objects(schema)
+            )
 
-            if parent in lineage:
-                return True
-            elif isinstance(parent, BaseObjectType):
-                vchildren = parent.get_union_of(schema)
-                if vchildren:
-                    return bool(set(vchildren.objects(schema)) & set(lineage))
-                else:
-                    return False
-            else:
-                return False
-        else:
-            return all(c._issubclass(schema, parent)
-                       for c in my_vchildren.objects(schema))
+        my_intersection = self.get_intersection_of(schema)
+        if my_intersection:
+            # An intersection is considered a subclass of a type, if
+            # ANY of its components are subclasses of that type.
+            return any(
+                t._issubclass(schema, parent)
+                for t in my_intersection.objects(schema)
+            )
+
+        lineage = so.compute_lineage(schema, self)
+
+        if parent in lineage:
+            return True
+        elif isinstance(parent, BaseObjectType):
+            parent_union = parent.get_union_of(schema)
+            if parent_union:
+                # A type is considered a subclass of a union type,
+                # if it is a subclass of ANY of the union components.
+                return (
+                    parent.get_is_opaque_union(schema)
+                    or any(
+                        self._issubclass(schema, t)
+                        for t in parent_union.objects(schema)
+                    )
+                )
+
+            parent_intersection = parent.get_intersection_of(schema)
+            if parent_intersection:
+                # A type is considered a subclass of an intersection type,
+                # if it is a subclass of ALL of the intersection components.
+                return all(
+                    self._issubclass(schema, t)
+                    for t in parent_intersection.objects(schema)
+                )
+
+        return False
 
     def _reduce_to_ref(self, schema):
         union_of = self.get_union_of(schema)
@@ -170,8 +212,22 @@ class BaseObjectType(sources.Source,
                 ),
                 my_name,
             )
-        else:
-            return super()._reduce_to_ref(schema)
+
+        intersection_of = self.get_intersection_of(schema)
+        if intersection_of:
+            my_name = self.get_name(schema)
+            return (
+                s_types.ExistingIntersectionTypeRef(
+                    components=[
+                        c._reduce_to_ref(schema)[0]
+                        for c in intersection_of.objects(schema)
+                    ],
+                    name=my_name,
+                ),
+                my_name,
+            )
+
+        return super()._reduce_to_ref(schema)
 
 
 class ObjectType(BaseObjectType, qlkind=qltypes.SchemaObjectClass.TYPE):
@@ -184,7 +240,7 @@ class DerivedObjectType(BaseObjectType):
 
 def get_union_type_attrs(
         schema,
-        components: Iterable[ObjectType], *,
+        components: Iterable[s_types.Type], *,
         module: Optional[str]=None):
 
     name = sn.Name(
@@ -203,11 +259,12 @@ def get_union_type_attrs(
 
 
 def get_or_create_union_type(
-        schema,
-        components: Iterable[ObjectType],
-        *,
-        opaque: bool=False,
-        module: Optional[str]=None) -> ObjectType:
+    schema: s_schema.Schema,
+    components: Iterable[ObjectType],
+    *,
+    opaque: bool = False,
+    module: Optional[str] = None,
+) -> ObjectType:
 
     name = sn.Name(
         name='|'.join(sorted(str(t.id) for t in components)),
@@ -264,6 +321,84 @@ def get_or_create_union_type(
                 for pn, ptr in union_pointers.items():
                     if objtype.getptr(schema, pn) is None:
                         schema = objtype.add_pointer(schema, ptr)
+
+    return schema, objtype, created
+
+
+def get_intersection_type_attrs(
+        schema,
+        components: Iterable[s_types.Type], *,
+        module: Optional[str]=None):
+
+    name = sn.Name(
+        name=f"({' & '.join(sorted(str(t.id) for t in components))})",
+        module=module or '__derived__',
+    )
+
+    type_id = s_types.generate_type_id(name)
+
+    return dict(
+        id=type_id,
+        name=name,
+        bases=[schema.get('std::Object')],
+        intersection_of=so.ObjectSet.create(schema, components),
+    )
+
+
+def get_or_create_intersection_type(
+    schema: s_schema.Schema,
+    components: Iterable[ObjectType],
+    *,
+    module: Optional[str] = None,
+) -> ObjectType:
+
+    name = sn.Name(
+        name=f"({' & '.join(sorted(str(t.id) for t in components))})",
+        module=module or '__derived__',
+    )
+
+    type_id = s_types.generate_type_id(name)
+    objtype = schema.get_by_id(type_id, None)
+    created = objtype is None
+    if objtype is None:
+        components = list(components)
+
+        std_object = schema.get('std::Object')
+
+        schema, objtype = std_object.derive_subtype(
+            schema,
+            name=name,
+            attrs=dict(
+                id=type_id,
+                intersection_of=so.ObjectSet.create(schema, components),
+            ),
+        )
+
+        ptrs = collections.defaultdict(list)
+
+        for component in components:
+            for pn, ptr in component.get_pointers(schema).items(schema):
+                ptrs[pn].append(ptr)
+
+        intersection_pointers = {}
+
+        for pn, ptrs in ptrs.items():
+            if len(ptrs) > 1:
+                # The pointer is present in more than one component.
+                schema, ptr = pointers.get_or_create_intersection_pointer(
+                    schema,
+                    ptrname=pn,
+                    source=objtype,
+                    components=set(ptrs),
+                )
+            else:
+                ptr = ptrs[0]
+
+            intersection_pointers[pn] = ptr
+
+        for pn, ptr in intersection_pointers.items():
+            if objtype.getptr(schema, pn) is None:
+                schema = objtype.add_pointer(schema, ptr)
 
     return schema, objtype, created
 

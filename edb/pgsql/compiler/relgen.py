@@ -650,9 +650,9 @@ def process_set_as_link_property_ref(
 
         rptr_specialization: Set[irast.PointerRef] = set()
 
-        if link_path_id.is_type_indirection_path():
+        if link_path_id.is_type_intersection_path():
             link_prefix, ind_ptrs = (
-                irutils.collapse_type_indirection(ir_source))
+                irutils.collapse_type_intersection(ir_source))
             for ind_ptr in ind_ptrs:
                 rptr_specialization.update(ind_ptr.ptrref.rptr_specialization)
 
@@ -673,7 +673,7 @@ def process_set_as_link_property_ref(
 
         if rptr_specialization and astutils.is_set_op_query(link_rvar.query):
             # This is a link property reference to a link union narrowed
-            # by a type indirection.  We already know which union components
+            # by a type intersection.  We already know which union components
             # match the indirection expression, and can route the link
             # property references to correct UNION subqueries.
             ptr_ids = {spec.id for spec in rptr_specialization}
@@ -721,31 +721,22 @@ def process_set_as_path(
     ptrref = rptr.ptrref
     ir_source = rptr.source
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
-    is_type_indirection = ir_set.path_id.is_type_indirection_path()
+    is_type_intersection = ir_set.path_id.is_type_intersection_path()
 
     rvars = []
 
-    if is_type_indirection:
-        ptrref = cast(irast.TypeIndirectionPointerRef, ptrref)
-        if ptrref.is_supertype:
-            # This is a supertype indirection, i.e. the
-            # target type is an ancestor of the current type,
-            # which means we don't have to restrict the set
-            # and can simply forward to the source rvar.
-            source_rvar = get_set_rvar(ir_source, ctx=ctx)
-            stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
-            relctx.include_rvar(stmt, source_rvar, ir_set.path_id, ctx=ctx)
-
-        elif (not source_is_visible
+    if is_type_intersection:
+        ptrref = cast(irast.TypeIntersectionPointerRef, ptrref)
+        if (not source_is_visible
                 and ir_source.rptr is not None
-                and not ir_source.path_id.is_type_indirection_path()
+                and not ir_source.path_id.is_type_intersection_path()
                 and (
                     ptrref.is_subtype
                     or pg_types.get_ptrref_storage_info(
                         ir_source.rptr.ptrref).table_type != 'ObjectType'
                 )):
             # Otherwise, if the source link path is not visible,
-            # and this is a subtype indirection, or the pointer is not inline,
+            # and this is a subtype intersection, or the pointer is not inline,
             # we have an opportunity to opmimize the target join by
             # directly replacing the target type.
             with ctx.new() as subctx:
@@ -759,7 +750,33 @@ def process_set_as_path(
 
         else:
             source_rvar = get_set_rvar(ir_source, ctx=ctx)
-            poly_rvar = relctx.new_poly_rvar(ir_set, ctx=ctx)
+            intersection = ir_set.typeref.intersection
+            if intersection:
+                if ir_source.typeref.intersection:
+                    current_intersection = {
+                        t.id for t in ir_source.typeref.intersection
+                    }
+                else:
+                    current_intersection = {
+                        ir_source.typeref.id
+                    }
+
+                intersectors = {t for t in intersection
+                                if t.id not in current_intersection}
+
+                assert len(intersectors) == 1
+                target_typeref = next(iter(intersectors))
+            else:
+                target_typeref = ptrref.out_target
+
+            poly_rvar = relctx.new_root_rvar(
+                ir_set,
+                typeref=target_typeref,
+                ctx=ctx,
+            )
+            prefix_path_id = ir_set.path_id.src_path()
+            assert prefix_path_id is not None, 'expected a path'
+            pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
             relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
 
         sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
@@ -779,7 +796,7 @@ def process_set_as_path(
     if is_linkprop:
         backtrack_src = ir_source
         ctx.disable_semi_join.add(backtrack_src.path_id)
-        while backtrack_src.path_id.is_type_indirection_path():
+        while backtrack_src.path_id.is_type_intersection_path():
             backtrack_src = ir_source.rptr.source
             ctx.disable_semi_join.add(backtrack_src.path_id)
 
@@ -793,7 +810,7 @@ def process_set_as_path(
     if (irtyputils.is_id_ptrref(ptrref) and source_rptr is not None
             and not irtyputils.is_inbound_ptrref(source_rptr.ptrref)
             and not irtyputils.is_computable_ptrref(source_rptr.ptrref)
-            and not irutils.is_type_indirection_reference(ir_set)):
+            and not irutils.is_type_intersection_reference(ir_set)):
 
         src_src_is_visible = ctx.scope_tree.is_visible(
             source_rptr.source.path_id)
@@ -811,7 +828,7 @@ def process_set_as_path(
             # inline attribute.  For example,
             # Foo.__type__.id gets resolved to the Foo.__type__
             # column.  However, this optimization must not be
-            # applied if the source is a type indirection, e.g
+            # applied if the source is a type intersection, e.g
             # __type__[IS Array].id, or if Foo is not visible in
             # this scope.
             source_ptr_info = pg_types.get_ptrref_storage_info(

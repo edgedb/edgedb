@@ -234,8 +234,10 @@ CREATE TYPE schema::BaseObjectType
         schema::AnnotationSubject, schema::Type, schema::Source;
 
 
-ALTER TYPE schema::BaseObjectType
+ALTER TYPE schema::BaseObjectType {
     CREATE MULTI LINK union_of -> schema::BaseObjectType;
+    CREATE MULTI LINK intersection_of -> schema::BaseObjectType;
+};
 
 
 CREATE TYPE schema::ObjectType EXTENDING schema::BaseObjectType;

@@ -4033,32 +4033,32 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT DISTINCT Issue ORDER BY Issue.name;
             ''')
 
-    async def test_edgeql_expr_type_filter_01(self):
+    async def test_edgeql_expr_type_intersection_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'invalid type filter operand: std::int64 is not '
-                r'an object type',
+                f"cannot apply type intersection operator to scalar type "
+                f"'std::int64': it is not an object type",
                 _position=25):
 
             await self.con.execute('''\
                 SELECT 10[IS std::Object];
             ''')
 
-    async def test_edgeql_expr_type_filter_02(self):
+    async def test_edgeql_expr_type_intersection_02(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'invalid type filter operand: std::str is not an object type',
+                r'cannot create an intersection of std::Object, std::str',
                 _position=33):
 
             await self.con.execute('''\
                 SELECT Object[IS str];
             ''')
 
-    async def test_edgeql_expr_type_filter_03(self):
+    async def test_edgeql_expr_type_intersection_03(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'invalid type filter operand: '
-                r'std::uuid is not an object type',
+                f"cannot apply type intersection operator to scalar type "
+                f"'std::uuid': it is not an object type",
                 _position=32):
 
             await self.con.execute('''\

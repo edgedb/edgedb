@@ -229,8 +229,8 @@ def get_source_context_as_json(
     return details
 
 
-def is_type_indirection_reference(ir_expr: irast.Base) -> bool:
-    """Return True if the given *ir_expr* is a type indirection, i.e
+def is_type_intersection_reference(ir_expr: irast.Base) -> bool:
+    """Return True if the given *ir_expr* is a type intersection, i.e
        ``Foo[IS Type]``.
     """
     if not isinstance(ir_expr, irast.Set):
@@ -242,24 +242,24 @@ def is_type_indirection_reference(ir_expr: irast.Base) -> bool:
 
     ir_source = rptr.source
 
-    if ir_source.path_id.is_type_indirection_path():
-        source_is_type_indirection = True
+    if ir_source.path_id.is_type_intersection_path():
+        source_is_type_intersection = True
     else:
-        source_is_type_indirection = False
+        source_is_type_intersection = False
 
-    return source_is_type_indirection
+    return source_is_type_intersection
 
 
-def collapse_type_indirection(
+def collapse_type_intersection(
     ir_set: irast.Set,
-) -> Tuple[irast.Set, List[irast.TypeIndirectionPointer]]:
+) -> Tuple[irast.Set, List[irast.TypeIntersectionPointer]]:
 
-    result: List[irast.TypeIndirectionPointer] = []
+    result: List[irast.TypeIntersectionPointer] = []
 
     source = ir_set
     while True:
         rptr = source.rptr
-        if not isinstance(rptr, irast.TypeIndirectionPointer):
+        if not isinstance(rptr, irast.TypeIntersectionPointer):
             break
         result.append(rptr)
         source = rptr.source

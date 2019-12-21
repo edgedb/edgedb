@@ -28,6 +28,7 @@ from edb import errors
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
 from edb.schema import pointers as s_pointers
@@ -130,7 +131,39 @@ def _ql_typename_to_type(
         return schemactx.get_schema_type(ql_t.maintype, ctx=ctx)
 
 
-def ptrcls_from_ptrref(
+@overload
+def ptrcls_from_ptrref(  # NoQA: F811
+    ptrref: irast.PointerRef, *,
+    ctx: context.ContextLevel,
+) -> s_pointers.Pointer:
+    ...
+
+
+@overload
+def ptrcls_from_ptrref(  # NoQA: F811
+    ptrref: irast.TupleIndirectionPointerRef, *,
+    ctx: context.ContextLevel,
+) -> irast.TupleIndirectionLink:
+    ...
+
+
+@overload
+def ptrcls_from_ptrref(  # NoQA: F811
+    ptrref: irast.TypeIntersectionPointerRef, *,
+    ctx: context.ContextLevel,
+) -> irast.TypeIntersectionLink:
+    ...
+
+
+@overload
+def ptrcls_from_ptrref(  # NoQA: F811
+    ptrref: irast.BasePointerRef, *,
+    ctx: context.ContextLevel,
+) -> s_pointers.PointerLike:
+    ...
+
+
+def ptrcls_from_ptrref(  # NoQA: F811
     ptrref: irast.BasePointerRef, *,
     ctx: context.ContextLevel,
 ) -> s_pointers.PointerLike:
@@ -140,3 +173,24 @@ def ptrcls_from_ptrref(
         return cached
 
     return irtyputils.ptrcls_from_ptrref(ptrref, schema=ctx.env.schema)
+
+
+def collapse_type_intersection_rptr(
+    ir_set: irast.Set, *,
+    ctx: context.ContextLevel,
+) -> Tuple[irast.Set, List[s_pointers.Pointer]]:
+
+    ind_prefix, ind_ptrs = irutils.collapse_type_intersection(ir_set)
+    if not ind_ptrs:
+        return ir_set, []
+
+    rptr_specialization: Set[irast.PointerRef] = set()
+    for ind_ptr in ind_ptrs:
+        for ind_ptr in ind_ptrs:
+            rptr_specialization.update(
+                ind_ptr.ptrref.rptr_specialization)
+
+    ptrs = [ptrcls_from_ptrref(ptrref, ctx=ctx)
+            for ptrref in rptr_specialization]
+
+    return ind_prefix, ptrs

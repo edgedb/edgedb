@@ -165,10 +165,15 @@ class Pointer(referencing.ReferencedInheritingObject,
         default=None,
         coerce=True)
 
+    intersection_of = so.SchemaField(
+        so.ObjectSet,
+        default=None,
+        coerce=True)
+
     def is_tuple_indirection(self):
         return False
 
-    def is_type_indirection(self):
+    def is_type_intersection(self):
         return False
 
     def get_displayname(self, schema) -> str:
@@ -440,11 +445,11 @@ class Pointer(referencing.ReferencedInheritingObject,
 class PseudoPointer(s_abc.Pointer):
     # An abstract base class for pointer-like objects, i.e.
     # pseudo-links used by the compiler to represent things like
-    # tuple and type indirection.
+    # tuple and type intersection.
     def is_tuple_indirection(self):
         return False
 
-    def is_type_indirection(self):
+    def is_type_intersection(self):
         return False
 
     def get_bases(self, schema):
@@ -557,8 +562,8 @@ class PointerCommandOrFragment:
         if target_ref is not None:
             srcctx = self.get_attribute_source_context('target')
 
-            if isinstance(target_ref, s_types.UnionTypeRef):
-                schema, target = s_types.ensure_schema_union_type(
+            if isinstance(target_ref, s_types.TypeExprRef):
+                schema, target = s_types.ensure_schema_type_expr_type(
                     schema, target_ref, parent_cmd=self,
                     src_context=srcctx, context=context,
                 )
@@ -577,7 +582,7 @@ class PointerCommandOrFragment:
                     raise
 
             elif isinstance(target_ref, ComputableRef):
-                target, base = self._parse_computable(
+                target_t, base = self._parse_computable(
                     target_ref.expr, schema, context)
 
                 if base is not None:
@@ -593,6 +598,8 @@ class PointerCommandOrFragment:
                         self.set_attribute_value(
                             'declared_overloaded', True
                         )
+
+                target = utils.reduce_to_typeref(schema, target_t)
             else:
                 target = target_ref
 
@@ -626,7 +633,7 @@ class PointerCommandOrFragment:
         if (isinstance(result_expr, irast.SelectStmt)
                 and result_expr.result.rptr is not None):
             expr_rptr = result_expr.result.rptr
-            while isinstance(expr_rptr, irast.TypeIndirectionPointer):
+            while isinstance(expr_rptr, irast.TypeIntersectionPointer):
                 expr_rptr = expr_rptr.source.rptr
 
             is_ptr_alias = (
@@ -976,7 +983,7 @@ def get_or_create_union_pointer(
     components = list(components)
 
     if len(components) == 1 and direction is PointerDirection.Outbound:
-        return components[0]
+        return schema, components[0]
 
     targets = [p.get_far_endpoint(schema, direction) for p in components]
     schema, target = utils.get_union_type(
@@ -1003,6 +1010,48 @@ def get_or_create_union_pointer(
             name=ptrname),
         attrs={
             'union_of': so.ObjectSet.create(schema, components),
+            'cardinality': cardinality,
+        },
+    )
+
+    return schema, result
+
+
+def get_or_create_intersection_pointer(
+    schema,
+    ptrname: str,
+    source,
+    components: Iterable[Pointer], *,
+    modname: Optional[str] = None,
+) -> Tuple[s_schema.Schema, Pointer]:
+
+    components = list(components)
+
+    if len(components) == 1:
+        return components[0]
+
+    targets = [p.get_target(schema) for p in components]
+    schema, target = utils.get_intersection_type(
+        schema, targets, module=modname)
+
+    cardinality = qltypes.Cardinality.ONE
+    for component in components:
+        if component.get_cardinality(schema) is qltypes.Cardinality.MANY:
+            cardinality = qltypes.Cardinality.MANY
+            break
+
+    metacls = type(components[0])
+    genptr = schema.get(metacls.get_default_base_name())
+
+    schema, result = genptr.get_derived(
+        schema,
+        source,
+        target,
+        derived_name_base=sn.Name(
+            module='__',
+            name=ptrname),
+        attrs={
+            'intersection_of': so.ObjectSet.create(schema, components),
             'cardinality': cardinality,
         },
     )

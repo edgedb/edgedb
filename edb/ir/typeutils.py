@@ -143,6 +143,15 @@ def type_to_typeref(
         else:
             children = frozenset()
 
+        intersection_of = t.get_intersection_of(schema)
+        if intersection_of:
+            intersection = frozenset(
+                type_to_typeref(schema, c)
+                for c in intersection_of.objects(schema)
+            )
+        else:
+            intersection = frozenset()
+
         material_type = t.material_type(schema)
 
         material_typeref: Optional[irast.TypeRef]
@@ -182,6 +191,7 @@ def type_to_typeref(
             material_type=material_typeref,
             base_type=base_typeref,
             children=children,
+            intersection=intersection,
             common_parent=common_parent_ref,
             element_name=_name,
             is_scalar=t.is_scalar(),
@@ -312,10 +322,10 @@ def ptrref_from_ptrcls(
 
     if isinstance(ptrcls, irast.TupleIndirectionLink):
         ircls = irast.TupleIndirectionPointerRef
-    elif isinstance(ptrcls, irast.TypeIndirectionLink):
-        ircls = irast.TypeIndirectionPointerRef
+    elif isinstance(ptrcls, irast.TypeIntersectionLink):
+        ircls = irast.TypeIntersectionPointerRef
         kwargs['optional'] = ptrcls.is_optional()
-        kwargs['is_supertype'] = ptrcls.is_supertype()
+        kwargs['is_empty'] = ptrcls.is_empty()
         kwargs['is_subtype'] = ptrcls.is_subtype()
         kwargs['rptr_specialization'] = ptrcls.get_rptr_specialization()
     elif isinstance(ptrcls, s_pointers.Pointer):
@@ -507,12 +517,12 @@ def ptrcls_from_ptrref(
             target=ir_typeref_to_type(schema, ptrref.out_target),
             element_name=ptrref.name.name,
         )
-    elif isinstance(ptrref, irast.TypeIndirectionPointerRef):
-        ptrcls = irast.TypeIndirectionLink(
+    elif isinstance(ptrref, irast.TypeIntersectionPointerRef):
+        ptrcls = irast.TypeIntersectionLink(
             source=schema.get_by_id(ptrref.out_source.id),
             target=schema.get_by_id(ptrref.out_target.id),
             optional=ptrref.optional,
-            is_supertype=ptrref.is_supertype,
+            is_empty=ptrref.is_empty,
             is_subtype=ptrref.is_subtype,
             cardinality=ptrref.out_cardinality,
         )

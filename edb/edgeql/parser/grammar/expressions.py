@@ -341,7 +341,7 @@ class ShapeElement(Nonterm):
         # this indicates a polymorphic shape and TypeExpr must be
         # extracted from the path steps
         if shape and isinstance(shape[0], qlast.TypeExpr):
-            self.val.expr.steps.append(qlast.TypeIndirection(
+            self.val.expr.steps.append(qlast.TypeIntersection(
                 type=shape[0], context=shape[0].context))
             self.val.elements = shape[1:]
         else:
@@ -398,7 +398,7 @@ class ShapePath(Nonterm):
 
         self.val = qlast.Path(
             steps=[
-                qlast.TypeIndirection(
+                qlast.TypeIntersection(
                     type=kids[0].val,
                 ),
                 qlast.Ptr(
@@ -1096,7 +1096,7 @@ class PathStep(Nonterm):
         )
 
     def reduce_LBRACKET_IS_FullTypeExpr_RBRACKET(self, *kids):
-        self.val = qlast.TypeIndirection(
+        self.val = qlast.TypeIntersection(
             type=kids[2].val,
         )
 

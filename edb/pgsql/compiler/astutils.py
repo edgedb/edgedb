@@ -38,7 +38,7 @@ def tuple_element_for_shape_el(
     *,
     ctx: context.CompilerContextLevel
 ) -> pgast.TupleElementBase:
-    if shape_el.path_id.is_type_indirection_path():
+    if shape_el.path_id.is_type_intersection_path():
         rptr = shape_el.rptr.source.rptr
     else:
         rptr = shape_el.rptr

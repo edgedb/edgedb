@@ -430,8 +430,8 @@ def enrich_schema_lookup_error(
 
 
 def ensure_union_type(
-    schema,
-    types,
+    schema: s_schema.Schema,
+    types: Iterable[s_types.Type],
     *,
     opaque: bool = False,
     module: Optional[str] = None,
@@ -457,14 +457,14 @@ def ensure_union_type(
     created = False
 
     for component in components:
-        if component.is_scalar():
-            if seen_objtypes:
-                raise _union_error(schema, components)
-            seen_scalars = True
-        else:
+        if component.is_object_type():
             if seen_scalars:
                 raise _union_error(schema, components)
             seen_objtypes = True
+        else:
+            if seen_objtypes:
+                raise _union_error(schema, components)
+            seen_scalars = True
 
     if seen_scalars:
         uniontype = components[0]
@@ -487,7 +487,7 @@ def get_union_type(
     *,
     opaque: bool = False,
     module: Optional[str] = None,
-) -> Tuple[s_schema.Schema, s_types.Type, bool]:
+) -> Tuple[s_schema.Schema, s_types.Type]:
 
     schema, union, _ = ensure_union_type(
         schema, types, opaque=opaque, module=module)
@@ -496,5 +496,66 @@ def get_union_type(
 
 
 def _union_error(schema, components):
-    names = ', '.join(c.get_displayname(schema) for c in components)
+    names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create a union of {names}')
+
+
+def ensure_intersection_type(
+    schema: s_schema.Schema,
+    types: Iterable[s_types.Type],
+    *,
+    module: Optional[str] = None,
+) -> Tuple[s_schema.Schema, s_types.Type, bool]:
+
+    from edb.schema import objtypes as s_objtypes
+
+    components = set()
+    for t in types:
+        intersection_of = t.get_intersection_of(schema)
+        if intersection_of:
+            components.update(intersection_of.objects(schema))
+        else:
+            components.add(t)
+
+    components = minimize_class_set_by_least_generic(schema, components)
+
+    if len(components) == 1:
+        return schema, next(iter(components)), False
+
+    seen_scalars = False
+    seen_objtypes = False
+
+    for component in components:
+        if component.is_object_type():
+            if seen_scalars:
+                raise _intersection_error(schema, components)
+            seen_objtypes = True
+        else:
+            if seen_objtypes:
+                raise _intersection_error(schema, components)
+            seen_scalars = True
+
+    if seen_scalars:
+        # Non-related scalars and collections cannot for intersection types.
+        raise _intersection_error(schema, components)
+    else:
+        return s_objtypes.get_or_create_intersection_type(
+            schema, components=components, module=module)
+
+
+def get_intersection_type(
+    schema: s_schema.Schema,
+    types: Iterable[s_types.Type],
+    *,
+    module: Optional[str] = None,
+) -> Tuple[s_schema.Schema, s_types.Type]:
+
+    schema, intersection, _ = ensure_intersection_type(
+        schema, types, module=module)
+
+    return schema, intersection
+
+
+def _intersection_error(schema, components):
+    names = ', '.join(sorted(c.get_displayname(schema) for c in components))
+    return errors.SchemaError(f'cannot create an intersection of {names}')

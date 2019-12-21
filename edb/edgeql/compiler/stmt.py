@@ -777,7 +777,7 @@ def compile_query_subject(
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
     expr_rptr = expr.rptr
 
-    while isinstance(expr_rptr, irast.TypeIndirectionPointer):
+    while isinstance(expr_rptr, irast.TypeIntersectionPointer):
         expr_rptr = expr_rptr.source.rptr
 
     is_ptr_alias = (

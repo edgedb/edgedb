@@ -256,37 +256,31 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             ptr_name = ptr_expr.ptr.name
 
             source: s_obj.Object
+            ptr: s_pointers.PointerLike
 
             if ptr_expr.type == 'property':
                 # Link property reference; the source is the
                 # link immediately preceding this step in the path.
-                backtrack = path_tip
-                ptr = typegen.ptrcls_from_ptrref(
-                    backtrack.rptr.ptrref, ctx=ctx)
-                endpoints = []
-                while isinstance(ptr, irast.TypeIndirectionLink):
-                    endpoints.append(get_set_type(path_tip, ctx=ctx))
-                    backtrack = path_tip.rptr.source
-                    ptr = typegen.ptrcls_from_ptrref(
-                        backtrack.rptr.ptrref, ctx=ctx)
+                if isinstance(path_tip.rptr.ptrref,
+                              irast.TypeIntersectionPointerRef):
+                    ind_prefix, ptrs = typegen.collapse_type_intersection_rptr(
+                        path_tip,
+                        ctx=ctx,
+                    )
 
-                if endpoints:
-                    link_name = ptr.get_shortname(ctx.env.schema).name
-                    try:
-                        ptr = resolve_ptr(
-                            get_set_type(backtrack.rptr.source, ctx=ctx),
-                            link_name,
-                            far_endpoints=endpoints,
-                            direction=backtrack.rptr.direction,
-                            source_context=step.context,
-                            ctx=ctx,
-                        )
-                    except errors.InvalidReferenceError:
-                        raise errors.InvalidReferenceError(
-                            f"property {ptr_name!r} is not defined "
-                            f"on this link path",
-                            context=step.context,
-                        ) from None
+                    prefix_type = get_set_type(ind_prefix, ctx=ctx)
+                    assert isinstance(prefix_type, s_sources.Source)
+
+                    ptr = schemactx.get_union_pointer(
+                        ptrname=ptr_name,
+                        source=prefix_type,
+                        direction=direction,
+                        components=ptrs,
+                        ctx=ctx,
+                    )
+                else:
+                    ptr = typegen.ptrcls_from_ptrref(
+                        path_tip.rptr.ptrref, ctx=ctx)
 
                 if isinstance(ptr, s_links.Link):
                     source = ptr
@@ -318,13 +312,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     if _is_computable_ptr(ptrcls, ctx=ctx):
                         computables.append(path_tip)
 
-        elif isinstance(step, qlast.TypeIndirection):
+        elif isinstance(step, qlast.TypeIntersection):
             arg_type = inference.infer_type(path_tip, ctx.env)
             if not isinstance(arg_type, s_objtypes.ObjectType):
                 raise errors.QueryError(
-                    f'invalid type filter operand: '
-                    f'{arg_type.get_displayname(ctx.env.schema)} '
-                    f'is not an object type',
+                    f'cannot apply type intersection operator to '
+                    f'{arg_type.get_verbosename(ctx.env.schema)}: '
+                    f'it is not an object type',
                     context=step.context)
 
             if not isinstance(step.type, qlast.TypeName):
@@ -334,18 +328,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 )
 
             typ = schemactx.get_schema_type(step.type.maintype, ctx=ctx)
-            if not isinstance(typ, s_objtypes.ObjectType):
-                raise errors.QueryError(
-                    f'invalid type filter operand: '
-                    f'{typ.get_displayname(ctx.env.schema)} is not '
-                    f'an object type',
-                    context=step.type.context)
 
-            # The expression already of the desired type, elide
-            # the indirection.
-            if arg_type != typ:
-                path_tip = class_indirection_set(
+            try:
+                path_tip = type_intersection_set(
                     path_tip, typ, optional=False, ctx=ctx)
+            except errors.SchemaError as e:
+                e.set_source_context(step.type.context)
+                raise
 
         else:
             # Arbitrary expression
@@ -357,7 +346,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 path_tip = ensure_set(
                     dispatch.compile(step, ctx=subctx), ctx=subctx)
 
-                if path_tip.path_id.is_type_indirection_path():
+                if path_tip.path_id.is_type_intersection_path():
                     scope_set = path_tip.rptr.source
                 else:
                     scope_set = path_tip
@@ -570,12 +559,12 @@ def extend_path(
     if ptrcls.is_link_property(ctx.env.schema):
         src_path_id = source_set.path_id.ptr_path()
     else:
-        if direction != s_pointers.PointerDirection.Inbound:
+        if direction is not s_pointers.PointerDirection.Inbound:
             source = ptrcls.get_near_endpoint(ctx.env.schema, direction)
             stype = get_set_type(source_set, ctx=ctx)
             if not stype.issubclass(ctx.env.schema, source):
                 # Polymorphic link reference
-                source_set = class_indirection_set(
+                source_set = type_intersection_set(
                     source_set, source, optional=True, ctx=ctx)
 
         src_path_id = source_set.path_id
@@ -653,18 +642,55 @@ def tuple_indirection_set(
     return expression_set(expr, ctx=ctx)
 
 
-def class_indirection_set(
-        source_set: irast.Set,
-        target_scls: s_types.Type, *,
-        optional: bool,
-        ctx: context.ContextLevel) -> irast.Set:
+def type_intersection_set(
+    source_set: irast.Set,
+    stype: s_types.Type,
+    *,
+    optional: bool,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    """Return an interesection of *source_set* with type *stype*."""
 
-    poly_set = new_set(stype=target_scls, ctx=ctx)
+    arg_type = get_set_type(source_set, ctx=ctx)
+
+    if arg_type.issubclass(ctx.env.schema, stype):
+        # The the intersection type is a proper *superclass*
+        # of the argument, then this is, effectively, a NOP.
+        return source_set
+
+    is_subtype = False
+    empty_intersection = False
+    union = arg_type.get_union_of(ctx.env.schema)
+    if union:
+        # If the argument type is a union type, then we
+        # narrow it by the intersection type.
+        narrowed_union = []
+        for component_type in union.objects(ctx.env.schema):
+            if component_type.issubclass(ctx.env.schema, stype):
+                narrowed_union.append(component_type)
+
+        if len(narrowed_union) == 0:
+            # No intersection.
+            empty_intersection = True
+            int_type = schemactx.get_intersection_type(
+                (arg_type, stype), ctx=ctx)
+        elif len(narrowed_union) == 1:
+            int_type = narrowed_union[0]
+        else:
+            int_type = schemactx.get_union_type(
+                narrowed_union, ctx=ctx)
+    else:
+        is_subtype = stype.issubclass(ctx.env.schema, arg_type)
+        empty_intersection = not is_subtype
+        int_type = schemactx.get_intersection_type(
+            (arg_type, stype), ctx=ctx)
+
+    poly_set = new_set(stype=int_type, ctx=ctx)
     rptr = source_set.rptr
     rptr_specialization = []
 
     if rptr is not None and rptr.ptrref.union_components:
-        # This is a type indirection of a union pointer, most likely
+        # This is a type intersection of a union pointer, most likely
         # a reverse link path specification.  If so, test the union
         # components against the type expression and record which
         # components match.  This information will be used later
@@ -674,26 +700,20 @@ def class_indirection_set(
             component_endpoint_ref = component.dir_target
             component_endpoint = irtyputils.ir_typeref_to_type(
                 ctx.env.schema, component_endpoint_ref)
-            if component_endpoint.issubclass(ctx.env.schema, target_scls):
+            if component_endpoint.issubclass(ctx.env.schema, stype):
                 assert isinstance(component, irast.PointerRef)
                 rptr_specialization.append(component)
 
-    stype = get_set_type(source_set, ctx=ctx)
-    is_supertype = stype.issubclass(ctx.env.schema, target_scls)
-    is_subtype = target_scls.issubclass(ctx.env.schema, stype)
-
-    source_sobj = irtyputils.ir_typeref_to_type(
-        ctx.env.schema, source_set.path_id.target)
-    ptrcls = irast.TypeIndirectionLink(
-        source_sobj,
-        target_scls,
+    ptrcls = irast.TypeIntersectionLink(
+        arg_type,
+        int_type,
         optional=optional,
-        is_supertype=is_supertype,
+        is_empty=empty_intersection,
         is_subtype=is_subtype,
         rptr_specialization=rptr_specialization,
-        # The type indirection cannot increase the cardinality
+        # The type intersection cannot increase the cardinality
         # of the input set, so semantically, the cardinality
-        # of the type indirection "link" is, at most, ONE.
+        # of the type intersection "link" is, at most, ONE.
         cardinality=qltypes.Cardinality.ONE,
     )
 
@@ -705,7 +725,7 @@ def class_indirection_set(
     poly_set.path_id = source_set.path_id.extend(
         schema=ctx.env.schema, ptrref=ptrref,)
 
-    ptr = irast.TypeIndirectionPointer(
+    ptr = irast.TypeIntersectionPointer(
         source=source_set,
         target=poly_set,
         ptrref=ptrref,

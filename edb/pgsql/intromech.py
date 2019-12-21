@@ -899,12 +899,19 @@ class IntrospectionMech:
             else:
                 union_of = None
 
+            if row['intersection_of']:
+                intersection_of = [schema.get(t)
+                                   for t in row['intersection_of']]
+            else:
+                intersection_of = None
+
             schema, objtype = s_objtypes.ObjectType.create_in_schema(
                 schema,
                 id=objtype['id'],
                 name=name,
                 is_abstract=objtype['is_abstract'],
                 union_of=union_of,
+                intersection_of=intersection_of,
                 is_final=objtype['is_final'],
                 expr_type=objtype['expr_type'],
                 alias_is_persistent=objtype['alias_is_persistent'],

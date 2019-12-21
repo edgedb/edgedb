@@ -351,8 +351,8 @@ def trace_Path(node: qlast.Path, *,
             else:
                 if step.direction == '<':
                     if plen > i + 1 and isinstance(node.steps[i + 1],
-                                                   qlast.TypeIndirection):
-                        # A reverse link traversal with a type filter,
+                                                   qlast.TypeIntersection):
+                        # A reverse link traversal with a type intersection,
                         # process it on the next step.
                         pass
                     else:
@@ -374,7 +374,7 @@ def trace_Path(node: qlast.Path, *,
 
                     tip = ptr.get_target(ctx.schema)
 
-        elif isinstance(step, qlast.TypeIndirection):
+        elif isinstance(step, qlast.TypeIntersection):
             tip = _resolve_type_expr(step.type, ctx=ctx)
             prev_step = node.steps[i - 1]
             if prev_step.direction == '<':
@@ -449,8 +449,8 @@ def _resolve_type_expr(
 
 
 @trace.register
-def trace_TypeIndirection(node: qlast.TypeIndirection, *,
-                          ctx: TracerContext) -> None:
+def trace_TypeIntersection(node: qlast.TypeIntersection, *,
+                           ctx: TracerContext) -> None:
     trace(node.type, ctx=ctx)
 
 

@@ -242,7 +242,7 @@ class PathId:
             ptrref:
                 A ``ir.ast.BasePointerRef`` instance that corresponds
                 to the path step.  This may be a regular link or property
-                object, or a pseudo-pointer, like a tuple or type indirection
+                object, or a pseudo-pointer, like a tuple or type intersection
                 step.
             direction:
                 The direction of the *ptrcls* pointer.  This makes sense
@@ -674,8 +674,8 @@ class PathId:
            expression, i.e ``Foo.bar@prop``."""
         return self._is_linkprop
 
-    def is_type_indirection_path(self) -> bool:
-        """Return True if this PathId represents a type indirection
+    def is_type_intersection_path(self) -> bool:
+        """Return True if this PathId represents a type intersection
            expression, i.e ``Foo[IS Bar]``."""
         rptr_name = self.rptr_name()
         if rptr_name is None:

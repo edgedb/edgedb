@@ -438,7 +438,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         for i, e in enumerate(node.steps):
             if i > 0 or node.partial:
                 if (getattr(e, 'type', None) != 'property'
-                        and not isinstance(e, qlast.TypeIndirection)):
+                        and not isinstance(e, qlast.TypeIntersection)):
                     self.write('.')
 
             if i == 0:
@@ -451,7 +451,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                                         qlast.Set,
                                         qlast.Tuple,
                                         qlast.NamedTuple,
-                                        qlast.TypeIndirection,
+                                        qlast.TypeIntersection,
                                         qlast.Parameter)):
                     self.write('(')
                     self.visit(e)
@@ -485,7 +485,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self.visit(node.ptr)
 
-    def visit_TypeIndirection(self, node: qlast.TypeIndirection) -> None:
+    def visit_TypeIntersection(self, node: qlast.TypeIntersection) -> None:
         self.write('[IS ')
         self.visit(node.type)
         self.write(']')
@@ -511,15 +511,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.expr)
         else:
             self.visit(node.expr.steps[0])
-            if not isinstance(node.expr.steps[1], qlast.TypeIndirection):
+            if not isinstance(node.expr.steps[1], qlast.TypeIntersection):
                 self.write('.')
                 self.visit(node.expr.steps[1])
 
         if not node.compexpr and (node.elements
                                   or isinstance(node.expr.steps[-1],
-                                                qlast.TypeIndirection)):
+                                                qlast.TypeIntersection)):
             self.write(': ')
-            if isinstance(node.expr.steps[-1], qlast.TypeIndirection):
+            if isinstance(node.expr.steps[-1], qlast.TypeIntersection):
                 self.visit(node.expr.steps[-1].type)
             if node.elements:
                 self._visit_shape(node.elements)

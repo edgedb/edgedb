@@ -167,13 +167,13 @@ Set
 ----------
 
 
-.. eql:operator:: ISFILTER: anytype [IS type] -> anytype
+.. eql:operator:: ISINTERSECT: anytype [IS type] -> anytype
 
-    :index: is type filter
+    :index: is type intersection
 
     Filter the set based on type.
 
-    The type filter operator removes all elements from the input set
+    The type intersection operator removes all elements from the input set
     that aren't of the specified type. Additionally, since it
     guarantees the type of the result set all the links and properties
     associated with the specified type can now be used on the
@@ -209,13 +209,14 @@ Set
 
     By default backward links don't infer any type information beyond the
     fact that it's an :eql:type:`Object`. To ensure that this path
-    specifically reaches ``Issue`` the type filter operator must be used:
+    specifically reaches ``Issue`` the type intersection operator must
+    be used:
 
     .. code-block:: edgeql
 
         SELECT User.<owner[IS Issue];
 
-        # With the use of type filter it's possible to refer to
+        # With the use of type intersection it's possible to refer to
         # specific property of Issue now:
         SELECT User.<owner[IS Issue].title;
 

@@ -124,6 +124,9 @@ class TypeRef(ImmutableBase):
     # If this is a union type, this would be a set of
     # union elements.
     children: typing.FrozenSet[TypeRef]
+    # If this is an intersection type, this would be a set of
+    # intersection elements.
+    intersection: typing.FrozenSet[TypeRef]
     # If this is a union type, this would be the nearest common
     # ancestor of the union members.
     common_parent: typing.Optional[TypeRef]
@@ -250,8 +253,8 @@ class TupleIndirectionPointerRef(BasePointerRef):
     pass
 
 
-class TypeIndirectionLink(s_pointers.PseudoPointer):
-    """A Link-alike that can be used in type indirection path ids."""
+class TypeIntersectionLink(s_pointers.PseudoPointer):
+    """A Link-alike that can be used in type intersection path ids."""
 
     def __init__(
         self,
@@ -259,7 +262,7 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
         target: s_types.Type,
         *,
         optional: bool,
-        is_supertype: bool,
+        is_empty: bool,
         is_subtype: bool,
         rptr_specialization: typing.Iterable[PointerRef] = (),
         cardinality: qltypes.Cardinality,
@@ -270,7 +273,7 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
         self._target = target
         self._cardinality = cardinality
         self._optional = optional
-        self._is_supertype = is_supertype
+        self._is_empty = is_empty
         self._is_subtype = is_subtype
         self._rptr_specialization = frozenset(rptr_specialization)
 
@@ -280,14 +283,14 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
     def get_cardinality(self, schema: s_schema.Schema) -> qltypes.Cardinality:
         return self._cardinality
 
-    def is_type_indirection(self) -> bool:
+    def is_type_intersection(self) -> bool:
         return True
 
     def is_optional(self) -> bool:
         return self._optional
 
-    def is_supertype(self) -> bool:
-        return self._is_supertype
+    def is_empty(self) -> bool:
+        return self._is_empty
 
     def is_subtype(self) -> bool:
         return self._is_subtype
@@ -316,10 +319,10 @@ class TypeIndirectionLink(s_pointers.PseudoPointer):
         return self._target.is_scalar()
 
 
-class TypeIndirectionPointerRef(BasePointerRef):
+class TypeIntersectionPointerRef(BasePointerRef):
 
     optional: bool
-    is_supertype: bool
+    is_empty: bool
     is_subtype: bool
     rptr_specialization: typing.FrozenSet[PointerRef]
 
@@ -338,10 +341,10 @@ class Pointer(Base):
         return self.direction == s_pointers.PointerDirection.Inbound
 
 
-class TypeIndirectionPointer(Pointer):
+class TypeIntersectionPointer(Pointer):
 
     optional: bool
-    ptrref: TypeIndirectionPointerRef
+    ptrref: TypeIntersectionPointerRef
 
 
 class Expr(Base):

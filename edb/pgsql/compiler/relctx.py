@@ -778,15 +778,7 @@ def range_for_typeref(
         common_parent: bool=False,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
 
-    if not typeref.children:
-        rvar = range_for_material_objtype(
-            typeref,
-            path_id,
-            include_overlays=include_overlays,
-            dml_source=dml_source,
-            ctx=ctx,
-        )
-    elif typeref.common_parent is not None and common_parent:
+    if typeref.common_parent is not None and common_parent:
         rvar = range_for_material_objtype(
             typeref.common_parent,
             path_id,
@@ -794,7 +786,8 @@ def range_for_typeref(
             dml_source=dml_source,
             ctx=ctx,
         )
-    else:
+
+    elif typeref.children:
         # Union object types are represented as a UNION of selects
         # from their children, which is, for most purposes, equivalent
         # to SELECTing from a parent table.
@@ -822,6 +815,15 @@ def range_for_typeref(
             set_ops.append(('union', qry))
 
         rvar = range_from_queryset(set_ops, typeref.name_hint, ctx=ctx)
+
+    else:
+        rvar = range_for_material_objtype(
+            typeref,
+            path_id,
+            include_overlays=include_overlays,
+            dml_source=dml_source,
+            ctx=ctx,
+        )
 
     rvar.query.path_id = path_id
 
@@ -879,7 +881,7 @@ def table_from_ptrref(
     relation = pgast.Relation(
         schemaname=table_schema_name, name=table_name)
 
-    # Pseudo pointers (tuple and type indirection) have no schema id.
+    # Pseudo pointers (tuple and type intersection) have no schema id.
     sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
     rvar = pgast.RelRangeVar(
         schema_object_id=sobj_id,

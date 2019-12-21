@@ -121,10 +121,10 @@ def get_path_var(
         return rel.path_namespace[path_id, aspect]
 
     ptrref = path_id.rptr()
-    is_type_indirection = path_id.is_type_indirection_path()
+    is_type_intersection = path_id.is_type_intersection_path()
 
     src_path_id: Optional[irast.PathId] = None
-    if ptrref is not None and not is_type_indirection:
+    if ptrref is not None and not is_type_intersection:
         ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=False, link_bias=False)
         ptr_dir = path_id.rptr_dir()
@@ -146,8 +146,8 @@ def get_path_var(
                 # column.  This can only be done if Foo is visible
                 # in scope, and Foo.__type__ is not a computable.
                 pid = src_path_id
-                while pid.is_type_indirection_path():
-                    # Skip type indirection step(s).
+                while pid.is_type_intersection_path():
+                    # Skip type intersection step(s).
                     src_pid = pid.src_path()
                     if src_pid is not None:
                         src_rptr = src_pid.rptr()
@@ -224,7 +224,7 @@ def get_path_var(
             assert _prefix_pid is not None
             src_path_id = _prefix_pid.src_path()
 
-    elif (is_type_indirection or
+    elif (is_type_intersection or
             (ptr_info.table_type != 'ObjectType' and not is_inbound)):
         # Ref is in the mapping rvar.
         src_path_id = path_id.ptr_path()
@@ -658,7 +658,7 @@ def _get_rel_path_output(
                 f'invalid request for non-scalar path {path_id} {aspect}')
 
         if (path_id == rel.path_id or
-                (rel.path_id.is_type_indirection_path() and
+                (rel.path_id.is_type_intersection_path() and
                  path_id == rel.path_id.src_path())):
 
             return _get_rel_object_id_output(

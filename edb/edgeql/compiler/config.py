@@ -354,7 +354,7 @@ def get_config_type_shape(
 
             if t is not stype:
                 elem_path.append(
-                    qlast.TypeIndirection(
+                    qlast.TypeIntersection(
                         type=qlast.TypeName(
                             maintype=qlast.ObjectRef(
                                 module=t_name.module,

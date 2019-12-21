@@ -76,7 +76,7 @@ And this represents all sources of the ``owner`` links that have a
 
 By default backward links don't infer any type information beyond the
 fact that it's an :eql:type:`Object`. To ensure that this path
-specifically reaches ``Issue`` a :eql:op:`type filter <ISFILTER>`
+specifically reaches ``Issue`` a :eql:op:`type intersection <ISINTERSECT>`
 operator must be used:
 
 .. code-block:: edgeql

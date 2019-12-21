@@ -384,7 +384,7 @@ class IsOp(Expr):
     right: TypeExpr
 
 
-class TypeIndirection(Base):
+class TypeIntersection(Base):
     type: TypeExpr
 
 
@@ -395,7 +395,7 @@ class Ptr(Base):
 
 
 class Path(Expr):
-    steps: typing.List[typing.Union[Expr, Ptr, TypeIndirection, ObjectRef]]
+    steps: typing.List[typing.Union[Expr, Ptr, TypeIntersection, ObjectRef]]
     quantifier: Expr
     partial: bool = False
 

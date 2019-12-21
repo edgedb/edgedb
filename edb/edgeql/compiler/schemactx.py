@@ -287,18 +287,38 @@ def derive_view_name(
 def get_union_type(
     types: Iterable[s_types.Type],
     *,
+    opaque: bool = False,
     ctx: context.ContextLevel,
 ) -> s_types.Type:
 
     ctx.env.schema, union, created = s_utils.ensure_union_type(
-        ctx.env.schema, types)
+        ctx.env.schema, types, opaque=opaque)
 
     if created:
         ctx.env.created_schema_objects.add(union)
-    else:
+    elif (union not in ctx.env.created_schema_objects
+            and union.get_name(ctx.env.schema).module != '__derived__'):
         ctx.env.schema_refs.add(union)
 
     return union
+
+
+def get_intersection_type(
+    types: Iterable[s_types.Type],
+    *,
+    ctx: context.ContextLevel,
+) -> s_types.Type:
+
+    ctx.env.schema, intersection, created = s_utils.ensure_intersection_type(
+        ctx.env.schema, types)
+
+    if created:
+        ctx.env.created_schema_objects.add(intersection)
+    elif (intersection not in ctx.env.created_schema_objects
+            and intersection.get_name(ctx.env.schema).module != '__derived__'):
+        ctx.env.schema_refs.add(intersection)
+
+    return intersection
 
 
 def derive_dummy_ptr(
@@ -333,3 +353,25 @@ def derive_dummy_ptr(
         ctx.env.created_schema_objects.add(derived)
 
     return derived
+
+
+def get_union_pointer(
+    *,
+    ptrname: str,
+    source: s_sources.Source,
+    direction: s_pointers.PointerDirection,
+    components: Iterable[s_pointers.Pointer],
+    ctx: context.ContextLevel,
+) -> s_pointers.Pointer:
+
+    ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
+        ctx.env.schema,
+        ptrname,
+        source,
+        direction=direction,
+        components=components,
+    )
+
+    ctx.env.created_schema_objects.add(ptr)
+
+    return ptr

@@ -448,7 +448,7 @@ class GraphQLTranslator:
         steps = []
         if include_base:
             base = spath[0].type
-            steps.append(qlast.TypeIndirection(
+            steps.append(qlast.TypeIntersection(
                 type=qlast.TypeName(
                     maintype=base.edb_base_name_ast
                 )

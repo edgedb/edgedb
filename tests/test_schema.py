@@ -715,6 +715,72 @@ _123456789_123456789_123456789 -> str
             "link 'bar' of object type 'test::Object1'",
         )
 
+    def test_schema_advanced_types(self):
+        schema = self.load_schema("""
+            type D;
+            abstract type F {
+                property f -> int64;
+                link d -> D {
+                    property f_d_prop -> str;
+                }
+            }
+            type T1 {
+                property n -> str;
+                link d -> D {
+                    property t1_d_prop -> str;
+                }
+            };
+            type T2 extending F {
+                property n -> str;
+            };
+            type T3;
+
+            type A {
+                link t -> T1 | T2;
+                link t2 := .t[IS T2];
+                link tf := .t[IS F];
+            }
+        """)
+
+        A = schema.get('test::A')
+        T2 = schema.get('test::T2')
+        F = schema.get('test::F')
+        A_t = A.getptr(schema, 't')
+        A_t2 = A.getptr(schema, 't2')
+        A_tf_link = A.getptr(schema, 'tf')
+        A_tf = A_tf_link.get_target(schema)
+
+        # Check that ((T1 | T2) & F) has properties from both parts
+        # of the intersection.
+        self.assertIsNotNone(A_tf.getptr(schema, 'n'))
+        self.assertIsNotNone(A_tf.getptr(schema, 'f'))
+
+        # Ditto for link properties defined on a common link.
+        tfd = A_tf.getptr(schema, 'd')
+        tfd.getptr(schema, 'f_d_prop')
+        tfd.getptr(schema, 't1_d_prop')
+
+        self.assertTrue(
+            A_t2.get_target(schema).issubclass(
+                schema,
+                A_t.get_target(schema)
+            )
+        )
+
+        self.assertTrue(
+            A_tf.issubclass(
+                schema,
+                T2,
+            )
+        )
+
+        self.assertTrue(
+            A_tf.issubclass(
+                schema,
+                F,
+            )
+        )
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.

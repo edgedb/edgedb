@@ -164,15 +164,15 @@ def __infer_set(
     if rptr is not None:
 
         rptrref = rptr.ptrref
-        if isinstance(rptrref, irast.TypeIndirectionPointerRef):
-            ind_prefix, ind_ptrs = irutils.collapse_type_indirection(ir)
+        if isinstance(rptrref, irast.TypeIntersectionPointerRef):
+            ind_prefix, ind_ptrs = irutils.collapse_type_intersection(ir)
             new_scope = _get_set_scope(ir, scope_tree)
             if ind_prefix.rptr is None:
                 return infer_cardinality(ind_prefix, new_scope, env)
             else:
-                # Expression before type indirection is a path,
+                # Expression before type intersection is a path,
                 # i.e Foo.<bar[IS Type].  In this case we must
-                # take possible indirection specialization of the
+                # take possible intersection specialization of the
                 # link union into account.
                 # We're basically restating the body of this function
                 # in this block, but with extra conditions.
@@ -184,10 +184,10 @@ def __infer_set(
                         rptr_spec.update(ind_ptr.ptrref.rptr_specialization)
 
                     if not rptr_spec:
-                        # The type indirection does not narrow the
+                        # The type intersection does not narrow the
                         # pointer union (or there is no union), so
                         # use the rptr cardinality as if there was no
-                        # indirection.
+                        # intersection.
                         if rptrref.dir_cardinality is qltypes.Cardinality.ONE:
                             return infer_cardinality(
                                 rptr.source, new_scope, env)
