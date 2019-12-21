@@ -1384,6 +1384,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_get_migration_30(self):
+        # Test annotated function SDL.
+        schema = r'''
+        function idx(num: int64) -> bool {
+            using (SELECT (num % 2) = 0);
+            volatility := 'IMMUTABLE';
+            annotation title := 'func anno';
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different

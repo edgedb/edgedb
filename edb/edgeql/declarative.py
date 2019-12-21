@@ -541,7 +541,9 @@ def _register_item(
                 if cmd_name.module not in s_schema.STD_MODULES:
                     deps.add(cmd_name)
 
-            if isinstance(cmd, qlast.ObjectDDL):
+            if (isinstance(cmd, qlast.ObjectDDL)
+                    # HACK: functions don't have alters at the moment
+                    and not isinstance(decl, qlast.CreateFunction)):
                 subcmds.append(cmd)
             elif (isinstance(cmd, qlast.SetField)
                   and not isinstance(cmd.value, qlast.BaseConstant)
