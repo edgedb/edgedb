@@ -1184,7 +1184,6 @@ class OptPosCallArgList(Nonterm):
 class Identifier(Nonterm):
     def reduce_IDENT(self, *kids):
         self.val = kids[0].clean_value
-        assert self.val != 'constraint', self.val
 
     def reduce_UnreservedKeyword(self, *kids):
         self.val = kids[0].val
