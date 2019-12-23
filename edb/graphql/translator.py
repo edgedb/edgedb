@@ -1444,7 +1444,9 @@ class GraphQLTranslator:
 
 
 def value_node_from_pyvalue(val: Any):
-    if isinstance(val, str):
+    if val is None:
+        return None
+    elif isinstance(val, str):
         val = val.replace('\\', '\\\\')
         value = eql_quote.quote_literal(val)
         return gql_ast.StringValue(value=value[1:-1])

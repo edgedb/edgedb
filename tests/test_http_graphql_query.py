@@ -488,6 +488,40 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
+    def test_graphql_functional_query_17(self):
+        # Test unused & null variables
+        self.assert_graphql_query_result(
+            r"""
+                query Person {
+                    Person
+                    {
+                        name
+                    }
+                }
+            """,
+            {
+                'Person': [{
+                    'name': 'Bob',
+                }],
+            },
+            variables={'name': None},
+        )
+
+        self.assert_graphql_query_result(
+            r"""
+                query Person($name: String) {
+                    Person(filter: {name: {eq: $name}})
+                    {
+                        name
+                    }
+                }
+            """,
+            {
+                'Person': [],
+            },
+            variables={'name': None},
+        )
+
     def test_graphql_functional_alias_01(self):
         self.assert_graphql_query_result(
             r"""
