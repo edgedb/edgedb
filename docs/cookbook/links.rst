@@ -12,7 +12,7 @@ Links have a direction, but can be traversed in both ways forward and
 Movie Example
 =============
 
-To define a relationship we use ``link`` keyword:
+To define a relationship we use the ``link`` keyword:
 
 .. code-block:: sdl
 
