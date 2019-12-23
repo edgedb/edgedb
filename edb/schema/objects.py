@@ -2022,7 +2022,10 @@ class InheritingObjectBase(Object):
     def _issubclass(
         self, schema: s_schema.Schema, parent: InheritingObjectBase
     ) -> bool:
-        lineage = compute_lineage(schema, self)
+        if parent == self:
+            return True
+
+        lineage = self.get_ancestors(schema).objects(schema)
         return parent in lineage
 
     def issubclass(

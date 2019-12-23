@@ -170,10 +170,10 @@ class BaseObjectType(sources.Source,
                 for t in my_intersection.objects(schema)
             )
 
-        lineage = so.compute_lineage(schema, self)
-
+        lineage = self.get_ancestors(schema).objects(schema)
         if parent in lineage:
             return True
+
         elif isinstance(parent, BaseObjectType):
             parent_union = parent.get_union_of(schema)
             if parent_union:
