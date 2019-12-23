@@ -2,7 +2,7 @@
 Cookbook
 ========
 
-This sections shows common idioms, approaches and recipes for using EdgeDB.
+These sections show common idioms, approaches, and recipes for using EdgeDB.
 
 .. toctree::
     :maxdepth: 1
