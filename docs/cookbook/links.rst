@@ -91,14 +91,13 @@ In the movie example above, we have only shown a forward link traversal:
 
 Here is a another example of using forward link. This time we only return
 last names of the artists as plain string (not an object). In this case, we
-need to alias the field with ``:=``. This example uses **forward link** ``.>``
-operator to make the code clearer:
+need to alias the field with ``:=``:
 
 .. code-block:: edgeql-repl
 
     tutorial> SELECT Movie {
     .........     title,
-    .........     starring := Movie.>actors.last_name,
+    .........     starring := Movie.actors.last_name,
     ......... };
     {Object {
         title: 'Blade Runner 2049',
@@ -110,7 +109,7 @@ operator to make the code clearer:
     }}
 
 To find all movies that a person is starred in we use a **backward link**
-``.<`` operator:
+traversal ``.<`` operator:
 
 .. code-block:: edgeql-repl
 
@@ -184,46 +183,36 @@ First note that the request above is an equivalent of:
 
 Note: we wrapped a backward link access by ``SELECT`` subquery.
 
-Still we can't filter out by ``Person.id != Person.id`` because EdgeDB can't
-distinguish them. To make that work we should factor the inner query out:
+Still we can't filter out by ``Person != Person`` because EdgeDB can't
+distinguish them. To make that work we should give the inner query an alias:
 
 .. code-block:: edgeql-repl
 
-    tutorial> WITH
-    .........     Peer := (SELECT Person.<actors[IS Movie].actors)
-    ......... SELECT Person {
+    tutorial> SELECT Person {
     .........     first_name,
-    .........     collegues := Peer { first_name },
+    .........     colleagues := (
+    .........         WITH Peer := Person.<actors[IS Movie].actors
+    .........         SELECT Peer {
+    .........             first_name,
+    .........         }
+    .........     ),
     ......... } FILTER .first_name = 'Ryan';
-    {
-        Object {
-            first_name: 'Ryan',
-            collegues: {
-                Object { first_name: 'Ana' },
-                Object { first_name: 'Harrison' },
-                Object { first_name: 'Ryan' },
-            }
-        }
-    }
 
-Note what, while it looks pretty similar to textual replacement, what we've
-actually factored out is "view".  This is the reason of why we have a
-``{ first_name }`` in the actual ``colleague`` field not in the ``WITH``
-clause.
+The ``WITH`` clause makes an alias to the :ref:`set <ref_eql_fundamentals_set>`
+of actors. And then we can work with that set as usual.
 
-Now the next step is quite simple, we wrap ``Peer`` selector by a
-``SELECT`` subquery and add a filter:
+Now the next step is quite simple, just add a filter:
 
 .. code-block:: edgeql-repl
 
-    tutorial> WITH
-    .........     Peer := (SELECT Person.<actors[IS Movie].actors { first_name })
-    ......... SELECT Person {
+    tutorial> SELECT Person {
     .........     first_name,
-    .........     collegues := (SELECT Peer { first_name }
-                                FILTER Peer.id != Person.id)
+    .........     colleagues := (
+    .........         WITH Peer := Person.<actors[IS Movie].actors
+    .........         SELECT Peer { first_name }
+    .........         FILTER Peer != Person
+    .........     ),
     ......... } FILTER .first_name = 'Ryan';
-    .........
     {Object {
         first_name: 'Ryan',
         collegues: {
@@ -232,7 +221,5 @@ Now the next step is quite simple, we wrap ``Peer`` selector by a
         }
     }}
 
-.. _ref_cookbook_links_fw_bw:
-
-Forward vs Backward Links
-=========================
+Note also how elegantly use ``Peer != Person`` instead of
+``Peer.id != Person.id`` to compare object identity.
