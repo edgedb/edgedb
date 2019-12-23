@@ -42,7 +42,6 @@ if TYPE_CHECKING:
     from edb.schema import name as s_name
     from edb.schema import schema as s_schema
 
-    TypeRefCacheKey = Tuple[uuid.UUID, Optional[s_name.Name]]
     PtrRefCacheKey = Tuple[s_pointers.PointerLike, s_pointers.PointerDirection]
 
 
@@ -107,7 +106,7 @@ def type_to_typeref(
     schema: s_schema.Schema,
     t: s_types.Type,
     *,
-    cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    cache: Optional[Dict[uuid.UUID, irast.TypeRef]] = None,
     typename: Optional[s_name.Name] = None,
     _name: Optional[str] = None,
 ) -> irast.TypeRef:
@@ -135,11 +134,14 @@ def type_to_typeref(
     """
 
     result: irast.TypeRef
-    cache_key: TypeRefCacheKey = (t.id, typename)
-    if cache is not None:
-        cached_result = cache.get(cache_key)
+
+    if cache is not None and typename is None:
+        cached_result = cache.get(t.id)
         if cached_result is not None:
-            return cached_result
+            # If the schema changed due to an ongoing compilation, the name
+            # hint might be outdated.
+            if cached_result.name_hint == t.get_name(schema):
+                return cached_result
 
     if t.is_anytuple():
         result = irast.AnyTupleRef(
@@ -256,11 +258,14 @@ def type_to_typeref(
             )
         )
 
-    if cache is not None and _name is None:
+    if cache is not None and typename is None and _name is None:
         # Note: there is no cache for `_name` variants since they are only used
         # for Tuple subtypes and thus they will be cached on the outer level
-        # anyway.  This way we save on the size of the key tuple.
-        cache[cache_key] = result
+        # anyway.
+        # There's also no variant for types with custom typenames since they
+        # proved to have a very low hit rate.
+        # This way we save on the size of the key tuple.
+        cache[t.id] = result
     return result
 
 
@@ -324,7 +329,7 @@ def ptrref_from_ptrcls(
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound),
     cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
-    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    typeref_cache: Optional[Dict[uuid.UUID, irast.TypeRef]] = None,
     _include_descendants: bool = True,
 ) -> irast.BasePointerRef:
     """Return an IR pointer descriptor for a given schema pointer.

@@ -46,8 +46,6 @@ if TYPE_CHECKING:
     from edb.schema import objtypes as s_objtypes
     from edb.schema import sources as s_sources
 
-    TypeRefCacheKey = Tuple[uuid.UUID, Optional[s_name.Name]]
-
 
 class ContextSwitchMode(enum.Enum):
     NEW = enum.auto()
@@ -217,7 +215,7 @@ class Environment:
 
     # Caches for costly operations in edb.ir.typeutils
     ptr_ref_cache: PointerRefCache
-    type_ref_cache: Dict[TypeRefCacheKey, irast.TypeRef]
+    type_ref_cache: Dict[uuid.UUID, irast.TypeRef]
 
     def __init__(
         self,
