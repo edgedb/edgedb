@@ -4,7 +4,7 @@
 Links
 =====
 
-Link items define a specific relationship between two object types.
+Links define a specific relationship between two object types.
 Links have a direction, but can be traversed in both ways forward and
 :ref:`backward <ref_cookbook_links_bw>`.
 
