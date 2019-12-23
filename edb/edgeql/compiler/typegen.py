@@ -196,3 +196,11 @@ def collapse_type_intersection_rptr(
             for ptrref in rptr_specialization]
 
     return ind_prefix, ptrs
+
+
+def type_to_typeref(
+    t: s_types.Type, env: context.Environment
+) -> irast.TypeRef:
+    schema = env.schema
+    cache = env.type_ref_cache
+    return irtyputils.type_to_typeref(schema, t, cache=cache)

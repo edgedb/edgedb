@@ -216,10 +216,9 @@ def compile_BaseConstant(
     else:
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
 
-    ct = irtyputils.type_to_typeref(
-        ctx.env.schema,
+    ct = typegen.type_to_typeref(
         ctx.env.get_track_schema_type(std_type),
-        cache=ctx.env.type_ref_cache,
+        env=ctx.env,
     )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
 
@@ -445,10 +444,9 @@ def compile_TypeCast(
                     'accept positional parameters',
                     context=expr.expr.context)
 
-            json_typeref = irtyputils.type_to_typeref(
-                ctx.env.schema,
+            json_typeref = typegen.type_to_typeref(
                 ctx.env.get_track_schema_type('std::json'),
-                cache=ctx.env.type_ref_cache,
+                env=ctx.env,
             )
 
             param = casts.compile_cast(
@@ -465,11 +463,7 @@ def compile_TypeCast(
         else:
             param = setgen.ensure_set(
                 irast.Parameter(
-                    typeref=irtyputils.type_to_typeref(
-                        ctx.env.schema,
-                        pt,
-                        cache=ctx.env.type_ref_cache,
-                    ),
+                    typeref=typegen.type_to_typeref(pt, env=ctx.env),
                     name=param_name,
                     context=expr.expr.context,
                 ),
@@ -501,13 +495,12 @@ def compile_Introspect(
     if typeref.material_type and not irtyputils.is_object(typeref):
         typeref = typeref.material_type
     if typeref.is_opaque_union:
-        typeref = irtyputils.type_to_typeref(
-            ctx.env.schema,
+        typeref = typegen.type_to_typeref(
             typing.cast(
                 s_objtypes.ObjectType,
                 ctx.env.schema.get('std::Object'),
             ),
-            cache=ctx.env.type_ref_cache,
+            env=ctx.env,
         )
 
     if irtyputils.is_view(typeref):
