@@ -14,21 +14,17 @@ Movie Example
 
 To define a relationship we use ``link`` keyword:
 
-.. code-block:: edgeql
+.. code-block:: sdl
 
-    module default {
-        type Movie {
-            required property title -> str;
-            required link director -> Person;
-            multi link actors -> Person;
-        }
-        type Person {
-            required property first_name -> str;
-            required property last_name -> str;
-        }
+    type Movie {
+        required property title -> str;
+        required link director -> Person;
+        multi link actors -> Person;
     }
-
-
+    type Person {
+        required property first_name -> str;
+        required property last_name -> str;
+    }
 
 
 Nested Sets
