@@ -260,8 +260,8 @@ For example, the decimal value ``-15000.6250000`` is represented as:
 std::bool
 =========
 
-The :eql:type:`std::bool` values are represented as a single byte value,
-``0x01`` for ``true`` and ``0x00`` for ``false``.
+The :eql:type:`std::bool` values are represented as an int64 with
+only two valid values: ``0x01`` for ``true`` and ``0x00`` for ``false``.
 
 
 .. _ref_protocol_fmt_datetime:
