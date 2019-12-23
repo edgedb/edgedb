@@ -1991,7 +1991,7 @@ class InheritingObjectBase(Object):
         default=ObjectList,
         coerce=True,
         inheritable=False,
-        hashable=False,
+        compcoef=0.999,
     )
 
     # Attributes that have been set locally as opposed to inherited.

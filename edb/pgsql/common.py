@@ -202,9 +202,22 @@ def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
     return convert_name(name, suffix=suffix, catenate=catenate)
 
 
-def get_pointer_backend_name(id, module_id, *, catenate=False):
+def get_pointer_backend_name(id, module_id, *, catenate=False, aspect=None):
+    if aspect is None:
+        aspect = 'table'
+
+    if aspect not in ('table', 'index'):
+        raise ValueError(
+            f'unexpected aspect for pointer backend name: {aspect!r}')
+
     name = s_name.Name(module=str(module_id), name=str(id))
-    return convert_name(name, suffix='', catenate=catenate)
+
+    if aspect != 'table':
+        suffix = aspect
+    else:
+        suffix = ''
+
+    return convert_name(name, suffix=suffix, catenate=catenate)
 
 
 _operator_map = {
@@ -304,7 +317,8 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
     elif isinstance(obj, s_abc.Pointer):
         name = obj.get_name(schema)
         module = schema.get_global(s_mod.Module, name.module)
-        return get_pointer_backend_name(obj.id, module.id, catenate=catenate)
+        return get_pointer_backend_name(obj.id, module.id, catenate=catenate,
+                                        aspect=aspect)
 
     elif isinstance(obj, s_scalars.ScalarType):
         name = obj.get_name(schema)

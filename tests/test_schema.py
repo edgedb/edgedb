@@ -781,6 +781,79 @@ _123456789_123456789_123456789 -> str
             )
         )
 
+    def test_schema_ancestor_propagation_on_sdl_migration(self):
+        schema = self.load_schema("""
+            type A;
+            type B extending A;
+            type C extending B;
+        """)
+
+        Object = schema.get('std::Object')
+        A = schema.get('test::A')
+        B = schema.get('test::B')
+        C = schema.get('test::C')
+        std_link = schema.get('std::link')
+        Object__type__ = Object.getptr(schema, '__type__')
+        A__type__ = A.getptr(schema, '__type__')
+        B__type__ = B.getptr(schema, '__type__')
+        C__type__ = C.getptr(schema, '__type__')
+        self.assertEqual(
+            C__type__.get_ancestors(schema).objects(schema),
+            (
+                B__type__,
+                A__type__,
+                Object__type__,
+                std_link,
+            )
+        )
+
+        schema = self.run_ddl(schema, """
+            CREATE MIGRATION ancestor_propagation TO {
+                module test {
+                    type A;
+                    type B;
+                    type C extending B;
+                }
+            };
+            COMMIT MIGRATION ancestor_propagation;
+        """)
+
+        self.assertEqual(
+            C__type__.get_ancestors(schema).objects(schema),
+            (
+                B__type__,
+                Object__type__,
+                std_link,
+            )
+        )
+
+    def test_schema_correct_ancestors_on_explicit_derive_ref(self):
+        schema = self.load_schema("""
+            type A {
+                property name -> str;
+            }
+            type B extending A;
+        """)
+
+        std_prop = schema.get('std::property')
+        B = schema.get('test::B')
+        B_name = B.getptr(schema, 'name')
+        schema, derived = std_prop.derive_ref(
+            schema,
+            B,
+            schema.get('std::str'),
+            name=B_name.get_name(schema),
+            inheritance_merge=False,
+            mark_derived=True,
+        )
+
+        self.assertEqual(
+            derived.get_ancestors(schema).objects(schema),
+            (
+                std_prop,
+            )
+        )
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.

@@ -105,9 +105,9 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
         reftype = referrer_class.get_field(refdict.attr).type
         refname = reftype.get_key_for_name(schema, derived_name)
         refcoll = referrer.get_field_value(schema, refdict.attr)
-        is_alter = refcoll.has(schema, refname)
+        existing = refcoll.get(schema, refname, default=None)
 
-        if is_alter:
+        if existing is not None:
             cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.AlterObject, type(self))
         else:
@@ -118,6 +118,27 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
 
         for k, v in derived_attrs.items():
             cmd.set_attribute_value(k, v)
+
+        if existing is not None:
+            new_bases = derived_attrs['bases']
+            old_bases = existing.get_bases(schema)
+
+            if new_bases != old_bases:
+                removed_bases, added_bases = inheriting.delta_bases(
+                    [b.get_name(schema) for b in old_bases.objects(schema)],
+                    [b.get_name(schema) for b in new_bases.objects(schema)],
+                )
+
+                rebase_cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
+                    inheriting.RebaseInheritingObject, type(self))
+
+                rebase_cmd = rebase_cmdcls(
+                    classname=derived_name,
+                    added_bases=added_bases,
+                    removed_bases=removed_bases,
+                )
+
+                cmd.add(rebase_cmd)
 
         context = sd.CommandContext(
             modaliases={},

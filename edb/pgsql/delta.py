@@ -2513,8 +2513,9 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                 if default_value is not None:
                     self.alter_pointer_default(link, schema, context)
 
-                index_name = common.convert_name(
-                    link.get_name(schema), 'idx', catenate=True)
+                index_name = common.get_backend_name(
+                    schema, link, catenate=False, aspect='index'
+                )[1]
 
                 pg_index = dbops.Index(
                     name=index_name, table_name=table_name,
