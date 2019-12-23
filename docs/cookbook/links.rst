@@ -85,7 +85,7 @@ In the movie example above, we have only shown a forward link traversal:
         }
     }
 
-Here is a another example of using forward link. This time we only return
+Here is another example of using a forward link. This time we only return
 last names of the artists as plain string (not an object). In this case, we
 need to alias the field with ``:=``:
 
