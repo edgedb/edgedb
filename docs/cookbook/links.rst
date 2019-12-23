@@ -161,7 +161,7 @@ Or more complex example:
         }
     }
 
-Now you may notice that the Ryan (Gosling) is mentioned as a colleague of
+Now you may notice that Ryan Gosling is mentioned as a colleague of
 himself. To fix it we need few more concepts.
 
 First note that the request above is an equivalent of:
