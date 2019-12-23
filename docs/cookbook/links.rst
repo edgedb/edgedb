@@ -215,7 +215,7 @@ Now the next step is quite simple, just add a filter:
     ......... } FILTER .first_name = 'Ryan';
     {Object {
         first_name: 'Ryan',
-        collegues: {
+        colleagues: {
             Object { first_name: 'Ana' },
             Object { first_name: 'Harrison' },
         }
