@@ -40,7 +40,9 @@ INSERT test::Tag {
 WITH MODULE test
 INSERT UpdateTest {
     name := 'update-test1',
-    status := (SELECT Status FILTER Status.name = 'Open')
+    status := (SELECT Status FILTER Status.name = 'Open'),
+    readonly_tag := (SELECT Tag FILTER .name = 'wow'),
+    readonly_note := 'this is read-only',
 };
 
 WITH MODULE test

@@ -652,6 +652,13 @@ def _normalize_view_ptr_expr(
             msg = f'cannot assign to {ptrcls_sn.name}'
         raise errors.QueryError(msg, context=shape_el.context)
 
+    if is_update and ptrcls.get_readonly(ctx.env.schema):
+        raise errors.QueryError(
+            f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
+            f'it is declared as read-only',
+            context=compexpr.context,
+        )
+
     return ptrcls
 
 

@@ -43,12 +43,23 @@ type UpdateTest {
     multi link tags -> Tag;
     multi link weighted_tags -> Tag {
         property weight -> int64;
+        property readonly_note -> str {
+            readonly := true;
+        }
     }
 
     # for testing links to sets of the same type as originator
     multi link related -> UpdateTest;
     multi link annotated_tests -> UpdateTest {
         property note -> str;
+    }
+
+    link readonly_tag -> Tag {
+        readonly := true;
+    }
+
+    property readonly_note -> str {
+        readonly := true;
     }
 }
 

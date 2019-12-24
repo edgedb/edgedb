@@ -1879,3 +1879,53 @@ class TestUpdate(tb.QueryTestCase):
                     Status,
                 );
             ''')
+
+    async def test_edgeql_update_protect_readonly_01(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot update link 'readonly_tag': "
+            "it is declared as read-only",
+            _position=180,
+        ):
+            await self.con.execute(r'''
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER .name = 'update-test-readonly'
+                SET {
+                    readonly_tag := (SELECT Tag FILTER .name = 'not read-only')
+                };
+            ''')
+
+    async def test_edgeql_update_protect_readonly_02(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot update property 'readonly_note': "
+            "it is declared as read-only",
+            _position=181,
+        ):
+            await self.con.execute(r'''
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER .name = 'update-test-readonly'
+                SET {
+                    readonly_note := 'not read-only',
+                };
+            ''')
+
+    async def test_edgeql_update_protect_readonly_03(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot update property 'readonly_note': "
+            "it is declared as read-only",
+            _position=223,
+        ):
+            await self.con.execute(r'''
+                WITH MODULE test
+                UPDATE UpdateTest
+                FILTER .name = 'update-test-readonly'
+                SET {
+                    weighted_tags: {
+                        @readonly_note := 'not read-only',
+                    },
+                };
+            ''')
