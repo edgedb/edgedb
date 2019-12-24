@@ -18,7 +18,7 @@ The array values are represented as the following structure:
 
     struct ArrayValue {
         // Number of dimensions, currently must
-        // always be 1.
+        // always be 0 or 1.
         int32       ndims;
         // Reserved.
         int32       reserved0;
@@ -47,6 +47,10 @@ The array values are represented as the following structure:
         // Element data.
         byte        data[length];
     };
+
+
+Note: zero-length arrays (and sets) are represented as a 12-byte value where
+``dims`` equal to zero regardless of the shape in type descriptor.
 
 
 .. _ref_protocol_fmt_tuple:
