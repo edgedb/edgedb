@@ -120,10 +120,11 @@ traversal ``.<`` operator:
         }
     }}
 
-You might also note that we've added ``[IS Movie]`` type filter. This is how
-backward link traversal works: EdgeDB fetches every object in the entire
-database having the field ``actors`` which is a ``Person``. So we narrow down
-the set of objects to ``Movie`` and select a title from it.
+You might also note that we've added ``[IS Movie]``, which we call
+:eql:op:`type intersection <ISINTERSECT>` operator. This is how backward link
+traversal works: EdgeDB fetches every object in the entire database having the
+field ``actors`` which is a ``Person``. So we narrow down the set of objects to
+``Movie`` and select a title from it.
 
 All other tools work on backward link:
 
