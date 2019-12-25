@@ -163,42 +163,21 @@ Or more complex example:
     }
 
 Now you may notice that Ryan Gosling is mentioned as a colleague of
-himself. To fix it we need few more concepts.
-
-First note that the request above is an equivalent of:
+himself. To fix it we can add a filter:
 
 .. code-block:: edgeql-repl
 
     tutorial> SELECT Person {
     .........     first_name,
     .........     colleagues := (
-    .........         SELECT Person.<actors[IS Movie].actors {
-    .........             first_name,
-    .........         }
+    .........         SELECT Person.<actors[IS Movie].actors { first_name }
+    .........         FILTER Person.<actors[IS Movie].actors != Person
     .........     ),
     ......... } FILTER .first_name = 'Ryan';
 
-Note: we wrapped a backward link access by ``SELECT`` subquery.
+Note: we wrapped a backward link access by ``SELECT`` subquery to add a filter.
 
-Still we can't filter out by ``Person != Person`` because EdgeDB can't
-distinguish them. To make that work we should give the inner query an alias:
-
-.. code-block:: edgeql-repl
-
-    tutorial> SELECT Person {
-    .........     first_name,
-    .........     colleagues := (
-    .........         WITH Peer := Person.<actors[IS Movie].actors
-    .........         SELECT Peer {
-    .........             first_name,
-    .........         }
-    .........     ),
-    ......... } FILTER .first_name = 'Ryan';
-
-The ``WITH`` clause makes an alias to the :ref:`set <ref_eql_fundamentals_set>`
-of actors. And then we can work with that set as usual.
-
-Now the next step is quite simple, just add a filter:
+The last query can be rewritten in a nicer way using an alias:
 
 .. code-block:: edgeql-repl
 
