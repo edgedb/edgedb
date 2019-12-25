@@ -138,10 +138,17 @@ def type_to_typeref(
     elif not isinstance(t, s_abc.Collection):
         union_of = t.get_union_of(schema)
         if union_of:
-            children = frozenset(
-                type_to_typeref(schema, c) for c in union_of.objects(schema))
+            non_overlapping, union_is_concrete = (
+                s_utils.get_non_overlapping_union(
+                    schema,
+                    union_of.objects(schema),
+                )
+            )
+            union = frozenset(
+                type_to_typeref(schema, c) for c in non_overlapping)
         else:
-            children = frozenset()
+            union_is_concrete = False
+            union = frozenset()
 
         intersection_of = t.get_intersection_of(schema)
         if intersection_of:
@@ -190,7 +197,8 @@ def type_to_typeref(
             name_hint=name,
             material_type=material_typeref,
             base_type=base_typeref,
-            children=children,
+            union=union,
+            union_is_concrete=union_is_concrete,
             intersection=intersection,
             common_parent=common_parent_ref,
             element_name=_name,

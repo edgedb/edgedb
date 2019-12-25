@@ -407,6 +407,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_RelRangeVar(self, node):
         rel = node.relation
 
+        if not node.include_inherited:
+            self.write(' ONLY (')
+
         if isinstance(rel, (pgast.Relation, pgast.NullRelation)):
             self.visit(rel)
         elif isinstance(rel, pgast.CommonTableExpr):
@@ -414,6 +417,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         else:
             raise SQLSourceGeneratorError(
                 'unexpected relation in RelRangeVar: {!r}'.format(rel))
+
+        if not node.include_inherited:
+            self.write(')')
 
         if node.alias:
             self.write(' AS ')

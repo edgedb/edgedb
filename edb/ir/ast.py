@@ -123,7 +123,10 @@ class TypeRef(ImmutableBase):
     base_type: typing.Optional[TypeRef]
     # If this is a union type, this would be a set of
     # union elements.
-    children: typing.FrozenSet[TypeRef]
+    union: typing.FrozenSet[TypeRef]
+    # Whether the union is specified by an exhaustive list of
+    # types, and type inheritance should not be considered.
+    union_is_concrete: bool = False
     # If this is an intersection type, this would be a set of
     # intersection elements.
     intersection: typing.FrozenSet[TypeRef]

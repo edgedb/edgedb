@@ -436,11 +436,11 @@ def compile_TypeCheckOp(
         else:
             right: pgast.BaseExpr
 
-            if expr.right.children:
+            if expr.right.union:
                 right = pgast.ArrayExpr(
                     elements=[
                         dispatch.compile(c, ctx=newctx)
-                        for c in expr.right.children
+                        for c in expr.right.union
                     ]
                 )
             else:

@@ -195,7 +195,7 @@ class RelRangeVar(PathRangeVar):
     """Relation range variable, used in FROM clauses."""
 
     relation: typing.Union[BaseRelation, CommonTableExpr]
-    inhopt: bool
+    include_inherited: bool = True
 
     @property
     def query(self) -> BaseRelation:

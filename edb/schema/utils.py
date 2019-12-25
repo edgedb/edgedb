@@ -495,6 +495,25 @@ def get_union_type(
     return schema, union
 
 
+def get_non_overlapping_union(
+    schema: s_schema.Schema,
+    types: Iterable[s_types.Type],
+) -> Tuple[FrozenSet[s_types.Type], bool]:
+
+    all_types: Set[s_types.Type] = set(types)
+    non_unique_count = 0
+    for t in types:
+        descendants = t.descendants(schema)
+        non_unique_count += len(descendants) + 1
+        all_types.update(descendants)
+
+    if non_unique_count == len(all_types):
+        # The input type set is already non-overlapping
+        return frozenset(types), False
+    else:
+        return frozenset(all_types), True
+
+
 def _union_error(schema, components):
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create a union of {names}')
