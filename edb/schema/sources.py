@@ -67,3 +67,47 @@ class Source(indexes.IndexableSubject):
         schema = self.add_classref(
             schema, 'pointers', pointer, replace=replace)
         return schema
+
+
+def populate_pointer_set_for_source_union(
+    schema: s_schema.Schema,
+    components: Iterable[Source],
+    union: Source,
+    *,
+    modname: str = '__derived__',
+) -> s_schema.Schema:
+
+    union_pointers = {}
+
+    for pn, ptr in components[0].get_pointers(schema).items(schema):
+        ptrs = [ptr]
+        for component in components[1:]:
+            other_ptr = component.get_pointers(schema).get(
+                schema, pn, None)
+            if other_ptr is None:
+                break
+            ptrs.append(other_ptr)
+
+        if len(ptrs) == len(components):
+            # The pointer is present in all components.
+            if len(ptrs) == 1:
+                ptr = ptrs[0]
+            else:
+                ptrs = set(ptrs)
+                schema, ptr = pointers.get_or_create_union_pointer(
+                    schema,
+                    ptrname=pn,
+                    source=union,
+                    direction=pointers.PointerDirection.Outbound,
+                    components=ptrs,
+                    modname=modname,
+                )
+
+            union_pointers[pn] = ptr
+
+    if union_pointers:
+        for pn, ptr in union_pointers.items():
+            if union.getptr(schema, pn) is None:
+                schema = union.add_pointer(schema, ptr)
+
+    return schema

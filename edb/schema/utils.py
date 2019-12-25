@@ -497,21 +497,21 @@ def get_union_type(
 
 def get_non_overlapping_union(
     schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
-) -> Tuple[FrozenSet[s_types.Type], bool]:
+    objects: Iterable[so.InheritingObjectBaseT],
+) -> Tuple[FrozenSet[so.InheritingObjectBaseT], bool]:
 
-    all_types: Set[s_types.Type] = set(types)
+    all_objects: Set[so.InheritingObjectBaseT] = set(objects)
     non_unique_count = 0
-    for t in types:
-        descendants = t.descendants(schema)
+    for obj in objects:
+        descendants = obj.descendants(schema)
         non_unique_count += len(descendants) + 1
-        all_types.update(descendants)
+        all_objects.update(descendants)
 
-    if non_unique_count == len(all_types):
-        # The input type set is already non-overlapping
-        return frozenset(types), False
+    if non_unique_count == len(all_objects):
+        # The input object set is already non-overlapping
+        return frozenset(objects), False
     else:
-        return frozenset(all_types), True
+        return frozenset(all_objects), True
 
 
 def _union_error(schema, components):

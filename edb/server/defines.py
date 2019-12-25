@@ -27,7 +27,7 @@ EDGEDB_ENCODING = 'utf-8'
 EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
 
 # Increment this whenever the database layout or stdlib changes.
-EDGEDB_CATALOG_VERSION = 20191222_00_00
+EDGEDB_CATALOG_VERSION = 20191225_00_00
 
 # Resource limit on open FDs for the server process.
 # By default, at least on macOS, the max number of open FDs

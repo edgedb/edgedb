@@ -4141,3 +4141,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             DROP TYPE test::`U S``E R`;
         """)
+
+    async def test_edgeql_ddl_link_overload_01(self):
+        await self.con.execute("""
+            CREATE TYPE T;
+            CREATE TYPE A {
+                CREATE MULTI LINK t -> T;
+            };
+            CREATE TYPE B EXTENDING A;
+            INSERT T;
+            INSERT B {
+                t := T
+            };
+            ALTER TYPE B ALTER LINK t SET ANNOTATION title := 'overloaded';
+            UPDATE B SET { t := T };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT A { ct := count(.t) };
+            """,
+            [{
+                'ct': 1,
+            }]
+        )

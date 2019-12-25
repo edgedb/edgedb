@@ -1976,6 +1976,10 @@ class ObjectList(ObjectCollection, container=tuple):
             return default
 
 
+InheritingObjectBaseT = TypeVar('InheritingObjectBaseT',
+                                bound='InheritingObjectBase')
+
+
 class InheritingObjectBase(Object):
 
     bases = SchemaField(

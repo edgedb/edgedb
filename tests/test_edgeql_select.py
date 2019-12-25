@@ -1329,12 +1329,29 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
             WITH MODULE test
             SELECT
-                User.<owner[IS Text]@since
+                User.<owner[IS Named]@since
             ''',
             ['2018-01-01T00:00:00+00:00'],
         )
 
     async def test_edgeql_select_reverse_link_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidReferenceError,
+            "no property 'since'",
+        ):
+            # Property "since" is only defined on the
+            # Issue.owner link, whereas the Text intersection
+            # resolves to a union of links Issue.owner, LogEntry.owner,
+            # and Comment.owner.
+            await self.con.execute(
+                r'''
+                WITH MODULE test
+                SELECT
+                    User.<owner[IS Text]@since
+                ''',
+            )
+
+    async def test_edgeql_select_reverse_link_04(self):
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError,
             "no link or property 'number'",

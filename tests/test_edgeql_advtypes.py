@@ -49,3 +49,26 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
                 'stw0': {'name': 'v0'}
             }]
         )
+
+    async def test_edgeql_advtypes_overlapping_link_union(self):
+        await self.con.execute("""
+            INSERT A { name := 'a1' };
+            INSERT V {
+                name:= 'v1',
+                s := 's1',
+                t := 't1',
+                u := 'u1',
+                l_a := (SELECT A FILTER .name = 'a1'),
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT (DISTINCT (SELECT S UNION T)) {
+                cla := count(.l_a)
+            }
+            """,
+            [{
+                'cla': 1,
+            }]
+        )

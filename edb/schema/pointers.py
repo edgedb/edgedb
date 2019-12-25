@@ -206,18 +206,6 @@ class Pointer(referencing.ReferencedInheritingObject,
         else:
             return non_derived_parent
 
-    def as_locally_defined(self, schema):
-        if self.get_is_local(schema) or self.generic(schema):
-            return [self]
-
-        ancestors = []
-
-        for a in self.get_ancestors(schema).objects(schema):
-            if not a.generic(schema) and a.get_is_local(schema):
-                ancestors.append(a)
-
-        return utils.minimize_class_set_by_least_generic(schema, ancestors)
-
     def get_near_endpoint(self, schema, direction):
         if direction == PointerDirection.Outbound:
             return self.get_source(schema)
@@ -529,9 +517,6 @@ class PseudoPointer(s_abc.Pointer):
 
     def is_pure_computable(self, schema):
         return False
-
-    def as_locally_defined(self, schema):
-        return [self]
 
 
 PointerLike = Union[Pointer, PseudoPointer]
@@ -975,6 +960,7 @@ def get_or_create_union_pointer(
     opaque: bool = False,
     modname: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, Pointer]:
+    from . import sources as s_sources
 
     components = list(components)
 
@@ -1009,6 +995,14 @@ def get_or_create_union_pointer(
             'cardinality': cardinality,
         },
     )
+
+    if isinstance(result, s_sources.Source):
+        schema = s_sources.populate_pointer_set_for_source_union(
+            schema,
+            components,
+            result,
+            modname=modname,
+        )
 
     return schema, result
 

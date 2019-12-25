@@ -21,16 +21,25 @@ abstract type R {
         delegated constraint exclusive;
     }
 }
+
+type A extending R;
+
 type S extending R {
     required property s -> str;
+    multi link l_a -> A;
 }
+
 type T extending R {
     required property t -> str;
+    multi link l_a -> A;
 }
+
 abstract type U {
     required property u -> str;
 }
+
 type V extending U, S, T;
+
 type W {
     required property name -> str {
         constraint exclusive;

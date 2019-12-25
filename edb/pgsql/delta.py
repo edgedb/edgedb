@@ -2207,19 +2207,16 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                         if ptr_stor_info.table_type == 'link':
                             return True
                 return False
-        elif src.get_is_local(schema):
-            if src.is_link_property(schema):
-                return not src.singular(schema)
-            else:
-                ptr_stor_info = types.get_pointer_storage_info(
-                    src, resolve_type=False, schema=schema, link_bias=True)
-
-                return (
-                    ptr_stor_info is not None
-                    and ptr_stor_info.table_type == 'link'
-                )
+        elif src.is_link_property(schema):
+            return not src.singular(schema)
         else:
-            return False
+            ptr_stor_info = types.get_pointer_storage_info(
+                src, resolve_type=False, schema=schema, link_bias=True)
+
+            return (
+                ptr_stor_info is not None
+                and ptr_stor_info.table_type == 'link'
+            )
 
     def create_table(self, ptr, schema, context, conditional=False):
         c = self._create_table(ptr, schema, context, conditional=conditional)

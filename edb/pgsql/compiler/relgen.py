@@ -691,8 +691,15 @@ def process_set_as_link_property_ref(
                 # the UNION by recording an explicit NULL as as the
                 # link property var.
                 pathctx.put_path_value_var(
-                    subquery, ir_set.path_id,
-                    pgast.NullConstant(),
+                    subquery,
+                    ir_set.path_id,
+                    pgast.TypeCast(
+                        arg=pgast.NullConstant(),
+                        type_name=pgast.TypeName(
+                            name=pg_types.pg_type_from_ir_typeref(
+                                ir_set.typeref),
+                        ),
+                    ),
                     env=ctx.env,
                 )
 

@@ -873,6 +873,7 @@ def range_from_queryset(
 
 def table_from_ptrref(
         ptrref: irast.PointerRef, *,
+        include_descendants: bool = True,
         ctx: context.CompilerContextLevel) -> pgast.RelRangeVar:
     """Return a Table corresponding to a given Link."""
     table_schema_name, table_name = common.get_pointer_backend_name(
@@ -890,6 +891,7 @@ def table_from_ptrref(
     rvar = pgast.RelRangeVar(
         schema_object_id=sobj_id,
         relation=relation,
+        include_inherited=include_descendants,
         alias=pgast.Alias(
             aliasname=ctx.env.aliases.get(ptrref.shortname.name)
         )
@@ -926,15 +928,17 @@ def range_for_ptrref(
             raise errors.InternalServerError(
                 'unexpected union link'
             )
-    elif only_self:
-        refs = {ptrref}
     else:
-        refs = {ptrref} | ptrref.descendants
+        refs = {ptrref}
 
     for src_ptrref in refs:
         assert isinstance(src_ptrref, irast.PointerRef), \
             "expected regular PointerRef"
-        table = table_from_ptrref(src_ptrref, ctx=ctx)
+        table = table_from_ptrref(
+            src_ptrref,
+            include_descendants=not ptrref.union_is_concrete,
+            ctx=ctx,
+        )
 
         qry = pgast.SelectStmt()
         qry.from_clause.append(table)

@@ -28,7 +28,6 @@ from edb.schema import abc as s_abc
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
 from edb.schema import modules as s_mod
-from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
@@ -400,54 +399,29 @@ def ptrref_from_ptrcls(
     else:
         material_ptr = None
 
-    union_components = set()
+    union_components: Set[irast.BasePointerRef] = set()
     union_of = ptrcls.get_union_of(schema)
+    union_is_concrete = False
     if union_of:
+        union_ptrs = set()
+
         for component in union_of.objects(schema):
             material_comp = component.material_type(schema)
-            union_components.add(
-                ptrref_from_ptrcls(
-                    ptrcls=material_comp,
-                    direction=direction,
-                    schema=schema,
-                    cache=cache,
-                )
-            )
-    elif (material_ptr is None
-            and not ptrcls.generic(schema)
-            and not ptrcls.get_is_local(schema)):
-        for base in ptrcls.as_locally_defined(schema):
-            union_components.add(
-                ptrref_from_ptrcls(
-                    ptrcls=base,
-                    direction=direction,
-                    schema=schema,
-                    cache=None,
-                    _include_descendants=False,
-                )
-            )
+            union_ptrs.add(material_comp)
 
-    descendants: Set[irast.BasePointerRef] = set()
+        non_overlapping, union_is_concrete = s_utils.get_non_overlapping_union(
+            schema,
+            union_ptrs,
+        )
 
-    if not union_components:
-        if isinstance(source, s_objtypes.ObjectType) and _include_descendants:
-            ptrs = {material_ptrcls}
-            ptrname = ptrcls.get_shortname(schema).name
-            for descendant in source.descendants(schema):
-                ptr = descendant.getptr(schema, ptrname)
-                if ptr is not None:
-                    desc_material_ptr = ptr.material_type(schema)
-                    if (desc_material_ptr not in ptrs
-                            and desc_material_ptr.get_is_local(schema)):
-                        ptrs.add(desc_material_ptr)
-                        descendants.add(
-                            ptrref_from_ptrcls(
-                                ptrcls=desc_material_ptr,
-                                direction=direction,
-                                schema=schema,
-                                cache=cache,
-                            )
-                        )
+        union_components = {
+            ptrref_from_ptrcls(
+                ptrcls=p,
+                direction=direction,
+                schema=schema,
+                cache=cache,
+            ) for p in non_overlapping
+        }
 
     std_parent_name = None
     for ancestor in ptrcls.get_ancestors(schema).objects(schema):
@@ -481,8 +455,8 @@ def ptrref_from_ptrcls(
         base_ptr=base_ptr,
         material_ptr=material_ptr,
         is_derived=ptrcls.get_is_derived(schema),
-        descendants=descendants,
         union_components=union_components,
+        union_is_concrete=union_is_concrete,
         has_properties=ptrcls.has_user_defined_properties(schema),
         required=ptrcls.get_required(schema),
         dir_cardinality=dir_cardinality,

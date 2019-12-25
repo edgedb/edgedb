@@ -177,8 +177,8 @@ class BasePointerRef(ImmutableBase):
     source_ptr: PointerRef
     base_ptr: typing.Optional[BasePointerRef]
     material_ptr: BasePointerRef
-    descendants: typing.Set[BasePointerRef]
     union_components: typing.Set[BasePointerRef]
+    union_is_concrete: bool
     has_properties: bool
     required: bool
     is_derived: bool

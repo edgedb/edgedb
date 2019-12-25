@@ -268,13 +268,16 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         ctx=ctx,
                     )
 
-                    prefix_type = get_set_type(ind_prefix, ctx=ctx)
+                    prefix_type = get_set_type(ind_prefix.rptr.source, ctx=ctx)
                     assert isinstance(prefix_type, s_sources.Source)
 
+                    prefix_ptr_name = (
+                        next(iter(ptrs)).get_shortname(ctx.env.schema).name)
+
                     ptr = schemactx.get_union_pointer(
-                        ptrname=ptr_name,
+                        ptrname=prefix_ptr_name,
                         source=prefix_type,
-                        direction=direction,
+                        direction=ind_prefix.rptr.direction,
                         components=ptrs,
                         ctx=ctx,
                     )
@@ -516,8 +519,8 @@ def resolve_ptr(
         return ptr
 
     if isinstance(near_endpoint, s_links.Link):
-        msg = (f'{near_endpoint.get_verbosename(ctx.env.schema)} '
-               f'has no property {pointer_name!r}')
+        vname = near_endpoint.get_verbosename(ctx.env.schema, with_parent=True)
+        msg = f'{vname} has no property {pointer_name!r}'
 
     elif direction == s_pointers.PointerDirection.Outbound:
         msg = (f'{near_endpoint.get_verbosename(ctx.env.schema)} '
