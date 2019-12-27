@@ -536,7 +536,7 @@ async def _compile_sys_queries(schema, cluster):
 
 async def _populate_misc_instance_data(cluster):
 
-    mock_auth_nonce = scram.B64(scram.generate_nonce())
+    mock_auth_nonce = scram.generate_nonce()
     ver = buildmeta.get_version()
     json_instance_data = {
         'version': {
