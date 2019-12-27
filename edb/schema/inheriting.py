@@ -757,8 +757,10 @@ class InheritingObject(derivable.DerivableObject):
         return self.get_bases(schema).names(schema)
 
     def get_topmost_concrete_base(self, schema):
-        # Get the topmost non-abstract base.
-        for ancestor in reversed(so.compute_lineage(schema, self)):
+        """Get the topmost non-abstract base."""
+        lineage = [self]
+        lineage.extend(self.get_ancestors(schema).objects(schema))
+        for ancestor in reversed(lineage):
             if not ancestor.get_is_abstract(schema):
                 return ancestor
 
