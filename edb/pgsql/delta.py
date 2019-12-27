@@ -569,7 +569,7 @@ class CreateFunction(FunctionCommand, CreateObject,
         sql_text, _ = compiler.compile_ir_to_sql(
             body_ir,
             ignore_shapes=True,
-            explicit_top_cast=irtyputils.type_to_typeref(
+            explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                 schema, func.get_return_type(schema)),
             output_format=compiler.OutputFormat.NATIVE,
             use_named_params=True)

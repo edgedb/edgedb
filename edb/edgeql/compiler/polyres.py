@@ -27,7 +27,6 @@ from typing import *  # NoQA
 from edb import errors
 
 from edb.ir import ast as irast
-from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.schema import functions as s_func
@@ -38,6 +37,7 @@ from edb.edgeql import qltypes as ft
 from . import context
 from . import dispatch
 from . import setgen
+from . import typegen
 
 
 class BoundArg(NamedTuple):
@@ -216,10 +216,9 @@ def try_bind_call_args(
             bargs: List[BoundArg] = []
             if has_inlined_defaults:
                 bytes_t = ctx.env.get_track_schema_type('std::bytes')
+                typeref = typegen.type_to_typeref(bytes_t, env=ctx.env)
                 argval = setgen.ensure_set(
-                    irast.BytesConstant(
-                        value=b'\x00',
-                        typeref=irtyputils.type_to_typeref(schema, bytes_t)),
+                    irast.BytesConstant(value=b'\x00', typeref=typeref),
                     typehint=bytes_t,
                     ctx=ctx)
                 bargs = [BoundArg(None, bytes_t, argval, bytes_t, 0)]
@@ -438,10 +437,9 @@ def try_bind_call_args(
         # bit-mask as a first argument.
         bytes_t = ctx.env.get_track_schema_type('std::bytes')
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
+        typeref = typegen.type_to_typeref(bytes_t, env=ctx.env)
         bm_set = setgen.ensure_set(
-            irast.BytesConstant(
-                value=bm,
-                typeref=irtyputils.type_to_typeref(ctx.env.schema, bytes_t)),
+            irast.BytesConstant(value=bm, typeref=typeref),
             typehint=bytes_t, ctx=ctx)
         bound_param_args.insert(0, BoundArg(None, bytes_t, bm_set, bytes_t, 0))
 

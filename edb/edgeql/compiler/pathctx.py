@@ -41,8 +41,10 @@ def get_path_id(stype: s_types.Type, *,
                 typename: Optional[s_name.Name]=None,
                 ctx: context.ContextLevel) -> irast.PathId:
     return irast.PathId.from_type(
-        ctx.env.schema, stype,
+        ctx.env.schema,
+        stype,
         typename=typename,
+        env=ctx.env,
         namespace=ctx.path_id_namespace)
 
 
@@ -60,6 +62,9 @@ def get_tuple_indirection_path_id(
     ptrref = irtyputils.ptrref_from_ptrcls(
         schema=ctx.env.schema,
         ptrcls=ptrcls,
+        # FIXME: caching disabled here since it breaks tests
+        # cache=ctx.env.ptr_ref_cache,
+        # typeref_cache=ctx.env.type_ref_cache,
     )
 
     return tuple_path_id.extend(schema=ctx.env.schema, ptrref=ptrref)
@@ -136,6 +141,7 @@ def extend_path_id(
         ptrcls=ptrcls,
         direction=direction,
         cache=ctx.env.ptr_ref_cache,
+        typeref_cache=ctx.env.type_ref_cache,
     )
     stmtctx.ensure_ptrref_cardinality(ptrcls, ptrref, ctx=ctx)
 

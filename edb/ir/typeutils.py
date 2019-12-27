@@ -37,8 +37,12 @@ from edb.schema import utils as s_utils
 from . import ast as irast
 
 if TYPE_CHECKING:
+    import uuid
+
     from edb.schema import name as s_name
     from edb.schema import schema as s_schema
+
+    PtrRefCacheKey = Tuple[s_pointers.PointerLike, s_pointers.PointerDirection]
 
 
 def is_scalar(typeref: irast.TypeRef) -> bool:
@@ -102,6 +106,7 @@ def type_to_typeref(
     schema: s_schema.Schema,
     t: s_types.Type,
     *,
+    cache: Optional[Dict[uuid.UUID, irast.TypeRef]] = None,
     typename: Optional[s_name.Name] = None,
     _name: Optional[str] = None,
 ) -> irast.TypeRef:
@@ -115,14 +120,28 @@ def type_to_typeref(
             A schema instance, in which the type *t* is defined.
         t:
             A schema type instance.
+        cache:
+            Optional mapping from (type UUID, typename) to cached IR TypeRefs.
         typename:
             Optional name hint to use for the type in the returned
             TypeRef.  If ``None``, the type name is used.
+        _name:
+            Optional subtype element name if this type is a collection within
+            a Tuple,
 
     Returns:
         A ``TypeRef`` instance corresponding to the given schema type.
     """
+
     result: irast.TypeRef
+
+    if cache is not None and typename is None:
+        cached_result = cache.get(t.id)
+        if cached_result is not None:
+            # If the schema changed due to an ongoing compilation, the name
+            # hint might be outdated.
+            if cached_result.name_hint == t.get_name(schema):
+                return cached_result
 
     if t.is_anytuple():
         result = irast.AnyTupleRef(
@@ -144,7 +163,9 @@ def type_to_typeref(
                 )
             )
             union = frozenset(
-                type_to_typeref(schema, c) for c in non_overlapping)
+                type_to_typeref(schema, c, cache=cache)
+                for c in non_overlapping
+            )
         else:
             union_is_concrete = False
             union = frozenset()
@@ -152,7 +173,7 @@ def type_to_typeref(
         intersection_of = t.get_intersection_of(schema)
         if intersection_of:
             intersection = frozenset(
-                type_to_typeref(schema, c)
+                type_to_typeref(schema, c, cache=cache)
                 for c in intersection_of.objects(schema)
             )
         else:
@@ -162,7 +183,9 @@ def type_to_typeref(
 
         material_typeref: Optional[irast.TypeRef]
         if material_type is not t:
-            material_typeref = type_to_typeref(schema, material_type)
+            material_typeref = type_to_typeref(
+                schema, material_type, cache=cache
+            )
         else:
             material_typeref = None
 
@@ -172,7 +195,9 @@ def type_to_typeref(
             if base_type is material_type:
                 base_typeref = None
             else:
-                base_typeref = type_to_typeref(schema, base_type)
+                base_typeref = type_to_typeref(
+                    schema, base_type, cache=cache
+                )
         else:
             base_typeref = None
 
@@ -186,7 +211,9 @@ def type_to_typeref(
         if union_of:
             common_parent = s_utils.get_class_nearest_common_ancestor(
                 schema, union_of.objects(schema))
-            common_parent_ref = type_to_typeref(schema, common_parent)
+            common_parent_ref = type_to_typeref(
+                schema, common_parent, cache=cache
+            )
         else:
             common_parent_ref = None
 
@@ -214,7 +241,7 @@ def type_to_typeref(
             collection=t.schema_name,
             in_schema=schema.get_by_id(t.id, None) is not None,
             subtypes=tuple(
-                type_to_typeref(schema, st, _name=sn)
+                type_to_typeref(schema, st, _name=sn)  # note: no cache
                 for sn, st in t.iter_subtypes(schema)
             )
         )
@@ -226,11 +253,19 @@ def type_to_typeref(
             collection=t.schema_name,
             in_schema=schema.get_by_id(t.id, None) is not None,
             subtypes=tuple(
-                type_to_typeref(schema, st)
+                type_to_typeref(schema, st, cache=cache)
                 for st in t.get_subtypes(schema)
             )
         )
 
+    if cache is not None and typename is None and _name is None:
+        # Note: there is no cache for `_name` variants since they are only used
+        # for Tuple subtypes and thus they will be cached on the outer level
+        # anyway.
+        # There's also no variant for types with custom typenames since they
+        # proved to have a very low hit rate.
+        # This way we save on the size of the key tuple.
+        cache[t.id] = result
     return result
 
 
@@ -293,10 +328,8 @@ def ptrref_from_ptrcls(
     ptrcls: s_pointers.PointerLike,
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound),
-    cache: Optional[Dict[
-        Tuple[s_pointers.PointerLike, s_pointers.PointerDirection],
-        irast.BasePointerRef,
-    ]] = None,
+    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
+    typeref_cache: Optional[Dict[uuid.UUID, irast.TypeRef]] = None,
     _include_descendants: bool = True,
 ) -> irast.BasePointerRef:
     """Return an IR pointer descriptor for a given schema pointer.
@@ -348,7 +381,7 @@ def ptrref_from_ptrcls(
 
     target = ptrcls.get_far_endpoint(schema, direction)
     if isinstance(target, s_types.Type):
-        target_ref = type_to_typeref(schema, target)
+        target_ref = type_to_typeref(schema, target, cache=typeref_cache)
     else:
         target_ref = target
 
@@ -362,11 +395,12 @@ def ptrref_from_ptrcls(
             direction=direction,
             schema=schema,
             cache=cache,
+            typeref_cache=typeref_cache,
         )
         source_ref = None
     else:
         if isinstance(source, s_types.Type):
-            source_ref = type_to_typeref(schema, source)
+            source_ref = type_to_typeref(schema, source, cache=typeref_cache)
         else:
             source_ref = source
         source_ptr = None
@@ -395,6 +429,7 @@ def ptrref_from_ptrcls(
             direction=direction,
             schema=schema,
             cache=cache,
+            typeref_cache=typeref_cache,
         )
     else:
         material_ptr = None
@@ -420,6 +455,7 @@ def ptrref_from_ptrcls(
                 direction=direction,
                 schema=schema,
                 cache=cache,
+                typeref_cache=typeref_cache,
             ) for p in non_overlapping
         }
 
@@ -439,6 +475,7 @@ def ptrref_from_ptrcls(
             direction=direction,
             schema=schema,
             cache=cache,
+            typeref_cache=typeref_cache,
         )
     else:
         base_ptr = None

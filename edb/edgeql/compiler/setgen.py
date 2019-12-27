@@ -69,7 +69,7 @@ def new_set(*, stype: s_types.Type, ctx: context.ContextLevel,
     Absolutely all ir.Set instances must be created using this
     constructor.
     """
-    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    typeref = typegen.type_to_typeref(stype, env=ctx.env)
     ir_set = irast.Set(typeref=typeref, **kwargs)
     ctx.env.set_types[ir_set] = stype
     return ir_set
@@ -84,7 +84,7 @@ def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str,
         if srcctx is not None:
             ctx.env.type_origins[stype] = srcctx
 
-    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    typeref = typegen.type_to_typeref(stype, env=ctx.env)
     path_id = pathctx.get_expression_path_id(stype, alias, ctx=ctx)
     ir_set = irast.EmptySet(path_id=path_id, typeref=typeref)
     ctx.env.set_types[ir_set] = stype
@@ -150,7 +150,7 @@ def new_tuple_set(
             path_id=elem_path_id,
         ))
 
-    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    typeref = typegen.type_to_typeref(stype, env=ctx.env)
     final_tup = irast.Tuple(elements=final_elems, named=named, typeref=typeref)
     return ensure_set(final_tup, path_id=result_path_id,
                       type_override=stype, ctx=ctx)
@@ -170,7 +170,7 @@ def new_array_set(
         if srcctx is not None:
             ctx.env.type_origins[anytype] = srcctx
 
-    typeref = irtyputils.type_to_typeref(ctx.env.schema, stype)
+    typeref = typegen.type_to_typeref(stype, env=ctx.env)
     arr = irast.Array(elements=elements, typeref=typeref)
     return ensure_set(arr, type_override=stype, ctx=ctx)
 
@@ -695,6 +695,8 @@ def type_intersection_set(
     ptrref = irtyputils.ptrref_from_ptrcls(
         schema=ctx.env.schema,
         ptrcls=ptrcls,
+        cache=ctx.env.ptr_ref_cache,
+        typeref_cache=ctx.env.type_ref_cache,
     )
 
     poly_set.path_id = source_set.path_id.extend(

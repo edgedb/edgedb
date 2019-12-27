@@ -47,7 +47,9 @@ def amend_empty_set_type(
     env.set_types[es] = t
     alias = es.path_id.target_name_hint.name
     typename = s_name.Name(module='__derived__', name=alias)
-    es.path_id = irast.PathId.from_type(env.schema, t, typename=typename)
+    es.path_id = irast.PathId.from_type(
+        env.schema, t, env=env, typename=typename
+    )
 
 
 def _infer_common_type(

@@ -58,7 +58,9 @@ def ql_typeexpr_to_ir_typeref(
         ctx: context.ContextLevel) -> irast.TypeRef:
 
     stype = ql_typeexpr_to_type(ql_t, ctx=ctx)
-    return irtyputils.type_to_typeref(ctx.env.schema, stype)
+    return irtyputils.type_to_typeref(
+        ctx.env.schema, stype, cache=ctx.env.type_ref_cache
+    )
 
 
 def ql_typeexpr_to_type(
@@ -194,3 +196,11 @@ def collapse_type_intersection_rptr(
             for ptrref in rptr_specialization]
 
     return ind_prefix, ptrs
+
+
+def type_to_typeref(
+    t: s_types.Type, env: context.Environment
+) -> irast.TypeRef:
+    schema = env.schema
+    cache = env.type_ref_cache
+    return irtyputils.type_to_typeref(schema, t, cache=cache)

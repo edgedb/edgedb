@@ -26,7 +26,6 @@ from typing import *  # NoQA
 from edb import errors
 
 from edb.ir import ast as irast
-from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
 from edb.schema import constraints as s_constr
@@ -118,9 +117,10 @@ def compile_FunctionCall(
     variadic_param = matched_func_params.find_variadic(env.schema)
     variadic_param_type = None
     if variadic_param is not None:
-        variadic_param_type = irtyputils.type_to_typeref(
-            env.schema,
-            variadic_param.get_type(env.schema))
+        variadic_param_type = typegen.type_to_typeref(
+            variadic_param.get_type(env.schema),
+            env=env,
+        )
 
     matched_func_ret_type = func.get_return_type(env.schema)
     is_polymorphic = (
@@ -189,7 +189,9 @@ def compile_FunctionCall(
         error_on_null_result=func.get_error_on_null_result(env.schema),
         params_typemods=params_typemods,
         context=expr.context,
-        typeref=irtyputils.type_to_typeref(env.schema, rtype),
+        typeref=typegen.type_to_typeref(
+            rtype, env=env,
+        ),
         typemod=matched_call.func.get_return_typemod(env.schema),
         has_empty_variadic=matched_call.has_empty_variadic,
         variadic_param_type=variadic_param_type,
@@ -485,7 +487,7 @@ def compile_operator(
         operator_kind=oper.get_operator_kind(env.schema),
         params_typemods=params_typemods,
         context=qlexpr.context,
-        typeref=irtyputils.type_to_typeref(env.schema, rtype),
+        typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
     )
 

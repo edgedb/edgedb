@@ -27,7 +27,6 @@ from typing import *  # NoQA
 from edb import errors
 
 from edb.ir import ast as irast
-from edb.ir import typeutils as irtyputils
 
 from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
@@ -545,9 +544,9 @@ def compile_DescribeStmt(
                 emit_oids=emit_oids.val,
             )
 
-        ct = irtyputils.type_to_typeref(
-            ctx.env.schema,
+        ct = typegen.type_to_typeref(
             ctx.env.get_track_schema_type('std::str'),
+            env=ctx.env,
         )
 
         stmt.result = setgen.ensure_set(
