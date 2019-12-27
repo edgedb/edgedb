@@ -29,14 +29,13 @@ from edb.server import procpool
 class Port:
 
     def __init__(self, *, server, loop,
-                 pg_addr, pg_data_dir,
+                 pg_addr,
                  runstate_dir, internal_runstate_dir,
                  dbindex):
 
         self._server = server
         self._loop = loop
         self._pg_addr = pg_addr
-        self._pg_data_dir = pg_data_dir
         self._dbindex = dbindex
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
@@ -77,8 +76,7 @@ class Port:
 
         self._compiler_manager = await procpool.create_manager(
             runstate_dir=self._internal_runstate_dir,
-            worker_args=(dict(host=self._pg_addr),
-                         self._pg_data_dir),
+            worker_args=(dict(host=self._pg_addr),),
             worker_cls=self.get_compiler_worker_cls(),
             name=self.get_compiler_worker_name(),
         )

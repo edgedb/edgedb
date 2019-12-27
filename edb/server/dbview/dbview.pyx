@@ -275,9 +275,6 @@ cdef class DatabaseIndex:
         self._dbs = {}
 
         self._server = server
-
-        datadir = self._server.get_datadir()
-
         self._sys_queries = None
         self._instance_data = None
         self._sys_config = None

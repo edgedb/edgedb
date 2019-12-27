@@ -148,7 +148,7 @@ def compile_edgeql_script(
         )
     )
 
-    compiler = Compiler(None, None)
+    compiler = Compiler(None)
     compiler._std_schema = std_schema
     compiler._bootstrap_mode = True
 
@@ -184,7 +184,7 @@ class BaseCompiler:
     _dbname: Optional[str]
     _cached_db: Optional[CompilerDatabaseState]
 
-    def __init__(self, connect_args: dict, data_dir: str):
+    def __init__(self, connect_args: dict):
         self._connect_args = connect_args
         self._dbname = None
         self._cached_db = None
@@ -257,8 +257,8 @@ class BaseCompiler:
 
 class Compiler(BaseCompiler):
 
-    def __init__(self, connect_args: dict, data_dir: str):
-        super().__init__(connect_args, data_dir)
+    def __init__(self, connect_args: dict):
+        super().__init__(connect_args)
 
         self._current_db_state = None
         self._bootstrap_mode = False
