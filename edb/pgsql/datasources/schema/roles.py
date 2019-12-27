@@ -31,13 +31,13 @@ async def fetch(
                 a.rolname AS name,
                 a.rolsuper AS is_superuser,
                 a.rolcanlogin AS allow_login,
-                a.rolpassword AS password,
+                (d.description)->>'ph' AS password,
                 (
                     SELECT
                         array_agg(((md.description)->>'id')::uuid)
                     FROM
                         pg_auth_members m
-                        INNER JOIN pg_authid ma ON m.roleid = ma.oid
+                        INNER JOIN pg_roles ma ON m.roleid = ma.oid
                         CROSS JOIN LATERAL (
                             SELECT
                                 edgedb.shobj_metadata(ma.oid, 'pg_authid')
@@ -47,7 +47,7 @@ async def fetch(
                  )
                               AS bases
             FROM
-                pg_authid AS a
+                pg_roles AS a
                 CROSS JOIN LATERAL (
                     SELECT
                         edgedb.shobj_metadata(a.oid, 'pg_authid')
