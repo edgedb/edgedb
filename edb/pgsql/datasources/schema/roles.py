@@ -31,10 +31,12 @@ async def fetch(
                 a.rolname AS name,
                 a.rolsuper AS is_superuser,
                 a.rolcanlogin AS allow_login,
-                (d.description)->>'ph' AS password,
+                (d.description)->>'password_hash' AS password,
                 (
                     SELECT
-                        array_agg(((md.description)->>'id')::uuid)
+                        array_agg(
+                            ((md.description)->>'id')::uuid
+                        ) FILTER (WHERE (md.description)->>'id' IS NOT NULL)
                     FROM
                         pg_auth_members m
                         INNER JOIN pg_roles ma ON m.roleid = ma.oid
@@ -54,5 +56,5 @@ async def fetch(
                             AS description
                 ) AS d
             WHERE
-                (d.description)->>'__edgedb__' = '1'
+                (d.description)->>'id' IS NOT NULL
     """)

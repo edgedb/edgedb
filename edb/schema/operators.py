@@ -235,11 +235,6 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        modaliases = context.modaliases
-
-        params = cls._get_param_desc_from_ast(
-            schema, modaliases, astnode)
-
         cmd.add(sd.AlterObjectProperty(
             property='operator_kind',
             new_value=astnode.kind,

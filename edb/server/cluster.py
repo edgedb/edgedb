@@ -29,8 +29,6 @@ import sys
 import tempfile
 import time
 
-from asyncpg import cluster as pg_cluster
-
 import edgedb
 
 from edb.common import devmode
@@ -38,6 +36,8 @@ from edb.edgeql import quote
 
 from edb.server import buildmeta
 from edb.server import defines as edgedb_defines
+
+from . import pgcluster
 
 
 def find_available_port(port_range=(49152, 65535), max_tries=1000):
@@ -63,11 +63,6 @@ def find_available_port(port_range=(49152, 65535), max_tries=1000):
         port = None
 
     return port
-
-
-def get_pg_cluster(data_dir: os.PathLike) -> pg_cluster.Cluster:
-    pg_config = buildmeta.get_pg_config_path()
-    return pg_cluster.Cluster(data_dir=data_dir, pg_config_path=str(pg_config))
 
 
 class ClusterError(Exception):
@@ -96,7 +91,7 @@ class Cluster:
 
         self._runstate_dir = runstate_dir
         self._edgedb_cmd.extend(['--runstate-dir', runstate_dir])
-        self._pg_cluster = get_pg_cluster(self._data_dir)
+        self._pg_cluster = pgcluster.get_local_pg_cluster(self._data_dir)
         self._pg_superuser = pg_superuser
         self._daemon_process = None
         self._port = port
@@ -295,6 +290,9 @@ class RunningCluster(Cluster):
         self.conn_args = conn_args
 
     def is_managed(self):
+        return False
+
+    def ensure_initialized(self):
         return False
 
     def get_connect_args(self):

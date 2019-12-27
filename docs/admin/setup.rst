@@ -68,3 +68,46 @@ method with the ``trust`` method:
 .. code-block:: bash
 
     $ edgedb --admin -h </data/dir> configure insert auth --method=trust
+
+
+Using remote PostgreSQL cluster as a backend
+============================================
+
+By default, EdgeDB creates and manages a local PostgreSQL database instance,
+however it is also possible to use a remote PostgreSQL instance, as long as it
+is version 12 or later.  Superuser access to the cluster is *required*.
+
+To setup EdgeDB using a remote PostgreSQL instance, instead of ``-D``,
+specify the ``-P`` (or ``--postgres-dsn``) option when starting the EdgeDB
+server:
+
+.. code-block:: bash
+
+    $ edgedb-server \
+        -P postgres://user:password@host:port/database?opt=val
+
+The format of the connection string generally follows that of `libpq`_,
+including support for specifying the connection parameters via
+`environment variables <postgres envvars>`_ and reading passwords from
+`the password file <postgres passfile>`_.  Unlike libpq, EdgeDB will treat
+unrecognized options as `PostgreSQL settings <postgres settings>`_ to be used
+for the connection.  Multiple hosts in the connection string are unsupported.
+
+.. note::
+
+    PostgreSQL DBaaS providers normally do not allow direct superuser access
+    to the database instance, which might prevent EdgeDB from working
+    correctly.  At this time, only Amazon RDS for PostgreSQL is supported.
+
+
+.. _libpq:
+    https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+
+.. _postgres envvars:
+    https://www.postgresql.org/docs/current/libpq-envars.html
+
+.. _postgres passfile:
+    https://www.postgresql.org/docs/current/libpq-pgpass.html
+
+.. _postgres settings:
+    https://www.postgresql.org/docs/current/static/runtime-config.html

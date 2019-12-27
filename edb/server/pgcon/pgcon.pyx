@@ -21,6 +21,7 @@ import asyncio
 import codecs
 import hashlib
 import json
+import os.path
 
 cimport cython
 cimport cpython
@@ -87,13 +88,29 @@ cdef bytes INIT_CON_SCRIPT = (b'''
 )
 
 
-async def connect(addr, dbname):
+async def connect(connargs, dbname):
     loop = asyncio.get_running_loop()
 
-    _, protocol = await loop.create_unix_connection(
-        lambda: PGProto(dbname, loop, addr), addr)
+    host = connargs.get("host")
+    port = connargs.get("port")
+
+    if host.startswith('/'):
+        addr = os.path.join(host, f'.s.PGSQL.{port}')
+        _, protocol = await loop.create_unix_connection(
+            lambda: PGProto(dbname, loop, connargs), addr)
+
+    else:
+        _, protocol = await loop.create_connection(
+            lambda: PGProto(dbname, loop, connargs), host=host, port=port)
 
     await protocol.connect()
+
+    if connargs['user'] != defines.EDGEDB_SUPERUSER:
+        await protocol.simple_query(
+            f'SET SESSION AUTHORIZATION {defines.EDGEDB_SUPERUSER}'.encode(),
+            ignore_data=True,
+        )
+
     await protocol.simple_query(INIT_CON_SCRIPT, ignore_data=True)
 
     return protocol
@@ -805,8 +822,14 @@ cdef class PGProto:
         buf.write_bytestring(b'search_path')
         buf.write_bytestring(b'edgedb')
 
+        buf.write_bytestring(b'timezone')
+        buf.write_bytestring(b'UTC')
+
+        buf.write_bytestring(b'default_transaction_isolation')
+        buf.write_bytestring(b'repeatable read')
+
         buf.write_bytestring(b'user')
-        buf.write_bytestring(defines.EDGEDB_SUPERUSER.encode('utf-8'))
+        buf.write_bytestring(self.pgaddr['user'].encode('utf-8'))
 
         buf.write_bytestring(b'database')
         buf.write_bytestring(self.dbname.encode('utf-8'))

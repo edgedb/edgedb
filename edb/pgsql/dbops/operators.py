@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import textwrap
 
-from ..common import qname as qn
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 from ..common import quote_type as qt

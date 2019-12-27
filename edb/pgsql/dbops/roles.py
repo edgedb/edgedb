@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import textwrap
 
@@ -29,12 +30,24 @@ from . import ddl
 
 
 class Role(base.DBObject):
-    def __init__(self, name, *, allow_login=False, password=None,
-                 is_superuser=False, membership=None, metadata=None):
+    def __init__(
+        self,
+        name: str,
+        *,
+        allow_login: bool = False,
+        allow_createdb: bool = False,
+        allow_createrole: bool = False,
+        password: Optional[str] = None,
+        is_superuser: bool = False,
+        membership: Optional[Iterable[str]] = None,
+        metadata: Optional[Mapping[str, Any]] = None,
+    ) -> None:
         super().__init__()
         self.name = name
         self.is_superuser = is_superuser
         self.allow_login = allow_login
+        self.allow_createdb = allow_createdb
+        self.allow_createrole = allow_createrole
         self.password = password
         self.membership = membership
         self.metadata = metadata
@@ -64,17 +77,27 @@ class RoleExists(base.Condition):
 class RoleCommand:
 
     def _render(self):
-        superuser = 'SUPERUSER' if self.object.is_superuser else ''
-        login = 'LOGIN' if self.object.allow_login else 'NOLOGIN'
-        if self.object.password:
-            password = f'PASSWORD {ql(self.object.password)}'
-        else:
-            password = f'PASSWORD NULL'
+        attrs = []
 
-        return (
-            f'ROLE {self.object.get_id()} '
-            f'{superuser} {login} {password}'
-        )
+        attrmap = {
+            'is_superuser': 'SUPERUSER',
+            'allow_login': 'LOGIN',
+            'allow_createdb': 'CREATEDB',
+            'allow_createrole': 'CREATEROLE',
+        }
+
+        for objattr, stmtattr in attrmap.items():
+            if getattr(self.object, objattr):
+                attrs.append(stmtattr)
+            else:
+                attrs.append(f'NO{stmtattr}')
+
+        if self.object.password:
+            attrs.append(f'PASSWORD {ql(self.object.password)}')
+        else:
+            attrs.append('PASSWORD NULL')
+
+        return f'ROLE {self.object.get_id()} {" ".join(attrs)}'
 
 
 class CreateRole(ddl.CreateObject, RoleCommand):

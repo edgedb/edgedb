@@ -2399,7 +2399,7 @@ def _generate_role_views(schema):
             a.rolname                                   AS name,
             a.rolsuper                                  AS is_superuser,
             a.rolcanlogin                               AS allow_login,
-            (d.description)->>'ph'                      AS password
+            (d.description)->>'password_hash'           AS password
         FROM
             pg_catalog.pg_roles AS a
             CROSS JOIN LATERAL (
@@ -2408,7 +2408,7 @@ def _generate_role_views(schema):
                         AS description
             ) AS d
         WHERE
-            (d.description)->>'__edgedb__' = '1';
+            (d.description)->>'id' IS NOT NULL
     '''
 
     link_query = f'''
