@@ -55,7 +55,6 @@ class Server:
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
-        self._pg_data_dir = self._cluster.get_data_dir()
 
         # DB state will be initialized in init().
         self._dbindex = None
@@ -125,7 +124,6 @@ class Server:
             server=self,
             loop=self._loop,
             pg_addr=self._pg_addr,
-            pg_data_dir=self._pg_data_dir,
             runstate_dir=self._runstate_dir,
             internal_runstate_dir=self._internal_runstate_dir,
             dbindex=self._dbindex,
@@ -260,9 +258,6 @@ class Server:
     async def _after_system_config_reset(self, setting_name):
         # CONFIGURE SYSTEM RESET setting_name;
         pass
-
-    def get_datadir(self):
-        return self._pg_data_dir
 
     def add_port(self, portcls, **kwargs):
         if self._serving:
