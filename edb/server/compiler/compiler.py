@@ -211,7 +211,6 @@ class BaseCompiler:
 
     async def new_connection(self):
         con_args = self._connect_args.copy()
-        con_args['user'] = defines.EDGEDB_SUPERUSER
         con_args['database'] = self._dbname
         try:
             return await asyncpg.connect(**con_args)

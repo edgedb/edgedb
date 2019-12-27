@@ -49,7 +49,7 @@ from edb.schema import std as s_std
 from edb.server import buildmeta
 from edb.server import config
 from edb.server import compiler
-from edb.server import defines as edgedb_defines
+from edb.server import defines as edbdef
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
@@ -84,15 +84,38 @@ async def _execute_block(conn, block: dbops.PLBlock) -> None:
     await _execute(conn, sql_text)
 
 
-async def _ensure_edgedb_user(conn, username, *, is_superuser=False):
+async def _ensure_edgedb_role(
+    cluster,
+    conn,
+    username,
+    *,
+    membership=(),
+    is_superuser=False,
+) -> None:
+    membership = set(membership)
+    if is_superuser:
+        superuser_role = cluster.get_superuser_role()
+        if superuser_role:
+            # If the cluster is exposing an explicit superuser role,
+            # become a member of that instead of creating a superuser
+            # role directly,
+            membership.add(superuser_role)
+            superuser_flag = False
+        else:
+            superuser_flag = True
+    else:
+        superuser_flag = False
+
     role = dbops.Role(
         name=username,
-        is_superuser=is_superuser,
+        is_superuser=superuser_flag,
         allow_login=True,
+        allow_createdb=True,
+        allow_createrole=True,
+        membership=membership,
         metadata=dict(
             id=str(uuidgen.uuid1mc()),
-            __edgedb__='1',
-        )
+        ),
     )
 
     create_role = dbops.CreateRole(
@@ -122,15 +145,15 @@ async def _get_db_info(conn, dbname):
 
 
 async def _ensure_edgedb_template_database(conn):
-    result = await _get_db_info(conn, edgedb_defines.EDGEDB_TEMPLATE_DB)
+    result = await _get_db_info(conn, edbdef.EDGEDB_TEMPLATE_DB)
 
     if not result:
         logger.info('Creating template database...')
         await _execute(
             conn,
             'CREATE DATABASE {} WITH OWNER = {} IS_TEMPLATE = TRUE'.format(
-                edgedb_defines.EDGEDB_TEMPLATE_DB,
-                edgedb_defines.EDGEDB_SUPERUSER))
+                edbdef.EDGEDB_TEMPLATE_DB,
+                edbdef.EDGEDB_SUPERUSER))
 
         return True
     else:
@@ -140,7 +163,7 @@ async def _ensure_edgedb_template_database(conn):
         if not result['datistemplate']:
             alter.append('IS_TEMPLATE')
 
-        if result['rolname'] != edgedb_defines.EDGEDB_SUPERUSER:
+        if result['rolname'] != edbdef.EDGEDB_SUPERUSER:
             alter_owner = True
 
         if alter or alter_owner:
@@ -149,25 +172,25 @@ async def _ensure_edgedb_template_database(conn):
                 await _execute(
                     conn,
                     'ALTER DATABASE {} WITH {}'.format(
-                        edgedb_defines.EDGEDB_TEMPLATE_DB,
+                        edbdef.EDGEDB_TEMPLATE_DB,
                         ' '.join(alter)))
 
             if alter_owner:
                 await _execute(
                     conn,
                     'ALTER DATABASE {} OWNER TO {}'.format(
-                        edgedb_defines.EDGEDB_TEMPLATE_DB,
-                        edgedb_defines.EDGEDB_SUPERUSER))
+                        edbdef.EDGEDB_TEMPLATE_DB,
+                        edbdef.EDGEDB_SUPERUSER))
 
         return False
 
 
 async def _ensure_edgedb_template_not_connectable(conn):
-    result = await _get_db_info(conn, edgedb_defines.EDGEDB_TEMPLATE_DB)
+    result = await _get_db_info(conn, edbdef.EDGEDB_TEMPLATE_DB)
     if result['datallowconn']:
         await _execute(
             conn,
-            f'''ALTER DATABASE {edgedb_defines.EDGEDB_TEMPLATE_DB}
+            f'''ALTER DATABASE {edbdef.EDGEDB_TEMPLATE_DB}
                 WITH ALLOW_CONNECTIONS = false
             '''
         )
@@ -183,8 +206,7 @@ async def _store_static_bin_cache(cluster, key: str, data: bytes) -> None:
     """
 
     dbconn = await cluster.connect(
-        database=edgedb_defines.EDGEDB_TEMPLATE_DB,
-        user=edgedb_defines.EDGEDB_SUPERUSER,
+        database=edbdef.EDGEDB_TEMPLATE_DB,
     )
 
     try:
@@ -203,8 +225,7 @@ async def _store_static_json_cache(cluster, key: str, data: str) -> None:
     """
 
     dbconn = await cluster.connect(
-        database=edgedb_defines.EDGEDB_TEMPLATE_DB,
-        user=edgedb_defines.EDGEDB_SUPERUSER,
+        database=edbdef.EDGEDB_TEMPLATE_DB,
     )
 
     try:
@@ -472,7 +493,7 @@ async def _configure(schema, conn, cluster, *, insecure=False, testmode=False):
     config_json = config.to_json(config_spec, settings)
     block = dbops.PLTopBlock()
     dbops.UpdateMetadata(
-        dbops.Database(name=edgedb_defines.EDGEDB_TEMPLATE_DB),
+        dbops.Database(name=edbdef.EDGEDB_TEMPLATE_DB),
         {'sysconfig': json.loads(config_json)},
     ).generate(block)
 
@@ -525,7 +546,7 @@ async def _populate_misc_instance_data(cluster):
             'stage_no': ver.stage_no,
             'local': tuple(ver.local) if ver.local else (),
         },
-        'catver': edgedb_defines.EDGEDB_CATALOG_VERSION,
+        'catver': edbdef.EDGEDB_CATALOG_VERSION,
         'mock_auth_nonce': mock_auth_nonce,
     }
 
@@ -549,20 +570,6 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster):
         db = dbops.Database(database, owner=owner)
         dbops.CreateDatabase(db).generate(block)
         await _execute_block(conn, block)
-
-        if owner != edgedb_defines.EDGEDB_SUPERUSER:
-            block = dbops.SQLBlock()
-            reassign = dbops.ReassignOwned(
-                edgedb_defines.EDGEDB_SUPERUSER, owner)
-            reassign.generate(block)
-
-            dbconn = await cluster.connect(
-                database=database, user=edgedb_defines.EDGEDB_SUPERUSER)
-
-            try:
-                await _execute_block(dbconn, block)
-            finally:
-                await dbconn.close()
 
 
 async def _bootstrap_config_spec(schema, cluster):
@@ -599,14 +606,40 @@ async def bootstrap(cluster, args) -> bool:
     std_schema = None
 
     try:
-        await _ensure_edgedb_user(pgconn, edgedb_defines.EDGEDB_SUPERUSER,
-                                  is_superuser=True)
+        membership = set()
+        session_user = cluster.get_connection_params().user
+        if session_user != edbdef.EDGEDB_SUPERUSER:
+            membership.add(session_user)
+
+        await _ensure_edgedb_role(
+            cluster,
+            pgconn,
+            edbdef.EDGEDB_SUPERUSER,
+            membership=membership,
+            is_superuser=True,
+        )
+
+        if session_user != edbdef.EDGEDB_SUPERUSER:
+            await _execute(
+                pgconn,
+                f'SET ROLE {edbdef.EDGEDB_SUPERUSER};',
+            )
+            cluster.set_default_session_authorization(edbdef.EDGEDB_SUPERUSER)
+
         need_meta_bootstrap = await _ensure_edgedb_template_database(pgconn)
 
         if need_meta_bootstrap:
-            conn = await cluster.connect(
-                database=edgedb_defines.EDGEDB_TEMPLATE_DB,
-                user=edgedb_defines.EDGEDB_SUPERUSER)
+            conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
+            conn.add_log_listener(_pg_log_listener)
+
+            superuser_role = cluster.get_superuser_role()
+            if superuser_role:
+                block = dbops.PLTopBlock()
+                reassign = dbops.ReassignOwned(
+                    session_user, edbdef.EDGEDB_SUPERUSER)
+                reassign.generate(block)
+
+                await _execute_block(conn, block)
 
             try:
                 conn.add_log_listener(_pg_log_listener)
@@ -625,10 +658,15 @@ async def bootstrap(cluster, args) -> bool:
                                  testmode=args['testmode'])
             finally:
                 await conn.close()
+
+            await _ensure_edgedb_database(
+                pgconn,
+                edbdef.EDGEDB_SUPERUSER_DB,
+                edbdef.EDGEDB_SUPERUSER,
+                cluster=cluster)
+
         else:
-            conn = await cluster.connect(
-                database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                user=edgedb_defines.EDGEDB_SUPERUSER)
+            conn = await cluster.connect(database=edbdef.EDGEDB_SUPERUSER_DB)
 
             try:
                 std_schema = await compiler.load_std_schema(conn)
@@ -637,12 +675,6 @@ async def bootstrap(cluster, args) -> bool:
                 instancedata = await _get_instance_data(conn)
             finally:
                 await conn.close()
-
-        await _ensure_edgedb_database(
-            pgconn,
-            edgedb_defines.EDGEDB_SUPERUSER_DB,
-            edgedb_defines.EDGEDB_SUPERUSER,
-            cluster=cluster)
 
         datadir_version = instancedata.get('version')
         if datadir_version:
@@ -666,7 +698,7 @@ async def bootstrap(cluster, args) -> bool:
             )
 
         datadir_catver = instancedata.get('catver')
-        expected_catver = edgedb_defines.EDGEDB_CATALOG_VERSION
+        expected_catver = edbdef.EDGEDB_CATALOG_VERSION
 
         if datadir_catver != expected_catver:
             raise errors.ConfigurationError(
@@ -685,12 +717,20 @@ async def bootstrap(cluster, args) -> bool:
 
         await _ensure_edgedb_template_not_connectable(pgconn)
 
-        await _ensure_edgedb_user(
-            pgconn, args['default_database_user'], is_superuser=True)
+        await _ensure_edgedb_role(
+            cluster, pgconn, args['default_database_user'], is_superuser=True)
+
+        await _execute(
+            pgconn,
+            f"SET ROLE {args['default_database_user']};",
+        )
 
         await _ensure_edgedb_database(
-            pgconn, args['default_database'], args['default_database_user'],
-            cluster=cluster)
+            pgconn,
+            args['default_database'],
+            args['default_database_user'],
+            cluster=cluster,
+        )
 
     finally:
         await pgconn.close()

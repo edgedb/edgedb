@@ -256,10 +256,12 @@ cdef class EdgeConnection:
         buf.write_buffer(msg_buf)
 
         if self.port.in_dev_mode():
+            pgaddr = dict(self.get_backend().pgcon.get_pgaddr())
+            if pgaddr.get('password'):
+                pgaddr['password'] = '********'
             msg_buf = WriteBuffer.new_message(b'S')
             msg_buf.write_len_prefixed_bytes(b'pgaddr')
-            msg_buf.write_len_prefixed_utf8(
-                str(self.get_backend().pgcon.get_pgaddr()))
+            msg_buf.write_len_prefixed_utf8(str(pgaddr))
             msg_buf.end_message()
             buf.write_buffer(msg_buf)
 

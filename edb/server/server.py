@@ -20,8 +20,6 @@
 from __future__ import annotations
 
 import logging
-import os
-import urllib.parse
 
 from edb import errors
 
@@ -95,20 +93,10 @@ class Server:
             key=lambda a: a.priority))
 
     def _get_pgaddr(self):
-        pg_con_spec = self._cluster.get_connection_spec()
-        if 'host' not in pg_con_spec and 'dsn' in pg_con_spec:
-            parsed = urllib.parse.urlparse(pg_con_spec['dsn'])
-            query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
-            host = query.get("host")[-1]
-            port = query.get("port")[-1]
-        else:
-            host = pg_con_spec.get("host")
-            port = pg_con_spec.get("port")
-
-        return os.path.join(host, f'.s.PGSQL.{port}')
+        return self._cluster.get_connection_spec()
 
     async def new_pgcon(self, dbname):
-        return await pgcon.connect(self._pg_addr, dbname)
+        return await pgcon.connect(self._get_pgaddr(), dbname)
 
     async def new_compiler(self, dbname, dbver):
         compiler_worker = await self._compiler_manager.spawn_worker()

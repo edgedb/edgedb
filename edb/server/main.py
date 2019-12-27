@@ -45,6 +45,8 @@ from . import cluster as edgedb_cluster
 from . import daemon
 from . import defines
 from . import logsetup
+from . import pgconnparams
+from . import pgcluster
 
 
 logger = logging.getLogger('edb.server')
@@ -60,14 +62,23 @@ def terminate_server(server, loop):
     loop.stop()
 
 
-def _ensure_runstate_dir(data_dir, runstate_dir):
-    if runstate_dir is None:
+@contextlib.contextmanager
+def _ensure_runstate_dir(default_runstate_dir, specified_runstate_dir):
+    temp_runstate_dir = None
+
+    if specified_runstate_dir is None:
+        if default_runstate_dir is None:
+            temp_runstate_dir = tempfile.TemporaryDirectory(prefix='edbrun-')
+            default_runstate_dir = temp_runstate_dir.name
+
         try:
-            runstate_dir = buildmeta.get_runstate_path(data_dir)
+            runstate_dir = buildmeta.get_runstate_path(default_runstate_dir)
         except buildmeta.MetadataError:
             abort(
                 f'cannot determine the runstate directory location; '
                 f'please use --runstate-dir to specify the correct location')
+    else:
+        runstate_dir = specified_runstate_dir
 
     runstate_dir = pathlib.Path(runstate_dir)
 
@@ -90,7 +101,11 @@ def _ensure_runstate_dir(data_dir, runstate_dir):
         abort(f'{str(runstate_dir)!r} is not a directory; please use '
               f'--runstate-dir to specify the correct location')
 
-    return runstate_dir
+    try:
+        yield runstate_dir
+    finally:
+        if temp_runstate_dir is not None:
+            temp_runstate_dir.cleanup()
 
 
 @contextlib.contextmanager
@@ -208,54 +223,28 @@ def run_server(args):
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
 
-    try:
-        server_settings = {
-            'log_connections': 'yes',
-            'log_statement': 'all',
-            'log_disconnections': 'yes',
-            'log_min_messages': 'INFO',
-            'client_min_messages': 'INFO',
-            'listen_addresses': '',  # we use Unix sockets
-            'unix_socket_permissions': '0700',
-            # We always enforce UTC timezone:
-            # * timestamptz is stored in UTC anyways;
-            # * this makes the DB server more predictable.
-            'TimeZone': 'UTC',
-            'default_transaction_isolation': 'repeatable read',
-
-            # TODO: EdgeDB must manage/monitor all client connections and
-            # have its own "max_connections".  We'll set this setting even
-            # higher when we have that fully implemented.
-            'max_connections': '500',
-        }
-
-        cluster = edgedb_cluster.get_pg_cluster(args['data_dir'])
-        cluster_status = cluster.get_status()
-
-        if cluster_status == 'not-initialized':
-            logger.info(
-                'Initializing database cluster in %s', args['data_dir'])
-            initdb_output = cluster.init(
-                username='postgres', locale='C', encoding='UTF8')
-            for line in initdb_output.splitlines():
-                logger.debug('initdb: %s', line)
-            cluster.reset_hba()
-            cluster.add_hba_entry(
-                type='local',
-                database='all',
+    if args['data_dir']:
+        cluster = pgcluster.get_local_pg_cluster(args['data_dir'])
+        default_runstate_dir = cluster.get_data_dir()
+        cluster.set_connection_params(
+            pgconnparams.ConnectionParameters(
                 user='postgres',
-                auth_method='trust'
-            )
-            cluster.add_hba_entry(
-                type='local',
-                database='all',
-                user=defines.EDGEDB_SUPERUSER,
-                auth_method='trust'
-            )
-            pg_cluster_init_by_us = True
+                database='template1',
+            ),
+        )
+    elif args['postgres_dsn']:
+        cluster = pgcluster.get_remote_pg_cluster(args['postgres_dsn'])
+        default_runstate_dir = None
+    else:
+        # This should have been checked by main() already,
+        # but be extra careful.
+        abort('Neither the data directory nor the remote Postgres DSN '
+              'are specified')
+
+    try:
+        pg_cluster_init_by_us = cluster.ensure_initialized()
 
         cluster_status = cluster.get_status()
-        data_dir = cluster.get_data_dir()
 
         if args['runstate_dir']:
             specified_runstate_dir = args['runstate_dir']
@@ -265,27 +254,25 @@ def run_server(args):
             # possibility of conflict with another running instance, etc.
             # The --bootstrap mode is also often runs unattended, i.e.
             # as a post-install hook during package installation.
-            specified_runstate_dir = data_dir
+            specified_runstate_dir = default_runstate_dir
         else:
             specified_runstate_dir = None
 
-        runstate_dir = _ensure_runstate_dir(data_dir, specified_runstate_dir)
+        runstate_dir_mgr = _ensure_runstate_dir(
+            default_runstate_dir,
+            specified_runstate_dir,
+        )
 
-        with _internal_state_dir(runstate_dir) as internal_runstate_dir:
-            server_settings['unix_socket_directories'] = args['data_dir']
+        with runstate_dir_mgr as runstate_dir, \
+                _internal_state_dir(runstate_dir) as internal_runstate_dir:
 
             if cluster_status == 'stopped':
-                cluster.start(
-                    port=edgedb_cluster.find_available_port(),
-                    server_settings=server_settings)
+                cluster.start(port=edgedb_cluster.find_available_port())
                 pg_cluster_started_by_us = True
 
             elif cluster_status != 'running':
                 abort('Could not start database cluster in %s',
                       args['data_dir'])
-
-            cluster.override_connection_spec(
-                user='postgres', database='template1')
 
             need_cluster_restart = _init_cluster(cluster, args)
 
@@ -293,11 +280,17 @@ def run_server(args):
                 logger.info('Restarting server to reload configuration...')
                 cluster_port = cluster.get_connection_spec()['port']
                 cluster.stop()
-                cluster.start(
-                    port=cluster_port,
-                    server_settings=server_settings)
+                cluster.start(port=cluster_port)
 
             if not args['bootstrap']:
+                if args['data_dir']:
+                    cluster.set_connection_params(
+                        pgconnparams.ConnectionParameters(
+                            user=defines.EDGEDB_SUPERUSER,
+                            database=defines.EDGEDB_SUPERUSER_DB,
+                        ),
+                    )
+
                 _run_server(cluster, args, runstate_dir, internal_runstate_dir)
 
     except BaseException:
@@ -333,6 +326,9 @@ _server_options = [
     click.option(
         '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
         help='database cluster directory'),
+    click.option(
+        '-P', '--postgres-dsn', type=str,
+        help='DSN of a remote Postgres cluster, if using one'),
     click.option(
         '-l', '--log-level',
         help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '
@@ -402,11 +398,16 @@ def server_main(*, insecure=False, **kwargs):
         devmode.enable_dev_mode(kwargs['devmode'])
 
     if not kwargs['data_dir']:
-        if devmode.is_in_dev_mode():
+        if kwargs['postgres_dsn']:
+            pass
+        elif devmode.is_in_dev_mode():
             kwargs['data_dir'] = os.path.expanduser('~/.edgedb')
         else:
             abort('Please specify the instance data directory '
-                  'using the -D argument')
+                  'using the -D argument or the address of a remote '
+                  'PostgreSQL cluster using the -P argument')
+    elif kwargs['postgres_dsn']:
+        abort('The -D and -P options are mutually exclusive.')
 
     kwargs['insecure'] = insecure
 

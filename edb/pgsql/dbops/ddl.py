@@ -133,10 +133,16 @@ class ReassignOwned(DDLOperation):
         self.old_role = old_role
         self.new_role = new_role
 
+    def qi(self, ident: str) -> str:
+        if ident.upper() in ('CURRENT_USER', 'SESSION_USER'):
+            return ident
+        else:
+            return qi(ident)
+
     def code(self, block: base.PLBlock) -> str:
         return (
-            f'REASSIGN OWNED BY {qi(self.old_role)} '
-            f'TO {qi(self.new_role)}'
+            f'REASSIGN OWNED BY {self.qi(self.old_role)} '
+            f'TO {self.qi(self.new_role)}'
         )
 
 
