@@ -55,7 +55,7 @@ class RoleExists(base.Condition):
             SELECT
                 rolname
             FROM
-                pg_catalog.pg_authid
+                pg_catalog.pg_roles
             WHERE
                 rolname = {ql(self.name)}
         ''')

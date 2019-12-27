@@ -3660,13 +3660,14 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
         schema, role = s_roles.CreateRole.apply(self, schema, context)
         schema, _ = ObjectMetaCommand.apply(self, schema, context)
 
+        passwd = role.get_password(schema)
         role = dbops.Role(
             name=role.get_name(schema),
             allow_login=role.get_allow_login(schema),
             is_superuser=role.get_is_superuser(schema),
-            password=role.get_password(schema),
-            metadata=dict(id=str(role.id), __edgedb__='1'),
+            password=passwd,
             membership=list(role.get_bases(schema).names(schema)),
+            metadata=dict(id=str(role.id), ph=passwd, __edgedb__='1'),
         )
         self.pgops.add(dbops.CreateRole(role))
         return schema, role
@@ -3676,11 +3677,13 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
     def apply(self, schema, context):
         schema, role = s_roles.AlterRole.apply(self, schema, context)
         schema, _ = ObjectMetaCommand.apply(self, schema, context)
+        passwd = role.get_password(schema)
         dbrole = dbops.Role(
             name=role.get_name(schema),
             allow_login=role.get_allow_login(schema),
             is_superuser=role.get_is_superuser(schema),
-            password=role.get_password(schema),
+            password=passwd,
+            metadata=dict(id=str(role.id), ph=passwd, __edgedb__='1'),
         )
         self.pgops.add(dbops.AlterRole(dbrole))
 
