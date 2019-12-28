@@ -638,9 +638,14 @@ class OperatorCommand(FunctionCommand):
     def get_table(self, schema):
         return self._table
 
-    def get_pg_name(self, schema,
-                    oper: s_opers.Operator) -> Tuple[str, str]:
-        return common.get_backend_name(schema, oper, catenate=False)
+    def oper_name_to_pg_name(
+        self,
+        schema,
+        name: sn.Name,
+    ) -> Tuple[str, str]:
+        module = schema.get_global(s_mod.Module, name.module)
+        return common.get_operator_backend_name(
+            name, module.id, catenate=False)
 
     def get_pg_operands(self, schema, oper: s_opers.Operator):
         left_type = None
@@ -703,6 +708,16 @@ class CreateOperator(OperatorCommand, CreateObject,
         oper_fromop = oper.get_from_operator(schema)
         oper_fromfunc = oper.get_from_function(schema)
         oper_code = oper.get_code(schema)
+        oper_comm = oper.get_commutator(schema)
+        if oper_comm:
+            commutator = self.oper_name_to_pg_name(schema, oper_comm)
+        else:
+            commutator = None
+        oper_neg = oper.get_negator(schema)
+        if oper_neg:
+            negator = self.oper_name_to_pg_name(schema, oper_neg)
+        else:
+            negator = None
 
         if oper_language is ql_ast.Language.SQL and oper_fromop:
             pg_oper_name = oper_fromop[0]
@@ -760,11 +775,13 @@ class CreateOperator(OperatorCommand, CreateObject,
                     all(p.get_type(schema).is_array()
                         for p in params.objects(schema))):
                 self.pgops.add(dbops.CreateOperatorAlias(
-                    name=self.get_pg_name(schema, oper),
+                    name=common.get_backend_name(schema, oper, catenate=False),
                     args=args,
                     procedure=oper_func_name,
-                    operator=('pg_catalog', pg_oper_name),
+                    base_operator=('pg_catalog', pg_oper_name),
                     operator_args=from_args,
+                    commutator=commutator,
+                    negator=negator,
                 ))
 
         elif oper_language is ql_ast.Language.SQL and oper_code:
@@ -774,7 +791,7 @@ class CreateOperator(OperatorCommand, CreateObject,
             oper_func_name = common.qname(*oper_func.name)
 
             self.pgops.add(dbops.CreateOperator(
-                name=self.get_pg_name(schema, oper),
+                name=common.get_backend_name(schema, oper, catenate=False),
                 args=args,
                 procedure=oper_func_name,
             ))
@@ -814,7 +831,7 @@ class DeleteOperator(
         if oper.get_is_abstract(schema):
             return super().apply(schema, context)
 
-        name = self.get_pg_name(schema, oper)
+        name = common.get_backend_name(schema, oper, catenate=False)
         args = self.get_pg_operands(schema, oper)
 
         schema, oper = super().apply(schema, context)

@@ -29,7 +29,6 @@ Introspection of the ``schema::Operator``:
             links: {
                 Object { name: '__type__' },
                 Object { name: 'annotations' },
-                Object { name: 'commutator' },
                 Object { name: 'params' },
                 Object { name: 'return_type' }
             },

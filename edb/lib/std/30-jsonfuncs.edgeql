@@ -70,6 +70,8 @@ std::json_get(
 CREATE INFIX OPERATOR
 std::`=` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
 };
 
@@ -84,6 +86,8 @@ std::`?=` (l: OPTIONAL std::json, r: OPTIONAL std::json) -> std::bool {
 CREATE INFIX OPERATOR
 std::`!=` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
 };
 
@@ -98,6 +102,8 @@ std::`?!=` (l: OPTIONAL std::json, r: OPTIONAL std::json) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>=` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
     USING SQL OPERATOR '>=';
 };
 
@@ -105,6 +111,8 @@ std::`>=` (l: std::json, r: std::json) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
     USING SQL OPERATOR '>';
 };
 
@@ -112,6 +120,8 @@ std::`>` (l: std::json, r: std::json) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<=` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
     USING SQL OPERATOR '<=';
 };
 
@@ -119,6 +129,8 @@ std::`<=` (l: std::json, r: std::json) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<` (l: std::json, r: std::json) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
     USING SQL OPERATOR '<';
 };
 

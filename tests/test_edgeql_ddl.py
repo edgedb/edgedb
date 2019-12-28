@@ -1716,7 +1716,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''
             CREATE INFIX OPERATOR test::`+++`
                 (left: int64, right: int64) -> int64
+            {
+                SET commutator := 'test::+++';
                 USING SQL OPERATOR r'+';
+            };
         ''')
 
         await self.assert_query_result(

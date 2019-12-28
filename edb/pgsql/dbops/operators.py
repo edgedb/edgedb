@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import textwrap
 
+from ..common import qname as qn
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 from ..common import quote_type as qt
@@ -30,17 +31,31 @@ from . import ddl
 
 
 class CreateOperatorAlias(ddl.SchemaObjectOperation):
-    def __init__(self, *, name, args, operator, operator_args,
-                 procedure=None, **kwargs):
+    def __init__(
+        self,
+        *,
+        name,
+        args,
+        base_operator,
+        operator_args,
+        negator=None,
+        commutator=None,
+        procedure=None,
+        **kwargs,
+    ):
         super().__init__(name=name, **kwargs)
         self.args = args
-        self.operator = operator
+        self.operator = base_operator
         self.operator_args = operator_args
         self.procedure = procedure
+        self.commutator = commutator
+        self.negator = negator
 
     def code(self, block: base.PLBlock) -> str:
         oper_var = block.declare_var(('pg_catalog', 'pg_operator%ROWTYPE'))
         oper_cond = []
+
+        oper_name = f'{qi(self.name[0])}.{self.name[1]}'
 
         if self.args[0] is not None:
             left_type_desc = qt(self.args[0])
@@ -67,7 +82,45 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
             f'{left_type_desc}, {right_type_desc})'
         ).strip()
 
-        oprtype_matches = self.args == self.operator_args
+        if self.commutator:
+            commutator_name = f'{qi(self.commutator[0])}.{self.commutator[1]}'
+            commutator_decl = textwrap.indent(textwrap.dedent(f'''\
+                ', COMMUTATOR = OPERATOR({commutator_name})'
+            '''), ' ' * 8).strip()
+            commutator_cond = 'TRUE'
+        else:
+            commutator_decl = textwrap.indent(textwrap.dedent(f'''\
+                ', COMMUTATOR = ' || (
+                    SELECT edgedb._raise_specific_exception(
+                        'invalid_object_definition',
+                        'missing required commutator for operator '
+                        || {ql(oper_name)},
+                        NULL,
+                        NULL::text
+                    )
+                )
+            '''), ' ' * 8).strip()
+            commutator_cond = 'FALSE'
+
+        if self.negator:
+            negator_name = f'{qi(self.negator[0])}.{self.negator[1]}'
+            negator_decl = textwrap.indent(textwrap.dedent(f'''\
+                ', NEGATOR = OPERATOR({negator_name})'
+            '''), ' ' * 8).strip()
+            negator_cond = 'TRUE'
+        else:
+            negator_decl = textwrap.indent(textwrap.dedent(f'''\
+                ', NEGATOR = ' || (
+                    SELECT edgedb._raise_specific_exception(
+                        'invalid_object_definition',
+                        'missing required negator for operator '
+                        || {ql(oper_name)},
+                        NULL,
+                        NULL::text
+                    )
+                )
+            '''), ' ' * 8).strip()
+            negator_cond = 'FALSE'
 
         def _get_op_field(field, oid):
             return textwrap.indent(textwrap.dedent(f'''\
@@ -123,7 +176,7 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
                 || ')'
                 ;
         ''').format_map({
-            'name': f'{qi(self.name[0])}.{self.name[1]}',
+            'name': oper_name,
             'oper': oper_var,
             'procedure': (ql(self.procedure) if self.procedure
                           else f'{oper_var}.oprcode::text'),
@@ -133,12 +186,16 @@ class CreateOperatorAlias(ddl.SchemaObjectOperation):
             'oper_desc': ql(oper_desc),
             'left_type': left_type,
             'right_type': right_type,
-            'commutator':
-                _get_op_field('COMMUTATOR', oper_var + '.oprcom')
-                if oprtype_matches else "''",
-            'negator':
-                _get_op_field('NEGATOR', oper_var + '.oprnegate')
-                if oprtype_matches else "''",
+            'commutator': (
+                f"(CASE WHEN {oper_var}.oprcom != 0 OR {commutator_cond} THEN "
+                f"{commutator_decl} "
+                f"ELSE '' END)"
+            ),
+            'negator': (
+                f"(CASE WHEN {oper_var}.oprnegate != 0 OR {negator_cond} THEN "
+                f"{negator_decl} "
+                f"ELSE '' END)"
+            ),
             'restrict': (
                 f"(CASE WHEN {oper_var}.oprrest != 0 THEN "
                 f"', RESTRICT = ' || {oper_var}.oprrest::text "

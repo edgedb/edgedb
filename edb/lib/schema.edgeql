@@ -286,7 +286,6 @@ CREATE TYPE schema::Operator
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
     CREATE PROPERTY operator_kind -> schema::OperatorKind;
-    CREATE LINK commutator -> schema::Operator;
     CREATE PROPERTY is_abstract -> std::bool {
         SET default := false;
     };

@@ -67,7 +67,10 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
         sn.Name, coerce=True, default=None, compcoef=0.4)
 
     commutator = so.SchemaField(
-        so.Object, default=None, compcoef=0.99)
+        sn.Name, coerce=True, default=None, compcoef=0.99)
+
+    negator = so.SchemaField(
+        sn.Name, coerce=True, default=None, compcoef=0.99)
 
     recursive = so.SchemaField(
         bool, default=False, compcoef=0.4, introspectable=False)
@@ -122,36 +125,6 @@ class OperatorCommand(s_func.CallableCommand,
 
         return cls.get_schema_metaclass().get_fqname(
             schema, name, params, astnode.kind)
-
-    def _qualify_operator_refs(
-            self, schema, kind: ft.OperatorKind,
-            params: List[s_func.ParameterDesc], context):
-
-        self_shortname = sn.shortname_from_fullname(self.classname)
-        commutator = self.get_attribute_value('commutator')
-        if commutator is None:
-            return
-
-        if commutator.classname == self_shortname:
-            commutator.classname = self.classname
-        else:
-            opers = schema.get_operators(commutator.classname)
-
-            for oper in opers:
-                oper_params = oper.get_params(schema)
-                if (oper.get_operator_kind(schema) == kind and
-                        len(oper_params) == len(params) and
-                        all(p1.get_type(schema) == p2.get_type(schema) and
-                            p1.get_typemod(schema) == p2.get_typemod(schema)
-                            for p1, p2 in zip(oper_params, params))):
-                    commutator.classname = oper.name
-                    break
-            else:
-                raise errors.QueryError(
-                    f'operator {commutator.classname} {params.as_str(schema)} '
-                    f'does not exist',
-                    context=self.source_context,
-                )
 
 
 class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
@@ -298,7 +271,6 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
                     new_value=astnode.code.from_expr
                 ))
 
-        cmd._qualify_operator_refs(schema, astnode.kind, params, context)
         return cmd
 
 
@@ -308,16 +280,6 @@ class RenameOperator(sd.RenameObject, OperatorCommand):
 
 class AlterOperator(sd.AlterObject, OperatorCommand):
     astnode = qlast.AlterOperator
-
-    @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
-        params = cls._get_param_desc_from_ast(
-            schema, context.modaliases, astnode)
-
-        cmd._qualify_operator_refs(schema, astnode.kind, params, context)
-        return cmd
 
 
 class DeleteOperator(s_func.DeleteCallableObject, OperatorCommand):
