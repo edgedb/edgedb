@@ -61,6 +61,8 @@ std::`NOT` (v: std::bool) -> std::bool {
 CREATE INFIX OPERATOR
 std::`=` (l: std::bool, r: std::bool) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
 };
 
@@ -75,6 +77,8 @@ std::`?=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
 CREATE INFIX OPERATOR
 std::`!=` (l: std::bool, r: std::bool) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
 };
 
@@ -89,6 +93,8 @@ std::`?!=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>=` (l: std::bool, r: std::bool) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
     USING SQL OPERATOR '>=';
 };
 
@@ -96,6 +102,8 @@ std::`>=` (l: std::bool, r: std::bool) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>` (l: std::bool, r: std::bool) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
     USING SQL OPERATOR '>';
 };
 
@@ -103,6 +111,8 @@ std::`>` (l: std::bool, r: std::bool) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<=` (l: std::bool, r: std::bool) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
     USING SQL OPERATOR '<=';
 };
 
@@ -110,6 +120,8 @@ std::`<=` (l: std::bool, r: std::bool) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<` (l: std::bool, r: std::bool) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
     USING SQL OPERATOR '<';
 };
 

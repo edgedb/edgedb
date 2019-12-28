@@ -346,8 +346,10 @@ std::find(haystack: array<anytype>, needle: anytype,
 CREATE INFIX OPERATOR
 std::`=` (l: anytuple, r: anytuple) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '=';
     SET recursive := true;
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
+    USING SQL OPERATOR '=';
 };
 
 
@@ -362,8 +364,10 @@ std::`?=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
 CREATE INFIX OPERATOR
 std::`!=` (l: anytuple, r: anytuple) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '<>';
     SET recursive := true;
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
+    USING SQL OPERATOR '<>';
 };
 
 
@@ -378,30 +382,38 @@ std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>=` (l: anytuple, r: anytuple) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '>=';
     SET recursive := true;
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
+    USING SQL OPERATOR '>=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: anytuple, r: anytuple) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '>';
     SET recursive := true;
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
+    USING SQL OPERATOR '>';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: anytuple, r: anytuple) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '<=';
     SET recursive := true;
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
+    USING SQL OPERATOR '<=';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: anytuple, r: anytuple) -> std::bool {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '<';
     SET recursive := true;
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
+    USING SQL OPERATOR '<';
 };

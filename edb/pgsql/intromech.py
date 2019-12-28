@@ -62,9 +62,6 @@ class IntrospectionMech:
 
     def __init__(self, connection):
         self._constr_mech = schemamech.ConstraintMech()
-
-        self._operator_commutators = {}
-
         self.connection = connection
 
     async def _readschema(self, *, schema=None, modules=None,
@@ -319,8 +316,6 @@ class IntrospectionMech:
             return schema, []
 
     async def read_operators(self, schema, only_modules, exclude_modules):
-        self._operator_commutators.clear()
-
         ds = datasources.schema
         func_list = await ds.operators.fetch(
             self.connection, modules=only_modules,
@@ -354,28 +349,20 @@ class IntrospectionMech:
                 'code': row['code'],
                 'recursive': row['recursive'],
                 'volatility': row['volatility'],
+                'commutator': row['commutator'],
+                'negator': row['negator'],
                 'return_type': r_type,
             }
 
             schema, oper = s_opers.Operator.create_in_schema(
                 schema, **oper_data)
 
-            if row['commutator']:
-                self._operator_commutators[oper] = row['commutator']
-
         return schema
 
     async def order_operators(self, schema):
-        for oper, commutator in self._operator_commutators.items():
-            schema = oper.set_field_value(
-                schema, 'commutator', schema.get(commutator))
-
-        self._operator_commutators.clear()
         return schema
 
     async def read_casts(self, schema, only_modules, exclude_modules):
-        self._operator_commutators.clear()
-
         ds = datasources.schema
         cast_list = await ds.casts.fetch(
             self.connection, modules=only_modules,

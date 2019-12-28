@@ -215,6 +215,8 @@ cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
 };
 
@@ -230,6 +232,8 @@ std::`?=` (l: OPTIONAL cal::local_datetime,
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
 };
 
@@ -245,6 +249,8 @@ std::`?!=` (l: OPTIONAL cal::local_datetime,
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
     USING SQL OPERATOR r'>';
 };
 
@@ -252,6 +258,8 @@ std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
     USING SQL OPERATOR r'>=';
 };
 
@@ -259,6 +267,8 @@ std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
     USING SQL OPERATOR r'<';
 };
 
@@ -266,6 +276,8 @@ std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
     USING SQL OPERATOR r'<=';
 };
 
@@ -273,6 +285,7 @@ std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
 };
 
@@ -280,6 +293,7 @@ std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
 };
 
@@ -297,6 +311,8 @@ std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
 };
 
@@ -312,6 +328,8 @@ std::`?=` (l: OPTIONAL cal::local_date,
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
 };
 
@@ -327,6 +345,8 @@ std::`?!=` (l: OPTIONAL cal::local_date,
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
     USING SQL OPERATOR r'>';
 };
 
@@ -334,6 +354,8 @@ std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
     USING SQL OPERATOR r'>=';
 };
 
@@ -341,6 +363,8 @@ std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
     USING SQL OPERATOR r'<';
 };
 
@@ -348,6 +372,8 @@ std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_date, r: cal::local_date) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
     USING SQL OPERATOR r'<=';
 };
 
@@ -356,8 +382,9 @@ CREATE INFIX OPERATOR
 std::`+` (l: cal::local_date, r: std::duration) -> cal::local_date
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '+';
+    SET commutator := 'std::+';
     SET force_return_cast := true;
+    USING SQL OPERATOR '+';
 };
 
 
@@ -365,8 +392,9 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_date) -> cal::local_date
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '+';
+    SET commutator := 'std::+';
     SET force_return_cast := true;
+    USING SQL OPERATOR '+';
 };
 
 
@@ -374,8 +402,8 @@ CREATE INFIX OPERATOR
 std::`-` (l: cal::local_date, r: std::duration) -> cal::local_date
 {
     SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR '-';
     SET force_return_cast := true;
+    USING SQL OPERATOR '-';
 };
 
 
@@ -385,6 +413,8 @@ std::`-` (l: cal::local_date, r: std::duration) -> cal::local_date
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_time, r: cal::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
 };
 
@@ -400,6 +430,8 @@ std::`?=` (l: OPTIONAL cal::local_time,
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_time, r: cal::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
 };
 
@@ -415,6 +447,8 @@ std::`?!=` (l: OPTIONAL cal::local_time,
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_time, r: cal::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
     USING SQL OPERATOR r'>';
 };
 
@@ -422,6 +456,8 @@ std::`>` (l: cal::local_time, r: cal::local_time) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_time, r: cal::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
     USING SQL OPERATOR r'>=';
 };
 
@@ -429,6 +465,8 @@ std::`>=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_time, r: cal::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
     USING SQL OPERATOR r'<';
 };
 
@@ -436,6 +474,8 @@ std::`<` (l: cal::local_time, r: cal::local_time) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_time, r: cal::local_time) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
     USING SQL OPERATOR r'<=';
 };
 
@@ -443,6 +483,7 @@ std::`<=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
 };
 
@@ -450,6 +491,7 @@ std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_time) -> cal::local_time {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
 };
 

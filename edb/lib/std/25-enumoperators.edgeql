@@ -24,6 +24,8 @@
 CREATE INFIX OPERATOR
 std::`=` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
 };
 
@@ -38,6 +40,8 @@ std::`?=` (l: OPTIONAL std::anyenum, r: OPTIONAL std::anyenum) -> std::bool {
 CREATE INFIX OPERATOR
 std::`!=` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
 };
 
@@ -52,6 +56,8 @@ std::`?!=` (l: OPTIONAL std::anyenum, r: OPTIONAL std::anyenum) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>=` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
     USING SQL OPERATOR '>=';
 };
 
@@ -59,6 +65,8 @@ std::`>=` (l: std::anyenum, r: std::anyenum) -> std::bool {
 CREATE INFIX OPERATOR
 std::`>` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
     USING SQL OPERATOR '>';
 };
 
@@ -66,6 +74,8 @@ std::`>` (l: std::anyenum, r: std::anyenum) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<=` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
     USING SQL OPERATOR '<=';
 };
 
@@ -73,6 +83,8 @@ std::`<=` (l: std::anyenum, r: std::anyenum) -> std::bool {
 CREATE INFIX OPERATOR
 std::`<` (l: std::anyenum, r: std::anyenum) -> std::bool {
     SET volatility := 'IMMUTABLE';
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
     USING SQL OPERATOR '<';
 };
 

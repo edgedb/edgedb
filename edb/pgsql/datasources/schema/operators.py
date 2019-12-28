@@ -44,7 +44,8 @@ async def fetch(
                 o.operator_kind,
                 o.volatility,
                 o.return_type,
-                edgedb._resolve_type_name(o.commutator) AS commutator,
+                o.commutator,
+                o.negator,
                 edgedb._resolve_type_name(o.params) AS params
             FROM
                 edgedb.operator o
