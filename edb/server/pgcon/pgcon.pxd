@@ -41,6 +41,20 @@ cdef enum PGTransactionStatus:
     PQTRANS_UNKNOWN = 4              # cannot determine status
 
 
+cdef enum PGAuthenticationState:
+    PGAUTH_SUCCESSFUL = 0
+    PGAUTH_REQUIRED_KERBEROS = 2
+    PGAUTH_REQUIRED_PASSWORD = 3
+    PGAUTH_REQUIRED_PASSWORDMD5 = 5
+    PGAUTH_REQUIRED_SCMCRED = 6
+    PGAUTH_REQUIRED_GSS = 7
+    PGAUTH_REQUIRED_GSS_CONTINUE = 8
+    PGAUTH_REQUIRED_SSPI = 9
+    PGAUTH_REQUIRED_SASL = 10
+    PGAUTH_SASL_CONTINUE = 11
+    PGAUTH_SASL_FINAL = 12
+
+
 @cython.final
 cdef class PGProto:
 
@@ -80,3 +94,4 @@ cdef class PGProto:
     cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf)
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
+    cdef make_auth_password_md5_message(self, bytes salt)
