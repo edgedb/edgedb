@@ -19,6 +19,7 @@
 
 import asyncio
 import codecs
+import hashlib
 import json
 
 cimport cython
@@ -830,8 +831,16 @@ cdef class PGProto:
                 if mtype == b'R':
                     # Authentication...
                     status = self.buffer.read_int32()
-                    if status != 0:
-                        raise RuntimeError('unsupported auth method')
+                    if status == PGAUTH_SUCCESSFUL:
+                        pass
+                    elif status == PGAUTH_REQUIRED_PASSWORDMD5:
+                        # Note: MD5 salt is passed as a four-byte sequence
+                        md5_salt = self.buffer.read_bytes(4)
+                        self.write(
+                            self.make_auth_password_md5_message(md5_salt))
+
+                    else:
+                        raise RuntimeError(f'unsupported auth method: {status}')
 
                 elif mtype == b'K':
                     # BackendKeyData
@@ -948,6 +957,22 @@ cdef class PGProto:
         buf.write_byte(b'S')
         buf.write_bytestring(stmt_name)
         return buf.end_message()
+
+    cdef make_auth_password_md5_message(self, bytes salt):
+        cdef WriteBuffer msg
+
+        msg = WriteBuffer.new_message(b'p')
+
+        user = self.pgaddr.get('user') or ''
+        password = self.pgaddr.get('password') or ''
+
+        # 'md5' + md5(md5(password + username) + salt))
+        userpass = (password + user).encode('ascii')
+        hash = hashlib.md5(hashlib.md5(userpass).hexdigest().\
+                encode('ascii') + salt).hexdigest().encode('ascii')
+
+        msg.write_bytestring(b'md5' + hash)
+        return msg.end_message()
 
     async def wait_for_message(self):
         if self.buffer.take_message():
