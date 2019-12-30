@@ -939,7 +939,7 @@ Format:
 .. code-block:: c
 
     struct AuthenticationSASLResponse {
-        // Message type ('p')
+        // Message type ('r')
         int8      mtype = 0x70;
 
         // Length of message contents in bytes,

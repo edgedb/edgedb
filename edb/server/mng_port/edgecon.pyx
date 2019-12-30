@@ -359,11 +359,11 @@ cdef class EdgeConnection:
             if not self.buffer.take_message():
                 await self.wait_for_message()
             mtype = self.buffer.get_message_type()
-            if mtype != b'p':
-                raise errors.BinaryProtocolError(
-                    f'expected SASL response, got message type {mtype}')
 
             if selected_mech is None:
+                if mtype != b'p':
+                    raise errors.BinaryProtocolError(
+                        f'expected SASL response, got message type {mtype}')
                 # Initial response.
                 selected_mech = self.buffer.read_len_prefixed_bytes()
                 if selected_mech != b'SCRAM-SHA-256':
@@ -416,6 +416,9 @@ cdef class EdgeConnection:
                 self.flush()
 
             else:
+                if mtype != b'r':
+                    raise errors.BinaryProtocolError(
+                        f'expected SASL response, got message type {mtype}')
                 # client final message
                 client_final = self.buffer.read_len_prefixed_bytes()
                 self.buffer.finish_message()
