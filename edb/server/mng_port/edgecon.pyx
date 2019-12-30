@@ -79,6 +79,9 @@ cdef object logger = logging.getLogger('edb.server')
 
 DEF BACKUP_NWORKERS = 10
 
+DEF PROTO_VER_MAJOR = 0
+DEF PROTO_VER_MINOR = 7
+
 
 @cython.final
 cdef class EdgeConnection:
@@ -276,15 +279,15 @@ cdef class EdgeConnection:
 
     async def do_handshake(self):
         cdef:
-            uint16_t hi
-            uint16_t lo
+            uint16_t major
+            uint16_t minor
             int i
             uint16_t nexts
             dict exts = {}
             dict params = {}
 
-        hi = <uint16_t>self.buffer.read_int16()
-        lo = <uint16_t>self.buffer.read_int16()
+        major = <uint16_t>self.buffer.read_int16()
+        minor = <uint16_t>self.buffer.read_int16()
 
         nparams = <uint16_t>self.buffer.read_int16()
         for i in range(nparams):
@@ -300,13 +303,13 @@ cdef class EdgeConnection:
 
         self.buffer.finish_message()
 
-        if hi != 1 or lo != 0 or nexts > 0:
+        if major != PROTO_VER_MAJOR or minor != PROTO_VER_MINOR or nexts > 0:
             # NegotiateProtocolVersion
             buf = WriteBuffer.new_message(b'v')
             # Highest supported major version of the protocol.
-            buf.write_int16(1)
+            buf.write_int16(PROTO_VER_MAJOR)
             # Highest supported minor version of the protocol.
-            buf.write_int16(0)
+            buf.write_int16(PROTO_VER_MINOR)
             # No extensions are currently supported.
             buf.write_int16(0)
             buf.end_message()
