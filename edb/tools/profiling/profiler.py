@@ -24,11 +24,14 @@ See README.md in this package for more details.
 from __future__ import annotations
 from typing import *  # NoQA
 
+import ast
 import atexit
 import builtins
 import cProfile
 import dataclasses
 import functools
+import hashlib
+import linecache
 import os
 import pathlib
 import pickle
@@ -59,6 +62,7 @@ if TYPE_CHECKING:
     LineNo = int
     FunctionName = str
     FunctionID = Tuple[ModulePath, LineNo, FunctionName]
+    LineID = Tuple[ModulePath, LineNo]
     # cc, nc, tt, ct, callers
     PrimitiveCallCount = int  # without recursion
     CallCount = int  # with recursion
@@ -80,7 +84,7 @@ if TYPE_CHECKING:
 
 
 class profile:
-    """A decorator for profiling."""
+    """A decorator for CPU profiling."""
 
     def __init__(
         self,
@@ -268,6 +272,39 @@ class profile:
         return result
 
 
+def profile_memory(func: Callable[[], Any]) -> MemoryFrame:
+    """Profile memory and return a tree of statistics.
+
+    Feed those to `render_memory_svg()` to write an SVG.
+    """
+    import tracemalloc
+
+    tracemalloc.start(1024)
+    try:
+        func()
+    finally:
+        snap = tracemalloc.take_snapshot()
+        tracemalloc.stop()
+    stats = snap.statistics("traceback")
+    root = MemoryFrame(blocks=0, size=0)
+    for stat in stats:
+        blocks = stat.count
+        size = stat.size
+        callee = root
+        callee.blocks += blocks
+        callee.size += size
+        for frame in stat.traceback:
+            lineid = (frame.filename, frame.lineno)
+            callee = callee.callers.setdefault(
+                lineid, MemoryFrame(blocks=0, size=0)
+            )
+            callee.blocks += blocks
+            callee.size += size
+    while len(root.callers) == 1:
+        root = next(iter(root.callers.values()))
+    return root
+
+
 @dataclasses.dataclass
 class Function:
     id: FunctionID
@@ -299,9 +336,6 @@ COLORS = list(gen_colors(RGB(255, 240, 141), RGB(255, 65, 34), 7))
 CCOLORS = list(gen_colors(RGB(44, 255, 210), RGB(113, 194, 0), 5))
 ECOLORS = list(gen_colors(RGB(230, 230, 255), RGB(150, 150, 255), 5))
 DCOLORS = list(gen_colors(RGB(190, 190, 190), RGB(240, 240, 240), 7))
-
-
-import hashlib
 
 
 def gradient_from_name(name: str) -> float:
@@ -407,6 +441,84 @@ class Block:
             result += ":"
         result += self.name
         return f"{result} {self.tooltip}"
+
+
+@dataclasses.dataclass
+class MemoryFrame:
+    """A node of a tree of calls.
+
+    Leaves are were memory allocations actually happened.
+    """
+    blocks: int
+    size: int  # in bytes
+    callers: Dict[LineID, MemoryFrame] = dataclasses.field(
+        default_factory=dict
+    )
+
+
+class ScopeRecorder(ast.NodeVisitor):
+    """A nifty AST visitor that records all scope changes in the file."""
+
+    # the value is a qualified name (without the module), e.g. "Class.method"
+    scopes: Dict[LineNo, str]
+
+    # internal stack for correct naming in the scope
+    stack: List[FunctionName]
+
+    def __init__(self):
+        self.reset()
+        self.visit_FunctionDef = self.handle_scopes
+        self.visit_AsyncFunctionDef = self.handle_scopes
+        self.visit_ClassDef = self.handle_scopes
+        super().__init__()
+
+    def reset(self) -> None:
+        self.stack = []
+        self.scopes = {}
+
+    def handle_scopes(
+        self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef]
+    ) -> None:
+        self.stack.append(node.name)
+        self.scopes[node.lineno] = ".".join(self.stack)
+        self.generic_visit(node)
+        self.stack.pop()
+
+
+class ScopeCache:
+    """Returns qualified names of scopes for a given module path and lineno.
+
+    Caches both scopes from ScopeRecorder and queries about a given line number
+    (which is likely *inside* the function body).
+    """
+
+    def __init__(self):
+        self.recorder = ScopeRecorder()
+        self.scopes: Dict[ModulePath, Dict[LineNo, str]] = {}
+        self.cache: Dict[Tuple[ModulePath, LineNo], str] = {}
+
+    def __getitem__(self, key: Tuple[ModulePath, LineNo]) -> str:
+        if key not in self.cache:
+            try:
+                self.cache[key] = self._get_scope(key[0], key[1])
+            except FileNotFoundError:
+                self.cache[key] = ""
+        return self.cache[key]
+
+    def _get_scope(self, mod_path: ModulePath, wanted_lineno: LineNo) -> str:
+        if mod_path not in self.scopes:
+            with open(mod_path) as mod:
+                self.recorder.visit(ast.parse(mod.read(), mod_path))
+                self.scopes[mod_path] = self.recorder.scopes
+                self.recorder.reset()
+        last_scope = ""
+        for lineno, scope in sorted(self.scopes[mod_path].items()):
+            if lineno > wanted_lineno:
+                return last_scope
+
+            last_scope = scope
+
+        return last_scope
 
 
 def count_calls(funcs: Dict[FunctionID, Function]) -> Counter[Call]:
@@ -570,6 +682,7 @@ def build_svg_blocks(
     call_stack_blocks: List[Block] = []
     usage_blocks: List[Block] = []
     counts: Counter[Call] = count_calls(funcs)
+    maxw = float(funcs[ROOT_ID].stat[3])
 
     def _build_blocks_by_call_stack(
         func: FunctionID,
@@ -696,10 +809,46 @@ def build_svg_blocks(
                 )
             origin += ttt
 
-    maxw = float(funcs[ROOT_ID].stat[3])
     _build_blocks_by_call_stack(ROOT_ID, scaled_timings=(1, 1, maxw, maxw))
     _build_blocks_by_usage([fid for fid in funcs if fid != ROOT_ID])
     return call_stack_blocks, usage_blocks, maxw
+
+
+def build_svg_blocks_by_memory(
+    root: MemoryFrame,
+    *,
+    maxw: int,
+    level: int = 0,
+    x: int = 0,
+    scope_cache: Optional[ScopeCache] = None,
+) -> Iterator[Block]:
+    if scope_cache is None:
+        scope_cache = ScopeCache()
+    for (mod_path, lineno), caller in root.callers.items():
+        func_name = scope_cache[mod_path, lineno]
+        line = linecache.getline(mod_path, lineno).strip()
+        if len(caller.callers) == 0 or level == 0:
+            color = 0
+        elif len(caller.callers) >= 2:
+            color = 1
+        else:
+            color = 2
+        yield Block(
+            func=(mod_path, lineno, func_name),
+            call_stack=(),
+            color=color,
+            level=level,
+            tooltip=(
+                f"{caller.size / 1024 :.2f} KiB / {caller.blocks}"
+                f" blocks \N{RIGHTWARDS DOUBLE ARROW} {line}"
+            ),
+            w=caller.size,
+            x=x,
+        )
+        yield from build_svg_blocks_by_memory(
+            caller, maxw=maxw, level=level + 1, x=x, scope_cache=scope_cache,
+        )
+        x += caller.size
 
 
 def render_svg_section(
@@ -709,12 +858,12 @@ def render_svg_section(
     block_height: int,
     font_size: int,
     width: int,
-    top: int = 0,
     javascript: str = "",
     invert: bool = False,
 ) -> str:
-    maxlevel = max(r.level for r in blocks)
+    maxlevel = max(r.level for r in blocks) + 1
     height = (maxlevel + 1) * block_height
+    top = 0 if not invert else 3 * block_height
     content = []
     for b in blocks:
         x = b.x * width / maxw
@@ -743,7 +892,11 @@ def render_svg_section(
             )
         )
     height += block_height
-    content.append(DETAILS.format(font_size=font_size, y=height))
+    content.append(
+        DETAILS.format(
+            font_size=font_size, y=2 * block_height if invert else height
+        )
+    )
     result = SVG.format(
         "\n".join(content),
         javascript=javascript,
@@ -804,6 +957,32 @@ def render_svg(
         )
         with open(usage_out, "w") as outf:
             outf.write(usage_svg)
+
+
+def render_memory_svg(
+    stats: MemoryFrame,
+    out: Union[pathlib.Path, str],
+    *,
+    width: int = 1920,  # in pixels
+    block_height: int = 24,  # in pixels
+    font_size: int = 12,
+):
+    with PROFILING_JS.open() as js_file:
+        javascript = js_file.read()
+    maxw = stats.size
+    mem_blocks = list(build_svg_blocks_by_memory(stats, maxw=maxw))
+    mem_svg = render_svg_section(
+        mem_blocks,
+        maxw,
+        [COLORS, CCOLORS, DCOLORS],
+        block_height=block_height,
+        font_size=font_size,
+        width=width,
+        javascript=javascript,
+        invert=True,
+    )
+    with open(out, "w") as outf:
+        outf.write(mem_svg)
 
 
 SVG = """\
