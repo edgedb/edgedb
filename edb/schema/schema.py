@@ -283,8 +283,6 @@ class Schema(s_abc.Schema):
         if not objfields:
             return self._refs_to
 
-        id_set = frozenset((scls.id,))
-
         with self._refs_to.mutate() as mm:
             for field in objfields:
                 if not new_data:
@@ -343,21 +341,22 @@ class Schema(s_abc.Schema):
                         try:
                             refs = mm[ref_id]
                         except KeyError:
-                            mm[ref_id] = immu.Map({key: id_set})
+                            mm[ref_id] = immu.Map((
+                                (key, immu.Map(((scls.id, None),))),
+                            ))
                         else:
                             try:
                                 field_refs = refs[key]
                             except KeyError:
-                                field_refs = id_set
+                                field_refs = immu.Map(((scls.id, None),))
                             else:
-                                field_refs |= id_set
+                                field_refs = field_refs.set(scls.id, None)
                             mm[ref_id] = refs.set(key, field_refs)
 
                 if old_ids:
                     for ref_id in old_ids:
                         refs = mm[ref_id]
-                        field_refs = refs[key]
-                        field_refs -= id_set
+                        field_refs = refs[key].delete(scls.id)
                         if not field_refs:
                             mm[ref_id] = refs.delete(key)
                         else:
