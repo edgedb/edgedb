@@ -35,6 +35,7 @@ from edb.schema import types as s_types
 
 
 _int32_packer = struct.Struct('!l').pack
+_uint32_packer = struct.Struct('!L').pack
 _uint16_packer = struct.Struct('!H').pack
 _uint8_packer = struct.Struct('!B').pack
 
@@ -147,7 +148,7 @@ class TypeSerializer:
                 buf.append(_uint16_packer(len(subtypes)))
                 for el_name, el_type in zip(element_names, subtypes):
                     el_name_bytes = el_name.encode('utf-8')
-                    buf.append(_uint16_packer(len(el_name_bytes)))
+                    buf.append(_uint32_packer(len(el_name_bytes)))
                     buf.append(el_name_bytes)
                     buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
 
@@ -279,7 +280,7 @@ class TypeSerializer:
                 buf.append(_uint8_packer(flags))
 
                 el_name_bytes = el_name.encode('utf-8')
-                buf.append(_uint16_packer(len(el_name_bytes)))
+                buf.append(_uint32_packer(len(el_name_bytes)))
                 buf.append(el_name_bytes)
                 buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
 
@@ -304,7 +305,7 @@ class TypeSerializer:
                 buf.append(_uint16_packer(len(enum_values)))
                 for enum_val in enum_values:
                     enum_val_bytes = enum_val.encode('utf-8')
-                    buf.append(_uint16_packer(len(enum_val_bytes)))
+                    buf.append(_uint32_packer(len(enum_val_bytes)))
                     buf.append(enum_val_bytes)
 
             elif mt is base_type:
