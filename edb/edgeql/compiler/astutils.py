@@ -78,40 +78,6 @@ def is_ql_path(qlexpr: qlast.Expr) -> bool:
     return isinstance(start, (qlast.Source, qlast.ObjectRef, qlast.Ptr))
 
 
-def is_degenerate_select(qlstmt: qlast.Expr) -> bool:
-    if not isinstance(qlstmt, qlast.SelectQuery) or not qlstmt.implicit:
-        return False
-
-    qlexpr = qlstmt.result
-
-    # This is a normal path
-    if not is_ql_path(qlexpr):
-        return False
-
-    if isinstance(qlexpr, qlast.Shape):
-        qlexpr = qlexpr.expr
-
-    assert isinstance(qlexpr, qlast.Path)
-
-    start = qlexpr.steps[0]
-
-    views = [
-        e.alias for e in qlstmt.aliases
-        if isinstance(e, qlast.AliasedExpr)
-    ]
-
-    return (
-        # Not a reference to a view defined in this statement
-        (not isinstance(start, qlast.ObjectRef) or
-            start.module is not None or start.name not in views) and
-        # No FILTER, ORDER BY, OFFSET or LIMIT
-        qlstmt.where is None and
-        qlstmt.orderby is None and
-        qlstmt.offset is None and
-        qlstmt.limit is None
-    )
-
-
 def type_to_ql_typeref(t: s_types.Type, *,
                        schema: s_schema.Schema) -> qlast.TypeName:
     return s_utils.typeref_to_ast(schema, t)

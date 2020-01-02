@@ -57,23 +57,6 @@ from . import typegen
 @dispatch.compile.register(qlast.SelectQuery)
 def compile_SelectQuery(
         expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Set:
-    if astutils.is_degenerate_select(expr) and ctx.toplevel_stmt is not None:
-        # Compile implicit "SELECT Path" as "Path"
-        with ctx.new() as sctx:
-            process_with_block(expr, ctx=sctx, parent_ctx=ctx)
-            sctx.aliased_views = ctx.aliased_views.new_child()
-            sctx.modaliases = ctx.modaliases.copy()
-            sctx.anchors = ctx.anchors.copy()
-            result = compile_result_clause(
-                expr.result,
-                view_scls=ctx.view_scls,
-                view_rptr=ctx.view_rptr,
-                view_name=ctx.toplevel_result_view_name,
-                ctx=sctx)
-            result = fini_stmt(result, expr, ctx=sctx, parent_ctx=ctx)
-
-        return result
-
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
