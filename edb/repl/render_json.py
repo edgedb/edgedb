@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *  # NoQA
 
+import dataclasses
 import functools
 import re
 import typing
@@ -55,10 +56,21 @@ def _encode_str(s: str) -> str:
     return '"' + ESCAPE.sub(replace, s) + '"'
 
 
+class JSONRenderingError(Exception):
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class RenderContext:
+
+    path: Tuple[Tuple[str, str], ...]
+
+
 @functools.singledispatch
 def walk(
     o: Any,
     repl_ctx: context.ReplContext,
+    render_ctx: RenderContext,
     buf: terminal.Buffer
 ) -> None:
     # The default renderer.  Shouldn't be ever called,
@@ -73,16 +85,44 @@ def walk(
 def _set(
     o: Sequence[Any],
     repl_ctx: context.ReplContext,
+    render_ctx: RenderContext,
     buf: terminal.Buffer
 ) -> None:
     with buf.foldable_lines():
         buf.write('[', style.bracket)
         with buf.indent():
             for idx, el in enumerate(o):
-                walk(el, repl_ctx, buf)
+                new_ctx = RenderContext(
+                    path=render_ctx.path + ((str(idx), 'index'),)
+                )
+                walk(el, repl_ctx, new_ctx, buf)
                 if idx < (len(o) - 1):
                     buf.write(',')
                     buf.mark_line_break()
+                if (repl_ctx.implicit_limit
+                        and (idx + 1) == repl_ctx.implicit_limit):
+                    # Unlike regular render mode, we treat implicit
+                    # limit overflow as an error, because the purpose
+                    # of JSON mode output is to be copy-pastable, and
+                    # neither rendering ellipses, nor rendering an
+                    # incorrect result are OK.
+                    steps = []
+                    for deref, deref_kind in render_ctx.path:
+                        if deref_kind == 'index':
+                            steps.append(f'[{deref}]')
+                        elif deref_kind == 'key':
+                            steps.append(f'.{deref}')
+                        else:
+                            raise AssertionError(
+                                'invalid path in RenderContext'
+                            )
+
+                    raise JSONRenderingError(
+                        f"Cannot render JSON result: `.{''.join(steps)}` "
+                        f"is too long.  Consider putting an explicit LIMIT "
+                        f"clause, or increase the implicit limit using "
+                        f"\\limit."
+                    )
         buf.write(']', style.bracket)
 
 
@@ -90,15 +130,19 @@ def _set(
 def _dict(
     o: Mapping[str, Any],
     repl_ctx: context.ReplContext,
+    render_ctx: RenderContext,
     buf: terminal.Buffer
 ) -> None:
     with buf.foldable_lines():
         buf.write('{', style.bracket)
         with buf.indent():
             for idx, (key, el) in enumerate(o.items()):
-                walk(key, repl_ctx, buf)
+                walk(key, repl_ctx, render_ctx, buf)
                 buf.write(': ')
-                walk(el, repl_ctx, buf)
+                new_ctx = RenderContext(
+                    path=render_ctx.path + ((str(key), 'key'),)
+                )
+                walk(el, repl_ctx, new_ctx, buf)
                 if idx < (len(o) - 1):
                     buf.write(',')
                     buf.mark_line_break()
@@ -110,6 +154,7 @@ def _dict(
 def _numeric(
     o: Union[int, float],
     repl_ctx: context.ReplContext,
+    render_ctx: RenderContext,
     buf: terminal.Buffer
 ) -> None:
     buf.write(str(o), style.code_number)
@@ -119,6 +164,7 @@ def _numeric(
 def _str(
     o: str,
     repl_ctx: context.ReplContext,
+    render_ctx: RenderContext,
     buf: terminal.Buffer
 ) -> None:
     o = str(o)
@@ -129,6 +175,7 @@ def _str(
 def _bool(
     o: bool,
     repl_ctx: context.ReplContext,
+    render_ctx: RenderContext,
     buf: terminal.Buffer
 ) -> None:
     buf.write(str(o).lower(), style.code_constant)

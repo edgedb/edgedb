@@ -336,6 +336,12 @@ def _normalize_view_ptr_expr(
                 qlexpr.offset = shape_el.offset
                 qlexpr.limit = shape_el.limit
 
+            if ((ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
+                    and ctx.implicit_limit and not qlexpr.limit):
+                qlexpr.limit = qlast.IntegerConstant(
+                    value=str(ctx.implicit_limit),
+                )
+
         if target_typexpr is not None:
             intersector_type = schemactx.get_schema_type(
                 target_typexpr.maintype, ctx=ctx)
@@ -439,6 +445,10 @@ def _normalize_view_ptr_expr(
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
 
+        if ((ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
+                and ctx.implicit_limit):
+            qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
+
         with ctx.newscope(fenced=True) as shape_expr_ctx:
             # Put current pointer class in context, so
             # that references to link properties in sub-SELECT
@@ -457,7 +467,8 @@ def _normalize_view_ptr_expr(
             shape_expr_ctx.defining_view = True
             shape_expr_ctx.path_scope.unnest_fence = True
             shape_expr_ctx.partial_path_prefix = setgen.class_set(
-                view_scls, path_id=path_id, ctx=shape_expr_ctx)
+                view_scls.get_bases(ctx.env.schema).first(ctx.env.schema),
+                path_id=path_id, ctx=shape_expr_ctx)
             prefix_rptrref = path_id.rptr()
             if prefix_rptrref is not None:
                 # Source path seems to contain multiple steps,

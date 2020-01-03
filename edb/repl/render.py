@@ -56,7 +56,8 @@ def render_json(
 ) -> None:
     data = json.loads(data)
     buf = terminal.Buffer(max_width=max_width, styled=repl_ctx.use_colors)
-    _json.walk(data, repl_ctx, buf)
+    render_ctx = _json.RenderContext(path=())
+    _json.walk(data, repl_ctx, render_ctx, buf)
     print(buf.flush())
 
 

@@ -40,6 +40,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 
+from . import astutils
 from . import casts
 from . import context
 from . import dispatch
@@ -111,8 +112,6 @@ def compile_FunctionCall(
             f'{func_name}() cannot be called in a non-session context',
             context=expr.context)
 
-    final_args, params_typemods = finalize_args(matched_call, ctx=ctx)
-
     matched_func_params = func.get_params(env.schema)
     variadic_param = matched_func_params.find_variadic(env.schema)
     variadic_param_type = None
@@ -130,6 +129,12 @@ def compile_FunctionCall(
     )
 
     matched_func_initial_value = func.get_initial_value(env.schema)
+
+    final_args, params_typemods = finalize_args(
+        matched_call,
+        is_polymorphic=is_polymorphic,
+        ctx=ctx,
+    )
 
     if not in_abstract_constraint:
         # We cannot add strong references to functions from
@@ -418,9 +423,6 @@ def compile_operator(
                     hint=f'Possible variants: {detail}.',
                     context=qlexpr.context)
 
-    final_args, params_typemods = finalize_args(
-        matched_call, actual_typemods=actual_typemods, ctx=ctx)
-
     oper = matched_call.func
     assert isinstance(oper, s_oper.Operator)
     env.schema_refs.add(oper)
@@ -428,6 +430,19 @@ def compile_operator(
 
     matched_params = oper.get_params(env.schema)
     rtype = matched_call.return_type
+
+    is_polymorphic = (
+        any(p.get_type(env.schema).is_polymorphic(env.schema)
+            for p in matched_params.objects(env.schema)) and
+        rtype.is_polymorphic(env.schema)
+    )
+
+    final_args, params_typemods = finalize_args(
+        matched_call,
+        actual_typemods=actual_typemods,
+        is_polymorphic=is_polymorphic,
+        ctx=ctx,
+    )
 
     if oper_name in {'std::UNION', 'std::IF'} and rtype.is_object_type():
         # Special case for the UNION and IF operators, instead of common
@@ -448,12 +463,6 @@ def compile_operator(
             rtype = left_type
         else:
             rtype = schemactx.get_union_type([left_type, right_type], ctx=ctx)
-
-    is_polymorphic = (
-        any(p.get_type(env.schema).is_polymorphic(env.schema)
-            for p in matched_params.objects(env.schema)) and
-        oper.get_return_type(env.schema).is_polymorphic(env.schema)
-    )
 
     from_op = oper.get_from_operator(env.schema)
     sql_operator = None
@@ -525,17 +534,18 @@ def validate_recursive_operator(
 
 def compile_call_arg(arg_ql: qlast.Expr, *,
                      ctx: context.ContextLevel) -> irast.Set:
-    with ctx.newscope(fenced=True) as fencectx:
+    with ctx.new() as argctx:
         # We put on a SET OF fence preemptively in case this is
         # a SET OF arg, which we don't know yet due to polymorphic
         # matching.  We will remove it if necessary in `finalize_args()`.
-        arg_ir = setgen.ensure_set(
-            dispatch.compile(arg_ql, ctx=fencectx),
-            ctx=fencectx)
-
-        return setgen.scoped_set(
-            setgen.ensure_stmt(arg_ir, ctx=fencectx),
-            ctx=fencectx)
+        # Similarly, delay the decision to inject the implicit limit to
+        # `finalize_args()`.
+        arg_ql = astutils.ensure_qlstmt(arg_ql)
+        argctx.inhibit_implicit_limit = True
+        return setgen.ensure_set(
+            dispatch.compile(arg_ql, ctx=argctx),
+            ctx=argctx,
+        )
 
 
 def compile_call_args(
@@ -550,7 +560,6 @@ def compile_call_args(
 
     for ai, arg in enumerate(expr.args):
         arg_ir = compile_call_arg(arg, ctx=ctx)
-
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.QueryError(
@@ -578,6 +587,7 @@ def compile_call_args(
 def finalize_args(
     bound_call: polyres.BoundCall, *,
     actual_typemods: Sequence[ft.TypeModifier] = (),
+    is_polymorphic: bool = False,
     ctx: context.ContextLevel,
 ) -> Tuple[List[irast.CallArg], List[ft.TypeModifier]]:
 
@@ -628,6 +638,19 @@ def finalize_args(
                 arg_scope.collapse()
                 if arg is orig_arg:
                     pathctx.assign_set_scope(arg, None, ctx=ctx)
+        else:
+            if (is_polymorphic
+                    and ctx.expr_exposed
+                    and ctx.implicit_limit
+                    and isinstance(arg.expr, irast.SelectStmt)
+                    and arg.expr.limit is None):
+                arg.expr.limit = setgen.ensure_set(
+                    dispatch.compile(
+                        qlast.IntegerConstant(value=str(ctx.implicit_limit)),
+                        ctx=ctx,
+                    ),
+                    ctx=ctx,
+                )
 
         paramtype = barg.param_type
         param_kind = param.get_kind(ctx.env.schema)

@@ -219,7 +219,20 @@ class Cli:
                     callback=self._command_list_casts,
                 ),
 
-                # Connection
+                # REPL setting
+
+                cmd.Command(
+                    trigger='limit',
+                    arg_name='LIMIT',
+                    desc=(
+                        'Set implicit LIMIT. '
+                        'Defaults to 100, specify 0 to disable.'
+                    ),
+                    group='Variables',
+                    callback=self._command_set_limit,
+                ),
+
+                # Help
 
                 cmd.Command(
                     trigger='?',
@@ -228,7 +241,7 @@ class Cli:
                     callback=self._command_help,
                 ),
 
-                # Help
+                # Connection
 
                 cmd.Command(
                     trigger='c',
@@ -501,6 +514,25 @@ class Cli:
             }
         )
         print(out)
+
+    def _command_set_limit(
+        self,
+        *,
+        flags: AbstractSet[str],
+        arg: Optional[str],
+    ) -> None:
+        if not arg:
+            print(self.context.implicit_limit)
+            return
+
+        try:
+            limit = int(arg)
+            if limit < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            print('Invalid value for limit, expecting non-negative integer')
+        else:
+            self.context.implicit_limit = limit
 
     def _command_connect(
         self,
@@ -906,21 +938,22 @@ class Cli:
         *,
         json: bool,
         retry: bool=True,
+        implicit_limit: int=0,
         kwargs: Optional[Dict[str, Any]] = None
     ) -> Tuple[Any, Optional[str]]:
         self.ensure_connection()
         self.context.last_exception = None
 
         if json:
-            meth = self.connection.fetchall_json
+            meth = self.connection._fetchall_json
         else:
-            meth = self.connection.fetchall
+            meth = self.connection._fetchall
+
+        if kwargs is None:
+            kwargs = {}
 
         try:
-            if kwargs:
-                result = meth(query, **kwargs)
-            else:
-                result = meth(query)
+            result = meth(query, __limit__=implicit_limit, **kwargs)
         except edgedb.EdgeDBError as ex:
             self.context.last_exception = ex
             raise
@@ -935,7 +968,12 @@ class Cli:
                     self.context,
                     '== connection is closed; attempting to open a new one ==')
 
-                return self.fetch(query, json=json, retry=False)
+                return self.fetch(
+                    query,
+                    json=json,
+                    implicit_limit=implicit_limit,
+                    retry=False,
+                )
             else:
                 raise
 
@@ -985,15 +1023,19 @@ class Cli:
                 qm = self.context.query_mode
                 results = []
                 last_query = None
+                if self.context.implicit_limit:
+                    limit = self.context.implicit_limit + 1
+                else:
+                    limit = 0
+                json_mode = qm is context.QueryMode.JSON
                 try:
-                    if qm is context.QueryMode.Normal:
-                        for query in utils.split_edgeql(command)[0]:
-                            last_query = query
-                            results.append(self.fetch(query, json=False))
-                    else:
-                        for query in utils.split_edgeql(command)[0]:
-                            last_query = query
-                            results.append(self.fetch(query, json=True))
+                    for query in utils.split_edgeql(command)[0]:
+                        last_query = query
+                        results.append(self.fetch(
+                            query,
+                            json=json_mode,
+                            implicit_limit=limit,
+                        ))
 
                 except KeyboardInterrupt:
                     self.connection.close()

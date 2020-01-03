@@ -179,6 +179,7 @@ def compile_ast_to_ir(
     result_view_name: Optional[s_name.SchemaName] = None,
     derived_target_module: Optional[str] = None,
     parent_object_type: Optional[s_obj.ObjectMeta] = None,
+    implicit_limit: int = 0,
     implicit_id_in_shapes: bool = False,
     implicit_tid_in_shapes: bool = False,
     schema_view_mode: bool = False,
@@ -238,6 +239,10 @@ def compile_ast_to_ir(
             context of which this expression is compiled.  Used in schema
             definitions.
 
+        implicit_limit:
+            If set to a non-zero integer value, this will be injected
+            as an implicit `LIMIT` clause into each read query.
+
         implicit_id_in_shapes:
             Whether to include object id property in shapes by default.
 
@@ -283,6 +288,7 @@ def compile_ast_to_ir(
         func_params=func_params,
         derived_target_module=derived_target_module,
         result_view_name=result_view_name,
+        implicit_limit=implicit_limit,
         implicit_id_in_shapes=implicit_id_in_shapes,
         implicit_tid_in_shapes=implicit_tid_in_shapes,
         schema_view_mode=schema_view_mode,

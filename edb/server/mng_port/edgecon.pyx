@@ -27,6 +27,8 @@ import traceback
 cimport cython
 cimport cpython
 
+from . cimport cpythonx
+
 from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
@@ -76,6 +78,7 @@ cdef object CARD_MANY = compiler.ResultCardinality.MANY
 
 cdef object logger = logging.getLogger('edb.server')
 
+DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
 
 DEF BACKUP_NWORKERS = 10
 
@@ -550,9 +553,15 @@ cdef class EdgeConnection:
 
     #############
 
-    async def _compile(self, bytes eql, bint json_mode, bint expect_one,
-                       str stmt_mode):
-
+    async def _compile(
+        self,
+        eql: bytes,
+        *,
+        json_mode: bint = False,
+        expect_one: bint = False,
+        stmt_mode: str = 'single',
+        implicit_limit: uint64_t = 0,
+    ):
         if self.dbview.in_tx_error():
             self.dbview.raise_in_tx_error()
 
@@ -563,7 +572,9 @@ cdef class EdgeConnection:
                 eql,
                 json_mode,
                 expect_one,
-                stmt_mode)
+                implicit_limit,
+                stmt_mode,
+            )
         else:
             return await self.get_backend().compiler.call(
                 'compile_eql',
@@ -573,8 +584,10 @@ cdef class EdgeConnection:
                 self.dbview.get_session_config(),
                 json_mode,
                 expect_one,
+                implicit_limit,
                 stmt_mode,
-                CAP_ALL)
+                CAP_ALL,
+            )
 
     async def _compile_rollback(self, bytes eql):
         assert self.dbview.in_tx_error()
@@ -633,7 +646,7 @@ cdef class EdgeConnection:
                 self.flush()
                 return
 
-        units = await self._compile(eql, False, False, stmt_mode)
+        units = await self._compile(eql, stmt_mode=stmt_mode)
 
         for query_unit in units:
             self.dbview.start(query_unit)
@@ -670,12 +683,18 @@ cdef class EdgeConnection:
         self.write(packet)
         self.flush()
 
-    async def _parse(self, bytes eql, bint json_mode, bint expect_one):
+    async def _parse(
+        self,
+        bytes eql,
+        bint json_mode,
+        bint expect_one,
+        uint64_t implicit_limit,
+    ):
         if self.debug:
             self.debug_print('PARSE', eql)
 
         query_unit = self.dbview.lookup_compiled_query(
-            eql, json_mode, expect_one)
+            eql, json_mode, expect_one, implicit_limit)
         cached = True
         if query_unit is None:
             # Cache miss; need to compile this query.
@@ -692,7 +711,12 @@ cdef class EdgeConnection:
                     self.dbview.raise_in_tx_error()
             else:
                 query_unit = await self._compile(
-                    eql, json_mode, expect_one, 'single')
+                    eql,
+                    json_mode=json_mode,
+                    expect_one=expect_one,
+                    stmt_mode='single',
+                    implicit_limit=implicit_limit,
+                )
                 query_unit = query_unit[0]
         elif self.dbview.in_tx_error():
             # We have a cached QueryUnit for this 'eql', but the current
@@ -714,7 +738,7 @@ cdef class EdgeConnection:
 
         if not cached and query_unit.cacheable:
             self.dbview.cache_compiled_query(
-                eql, json_mode, expect_one, query_unit)
+                eql, json_mode, expect_one, implicit_limit, query_unit)
 
         return query_unit
 
@@ -773,14 +797,50 @@ cdef class EdgeConnection:
             num_fields -= 1
         return attrs
 
+    cdef write_headers(self, buf: WriteBuffer, headers: dict):
+        buf.write_int16(len(headers))
+        for k, v in headers.items():
+            buf.write_int16(<int16_t><uint16_t>k)
+            buf.write_len_prefixed_utf8(str(v))
+
+    cdef uint64_t _parse_implicit_limit(self, v: bytes) except <uint64_t>-1:
+        cdef uint64_t implicit_limit
+
+        limit = cpythonx.PyLong_FromUnicodeObject(
+            v.decode(), 10)
+        if limit < 0:
+            raise errors.BinaryProtocolError(
+                f'implicit limit cannot be negative'
+            )
+        try:
+            implicit_limit = <uint64_t>cpython.PyLong_AsLongLong(
+                limit
+            )
+        except OverflowError:
+            raise errors.BinaryProtocolError(
+                f'implicit limit out of range: {limit}'
+            )
+
+        return implicit_limit
+
     async def parse(self):
         cdef:
             bint json_mode
             bytes eql
+            dict headers
+            uint64_t implicit_limit = 0
 
         self._last_anon_compiled = None
 
-        self.reject_headers()
+        headers = self.parse_headers()
+        if headers:
+            for k, v in headers.items():
+                if k == QUERY_OPT_IMPLICIT_LIMIT:
+                    implicit_limit = self._parse_implicit_limit(v)
+                else:
+                    raise errors.BinaryProtocolError(
+                        f'unexpected message header: {k}'
+                    )
 
         json_mode = self.parse_json_mode(self.buffer.read_byte())
         expect_one = (
@@ -796,7 +856,8 @@ cdef class EdgeConnection:
         if not eql:
             raise errors.BinaryProtocolError('empty query')
 
-        query_unit = await self._parse(eql, json_mode, expect_one)
+        query_unit = await self._parse(
+            eql, json_mode, expect_one, implicit_limit)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
         buf.write_int16(0)  # no headers
@@ -1041,10 +1102,20 @@ cdef class EdgeConnection:
             bytes in_tid
             bytes out_tid
             bytes bound_args
+            uint64_t implicit_limit = 0
 
         self._last_anon_compiled = None
 
-        self.reject_headers()
+        headers = self.parse_headers()
+        if headers:
+            for k, v in headers.items():
+                if k == QUERY_OPT_IMPLICIT_LIMIT:
+                    implicit_limit = self._parse_implicit_limit(v)
+                else:
+                    raise errors.BinaryProtocolError(
+                        f'unexpected message header: {k}'
+                    )
+
         json_mode = self.parse_json_mode(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
@@ -1059,12 +1130,13 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError('empty query')
 
         query_unit = self.dbview.lookup_compiled_query(
-            query, json_mode, expect_one)
+            query, json_mode, expect_one, implicit_limit)
         if query_unit is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
 
-            query_unit = await self._parse(query, json_mode, expect_one)
+            query_unit = await self._parse(
+                query, json_mode, expect_one, implicit_limit)
             self._last_anon_compiled = query_unit
 
         if (query_unit.in_type_id != in_tid or
@@ -1079,7 +1151,8 @@ cdef class EdgeConnection:
             # "last anonymous statement" *in Postgres*.
             # Otherwise the `await self._execute` below would execute
             # some other query.
-            query_unit = await self._parse(query, json_mode, expect_one)
+            query_unit = await self._parse(
+                query, json_mode, expect_one, implicit_limit)
             self._last_anon_compiled = query_unit
             return
 
@@ -1299,12 +1372,10 @@ cdef class EdgeConnection:
                     'unhandled error while calling interpret_backend_error()')
 
         fields = {}
-        fields_len = 0
         if (isinstance(exc, errors.EdgeDBError) and
                 type(exc) is not errors.EdgeDBError):
             exc_code = exc.get_code()
             fields.update(exc._attrs)
-            fields_len = <int16_t><uint16_t>(len(fields))
 
         internal_error_code = errors.InternalServerError.get_code()
         if not exc_code:
@@ -1336,13 +1407,8 @@ cdef class EdgeConnection:
 
         buf.write_len_prefixed_utf8(str(exc))
 
-        buf.write_int16(fields_len + 1)  # number of headers
-        if fields is not None:
-            for k, v in fields.items():
-                buf.write_int16(<int16_t><uint16_t>k)
-                buf.write_len_prefixed_utf8(str(v))
-        buf.write_int16(base_errors.FIELD_SERVER_TRACEBACK)
-        buf.write_len_prefixed_utf8(formatted_error)
+        fields[base_errors.FIELD_SERVER_TRACEBACK] = formatted_error
+        self.write_headers(buf, fields)
 
         buf.end_message()
 

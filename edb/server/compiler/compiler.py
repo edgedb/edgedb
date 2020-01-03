@@ -89,6 +89,7 @@ class CompileContext:
     expected_cardinality_one: bool
     stmt_mode: enums.CompileStatementMode
     json_parameters: bool = False
+    implicit_limit: int = 0
 
 
 EMPTY_MAP = immutables.Map()
@@ -337,6 +338,7 @@ class Compiler(BaseCompiler):
             implicit_id_in_shapes=implicit_fields,
             disable_constant_folding=disable_constant_folding,
             json_parameters=ctx.json_parameters,
+            implicit_limit=ctx.implicit_limit,
             session_mode=session_mode)
 
         if ir.cardinality is qltypes.Cardinality.ONE:
@@ -1049,6 +1051,7 @@ class Compiler(BaseCompiler):
         session_config: Optional[immutables.Map],
         stmt_mode: Optional[enums.CompileStatementMode],
         capability: enums.Capability,
+        implicit_limit: int=0,
         json_parameters: bool=False,
         schema: Optional[s_schema.Schema] = None
     ) -> CompileContext:
@@ -1083,6 +1086,7 @@ class Compiler(BaseCompiler):
             state=state,
             output_format=of,
             expected_cardinality_one=expect_one,
+            implicit_limit=implicit_limit,
             stmt_mode=stmt_mode,
             json_parameters=json_parameters)
 
@@ -1090,6 +1094,7 @@ class Compiler(BaseCompiler):
 
     async def _ctx_from_con_state(self, *, txid: int, json_mode: bool,
                                   expect_one: bool,
+                                  implicit_limit: int,
                                   stmt_mode: enums.CompileStatementMode):
         state = self._load_state(txid)
 
@@ -1102,6 +1107,7 @@ class Compiler(BaseCompiler):
             state=state,
             output_format=of,
             expected_cardinality_one=expect_one,
+            implicit_limit=implicit_limit,
             stmt_mode=stmt_mode)
 
         return ctx
@@ -1162,6 +1168,7 @@ class Compiler(BaseCompiler):
             sess_config: Optional[immutables.Map],
             json_mode: bool,
             expect_one: bool,
+            implicit_limit: int,
             stmt_mode: enums.CompileStatementMode,
             capability: enums.Capability,
             json_parameters: bool=False) -> List[dbstate.QueryUnit]:
@@ -1170,6 +1177,7 @@ class Compiler(BaseCompiler):
             dbver=dbver,
             json_mode=json_mode,
             expect_one=expect_one,
+            implicit_limit=implicit_limit,
             modaliases=sess_modaliases,
             session_config=sess_config,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
@@ -1184,6 +1192,7 @@ class Compiler(BaseCompiler):
             eql: bytes,
             json_mode: bool,
             expect_one: bool,
+            implicit_limit: int,
             stmt_mode: enums.CompileStatementMode
     ) -> List[dbstate.QueryUnit]:
 
@@ -1191,6 +1200,7 @@ class Compiler(BaseCompiler):
             txid=txid,
             json_mode=json_mode,
             expect_one=expect_one,
+            implicit_limit=implicit_limit,
             stmt_mode=enums.CompileStatementMode(stmt_mode))
 
         return self._compile(ctx=ctx, eql=eql)
