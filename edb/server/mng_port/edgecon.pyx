@@ -1298,16 +1298,26 @@ cdef class EdgeConnection:
                 exc = RuntimeError(
                     'unhandled error while calling interpret_backend_error()')
 
-        fields = None
+        fields = {}
         fields_len = 0
         if (isinstance(exc, errors.EdgeDBError) and
                 type(exc) is not errors.EdgeDBError):
             exc_code = exc.get_code()
-            fields = exc._attrs
+            fields.update(exc._attrs)
             fields_len = <int16_t><uint16_t>(len(fields))
 
+        internal_error_code = errors.InternalServerError.get_code()
         if not exc_code:
-            exc_code = errors.InternalServerError.get_code()
+            exc_code = internal_error_code
+
+        if (exc_code == internal_error_code
+                and not fields.get(base_errors.FIELD_HINT)):
+            fields[base_errors.FIELD_HINT] = (
+                f'This is most likely a bug in EdgeDB. '
+                f'Please consider opening an issue ticket '
+                f'at https://github.com/edgedb/edgedb/issues/new'
+                f'?template=bug_report.md'
+            )
 
         try:
             formatted_error = exc.__formatted_error__
