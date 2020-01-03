@@ -304,34 +304,33 @@ Date and Time
 
     - ``'microseconds'``
     - ``'milliseconds'``
-    - ``'second'``
-    - ``'minute'``
-    - ``'hour'``
-    - ``'day'``
-    - ``'week'``
-    - ``'month'``
-    - ``'quarter'``
-    - ``'year'``
-    - ``'decade'``
-    - ``'century'``
-    - ``'millennium'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
+    - ``'days'``
+    - ``'weeks'``
+    - ``'months'``
+    - ``'quarters'``
+    - ``'years'``
+    - ``'decades'``
+    - ``'centuries'``
 
     .. code-block:: edgeql-repl
 
         db> SELECT datetime_truncate(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'year');
+        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'years');
         {'2018-01-01T00:00:00+00:00'}
 
         db> SELECT datetime_truncate(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'quarter');
+        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'quarters');
         {'2018-04-01T00:00:00+00:00'}
 
         db> SELECT datetime_truncate(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'day');
+        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'days');
         {'2018-05-07T00:00:00+00:00'}
 
         db> SELECT datetime_truncate(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'hour');
+        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'hours');
         {'2018-05-07T15:00:00+00:00'}
 
 

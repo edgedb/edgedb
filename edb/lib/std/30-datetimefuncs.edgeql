@@ -61,7 +61,24 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
     # date_trunc of timestamptz is STABLE in PostgreSQL
     SET volatility := 'STABLE';
     USING SQL $$
-    SELECT date_trunc("unit", "dt")
+    SELECT CASE WHEN "unit" IN (
+            'microseconds', 'milliseconds', 'seconds',
+            'minutes', 'hours', 'days', 'weeks', 'months',
+            'years', 'decades', 'centuries')
+        THEN date_trunc("unit", "dt")
+        WHEN "unit" = 'quarters'
+        THEN date_trunc('quarter', "dt")
+        ELSE
+            edgedb._raise_specific_exception(
+                'invalid_datetime_format',
+                'invalid unit for std::datetime_truncate: '
+                    || quote_literal("unit"),
+                '{"hint":"Supported units: microseconds, milliseconds, ' ||
+                'seconds, minutes, hours, days, weeks, months, quarters, ' ||
+                'years, decades, centuries."}',
+                NULL::timestamptz
+            )
+        END
     $$;
 };
 
@@ -77,8 +94,8 @@ std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
         ELSE
             edgedb._raise_specific_exception(
                 'invalid_datetime_format',
-                'invalid input syntax for type std::duration_truncate: '
-                    || quote_literal("dt"),
+                'invalid unit for std::duration_truncate: '
+                    || quote_literal("unit"),
                 '{"hint":"Supported units: microseconds, milliseconds, ' ||
                 'seconds, minutes, hours."}',
                 NULL::interval
