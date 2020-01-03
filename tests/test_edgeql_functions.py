@@ -1178,7 +1178,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>datetime_truncate(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'year');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'years');
             ''',
             {'2018-01-01T00:00:00+00:00'},
         )
@@ -1186,7 +1186,23 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>datetime_truncate(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'quarter');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'decades');
+            ''',
+            {'2010-01-01T00:00:00+00:00'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <str>datetime_truncate(
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'centuries');
+            ''',
+            {'2001-01-01T00:00:00+00:00'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <str>datetime_truncate(
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'quarters');
             ''',
             {'2018-04-01T00:00:00+00:00'},
         )
@@ -1194,7 +1210,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>datetime_truncate(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'month');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'months');
             ''',
             {'2018-05-01T00:00:00+00:00'},
         )
@@ -1202,7 +1218,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>datetime_truncate(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'day');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'weeks');
             ''',
             {'2018-05-07T00:00:00+00:00'},
         )
@@ -1210,7 +1226,15 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>datetime_truncate(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'hour');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'days');
+            ''',
+            {'2018-05-07T00:00:00+00:00'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <str>datetime_truncate(
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'hours');
             ''',
             {'2018-05-07T20:00:00+00:00'},
         )
@@ -1218,7 +1242,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>datetime_truncate(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'minute');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'minutes');
             ''',
             {'2018-05-07T20:01:00+00:00'},
         )
@@ -1226,10 +1250,20 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT <str>datetime_truncate(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'second');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'seconds');
             ''',
             {'2018-05-07T20:01:22+00:00'},
         )
+
+    async def test_edgeql_functions_datetime_trunc_02(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::datetime_truncate'):
+            await self.con.execute(
+                r'''
+                SELECT <str>datetime_truncate(
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'second');
+                ''')
 
     async def test_edgeql_functions_duration_trunc_01(self):
         await self.assert_query_result(
@@ -1276,7 +1310,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_duration_trunc_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                'invalid input syntax for type std::duration_truncate'):
+                'invalid unit for std::duration_truncate'):
             await self.con.execute(
                 r'''
                 SELECT <str>duration_truncate(
