@@ -940,7 +940,7 @@ Format:
 
     struct AuthenticationSASLResponse {
         // Message type ('r')
-        int8      mtype = 0x70;
+        int8      mtype = 0x72;
 
         // Length of message contents in bytes,
         // including self.
