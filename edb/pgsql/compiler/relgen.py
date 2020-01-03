@@ -907,6 +907,9 @@ def process_set_as_path(
         # Link range.
         if is_inline_ref:
             aspects = ['value']
+            # If this is a link that is stored inline, make sure
+            # the source aspect is actually accessible (not just value).
+            src_rvar = relctx.ensure_source_rvar(ir_source, stmt, ctx=ctx)
         else:
             aspects = ['value', 'source']
 

@@ -64,6 +64,14 @@ def compile_SelectQuery(
             # Make sure path prefix does not get blown away by
             # implicit subqueries.
             sctx.partial_path_prefix = ctx.partial_path_prefix
+            stmt.implicit_wrapper = True
+
+        if expr.limit is not None:
+            sctx.inhibit_implicit_limit = True
+        elif ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
+                and ctx.implicit_limit and not sctx.inhibit_implicit_limit):
+            expr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
+            sctx.inhibit_implicit_limit = True
 
         stmt.result = compile_result_clause(
             expr.result,
@@ -151,6 +159,16 @@ def compile_ForQuery(
             view_name=ctx.toplevel_result_view_name,
             forward_rptr=True,
             ctx=sctx)
+
+        if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
+                and ctx.implicit_limit):
+            stmt.limit = setgen.ensure_set(
+                dispatch.compile(
+                    qlast.IntegerConstant(value=str(ctx.implicit_limit)),
+                    ctx=sctx,
+                ),
+                ctx=sctx,
+            )
 
         result = fini_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
 
@@ -256,6 +274,7 @@ def compile_InsertQuery(
 
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
+            bodyctx.implicit_limit = 0
 
             stmt.subject = compile_query_subject(
                 subject,
@@ -316,6 +335,7 @@ def compile_UpdateQuery(
         with ictx.new() as bodyctx:
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
+            bodyctx.implicit_limit = 0
 
             stmt.subject = compile_query_subject(
                 subject,
@@ -394,6 +414,7 @@ def compile_DeleteQuery(
 
         # DELETE Expr is a delete(SET OF X), so we need a scope fence.
         with ictx.newscope(fenced=True) as scopectx:
+            scopectx.implicit_limit = 0
             subject = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 

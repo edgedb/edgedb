@@ -75,6 +75,7 @@ def init_context(
         schema_view_mode: bool=False,
         disable_constant_folding: bool=False,
         allow_generic_type_output: bool=False,
+        implicit_limit: int=0,
         implicit_id_in_shapes: bool=False,
         implicit_tid_in_shapes: bool=False,
         json_parameters: bool=False,
@@ -117,6 +118,7 @@ def init_context(
     ctx.toplevel_result_view_name = result_view_name
     ctx.implicit_id_in_shapes = implicit_id_in_shapes
     ctx.implicit_tid_in_shapes = implicit_tid_in_shapes
+    ctx.implicit_limit = implicit_limit
 
     return ctx
 

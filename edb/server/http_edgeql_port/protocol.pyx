@@ -135,6 +135,7 @@ cdef class Protocol(http.HttpProtocol):
                 None,  # session config
                 True,  # json mode
                 False, # expected cardinality is MANY
+                0,     # no implicit limit
                 compiler.CompileStatementMode.SINGLE,
                 compiler.Capability.QUERY,
                 True,  # json parameters

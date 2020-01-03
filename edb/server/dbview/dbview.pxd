@@ -73,9 +73,10 @@ cdef class DatabaseConnectionView:
     cdef in_tx_error(self)
 
     cdef cache_compiled_query(self, bytes eql, bint json_mode,
-                              bint expect_one, query_unit)
+                              bint expect_one, int implicit_limit,
+                              query_unit)
     cdef lookup_compiled_query(self, bytes eql, bint json_mode,
-                               bint expect_one)
+                               bint expect_one, int implicit_limit)
 
     cdef tx_error(self)
 

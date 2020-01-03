@@ -102,7 +102,10 @@ cdef class EdgeConnection:
 
     cdef inline reject_headers(self)
     cdef dict parse_headers(self)
+    cdef write_headers(self, WriteBuffer buf, dict headers)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 
     cdef get_backend(self)
+
+    cdef uint64_t _parse_implicit_limit(self, bytes v) except <uint64_t>-1

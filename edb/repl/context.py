@@ -43,6 +43,7 @@ class ReplContext:
     query_mode: QueryMode = QueryMode.Normal
     typenames: Optional[Dict[uuid.UUID, str]] = None
     last_exception: Optional[Exception] = None
+    implicit_limit: int = 100
 
     def toggle_query_mode(self) -> None:
         self.query_mode = self.query_mode.cycle()
