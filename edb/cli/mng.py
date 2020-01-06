@@ -334,7 +334,7 @@ def _process_role_options(ctx, password, password_from_stdin, allow_login):
 
 
 @cli.command(name='create-role',
-    help='Create a new database user')
+             help='Create a new database user')
 @click.argument('role-name', type=str)
 @options(_role_options)
 @click.pass_context
