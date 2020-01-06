@@ -436,8 +436,8 @@ Format:
 .. code-block:: c
 
     struct Flush {
-        // Message type ('F')
-        int8          mtype = 0x46;
+        // Message type ('H')
+        int8          mtype = 0x48;
 
         // Length of message contents in bytes,
         // including self.
