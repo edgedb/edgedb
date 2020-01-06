@@ -267,7 +267,7 @@ Date and Time
 
     Extract a specific element of input date by name.
 
-    The :eql:type:`local_date` scalar has the following elements
+    The :eql:type:`cal::local_date` scalar has the following elements
     available for extraction:
 
     - ``'century'`` - the century according to the Gregorian calendar
