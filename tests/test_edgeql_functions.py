@@ -1051,7 +1051,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'minute');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'minutes');
             ''',
             {1},
         )
@@ -1059,7 +1059,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <datetime>'2018-05-07T15:01:22.306916-05', 'second');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'seconds');
             ''',
             {22.306916},
         )
@@ -1067,10 +1067,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
-                    <datetime>'2018-05-07T15:01:22.306916-05',
-                    'timezone_hour');
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'epochseconds');
             ''',
-            {0},
+            {1525723282.306916},
         )
 
     async def test_edgeql_functions_datetime_get_02(self):
@@ -1107,31 +1106,49 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''
-                SELECT datetime_get(
-                  <cal::local_datetime>'2018-05-07T15:01:22.306916', 'minute');
+            r'''SELECT datetime_get(
+                <cal::local_datetime>'2018-05-07T15:01:22.306916', 'minutes');
             ''',
             {1},
         )
 
         await self.assert_query_result(
-            r'''
-                SELECT datetime_get(
-                  <cal::local_datetime>'2018-05-07T15:01:22.306916', 'second');
+            r'''SELECT datetime_get(
+                <cal::local_datetime>'2018-05-07T15:01:22.306916', 'seconds');
             ''',
             {22.306916},
         )
 
     async def test_edgeql_functions_datetime_get_03(self):
         with self.assertRaisesRegex(
-            edgedb.InternalServerError,
-                'timestamp units "timezone_hour" not supported'):
+                edgedb.InvalidValueError,
+                'invalid unit for std::datetime_get'):
             await self.con.fetchall('''
                 SELECT datetime_get(
                     <cal::local_datetime>'2018-05-07T15:01:22.306916',
                     'timezone_hour'
                 );
             ''')
+
+    async def test_edgeql_functions_datetime_get_04(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::datetime_get'):
+            await self.con.fetchall('''
+                SELECT datetime_get(
+                    <datetime>'2018-05-07T15:01:22.306916-05',
+                    'timezone_hour');
+            ''')
+
+    async def test_edgeql_functions_datetime_get_05(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::datetime_get'):
+            await self.con.execute(
+                r'''
+                SELECT <str>datetime_get(
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'epoch');
+                ''')
 
     async def test_edgeql_functions_date_get_01(self):
         await self.assert_query_result(
@@ -1152,6 +1169,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {7},
         )
 
+    async def test_edgeql_functions_date_get_02(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::date_get'):
+            await self.con.execute(
+                r'''
+                SELECT <str>cal::date_get(
+                    <cal::local_date>'2018-05-07', 'epoch');
+                ''')
+
     async def test_edgeql_functions_time_get_01(self):
         await self.assert_query_result(
             r'''SELECT
@@ -1162,17 +1189,35 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT
-                    cal::time_get(<cal::local_time>'15:01:22.306916', 'minute')
+                cal::time_get(<cal::local_time>'15:01:22.306916', 'minutes')
             ''',
             {1},
         )
 
         await self.assert_query_result(
             r'''SELECT
-                    cal::time_get(<cal::local_time>'15:01:22.306916', 'second')
+                cal::time_get(<cal::local_time>'15:01:22.306916', 'seconds')
             ''',
             {22.306916},
         )
+
+        await self.assert_query_result(
+            r'''SELECT
+                cal::time_get(<cal::local_time>'15:01:22.306916',
+                              'midnightseconds')
+            ''',
+            {54082.306916},
+        )
+
+    async def test_edgeql_functions_time_get_02(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::time_get'):
+            await self.con.execute(
+                r'''
+                SELECT <str>cal::time_get(
+                    <cal::local_time>'15:01:22.306916', 'epoch');
+                ''')
 
     async def test_edgeql_functions_datetime_trunc_01(self):
         await self.assert_query_result(
