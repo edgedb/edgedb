@@ -386,3 +386,64 @@ type SourceA {
         on target delete deferred restrict;
     };
 };
+
+
+# read-only links and props
+type ROPropsA {
+    required property name -> str {
+        constraint exclusive;
+    }
+
+    property rop0 -> int64 {
+        readonly := True;
+    }
+    required property rop1 -> int64 {
+        readonly := True;
+        default := <int64>round(10 * random());
+    }
+}
+
+
+type ROLinksA {
+    required property name -> str {
+        constraint exclusive;
+    }
+
+    link rol0 -> C {
+        readonly := True;
+    }
+    required link rol1 -> C {
+        readonly := True;
+        default := (SELECT C FILTER .val = 'D00');
+    }
+    required multi link rol2 -> C {
+        readonly := True;
+        default := (SELECT C FILTER .val IN {'D01', 'D02'});
+    }
+}
+
+
+type ROLinksB {
+    required property name -> str {
+        constraint exclusive;
+    }
+
+    link rol0 -> C {
+        property rolp00 -> int64 {
+            readonly := True;
+        }
+        property rolp01 -> int64 {
+            readonly := True;
+            default := <int64>round(10 * random());
+        }
+    }
+    multi link rol1 -> C {
+        property rolp10 -> int64 {
+            readonly := True;
+        }
+        property rolp11 -> int64 {
+            readonly := True;
+            default := <int64>round(10 * random());
+        }
+    }
+}
