@@ -82,8 +82,8 @@ class ConnectionArgs:
 
 
 _connect_params = [
-    click.option('-h', '--host'),
-    click.option('-p', '--port', type=int),
+    click.option('-H', '--host'),
+    click.option('-P', '--port', type=int),
     click.option('-u', '--user'),
     click.option('-d', '--database'),
     click.option('--admin', is_flag=True),

@@ -360,7 +360,7 @@ _server_options = [
         '-I', '--bind-address', type=str, default=None,
         help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS'),
     click.option(
-        '-p', '--port', type=int, default=None,
+        '-P', '--port', type=int, default=None,
         help='port to listen on'),
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
