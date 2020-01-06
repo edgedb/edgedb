@@ -78,8 +78,7 @@ however it is also possible to use a remote PostgreSQL instance, as long as it
 is version 12 or later.  Superuser access to the cluster is *required*.
 
 To setup EdgeDB using a remote PostgreSQL instance, instead of ``-D``,
-specify the ``-P`` (or ``--postgres-dsn``) option when starting the EdgeDB
-server:
+specify the ``--postgres-dsn`` option when starting the EdgeDB server:
 
 .. code-block:: bash
 
