@@ -82,3 +82,48 @@ ALTER TYPE cfg::Config {
         SET ANNOTATION cfg::internal := 'true';
     };
 };
+
+
+# std::_gen_series
+
+CREATE FUNCTION
+std::_gen_series(
+    `start`: std::int64,
+    stop: std::int64
+) -> SET OF std::int64
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'generate_series';
+};
+
+CREATE FUNCTION
+std::_gen_series(
+    `start`: std::int64,
+    stop: std::int64,
+    step: std::int64
+) -> SET OF std::int64
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'generate_series';
+};
+
+CREATE FUNCTION
+std::_gen_series(
+    `start`: std::bigint,
+    stop: std::bigint
+) -> SET OF std::bigint
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'generate_series';
+};
+
+CREATE FUNCTION
+std::_gen_series(
+    `start`: std::bigint,
+    stop: std::bigint,
+    step: std::bigint
+) -> SET OF std::bigint
+{
+    SET volatility := 'IMMUTABLE';
+    USING SQL FUNCTION 'generate_series';
+};

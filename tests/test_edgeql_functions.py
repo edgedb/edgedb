@@ -4317,3 +4317,32 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             await self.con.fetchall(r'''
                 SELECT math::var_pop(<int64>{});
             ''')
+
+    async def test_edgeql_functions__genseries_01(self):
+        await self.assert_query_result(
+            r'''
+            SELECT _gen_series(1, 10)
+            ''',
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT _gen_series(1, 10, 2)
+            ''',
+            [1, 3, 5, 7, 9]
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT _gen_series(1n, 10n)
+            ''',
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT _gen_series(1n, 10n, 2n)
+            ''',
+            [1, 3, 5, 7, 9]
+        )
