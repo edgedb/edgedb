@@ -96,7 +96,7 @@ def connect_command(func):
 
     @functools.wraps(func)
     def wrapper(
-        *,
+        *args,
         host,
         port,
         user,
@@ -159,7 +159,7 @@ def connect_command(func):
         if admin:
             cargs.admin = True
 
-        return func(ctx, **kwargs)
+        return func(*args, **kwargs)
 
     for option in reversed(_connect_params):
         wrapper = option(wrapper)

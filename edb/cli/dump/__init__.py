@@ -31,6 +31,7 @@ from . import restore as restoremod
 
 @cli.command()
 @utils.connect_command
+@click.pass_context
 @click.argument('file', type=click.Path(exists=False, dir_okay=False,
                                         resolve_path=True))
 def dump(ctx, file: str) -> None:
@@ -61,6 +62,7 @@ def is_empty_db(conn: edgedb.BlockingIOConnection) -> bool:
 
 @cli.command()
 @utils.connect_command
+@click.pass_context
 @click.option('--allow-nonempty', is_flag=True)
 @click.argument('file', type=click.Path(exists=True, dir_okay=False,
                                         resolve_path=True))

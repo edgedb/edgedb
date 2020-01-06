@@ -33,7 +33,7 @@ from edb.edgeql.quote import quote_literal as ql, quote_ident as qi
 
 
 @cli.group()
-@utils.connect_command
+@click.pass_context
 def configure(ctx):
     utils.connect(ctx)
 
@@ -273,24 +273,6 @@ def _process_configure_scalar(ctx, parameter, values):
     return parameter, cfg_props[0].target, cfg_props[0].cardinality
 
 
-@cli.group()
-@utils.connect_command
-def create(ctx):
-    utils.connect(ctx)
-
-
-@cli.group()
-@utils.connect_command
-def alter(ctx):
-    utils.connect(ctx)
-
-
-@cli.group()
-@utils.connect_command
-def drop(ctx):
-    utils.connect(ctx)
-
-
 def options(options):
     def _decorator(func):
         for option in reversed(options):
@@ -351,11 +333,13 @@ def _process_role_options(ctx, password, password_from_stdin, allow_login):
     return alters
 
 
-@create.command(name='role')
+@cli.command(name='create-role')
 @click.argument('role-name', type=str)
 @options(_role_options)
 @click.pass_context
 def create_role(ctx, role_name, **kwargs):
+    utils.connect(ctx)
+
     attrs = ";\n".join(_process_role_options(ctx, **kwargs))
 
     qry = f'''
@@ -370,11 +354,12 @@ def create_role(ctx, role_name, **kwargs):
         raise click.ClickException(str(e)) from e
 
 
-@alter.command(name='role')
+@cli.command(name='alter-role')
 @click.argument('role-name', type=str)
 @options(_role_options)
 @click.pass_context
 def alter_role(ctx, role_name, **kwargs):
+    utils.connect(ctx)
 
     attrs = ";\n".join(_process_role_options(ctx, **kwargs))
 
@@ -390,10 +375,11 @@ def alter_role(ctx, role_name, **kwargs):
         raise click.ClickException(str(e)) from e
 
 
-@drop.command(name='role')
+@cli.command(name='drop-role')
 @click.argument('role-name', type=str)
 @click.pass_context
 def drop_role(ctx, role_name, **kwargs):
+    utils.connect(ctx)
     qry = f'''
         DROP ROLE {qi(role_name)};
     '''
