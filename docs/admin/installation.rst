@@ -131,4 +131,4 @@ to the server container:
 
     docker run --link=edgedb-server --rm -it \
         edgedb/edgedb:latest \
-        edgedb -u edgedb -h edgedb-server
+        edgedb -u edgedb -H edgedb-server

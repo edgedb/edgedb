@@ -49,7 +49,7 @@ a newly created instance:
 
 .. code-block:: bash
 
-    $ edgedb --admin -h </data/dir> alter role <username> --password
+    $ edgedb --admin -H <edgedb-host> alter-role <username> --password
 
 The ``--admin`` option instructs the ``edgedb`` command to connect to
 the server using a dedicated administrative socket that does not require
@@ -67,7 +67,7 @@ method with the ``trust`` method:
 
 .. code-block:: bash
 
-    $ edgedb --admin -h </data/dir> configure insert auth --method=trust
+    $ edgedb --admin -H <edgedb-host> configure insert auth --method=trust
 
 
 Using remote PostgreSQL cluster as a backend
@@ -84,7 +84,7 @@ server:
 .. code-block:: bash
 
     $ edgedb-server \
-        -P postgres://user:password@host:port/database?opt=val
+        --postgres-dsn 'postgres://user:password@host:port/database?opt=val'
 
 The format of the connection string generally follows that of `libpq`_,
 including support for specifying the connection parameters via
