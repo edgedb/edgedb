@@ -1653,3 +1653,229 @@ class TestDump01(tb.QueryTestCase):
                 edgedb.MissingRequiredError,
                 r'missing value for required link'):
             await self.con.execute(r"INSERT F {num := 999};")
+
+    async def test_dump01_ro01(self):
+        # validate read-only
+        await self.assert_query_result(
+            r'''
+            SELECT ROPropsA {
+                name,
+                rop0,
+                rop1,
+            }
+            ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'ro0',
+                    'rop0': None,
+                    'rop1': int,
+                },
+                {
+                    'name': 'ro1',
+                    'rop0': 100,
+                    'rop1': int,
+                },
+                {
+                    'name': 'ro2',
+                    'rop0': None,
+                    'rop1': -2,
+                },
+            ],
+        )
+
+    async def test_dump01_ro02(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rop0.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROPropsA
+                SET {
+                    rop0 := 99,
+                };
+                ''')
+
+    async def test_dump01_ro03(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rop1.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROPropsA
+                SET {
+                    rop1 := 99,
+                };
+                ''')
+
+    async def test_dump01_ro04(self):
+        # validate read-only
+        await self.assert_query_result(
+            r'''
+            SELECT ROLinksA {
+                name,
+                rol0: {val},
+                rol1: {val},
+                rol2: {val} ORDER BY .val,
+            }
+            ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'ro0',
+                    'rol0': None,
+                    'rol1': {'val': 'D00'},
+                    'rol2': [{'val': 'D01'}, {'val': 'D02'}]
+                },
+                {
+                    'name': 'ro1',
+                    'rol0': {'val': 'F00'},
+                    'rol1': {'val': 'D00'},
+                    'rol2': [{'val': 'D01'}, {'val': 'D02'}],
+                },
+                {
+                    'name': 'ro2',
+                    'rol0': None,
+                    'rol1': {'val': 'F00'},
+                    'rol2': [{'val': 'D01'}, {'val': 'D02'}]
+                },
+                {
+                    'name': 'ro3',
+                    'rol0': None,
+                    'rol1': {'val': 'D00'},
+                    'rol2': [{'val': 'F01'}, {'val': 'F02'}]
+                },
+            ],
+        )
+
+    async def test_dump01_ro05(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rol0.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROLinksA
+                SET {
+                    rol0 := <C>{},
+                };
+                ''')
+
+    async def test_dump01_ro06(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rol1.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROLinksA
+                SET {
+                    rol1 := <C>{},
+                };
+                ''')
+
+    async def test_dump01_ro07(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rol2.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROLinksA
+                SET {
+                    rol2 := <C>{},
+                };
+                ''')
+
+    async def test_dump01_ro08(self):
+        # validate read-only
+        await self.assert_query_result(
+            r'''
+            SELECT ROLinksB {
+                name,
+                rol0: {val, @rolp00, @rolp01},
+                rol1: {val, @rolp10, @rolp11} ORDER BY .val,
+            }
+            ORDER BY .name;
+            ''',
+            [
+                {
+                    'name': 'ro0',
+                    'rol0': {'val': 'D00', '@rolp00': None, '@rolp01': int},
+                    'rol1': [
+                        {'val': 'D01', '@rolp10': None, '@rolp11': int},
+                        {'val': 'D02', '@rolp10': None, '@rolp11': int},
+                    ],
+                },
+                {
+                    'name': 'ro1',
+                    'rol0': {'val': 'D00', '@rolp00': 99, '@rolp01': int},
+                    'rol1': [
+                        {'val': 'D01', '@rolp10': 99, '@rolp11': int},
+                        {'val': 'D02', '@rolp10': 98, '@rolp11': int},
+                    ],
+                },
+                {
+                    'name': 'ro2',
+                    'rol0': {'val': 'E00', '@rolp00': None, '@rolp01': -10},
+                    'rol1': [
+                        {'val': 'E01', '@rolp10': None, '@rolp11': -1},
+                        {'val': 'E02', '@rolp10': None, '@rolp11': -2},
+                    ],
+                },
+            ],
+        )
+
+    async def test_dump01_ro09(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rolp00.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROLinksB
+                SET {
+                    rol0: {@rolp00 := 1},
+                };
+                ''')
+
+    async def test_dump01_ro10(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rolp01.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROLinksB
+                SET {
+                    rol0: {@rolp01 := 1},
+                };
+                ''')
+
+    async def test_dump01_ro11(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rolp10.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROLinksB
+                SET {
+                    rol1: {@rolp10 := 1},
+                };
+                ''')
+
+    async def test_dump01_ro12(self):
+        # validate read-only
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'rolp11.*read-only'):
+            await self.con.execute(
+                r'''
+                UPDATE ROLinksB
+                SET {
+                    rol1: {@rolp11 := 1},
+                };
+                ''')

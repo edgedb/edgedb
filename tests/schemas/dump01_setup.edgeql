@@ -223,3 +223,37 @@ INSERT SourceA {name := 's0', link0 := (SELECT TargetA FILTER .name = 't0')};
 INSERT SourceA {name := 's1', link1 := (SELECT TargetA FILTER .name = 't1')};
 INSERT SourceA {name := 's2', link2 := (SELECT TargetA FILTER .name = 't2')};
 INSERT SourceA {name := 's3', link3 := (SELECT TargetA FILTER .name = 't3')};
+
+# read-only
+INSERT ROPropsA {name := 'ro0'};
+INSERT ROPropsA {name := 'ro1', rop0 := 100};
+INSERT ROPropsA {name := 'ro2', rop1 := -2};
+
+INSERT ROLinksA {name := 'ro0'};
+INSERT ROLinksA {name := 'ro1', rol0 := (SELECT C FILTER .val = 'F00')};
+INSERT ROLinksA {name := 'ro2', rol1 := (SELECT C FILTER .val = 'F00')};
+INSERT ROLinksA {
+    name := 'ro3', rol2 := (SELECT C FILTER .val IN {'F01', 'F02'})
+};
+
+INSERT ROLinksB {
+    name := 'ro0',
+    rol0 := (SELECT C FILTER .val = 'D00'),
+    rol1 := (SELECT C FILTER .val IN {'D01', 'D02'}),
+};
+INSERT ROLinksB {
+    name := 'ro1',
+    rol0 := (SELECT C{@rolp00 := 99} FILTER .val = 'D00'),
+    rol1 := (
+        SELECT C{@rolp10 := 100 - <int64>.val[-1]}
+        FILTER .val IN {'D01', 'D02'}
+    ),
+};
+INSERT ROLinksB {
+    name := 'ro2',
+    rol0 := (SELECT C{@rolp01 := -10} FILTER .val = 'E00'),
+    rol1 := (
+        SELECT C{@rolp11 := -<int64>.val[-1]}
+        FILTER .val IN {'E01', 'E02'}
+    ),
+};
