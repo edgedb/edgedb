@@ -815,7 +815,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if after_name:
             after_name()
 
-        commands = node.commands
+        commands = [
+            comm for comm in node.commands
+            # Throw out "SET readonly := False" from the commands as
+            # that is implied.
+            if not (
+                isinstance(comm, qlast.SetField)
+                and comm.name == 'readonly'
+                and isinstance(comm.value, qlast.BooleanConstant)
+                and comm.value.value.lower() == 'false'
+            )
+        ]
         if commands and render_commands:
             self._ddl_visit_body(
                 commands,

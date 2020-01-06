@@ -4168,3 +4168,328 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 'ct': 1,
             }]
         )
+
+    async def test_edgeql_ddl_readonly_01(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of property 'foo' of "
+                "object type 'test::Derived': it is defined as True in "
+                "property 'foo' of object type 'test::Derived' and as "
+                "False in property 'foo' of object type 'test::Base'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base {
+                    CREATE PROPERTY foo -> str;
+                };
+                CREATE TYPE Derived EXTENDING Base {
+                    ALTER PROPERTY foo {
+                        SET readonly := True;
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_readonly_02(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of property 'foo' of "
+                "object type 'test::Derived': it is defined as False in "
+                "property 'foo' of object type 'test::Derived' and as "
+                "True in property 'foo' of object type 'test::Base'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base {
+                    CREATE PROPERTY foo -> str {
+                        SET readonly := True;
+                    };
+                };
+                CREATE TYPE Derived EXTENDING Base {
+                    ALTER PROPERTY foo {
+                        SET readonly := False;
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_readonly_03(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of property 'foo' of "
+                "object type 'test::Derived': it is defined as False in "
+                "property 'foo' of object type 'test::Base0' and as "
+                "True in property 'foo' of object type 'test::Base1'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base0 {
+                    CREATE PROPERTY foo -> str;
+                };
+                CREATE TYPE Base1 {
+                    CREATE PROPERTY foo -> str {
+                        SET readonly := True;
+                    };
+                };
+                CREATE TYPE Derived EXTENDING Base0, Base1;
+            ''')
+
+    async def test_edgeql_ddl_readonly_04(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE Base0 {
+                CREATE PROPERTY foo -> str;
+            };
+            CREATE TYPE Base1 {
+                CREATE PROPERTY foo -> str;
+            };
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+        ''')
+
+        # XXX: The error message is awkward as it refers to conflict
+        # of the Derived with Base1, whereas the more accurate error
+        # message would refer to Base0 and Base1.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of property 'foo' of "
+                "object type 'test::Derived': it is defined as False in "
+                "property 'foo' of object type 'test::Derived' and as "
+                "True in property 'foo' of object type 'test::Base1'."):
+            await self.con.execute('''
+                ALTER TYPE Base1 {
+                    ALTER PROPERTY foo {
+                        SET readonly := True;
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_readonly_05(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of link 'foo' of "
+                "object type 'test::Derived': it is defined as True in "
+                "link 'foo' of object type 'test::Derived' and as "
+                "False in link 'foo' of object type 'test::Base'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base {
+                    CREATE LINK foo -> Object;
+                };
+                CREATE TYPE Derived EXTENDING Base {
+                    ALTER LINK foo {
+                        SET readonly := True;
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_readonly_06(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of link 'foo' of "
+                "object type 'test::Derived': it is defined as False in "
+                "link 'foo' of object type 'test::Derived' and as "
+                "True in link 'foo' of object type 'test::Base'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base {
+                    CREATE LINK foo -> Object {
+                        SET readonly := True;
+                    };
+                };
+                CREATE TYPE Derived EXTENDING Base {
+                    ALTER LINK foo {
+                        SET readonly := False;
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_readonly_07(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of link 'foo' of "
+                "object type 'test::Derived': it is defined as False in "
+                "link 'foo' of object type 'test::Base0' and as "
+                "True in link 'foo' of object type 'test::Base1'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base0 {
+                    CREATE LINK foo -> Object;
+                };
+                CREATE TYPE Base1 {
+                    CREATE LINK foo -> Object {
+                        SET readonly := True;
+                    };
+                };
+                CREATE TYPE Derived EXTENDING Base0, Base1;
+            ''')
+
+    async def test_edgeql_ddl_readonly_08(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> Object;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> Object;
+            };
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+        ''')
+
+        # XXX: The error message is awkward as it refers to conflict
+        # of the Derived with Base1, whereas the more accurate error
+        # message would refer to Base0 and Base1.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of link 'foo' of "
+                "object type 'test::Derived': it is defined as False in "
+                "link 'foo' of object type 'test::Derived' and as "
+                "True in link 'foo' of object type 'test::Base1'."):
+            await self.con.execute('''
+                ALTER TYPE Base1 {
+                    ALTER LINK foo {
+                        SET readonly := True;
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_readonly_09(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of property 'bar' of "
+                "link 'foo' of object type 'test::Derived': it is defined "
+                "as True in property 'bar' of link 'foo' of object type "
+                "'test::Derived' and as False in property 'bar' of link "
+                "'foo' of object type 'test::Base'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base {
+                    CREATE LINK foo -> Object {
+                        CREATE PROPERTY bar -> str;
+                    };
+                };
+                CREATE TYPE Derived EXTENDING Base {
+                    ALTER LINK foo {
+                        ALTER PROPERTY bar {
+                            SET readonly := True;
+                        }
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_readonly_10(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of property 'bar' of "
+                "link 'foo' of object type 'test::Derived': it is defined "
+                "as False in property 'bar' of link 'foo' of object type "
+                "'test::Derived' and as True in property 'bar' of link "
+                "'foo' of object type 'test::Base'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base {
+                    CREATE LINK foo -> Object {
+                        CREATE PROPERTY bar -> str {
+                            SET readonly := True;
+                        };
+                    };
+                };
+                CREATE TYPE Derived EXTENDING Base {
+                    ALTER LINK foo {
+                        ALTER PROPERTY bar {
+                            SET readonly := False;
+                        }
+                    };
+                };
+            ''')
+
+    async def test_edgeql_ddl_readonly_11(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of property 'bar' of "
+                "link 'foo' of object type 'test::Derived': it is defined "
+                "as False in property 'bar' of link 'foo' of object type "
+                "'test::Base0' and as True in property 'bar' of link "
+                "'foo' of object type 'test::Base1'."):
+            await self.con.execute('''
+                SET MODULE test;
+
+                CREATE TYPE Base0 {
+                    CREATE LINK foo -> Object {
+                        CREATE PROPERTY bar -> str;
+                    };
+                };
+                CREATE TYPE Base1 {
+                    CREATE LINK foo -> Object {
+                        CREATE PROPERTY bar -> str {
+                            SET readonly := True;
+                        };
+                    };
+                };
+                CREATE TYPE Derived EXTENDING Base0, Base1;
+            ''')
+
+    async def test_edgeql_ddl_readonly_12(self):
+        # Test that read-only flag must be consistent in the
+        # inheritance hierarchy.
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> Object {
+                    CREATE PROPERTY bar -> str;
+                };
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> Object {
+                    CREATE PROPERTY bar -> str;
+                };
+            };
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+        ''')
+
+        # XXX: The error message is awkward as it refers to conflict
+        # of the Derived with Base1, whereas the more accurate error
+        # message would refer to Base0 and Base1.
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine the readonly flag of property 'bar' of "
+                "link 'foo' of object type 'test::Derived': it is defined "
+                "as False in property 'bar' of link 'foo' of object type "
+                "'test::Derived' and as True in property 'bar' of link "
+                "'foo' of object type 'test::Base1'."):
+            await self.con.execute('''
+                ALTER TYPE Base1 {
+                    ALTER LINK foo {
+                        ALTER PROPERTY bar {
+                            SET readonly := True;
+                        };
+                    };
+                };
+            ''')

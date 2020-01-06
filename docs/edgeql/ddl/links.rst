@@ -113,7 +113,8 @@ The following subcommands are allowed in the ``CREATE LINK`` block:
 
 :eql:synopsis:`SET readonly := {true | false}`
     If ``true``, the link is considered *read-only*.  Modifications
-    of this link are prohibited once an object is created.
+    of this link are prohibited once an object is created.  All of the
+    derived links **must** preserve the original *read-only* value.
 
 :eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
     Add an annotation :eql:synopsis:`<annotation-name>`

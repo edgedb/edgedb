@@ -109,7 +109,8 @@ The following subcommands are allowed in the ``CREATE PROPERTY`` block:
 
 :eql:synopsis:`SET readonly := {true | false}`
     If ``true``, the property is considered *read-only*.  Modifications
-    of this property are prohibited once an object is created.
+    of this property are prohibited once an object is created.  All of the
+    derived properties **must** preserve the original *read-only* value.
 
 :eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
     Set property :eql:synopsis:`<annotation-name>` to

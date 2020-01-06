@@ -379,7 +379,9 @@ class TestIntrospection(tb.QueryTestCase):
                     "@is_local": False
                 }, {
                     "name": "name",
-                    "inherited_fields": {"required", "cardinality"},
+                    "inherited_fields": {
+                        "readonly", "required", "cardinality"
+                    },
                     "@is_local": False
                 }]
             }]

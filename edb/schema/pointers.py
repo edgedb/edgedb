@@ -53,11 +53,9 @@ MAX_NAME_LENGTH = 63
 
 
 def merge_cardinality(target: Pointer, sources: List[so.Object],
-                      field_name: str, *, schema) -> object:
+                      field_name: str, *, schema: s_schema.Schema) -> object:
     current = None
     current_from = None
-
-    target_source = target.get_source(schema)
 
     for source in [target] + list(sources):
         nextval = source.get_explicit_field_value(schema, field_name, None)
@@ -66,27 +64,60 @@ def merge_cardinality(target: Pointer, sources: List[so.Object],
                 current = nextval
                 current_from = source
             elif current is not nextval:
-                current_from_source = current_from.get_source(schema)
-                source_source = source.get_source(schema)
-
-                tgt_repr = (
-                    f'{target_source.get_displayname(schema)}.'
-                    f'{target.get_displayname(schema)}'
-                )
-                cf_repr = (
-                    f'{current_from_source.get_displayname(schema)}.'
-                    f'{current_from.get_displayname(schema)}'
-                )
-                other_repr = (
-                    f'{source_source.get_displayname(schema)}.'
-                    f'{source.get_displayname(schema)}'
-                )
+                tgt_repr = target.get_verbosename(
+                    schema, with_parent=True)
+                cf_repr = current_from.get_verbosename(
+                    schema, with_parent=True)
+                other_repr = source.get_verbosename(
+                    schema, with_parent=True)
 
                 raise errors.SchemaError(
                     f'cannot redefine the target cardinality of '
-                    f'{tgt_repr!r}: it is defined '
-                    f'as {current.as_ptr_qual()!r} in {cf_repr!r} and '
-                    f'as {nextval.as_ptr_qual()!r} in {other_repr!r}.'
+                    f'{tgt_repr}: it is defined '
+                    f'as {current.as_ptr_qual()!r} in {cf_repr} and '
+                    f'as {nextval.as_ptr_qual()!r} in {other_repr}.'
+                )
+
+    return current
+
+
+def merge_readonly(target: Pointer, sources: List[so.Object],
+                   field_name: str, *, schema: s_schema.Schema) -> object:
+
+    current = None
+    current_from = None
+
+    # The target field value is only relevant if it is explicit,
+    # otherwise it should be based on the inherited value.
+    current = target.get_explicit_field_value(schema, field_name, None)
+    if current is not None:
+        current_from = target
+
+    for source in list(sources):
+        # ignore abstract pointers
+        if source.generic(schema):
+            continue
+
+        # We want the field value including the default, not just
+        # explicit value.
+        nextval = source.get_field_value(schema, field_name)
+        if nextval is not None:
+            if current is None:
+                current = nextval
+                current_from = source
+            elif current is not nextval:
+                tgt_repr = target.get_verbosename(
+                    schema, with_parent=True)
+                cf_repr = current_from.get_verbosename(
+                    schema, with_parent=True)
+                other_repr = source.get_verbosename(
+                    schema, with_parent=True)
+
+                raise errors.SchemaError(
+                    f'cannot redefine the readonly flag of '
+                    f'{tgt_repr}: it is defined '
+                    f'as {current} in {cf_repr} and '
+                    f'as {nextval} in {other_repr}.'
                 )
 
     return current
@@ -142,7 +173,7 @@ class Pointer(referencing.ReferencedInheritingObject,
         bool,
         allow_ddl_set=True,
         default=False, compcoef=0.909,
-        merge_fn=utils.merge_sticky_bool)
+        merge_fn=merge_readonly)
 
     # Computable pointers have this set to an expression
     # definining them.
