@@ -29,7 +29,7 @@ from . import dump as dumpmod
 from . import restore as restoremod
 
 
-@cli.command()
+@cli.command(help="Create a database backup")
 @utils.connect_command
 @click.pass_context
 @click.argument('file', type=click.Path(exists=False, dir_okay=False,
@@ -60,7 +60,7 @@ def is_empty_db(conn: edgedb.BlockingIOConnection) -> bool:
     return ret.mods == ['default'] and ret.cnt == 0
 
 
-@cli.command()
+@cli.command(help="Restore the database from a backup")
 @utils.connect_command
 @click.pass_context
 @click.option('--allow-nonempty', is_flag=True)

@@ -32,7 +32,7 @@ from edb.cli import utils
 from edb.edgeql.quote import quote_literal as ql, quote_ident as qi
 
 
-@cli.group()
+@cli.group(help='Modify database configuration')
 @click.pass_context
 def configure(ctx):
     utils.connect(ctx)
@@ -333,7 +333,8 @@ def _process_role_options(ctx, password, password_from_stdin, allow_login):
     return alters
 
 
-@cli.command(name='create-role')
+@cli.command(name='create-role',
+    help='Create a new database user')
 @click.argument('role-name', type=str)
 @options(_role_options)
 @click.pass_context
@@ -354,7 +355,7 @@ def create_role(ctx, role_name, **kwargs):
         raise click.ClickException(str(e)) from e
 
 
-@cli.command(name='alter-role')
+@cli.command(name='alter-role', help='Modify role')
 @click.argument('role-name', type=str)
 @options(_role_options)
 @click.pass_context
@@ -375,7 +376,7 @@ def alter_role(ctx, role_name, **kwargs):
         raise click.ClickException(str(e)) from e
 
 
-@cli.command(name='drop-role')
+@cli.command(name='drop-role', help="Remove role")
 @click.argument('role-name', type=str)
 @click.pass_context
 def drop_role(ctx, role_name, **kwargs):
