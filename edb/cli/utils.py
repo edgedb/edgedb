@@ -82,8 +82,8 @@ class ConnectionArgs:
 
 
 _connect_params = [
-    click.option('-h', '--host'),
-    click.option('-p', '--port', type=int),
+    click.option('-H', '--host'),
+    click.option('-P', '--port', type=int),
     click.option('-u', '--user'),
     click.option('-d', '--database'),
     click.option('--admin', is_flag=True),
@@ -96,7 +96,7 @@ def connect_command(func):
 
     @functools.wraps(func)
     def wrapper(
-        *,
+        *args,
         host,
         port,
         user,
@@ -159,7 +159,7 @@ def connect_command(func):
         if admin:
             cargs.admin = True
 
-        return func(ctx, **kwargs)
+        return func(*args, **kwargs)
 
     for option in reversed(_connect_params):
         wrapper = option(wrapper)

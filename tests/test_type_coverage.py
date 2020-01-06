@@ -194,7 +194,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertEqual(coverage.untyped_lines, 0)
 
     def test_cqa_type_coverage_cli(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "cli", 37.14)
+        self.assertFunctionCoverage(EDB_DIR / "cli", 40.62)
 
     def test_cqa_type_coverage_common(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "common", 27.36)

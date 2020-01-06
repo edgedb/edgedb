@@ -28,7 +28,7 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
     SERIALIZED = True
 
     async def test_cli_role(self):
-        self.run_cli('create', 'role', 'foo', '--allow-login',
+        self.run_cli('create-role', 'foo', '--allow-login',
                      '--password-from-stdin',
                      input='foo-pass\n')
 
@@ -38,7 +38,7 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
         )
         await conn.close()
 
-        self.run_cli('alter', 'role', 'foo', '--no-allow-login')
+        self.run_cli('alter-role', 'foo', '--no-allow-login')
 
         # good password, but allow_login is False
         with self.assertRaisesRegex(
@@ -49,7 +49,7 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
                 password='foo-pass',
             )
 
-        self.run_cli('alter', 'role', 'foo', '--allow-login',
+        self.run_cli('alter-role', 'foo', '--allow-login',
                      '--password-from-stdin',
                      input='foo-new-pass\n')
 
@@ -59,7 +59,7 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
         )
         await conn.close()
 
-        self.run_cli('drop', 'role', 'foo')
+        self.run_cli('drop-role', 'foo')
 
         with self.assertRaisesRegex(
                 edgedb.AuthenticationError,
@@ -69,7 +69,7 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
                 password='foo-new-pass',
             )
 
-        result = self.run_cli('create', 'role', 'foo', '--allow-login',
+        result = self.run_cli('create-role', 'foo', '--allow-login',
                               '--password', input='foo-pass\n')
         self.assertIn('input is not a TTY', result.output)
 

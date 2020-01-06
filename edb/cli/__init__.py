@@ -31,8 +31,9 @@ from . import utils
 
 @click.group(
     invoke_without_command=True,
-    context_settings=dict(help_option_names=['-?', '--help']))
+    context_settings=dict(help_option_names=['-h', '--help']))
 @utils.connect_command
+@click.pass_context
 def cli(ctx):
     if ctx.invoked_subcommand is None:
         status = repl.main(ctx.obj['connargs'])

@@ -327,7 +327,7 @@ _server_options = [
         '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
         help='database cluster directory'),
     click.option(
-        '-P', '--postgres-dsn', type=str,
+        '--postgres-dsn', type=str,
         help='DSN of a remote Postgres cluster, if using one'),
     click.option(
         '-l', '--log-level',
@@ -360,7 +360,7 @@ _server_options = [
         '-I', '--bind-address', type=str, default=None,
         help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS'),
     click.option(
-        '-p', '--port', type=int, default=None,
+        '-P', '--port', type=int, default=None,
         help='port to listen on'),
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
@@ -405,9 +405,9 @@ def server_main(*, insecure=False, **kwargs):
         else:
             abort('Please specify the instance data directory '
                   'using the -D argument or the address of a remote '
-                  'PostgreSQL cluster using the -P argument')
+                  'PostgreSQL cluster using the --postgres-dsn argument')
     elif kwargs['postgres_dsn']:
-        abort('The -D and -P options are mutually exclusive.')
+        abort('The -D and --postgres-dsn options are mutually exclusive.')
 
     kwargs['insecure'] = insecure
 

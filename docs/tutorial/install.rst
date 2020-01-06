@@ -31,7 +31,7 @@ database superuser:
 
 .. code-block:: bash
 
-    $ sudo -u edgedb edgedb --admin alter role edgedb --password
+    $ sudo -u edgedb edgedb --admin alter-role edgedb --password
 
 With that done we should be able to connect to the EdgeDB server instance
 using the newly set password:
