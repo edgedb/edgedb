@@ -173,8 +173,8 @@ Date and Time
     The :eql:type:`datetime` scalar has the following elements
     available for extraction:
 
-    - ``'epoch'`` - the number of seconds since 1970-01-01 00:00:00
-      UTC for :eql:type:`datetime` or local time for
+    - ``'epochseconds'`` - the number of seconds since 1970-01-01 00:00:00
+      UTC (Unix epoch) for :eql:type:`datetime` or local time for
       :eql:type:`cal::local_datetime`. It can be negative.
     - ``'century'`` - the century according to the Gregorian calendar
     - ``'day'`` - the day of the month (1-31)
@@ -191,10 +191,10 @@ Date and Time
       on Jan 1, 2001.
     - ``'milliseconds'`` - the seconds including fractional value expressed
       as milliseconds
-    - ``'minute'`` - the minutes (0-59)
+    - ``'minutes'`` - the minutes (0-59)
     - ``'month'`` - the month of the year (1-12)
     - ``'quarter'`` - the quarter of the year (1-4)
-    - ``'second'`` - the seconds, including fractional value from 0 up to and
+    - ``'seconds'`` - the seconds, including fractional value from 0 up to and
       not including 60
     - ``'week'`` - the number of the ISO 8601 week-numbering week of
       the year. ISO weeks are defined to start on Mondays and the
@@ -205,7 +205,7 @@ Date and Time
 
         db> SELECT datetime_get(
         ...     <datetime>'2018-05-07T15:01:22.306916+00',
-        ...     'epoch');
+        ...     'epochseconds');
         {1525705282.306916}
 
         db> SELECT datetime_get(
@@ -239,12 +239,12 @@ Date and Time
     The :eql:type:`cal::local_time` scalar has the following elements
     available for extraction:
 
-    - ``'epoch'``
+    - ``'midnightseconds'``
     - ``'hour'``
     - ``'microseconds'``
     - ``'milliseconds'``
-    - ``'minute'``
-    - ``'second'``
+    - ``'minutes'``
+    - ``'seconds'``
 
     For full description of what these elements extract see
     :eql:func:`datetime_get`.
@@ -252,7 +252,7 @@ Date and Time
     .. code-block:: edgeql-repl
 
         db> SELECT time_get(
-        ...     <cal::local_time>'15:01:22.306916', 'minute');
+        ...     <cal::local_time>'15:01:22.306916', 'minutes');
         {1}
 
         db> SELECT time_get(
@@ -267,8 +267,26 @@ Date and Time
 
     Extract a specific element of input date by name.
 
-    Valid elements for :eql:type:`cal::local_date` are the same as for
-    :eql:type:`cal::local_datetime` in :eql:func:`datetime_get`.
+    The :eql:type:`cal::local_date` scalar has the following elements
+    available for extraction:
+
+    - ``'century'`` - the century according to the Gregorian calendar
+    - ``'day'`` - the day of the month (1-31)
+    - ``'decade'`` - the decade (year divided by 10 and rounded down)
+    - ``'dow'`` - the day of the week from Sunday (0) to Saturday (6)
+    - ``'doy'`` - the day of the year (1-366)
+    - ``'isodow'`` - the ISO day of the week from Monday (1) to Sunday (7)
+    - ``'isoyear'`` - the ISO 8601 week-numbering year that the date falls in.
+      See the ``'week'`` element for more details.
+    - ``'millennium'`` - the millennium. The third millennium started
+      on Jan 1, 2001.
+    - ``'month'`` - the month of the year (1-12)
+    - ``'quarter'`` - the quarter of the year (1-4)
+      not including 60
+    - ``'week'`` - the number of the ISO 8601 week-numbering week of
+      the year. ISO weeks are defined to start on Mondays and the
+      first week of a year must contain Jan 4 of that year.
+    - ``'year'`` - the year
 
     .. code-block:: edgeql-repl
 

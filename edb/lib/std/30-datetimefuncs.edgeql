@@ -50,7 +50,26 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
     # date_part of timestamptz is STABLE in PostgreSQL
     SET volatility := 'STABLE';
     USING SQL $$
-    SELECT date_part("el", "dt")
+    SELECT CASE WHEN "el" IN (
+            'century', 'day', 'decade', 'dow', 'doy', 'hour',
+            'isodow', 'isoyear', 'microseconds', 'millenium',
+            'milliseconds', 'minutes', 'month', 'quarter',
+            'seconds', 'week', 'year')
+        THEN date_part("el", "dt")
+        WHEN "el" = 'epochseconds'
+        THEN date_part('epoch', "dt")
+        ELSE
+            edgedb._raise_specific_exception(
+                'invalid_datetime_format',
+                'invalid unit for std::datetime_get: '
+                    || quote_literal("el"),
+                '{"hint":"Supported units: epochseconds, century, day, ' ||
+                'decade, dow, doy, hour, isodow, isoyear, microseconds, ' ||
+                'millenium, milliseconds, minutes, month, quarter, ' ||
+                'seconds, week, year."}',
+                NULL::float
+            )
+        END
     $$;
 };
 

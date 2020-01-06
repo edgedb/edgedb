@@ -194,7 +194,21 @@ cal::time_get(dt: cal::local_time, el: std::str) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT date_part("el", "dt")
+    SELECT CASE WHEN "el" IN ('hour', 'microseconds', 'milliseconds',
+            'minutes', 'seconds')
+        THEN date_part("el", "dt")
+        WHEN "el" = 'midnightseconds'
+        THEN date_part('epoch', "dt")
+        ELSE
+            edgedb._raise_specific_exception(
+                'invalid_datetime_format',
+                'invalid unit for std::time_get: '
+                    || quote_literal("el"),
+                '{"hint":"Supported units: hour, microseconds, ' ||
+                'midnightseconds, milliseconds, minutes, seconds."}',
+                NULL::float
+            )
+        END
     $$;
 };
 
@@ -204,7 +218,22 @@ cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT date_part("el", "dt")
+    SELECT CASE WHEN "el" IN (
+            'century', 'day', 'decade', 'dow', 'doy',
+            'isodow', 'isoyear', 'millenium',
+            'month', 'quarter', 'week', 'year')
+        THEN date_part("el", "dt")
+        ELSE
+            edgedb._raise_specific_exception(
+                'invalid_datetime_format',
+                'invalid unit for std::date_get: '
+                    || quote_literal("el"),
+                '{"hint":"Supported units: century, day, ' ||
+                'decade, dow, doy, isodow, isoyear, ' ||
+                'millenium, month, quarter, seconds, week, year."}',
+                NULL::float
+            )
+        END
     $$;
 };
 
@@ -612,7 +641,26 @@ std::datetime_get(dt: cal::local_datetime, el: std::str) -> std::float64
 {
     SET volatility := 'IMMUTABLE';
     USING SQL $$
-    SELECT date_part("el", "dt")
+    SELECT CASE WHEN "el" IN (
+            'century', 'day', 'decade', 'dow', 'doy', 'hour',
+            'isodow', 'isoyear', 'microseconds', 'millenium',
+            'milliseconds', 'minutes', 'month', 'quarter',
+            'seconds', 'week', 'year')
+        THEN date_part("el", "dt")
+        WHEN "el" = 'epochseconds'
+        THEN date_part('epoch', "dt")
+        ELSE
+            edgedb._raise_specific_exception(
+                'invalid_datetime_format',
+                'invalid unit for std::datetime_get: '
+                    || quote_literal("el"),
+                '{"hint":"Supported units: epochseconds, century, day, ' ||
+                'decade, dow, doy, hour, isodow, isoyear, microseconds, ' ||
+                'millenium, milliseconds, minutes, month, quarter, ' ||
+                'seconds, week, year."}',
+                NULL::float
+            )
+        END
     $$;
 };
 
