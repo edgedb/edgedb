@@ -152,6 +152,9 @@ def compile_limit_offset_clause(
     if ir_set is None:
         return None
 
+    if isinstance(ir_set.expr, irast.IntegerConstant):
+        return pgast.NumericConstant(val=ir_set.expr.value)
+
     with ctx.new() as ctx1:
         ctx1.expr_exposed = False
 
