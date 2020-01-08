@@ -25,6 +25,7 @@ import functools
 import os
 import subprocess
 import sys
+import uuid
 
 import edgedb
 
@@ -264,6 +265,20 @@ class Cli:
             ]
         )
 
+    def _new_connection(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> edgedb.BlockingIOConnection:
+        con = self.cargs.new_connection(*args, **kwargs)
+        con._set_type_codec(
+            uuid.UUID('00000000-0000-0000-0000-000000000110'),
+            encoder=lambda obj: obj,
+            decoder=lambda obj: utils.BigInt(obj),
+            format='python',
+        )
+        return con
+
     @property
     def connection(self) -> edgedb.BlockingIOConnection:
         if self._connection is None:
@@ -404,7 +419,7 @@ class Cli:
     def ensure_connection(self) -> None:
         try:
             if self._connection is None or self._connection.is_closed():
-                self._connection = self.cargs.new_connection(
+                self._connection = self._new_connection(
                     database=self.database,
                     timeout=60,
                 )
@@ -497,7 +512,7 @@ class Cli:
         # No need to prompt for a password if a connect attempt failed.
         self.cargs.allow_password_request = False
         try:
-            new_connection = self.cargs.new_connection(
+            new_connection = self._new_connection(
                 database=new_db,
                 timeout=60,
             )

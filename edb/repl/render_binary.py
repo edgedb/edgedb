@@ -32,6 +32,7 @@ from edb.common.markup.renderers import terminal
 from edb.common.markup.renderers import styles
 
 from . import context
+from . import utils
 
 
 style = styles.Dark256
@@ -224,6 +225,15 @@ def _numeric(
     buf: terminal.Buffer
 ) -> None:
     buf.write(str(o), style.code_number)
+
+
+@walk.register
+def _bigint(
+    o: utils.BigInt,
+    repl_ctx: context.ReplContext,
+    buf: terminal.Buffer
+) -> None:
+    buf.write(f'{o}n', style.code_number)
 
 
 @walk.register
