@@ -155,6 +155,9 @@ Format:
         // Message code.
         int32                 code;
 
+        // Message text.
+        string                text;
+
         // Other error attributes.
         Headers               attributes;
     };
