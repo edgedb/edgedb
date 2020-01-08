@@ -27,6 +27,10 @@ from edb.edgeql import quote as eql_quote
 from edb.edgeql.parser.grammar import lexer
 
 
+class BigInt(int):
+    pass
+
+
 @functools.lru_cache(100)
 def split_edgeql(
     script: str, *,
