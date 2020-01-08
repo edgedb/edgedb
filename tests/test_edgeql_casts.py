@@ -2237,3 +2237,31 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 'invalid custom_str_t'):
             await self.con.fetchall(
                 "SELECT <test::custom_str_t>'123'")
+
+    async def test_edgeql_casts_prohibit_tuple_query_params_01(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r'cannot pass tuples as query parameters',
+        ):
+            await self.con.fetchall(
+                r'''
+                WITH MODULE test
+                SELECT Test {
+                    id,
+                    num := (<tuple<int64, float64, str, bytes>>$tup).0,
+                    st := (<tuple<int64, float64, str, bytes>>$tup).2,
+                };
+                ''',
+                tup=(0, 1.0, "str", b"bytes"),
+            )
+
+    async def test_edgeql_casts_prohibit_tuple_query_params_02(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r'cannot pass collections with tuple elements'
+            r' as query parameters',
+        ):
+            await self.con.fetchall(
+                r"SELECT <array<tuple<int64, str>>>$0;",
+                [(0, 'zero'), (1, 'one')],
+            )
