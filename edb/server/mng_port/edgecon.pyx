@@ -264,7 +264,7 @@ cdef class EdgeConnection:
                 pgaddr['password'] = '********'
             msg_buf = WriteBuffer.new_message(b'S')
             msg_buf.write_len_prefixed_bytes(b'pgaddr')
-            msg_buf.write_len_prefixed_utf8(str(pgaddr))
+            msg_buf.write_len_prefixed_utf8(json.dumps(pgaddr))
             msg_buf.end_message()
             buf.write_buffer(msg_buf)
 
