@@ -874,6 +874,21 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
         else:
             return super().compile_expr_field(schema, context, field, value)
 
+    def _apply_field_ast(self, schema, context, node, op):
+        if context.descriptive_mode:
+            # When generating AST for DESCRIBE AS TEXT, we want to
+            # omit 'readonly' flag if it's inherited and it actually
+            # has the default value.
+            if op.property == 'readonly':
+                pointer_obj = self.get_object(schema, context)
+                field = type(pointer_obj).get_field('readonly')
+                dval = field.default
+
+                if op.source == 'inheritance' and op.new_value is dval:
+                    return
+
+        super()._apply_field_ast(schema, context, node, op)
+
 
 class SetPointerType(
         referencing.ReferencedInheritingObjectCommand,

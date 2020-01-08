@@ -823,7 +823,13 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
                     f'module {modname} is read-only',
                     context=self.source_context)
 
-    def get_object(self, schema, context, *, name=None):
+    def get_object(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        name: Optional[str] = None,
+    ) -> so.Object:
         if name is None:
             name = self.classname
             rename = context.renames.get(name)

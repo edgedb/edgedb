@@ -4193,6 +4193,36 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
         )
 
+    def test_describe_08(self):
+        self._assert_describe(
+            """
+            type Foo {
+                property bar -> str {
+                    readonly := False;
+                }
+            };
+            """,
+
+            'DESCRIBE TYPE Foo',
+
+            """
+            CREATE TYPE test::Foo {
+                CREATE SINGLE PROPERTY bar -> std::str {
+                    SET readonly := false;
+                };
+            };
+            """,
+            'DESCRIBE TYPE Foo AS SDL',
+
+            """
+            type test::Foo {
+                single property bar -> std::str {
+                    readonly := false;
+                };
+            };
+            """,
+        )
+
     def test_describe_alias_01(self):
         self._assert_describe(
             """
