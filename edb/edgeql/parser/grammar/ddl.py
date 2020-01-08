@@ -1217,6 +1217,38 @@ class CreateConcreteLinkStmt(Nonterm):
             target=kids[5].val,
         )
 
+    def reduce_CreateComputableLinkWithUsing(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals LINK UnqualifiedPointerName
+            OptCreateConcreteLinkCommandsBlock
+        """
+        cmds = kids[4].val
+        new_cmds = []
+        target = None
+
+        for cmd in cmds:
+            if isinstance(cmd, qlast.SetSpecialField) and cmd.name == 'expr':
+                if target is not None:
+                    raise EdgeQLSyntaxError(
+                        f'computable link with more than one expression',
+                        context=kids[3].context)
+                target = cmd.value
+            else:
+                new_cmds.append(cmd)
+
+        if target is None:
+            raise EdgeQLSyntaxError(
+                f'computable link without expression',
+                context=kids[3].context)
+
+        self.val = qlast.CreateConcreteLink(
+            name=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=target,
+            commands=new_cmds,
+        )
+
 
 commands_block(
     'AlterConcreteLink',
