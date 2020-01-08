@@ -56,30 +56,30 @@ ALTER TYPE cfg::Config {
     CREATE MULTI LINK sysobj -> cfg::SystemConfig;
 
     CREATE PROPERTY __internal_testvalue -> std::int64 {
-        SET ANNOTATION cfg::internal := 'true';
-        SET ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::system := 'true';
         SET default := 0;
     };
 
     CREATE PROPERTY __internal_no_const_folding -> std::bool {
-        SET ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::internal := 'true';
         SET default := false;
     };
 
     CREATE PROPERTY __internal_testmode -> std::bool {
-        SET ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::internal := 'true';
         SET default := false;
     };
 
     CREATE PROPERTY __internal_restart -> std::bool {
-        SET ANNOTATION cfg::internal := 'true';
-        SET ANNOTATION cfg::system := 'true';
-        SET ANNOTATION cfg::requires_restart := 'true';
+        CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION cfg::requires_restart := 'true';
         SET default := false;
     };
 
     CREATE MULTI PROPERTY multiprop -> std::str {
-        SET ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::internal := 'true';
     };
 };
 

@@ -24,7 +24,7 @@ type or link.
 
     # where <subcommand> is one of
 
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
 
 
 Description
@@ -43,11 +43,11 @@ Parameters
 
 The only subcommand that is allowed in the ``CREATE INDEX`` block:
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Set object type :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 
 Example
@@ -81,7 +81,8 @@ Alter the definition of an :ref:`index <ref_eql_sdl_indexes>`.
 
     # where <subcommand> is one of
 
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
+      ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
 
 
@@ -102,11 +103,14 @@ Parameters
 
 The following subcommands are allowed in the ``ALTER INDEX`` block:
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
-    Set object type :eql:synopsis:`<annotation-name>` to
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
+    Set index :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
-    See :eql:stmt:`SET ANNOTATION` for details.
+:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+    Alter index :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
 
 :eql:synopsis:`DROP ANNOTATION <annotation-name>;`
     Remove constraint :eql:synopsis:`<annotation-name>`.
@@ -123,7 +127,7 @@ Add an annotation to the index on the ``name`` property of object type
 
     ALTER TYPE User {
         ALTER INDEX ON (.name) {
-            SET ANNOTATION title := "User name index";
+            CREATE ANNOTATION title := "User name index";
         };
     };
 

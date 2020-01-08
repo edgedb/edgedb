@@ -50,7 +50,7 @@ CREATE FUNCTION
     # where <subcommand> is one of
 
       SET session_only := {true | false} ;
-      SET ANNOTATION <annotation-name> := <value> ;
+      CREATE ANNOTATION <annotation-name> := <value> ;
       USING ( <expr> ) ;
       USING <language> <functionbody> ;
 
@@ -156,11 +156,11 @@ block:
     :eql:func:`sys::advisory_lock`, :eql:func:`sys::advisory_unlock`,
     :eql:func:`sys::advisory_unlock_all`.
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Set the function's :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 :eql:synopsis:`USING <language> <functionbody>`
     See the meaning of *language* and *functionbody* above.
@@ -195,7 +195,7 @@ Define a function using the block syntax:
         USING (
             SELECT a + b
         );
-        SET ANNOTATION title := "My sum function.";
+        CREATE ANNOTATION title := "My sum function.";
     };
 
 

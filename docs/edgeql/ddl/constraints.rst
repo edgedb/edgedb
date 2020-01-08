@@ -32,7 +32,7 @@ CREATE ABSTRACT CONSTRAINT
 
       USING <constr-expression>
       SET errmessage := <error-message>
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
 
 
 Description
@@ -93,11 +93,11 @@ CONSTRAINT`` block:
     - ``__subject__`` -- the value of the ``title`` annotation of the scalar
       type, property or link on which the constraint is defined.
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
     Set constraint :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 
 Example
@@ -109,7 +109,7 @@ is a string in upper case.
 .. code-block:: edgeql
 
     CREATE ABSTRACT CONSTRAINT uppercase {
-        SET ANNOTATION title := "Upper case constraint";
+        CREATE ANNOTATION title := "Upper case constraint";
         USING (str_upper(__subject__) = __subject__);
         SET errmessage := "{__subject__} is not in upper case";
     };
@@ -135,7 +135,8 @@ Alter the definition of an
       RENAME TO <newname>
       USING <constr-expression>
       SET errmessage := <error-message>
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
+      ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
 
 
@@ -165,6 +166,10 @@ CONSTRAINT`` block:
 :eql:synopsis:`RENAME TO <newname>`
     Change the name of the constraint to *newname*.  All concrete
     constraints inheriting from this constraint are also renamed.
+
+:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+    Alter constraint :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
 
 :eql:synopsis:`DROP ANNOTATION <annotation-name>;`
     Remove constraint :eql:synopsis:`<annotation-name>`.
@@ -254,7 +259,7 @@ Define a concrete constraint on the specified schema item.
     # where <subcommand> is one of
 
       SET errmessage := <error-message>
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
 
 
 Description
@@ -317,9 +322,9 @@ The following subcommands are allowed in the ``CERATE CONSTRAINT`` block:
     paragraph in :eql:stmt:`CREATE ABSTRACT CONSTRAINT` for the rules
     of error message template syntax.
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
     An optional list of annotations for the constraint.
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 
 Example
@@ -359,7 +364,8 @@ Alter the definition of a concrete constraint on the specified schema item.
       DROP DELEGATED
       RENAME TO <newname>
       SET errmessage := <error-message>
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
+      ALTER ANNOTATION <annotation-name>
       DROP ANNOTATION <annotation-name>
 
 
@@ -394,6 +400,10 @@ The following subcommands are allowed in the ``ALTER CONSTRAINT`` block:
 
 :eql:synopsis:`RENAME TO <newname>`
     Change the name of the constraint to :eql:synopsis:`<newname>`.
+
+:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+    Alter constraint :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
 
 :eql:synopsis:`DROP ANNOTATION <annotation-name>;`
     Remove an *annotation*. See :eql:stmt:`DROP ANNOTATION` for details.

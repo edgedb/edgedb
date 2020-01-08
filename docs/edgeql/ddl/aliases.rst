@@ -24,7 +24,7 @@ CREATE ALIAS
     [ WITH <with-item> [, ...] ]
     CREATE ALIAS <alias-name> "{"
         USING <alias-expr>;
-        [ SET ANNOTATION <attr-name> := <attr-value>; ... ]
+        [ CREATE ANNOTATION <attr-name> := <attr-value>; ... ]
     "}" ;
 
     # where <with-item> is:
@@ -56,9 +56,9 @@ Parameters
 :eql:synopsis:`<alias-expr>`
     The aliased expression.  Can be any valid EdgeQL expression.
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
     An optional list of annotation values for the alias.
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 :eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
     An optional list of module alias declarations to be used in the

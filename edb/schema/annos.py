@@ -231,34 +231,43 @@ class CreateAnnotationValue(AnnotationValueCommand,
         else:
             super()._apply_field_ast(schema, context, node, op)
 
-    def apply(self, schema, context):
-        attrsubj = context.get(AnnotationSubjectCommandContext)
-        assert attrsubj, "Annotation commands must be run in " + \
-                         "AnnotationSubject context"
 
-        name = sn.shortname_from_fullname(self.classname)
-        attrs = attrsubj.scls.get_annotations(schema)
-        annotation = attrs.get(schema, name, None)
-        if annotation is None:
-            schema, annotation = super().apply(schema, context)
+class AlterAnnotationValue(AnnotationValueCommand,
+                           referencing.AlterReferencedInheritingObject):
+
+    astnode = qlast.AlterAnnotationValue
+    referenced_astnode = qlast.AlterAnnotationValue
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, schema, astnode, context):
+        from edb.edgeql import compiler as qlcompiler
+
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        value = qlcompiler.evaluate_ast_to_python_val(
+            astnode.value, schema=schema)
+
+        if not isinstance(value, str):
+            raise ValueError(
+                f'unexpected value type in AnnotationValue: {value!r}')
+
+        cmd.update((
+            sd.AlterObjectProperty(
+                property='value',
+                new_value=value
+            ),
+        ))
+
+        return cmd
+
+    def _apply_field_ast(self, schema, context, node, op):
+        if op.property == 'value':
+            node.value = qlast.BaseConstant.from_python(op.new_value)
         else:
-            schema, annotation = sd.AlterObject.apply(self, schema, context)
-
-        return schema, annotation
+            super()._apply_field_ast(schema, context, node, op)
 
 
-class AlterAnnotationValue(AnnotationValueCommand, sd.AlterObject):
-    pass
+class DeleteAnnotationValue(AnnotationValueCommand,
+                            inheriting.DeleteInheritingObject):
 
-
-class DeleteAnnotationValue(AnnotationValueCommand, sd.DeleteObject):
     astnode = qlast.DropAnnotationValue
-
-    def apply(self, schema, context):
-        attrsubj = context.get(AnnotationSubjectCommandContext)
-        assert attrsubj, "Annotation commands must be run in " + \
-                         "AnnotationSubject context"
-
-        schema = self.del_annotation(schema, self.classname, attrsubj.scls)
-
-        return super().apply(schema, context)

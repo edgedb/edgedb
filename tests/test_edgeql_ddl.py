@@ -39,7 +39,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::TestObjectType {
                 CREATE LINK test_object_link -> std::Object {
                     CREATE PROPERTY test_link_prop -> std::int64 {
-                        SET ANNOTATION title := 'Test Property';
+                        CREATE ANNOTATION title := 'Test Property';
                     };
                 };
             };
@@ -1321,7 +1321,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_05(self):
         await self.con.execute("""
             CREATE FUNCTION test::attr_func_1() -> std::str {
-                SET ANNOTATION description := 'hello';
+                CREATE ANNOTATION description := 'hello';
                 USING EdgeQL "SELECT '1'";
             };
         """)
@@ -1765,7 +1765,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''
             ALTER INFIX OPERATOR test::`+++`
                 (left: int64, right: int64)
-                SET ANNOTATION description := 'my plus';
+                CREATE ANNOTATION description := 'my plus';
         ''')
 
         await self.assert_query_result(
@@ -2174,7 +2174,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE ABSTRACT ANNOTATION test::attr1;
 
             CREATE SCALAR TYPE test::TestAttrType1 EXTENDING std::str {
-                SET ANNOTATION test::attr1 := 'aaaa';
+                CREATE ANNOTATION test::attr1 := 'aaaa';
             };
         """)
 
@@ -2227,7 +2227,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE ABSTRACT ANNOTATION test::attr1;
 
             CREATE TYPE test::TestAttrType2 {
-                SET ANNOTATION test::attr1 := 'aaaa';
+                CREATE ANNOTATION test::attr1 := 'aaaa';
             };
         """)
 
@@ -2266,8 +2266,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE ABSTRACT INHERITABLE ANNOTATION test::inh;
 
             CREATE TYPE test::TestAttr1 {
-                SET ANNOTATION test::noninh := 'no inherit';
-                SET ANNOTATION test::inh := 'inherit me';
+                CREATE ANNOTATION test::noninh := 'no inherit';
+                CREATE ANNOTATION test::inh := 'inherit me';
             };
 
             CREATE TYPE test::TestAttr2 EXTENDING test::TestAttr1;
@@ -2314,8 +2314,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::DerivedAnno4 EXTENDING test::BaseAnno4;
             CREATE ABSTRACT ANNOTATION test::noninh_anno;
             CREATE ABSTRACT INHERITABLE ANNOTATION test::inh_anno;
-            ALTER TYPE test::BaseAnno4 SET ANNOTATION test::noninh_anno := '1';
-            ALTER TYPE test::BaseAnno4 SET ANNOTATION test::inh_anno := '2';
+            ALTER TYPE test::BaseAnno4
+                CREATE ANNOTATION test::noninh_anno := '1';
+            ALTER TYPE test::BaseAnno4
+                CREATE ANNOTATION test::inh_anno := '2';
         ''')
 
         await self.assert_query_result(
@@ -2349,7 +2351,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::BaseAnno05 {
                 CREATE PROPERTY name -> str;
                 CREATE INDEX ON (.name) {
-                    SET ANNOTATION title := 'name index'
+                    CREATE ANNOTATION title := 'name index'
                 }
             };
         ''')
@@ -2391,7 +2393,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r'''
             ALTER TYPE test::BaseAnno06 {
                 ALTER INDEX ON (.name) {
-                    SET ANNOTATION title := 'name index'
+                    CREATE ANNOTATION title := 'name index'
                 }
             };
         ''')
@@ -2459,7 +2461,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE test::BaseAnno07 {
                 CREATE PROPERTY name -> str;
                 CREATE INDEX ON (.name) {
-                    SET ANNOTATION title := 'name index'
+                    CREATE ANNOTATION title := 'name index'
                 }
             };
         ''')
@@ -2596,6 +2598,133 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }]
             }]
         )
+
+    async def test_edgeql_ddl_annotation_09(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION test::anno09;
+
+            CREATE TYPE test::TestTypeAnno09 {
+                CREATE ANNOTATION test::anno09 := 'A';
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    annotations: {
+                        name,
+                        @value,
+                    } FILTER .name = 'test::anno09'
+                }
+                FILTER
+                    .name = 'test::TestTypeAnno09';
+            ''',
+            [{"annotations": [{"name": "test::anno09", "@value": "A"}]}]
+        )
+
+        # Alter the annotation.
+        await self.con.execute("""
+            ALTER TYPE test::TestTypeAnno09 {
+                ALTER ANNOTATION test::anno09 := 'B';
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    annotations: {
+                        name,
+                        @value,
+                    } FILTER .name = 'test::anno09'
+                }
+                FILTER
+                    .name = 'test::TestTypeAnno09';
+            ''',
+            [{"annotations": [{"name": "test::anno09", "@value": "B"}]}]
+        )
+
+    async def test_edgeql_ddl_annotation_10(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION test::anno10;
+            CREATE ABSTRACT INHERITABLE ANNOTATION test::anno10_inh;
+
+            CREATE TYPE test::TestTypeAnno10
+            {
+                CREATE ANNOTATION test::anno10 := 'A';
+                CREATE ANNOTATION test::anno10_inh := 'A';
+            };
+
+            CREATE TYPE test::TestSubTypeAnno10
+                    EXTENDING test::TestTypeAnno10
+            {
+                CREATE ANNOTATION test::anno10 := 'B';
+                ALTER ANNOTATION test::anno10_inh := 'B';
+            }
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    annotations: {
+                        name,
+                        @value,
+                    } FILTER .name LIKE 'test::anno10%'
+                }
+                FILTER
+                    .name LIKE 'test::%Anno10'
+                ORDER BY
+                    .name
+            ''',
+            [
+                {
+                    "annotations": [
+                        {"name": "test::anno10_inh", "@value": "B"},
+                        {"name": "test::anno10", "@value": "B"},
+                    ]
+                },
+                {
+                    "annotations": [
+                        {"name": "test::anno10_inh", "@value": "A"},
+                        {"name": "test::anno10", "@value": "A"},
+                    ]
+                },
+            ]
+        )
+
+        # Drop the non-inherited annotation from subtype.
+        await self.con.execute("""
+            ALTER TYPE test::TestSubTypeAnno10 {
+                DROP ANNOTATION test::anno10;
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT ObjectType {
+                    annotations: {
+                        name,
+                        @value,
+                    } FILTER .name LIKE 'test::anno10%'
+                }
+                FILTER
+                    .name = 'test::TestSubTypeAnno10';
+            ''',
+            [{"annotations": [{"name": "test::anno10_inh", "@value": "B"}]}]
+        )
+
+        with self.assertRaisesRegex(
+            edgedb.SchemaError,
+            "cannot drop inherited annotation 'test::anno10_inh'",
+        ):
+            await self.con.execute("""
+                ALTER TYPE test::TestSubTypeAnno10 {
+                    DROP ANNOTATION test::anno10_inh;
+                };
+            """)
 
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
@@ -2754,7 +2883,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             CREATE TYPE test::ExtB4 {
                 CREATE PROPERTY a -> int64 {
-                    SET ANNOTATION a_anno := 'anno';
+                    CREATE ANNOTATION a_anno := 'anno';
                 };
 
                 CREATE PROPERTY b -> str;
@@ -3548,7 +3677,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r'''
             ALTER SCALAR TYPE test::contest2_t {
                 ALTER CONSTRAINT expression ON (__subject__ > 0) {
-                    SET ANNOTATION title := 'my constraint 2'
+                    CREATE ANNOTATION title := 'my constraint 2'
                 }
             };
         ''')
@@ -3616,7 +3745,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r'''
             CREATE SCALAR TYPE test::contest3_t EXTENDING int64 {
                 CREATE CONSTRAINT expression ON (__subject__ > 0) {
-                    SET ANNOTATION title := 'my constraint 3';
+                    CREATE ANNOTATION title := 'my constraint 3';
                 }
             };
         ''')
@@ -3776,7 +3905,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             ALTER SCALAR TYPE test::a1 {
                 CREATE CONSTRAINT std::one_of('a', 'b') {
-                    SET ANNOTATION description :=
+                    CREATE ANNOTATION description :=
                         'test_delta_drop_01_constraint';
                 };
             };
@@ -3818,7 +3947,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             CREATE TYPE test::C1 {
                 CREATE PROPERTY l1 -> std::str {
-                    SET ANNOTATION description := 'test_delta_drop_02_link';
+                    CREATE ANNOTATION description := 'test_delta_drop_02_link';
                 };
             };
         """)
@@ -3861,7 +3990,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE ABSTRACT LINK test::l1_parent;
             CREATE TYPE test::DropB {
                 CREATE LINK l1 EXTENDING test::l1_parent -> test::DropA {
-                    SET ANNOTATION test::dropattr := 'foo';
+                    CREATE ANNOTATION test::dropattr := 'foo';
                 };
             };
             CREATE SCALAR TYPE test::dropint EXTENDING int64;
@@ -4156,7 +4285,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT B {
                 t := T
             };
-            ALTER TYPE B ALTER LINK t SET ANNOTATION title := 'overloaded';
+            ALTER TYPE B ALTER LINK t CREATE ANNOTATION title := 'overloaded';
             UPDATE B SET { t := T };
         """)
 

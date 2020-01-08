@@ -845,6 +845,7 @@ class IntrospectionMech:
                 value=value,
                 inheritable=r['inheritable'],
                 is_local=r['is_local'],
+                is_final=r['is_final'],
             )
 
             basemap[anno] = (r['bases'], r['ancestors'])

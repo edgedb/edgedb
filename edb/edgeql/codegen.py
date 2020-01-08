@@ -1060,7 +1060,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if self.sdlmode:
             self.write('annotation ')
         else:
-            self.write('SET ANNOTATION ')
+            self.write('CREATE ANNOTATION ')
+        self.visit(node.name)
+        self.write(' := ')
+        self.visit(node.value)
+
+    def visit_AlterAnnotationValue(
+        self,
+        node: qlast.AlterAnnotationValue
+    ) -> None:
+        self.write('ALTER ANNOTATION ')
         self.visit(node.name)
         self.write(' := ')
         self.visit(node.value)

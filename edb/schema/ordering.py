@@ -93,6 +93,7 @@ def linearize_delta(
 
     for _key, info in ordered:
         op = info['op']
+        # Elide empty ALTER statements from output.
         if (isinstance(op, sd.AlterObject)
                 and not len(op.get_subcommands())):
             continue
