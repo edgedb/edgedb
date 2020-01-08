@@ -881,6 +881,10 @@ class CreateAnnotationValue(CreateObject):
     value: Expr
 
 
+class AlterAnnotationValue(AlterObject):
+    value: Expr
+
+
 class DropAnnotationValue(DropObject):
     pass
 

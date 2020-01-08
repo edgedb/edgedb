@@ -461,9 +461,9 @@ _123456789_123456789_123456789 -> str
             CREATE ABSTRACT INHERITABLE ANNOTATION default::inh_anno;
             CREATE ABSTRACT ANNOTATION default::noinh_anno;
             ALTER TYPE default::Base
-                SET ANNOTATION default::noinh_anno := 'foo';
+                CREATE ANNOTATION default::noinh_anno := 'foo';
             ALTER TYPE default::Base
-                SET ANNOTATION default::inh_anno := 'bar';
+                CREATE ANNOTATION default::inh_anno := 'bar';
         ''')
 
         inh_anno = schema.get('default::inh_anno')
@@ -1280,7 +1280,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             SELECT
                 Foo
             );
-            SET ANNOTATION std::title := 'A Foo alias';
+            CREATE ANNOTATION std::title := 'A Foo alias';
         };
     ''')
     def test_get_migration_16(self):
@@ -4281,7 +4281,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                         calc := 1
                     }
                 );
-                SET ANNOTATION std::title := 'bar alias';
+                CREATE ANNOTATION std::title := 'bar alias';
             };
             """
         )
@@ -4351,7 +4351,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY annotated_compprop {
                     USING ('foo');
-                    SET ANNOTATION std::title := 'compprop';
+                    CREATE ANNOTATION std::title := 'compprop';
                 };
                 CREATE SINGLE LINK annotated_link {
                     USING (WITH
@@ -4361,7 +4361,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     LIMIT
                         1
                     );
-                    SET ANNOTATION std::title := 'complink';
+                    CREATE ANNOTATION std::title := 'complink';
                 };
                 CREATE SINGLE LINK complink := (WITH
                     MODULE test
@@ -4398,7 +4398,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE TYPE test::Foo {
                 CREATE SINGLE PROPERTY annotated_compprop {
                     USING ('foo');
-                    SET ANNOTATION std::title := 'compprop';
+                    CREATE ANNOTATION std::title := 'compprop';
                 };
                 CREATE SINGLE LINK annotated_link {
                     USING (WITH
@@ -4408,7 +4408,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     LIMIT
                         1
                     );
-                    SET ANNOTATION std::title := 'complink';
+                    CREATE ANNOTATION std::title := 'complink';
                 };
                 CREATE SINGLE LINK complink := (WITH
                     MODULE test
@@ -4491,7 +4491,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE TYPE test::B EXTENDING test::A {
                 SET id := <std::uuid>'@SID@';
                 ALTER PROPERTY foo {
-                    SET ANNOTATION std::title := 'test';
+                    CREATE ANNOTATION std::title := 'test';
                 };
             };
             """

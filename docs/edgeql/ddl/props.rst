@@ -47,7 +47,7 @@ CREATE PROPERTY
 
       SET default := <expression>
       SET readonly := {true | false}
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
       CREATE CONSTRAINT <constraint-name> ...
 
 
@@ -112,11 +112,11 @@ The following subcommands are allowed in the ``CREATE PROPERTY`` block:
     of this property are prohibited once an object is created.  All of the
     derived properties **must** preserve the original *read-only* value.
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Set property :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 :eql:synopsis:`CREATE CONSTRAINT`
     Define a concrete constraint on the property.
@@ -188,7 +188,8 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
       SET SINGLE
       SET MULTI
       SET TYPE <typename> [, ...]
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
+      ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
       CREATE CONSTRAINT <constraint-name> ...
       ALTER CONSTRAINT <constraint-name> ...
@@ -267,6 +268,10 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Change the target type of the property to the specified type or
     a union of types.  Only valid for concrete properties.
 
+:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+    Alter property annotation :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+
 :eql:synopsis:`DROP ANNOTATION <annotation-name>;`
     Remove property :eql:synopsis:`<annotation-name>`.
     See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
@@ -293,7 +298,7 @@ Set the ``title`` annotation of property ``address`` of object type
 
     ALTER TYPE User {
         ALTER PROPERTY address
-            SET ANNOTATION title := "Home address";
+            CREATE ANNOTATION title := "Home address";
     };
 
 Add a maximum-length constraint to property ``address`` of object type

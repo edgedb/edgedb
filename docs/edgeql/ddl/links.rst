@@ -46,7 +46,7 @@ CREATE LINK
 
       SET default := <expression>
       SET readonly := {true | false}
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
       CREATE PROPERTY <property-name> ...
       CREATE CONSTRAINT <constraint-name> ...
       ON TARGET DELETE <action>
@@ -116,11 +116,11 @@ The following subcommands are allowed in the ``CREATE LINK`` block:
     of this link are prohibited once an object is created.  All of the
     derived links **must** preserve the original *read-only* value.
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
     Add an annotation :eql:synopsis:`<annotation-name>`
     set to :eql:synopsis:`<value>` to the type.
 
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 :eql:synopsis:`CREATE PROPERTY <property-name> ...`
     Define a concrete property item for this link.  See
@@ -213,7 +213,8 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       SET SINGLE
       SET MULTI
       SET TYPE <typename> [, ...]
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
+      ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
       CREATE PROPERTY <property-name> ...
       ALTER PROPERTY <property-name> ...
@@ -285,6 +286,10 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     Change the target type of the link to the specified type or
     a union of types.  Only valid for concrete links.
 
+:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+    Alter link annotation :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+
 :eql:synopsis:`DROP ANNOTATION <annotation-name>;`
     Remove link item's annotation :eql:synopsis:`<annotation-name>`.
     See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
@@ -322,7 +327,7 @@ Set the ``title`` annotation of link ``friends`` of object type ``User`` to
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        ALTER LINK interests SET ANNOTATION title := "Interests";
+        ALTER LINK interests CREATE ANNOTATION title := "Interests";
     };
 
 Add a minimum-length constraint to link ``name`` of object type ``User``:

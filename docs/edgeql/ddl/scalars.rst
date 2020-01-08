@@ -24,7 +24,7 @@ CREATE SCALAR TYPE
 
     # where <subcommand> is one of
 
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
       CREATE CONSTRAINT <constraint-name> ...
 
 
@@ -63,11 +63,11 @@ subtype with constraints.
 
 The following subcommands are allowed in the ``CREATE SCALAR TYPE`` block:
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>;`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
     Set scalar type's :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 :eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
     Define a new constraint for this scalar type.  See
@@ -113,7 +113,8 @@ Alter the definition of a :ref:`scalar type <ref_datamodel_scalar_types>`.
 
       RENAME TO <newname>
       EXTENDING ...
-      SET ANNOTATION <annotation-name> := <value>
+      CREATE ANNOTATION <annotation-name> := <value>
+      ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
       CREATE CONSTRAINT <constraint-name> ...
       ALTER CONSTRAINT <constraint-name> ...
@@ -136,10 +137,13 @@ The following subcommands are allowed in the ``ALTER SCALAR TYPE`` block:
     Alter the supertype list.  It works the same way as in
     :eql:stmt:`ALTER TYPE`.
 
+:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+    Alter scalar type :eql:synopsis:`<annotation-name>`.
+    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+
 :eql:synopsis:`DROP ANNOTATION <annotation-name>`
     Remove scalar type's :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
-
     See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
 
 :eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`

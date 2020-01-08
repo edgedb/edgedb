@@ -20,7 +20,7 @@ CREATE ABSTRACT ANNOTATION
     [ WITH <with-item> [, ...] ]
     CREATE ABSTRACT [ INHERITABLE ] ANNOTATION <name>
     [ "{"
-        SET ANNOTATION <annotation-name> := <value> ;
+        CREATE ANNOTATION <annotation-name> := <value> ;
         [...]
       "}" ] ;
 
@@ -44,21 +44,21 @@ be turned on by declaring the annotation with the *INHERITABLE* qualifier.
 The following subcommands are allowed in the
 ``CREATE ABSTRACT ANNOTATION`` block:
 
-:eql:synopsis:`SET ANNOTATION <annotation-name> := <value>`
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Annotations can also have annotations. Set the
     :eql:synopsis:`<annotation-name>` of the
     enclosing annotation to a specific :eql:synopsis:`<value>`.
-    See :eql:stmt:`SET ANNOTATION` for details.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 
 Example
 -------
 
-Set the annotation ``title`` of object type ``User`` to ``"User"``:
+Declare an annotation ``extrainfo``.
 
 .. code-block:: edgeql
 
-    ALTER TYPE User SET ANNOTATION title := "User";
+    CREATE ABSTRACT ANNOTATION extrainfo;
 
 
 DROP ABSTRACT ANNOTATION
@@ -90,8 +90,8 @@ Drop the annotation ``extrainfo``:
     DROP ABSTRACT ANNOTATION extrainfo;
 
 
-SET ANNOTATION
-==============
+CREATE ANNOTATION
+=================
 
 :eql-statement:
 
@@ -99,12 +99,12 @@ Define an annotation value for a given schema item.
 
 .. eql:synopsis::
 
-    SET ANNOTATION <annotation-name> := <value>
+    CREATE ANNOTATION <annotation-name> := <value>
 
 Description
 -----------
 
-``SET ANNOTATION`` defines an annotation for a schema item.
+``CREATE ANNOTATION`` defines an annotation for a schema item.
 
 :eql:synopsis:`<annotation-name>` refers to the name of a defined annotation,
 and :eql:synopsis:`<value>` must be a constant EdgeQL expression
@@ -123,9 +123,45 @@ Create an object type ``User`` and set its ``title`` annotation to
 .. code-block:: edgeql
 
     CREATE TYPE User {
-        SET ANNOTATION title := "User type";
+        CREATE ANNOTATION title := "User type";
     };
 
+
+ALTER ANNOTATION
+================
+
+:eql-statement:
+
+Alter an annotation value for a given schema item.
+
+.. eql:synopsis::
+
+    ALTER ANNOTATION <annotation-name> := <value>
+
+Description
+-----------
+
+``ALTER ANNOTATION`` alters an annotation value on a schema item.
+
+:eql:synopsis:`<annotation-name>` refers to the name of a defined annotation,
+and :eql:synopsis:`<value>` must be a constant EdgeQL expression
+evaluating into a string.
+
+This statement can only be used as a subcommand in another
+DDL statement.
+
+
+Example
+-------
+
+Alter an object type ``User`` and alter the value of its previously set
+``title`` annotation to ``"User type"``.
+
+.. code-block:: edgeql
+
+    ALTER TYPE User {
+        ALTER ANNOTATION title := "User type";
+    };
 
 
 DROP ANNOTATION
