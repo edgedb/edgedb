@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *  # NoQA
 
+import json
 import functools
 import os
 import subprocess
@@ -279,9 +280,13 @@ class Cli:
             raise RuntimeError('prompt is not available')
         return self._prompt
 
-    def get_server_pgaddr(self) -> Optional[str]:
+    def get_server_pgaddr(self) -> Optional[Mapping[str, str]]:
         settings = self.connection.get_settings()
-        return settings.get('pgaddr')
+        pgaddr = settings.get('pgaddr')
+        if pgaddr is not None:
+            return cast(Mapping[str, str], json.loads(pgaddr))
+        else:
+            return None
 
     def get_prompt(self) -> str:
         return f'{self.connection.dbname}>'
@@ -471,7 +476,7 @@ class Cli:
         flags: AbstractSet[str],
         arg: Optional[str]
     ) -> None:
-        in_devmode = bool(self.get_server_pgaddr())
+        in_devmode = self.get_server_pgaddr() is not None
         out = self._parser.render(
             show_devonly=in_devmode,
             group_annos={
@@ -799,18 +804,15 @@ class Cli:
             print('\\psql requires EdgeDB to run in DEV mode')
             return
 
-        host = os.path.dirname(pgaddr)
-        port = pgaddr.rpartition('.')[2]
-
         pg_config = buildmeta.get_pg_config_path()
         psql = pg_config.parent / 'psql'
 
         cmd = [
             str(psql),
-            '-h', host,
-            '-p', port,
+            '-h', pgaddr['host'],
+            '-p', pgaddr['port'],
             '-d', self.connection.dbname,
-            '-U', 'postgres'
+            '-U', pgaddr['user']
         ]
 
         def _psql(cmd: List[str]) -> int:
