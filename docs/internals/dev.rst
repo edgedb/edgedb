@@ -17,7 +17,7 @@ Linux or macOS.  Windows is not currently supported.
 * GNU make version 3.80 or newer;
 * C compiler (GCC or clang);
 * autotools;
-* Python 3.7 dev package;
+* Python 3.8 dev package;
 * Bison 1.875 or later;
 * Flex 2.5.31 or later;
 * Perl 5.8.3 or later;
