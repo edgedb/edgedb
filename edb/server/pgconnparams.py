@@ -456,6 +456,8 @@ def parse_dsn(
             if sslmode_key <= SSLMODES['require']:
                 ssl.verify_mode = ssl_module.CERT_NONE
             ssl_is_advisory = sslmode_key <= SSLMODES['prefer']
+    else:
+        ssl = None
 
     if ssl:
         for addr in addrs:
