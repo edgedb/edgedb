@@ -3584,6 +3584,10 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
 
     re_filter = re.compile(r'[\s]+|(,(?=\s*[})]))')
+    uuid_re = re.compile(
+        r'[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}'
+        r'-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'
+    )
 
     def _assert_describe(
         self,
@@ -3602,7 +3606,10 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 modaliases={None: 'test'},
             )
 
-            output = stmt.expr.expr.result.expr.value
+            output = self.uuid_re.sub(
+                '@SID@',
+                stmt.expr.expr.result.expr.value,
+            )
 
             if isinstance(expected_output, list):
                 for variant in expected_output:
@@ -4426,3 +4433,36 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
                 '',
             )
+
+    def test_describe_emit_oids_overloaded_01(self):
+        self._assert_describe(
+            """
+            type A {
+                property foo -> str;
+            }
+
+            type B extending A {
+                overloaded property foo {
+                    annotation title := 'test'
+                }
+            }
+            """,
+
+            'DESCRIBE SCHEMA EMIT OIDS',
+
+            """
+            CREATE MODULE test IF NOT EXISTS;
+            CREATE TYPE test::A {
+                SET id := <std::uuid>'@SID@';
+                CREATE SINGLE PROPERTY foo -> std::str {
+                    SET id := <std::uuid>'@SID@';
+                };
+            };
+            CREATE TYPE test::B EXTENDING test::A {
+                SET id := <std::uuid>'@SID@';
+                ALTER PROPERTY foo {
+                    SET ANNOTATION std::title := 'test';
+                };
+            };
+            """
+        )

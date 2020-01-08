@@ -282,9 +282,15 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def apply(self, schema, context):
         return schema, None
 
-    def get_ast(self, schema, context):
+    def get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL] = None,
+    ) -> Optional[qlast.DDL]:
         with self.new_context(schema, context):
-            return self._get_ast(schema, context)
+            return self._get_ast(schema, context, parent_node=parent_node)
 
     @classmethod
     def command_for_ast_node(cls, astnode, schema, context):
@@ -727,14 +733,20 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
             )
 
     def _append_subcmd_ast(cls, schema, node, subcmd, context):
-        subnode = subcmd.get_ast(schema, context)
+        subnode = subcmd.get_ast(schema, context, parent_node=node)
         if subnode is not None:
             node.commands.append(subnode)
 
     def _get_ast_node(self, schema, context):
         return self.__class__.astnode
 
-    def _get_ast(self, schema, context):
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL],
+    ) -> Optional[qlast.DDL]:
         astnode = self._get_ast_node(schema, context)
         qlclass = self.get_schema_metaclass().get_ql_class()
         if isinstance(self.classname, sn.Name):
@@ -773,7 +785,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
 
     def _apply_field_ast(self, schema, context, node, op):
         if op.property != 'name':
-            subnode = op._get_ast(schema, context)
+            subnode = op._get_ast(schema, context, parent_node=node)
             if subnode is not None:
                 node.commands.append(subnode)
 
@@ -957,8 +969,14 @@ class CreateObject(ObjectCommand):
 
         return schema
 
-    def _get_ast(self, schema, context):
-        node = super()._get_ast(schema, context)
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL],
+    ) -> Optional[qlast.DDL]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
         if self.if_not_exists:
             node.create_if_not_exists = True
         return node
@@ -1088,7 +1106,13 @@ class RenameObject(AlterObjectFragment):
 
         return schema, scls
 
-    def _get_ast(self, schema, context):
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL],
+    ) -> Optional[qlast.DDL]:
         astnode = self._get_ast_node(schema, context)
 
         new_name = sn.shortname_from_fullname(self.new_name)
@@ -1222,8 +1246,14 @@ class AlterObject(ObjectCommand):
         else:
             super()._apply_field_ast(schema, context, node, op)
 
-    def _get_ast(self, schema, context):
-        node = super()._get_ast(schema, context)
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL],
+    ) -> Optional[qlast.DDL]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
         if (node is not None and hasattr(node, 'commands') and
                 not node.commands):
             # Alter node without subcommands.  Occurs when all
@@ -1442,7 +1472,13 @@ class AlterObjectProperty(Command):
         return cls(property=propname, new_value=new_value,
                    source_context=astnode.context)
 
-    def _get_ast(self, schema, context):
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL],
+    ) -> Optional[qlast.DDL]:
         value = self.new_value
         astcls = qlast.SetField
 
@@ -1459,7 +1495,9 @@ class AlterObjectProperty(Command):
                 context=self.context)
 
         if ((not field.allow_ddl_set and self.property != 'expr') or
-                (self.property == 'id' and not context.emit_oids)):
+                (self.property == 'id'
+                 and (not context.emit_oids
+                      or not isinstance(parent_node, qlast.CreateObject)))):
             # Don't produce any AST if:
             #
             # * a field does not have the "allow_ddl_set" option, unless

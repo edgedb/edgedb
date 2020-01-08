@@ -407,7 +407,9 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> Optional[qlast.Base]:
+        *,
+        parent_node: Optional[qlast.DDL],
+    ) -> Optional[qlast.DDL]:
         if (self.get_attribute_value('expr_type')
                 and not self.get_attribute_value('expr')):
             # This is a nested view type, e.g
@@ -415,7 +417,7 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
             # and should obviously not appear as a top level definition.
             return None
         else:
-            return super()._get_ast(schema, context)
+            return super()._get_ast(schema, context, parent_node=parent_node)
 
     def _get_ast_node(self, schema, context):
         if self.get_attribute_value('expr_type'):

@@ -39,6 +39,9 @@ from . import referencing
 from . import sources
 from . import utils
 
+if TYPE_CHECKING:
+    from . import schema as s_schema
+
 
 LinkTargetDeleteAction = qlast.LinkTargetDeleteAction
 
@@ -196,8 +199,14 @@ class LinkCommand(lproperties.PropertySourceCommand,
                 context=srcctx,
             )
 
-    def _get_ast(self, schema, context):
-        node = super()._get_ast(schema, context)
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL],
+    ) -> Optional[qlast.DDL]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
         # __type__ link is special, and while it exists on every object
         # it doesn not have a defined default in the schema (and therefore
         # it isn't marked as required.)  We intervene here to mark all

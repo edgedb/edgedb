@@ -1809,8 +1809,12 @@ class CollectionTypeCommand(sd.UnqualifiedObjectCommand,
                             context_class=CollectionTypeCommandContext):
 
     def get_ast(
-        self, schema: s_schema.Schema, context: sd.CommandContext
-    ) -> None:
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL] = None,
+    ) -> Optional[qlast.DDL]:
         # CollectionTypeCommand cannot have its own AST because it is a
         # side-effect of some other command.
         return None
