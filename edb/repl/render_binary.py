@@ -275,6 +275,7 @@ def _empty(
     buf.write('{}', style.bracket)
 
 
+@walk.register
 def _datetime(
     o: datetime.datetime,
     repl_ctx: context.ReplContext,
