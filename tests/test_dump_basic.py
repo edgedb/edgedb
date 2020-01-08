@@ -111,5 +111,5 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
 
             self.assertEqual(hasher.digest(), expected_hash)
         finally:
-            await con2.close()
+            await con2.aclose()
             await self.con.execute('DROP DATABASE dumpbasics_restored')

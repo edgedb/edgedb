@@ -242,7 +242,7 @@ class Cluster:
                         f'could not connect to edgedb-server '
                         f'within {timeout} seconds')
                 else:
-                    await conn.close()
+                    await conn.aclose()
                     return
 
         asyncio.run(test(timeout))

@@ -700,7 +700,7 @@ class TestServerProto(tb.QueryTestCase):
                 g.create_task(exec_to_fail())
 
                 await asyncio.sleep(0.1)
-                await con2.close()
+                await con2.aclose()
 
         finally:
             self.assertEqual(
@@ -1232,7 +1232,7 @@ class TestServerProto(tb.QueryTestCase):
                     DECLARE SAVEPOINT t1;
                 ''')
         finally:
-            await con2.close()
+            await con2.aclose()
 
     async def test_server_proto_tx_03(self):
         # Test Opportunistic Execute with ROLLBACK; use new connection
@@ -1270,7 +1270,7 @@ class TestServerProto(tb.QueryTestCase):
                     DECLARE SAVEPOINT t1;
                 ''')
         finally:
-            await con2.close()
+            await con2.aclose()
 
     async def test_server_proto_tx_04(self):
         await self.con.execute('''
@@ -1330,7 +1330,7 @@ class TestServerProto(tb.QueryTestCase):
                     await self.con.fetchall(query),
                     [1])
         finally:
-            await con2.close()
+            await con2.aclose()
 
         await self.con.execute('''
             START TRANSACTION;
@@ -1831,7 +1831,7 @@ class TestServerProto(tb.QueryTestCase):
                 await tx1.rollback()
             if tx2.is_active():
                 await tx2.rollback()
-            await con2.close()
+            await con2.aclose()
 
     async def test_server_proto_tx_18(self):
         # The schema altered within the transaction should be visible
@@ -1935,7 +1935,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     edgedb.Set([123]))
 
         finally:
-            await con2.close()
+            await con2.aclose()
 
     async def test_server_proto_query_cache_invalidate_02(self):
         typename = 'CacheInv_02'
@@ -1990,7 +1990,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     edgedb.Set([123]))
 
         finally:
-            await con2.close()
+            await con2.aclose()
 
     async def test_server_proto_query_cache_invalidate_03(self):
         typename = 'CacheInv_03'
@@ -2037,7 +2037,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     edgedb.Set([[1, 23]]))
 
         finally:
-            await con2.close()
+            await con2.aclose()
 
     async def test_server_proto_query_cache_invalidate_04(self):
         typename = 'CacheInv_04'
@@ -2084,7 +2084,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     edgedb.Set(['bbb', 'ccc']))
 
         finally:
-            await con2.close()
+            await con2.aclose()
 
     async def test_server_proto_query_cache_invalidate_05(self):
         typename = 'CacheInv_05'
@@ -2141,7 +2141,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     other)
 
         finally:
-            await con2.close()
+            await con2.aclose()
 
     async def test_server_proto_query_cache_invalidate_06(self):
         typename = 'CacheInv_06'
@@ -2198,7 +2198,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     bar)
 
         finally:
-            await con2.close()
+            await con2.aclose()
 
     @test.xfail('''
         The error is:
@@ -2263,7 +2263,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                     edgedb.Set([123]))
 
         finally:
-            await con2.close()
+            await con2.aclose()
 
     @test.xfail("concurrent DDL isn't yet supported")
     async def test_server_proto_query_cache_invalidate_08(self):
@@ -2299,7 +2299,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
         finally:
             async with tg.TaskGroup() as g:
                 for con in cons:
-                    g.create_task(con.close())
+                    g.create_task(con.aclose())
 
     async def test_server_proto_query_cache_invalidate_09(self):
         typename = 'CacheInv_09'

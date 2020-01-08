@@ -26,6 +26,6 @@ class TestDatabase(tb.ConnectedTestCase):
 
         try:
             conn = await self.connect(database='mytestdb')
-            await conn.close()
+            await conn.aclose()
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')
