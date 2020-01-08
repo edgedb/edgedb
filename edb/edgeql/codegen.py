@@ -742,7 +742,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 )
             ]
 
-        if len(commands) == 1 and allow_short:
+        if len(commands) == 1 and allow_short and not (
+            isinstance(commands[0], qlast.CompositeDDL)
+        ):
             self.write(' ')
             self.visit(commands[0])
         elif len(commands) > 0:

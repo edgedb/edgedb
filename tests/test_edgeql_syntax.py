@@ -3497,8 +3497,9 @@ aa';
 
 % OK %
 
-        ALTER TYPE schema::Object
+        ALTER TYPE schema::Object {
             CREATE MULTI LINK attributes -> schema::Attribute;
+        };
         """
 
     def test_edgeql_syntax_ddl_type_04(self):
@@ -3541,9 +3542,11 @@ aa';
 
     def test_edgeql_syntax_ddl_type_07(self):
         """
-        ALTER TYPE mymod::Foo ALTER PROPERTY foo {
-            SET SINGLE;
-            SET REQUIRED;
+        ALTER TYPE mymod::Foo {
+            ALTER PROPERTY foo {
+                SET SINGLE;
+                SET REQUIRED;
+            };
         };
         """
 
@@ -3552,6 +3555,13 @@ aa';
         ALTER TYPE mymod::Foo ALTER LINK foo {
             SET MULTI;
             DROP REQUIRED;
+        };
+% OK %
+        ALTER TYPE mymod::Foo {
+            ALTER LINK foo {
+                SET MULTI;
+                DROP REQUIRED;
+            };
         };
         """
 
@@ -3565,9 +3575,11 @@ aa';
 
 % OK %
 
-        ALTER TYPE mymod::Foo ALTER LINK foo {
-            SET MULTI;
-            DROP REQUIRED;
+        ALTER TYPE mymod::Foo {
+            ALTER LINK foo {
+                SET MULTI;
+                DROP REQUIRED;
+            };
         };
         """
 
@@ -3673,11 +3685,13 @@ aa';
                 SET ANNOTATION system := 'Foo';
             };
 
-            ALTER INDEX ON (.title)
+            ALTER INDEX ON (.title) {
                 SET ANNOTATION system := 'Foo';
+            };
 
-            ALTER INDEX ON (.title)
+            ALTER INDEX ON (.title) {
                 DROP ANNOTATION system;
+            };
         };
         """
 
@@ -3696,11 +3710,13 @@ aa';
 % OK %
 
         ALTER TYPE Foo {
-            ALTER INDEX ON (.title)
+            ALTER INDEX ON (.title) {
                 SET ANNOTATION system := 'Foo';
+            };
 
-            ALTER INDEX ON (.title)
+            ALTER INDEX ON (.title) {
                 DROP ANNOTATION system;
+            };
         };
         """
 
