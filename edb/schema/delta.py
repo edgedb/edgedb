@@ -829,6 +829,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         context: CommandContext,
         *,
         name: Optional[str] = None,
+        default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
     ) -> so.Object:
         if name is None:
             name = self.classname
@@ -836,7 +837,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
             if rename is not None:
                 name = rename
         metaclass = self.get_schema_metaclass()
-        return schema.get(name, type=(metaclass,))
+        return schema.get(name, type=(metaclass,), default=default)
 
     def compute_inherited_fields(self, schema, context):
         result = {}
@@ -1405,6 +1406,35 @@ class AlterSpecialObjectProperty(Command):
                 schema,
                 context.modaliases,
             )
+        elif field.name == 'required' and not new_value:
+            # disallow dropping required that is not locally set
+            parent_obj = parent_op.get_object(schema, context, default=None)
+            errmsg = None
+
+            if parent_obj:
+                local_required = parent_obj.get_explicit_local_field_value(
+                    schema, 'required', None)
+
+                if not local_required:
+                    parent_repr = parent_obj.get_verbosename(
+                        schema, with_parent=True)
+                    errmsg = (
+                        f'cannot drop required qualifier because it is not '
+                        f'defined directly on {parent_repr}'
+                    )
+            else:
+                # We don't have a parent object which means we're in
+                # the process of creating it.
+                shortname = sn.shortname_from_fullname(
+                    parent_op.classname).name
+
+                errmsg = (
+                    f'cannot drop required qualifier of an '
+                    f'inherited {parent_op._command_subject} {shortname!r}'
+                )
+
+            if errmsg:
+                raise errors.SchemaError(errmsg, context=astnode.context)
 
         return AlterObjectProperty(
             property=astnode.name,

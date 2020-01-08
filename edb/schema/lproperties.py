@@ -156,6 +156,8 @@ class PropertyCommand(pointers.PointerCommand,
                       context_class=PropertyCommandContext,
                       referrer_context_class=PropertySourceContext):
 
+    _command_subject = 'property'
+
     def _set_pointer_type(self, schema, astnode, context, target_ref):
         spt = SetPropertyType(classname=self.classname, type=target_ref)
         spt.set_attribute_value(

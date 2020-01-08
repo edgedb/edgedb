@@ -166,6 +166,8 @@ class LinkCommand(lproperties.PropertySourceCommand,
                   schema_metaclass=Link, context_class=LinkCommandContext,
                   referrer_context_class=LinkSourceCommandContext):
 
+    _command_subject = 'link'
+
     def _set_pointer_type(self, schema, astnode, context, target_ref):
         slt = SetLinkType(classname=self.classname, type=target_ref)
         slt.set_attribute_value(
