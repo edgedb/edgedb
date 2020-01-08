@@ -712,12 +712,19 @@ class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
 
         return cmd
 
-    def _get_ast(self, schema, context):
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDL],
+    ) -> Optional[qlast.DDL]:
         refctx = type(self).get_referrer_context(context)
         if refctx is not None:
             if not self.get_attribute_value('is_local'):
                 if context.descriptive_mode:
-                    astnode = super()._get_ast(schema, context)
+                    astnode = super()._get_ast(
+                        schema, context, parent_node=parent_node)
 
                     bases = self.get_attribute_value('bases')
                     bases_names = [
@@ -740,7 +747,8 @@ class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
                     return None
 
             else:
-                astnode = super()._get_ast(schema, context)
+                astnode = super()._get_ast(
+                    schema, context, parent_node=parent_node)
 
                 if context.declarative:
                     scls = self.get_object(schema, context)
@@ -753,7 +761,7 @@ class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
 
                 return astnode
         else:
-            return super()._get_ast(schema, context)
+            return super()._get_ast(schema, context, parent_node=parent_node)
 
     def _get_ast_node(self, schema, context):
         scls = self.get_object(schema, context)
