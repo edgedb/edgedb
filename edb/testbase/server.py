@@ -512,7 +512,7 @@ class ConnectedTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     @classmethod
     def tearDownClass(cls):
         try:
-            cls.loop.run_until_complete(cls.con.close())
+            cls.loop.run_until_complete(cls.con.aclose())
             # Give event loop another iteration so that connection
             # transport has a chance to properly close.
             cls.loop.run_until_complete(asyncio.sleep(0))
@@ -676,7 +676,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     cls.con.execute(script))
         finally:
             try:
-                cls.loop.run_until_complete(cls.con.close())
+                cls.loop.run_until_complete(cls.con.aclose())
 
                 if not class_set_up:
                     dbname = cls.get_database_name()
@@ -689,7 +689,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 try:
                     if cls.admin_conn is not None:
                         cls.loop.run_until_complete(
-                            cls.admin_conn.close())
+                            cls.admin_conn.aclose())
                 finally:
                     super().tearDownClass()
 
@@ -822,14 +822,14 @@ async def _setup_database(dbname, setup_script, conn_args):
     try:
         await admin_conn.execute(f'CREATE DATABASE {dbname};')
     finally:
-        await admin_conn.close()
+        await admin_conn.aclose()
 
     dbconn = await edgedb.async_connect(database=dbname, **default_args)
     try:
         async with dbconn.transaction():
             await dbconn.execute(setup_script)
     finally:
-        await dbconn.close()
+        await dbconn.aclose()
 
     return dbname
 

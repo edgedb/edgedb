@@ -36,7 +36,7 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
             user='foo',
             password='foo-pass',
         )
-        await conn.close()
+        await conn.aclose()
 
         self.run_cli('alter-role', 'foo', '--no-allow-login')
 
@@ -57,7 +57,7 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
             user='foo',
             password='foo-new-pass',
         )
-        await conn.close()
+        await conn.aclose()
 
         self.run_cli('drop-role', 'foo')
 

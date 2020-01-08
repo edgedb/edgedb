@@ -47,7 +47,7 @@ class TestServerAuth(tb.ConnectedTestCase):
             user='foo',
             password='foo-pass',
         )
-        await conn.close()
+        await conn.aclose()
 
         await self.con.fetchall('''
             ALTER ROLE foo { SET allow_login := False };
@@ -89,7 +89,7 @@ class TestServerAuth(tb.ConnectedTestCase):
                 user='foo',
                 password='wrong',
             )
-            await conn.close()
+            await conn.aclose()
 
             # insert password auth with a higher priority
             await self.con.fetchall('''
