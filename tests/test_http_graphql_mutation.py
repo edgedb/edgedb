@@ -20,6 +20,8 @@
 import os
 import unittest  # NOQA
 
+import edgedb
+
 from edb.testbase import http as tb
 
 
@@ -988,6 +990,55 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         """, {
             "delete_UserGroup": data['groups']
         })
+
+    def test_graphql_mutation_insert_bad_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'Cannot query field "insert_SettingAlias"'):
+            self.graphql_query(r"""
+                mutation insert_SettingAlias {
+                    insert_SettingAlias(
+                        data: [{
+                            name: "badsetting01",
+                            value: "red"
+                        }]
+                    ) {
+                        name
+                        value
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_insert_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'Argument "data" has invalid value(.|\n)*'
+                r'In field "favorites": .*In field "data": Unknown field'):
+            self.graphql_query(r"""
+                mutation insert_User {
+                    insert_User(
+                        data: [{
+                            name: "Bad User02",
+                            active: true,
+                            age: 33,
+                            score: 33.33,
+                            favorites: [{
+                                data: {
+                                    name: "badsetting02",
+                                }
+                            }],
+                        }]
+                    ) {
+                        name
+                        age
+                        score
+                        favorites {
+                            name
+                            value
+                        }
+                    }
+                }
+            """)
 
     def test_graphql_mutation_update_scalars_01(self):
         orig_data = {
@@ -2014,4 +2065,75 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     'name': 'upgraded'
                 }],
             }]
+        })
+
+    def test_graphql_mutation_update_bad_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'Cannot query field "update_SettingAlias"'):
+            self.graphql_query(r"""
+                mutation update_SettingAlias {
+                    update_SettingAlias(
+                        filter: {name: {eq: "template"}}
+                        data: {
+                            value: {set: "red"},
+                        }
+                    ) {
+                        name
+                        value
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_delete_alias_01(self):
+        self.assert_graphql_query_result(r"""
+            mutation insert_Setting {
+                insert_Setting(
+                    data: [{
+                        name: "delsetting01",
+                        value: "red"
+                    }]
+                ) {
+                    name
+                    value
+                }
+            }
+        """, {
+            "insert_Setting": [{
+                'name': 'delsetting01',
+                'value': 'red',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_SettingAlias {
+                delete_SettingAlias(
+                    filter: {
+                        name: {eq: "delsetting01"}
+                    }
+                ) {
+                    name
+                    value
+                }
+            }
+        """, {
+            "delete_SettingAlias": [{
+                'name': 'delsetting01',
+                'value': 'red',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            query get_SettingAlias {
+                SettingAlias(
+                    filter: {
+                        name: {eq: "delsetting01"}
+                    }
+                ) {
+                    name
+                    value
+                }
+            }
+        """, {
+            "SettingAlias": []
         })

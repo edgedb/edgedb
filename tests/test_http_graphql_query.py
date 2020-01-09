@@ -522,6 +522,29 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             variables={'name': None},
         )
 
+    def test_graphql_functional_query_18(self):
+        # test filtering by nested object
+        self.assert_graphql_query_result(r"""
+            query {
+                User(filter: {name: {eq: "Alice"}}) {
+                    name
+                    favorites(order: {name: {dir: ASC}}) {
+                        name
+                    }
+                }
+            }
+        """, {
+            'User': [{
+                'name': 'Alice',
+                'favorites': [
+                    {'name': 'basic'},
+                    {'name': 'perks'},
+                    {'name': 'template'},
+                    {'name': 'upgraded'},
+                ]
+            }],
+        })
+
     def test_graphql_functional_alias_01(self):
         self.assert_graphql_query_result(
             r"""
@@ -652,6 +675,59 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             sort=lambda x: x['name']
         )
 
+    def test_graphql_functional_alias_04(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    ProfileAlias {
+                        __typename
+                        name
+                        value
+                        owner {
+                            __typename
+                            id
+                        }
+                    }
+                }
+            """,
+            {
+                "ProfileAlias": [
+                    {
+                        "__typename": "ProfileAliasType",
+                        "name": "Alice profile",
+                        "value": "special",
+                        "owner": [
+                            {
+                                "__typename": "UserType",
+                                "id": uuid.UUID,
+                            }
+                        ]
+                    }
+                ]
+            },
+        )
+
+        result = self.graphql_query(r"""
+            query {
+                ProfileAlias {
+                    owner {
+                        id
+                    }
+                }
+            }
+        """)
+        user_id = result['ProfileAlias'][0]['owner'][0]['id']
+
+        self.assert_graphql_query_result(f"""
+            query {{
+                User(filter: {{id: {{eq: "{user_id}"}}}}) {{
+                    name
+                }}
+            }}
+        """, {
+            'User': [{'name': 'Alice'}]
+        })
+
     def test_graphql_functional_arguments_01(self):
         result = self.graphql_query(r"""
             query {
@@ -666,7 +742,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         alice = [res for res in result['User']
                  if res['name'] == 'Alice'][0]
 
-        result = self.assert_graphql_query_result(f"""
+        self.assert_graphql_query_result(f"""
             query {{
                 User(filter: {{id: {{eq: "{alice['id']}"}}}}) {{
                     id

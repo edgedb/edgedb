@@ -280,10 +280,17 @@ class GQLCoreSchema:
         }
 
     def _get_insert_args(self, typename):
+        # The data can only be a specific non-interface type, if no
+        # such type exists, skip it as we cannot accept unambiguous
+        # data input. It's still possible to just select some existing
+        # data.
+        intype = self._gql_inobjtypes.get(f'Insert{typename}')
+        if intype is None:
+            return {}
+
         return {
             'data': GraphQLArgument(
-                GraphQLNonNull(GraphQLList(GraphQLNonNull(
-                    self._gql_inobjtypes[f'Insert{typename}'])))),
+                GraphQLNonNull(GraphQLList(GraphQLNonNull(intype)))),
         }
 
     def _get_update_args(self, typename):
@@ -319,10 +326,12 @@ class GQLCoreSchema:
                     GraphQLList(GraphQLNonNull(gqltype)),
                     args=self._get_query_args(name),
                 )
-                fields[f'insert_{gname}'] = GraphQLField(
-                    GraphQLList(GraphQLNonNull(gqltype)),
-                    args=self._get_insert_args(name),
-                )
+                args = self._get_insert_args(name)
+                if args:
+                    fields[f'insert_{gname}'] = GraphQLField(
+                        GraphQLList(GraphQLNonNull(gqltype)),
+                        args=args,
+                    )
 
             for name, gqltype in sorted(self._gql_interfaces.items(),
                                         key=lambda x: x[1].name):
@@ -609,23 +618,31 @@ class GQLCoreSchema:
     def _make_generic_nested_insert_type(self, edb_base):
         typename = edb_base.get_name(self.edb_schema)
         name = f'NestedInsert{typename}'
+        fields = {
+            'filter': GraphQLInputObjectField(
+                self._gql_inobjtypes[typename]),
+            'order': GraphQLInputObjectField(
+                self._gql_ordertypes[typename]),
+            'first': GraphQLInputObjectField(GraphQLInt),
+            'last': GraphQLInputObjectField(GraphQLInt),
+            # before and after are supposed to be opaque values
+            # serialized to string
+            'before': GraphQLInputObjectField(GraphQLString),
+            'after': GraphQLInputObjectField(GraphQLString),
+        }
+
+        # The data can only be a specific non-interface type, if no
+        # such type exists, skip it as we cannot accept unambiguous
+        # data input. It's still possible to just select some existing
+        # data.
+        data_t = self._gql_inobjtypes.get(f'Insert{typename}')
+        if data_t:
+            fields['data'] = GraphQLInputObjectField(data_t)
+
         nitype = GraphQLInputObjectType(
             name=self.get_input_name(
                 'NestedInsert', self.get_gql_name(typename)),
-            fields={
-                'data': GraphQLInputObjectField(
-                    self._gql_inobjtypes[f'Insert{typename}']),
-                'filter': GraphQLInputObjectField(
-                    self._gql_inobjtypes[typename]),
-                'order': GraphQLInputObjectField(
-                    self._gql_ordertypes[typename]),
-                'first': GraphQLInputObjectField(GraphQLInt),
-                'last': GraphQLInputObjectField(GraphQLInt),
-                # before and after are supposed to be opaque values
-                # serialized to string
-                'before': GraphQLInputObjectField(GraphQLString),
-                'after': GraphQLInputObjectField(GraphQLString),
-            },
+            fields=fields,
         )
 
         self._gql_inobjtypes[name] = nitype
@@ -821,11 +838,12 @@ class GQLCoreSchema:
 
             # input object types corresponding to this object (only
             # real objects can appear as input objects)
-            gqlinserttype = GraphQLInputObjectType(
-                name=self.get_input_name('Insert', gql_name),
-                fields=partial(self.get_insert_fields, t_name),
-            )
-            self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
+            if not t.is_view(self.edb_schema):
+                gqlinserttype = GraphQLInputObjectType(
+                    name=self.get_input_name('Insert', gql_name),
+                    fields=partial(self.get_insert_fields, t_name),
+                )
+                self._gql_inobjtypes[f'Insert{t_name}'] = gqlinserttype
 
     def get(self, name, *, dummy=False):
         '''Get a special GQL type either by name or based on EdgeDB type.'''

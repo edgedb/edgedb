@@ -43,6 +43,8 @@ type User extending NamedObject {
     required property age -> int64;
     required property score -> float64;
     link profile -> Profile;
+    # a link pointing to an abstract type
+    multi link favorites -> NamedObject;
 }
 
 alias SettingAlias := Setting {
@@ -53,6 +55,12 @@ alias SettingAliasAugmented := Setting {
     of_group := .<settings[IS UserGroup] {
         name_upper := str_upper(.name)
     }
+};
+
+alias ProfileAlias := Profile {
+    # although this will point to an actual user, but the type system
+    # will only resolve an Object here
+    owner := .<profile
 };
 
 type Person extending User;

@@ -61,7 +61,8 @@ INSERT User {
         name := 'Alice profile',
         value := 'special',
         tags := ['1st', '2nd'],
-    })
+    }),
+    favorites := {Setting, UserGroup}
 };
 
 INSERT Person {
