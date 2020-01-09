@@ -423,7 +423,7 @@ class TypeSerializer:
 
         elif (t >= 0xf0 and t <= 0xff):
             # Ignore all type annotations.
-            desc.read_len16_prefixed_bytes()
+            desc.read_len32_prefixed_bytes()
 
         else:
             raise NotImplementedError(

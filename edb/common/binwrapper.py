@@ -95,7 +95,3 @@ class BinWrapper:
     def read_len32_prefixed_bytes(self) -> bytes:
         size = self.read_ui32()
         return self.read_bytes(size)
-
-    def read_len16_prefixed_bytes(self) -> bytes:
-        size = self.read_ui16()
-        return self.read_bytes(size)
