@@ -777,9 +777,9 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 WITH
                     MODULE schema,
-                    C2 := ObjectType
+                    C2 := ScalarType
                 SELECT
-                    count(re_match_all('(\\w+)', ObjectType.name)) =
+                    count(re_match_all('(\\w+)', ScalarType.name)) =
                     2 * count(C2);
             ''',
             [True],

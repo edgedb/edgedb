@@ -95,9 +95,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 % OK %
         "FENCE": {
             "(test::Card)",
-            "(test::Card).<deck[IS __derived__::@SID@]\
+            "(test::Card).<deck[IS __derived__::(@SID@)]\
 .>indirection[IS test::User]": {
-                "(test::Card).<deck[IS __derived__::@SID@]"
+                "(test::Card).<deck[IS __derived__::(@SID@)]"
             },
             "FENCE": {
                 "(test::Card).>owner[IS test::User]"
@@ -118,9 +118,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 % OK %
         "FENCE": {
             "(test::Card)",
-            "(test::Card).<deck[IS __derived__::@SID@]\
+            "(test::Card).<deck[IS __derived__::(@SID@)]\
 .>indirection[IS test::User]": {
-                "(test::Card).<deck[IS __derived__::@SID@]"
+                "(test::Card).<deck[IS __derived__::(@SID@)]"
             },
             "FENCE": {
                 "(test::Card).>owner[IS test::User]"
@@ -292,9 +292,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 "(test::User).>friends[IS test::User]",
                 "FENCE": {
                     "(test::User).>deck[IS test::Card].\
-<deck[IS __derived__::@SID@].>indirection[IS test::User]": {
+<deck[IS __derived__::(@SID@)].>indirection[IS test::User]": {
                         "(test::User).>deck[IS test::Card].\
-<deck[IS __derived__::@SID@]": {
+<deck[IS __derived__::(@SID@)]": {
                             "(test::User).>deck[IS test::Card]"
                         }
                     }
@@ -322,9 +322,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(test::Card).>owners[IS test::User]": {
                 "(test::Card)",
                 "FENCE": {
-                    "ns~1@@(test::Card).<deck[IS __derived__::@SID@]\
+                    "ns~1@@(test::Card).<deck[IS __derived__::(@SID@)]\
 .>indirection[IS test::User]": {
-                        "ns~1@@(test::Card).<deck[IS __derived__::@SID@]"
+                        "ns~1@@(test::Card).<deck[IS __derived__::(@SID@)]"
                     }
                 }
             }
@@ -509,9 +509,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "FENCE": {
                 "(test::Card).>owners[IS test::User]": {
                     "FENCE": {
-                        "ns~1@@(test::Card).<deck[IS __derived__::@SID@]\
+                        "ns~1@@(test::Card).<deck[IS __derived__::(@SID@)]\
 .>indirection[IS test::User]": {
-                            "ns~1@@(test::Card).<deck[IS __derived__::@SID@]"
+                            "ns~1@@(test::Card).<deck[IS __derived__::(@SID@)]"
                         }
                     }
                 }
@@ -738,9 +738,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                     "(__derived__::__derived__|A@@w~1)",
                     "FENCE": {
                         "ns~2@@(__derived__::__derived__|A@@w~1)\
-.<deck[IS __derived__::@SID@].>indirection[IS test::User]": {
+.<deck[IS __derived__::(@SID@)].>indirection[IS test::User]": {
                             "ns~2@@(__derived__::__derived__|A@@w~1)\
-.<deck[IS __derived__::@SID@]"
+.<deck[IS __derived__::(@SID@)]"
                         }
                     }
                 }

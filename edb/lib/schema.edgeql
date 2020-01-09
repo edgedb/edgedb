@@ -243,7 +243,7 @@ ALTER TYPE schema::BaseObjectType {
 CREATE TYPE schema::ObjectType EXTENDING schema::BaseObjectType;
 
 
-CREATE TYPE schema::DerivedObjectType EXTENDING schema::BaseObjectType;
+CREATE TYPE schema::CompoundObjectType EXTENDING schema::BaseObjectType;
 
 
 CREATE TYPE schema::Link EXTENDING schema::Pointer, schema::Source;

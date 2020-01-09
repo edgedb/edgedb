@@ -575,7 +575,7 @@ class PointerCommandOrFragment:
             srcctx = self.get_attribute_source_context('target')
 
             if isinstance(target_ref, s_types.TypeExprRef):
-                schema, target = s_types.ensure_schema_type_expr_type(
+                target = s_types.ensure_schema_type_expr_type(
                     schema, target_ref, parent_cmd=self,
                     src_context=srcctx, context=context,
                 )

@@ -281,33 +281,26 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
                 return self.astnode
 
     def _create_innards(self, schema, context):
-        schema = super()._create_innards(schema, context)
-
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
-            return schema
+            return super()._create_innards(schema, context)
 
         referrer = referrer_ctx.scls
         referrer_cls = type(referrer)
         mcls = type(self.scls)
         refdict = referrer_cls.get_refdict_for_class(mcls)
 
-        if refdict.backref_attr:
-            # Set the back-reference on referenced object
-            # to the referrer.
-            schema = self.scls.set_field_value(
-                schema, refdict.backref_attr, referrer)
-
         schema = referrer.add_classref(schema, refdict.attr, self.scls)
 
         if (not self.scls.get_is_final(schema)
                 and isinstance(referrer, inheriting.InheritingObject)):
             if not context.canonical:
-                # Propagate the creation of a new ref to descendants.
-                alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
-                    sd.AlterObject, referrer_cls)
-
+                # Propagate the creation of a new ref to descendants of
+                # our referrer.
                 if context.enable_recursion:
+                    alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
+                        sd.AlterObject, referrer_cls)
+
                     fq_name = self.scls.get_name(schema)
 
                     for child in referrer.children(schema):
@@ -317,11 +310,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
                                 schema, context, refdict, fq_name, child)
                             alter.add(cmd)
                         self.add(alter)
-            else:
-                for op in self.get_subcommands(metaclass=referrer_cls):
-                    schema, _ = op.apply(schema, context=context)
 
-        return schema
+        return super()._create_innards(schema, context)
 
     def _get_implicit_ref_bases(self, schema, context,
                                 referrer, refdict, fq_name):
@@ -406,8 +396,6 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
                 # also be marked as derived, to be consistent
                 # with derive_subtype().
                 cmd.set_attribute_value('is_derived', True)
-
-        schema, _ = cmd.apply(schema, context)
 
         return schema, cmd
 

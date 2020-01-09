@@ -23,6 +23,7 @@ from typing import *  # NoQA
 import base64
 import collections
 import collections.abc
+import itertools
 import uuid
 
 import immutables as immu
@@ -107,8 +108,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     @classmethod
     def adapt(cls, obj):
         result = obj.copy_with_class(cls)
-        for op in obj.get_subcommands():
-            result.ops.add(type(cls).adapt(op))
+        for op in obj.get_prerequisites():
+            result.add_prerequisite(type(cls).adapt(op))
+        for op in obj.get_subcommands(include_prerequisites=False):
+            result.add(type(cls).adapt(op))
         return result
 
     def _resolve_type_ref(self, ref, schema):
@@ -235,23 +238,31 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 return
 
     def __iter__(self):
-        for op in self.ops:
-            yield from op.before_ops
-            yield op
+        raise TypeError(f'{type(self)} object is not iterable')
 
-    def get_subcommands(self, *, type=None):
+    def get_subcommands(self, *, type=None, include_prerequisites=True):
+        ops = self.ops
+        if include_prerequisites:
+            ops = itertools.chain(ops, self.before_ops)
+
         if type is not None:
-            return filter(lambda i: isinstance(i, type), self)
+            return tuple(filter(lambda i: isinstance(i, type), ops))
         else:
-            return list(self)
+            return tuple(ops)
+
+    def get_prerequisites(self, *, type=None):
+        if type is not None:
+            return tuple(filter(lambda i: isinstance(i, type),
+                         self.before_ops))
+        else:
+            return tuple(self.before_ops)
 
     def has_subcommands(self):
         return bool(self.ops)
 
-    def after(self, command):
+    def add_prerequisite(self, command):
         if isinstance(command, CommandGroup):
-            for op in command:
-                self.before_ops.add(op)
+            self.before_ops.update(command.get_subcommands())
         else:
             self.before_ops.add(command)
 
@@ -264,7 +275,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     def add(self, command):
         if isinstance(command, CommandGroup):
-            self.update(command)
+            self.ops.update(command.get_subcommands())
         else:
             self.ops.add(command)
 
@@ -364,7 +375,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def as_markup(cls, self, *, ctx):
         node = markup.elements.lang.TreeNode(name=str(self))
 
-        for dd in self:
+        for dd in self.get_subcommands():
             if isinstance(dd, AlterObjectProperty):
                 diff = markup.elements.doc.ValueDiff(
                     before=repr(dd.old_value), after=repr(dd.new_value))
@@ -407,7 +418,7 @@ CommandList = checked.CheckedList[Command]
 
 class CommandGroup(Command):
     def apply(self, schema, context=None):
-        for op in self:
+        for op in self.get_subcommands():
             schema, _ = op.apply(schema, context)
         return schema, None
 
@@ -620,7 +631,7 @@ class DeltaRoot(CommandGroup):
                 schema, mod = op.apply(schema, context)
                 mods.append(mod)
 
-            for op in self:
+            for op in self.get_subcommands():
                 if not isinstance(op, (modules.CreateModule,
                                        modules.AlterModule,
                                        s_types.DeleteCollectionType)):
@@ -795,14 +806,28 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
             raise TypeError(f'schema metaclass not set for {cls}')
         return cls._schema_metaclass
 
-    def get_subcommands(self, *, type=None, metaclass=None):
+    def get_subcommands(
+        self,
+        *,
+        type=None,
+        metaclass=None,
+        include_prerequisites=True,
+    ):
         if metaclass is not None:
             return filter(
-                lambda i: (isinstance(i, ObjectCommand) and
-                           issubclass(i.get_schema_metaclass(), metaclass)),
-                self)
+                lambda i: (
+                    isinstance(i, ObjectCommand)
+                    and issubclass(i.get_schema_metaclass(), metaclass)
+                ),
+                super().get_subcommands(
+                    include_prerequisites=include_prerequisites,
+                ),
+            )
         else:
-            return super().get_subcommands(type=type)
+            return super().get_subcommands(
+                type=type,
+                include_prerequisites=include_prerequisites,
+            )
 
     def _validate_legal_command(self, schema, context):
         from . import functions as s_functions
@@ -962,6 +987,12 @@ class CreateObject(ObjectCommand):
     def _create_begin(self, schema, context):
         self._validate_legal_command(schema, context)
 
+        for op in self.get_prerequisites():
+            schema, _ = op.apply(schema, context)
+
+        for op in self.get_subcommands(type=CreateObjectFragment):
+            schema, _ = op.apply(schema, context)
+
         schema, props = self._get_create_fields(schema, context)
 
         metaclass = self.get_schema_metaclass()
@@ -1003,22 +1034,17 @@ class CreateObject(ObjectCommand):
     def _create_innards(self, schema, context):
         from . import types as s_types
 
-        mcls = self.get_schema_metaclass()
-
         for op in self.get_subcommands(type=s_types.CollectionTypeCommand):
             schema, _ = op.apply(schema, context)
 
-        for refdict in mcls.get_refdicts():
-            schema = self._create_refs(schema, context, self.scls, refdict)
+        for op in self.get_subcommands(include_prerequisites=False):
+            if not isinstance(op, (s_types.CollectionTypeCommand,
+                                   CreateObjectFragment)):
+                schema, _ = op.apply(schema, context=context)
 
         return schema
 
     def _create_finalize(self, schema, context):
-        return schema
-
-    def _create_refs(self, schema, context, scls, refdict):
-        for op in self.get_subcommands(metaclass=refdict.ref_cls):
-            schema, _ = op.apply(schema, context=context)
         return schema
 
     def apply(self, schema, context):
@@ -1041,6 +1067,10 @@ class CreateObject(ObjectCommand):
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
                                  self.classname)
+
+
+class CreateObjectFragment(ObjectCommand):
+    pass
 
 
 class AlterObjectFragment(ObjectCommand):
@@ -1274,6 +1304,9 @@ class AlterObject(ObjectCommand):
 
         self._validate_legal_command(schema, context)
 
+        for op in self.get_prerequisites():
+            schema, _ = op.apply(schema, context)
+
         for op in self.get_subcommands(type=AlterObjectFragment):
             schema, _ = op.apply(schema, context)
 
@@ -1285,7 +1318,7 @@ class AlterObject(ObjectCommand):
         return schema
 
     def _alter_innards(self, schema, context, scls):
-        for op in self.get_subcommands():
+        for op in self.get_subcommands(include_prerequisites=False):
             if not isinstance(op, (AlterObjectFragment, AlterObjectProperty)):
                 schema, _ = op.apply(schema, context=context)
 

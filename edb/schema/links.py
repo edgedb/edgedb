@@ -271,12 +271,14 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             super()._apply_field_ast(schema, context, node, op)
 
     def inherit_classref_dict(self, schema, context, refdict):
+        cmd = super().inherit_classref_dict(schema, context, refdict)
+
         if refdict.attr != 'pointers':
-            return super().inherit_classref_dict(schema, context, refdict)
+            return cmd
 
         parent_ctx = context.get(LinkSourceCommandContext)
         if parent_ctx is None:
-            return super().inherit_classref_dict(schema, context, refdict)
+            return cmd
 
         source_name = parent_ctx.op.classname
 
@@ -336,8 +338,7 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             ),
         ))
 
-        self.add(src_prop)
-        schema, _ = src_prop.apply(schema, context)
+        cmd.prepend(src_prop)
 
         base_prop_name = sn.Name('std::target')
         s_name = sn.get_specialized_name(
@@ -393,10 +394,9 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             ),
         ))
 
-        self.add(tgt_prop)
-        schema, _ = tgt_prop.apply(schema, context)
+        cmd.prepend(tgt_prop)
 
-        return super().inherit_classref_dict(schema, context, refdict)
+        return cmd
 
 
 class RenameLink(LinkCommand, sd.RenameObject):

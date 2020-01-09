@@ -1107,7 +1107,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             else:
                 newcoll_idx = []
 
-            delta.update(cls.delta_sets(
+            delta.add(cls.delta_sets(
                 oldcoll_idx, newcoll_idx, context,
                 old_schema=old_schema, new_schema=new_schema))
 
@@ -1442,7 +1442,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                                  old_schema=old_schema,
                                  new_schema=new_schema))
 
-        adds_mods.update(dels)
+        adds_mods.add(dels)
         return adds_mods
 
     def dump(self, schema: s_schema.Schema) -> str:
@@ -1477,7 +1477,13 @@ class GlobalObject(UnqualifiedObject):
     pass
 
 
-class ObjectRef(Object):
+class BaseObjectRef:
+    # Object ref marker
+    def _resolve_ref(self, schema: s_schema.Schema) -> Object:
+        raise NotImplementedError
+
+
+class ObjectRef(Object, BaseObjectRef):
     _name: str
     _origname: Optional[str]
     _schemaclass: Optional[ObjectMeta]

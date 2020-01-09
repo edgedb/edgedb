@@ -3153,7 +3153,11 @@ async def generate_views(conn, schema):
                     views[view.name] = view
 
         coltext = textwrap.indent(
-            ',\n'.join(('{} AS {}'.format(*c) for c in cols)), ' ' * 16)
+            ',\n'.join(
+                '{} AS {}'.format(*c) for c in sorted(cols, key=lambda c: c[1])
+            ),
+            ' ' * 16,
+        )
 
         if issubclass(mcls, s_inheriting.InheritingObject):
             objtab = 'edgedb.InheritingObject'

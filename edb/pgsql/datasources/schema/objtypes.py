@@ -52,30 +52,3 @@ async def fetch(
                 AND ($2::text[] IS NULL
                      OR split_part(c.name, '::', 1) != all($2::text[]))
     """, modules, exclude_modules)
-
-
-async def fetch_derived(
-        conn: asyncpg.connection.Connection,
-        *,
-        modules=None,
-        exclude_modules=None) -> List[asyncpg.Record]:
-    return await conn.fetch("""
-        SELECT
-                c.id AS id,
-                c.name AS name,
-                edgedb._resolve_type_name(c.bases) AS bases,
-                edgedb._resolve_type_name(c.ancestors) AS ancestors,
-                c.is_abstract AS is_abstract,
-                c.is_final AS is_final,
-                c.expr_type AS expr_type,
-                c.alias_is_persistent AS alias_is_persistent,
-                c.expr AS expr,
-                c.inherited_fields AS inherited_fields
-            FROM
-                edgedb.DerivedObjectType c
-            WHERE
-                ($1::text[] IS NULL
-                 OR split_part(c.name, '::', 1) = any($1::text[]))
-                AND ($2::text[] IS NULL
-                     OR split_part(c.name, '::', 1) != all($2::text[]))
-    """, modules, exclude_modules)

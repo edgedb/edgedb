@@ -75,6 +75,12 @@ class BaseObjectType(sources.Source,
     def is_union_type(self, schema) -> bool:
         return bool(self.get_union_of(schema))
 
+    def is_intersection_type(self, schema) -> bool:
+        return bool(self.get_intersection_of(schema))
+
+    def is_compound_type(self, schema) -> bool:
+        return self.is_union_type(schema) or self.is_intersection_type(schema)
+
     def get_displayname(self, schema):
         if self.is_view(schema) and not self.get_alias_is_persistent(schema):
             mtype = self.material_type(schema)
@@ -229,33 +235,28 @@ class BaseObjectType(sources.Source,
 
         return super()._reduce_to_ref(schema)
 
+    def as_create_delta_for_compound_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[CreateObjectType]:
+
+        if (not self.get_union_of(schema)
+                and not self.get_intersection_of(schema)):
+            return None
+        else:
+            return type(self).delta(
+                None, self, old_schema=schema, new_schema=schema,
+            )
+
 
 class ObjectType(BaseObjectType, qlkind=qltypes.SchemaObjectClass.TYPE):
     pass
 
 
-class DerivedObjectType(BaseObjectType):
+# This class exists exclusively for introspection reflection,
+# union and intersection types are actually instances of ObjectType.
+class CompoundObjectType(BaseObjectType):
     pass
-
-
-def get_union_type_attrs(
-        schema,
-        components: Iterable[s_types.Type], *,
-        module: Optional[str]=None):
-
-    name = sn.Name(
-        name='|'.join(sorted(str(t.id) for t in components)),
-        module=module or '__derived__',
-    )
-
-    type_id = s_types.generate_type_id(name)
-
-    return dict(
-        id=type_id,
-        name=name,
-        bases=[schema.get('std::Object')],
-        union_of=so.ObjectSet.create(schema, components),
-    )
 
 
 def get_or_create_union_type(
@@ -266,12 +267,12 @@ def get_or_create_union_type(
     module: Optional[str] = None,
 ) -> ObjectType:
 
-    name = sn.Name(
-        name='|'.join(sorted(str(t.id) for t in components)),
-        module=module or '__derived__',
+    type_id, name = s_types.get_union_type_id(
+        schema,
+        components,
+        module=module,
     )
 
-    type_id = s_types.generate_type_id(name)
     objtype = schema.get_by_id(type_id, None)
     created = objtype is None
     if objtype is None:
@@ -300,26 +301,6 @@ def get_or_create_union_type(
     return schema, objtype, created
 
 
-def get_intersection_type_attrs(
-        schema,
-        components: Iterable[s_types.Type], *,
-        module: Optional[str]=None):
-
-    name = sn.Name(
-        name=f"({' & '.join(sorted(str(t.id) for t in components))})",
-        module=module or '__derived__',
-    )
-
-    type_id = s_types.generate_type_id(name)
-
-    return dict(
-        id=type_id,
-        name=name,
-        bases=[schema.get('std::Object')],
-        intersection_of=so.ObjectSet.create(schema, components),
-    )
-
-
 def get_or_create_intersection_type(
     schema: s_schema.Schema,
     components: Iterable[ObjectType],
@@ -327,12 +308,12 @@ def get_or_create_intersection_type(
     module: Optional[str] = None,
 ) -> ObjectType:
 
-    name = sn.Name(
-        name=f"({' & '.join(sorted(str(t.id) for t in components))})",
-        module=module or '__derived__',
+    type_id, name = s_types.get_intersection_type_id(
+        schema,
+        components,
+        module=module,
     )
 
-    type_id = s_types.generate_type_id(name)
     objtype = schema.get_by_id(type_id, None)
     created = objtype is None
     if objtype is None:

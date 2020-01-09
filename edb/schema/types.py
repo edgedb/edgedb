@@ -172,6 +172,12 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def is_union_type(self, schema) -> bool:
         return False
 
+    def is_intersection_type(self, schema) -> bool:
+        return False
+
+    def is_compound_type(self, schema) -> bool:
+        return False
+
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return False
 
@@ -343,11 +349,22 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
             ancestors = list(self.get_ancestors(schema).objects(schema))
             return ancestors.index(ancestor) + 1
 
+    def as_create_delta_for_compound_type(
+        self,
+        schema: s_schema.Schema,
+        *,
+        id: uuid.UUID,
+        name: s_name.Name,
+        compound_type: str,
+        components: typing.Iterable[Type],
+    ) -> typing.Optional[sd.CreateObject]:
+        return None
+
 
 TypeExprRefT = typing.TypeVar('TypeExprRefT', bound='TypeExprRef')
 
 
-class TypeExprRef(so.Object):
+class TypeExprRef(so.Object, so.BaseObjectRef):
     _components: typing.Tuple[so.ObjectRef, ...]
     module: str
 
@@ -382,6 +399,11 @@ class TypeExprRef(so.Object):
 
 class UnionTypeRef(TypeExprRef):
 
+    def _resolve_ref(self, schema: s_schema.Schema) -> Type:
+        components = self.resolve_components(schema)
+        type_id, _ = get_union_type_id(schema, components, module=self.module)
+        return schema.get_by_id(type_id)
+
     def get_union_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
         return self._components
 
@@ -411,6 +433,12 @@ class ExistingUnionTypeRef(UnionTypeRef, so.ObjectRef):  # type: ignore
 
 
 class IntersectionTypeRef(TypeExprRef):
+
+    def _resolve_ref(self, schema: s_schema.Schema) -> Type:
+        components = self.resolve_components(schema)
+        type_id, _ = get_intersection_type_id(
+            schema, components, module=self.module)
+        return schema.get_by_id(type_id)
 
     def get_intersection_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
         return self._components
@@ -1560,6 +1588,34 @@ def generate_type_id(id_str: str) -> uuid.UUID:
     return uuidgen.uuid5(TYPE_ID_NAMESPACE, id_str)
 
 
+def get_union_type_id(
+    schema,
+    components: typing.Iterable[Type], *,
+    module: typing.Optional[str]=None,
+) -> typing.Tuple[uuid.UUID, s_name.Name]:
+
+    name = s_name.Name(
+        name=f"({' | '.join(sorted(str(t.id) for t in components))})",
+        module=module or '__derived__',
+    )
+
+    return generate_type_id(name), name
+
+
+def get_intersection_type_id(
+    schema,
+    components: typing.Iterable[Type], *,
+    module: typing.Optional[str]=None,
+) -> typing.Tuple[uuid.UUID, s_name.Name]:
+
+    name = s_name.Name(
+        name=f"({' & '.join(sorted(str(t.id) for t in components))})",
+        module=module or '__derived__',
+    )
+
+    return generate_type_id(name), name
+
+
 def ensure_schema_type_expr_type(
     schema: s_schema.Schema,
     type_ref: TypeExprRef,
@@ -1567,22 +1623,20 @@ def ensure_schema_type_expr_type(
     *,
     src_context: typing.Optional[parsing.ParserContext] = None,
     context: sd.CommandContext,
-) -> typing.Tuple[s_schema.Schema, Type]:
-
-    from . import objtypes as s_objtypes
+) -> TypeExprRef:
 
     module = type_ref.module
 
     components = type_ref.resolve_components(schema)
 
     if isinstance(type_ref, UnionTypeRef):
-        type_attrs = s_objtypes.get_union_type_attrs(
+        type_id, type_name = get_union_type_id(
             schema,
             components,
             module=module,
         )
     elif isinstance(type_ref, IntersectionTypeRef):
-        type_attrs = s_objtypes.get_intersection_type_attrs(
+        type_id, type_name = get_union_type_id(
             schema,
             components,
             module=module,
@@ -1590,56 +1644,21 @@ def ensure_schema_type_expr_type(
     else:
         raise AssertionError(f'unexpected typeref: {type_ref!r}')
 
-    texpr_type = schema.get_by_id(type_attrs['id'], None)
+    texpr_type = schema.get_by_id(type_id, None)
 
     if texpr_type is None:
         if isinstance(type_ref, UnionTypeRef):
             schema, texpr_type = utils.get_union_type(
                 schema, components, module=module)
-            field = 'union_of'
         else:
             schema, texpr_type = utils.get_intersection_type(
                 schema, components, module=module)
-            field = 'intersection_of'
 
-        if texpr_type.is_object_type():
-            create_type = s_objtypes.CreateObjectType(
-                classname=type_attrs['name'],
-                metaclass=s_objtypes.ObjectType,
-            )
+        cmd = texpr_type.as_create_delta_for_compound_type(schema)
+        if cmd is not None:
+            parent_cmd.add_prerequisite(cmd)
 
-            create_type.update((
-                sd.AlterObjectProperty(
-                    property='id',
-                    new_value=type_attrs['id'],
-                ),
-                sd.AlterObjectProperty(
-                    property='bases',
-                    new_value=so.ObjectList.create(
-                        schema, [
-                            so.ObjectRef(name=b.get_name(schema))
-                            for b in type_attrs['bases']
-                        ],
-                    ),
-                ),
-                sd.AlterObjectProperty(
-                    property='name',
-                    new_value=type_attrs['name'],
-                ),
-                sd.AlterObjectProperty(
-                    property=field,
-                    new_value=so.ObjectSet.create(
-                        schema, [
-                            so.ObjectRef(name=c.get_name(schema))
-                            for c in type_attrs['union_of'].objects(schema)
-                        ],
-                    ),
-                ),
-            ))
-
-            parent_cmd.add(create_type)
-
-    return schema, texpr_type
+    return type_ref
 
 
 class TypeCommand(sd.ObjectCommand):
@@ -1749,7 +1768,7 @@ class TypeCommand(sd.ObjectCommand):
 
         derived_delta = sd.DeltaRoot()
 
-        derived_delta.update(so.Object.delta_sets(
+        derived_delta.add(so.Object.delta_sets(
             prev_expr_aliases, expr_aliases,
             old_schema=old_schema, new_schema=new_schema))
 

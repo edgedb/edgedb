@@ -263,7 +263,7 @@ def delta_schemas(
                 extra_filters=filters + schema_a_filters,
             )
 
-        objects.update(so.Object.delta_sets(
+        objects.add(so.Object.delta_sets(
             old, new, old_schema=schema_a, new_schema=schema_b))
 
     if linearize_delta:
@@ -271,7 +271,7 @@ def delta_schemas(
             objects, old_schema=schema_a, new_schema=schema_b)
 
     if include_derived_types:
-        result.update(objects)
+        result.add(objects)
     else:
         for cmd in objects.get_subcommands():
             if isinstance(cmd, objtypes.ObjectTypeCommand):

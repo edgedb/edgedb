@@ -430,20 +430,23 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
 
         return schema
 
-    def _create_refs(self, schema, context, scls, refdict):
+    def _create_innards(self, schema, context):
         if not context.canonical:
-            local_refs = list(self.get_subcommands(metaclass=refdict.ref_cls))
-            refdict_whitelist = context.inheritance_refdicts
-            if ((refdict_whitelist is None
-                    or refdict.attr in refdict_whitelist)
-                    and (context.inheritance_merge is None
-                         or context.inheritance_merge)):
-                schema = self.inherit_classref_dict(schema, context, refdict)
-            for op in local_refs:
-                schema, _ = op.apply(schema, context=context)
-            return schema
-        else:
-            return super()._create_refs(schema, context, scls, refdict)
+            cmd = sd.CommandGroup()
+            mcls = self.get_schema_metaclass()
+
+            for refdict in mcls.get_refdicts():
+                refdict_whitelist = context.inheritance_refdicts
+                if ((refdict_whitelist is None
+                        or refdict.attr in refdict_whitelist)
+                        and (context.inheritance_merge is None
+                             or context.inheritance_merge)):
+                    cmd.add(self.inherit_classref_dict(
+                        schema, context, refdict))
+
+            self.prepend(cmd)
+
+        return super()._create_innards(schema, context)
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
@@ -519,11 +522,8 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
             )
 
             group.add(cmd)
-            schema, _ = cmd.apply(schema, context)
 
-        self.prepend(group)
-
-        return schema
+        return group
 
 
 class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
@@ -585,7 +585,7 @@ class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
 
             dcmd.add(descendant_alter)
 
-            self.update(droot.get_subcommands())
+            self.add(droot)
 
 
 class AlterInheritingObjectFragment(InheritingObjectCommand,

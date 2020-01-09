@@ -96,6 +96,10 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         self.pgops = ordered.OrderedSet()
 
     def apply(self, schema, context=None):
+        for op in self.before_ops:
+            if not isinstance(op, sd.AlterObjectProperty):
+                self.pgops.add(op)
+
         for op in self.ops:
             if not isinstance(op, sd.AlterObjectProperty):
                 self.pgops.add(op)
@@ -146,7 +150,7 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
         raise NotImplementedError
 
     def _get_id(self, schema, value):
-        if isinstance(value, s_obj.ObjectRef):
+        if isinstance(value, s_obj.BaseObjectRef):
             obj_id = value._resolve_ref(schema).id
         elif isinstance(value, s_obj.Object):
             obj_id = value.id
@@ -1792,8 +1796,8 @@ class RebaseIndex(
 class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
     def get_table(self, schema):
-        if self.scls.get_union_of(schema):
-            mcls = s_objtypes.DerivedObjectType
+        if self.scls.is_compound_type(schema):
+            mcls = s_objtypes.CompoundObjectType
         else:
             mcls = s_objtypes.ObjectType
 
@@ -1802,7 +1806,7 @@ class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,
     @classmethod
     def has_table(cls, objtype, schema):
         return not (
-            objtype.get_union_of(schema) or
+            objtype.is_compound_type(schema) or
             objtype.get_is_derived(schema) or
             objtype.is_view(schema)
         )
@@ -1813,7 +1817,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
     def apply(self, schema, context=None):
         schema, objtype = s_objtypes.CreateObjectType.apply(
             self, schema, context)
-        if objtype.get_union_of(schema) or objtype.get_is_derived(schema):
+        if objtype.is_compound_type(schema) or objtype.get_is_derived(schema):
             schema, _ = ObjectTypeMetaCommand.apply(self, schema, context)
             schema, _, op = self.create_object(schema, context, objtype)
             self.pgops.add(op)
@@ -2144,7 +2148,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     is_computable = (
                         is_computable
                         or source.is_view(schema)
-                        or source.get_union_of(schema)
+                        or source.is_compound_type(schema)
                     )
             else:
                 is_computable = None
@@ -2497,7 +2501,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         if source is not None:
             source_is_view = (
                 source.is_view(schema)
-                or source.get_union_of(schema)
+                or source.is_compound_type(schema)
                 or source.get_is_derived(schema)
             )
         else:

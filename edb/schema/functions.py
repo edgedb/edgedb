@@ -339,7 +339,8 @@ class ParameterCommand(referencing.StronglyReferencedObjectCommand,
     pass
 
 
-class CreateParameter(ParameterCommand, sd.CreateObject):
+class CreateParameter(ParameterCommand, sd.CreateObject,
+                      sd.CreateObjectFragment):
 
     @classmethod
     def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode, context):
@@ -598,7 +599,7 @@ class CallableObject(s_anno.AnnotationSubject, CallableLike):
             else:
                 newcoll = []
 
-            delta.update(cls.delta_sets(
+            delta.add(cls.delta_sets(
                 oldcoll, newcoll, context,
                 old_schema=old_schema, new_schema=new_schema))
 
@@ -665,14 +666,7 @@ class CallableCommand(sd.ObjectCommand):
         params = self.get_attribute_value('params')
 
         if params is None:
-            try:
-                params = self._get_params(schema, context)
-            except errors.InvalidReferenceError:
-                # Make sure the parameter objects exist.
-                for op in self.get_subcommands(metaclass=Parameter):
-                    schema, _ = op.apply(schema, context=context)
-
-                params = self._get_params(schema, context)
+            params = self._get_params(schema, context)
 
         schema, props = super()._prepare_create_fields(schema, context)
         props['params'] = params
