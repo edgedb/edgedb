@@ -69,7 +69,7 @@ def main(names, con):
             T := (SELECT Type
                   FILTER Type IS (PseudoType | ScalarType | ObjectType))
         SELECT T.name[5:]
-        FILTER T.name LIKE 'std::%';
+        FILTER T.name LIKE 'std::%' OR T.name LIKE 'cal::%';
     '''))
     types |= SPECIAL_TYPES
     types = sorted(types)
@@ -86,7 +86,7 @@ def main(names, con):
         WITH
             MODULE schema,
             name := DISTINCT `Function`.name
-        SELECT re_match(r'(?:std|sys|math)::([a-zA-Z]\w+$)', name)[0];
+        SELECT re_match(r'(?:std|sys|math|cal)::([a-zA-Z]\w+$)', name)[0];
     ''')))
 
     # add non-word operators

@@ -175,9 +175,11 @@ class EdgeQL:
         "anyenum",
         "anyfloat",
         "anyint",
+        "anynumeric",
         "anyreal",
         "anyscalar",
         "array",
+        "bigint",
         "bool",
         "bytes",
         "datetime",
@@ -199,13 +201,13 @@ class EdgeQL:
         "uuid",
     )
     module_builtins = (
+        "cal",
         "cfg",
         "math",
         "schema",
         "std",
         "stdgraphql",
         "sys",
-        "cal",
     )
     constraint_builtins = (
         "constraint",
@@ -241,6 +243,7 @@ class EdgeQL:
         "datetime_of_statement",
         "datetime_of_transaction",
         "datetime_truncate",
+        "duration_to_seconds",
         "duration_truncate",
         "enumerate",
         "find",
@@ -279,6 +282,7 @@ class EdgeQL:
         "str_upper",
         "sum",
         "time_get",
+        "to_bigint",
         "to_datetime",
         "to_decimal",
         "to_duration",
