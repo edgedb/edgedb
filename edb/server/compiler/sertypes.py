@@ -373,7 +373,7 @@ class TypeSerializer:
             flags = {}
             for _ in range(els):
                 flag = desc.read_bytes(1)[0]
-                name = desc.read_len16_prefixed_bytes().decode()
+                name = desc.read_len32_prefixed_bytes().decode()
                 pos = desc.read_ui16()
                 fields[name] = codecs_list[pos]
                 flags[name] = flag
@@ -398,7 +398,7 @@ class TypeSerializer:
             els = desc.read_ui16()
             fields = {}
             for _ in range(els):
-                name = desc.read_len16_prefixed_bytes().decode()
+                name = desc.read_len32_prefixed_bytes().decode()
                 pos = desc.read_ui16()
                 fields[name] = codecs_list[pos]
             return NamedTupleDesc(tid=tid, fields=fields)
@@ -407,7 +407,7 @@ class TypeSerializer:
             els = desc.read_ui16()
             names = []
             for _ in range(els):
-                name = desc.read_len16_prefixed_bytes().decode()
+                name = desc.read_len32_prefixed_bytes().decode()
                 names.append(name)
             return EnumDesc(tid=tid, names=names)
 
