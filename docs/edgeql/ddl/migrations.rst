@@ -22,26 +22,14 @@ Create a new migration.
         [ ... ]
     "}" ;
 
-    [ WITH [ <module-alias> := ] MODULE <module-name> ]
-    CREATE MIGRATION <name> "{"
-        <ddl-command> ;
-        [ ... ]
-    "}" ;
-
 
 Description
 -----------
 
-``CREATE MIGRATION`` defines a new schema migration for a specific module.
-If *name* is qualified with a module name, then the migration is created
-for that module, owtherwise it is created for the current module, as
-determined by the session or the ``WITH`` block.
-
-There are two forms of ``CREATE MIGRATION`` as shown in the synopsis above.
-The first form uses a specific description of the target schema state and
-generates the necessary DDL commands automatically based on the current and
-the target state.  The second form uses explicit DDL command specifications
-for the migration.
+``CREATE MIGRATION`` defines a migration of the schema to a new state.
+The target schema state is described using :ref:`SDL <ref_eql_sdl>`
+and the migration generates the necessary :ref:`DDL <ref_eql_ddl>`
+commands behind the scenes based on the current and the target state.
 
 **Important:** ``CREATE MIGRATION`` and the follow-up
 :eql:stmt:`COMMIT MIGRATION` must be executed in a transaction block.
@@ -65,11 +53,6 @@ Parameters
     Module contents defined using the declarative :ref:`EdgeDB schema
     definition language<ref_eql_sdl>`.
 
-:eql:synopsis:`<ddl-command>`
-    A list of arbitrary DDL commands.  :ref:`Database <ref_admin_databases>`,
-    :ref:`module <ref_eql_ddl_modules>`, and migration commands cannot be
-    used here.
-
 
 Examples
 --------
@@ -86,21 +69,6 @@ syntax:
             }
         }
     };
-
-Create a new migration for the "payments" module using explicit DDL:
-
-.. code-block:: edgeql
-
-    START TRANSACTION;
-
-    CREATE MIGRATION alter_tx {
-        ALTER TYPE payments::Payment CREATE PROPERTY amount -> str;
-        ALTER TYPE payments::CreditCard CREATE PROPERTY cvv -> str;
-    };
-
-    COMMIT MIGRATION alter_tx;
-
-    COMMIT;
 
 
 COMMIT MIGRATION
@@ -138,7 +106,7 @@ Commit the "alter_tx" migration:
 
 .. code-block:: edgeql
 
-    COMMIT MIGRATION payments::alter_tx;
+    COMMIT MIGRATION init;
 
 
 DROP MIGRATION
