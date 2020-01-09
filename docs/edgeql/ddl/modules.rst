@@ -19,6 +19,10 @@ Create a new module.
 
     CREATE MODULE <name> ;
 
+There's a :ref:`corresponding SDL declaration <ref_eql_sdl_modules>`
+for a module, although in SDL a module declaration is likely to also
+include that module's content.
+
 Description
 -----------
 

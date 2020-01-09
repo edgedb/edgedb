@@ -254,7 +254,21 @@ class TestDocSnippets(unittest.TestCase):
                 if lang == 'edgeql':
                     ql_parser.parse_block(snippet)
                 elif lang == 'sdl':
-                    ql_parser.parse_sdl(f'module default {{ {snippet} }}')
+                    # the snippet itself may either containt a module
+                    # block or have a fully-qualified top-level name
+                    if re.match(
+                            r'''(?xm)
+                                (\bmodule\s+\w+\s*{) |
+                                (^.*
+                                    (type|annotation|link|property|constraint)
+                                    \s+(\w+::\w+)\s+
+                                    ({|extending)
+                                )
+                            ''',
+                            snippet):
+                        ql_parser.parse_sdl(snippet)
+                    else:
+                        ql_parser.parse_sdl(f'module default {{ {snippet} }}')
                 elif lang == 'edgeql-result':
                     # REPL results
                     pass

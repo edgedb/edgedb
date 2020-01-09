@@ -29,5 +29,6 @@ Every EdgeDB schema contains the following standard modules:
 See Also
 --------
 
+:ref:`SDL <ref_eql_sdl_modules>`,
 :eql:stmt:`CREATE MODULE`,
 :eql:stmt:`DROP MODULE`.
