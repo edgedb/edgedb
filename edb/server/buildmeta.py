@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import enum
 import os
@@ -30,12 +31,12 @@ from edb.common import devmode
 try:
     import pkg_resources
 except ImportError:
-    pkg_resources = None
+    pkg_resources = None  # type: ignore
 
 try:
     import setuptools_scm
 except ImportError:
-    setuptools_scm = None
+    setuptools_scm = None  # type: ignore
 
 
 class MetadataError(Exception):
@@ -44,7 +45,7 @@ class MetadataError(Exception):
 
 def get_build_metadata_value(prop: str) -> str:
     try:
-        from . import _buildmeta
+        from . import _buildmeta  # type: ignore
         return getattr(_buildmeta, prop)
     except (ImportError, AttributeError):
         raise MetadataError(
@@ -53,7 +54,8 @@ def get_build_metadata_value(prop: str) -> str:
 
 def get_pg_config_path() -> pathlib.Path:
     if devmode.is_in_dev_mode():
-        root = pathlib.Path(edb.server.__path__[0]).parent.parent
+        edb_path: os.PathLike = edb.server.__path__[0]  # type: ignore
+        root = pathlib.Path(edb_path).parent.parent
         pg_config = (root / 'build' / 'postgres' /
                      'install' / 'bin' / 'pg_config').resolve()
         if not pg_config.is_file():
@@ -79,7 +81,7 @@ def get_pg_config_path() -> pathlib.Path:
     return pg_config
 
 
-def get_runstate_path(data_dir: os.PathLike) -> os.PathLike:
+def get_runstate_path(data_dir: pathlib.Path) -> pathlib.Path:
     if devmode.is_in_dev_mode():
         return data_dir
     else:
@@ -164,7 +166,7 @@ def get_version() -> Version:
         pv = pkg_resources.parse_version(version)
         version = parse_version(pv)
     else:
-        vertuple = list(get_build_metadata_value('VERSION'))
+        vertuple: List[Any] = list(get_build_metadata_value('VERSION'))
         vertuple[2] = VersionStage(vertuple[2])
         version = Version(*vertuple)
 
