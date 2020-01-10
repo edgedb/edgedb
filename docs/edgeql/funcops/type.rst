@@ -60,6 +60,8 @@ Types
 
 .. eql:operator:: TYPEOR: type | type -> type
 
+    :index: poly polymorphism polymorphic queries nested shapes
+
     Type union operator
 
     This operator is only valid in contexts where type checking is
