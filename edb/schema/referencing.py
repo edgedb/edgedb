@@ -293,23 +293,12 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         schema = referrer.add_classref(schema, refdict.attr, self.scls)
 
         if (not self.scls.get_is_final(schema)
-                and isinstance(referrer, inheriting.InheritingObject)):
-            if not context.canonical:
-                # Propagate the creation of a new ref to descendants of
-                # our referrer.
-                if context.enable_recursion:
-                    alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
-                        sd.AlterObject, referrer_cls)
-
-                    fq_name = self.scls.get_name(schema)
-
-                    for child in referrer.children(schema):
-                        alter = alter_cmd(classname=child.get_name(schema))
-                        with alter.new_context(schema, context, child):
-                            schema, cmd = self._propagate_ref_creation(
-                                schema, context, refdict, fq_name, child)
-                            alter.add(cmd)
-                        self.add(alter)
+                and isinstance(referrer, inheriting.InheritingObject)
+                and not context.canonical
+                and context.enable_recursion):
+            # Propagate the creation of a new ref to descendants of
+            # our referrer.
+            schema = self._propagate_ref_creation(schema, context, referrer)
 
         return super()._create_innards(schema, context)
 
@@ -361,43 +350,59 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
 
         return rebase_cmd
 
-    def _propagate_ref_creation(self, schema, context,
-                                refdict, parent_fq_refname, child):
+    def _propagate_ref_creation(self, schema, context, referrer):
+
         get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
+
         mcls = type(self.scls)
-
-        # This is needed to get the correct inherited name which will
-        # either be created or rebased.
+        referrer_cls = type(referrer)
+        alter_cmd = get_cmd(sd.AlterObject, referrer_cls)
         ref_create_cmd = get_cmd(sd.CreateObject, mcls)
-        ref_field_type = type(child).get_field(refdict.attr).type
-        refname = ref_field_type.get_key_for_name(schema, parent_fq_refname)
+        refdict = referrer_cls.get_refdict_for_class(mcls)
+        parent_fq_refname = self.scls.get_name(schema)
 
-        astnode = ref_create_cmd.as_inherited_ref_ast(
-            schema, context, refname, self.scls)
-        fq_name = self._classname_from_ast(schema, astnode, context)
+        for child in referrer.children(schema):
+            if not child.allow_ref_propagation(schema, context, refdict):
+                continue
 
-        existing = schema.get(fq_name, None)
-        if existing is not None:
-            # The child already has this ref, so do a rebase.
-            cmd = self._implicit_ref_rebase(
-                schema, context, child, existing, refdict, fq_name)
+            alter = alter_cmd(classname=child.get_name(schema))
+            with alter.new_context(schema, context, child):
+                # This is needed to get the correct inherited name which will
+                # either be created or rebased.
+                ref_field_type = type(child).get_field(refdict.attr).type
+                refname = ref_field_type.get_key_for_name(
+                    schema, parent_fq_refname)
 
-        else:
-            cmd = ref_create_cmd.as_inherited_ref_cmd(
-                schema, context, astnode, [self.scls])
+                astnode = ref_create_cmd.as_inherited_ref_ast(
+                    schema, context, refname, self.scls)
+                fq_name = self._classname_from_ast(schema, astnode, context)
 
-            cmd.set_attribute_value(
-                refdict.backref_attr,
-                so.ObjectRef(name=child.get_name(schema)),
-            )
+                existing = schema.get(fq_name, None)
+                if existing is not None:
+                    # The child already has this ref, so do a rebase.
+                    cmd = self._implicit_ref_rebase(
+                        schema, context, child, existing, refdict, fq_name)
 
-            if child.get_is_derived(schema):
-                # All references in a derived object must
-                # also be marked as derived, to be consistent
-                # with derive_subtype().
-                cmd.set_attribute_value('is_derived', True)
+                else:
+                    cmd = ref_create_cmd.as_inherited_ref_cmd(
+                        schema, context, astnode, [self.scls])
 
-        return schema, cmd
+                    cmd.set_attribute_value(
+                        refdict.backref_attr,
+                        so.ObjectRef(name=child.get_name(schema)),
+                    )
+
+                    if child.get_is_derived(schema):
+                        # All references in a derived object must
+                        # also be marked as derived, to be consistent
+                        # with derive_subtype().
+                        cmd.set_attribute_value('is_derived', True)
+
+                alter.add(cmd)
+
+            self.add(alter)
+
+        return schema
 
     def _implicit_ref_rebase(self, schema, context, child, existing,
                              refdict, fq_name):

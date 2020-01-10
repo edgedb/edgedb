@@ -360,6 +360,14 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     ) -> typing.Optional[sd.CreateObject]:
         return None
 
+    def allow_ref_propagation(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> bool:
+        return not self.is_view(schema)
+
 
 TypeExprRefT = typing.TypeVar('TypeExprRefT', bound='TypeExprRef')
 
