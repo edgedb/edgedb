@@ -82,6 +82,9 @@ cdef class EdgeConnection:
         bint debug
         bint query_cache_enabled
 
+        object server
+        bint authed
+
     cdef parse_json_mode(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef char render_cardinality(self, query_unit) except -1

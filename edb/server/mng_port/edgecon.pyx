@@ -91,7 +91,7 @@ cdef class EdgeConnection:
 
     def __init__(self, server, external_auth: bool = False):
         self._con_status = EDGECON_NEW
-        self._id = server.new_edgecon_id()
+        self._id = server.on_client_connected()
         self.port = server
         self._external_auth = external_auth
 
@@ -117,6 +117,9 @@ cdef class EdgeConnection:
         self.query_cache_enabled = not (debug.flags.disable_qcache or
                                         debug.flags.edgeql_compile)
 
+        self.server = server
+        self.authed = False
+
     cdef get_backend(self):
         if self._con_status is EDGECON_BAD:
             # `self.sync()` is called from `recover_from_error`;
@@ -132,7 +135,6 @@ cdef class EdgeConnection:
             return self._backend
 
         raise RuntimeError('requesting backend before it is initialized')
-
 
     def debug_print(self, *args):
         print(
@@ -1210,6 +1212,9 @@ cdef class EdgeConnection:
 
             return
 
+        self.authed = True
+        self.server.on_client_authed()
+
         try:
             while True:
                 if not self.buffer.take_message():
@@ -1530,6 +1535,10 @@ cdef class EdgeConnection:
         return out_buf
 
     def connection_made(self, transport):
+        if not self.server._accepting:
+            transport.abort()
+            return
+
         if self._con_status != EDGECON_NEW:
             raise errors.BinaryProtocolError(
                 'invalid connection status while establishing the connection')
@@ -1537,6 +1546,9 @@ cdef class EdgeConnection:
         self._main_task = self.loop.create_task(self.main())
 
     def connection_lost(self, exc):
+        if self.authed:
+            self.server.on_client_disconnected()
+
         if (self._msg_take_waiter is not None and
                 not self._msg_take_waiter.done()):
             self._msg_take_waiter.set_exception(ConnectionAbortedError())

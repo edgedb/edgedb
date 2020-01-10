@@ -18,7 +18,9 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
+import asyncio
 import logging
 import os
 import os.path
@@ -56,16 +58,23 @@ class Backend:
 
 class ManagementPort(baseport.Port):
 
-    def __init__(self, nethost: str, netport: int, **kwargs):
+    _servers: List[asyncio.AbstractServer]
+
+    def __init__(self, nethost: str, netport: int,
+                 auto_shutdown: bool, **kwargs):
         super().__init__(**kwargs)
 
         self._nethost = nethost
         self._netport = netport
 
         self._edgecon_id = 0
+        self._num_connections = 0
 
         self._servers = []
         self._backends = weakref.WeakSet()
+
+        self._auto_shutdown = auto_shutdown
+        self._accepting = False
 
     def new_view(self, *, dbname, user, query_cache):
         return self._dbindex.new_view(
@@ -94,13 +103,22 @@ class ManagementPort(baseport.Port):
         self._backends.add(backend)
         return backend
 
-    def new_edgecon_id(self):
+    def on_client_connected(self) -> str:
         self._edgecon_id += 1
         return str(self._edgecon_id)
 
     async def new_pgcon(self, dbname):
         server = self.get_server()
         return await server.new_pgcon(dbname)
+
+    def on_client_authed(self):
+        self._num_connections += 1
+
+    def on_client_disconnected(self):
+        self._num_connections -= 1
+        if not self._num_connections and self._auto_shutdown:
+            self._accepting = False
+            raise SystemExit
 
     async def start(self):
         await super().start()
@@ -147,7 +165,10 @@ class ManagementPort(baseport.Port):
         self._servers.append(admin_unix_srv)
         logger.info('Serving admin on %s', admin_unix_sock_path)
 
+        self._accepting = True
+
     async def stop(self):
+        self._accepting = False
         try:
             async with taskgroup.TaskGroup() as g:
                 for srv in self._servers:

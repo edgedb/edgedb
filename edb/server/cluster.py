@@ -185,8 +185,7 @@ class Cluster:
         self._test_connection()
 
     def stop(self, wait=60):
-        if (
-                self._daemon_process is not None and
+        if (self._daemon_process is not None and
                 self._daemon_process.returncode is None):
             self._daemon_process.terminate()
             self._daemon_process.wait(wait)

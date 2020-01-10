@@ -327,6 +327,7 @@ class Cluster(BaseCluster):
         if (self._daemon_process is not None and
                 self._daemon_process.returncode is None):
             self._daemon_process.kill()
+            self._daemon_process.wait(wait)
 
     def destroy(self):
         status = self.get_status()

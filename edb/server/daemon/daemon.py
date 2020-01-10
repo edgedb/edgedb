@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import atexit
 import io
+import os
 import signal
 
 from . import lib, pidfile as pidfile_module
@@ -31,13 +32,13 @@ from .exceptions import DaemonError
 
 class DaemonContext:
     def __init__(
-            self, *, pidfile: str, files_preserve: list=None,
-            working_directory: str='/', umask: int=0o022, uid: int=None, gid:
-            int=None, detach_process: bool=None, prevent_core: bool=True,
+            self, *, pidfile: os.PathLike, files_preserve: list=None,
+            working_directory: str='/', umask: int=0o022, uid: int=None,
+            gid: int=None, detach_process: bool=None, prevent_core: bool=True,
             stdin: io.FileIO=None, stdout: io.FileIO=None, stderr:
             io.FileIO=None, signal_map: dict=None):
 
-        self.pidfile = pidfile
+        self.pidfile = os.fspath(pidfile)
         self.files_preserve = files_preserve
         self.working_directory = working_directory
         self.umask = umask

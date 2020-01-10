@@ -18,19 +18,23 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import asyncio
 import contextlib
+import errno
 import getpass
 import logging
 import os
 import os.path
 import pathlib
+import random
 import resource
 import signal
 import socket
 import sys
 import tempfile
+import typing
 
 import uvloop
 
@@ -53,7 +57,7 @@ logger = logging.getLogger('edb.server')
 _server_initialized = False
 
 
-def abort(msg, *args):
+def abort(msg, *args) -> NoReturn:
     logger.critical(msg, *args)
     sys.exit(1)
 
@@ -63,7 +67,10 @@ def terminate_server(server, loop):
 
 
 @contextlib.contextmanager
-def _ensure_runstate_dir(default_runstate_dir, specified_runstate_dir):
+def _ensure_runstate_dir(
+    default_runstate_dir: pathlib.Path,
+    specified_runstate_dir: Optional[pathlib.Path]
+) -> pathlib.Path:
     temp_runstate_dir = None
 
     if specified_runstate_dir is None:
@@ -120,15 +127,15 @@ def _internal_state_dir(runstate_dir):
               f'--runstate-dir to specify the correct location')
 
 
-def _init_cluster(cluster, args) -> bool:
+def _init_cluster(cluster, args: ServerConfig) -> bool:
     from edb.server import bootstrap
 
     bootstrap_args = {
-        'default_database': (args['default_database'] or
-                             args['default_database_user']),
-        'default_database_user': args['default_database_user'],
-        'testmode': args['testmode'],
-        'insecure': args['insecure'],
+        'default_database': (args.default_database or
+                             args.default_database_user),
+        'default_database_user': args.default_database_user,
+        'testmode': args.testmode,
+        'insecure': args.insecure,
     }
 
     need_restart = asyncio.run(bootstrap.bootstrap(cluster, bootstrap_args))
@@ -167,50 +174,52 @@ def _init_parsers():
     ql_parser.preload()
 
 
-def _run_server(cluster, args, runstate_dir, internal_runstate_dir):
+def _run_server(cluster, args: ServerConfig,
+                runstate_dir, internal_runstate_dir):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    # Import here to make sure that most of imports happen
+    # under coverage (if we're testing with it).  Otherwise
+    # coverage will fail to detect that "import edb..." lines
+    # actually were run.
+    from . import server
+
+    ss = server.Server(
+        loop=loop,
+        cluster=cluster,
+        runstate_dir=runstate_dir,
+        internal_runstate_dir=internal_runstate_dir,
+        max_backend_connections=args.max_backend_connections,
+        nethost=args.bind_address,
+        netport=args.port,
+        auto_shutdown=args.auto_shutdown,
+        echo_runtime_info=args.echo_runtime_info,
+    )
+
+    loop.run_until_complete(ss.init())
+
     try:
-        # Import here to make sure that most of imports happen
-        # under coverage (if we're testing with it).  Otherwise
-        # coverage will fail to detect that "import edb..." lines
-        # actually were run.
-        from . import server
+        loop.run_until_complete(ss.start())
+    except Exception:
+        loop.run_until_complete(ss.stop())
+        raise
 
-        ss = server.Server(
-            loop=loop,
-            cluster=cluster,
-            runstate_dir=runstate_dir,
-            internal_runstate_dir=internal_runstate_dir,
-            max_backend_connections=args['max_backend_connections'],
-            nethost=args['bind_address'],
-            netport=args['port'],
-        )
+    loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
 
-        loop.run_until_complete(ss.init())
+    # Notify systemd that we've started up.
+    _sd_notify('READY=1')
 
+    try:
+        loop.run_forever()
+    finally:
         try:
-            loop.run_until_complete(ss.start())
-        except Exception:
+            logger.info('Shutting down.')
             loop.run_until_complete(ss.stop())
-            raise
-
-        loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
-
-        # Notify systemd that we've started up.
-        _sd_notify('READY=1')
-
-        try:
-            loop.run_forever()
         finally:
-            loop.run_until_complete(ss.stop())
-
-    except KeyboardInterrupt:
-        logger.info('Shutting down.')
-        _sd_notify('STOPPING=1')
+            _sd_notify('STOPPING=1')
 
 
-def run_server(args):
+def run_server(args: ServerConfig):
     ver = buildmeta.get_version()
 
     if devmode.is_in_dev_mode():
@@ -223,8 +232,8 @@ def run_server(args):
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
 
-    if args['data_dir']:
-        cluster = pgcluster.get_local_pg_cluster(args['data_dir'])
+    if args.data_dir:
+        cluster = pgcluster.get_local_pg_cluster(args.data_dir)
         default_runstate_dir = cluster.get_data_dir()
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
@@ -232,8 +241,8 @@ def run_server(args):
                 database='template1',
             ),
         )
-    elif args['postgres_dsn']:
-        cluster = pgcluster.get_remote_pg_cluster(args['postgres_dsn'])
+    elif args.postgres_dsn:
+        cluster = pgcluster.get_remote_pg_cluster(args.postgres_dsn)
         default_runstate_dir = None
     else:
         # This should have been checked by main() already,
@@ -246,9 +255,10 @@ def run_server(args):
 
         cluster_status = cluster.get_status()
 
-        if args['runstate_dir']:
-            specified_runstate_dir = args['runstate_dir']
-        elif args['bootstrap']:
+        specified_runstate_dir: Optional[pathlib.Path]
+        if args.runstate_dir:
+            specified_runstate_dir = args.runstate_dir
+        elif args.bootstrap:
             # When bootstrapping a new EdgeDB instance it is often necessary
             # to avoid using the main runstate dir due to lack of permissions,
             # possibility of conflict with another running instance, etc.
@@ -272,7 +282,7 @@ def run_server(args):
 
             elif cluster_status != 'running':
                 abort('Could not start database cluster in %s',
-                      args['data_dir'])
+                      args.data_dir)
 
             need_cluster_restart = _init_cluster(cluster, args)
 
@@ -282,8 +292,8 @@ def run_server(args):
                 cluster.stop()
                 cluster.start(port=cluster_port)
 
-            if not args['bootstrap']:
-                if args['data_dir']:
+            if not args.bootstrap:
+                if args.data_dir:
                     cluster.set_connection_params(
                         pgconnparams.ConnectionParameters(
                             user=defines.EDGEDB_SUPERUSER,
@@ -302,8 +312,92 @@ def run_server(args):
             cluster.destroy()
         raise
 
-    if pg_cluster_started_by_us:
-        cluster.stop()
+    finally:
+        if args.temp_dir:
+            if cluster.get_status() == 'running':
+                cluster.stop()
+            cluster.destroy()
+
+        elif pg_cluster_started_by_us:
+            cluster.stop()
+
+
+class PathPath(click.Path):
+    name = 'path'
+
+    def convert(self, value, param, ctx):
+        return pathlib.Path(super().convert(value, param, ctx)).absolute()
+
+
+class PortType(click.ParamType):
+    name = 'port'
+
+    @staticmethod
+    def find_available_port(port_range=(49152, 65535), max_tries=1000):
+        low, high = port_range
+
+        port = low
+        try_no = 0
+
+        while try_no < max_tries:
+            try_no += 1
+            port = random.randint(low, high)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.bind(('localhost', port))
+            except socket.error as e:
+                if e.errno == errno.EADDRINUSE:
+                    continue
+                raise
+            finally:
+                sock.close()
+
+            break
+        else:
+            port = None
+
+        return port
+
+    def convert(self, value, param, ctx):
+        if value == 'auto':
+            return self.find_available_port()
+
+        try:
+            return int(value, 10)
+        except TypeError:
+            self.fail(
+                "expected string for int() conversion, got "
+                f"{value!r} of type {type(value).__name__}",
+                param,
+                ctx,
+            )
+        except ValueError:
+            self.fail(f"{value!r} is not a valid integer", param, ctx)
+
+
+class ServerConfig(typing.NamedTuple):
+
+    insecure: bool
+    data_dir: pathlib.Path
+    postgres_dsn: str
+    log_level: str
+    log_to: str
+    bootstrap: bool
+    default_database: str
+    default_database_user: str
+    devmode: bool
+    testmode: bool
+    bind_address: str
+    port: int
+    background: bool
+    pidfile: pathlib.Path
+    daemon_user: str
+    daemon_group: str
+    runstate_dir: pathlib.Path
+    max_backend_connections: int
+    echo_runtime_info: bool
+    temp_dir: bool
+    auto_shutdown: bool
 
 
 def bump_rlimit_nofile() -> None:
@@ -324,7 +418,7 @@ def bump_rlimit_nofile() -> None:
 
 _server_options = [
     click.option(
-        '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
+        '-D', '--data-dir', type=PathPath(), envvar='EDGEDB_DATADIR',
         help='database cluster directory'),
     click.option(
         '--postgres-dsn', type=str,
@@ -360,23 +454,35 @@ _server_options = [
         '-I', '--bind-address', type=str, default=None,
         help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS'),
     click.option(
-        '-P', '--port', type=int, default=None,
+        '-P', '--port', type=PortType(), default=None,
         help='port to listen on'),
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
     click.option(
-        '--pidfile', type=str, default='/run/edgedb/',
+        '--pidfile', type=PathPath(), default='/run/edgedb/',
         help='path to PID file directory'),
     click.option(
         '--daemon-user', type=int),
     click.option(
         '--daemon-group', type=int),
     click.option(
-        '--runstate-dir', type=str, default=None,
-        help=('directory where UNIX sockets will be created '
-              '("/run" on Linux by default)')),
+        '--runstate-dir', type=PathPath(), default=None,
+        help='directory where UNIX sockets will be created '
+             '("/run" on Linux by default)'),
     click.option(
         '--max-backend-connections', type=int, default=100),
+    click.option(
+        '--echo-runtime-info', type=bool, default=False, is_flag=True,
+        help='echo runtime info to stdout; the format is JSON, prefixed by ' +
+             '"EDGEDB_SERVER_DATA:", ended with a new line'),
+    click.option(
+        '--temp-dir', type=bool, default=False, is_flag=True,
+        help='create a temporary database cluster directory '
+             'that will be automatically purged on server shutdown'),
+    click.option(
+        '--auto-shutdown', type=bool, default=False, is_flag=True,
+        help='shutdown the server after the last management ' +
+             'connection is closed'),
 ]
 
 
@@ -397,36 +503,52 @@ def server_main(*, insecure=False, **kwargs):
     if kwargs['devmode'] is not None:
         devmode.enable_dev_mode(kwargs['devmode'])
 
-    if not kwargs['data_dir']:
+    if kwargs['temp_dir']:
+        if kwargs['bootstrap']:
+            abort('--temp-data-dir is incompatible with --bootstrap')
+        if kwargs['data_dir']:
+            abort('--temp-data-dir is incompatible with --data-dir/-D')
+        if kwargs['runstate_dir']:
+            abort('--temp-data-dir is incompatible with --runstate-dir')
         if kwargs['postgres_dsn']:
-            pass
-        elif devmode.is_in_dev_mode():
-            kwargs['data_dir'] = os.path.expanduser('~/.edgedb')
-        else:
-            abort('Please specify the instance data directory '
-                  'using the -D argument or the address of a remote '
-                  'PostgreSQL cluster using the --postgres-dsn argument')
-    elif kwargs['postgres_dsn']:
-        abort('The -D and --postgres-dsn options are mutually exclusive.')
+            abort('--temp-data-dir is incompatible with --postgres-dsn')
+        kwargs['data_dir'] = kwargs['runstate_dir'] = pathlib.Path(
+            tempfile.mkdtemp())
+    else:
+        if not kwargs['data_dir']:
+            if kwargs['postgres_dsn']:
+                pass
+            elif devmode.is_in_dev_mode():
+                kwargs['data_dir'] = os.path.expanduser('~/.edgedb')
+            else:
+                abort('Please specify the instance data directory '
+                      'using the -D argument or the address of a remote '
+                      'PostgreSQL cluster using the --postgres-dsn argument')
+        elif kwargs['postgres_dsn']:
+            abort('The -D and --postgres-dsn options are mutually exclusive.')
 
     kwargs['insecure'] = insecure
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}
-        pidfile = os.path.join(
-            kwargs['pidfile'], '.s.EDGEDB.{}.lock'.format(kwargs['port']))
+        pidfile = kwargs['pidfile'] / f".s.EDGEDB.{kwargs['port']}.lock"
         daemon_opts['pidfile'] = pidfile
         if kwargs['daemon_user']:
             daemon_opts['uid'] = kwargs['daemon_user']
         if kwargs['daemon_group']:
             daemon_opts['gid'] = kwargs['daemon_group']
         with daemon.DaemonContext(**daemon_opts):
+            # TODO: setproctitle should probably be moved to where
+            # management port is initialized, as that's where we know
+            # the actual network port we listen on.  At this point
+            # "port" can be "None".
             setproctitle.setproctitle(
-                'edgedb-server-{}'.format(kwargs['port']))
-            run_server(kwargs)
+                f"edgedb-server-{kwargs['port']}")
+
+            run_server(ServerConfig(**kwargs))
     else:
         with devmode.CoverageConfig.enable_coverage_if_requested():
-            run_server(kwargs)
+            run_server(ServerConfig(**kwargs))
 
 
 @click.command(
