@@ -93,7 +93,6 @@ def ast_to_typeref(
             # Note: if we used abc Tuple here, then we would need anyway
             # to assert it is an instance of s_types.Tuple to make mypy happy
             # (rightly so, because later we use from_subtypes method)
-            # assert isinstance(coll, s_types.Tuple)
 
             subtypes: Dict[str, so.Object] \
                 = collections.OrderedDict()
@@ -165,7 +164,7 @@ def ast_to_typeref(
 
 
 def typeref_to_ast(schema: s_schema.Schema,
-                   t: Union[so.ObjectRef, so.Object],
+                   t: so.Object,
                    *,
                    _name: Optional[str] = None) -> qlast.TypeExpr:
     from . import types as s_types
@@ -371,20 +370,20 @@ def get_nq_name(schema: s_schema.Schema,
 
 
 def find_item_suggestions(
-        name: Union[sn.SchemaName, str, None],
+        name: Optional[str],
         modaliases: Mapping[Optional[str], str],
         schema: s_schema.Schema,
         *,
-        item_types: Tuple[so.Type_T, ...] = (),
+        item_types: Tuple[so.ObjectMeta, ...] = (),
         limit: int = 3,
         collection: Optional[Iterable[so.Object]] = None,
-        condition: Optional[Callable[[so.InheritingObjectBaseT], bool]] = None
+        condition: Optional[Callable[[so.Object], bool]] = None
 ) -> List[so.Object]:
     from . import functions as s_func
     from . import modules as s_mod
 
     if isinstance(name, sn.Name):
-        orig_modname: Union[sn.SchemaName, str, None] = name.module
+        orig_modname: Optional[str] = name.module
         short_name: str = name.name
     else:
         assert name is not None, ("A name must be provided either "
@@ -453,11 +452,11 @@ def find_item_suggestions(
 
 def enrich_schema_lookup_error(
         error: errors.EdgeDBError,
-        item_name: Union[sn.SchemaName, str, None],
+        item_name: Optional[str],
         modaliases: Mapping[Optional[str], str],
         schema: s_schema.Schema,
         *,
-        item_types: Tuple[so.Type_T, ...] = (),
+        item_types: Tuple[so.ObjectMeta, ...] = (),
         suggestion_limit: int = 3,
         name_template: Optional[str] = None,
         collection: Optional[Iterable[so.Object]] = None,
@@ -550,8 +549,7 @@ def ensure_union_type(
     else:
         schema, uniontype, created = s_objtypes.get_or_create_union_type(
             schema,
-            components=cast(Iterable[s_objtypes.ObjectType],
-                            components_list),
+            components=components_list,
             opaque=opaque,
             module=module)
 
@@ -569,8 +567,6 @@ def get_union_type(
 
     schema, union, _ = ensure_union_type(
         schema, types, opaque=opaque, module=module)
-
-    assert isinstance(schema, s_schema.Schema)
 
     return schema, union
 
