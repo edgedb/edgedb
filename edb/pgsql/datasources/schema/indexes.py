@@ -37,7 +37,6 @@ async def fetch(
                                 AS ancestors,
                 i.name          AS name,
                 i.expr          AS expr,
-                i.origexpr      AS origexpr,
                 i.is_local      AS is_local,
                 i.is_final      AS is_final,
                 i.is_abstract   AS is_abstract,

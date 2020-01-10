@@ -1663,19 +1663,8 @@ def ensure_schema_type_expr_type(
 
 class TypeCommand(sd.ObjectCommand):
     @classmethod
-    def _maybe_get_alias_expr(
-        cls, astnode: qlast.ObjectDDL
-    ) -> Optional[qlast.Expr]:
-        for subcmd in astnode.commands:
-            if (isinstance(subcmd, qlast.SetSpecialField) and
-                    subcmd.name == 'expr'):
-                return subcmd.value
-
-        return None
-
-    @classmethod
     def _get_alias_expr(cls, astnode: qlast.CreateAlias) -> qlast.Expr:
-        expr = cls._maybe_get_alias_expr(astnode)
+        expr = qlast.get_ddl_field_value(astnode, 'expr')
         if expr is None:
             raise errors.InvalidAliasDefinitionError(
                 f'missing required view expression', context=astnode.context)
@@ -1713,7 +1702,7 @@ class TypeCommand(sd.ObjectCommand):
     ) -> sd.Command:
         from . import ordering as s_ordering
 
-        view_expr = cls._maybe_get_alias_expr(astnode)
+        view_expr = qlast.get_ddl_field_value(astnode, 'expr')
         if view_expr is None:
             return cmd
 

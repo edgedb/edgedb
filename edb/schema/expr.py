@@ -32,7 +32,7 @@ from . import abc as s_abc
 from . import objects as so
 
 
-class Expression(struct.MixedStruct, s_abc.ObjectContainer):
+class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
     text = struct.Field(str, frozen=True)
     origtext = struct.Field(str, default=None, frozen=True)
     refs = struct.Field(so.ObjectSet, coerce=True, default=None, frozen=True)
@@ -77,8 +77,17 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer):
             return compcoef
 
     @classmethod
-    def from_ast(cls, qltree, schema, modaliases, *, as_fragment=False):
-        orig_text = qlcodegen.generate_source(qltree, pretty=False)
+    def from_ast(
+        cls,
+        qltree,
+        schema,
+        modaliases,
+        *,
+        as_fragment=False,
+        orig_text=None,
+    ) -> Expression:
+        if orig_text is None:
+            orig_text = qlcodegen.generate_source(qltree, pretty=False)
         if not as_fragment:
             qltree = imprint_expr_context(qltree, modaliases)
         norm_text = qlcodegen.generate_source(qltree, pretty=False)

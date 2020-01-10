@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from edb import edgeql
 from edb import errors
@@ -42,8 +43,9 @@ class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
 
     # Text representation of the original expression that's been
     # parsed and re-generated, but not normalized.
-    origexpr = so.SchemaField(
-        str, default=None, coerce=True, compcoef=0.909, allow_ddl_set=True)
+    orig_expr = so.SchemaField(
+        str, default=None, coerce=True, allow_ddl_set=True,
+        ephemeral=True)
 
     def __repr__(self):
         cls = self.__class__
@@ -120,15 +122,7 @@ class IndexCommand(referencing.ReferencedInheritingObjectCommand,
     @classmethod
     def _classname_quals_from_ast(cls, schema, astnode, base_name,
                                   referrer_name, context):
-        expr_text = None
-
-        # check if "origexpr" field is already set
-        for node in astnode.commands:
-            if isinstance(node, qlast.SetField):
-                if node.name == 'origexpr':
-                    expr_text = node.value.value
-                    break
-
+        expr_text = cls.get_orig_expr_text(schema, astnode, 'expr')
         if expr_text is None:
             # if not, then use the origtext directly from the expression
             expr = s_expr.Expression.from_ast(
@@ -156,41 +150,19 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
     astnode = qlast.CreateIndex
     referenced_astnode = qlast.CreateIndex
 
-    def _create_begin(self, schema, context):
-        # First we need to apply the command as is in order to get
-        # access to the up-to-date state of the index.
-        schema = super()._create_begin(schema, context)
-        index = self.scls
-
-        expr = self.get_attribute_value('expr')
-        origexpr = index.get_field_value(schema, 'origexpr')
-        # Check if the index doesn't have "origexpr" explicitly specified.
-        if origexpr is None:
-            # Add annotation with the original expression.
-            self.set_attribute_value('origexpr', expr.origtext)
-            # Because we already called super()._create_begin, we need
-            # to manually reflect the attribute change into and actual
-            # field change.
-            schema = index.set_field_value(
-                schema, 'origexpr', expr.origtext)
-        else:
-            # If we have an explicit "origexpr", set the "origtext"
-            # value of expr.
-            expr_dict = expr.__getstate__()
-            expr_dict['origtext'] = origexpr
-            newexpr = s_expr.Expression(**expr_dict)
-            self.set_attribute_value('expr', newexpr)
-
-        return schema
-
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
+        orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
         cmd.set_attribute_value(
             'expr',
             s_expr.Expression.from_ast(
-                astnode.expr, schema, context.modaliases),
+                astnode.expr,
+                schema,
+                context.modaliases,
+                orig_text=orig_text,
+            ),
         )
 
         return cmd
@@ -210,36 +182,11 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
             expr=expr_ql,
         )
 
-    def _apply_field_ast(self, schema, context, node, op):
-        if context.descriptive_mode:
-            # When generating AST for DESCRIBE AS TEXT, we want
-            # to use the original user-specified and unmangled
-            # expression to render the index definition.
-            # The mangled actual 'expr' needs to be omitted.
-            if op.property == 'origexpr':
-                node.expr = edgeql.parse_fragment(op.new_value)
-                return
-            elif op.property == 'expr':
-                return
+    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+        if field == 'expr':
+            return 'expr'
         else:
-            # In all other DESCRIBE modes we want the 'origexpr'
-            # to be there as a 'SET origexpr := ...' command.
-            # The mangled 'expr' should be the main expression that
-            # the index is defined on.
-            if op.property == 'origexpr':
-                node.commands.append(
-                    qlast.SetField(
-                        name='origexpr',
-                        value=qlast.RawStringConstant.from_python(
-                            op.new_value),
-                    )
-                )
-                return
-            elif op.property == 'expr':
-                node.expr = op.new_value.qlast
-                return
-
-        super()._apply_field_ast(schema, context, node, op)
+            return None
 
     def compile_expr_field(self, schema, context, field, value):
         if field.name == 'expr':

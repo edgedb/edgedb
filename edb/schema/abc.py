@@ -111,3 +111,7 @@ class Property(Pointer):
 
 class Link(Pointer):
     pass
+
+
+class Expression:
+    pass

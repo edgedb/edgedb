@@ -47,13 +47,19 @@ class Constraint(referencing.ReferencedInheritingObject,
         s_expr.Expression, default=None, compcoef=0.909,
         coerce=True)
 
+    orig_expr = so.SchemaField(
+        str, default=None, coerce=True, allow_ddl_set=True,
+        ephemeral=True,
+    )
+
     subjectexpr = so.SchemaField(
         s_expr.Expression,
         default=None, compcoef=0.833, coerce=True)
 
     orig_subjectexpr = so.SchemaField(
-        str, default=None, coerce=True, compcoef=0.909,
-        allow_ddl_set=True
+        str, default=None, coerce=True,
+        allow_ddl_set=True,
+        ephemeral=True,
     )
 
     finalexpr = so.SchemaField(
@@ -338,14 +344,7 @@ class ConstraintCommand(
         for arg in args:
             exprs.append(arg.text)
 
-        subjexpr_text = None
-
-        # check if "orig_subjectexpr" field is set
-        for node in astnode.commands:
-            if isinstance(node, qlast.SetField):
-                if node.name == 'orig_subjectexpr':
-                    subjexpr_text = node.value.value
-                    break
+        subjexpr_text = cls.get_orig_expr_text(schema, astnode, 'subjectexpr')
 
         if subjexpr_text is None and astnode.subjectexpr:
             # if not, then use the origtext directly from the expression
@@ -490,11 +489,6 @@ class CreateConstraint(ConstraintCommand,
                 context=self.source_context,
             )
 
-        if self.get_attribute_value('orig_subjectexpr') is None:
-            subjexpr = self.get_local_attribute_value('subjectexpr')
-            if subjexpr:
-                self.set_attribute_value('orig_subjectexpr', subjexpr.origtext)
-
         if not context.canonical:
             schema, props = self._get_create_fields(schema, context)
             props.pop('name')
@@ -605,10 +599,13 @@ class CreateConstraint(ConstraintCommand,
 
         # 'subjectexpr' can be present in either astnode type
         if astnode.subjectexpr:
+            orig_text = cls.get_orig_expr_text(schema, astnode, 'subjectexpr')
+
             subjectexpr = s_expr.Expression.from_ast(
                 astnode.subjectexpr,
                 schema,
                 context.modaliases,
+                orig_text=orig_text,
             )
 
             cmd.add(sd.AlterObjectProperty(
@@ -645,38 +642,13 @@ class CreateConstraint(ConstraintCommand,
 
             node.params = [p[1] for p in params]
 
-    def _apply_field_ast(self, schema, context, node, op):
-        if context.descriptive_mode:
-            # When generating AST for DESCRIBE AS TEXT, we want
-            # to use the original user-specified and unmangled
-            # subject expression to render the constraint definition.
-            # The mangled actual 'subjectexpr' needs to be omitted.
-            if op.property == 'subjectexpr':
-                return
-            elif op.property == 'orig_subjectexpr':
-                node.subjectexpr = edgeql.parse_fragment(op.new_value)
-                return
+    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+        if field == 'subjectexpr':
+            return 'subjectexpr'
         else:
-            # In all other DESCRIBE modes we want the 'orig_subjectexpr'
-            # to be there as a 'SET orig_subjectexpr := ...' command.
-            # The mangled 'subjectexpr' should be the main expression that
-            # the constraint is defined on.
-            if op.property == 'subjectexpr':
-                subjectexpr = self.get_local_attribute_value('subjectexpr')
-                if subjectexpr is not None:
-                    # add subjectexpr to the node
-                    node.subjectexpr = subjectexpr.qlast
-                return
-            elif op.property == 'orig_subjectexpr':
-                node.commands.append(
-                    qlast.SetField(
-                        name='orig_subjectexpr',
-                        value=qlast.RawStringConstant.from_python(
-                            op.new_value),
-                    )
-                )
-                return
+            return None
 
+    def _apply_field_ast(self, schema, context, node, op):
         if op.property == 'delegated':
             if isinstance(node, qlast.CreateConcreteConstraint):
                 node.delegated = op.new_value

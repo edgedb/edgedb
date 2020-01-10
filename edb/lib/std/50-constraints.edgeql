@@ -63,7 +63,6 @@ CREATE ABSTRACT CONSTRAINT
 std::len_value ON (len(<std::str>__subject__)) EXTENDING std::constraint
 {
     SET errmessage := 'invalid {__subject__}';
-    SET orig_subjectexpr := r'len(<std::str>__subject__)';
 };
 
 

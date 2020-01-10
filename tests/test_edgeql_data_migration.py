@@ -4477,7 +4477,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     WITH MODULE test
                     SELECT .name
                 ) {
-                    origexpr := '.name';
+                    orig_expr := '.name';
                 }
             }
         """)

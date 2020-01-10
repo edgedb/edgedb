@@ -1037,3 +1037,11 @@ def get_targets(target: TypeExpr):
         return get_targets(target.left) + get_targets(target.right)
     else:
         return [target]
+
+
+def get_ddl_field_value(ddlcmd: ObjectDDL, name: str) -> typing.Optional[Expr]:
+    for cmd in ddlcmd.commands:
+        if isinstance(cmd, (SetField, SetSpecialField)) and cmd.name == name:
+            return cmd.value
+
+    return None

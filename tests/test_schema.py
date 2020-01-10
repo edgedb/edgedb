@@ -3844,6 +3844,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE MODULE test IF NOT EXISTS;
 
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
+                SET orig_expr := r'contains(one_of, __subject__)';
                 USING (WITH
                     MODULE test
                 SELECT
@@ -4029,7 +4030,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 SELECT
                     __subject__.image
                 ) {
-                    origexpr := r'__subject__.image';
+                    orig_expr := r'__subject__.image';
                 };
                 required single property image -> std::str;
             };
@@ -4045,7 +4046,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 SELECT
                     __subject__.image
                 ) {
-                    SET origexpr := r'__subject__.image';
+                    SET orig_expr := r'__subject__.image';
                 };
             };
             '''
@@ -4099,6 +4100,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>)
             {
+                SET orig_expr := r'contains(one_of, __subject__)';
                 USING (WITH
                     MODULE test
                 SELECT

@@ -457,7 +457,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 SELECT ScalarType {
                     name,
                     constraints: {
-                        name
+                        name,
+                        subjectexpr,
                     }
                 }
                 FILTER .name LIKE '%bar%' OR .name LIKE '%foo%'
@@ -466,7 +467,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [
                 {'name': 'bar::bar_t', 'constraints': []},
                 {'name': 'foo::foo_t', 'constraints': [
-                    {'name': 'std::expression'}
+                    {
+                        'name': 'std::expression',
+                        'subjectexpr': '(__subject__ > 0)',
+                    },
                 ]},
             ]
         )

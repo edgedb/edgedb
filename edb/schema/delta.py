@@ -96,6 +96,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         super().__init__(**kwargs)
         self.ops = ordered.OrderedSet()
         self.before_ops = ordered.OrderedSet()
+        self.qlast = None
 
     def copy(self):
         result = super().copy()
@@ -304,6 +305,24 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             return self._get_ast(schema, context, parent_node=parent_node)
 
     @classmethod
+    def get_orig_expr_text(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDL,
+        name: str,
+    ) -> Optional[str]:
+        from edb.edgeql import compiler as qlcompiler
+
+        orig_text_expr = qlast.get_ddl_field_value(astnode, f'orig_{name}')
+        if orig_text_expr:
+            orig_text = qlcompiler.evaluate_ast_to_python_val(
+                orig_text_expr, schema=schema)
+        else:
+            orig_text = None
+
+        return orig_text
+
+    @classmethod
     def command_for_ast_node(cls, astnode, schema, context):
         cmdcls = type(cls)._astnode_map.get(type(astnode))
         if hasattr(cmdcls, '_command_for_ast_node'):
@@ -355,6 +374,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = cls._cmd_from_ast(schema, astnode, context)
         cmd.source_context = astnode.context
+        cmd.qlast = astnode
         ctx = context.current()
         if ctx is not None and type(ctx) is cls.get_context_class():
             ctx.op = cmd
@@ -799,6 +819,9 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
             subnode = op._get_ast(schema, context, parent_node=node)
             if subnode is not None:
                 node.commands.append(subnode)
+
+    def get_ast_attr_for_field(self, field) -> Optional[str]:
+        return None
 
     @classmethod
     def get_schema_metaclass(cls):
@@ -1429,15 +1452,23 @@ class AlterSpecialObjectProperty(Command):
         propname = astnode.name
         parent_ctx = context.current()
         parent_op = parent_ctx.op
-        field = parent_op.get_schema_metaclass().get_field(propname)
+        parent_cls = parent_op.get_schema_metaclass()
+        field = parent_cls.get_field(propname)
 
         new_value = astnode.value
 
-        if field.type is s_expr.Expression and field.name == 'expr':
+        if field.type is s_expr.Expression:
+            orig_expr_field = parent_cls.get_field(f'orig_{field.name}')
+            if orig_expr_field:
+                orig_text = cls.get_orig_expr_text(
+                    schema, parent_op.qlast, field.name)
+            else:
+                orig_text = None
             new_value = s_expr.Expression.from_ast(
                 astnode.value,
                 schema,
                 context.modaliases,
+                orig_text=orig_text,
             )
         elif field.name == 'required' and not new_value:
             # disallow dropping required that is not locally set
@@ -1491,7 +1522,8 @@ class AlterObjectProperty(Command):
 
         parent_ctx = context.current()
         parent_op = parent_ctx.op
-        field = parent_op.get_schema_metaclass().get_field(propname)
+        parent_cls = parent_op.get_schema_metaclass()
+        field = parent_cls.get_field(propname)
         if field is None:
             raise errors.SchemaDefinitionError(
                 f'{propname!r} is not a valid field',
@@ -1510,10 +1542,17 @@ class AlterObjectProperty(Command):
                 context=astnode.context)
 
         if field.type is s_expr.Expression:
+            orig_expr_field = parent_cls.get_field(f'orig_{field.name}')
+            if orig_expr_field:
+                orig_text = cls.get_orig_expr_text(
+                    schema, parent_op.qlast, field.name)
+            else:
+                orig_text = None
             new_value = s_expr.Expression.from_ast(
                 astnode.value,
                 schema,
                 context.modaliases,
+                orig_text=orig_text,
             )
         else:
             if isinstance(astnode.value, qlast.Tuple):
@@ -1557,13 +1596,17 @@ class AlterObjectProperty(Command):
 
         parent_ctx = context.current()
         parent_op = parent_ctx.op
-        field = parent_op.get_schema_metaclass().get_field(self.property)
+        parent_cls = parent_op.get_schema_metaclass()
+        field = parent_cls.get_field(self.property)
+        parent_node_attr = parent_op.get_ast_attr_for_field(field.name)
         if field is None:
             raise errors.SchemaDefinitionError(
                 f'{self.property!r} is not a valid field',
                 context=self.context)
 
-        if ((not field.allow_ddl_set and self.property != 'expr') or
+        if ((not field.allow_ddl_set
+                and self.property != 'expr'
+                and parent_node_attr is None) or
                 (self.property == 'id'
                  and (not context.emit_oids
                       or not isinstance(parent_node, qlast.CreateObject)))):
@@ -1584,10 +1627,9 @@ class AlterObjectProperty(Command):
             # We don't want to show inherited properties unless
             # we are in "descriptive_mode" and ...
 
-            if not (
-                context.descriptive_mode and
-                self.property in {'default', 'readonly'}
-            ):
+            if ((not context.descriptive_mode
+                    or self.property not in {'default', 'readonly'})
+                    and parent_node_attr is None):
                 # If property isn't 'default' or 'readonly' --
                 # skip the AST for it.
                 return
@@ -1601,10 +1643,15 @@ class AlterObjectProperty(Command):
         if new_value_empty:
             return
 
-        if isinstance(value, s_expr.Expression):
-            value = value.qlast
-            if self.property == 'expr':
-                astcls = qlast.SetSpecialField
+        if issubclass(field.type, s_expr.Expression):
+            return self._get_expr_field_ast(
+                schema,
+                context,
+                parent_op=parent_op,
+                field=field,
+                parent_node=parent_node,
+                parent_node_attr=parent_node_attr,
+            )
         elif utils.is_nontrivial_container(value):
             value = qlast.Tuple(elements=[
                 qlast.BaseConstant.from_python(el) for el in value
@@ -1622,8 +1669,56 @@ class AlterObjectProperty(Command):
         else:
             value = qlast.BaseConstant.from_python(value)
 
-        op = astcls(name=self.property, value=value)
-        return op
+        return astcls(name=self.property, value=value)
+
+    def _get_expr_field_ast(
+        self,
+        schema,
+        context,
+        *,
+        parent_op,
+        field,
+        parent_node: Optional[qlast.DDL],
+        parent_node_attr: Optional[str],
+    ) -> Optional[qlast.DDL]:
+        from edb import edgeql
+
+        if self.property == 'expr':
+            astcls = qlast.SetSpecialField
+        else:
+            astcls = qlast.SetField
+
+        parent_cls = parent_op.get_schema_metaclass()
+        has_shadow = parent_cls.get_field(f'orig_{field.name}') is not None
+
+        if context.descriptive_mode:
+            # When generating AST for DESCRIBE AS TEXT, we want
+            # to use the original user-specified and unmangled
+            # expression to render the object definition.
+            expr_ql = edgeql.parse_fragment(self.new_value.origtext)
+        else:
+            # In all other DESCRIBE modes we want the original expression
+            # to be there as a 'SET orig_<expr> := ...' command.
+            # The mangled expression should be the main expression that
+            # the object is defined with.
+            expr_ql = self.new_value.qlast
+            orig_fname = f'orig_{field.name}'
+            if (has_shadow
+                    and not qlast.get_ddl_field_value(
+                        parent_node, orig_fname)):
+                parent_node.commands.append(
+                    qlast.SetField(
+                        name=orig_fname,
+                        value=qlast.RawStringConstant.from_python(
+                            self.new_value.origtext),
+                    )
+                )
+
+        if parent_node is not None and parent_node_attr is not None:
+            setattr(parent_node, parent_node_attr, expr_ql)
+            return None
+        else:
+            return astcls(name=self.property, value=expr_ql)
 
     def __repr__(self):
         return '<%s.%s "%s":"%s"->"%s">' % (

@@ -43,7 +43,6 @@ async def fetch(
                                         AS ancestors,
                 a.expr                  AS expr,
                 a.subjectexpr           AS subjectexpr,
-                a.orig_subjectexpr      AS orig_subjectexpr,
                 a.finalexpr             AS finalexpr,
                 a.errmessage            AS errmessage,
                 a.args                  AS args,
