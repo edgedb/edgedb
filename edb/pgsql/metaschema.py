@@ -3106,7 +3106,9 @@ async def generate_views(conn, schema):
                             f'ELSE {shortname_expr} END)'
                         )
                     else:
-                        col_expr = shortname_expr
+                        col_expr = (
+                            f"replace({shortname_expr}, '__::', '')"
+                        )
 
                 elif pn == 'inherited_fields':
                     col_expr = f'''
