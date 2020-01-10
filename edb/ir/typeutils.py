@@ -211,6 +211,7 @@ def type_to_typeref(
         if union_of:
             common_parent = s_utils.get_class_nearest_common_ancestor(
                 schema, union_of.objects(schema))
+            assert isinstance(common_parent, s_types.Type)
             common_parent_ref = type_to_typeref(
                 schema, common_parent, cache=cache
             )

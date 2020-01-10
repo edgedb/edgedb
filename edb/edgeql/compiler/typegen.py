@@ -48,7 +48,7 @@ def type_to_ql_typeref(
     *,
     _name: Optional[str] = None,
     ctx: context.ContextLevel,
-) -> qlast.TypeName:
+) -> qlast.TypeExpr:
 
     return astutils.type_to_ql_typeref(t, schema=ctx.env.schema)
 

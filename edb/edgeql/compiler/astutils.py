@@ -79,5 +79,5 @@ def is_ql_path(qlexpr: qlast.Expr) -> bool:
 
 
 def type_to_ql_typeref(t: s_types.Type, *,
-                       schema: s_schema.Schema) -> qlast.TypeName:
+                       schema: s_schema.Schema) -> qlast.TypeExpr:
     return s_utils.typeref_to_ast(schema, t)
