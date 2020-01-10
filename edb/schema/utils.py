@@ -28,7 +28,6 @@ from edb import errors
 from edb.common import levenshtein
 from edb.edgeql import ast as qlast
 
-from . import abc as s_abc
 from . import name as sn
 from . import objects as so
 
@@ -41,7 +40,7 @@ def ast_objref_to_objref(
         node: qlast.ObjectRef, *,
         metaclass: Optional[so.ObjectMeta] = None,
         modaliases: Dict[Optional[str], str],
-        schema) -> so.Object:
+        schema: s_schema.Schema) -> so.Object:
 
     if metaclass is not None and issubclass(metaclass, so.GlobalObject):
         return schema.get_global(metaclass, node.name)
@@ -71,23 +70,32 @@ def ast_to_typeref(
         node: qlast.TypeName, *,
         metaclass: Optional[so.ObjectMeta] = None,
         modaliases: Dict[Optional[str], str],
-        schema) -> so.ObjectRef:
+        schema: s_schema.Schema) -> so.Object:
 
-    if node.subtypes is not None and node.maintype.name == 'enum':
+    if node.subtypes is not None and isinstance(node.maintype,
+                                                qlast.ObjectRef) \
+            and node.maintype.name == 'enum':
         from . import scalars as s_scalars
 
         return s_scalars.AnonymousEnumTypeRef(
             name='std::anyenum',
-            elements=[st.val.value for st in node.subtypes],
+            elements=[st.val.value for st in cast(List[qlast.TypeExprLiteral],
+                                                  node.subtypes)],
         )
 
     elif node.subtypes is not None:
         from . import types as s_types
 
+        assert isinstance(node.maintype, qlast.ObjectRef)
         coll = s_types.Collection.get_class(node.maintype.name)
 
-        if issubclass(coll, s_abc.Tuple):
-            subtypes = collections.OrderedDict()
+        if issubclass(coll, s_types.Tuple):
+            # Note: if we used abc Tuple here, then we would need anyway
+            # to assert it is an instance of s_types.Tuple to make mypy happy
+            # (rightly so, because later we use from_subtypes method)
+
+            subtypes: Dict[str, so.Object] \
+                = collections.OrderedDict()
             # tuple declaration must either be named or unnamed, but not both
             named = None
             unnamed = None
@@ -107,12 +115,16 @@ def ast_to_typeref(
                     )
 
                 subtypes[type_name] = ast_to_typeref(
-                    st, modaliases=modaliases, metaclass=metaclass,
+                    cast(qlast.TypeName, st),
+                    modaliases=modaliases,
+                    metaclass=metaclass,
                     schema=schema)
 
             try:
                 return coll.from_subtypes(
-                    schema, subtypes, {'named': bool(named)})
+                    schema,
+                    cast(Mapping[str, s_types.Type], subtypes),
+                    {'named': bool(named)})
             except errors.SchemaError as e:
                 # all errors raised inside are pertaining to subtypes, so
                 # the context should point to the first subtype
@@ -120,14 +132,18 @@ def ast_to_typeref(
                 raise e
 
         else:
-            subtypes = []
+            subtypes_list: List[so.Object] = []
             for st in node.subtypes:
-                subtypes.append(ast_to_typeref(
-                    st, modaliases=modaliases, metaclass=metaclass,
+                subtypes_list.append(ast_to_typeref(
+                    cast(qlast.TypeName, st),
+                    modaliases=modaliases,
+                    metaclass=metaclass,
                     schema=schema))
 
             try:
-                return coll.from_subtypes(schema, subtypes)
+                return coll.from_subtypes(schema,
+                                          cast(Sequence[s_types.Type],
+                                               subtypes_list))
             except errors.SchemaError as e:
                 e.set_source_context(node.context)
                 raise e
@@ -140,12 +156,17 @@ def ast_to_typeref(
         from . import pseudo as s_pseudo
         return s_pseudo.AnyTupleRef()
 
+    assert isinstance(node.maintype, qlast.ObjectRef)
+
     return ast_objref_to_objref(
         node.maintype, modaliases=modaliases,
         metaclass=metaclass, schema=schema)
 
 
-def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
+def typeref_to_ast(schema: s_schema.Schema,
+                   t: so.Object,
+                   *,
+                   _name: Optional[str] = None) -> qlast.TypeExpr:
     from . import types as s_types
 
     if isinstance(t, so.ObjectRef):
@@ -155,22 +176,27 @@ def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
         # is `qlast.AnyType()`).
         t = t._resolve_ref(schema)
 
-    if t.is_type() and t.is_any():
+    result: qlast.TypeExpr
+    components: Tuple[so.ObjectRef, ...]
+
+    if t.is_type() and cast(s_types.Type, t).is_any():
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
-    elif t.is_type() and t.is_anytuple():
+    elif t.is_type() and cast(s_types.Type, t).is_anytuple():
         result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
-    elif isinstance(t, s_abc.Tuple) and t.named:
+    elif isinstance(t, s_types.Tuple) and t.named:
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(
                 name=t.schema_name
             ),
             subtypes=[
-                typeref_to_ast(schema, st, _name=sn)
+                typeref_to_ast(schema, cast(so.ObjectRef, st), _name=sn)
                 for sn, st in t.iter_subtypes(schema)
             ]
         )
-    elif isinstance(t, s_abc.Collection):
+    elif isinstance(t, (s_types.Array, s_types.Tuple)):
+        # Here the concrete type Array is used because t.schema_name is used,
+        # which is not defined for more generic collections and abcs
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(
@@ -190,8 +216,12 @@ def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
                 op='|',
                 right=typeref_to_ast(schema, component),
             )
-    elif t.is_type() and t.is_union_type(schema):
-        components = list(t.get_union_of(schema).objects(schema))
+    elif t.is_type() and cast(s_types.Type, t).is_union_type(schema):
+        object_set: Optional[so.ObjectSet[s_types.Type]] = \
+            cast(s_types.Type, t).get_union_of(schema)
+        assert object_set is not None
+
+        components = tuple(object_set.objects(schema))
         result = typeref_to_ast(schema, components[0])
         for component in components[1:]:
             result = qlast.TypeOp(
@@ -211,23 +241,26 @@ def typeref_to_ast(schema, t, *, _name=None) -> qlast.TypeName:
     return result
 
 
-def reduce_to_typeref(schema, t) -> so.Object:
+def reduce_to_typeref(schema: s_schema.Schema, t: so.Object) -> so.Object:
     ref, _ = t._reduce_to_ref(schema)
     return ref
 
 
-def resolve_typeref(ref: so.Object, schema) -> so.Object:
+def resolve_typeref(ref: so.Object, schema: s_schema.Schema) -> so.Object:
     return ref._resolve_ref(schema)
 
 
-def is_nontrivial_container(value):
+def is_nontrivial_container(value: Any) -> bool:
     coll_classes = (collections.abc.Sequence, collections.abc.Set)
     trivial_classes = (str, bytes, bytearray, memoryview)
     return (isinstance(value, coll_classes) and
             not isinstance(value, trivial_classes))
 
 
-def get_class_nearest_common_ancestor(schema, classes):
+def get_class_nearest_common_ancestor(
+    schema: s_schema.Schema,
+    classes: Iterable[so.InheritingObjectBaseT]) \
+        -> Optional[so.InheritingObjectBaseT]:
     # First, find the intersection of parents
     classes = list(classes)
     first = [classes[0]]
@@ -235,17 +268,17 @@ def get_class_nearest_common_ancestor(schema, classes):
     common = set(first).intersection(
         *[set(c.get_ancestors(schema).objects(schema)) | {c}
           for c in classes[1:]])
-    common = sorted(common, key=lambda i: first.index(i))
-    if common:
-        return common[0]
+    common_list = sorted(common, key=lambda i: first.index(i))
+    if common_list:
+        return common_list[0]
     else:
         return None
 
 
 def minimize_class_set_by_most_generic(
     schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectBase]
-) -> List[so.InheritingObjectBase]:
+    classes: Iterable[so.InheritingObjectBaseT]
+) -> List[so.InheritingObjectBaseT]:
     """Minimize the given set of objects by filtering out all subclasses."""
 
     classes = list(classes)
@@ -266,8 +299,8 @@ def minimize_class_set_by_most_generic(
 
 def minimize_class_set_by_least_generic(
     schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectBase]
-) -> List[so.InheritingObjectBase]:
+    classes: Iterable[so.InheritingObjectBaseT]
+) -> List[so.InheritingObjectBaseT]:
     """Minimize the given set of objects by filtering out all superclasses."""
 
     classes = list(classes)
@@ -287,7 +320,13 @@ def minimize_class_set_by_least_generic(
     return result
 
 
-def merge_reduce(target, sources, field_name, *, schema, f):
+def merge_reduce(target: so.InheritingObjectBaseT,
+                 sources: Iterable[so.InheritingObjectBaseT],
+                 field_name: str,
+                 *,
+                 schema: s_schema.Schema,
+                 f: Callable[[List[Any]], so.InheritingObjectBaseT]) \
+        -> Optional[so.InheritingObjectBaseT]:
     values = []
     ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is not None:
@@ -303,15 +342,26 @@ def merge_reduce(target, sources, field_name, *, schema, f):
         return None
 
 
-def merge_sticky_bool(target, sources, field_name, *, schema):
+def merge_sticky_bool(target: so.InheritingObjectBaseT,
+                      sources: Iterable[so.InheritingObjectBaseT],
+                      field_name: str,
+                      *,
+                      schema: s_schema.Schema) \
+        -> Optional[so.InheritingObjectBaseT]:
     return merge_reduce(target, sources, field_name, schema=schema, f=max)
 
 
-def merge_weak_bool(target, sources, field_name, *, schema):
+def merge_weak_bool(target: so.InheritingObjectBaseT,
+                    sources: Iterable[so.InheritingObjectBaseT],
+                    field_name: str,
+                    *,
+                    schema: s_schema.Schema) \
+        -> Optional[so.InheritingObjectBaseT]:
     return merge_reduce(target, sources, field_name, schema=schema, f=min)
 
 
-def get_nq_name(schema, item) -> str:
+def get_nq_name(schema: s_schema.Schema,
+                item: so.Object) -> str:
     shortname = item.get_shortname(schema)
     if isinstance(shortname, sn.Name):
         return shortname.name
@@ -320,21 +370,30 @@ def get_nq_name(schema, item) -> str:
 
 
 def find_item_suggestions(
-        name, modaliases, schema, *, item_types=(), limit=3,
-        collection=None, condition=None):
+        name: Optional[str],
+        modaliases: Mapping[Optional[str], str],
+        schema: s_schema.Schema,
+        *,
+        item_types: Tuple[so.ObjectMeta, ...] = (),
+        limit: int = 3,
+        collection: Optional[Iterable[so.Object]] = None,
+        condition: Optional[Callable[[so.Object], bool]] = None
+) -> List[so.Object]:
     from . import functions as s_func
     from . import modules as s_mod
 
     if isinstance(name, sn.Name):
-        orig_modname = name.module
-        short_name = name.name
+        orig_modname: Optional[str] = name.module
+        short_name: str = name.name
     else:
+        assert name is not None, ("A name must be provided either "
+                                  "as string or SchemaName")
         orig_modname = None
         short_name = name
 
     modname = modaliases.get(orig_modname, orig_modname)
 
-    suggestions = []
+    suggestions: List[so.Object] = []
 
     if collection is not None:
         suggestions.extend(collection)
@@ -365,12 +424,13 @@ def find_item_suggestions(
     # Never suggest object fragments.
     filters.append(lambda s: not isinstance(s, so.ObjectFragment))
 
-    suggestions = filter(lambda s: all(f(s) for f in filters), suggestions)
+    filtered_suggestions = filter(lambda s: all(f(s) for f in filters),
+                                  suggestions)
 
     # Compute Levenshtein distance for each suggestion.
-    with_distance = [
+    with_distance: List[Tuple[so.Object, int]] = [
         (s, levenshtein.distance(short_name, get_nq_name(schema, s)))
-        for s in suggestions
+        for s in filtered_suggestions
     ]
 
     # Filter out suggestions that are too dissimilar.
@@ -391,9 +451,17 @@ def find_item_suggestions(
 
 
 def enrich_schema_lookup_error(
-        error, item_name, modaliases, schema, *,
-        item_types, suggestion_limit=3, name_template=None,
-        collection=None, condition=None, context=None):
+        error: errors.EdgeDBError,
+        item_name: Optional[str],
+        modaliases: Mapping[Optional[str], str],
+        schema: s_schema.Schema,
+        *,
+        item_types: Tuple[so.ObjectMeta, ...] = (),
+        suggestion_limit: int = 3,
+        name_template: Optional[str] = None,
+        collection: Optional[Iterable[so.Object]] = None,
+        condition: Optional[Callable[[so.Object], bool]] = None,
+        context: Any = None) -> None:
 
     suggestions = find_item_suggestions(
         item_name, modaliases, schema,
@@ -401,7 +469,7 @@ def enrich_schema_lookup_error(
         collection=collection, condition=condition)
 
     if suggestions:
-        names = []
+        names: Union[List[str], Set[str]] = []
         current_module_name = modaliases.get(None)
 
         for suggestion in suggestions:
@@ -438,8 +506,9 @@ def ensure_union_type(
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
+    from edb.schema import types as s_types
 
-    components = set()
+    components: Set[s_types.Type] = set()
     for t in types:
         union_of = t.get_union_of(schema)
         if union_of:
@@ -447,47 +516,54 @@ def ensure_union_type(
         else:
             components.add(t)
 
-    components = minimize_class_set_by_most_generic(schema, components)
+    components_list = minimize_class_set_by_most_generic(schema, components)
 
-    if len(components) == 1 and not opaque:
-        return schema, next(iter(components)), False
+    if len(components_list) == 1 and not opaque:
+        return schema, next(iter(components_list)), False
 
     seen_scalars = False
     seen_objtypes = False
     created = False
 
-    for component in components:
+    for component in components_list:
         if component.is_object_type():
             if seen_scalars:
-                raise _union_error(schema, components)
+                raise _union_error(schema, components_list)
             seen_objtypes = True
         else:
             if seen_objtypes:
-                raise _union_error(schema, components)
+                raise _union_error(schema, components_list)
             seen_scalars = True
 
     if seen_scalars:
-        uniontype = components[0]
-        for t1 in components[1:]:
-            uniontype = uniontype.find_common_implicitly_castable_type(
-                t1, schema)
+        uniontype: s_types.Type = components_list[0]
+        for t1 in components_list[1:]:
 
-        if uniontype is None:
-            raise _union_error(schema, components)
+            common_type = uniontype.\
+                find_common_implicitly_castable_type(t1, schema)
+
+            if common_type is None:
+                raise _union_error(schema, components_list)
+            else:
+                uniontype = common_type
     else:
         schema, uniontype, created = s_objtypes.get_or_create_union_type(
-            schema, components=components, opaque=opaque, module=module)
+            schema,
+            components=components_list,
+            opaque=opaque,
+            module=module)
 
     return schema, uniontype, created
 
 
 def get_union_type(
-    schema,
-    types,
+    schema: s_schema.Schema,
+    types: Iterable[s_types.Type],
     *,
     opaque: bool = False,
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, s_types.Type]:
+    from . import schema as s_schema
 
     schema, union, _ = ensure_union_type(
         schema, types, opaque=opaque, module=module)
@@ -514,7 +590,8 @@ def get_non_overlapping_union(
         return frozenset(all_objects), True
 
 
-def _union_error(schema, components):
+def _union_error(schema: s_schema.Schema, components: Iterable[s_types.Type]) \
+        -> errors.SchemaError:
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create a union of {names}')
 
@@ -528,7 +605,7 @@ def ensure_intersection_type(
 
     from edb.schema import objtypes as s_objtypes
 
-    components = set()
+    components: Set[s_types.Type] = set()
     for t in types:
         intersection_of = t.get_intersection_of(schema)
         if intersection_of:
@@ -536,30 +613,31 @@ def ensure_intersection_type(
         else:
             components.add(t)
 
-    components = minimize_class_set_by_least_generic(schema, components)
+    components_list = minimize_class_set_by_least_generic(schema, components)
 
-    if len(components) == 1:
-        return schema, next(iter(components)), False
+    if len(components_list) == 1:
+        return schema, next(iter(components_list)), False
 
     seen_scalars = False
     seen_objtypes = False
 
-    for component in components:
+    for component in components_list:
         if component.is_object_type():
             if seen_scalars:
-                raise _intersection_error(schema, components)
+                raise _intersection_error(schema, components_list)
             seen_objtypes = True
         else:
             if seen_objtypes:
-                raise _intersection_error(schema, components)
+                raise _intersection_error(schema, components_list)
             seen_scalars = True
 
     if seen_scalars:
         # Non-related scalars and collections cannot for intersection types.
-        raise _intersection_error(schema, components)
+        raise _intersection_error(schema, components_list)
     else:
         return s_objtypes.get_or_create_intersection_type(
-            schema, components=components, module=module)
+            schema, components=cast(Iterable[s_objtypes.ObjectType],
+                                    components_list), module=module)
 
 
 def get_intersection_type(
@@ -575,6 +653,8 @@ def get_intersection_type(
     return schema, intersection
 
 
-def _intersection_error(schema, components):
+def _intersection_error(schema: s_schema.Schema,
+                        components: Iterable[s_types.Type]) \
+        -> errors.SchemaError:
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create an intersection of {names}')
