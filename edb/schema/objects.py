@@ -2096,6 +2096,14 @@ class InheritingObjectBase(Object):
                 f'field {field_name!r}'
             )
 
+    def allow_ref_propagation(
+        self,
+        schema: s_schema.Schema,
+        constext: sd.CommandContext,
+        refdict: RefDict,
+    ) -> bool:
+        return True
+
 
 @markup.serializer.serializer.register(Object)
 @markup.serializer.serializer.register(ObjectCollection)

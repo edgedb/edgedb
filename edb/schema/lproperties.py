@@ -31,6 +31,7 @@ from . import constraints
 from . import delta as sd
 from . import inheriting
 from . import name as sn
+from . import objects as so
 from . import pointers
 from . import referencing
 from . import sources
@@ -123,6 +124,21 @@ class Property(pointers.Pointer, s_abc.Property,
         if source is None:
             raise ValueError(f'{self.get_verbosename(schema)} is abstract')
         return isinstance(source, pointers.Pointer)
+
+    def allow_ref_propagation(
+        self,
+        schema: s_schema.Schema,
+        constext: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> bool:
+        source = self.get_source(schema)
+        if isinstance(source, pointers.Pointer):
+            if source.generic(schema):
+                return True
+            else:
+                return not source.get_source(schema).is_view(schema)
+        else:
+            return not self.get_source(schema).is_view(schema)
 
     @classmethod
     def get_root_classes(cls):

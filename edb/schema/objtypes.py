@@ -248,6 +248,14 @@ class BaseObjectType(sources.Source,
                 None, self, old_schema=schema, new_schema=schema,
             )
 
+    def allow_ref_propagation(
+        self,
+        schema: s_schema.Schema,
+        constext: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> bool:
+        return not self.is_view(schema) or refdict.attr == 'pointers'
+
 
 class ObjectType(BaseObjectType, qlkind=qltypes.SchemaObjectClass.TYPE):
     pass

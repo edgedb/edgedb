@@ -456,6 +456,14 @@ class Pointer(referencing.ReferencedInheritingObject,
     def has_user_defined_properties(self, schema):
         return False
 
+    def allow_ref_propagation(
+        self,
+        schema: s_schema.Schema,
+        constext: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> bool:
+        return not self.get_source(schema).is_view(schema)
+
 
 class PseudoPointer(s_abc.Pointer):
     # An abstract base class for pointer-like objects, i.e.

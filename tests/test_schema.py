@@ -555,11 +555,6 @@ _123456789_123456789_123456789 -> str
             'there should be no constraints on alias links or properties',
         )
 
-    @test.xfail('''
-        This DDL sequence results in a constraint propagated to the alias.
-
-        Issue #1005.
-    ''')
     def test_schema_constraint_inheritance_04(self):
         schema = tb._load_std_schema()
 
