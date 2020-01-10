@@ -157,7 +157,7 @@ def ast_to_typeref(
         from . import pseudo as s_pseudo
         return s_pseudo.AnyTupleRef()
 
-    assert isinstance(node.maintype, so.ObjectRef)
+    assert isinstance(node.maintype, qlast.ObjectRef)
 
     return ast_objref_to_objref(
         node.maintype, modaliases=modaliases,
@@ -470,7 +470,7 @@ def enrich_schema_lookup_error(
         collection=collection, condition=condition)
 
     if suggestions:
-        names = []
+        names: Union[List[str], Set[str]] = []
         current_module_name = modaliases.get(None)
 
         for suggestion in suggestions:
@@ -485,10 +485,10 @@ def enrich_schema_lookup_error(
             # E.g. "to_datetime" function has multiple variants, and
             # we don't want to diplay "did you mean one of these:
             # to_datetime, to_datetime, to_datetime?"
-            unique_names = {name_template.format(name=name) for name in names}
+            names = {name_template.format(name=name) for name in names}
 
-        if len(unique_names) > 1:
-            hint = f'did you mean one of these: {", ".join(unique_names)}?'
+        if len(names) > 1:
+            hint = f'did you mean one of these: {", ".join(names)}?'
         else:
             hint = f'did you mean {names[0]!r}?'
 
@@ -565,6 +565,7 @@ def get_union_type(
     opaque: bool = False,
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, s_types.Type]:
+    from . import schema as s_schema
 
     schema, union, _ = ensure_union_type(
         schema, types, opaque=opaque, module=module)
