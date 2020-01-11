@@ -312,7 +312,7 @@ mix of everything:
     # User + favorite Articles only
     SELECT User {
         name,
-        favorites: Article {
+        favorites[IS Article]: {
             name,
             url
         }

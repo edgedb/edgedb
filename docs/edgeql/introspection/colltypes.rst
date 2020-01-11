@@ -121,7 +121,7 @@ the :eql:func:`sys::get_version` function:
 
     db> WITH MODULE schema
     ... SELECT `Function` {
-    ...     return_type: Tuple {
+    ...     return_type[IS Tuple]: {
     ...         element_types: {
     ...             name,
     ...             type: { name }

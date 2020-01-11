@@ -484,7 +484,7 @@ class TestServerConfig(tb.QueryTestCase, tb.CLITestCaseMixin):
             '''
             SELECT cfg::Config.sysobj {
                 name,
-                obj: cfg::Subclass1 {
+                obj[IS cfg::Subclass1]: {
                     name,
                     sub1,
                 },

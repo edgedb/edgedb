@@ -383,7 +383,7 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_nested_07(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError,
-                "unexpected ':'"):
+                "Unexpected 'Subordinate'"):
             await self.con.execute('''
                 WITH MODULE test
                 INSERT InsertTest {

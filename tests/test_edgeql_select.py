@@ -1261,7 +1261,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Named {
                 name,
-                [IS Issue].references: File {
+                [IS Issue].references[IS File]: {
                     name
                 }
             }
@@ -4945,7 +4945,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             WITH MODULE test
             SELECT Issue {
                 number,
-                references: Named {
+                references[IS Named]: {
                     __type__: {
                         name
                     },

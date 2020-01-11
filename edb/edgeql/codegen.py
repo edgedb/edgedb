@@ -513,16 +513,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.expr.steps[0])
             if not isinstance(node.expr.steps[1], qlast.TypeIntersection):
                 self.write('.')
-                self.visit(node.expr.steps[1])
+            self.visit(node.expr.steps[1])
+            if len(node.expr.steps) == 3:
+                self.visit(node.expr.steps[2])
 
-        if not node.compexpr and (node.elements
-                                  or isinstance(node.expr.steps[-1],
-                                                qlast.TypeIntersection)):
+        if not node.compexpr and node.elements:
             self.write(': ')
-            if isinstance(node.expr.steps[-1], qlast.TypeIntersection):
-                self.visit(node.expr.steps[-1].type)
-            if node.elements:
-                self._visit_shape(node.elements)
+            self._visit_shape(node.elements)
 
         if node.where:
             self.write(' FILTER ')
