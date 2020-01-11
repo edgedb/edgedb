@@ -473,7 +473,7 @@ class CommandContext:
     def __init__(self, *, declarative=False, modaliases=None,
                  schema=None, stdmode=False, testmode=False,
                  disable_dep_verification=False, descriptive_mode=False,
-                 emit_oids=False):
+                 emit_oids=False, schema_object_ids=None):
         self.stack = []
         self._cache = {}
         self.declarative = declarative
@@ -487,6 +487,7 @@ class CommandContext:
         self.renames = {}
         self.renamed_objs = set()
         self.altered_targets = set()
+        self.schema_object_ids = schema_object_ids
 
     @property
     def modaliases(self) -> Mapping[Optional[str], str]:
@@ -1016,8 +1017,13 @@ class CreateObject(ObjectCommand):
         for op in self.get_subcommands(type=CreateObjectFragment):
             schema, _ = op.apply(schema, context)
 
-        schema, props = self._get_create_fields(schema, context)
+        if context.schema_object_ids is not None:
+            key = (self.classname, self.get_schema_metaclass().get_ql_class())
+            specified_id = context.schema_object_ids.get(key)
+            if specified_id is not None:
+                self.set_attribute_value('id', specified_id)
 
+        schema, props = self._get_create_fields(schema, context)
         metaclass = self.get_schema_metaclass()
         schema, self.scls = metaclass.create_in_schema(schema, **props)
 
@@ -1025,8 +1031,7 @@ class CreateObject(ObjectCommand):
 
         if not props.get('id'):
             # Record the generated ID.
-            self.add(AlterObjectProperty(
-                property='id', new_value=self.scls.id))
+            self.set_attribute_value('id', self.scls.id)
 
         return schema
 

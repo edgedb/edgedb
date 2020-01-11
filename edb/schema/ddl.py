@@ -53,6 +53,9 @@ from . import modules  # NOQA
 from . import std  # NOQA
 from . import types
 
+if TYPE_CHECKING:
+    import uuid
+
 
 def get_global_dep_order() -> Tuple[so.ObjectMeta, ...]:
     return (
@@ -399,9 +402,11 @@ def delta_from_ddl(
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
     testmode: bool=False,
+    schema_object_ids: Optional[Mapping[Tuple[str, str], uuid.UUID]]=None,
 ) -> sd.DeltaRoot:
     _, cmd = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
-                             stdmode=stdmode, testmode=testmode)
+                             stdmode=stdmode, testmode=testmode,
+                             schema_object_ids=schema_object_ids)
     return cmd
 
 
@@ -412,6 +417,7 @@ def _delta_from_ddl(
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
     testmode: bool=False,
+    schema_object_ids: Optional[Mapping[Tuple[str, str], uuid.UUID]]=None,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
     delta = sd.DeltaRoot()
     context = sd.CommandContext(
@@ -419,6 +425,7 @@ def _delta_from_ddl(
         schema=schema,
         stdmode=stdmode,
         testmode=testmode,
+        schema_object_ids=schema_object_ids,
     )
 
     with context(sd.DeltaRootContext(schema=schema, op=delta)):

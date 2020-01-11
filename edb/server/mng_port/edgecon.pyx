@@ -46,6 +46,7 @@ from edb.server.pgproto.pgproto cimport (
     frb_read_all,
     frb_get_len,
 )
+from edb.server.pgproto.pgproto import UUID as pg_UUID
 
 from edb.server.dbview cimport dbview
 
@@ -66,6 +67,9 @@ from edb.common import debug, taskgroup
 from edgedb import scram
 
 
+include "./consts.pxi"
+
+
 DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes ZERO_UUID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
@@ -79,12 +83,6 @@ cdef object CARD_MANY = compiler.ResultCardinality.MANY
 cdef object logger = logging.getLogger('edb.server')
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
-
-DEF BACKUP_NWORKERS = 10
-
-DEF PROTO_VER_MAJOR = 0
-DEF PROTO_VER_MINOR = 7
-
 
 @cython.final
 cdef class EdgeConnection:
@@ -186,6 +184,10 @@ cdef class EdgeConnection:
     async def wait_for_message(self):
         if self.buffer.take_message():
             return
+        if self._transport is None:
+            # could be if the connection is lost and a coroutine
+            # method is finalizing.
+            raise ConnectionAbortedError
         self._msg_take_waiter = self.loop.create_future()
         await self._msg_take_waiter
 
@@ -1253,8 +1255,8 @@ cdef class EdgeConnection:
 
                     elif mtype == b'<':
                         # The restore protocol cannot send SYNC beforehand,
-                        # so if an error occurs it should receve an ERROR
-                        # message immediately.
+                        # so if an error occurs the server should send an
+                        # ERROR message immediately.
                         flush_on_error = True
                         await self.restore()
 
@@ -1476,8 +1478,13 @@ cdef class EdgeConnection:
 
         if mtype == b'H':
             # Flush
-            self.flush()
             self.buffer.discard_message()
+            self.flush()
+            return
+        elif mtype == b'X':
+            # Terminate
+            self.buffer.discard_message()
+            self.abort()
             return
 
         if ignore_unhandled:
@@ -1607,7 +1614,6 @@ cdef class EdgeConnection:
 
         dbname = self.dbview.dbname
         pgcon = await self.port.new_pgcon(dbname)
-        pgcons = [pgcon]
 
         # To avoid having races, we want to:
         #
@@ -1635,109 +1641,92 @@ cdef class EdgeConnection:
                 b'SELECT pg_export_snapshot();', False)
             tx_snapshot_id = tx_snapshot_id[0][0].decode()
 
-            schema_ddl, blocks = await self.get_backend().compiler.call(
-                'describe_database_dump',
-                tx_snapshot_id,
-            )
+            schema_ddl, schema_ids, blocks = \
+                await self.get_backend().compiler.call(
+                    'describe_database_dump',
+                    tx_snapshot_id,
+                )
 
-            if 0 and BACKUP_NWORKERS - 1 > 0:
-                pgcon_tasks = []
+            msg_buf = WriteBuffer.new_message(b'@')
 
-                async with taskgroup.TaskGroup() as g:
-                    for _ in range(BACKUP_NWORKERS - 1):
-                        task = g.create_task(self.port.new_pgcon(dbname))
-                        pgcon_tasks.append(task)
+            msg_buf.write_int16(3)  # number of headers
+            msg_buf.write_int16(DUMP_HEADER_BLOCK_TYPE)
+            msg_buf.write_len_prefixed_bytes(DUMP_HEADER_BLOCK_TYPE_INFO)
+            msg_buf.write_int16(DUMP_HEADER_SERVER_VER)
+            msg_buf.write_len_prefixed_utf8(str(buildmeta.get_version()))
+            msg_buf.write_int16(DUMP_HEADER_SERVER_TIME)
+            msg_buf.write_len_prefixed_utf8(str(int(time.time())))
 
-                for task in pgcon_tasks:
-                    pgcon = task.result()
-                    pgcons.append(pgcon)
+            msg_buf.write_int16(PROTO_VER_MAJOR)
+            msg_buf.write_int16(PROTO_VER_MINOR)
+            msg_buf.write_len_prefixed_utf8(schema_ddl)
 
-                async with taskgroup.TaskGroup() as g:
-                    for pgcon in pgcons[1:]:
-                        g.create_task(
-                            self._init_dump_pgcon(pgcon, tx_snapshot_id, 1))
+            msg_buf.write_int32(len(schema_ids))
+            for (tn, td, tid) in schema_ids:
+                msg_buf.write_len_prefixed_utf8(tn)
+                msg_buf.write_len_prefixed_utf8(td)
+                msg_buf.write_bytes(tid)  # uuid
+
+            msg_buf.write_int32(len(blocks))
+            for block in blocks:
+                msg_buf.write_bytes(block.schema_object_id.bytes)  # uuid
+                msg_buf.write_len_prefixed_bytes(block.type_desc)
+
+                msg_buf.write_int16(len(block.schema_deps))
+                for depid in block.schema_deps:
+                    msg_buf.write_bytes(depid.bytes)  # uuid
+
+            self._transport.write(msg_buf.end_message())
+            self.flush()
 
             blocks_queue = collections.deque(blocks)
-            output_queue = asyncio.Queue(maxsize=len(pgcons) * 2)
-
-            self.flush()
-            blocks_desc = {}
+            output_queue = asyncio.Queue(maxsize=2)
 
             async with taskgroup.TaskGroup() as g:
-                for pgcon in pgcons:
-                    g.create_task(pgcon.dump(
-                        blocks_queue,
-                        output_queue,
-                        1024 * 1024 * 10
-                    ))
+                g.create_task(pgcon.dump(
+                    blocks_queue,
+                    output_queue,
+                    DUMP_BLOCK_SIZE,
+                ))
 
                 nstops = 0
                 while True:
                     out = await output_queue.get()
                     if out is None:
                         nstops += 1
-                        if nstops == len(pgcons):
+                        if nstops == 1:
+                            # we only have one worker right now
                             break
                     else:
                         block, block_num, data = out
 
-                        try:
-                            desc = blocks_desc[block.schema_object_id]
-                        except KeyError:
-                            desc = blocks_desc[block.schema_object_id] = {
-                                'count': 0,
-                                'size': 0,
-                            }
-
-                        desc['count'] += 1
-                        assert isinstance(data, WriteBuffer)
-                        desc['size'] += (<WriteBuffer>data).len()
-
                         msg_buf = WriteBuffer.new_message(b'=')
-                        msg_buf.write_int16(0)  # no headers
-                        msg_buf.write_bytes(
-                            block.schema_object_id.bytes)  # uuid
-                        msg_buf.write_int64(block_num)
-                        # TODO: Add compression
-                        msg_buf.write_buffer(data)
-                        msg_buf.end_message()
+                        msg_buf.write_int16(4)  # number of headers
 
-                        self._transport.write(msg_buf)
+                        msg_buf.write_int16(DUMP_HEADER_BLOCK_TYPE)
+                        msg_buf.write_len_prefixed_bytes(
+                            DUMP_HEADER_BLOCK_TYPE_DATA)
+                        msg_buf.write_int16(DUMP_HEADER_BLOCK_ID)
+                        msg_buf.write_len_prefixed_bytes(
+                            block.schema_object_id.bytes)
+                        msg_buf.write_int16(DUMP_HEADER_BLOCK_NUM)
+                        msg_buf.write_len_prefixed_bytes(
+                            str(block_num).encode())
+                        msg_buf.write_int16(DUMP_HEADER_BLOCK_DATA)
+                        msg_buf.write_len_prefixed_buffer(data)
+
+                        self._transport.write(msg_buf.end_message())
                         if self._write_waiter:
                             await self._write_waiter
 
-            msg_buf = WriteBuffer.new_message(b'@')
-            msg_buf.write_int16(0)  # no headers
-            msg_buf.write_len_prefixed_bytes(
-                str(buildmeta.get_version()).encode())
-            # We don't care about the timestamp resolution in
-            # this context
-            msg_buf.write_int64(int(time.time()))
-
-            schema_ddl = schema_ddl.encode()
-            msg_buf.write_len_prefixed_bytes(schema_ddl)
-
-            msg_buf.write_int32(len(blocks))
-            for block in blocks:
-                msg_buf.write_int16(0)  # no headers
-                msg_buf.write_bytes(block.schema_object_id.bytes)  # uuid
-
-                msg_buf.write_int16(len(block.schema_deps))
-                for depid in block.schema_deps:
-                    msg_buf.write_bytes(depid.bytes)  # uuid
-
-                msg_buf.write_len_prefixed_bytes(block.type_desc)
-
-                desc = blocks_desc[block.schema_object_id]
-                msg_buf.write_int64(desc['count'])
-                msg_buf.write_int64(desc['size'])
-
-            msg_buf.end_message()
-            self._transport.write(msg_buf)
-
         finally:
-            for pgcon in pgcons:
-                pgcon.terminate()
+            pgcon.terminate()
+
+        msg_buf = WriteBuffer.new_message(b'C')
+        msg_buf.write_int16(0)  # no headers
+        msg_buf.write_len_prefixed_bytes(b'DUMP')
+        self.write(msg_buf.end_message())
+        self.flush()
 
     async def restore(self):
         cdef:
@@ -1750,8 +1739,32 @@ cdef class EdgeConnection:
             )
 
         self.reject_headers()
-        schema_ddl = self.buffer.read_len_prefixed_bytes()
         self.buffer.read_int16()  # discard -j level
+
+        # Now parse the embedded dump header message:
+
+        # Ignore headers
+        headers_num = self.buffer.read_int16()
+        for _ in range(headers_num):
+            self.buffer.read_int16()
+            self.buffer.read_len_prefixed_bytes()
+
+        proto_major = self.buffer.read_int16()
+        proto_minor = self.buffer.read_int16()
+        if proto_major != PROTO_VER_MAJOR or proto_minor != PROTO_VER_MINOR:
+            raise errors.ProtocolError('unsupported dump version')
+
+        schema_ddl = self.buffer.read_len_prefixed_bytes()
+
+        ids_num = self.buffer.read_int32()
+        schema_ids = []
+        for _ in range(ids_num):
+            schema_ids.append((
+                self.buffer.read_len_prefixed_utf8(),
+                self.buffer.read_len_prefixed_utf8(),
+                self.buffer.read_bytes(16),
+            ))
+
         block_num = <uint32_t>self.buffer.read_int32()
         blocks = []
         for _ in range(block_num):
@@ -1759,6 +1772,10 @@ cdef class EdgeConnection:
                 self.buffer.read_bytes(16),
                 self.buffer.read_len_prefixed_bytes(),
             ))
+
+            # Ignore deps info
+            for _ in range(self.buffer.read_int16()):
+                self.buffer.read_bytes(16)
 
         self.buffer.finish_message()
         dbname = self.dbview.dbname
@@ -1780,16 +1797,17 @@ cdef class EdgeConnection:
                     'describe_database_restore',
                     tx_snapshot_id,
                     schema_ddl,
+                    schema_ids,
                     blocks,
                 )
 
             for query_unit in schema_sql_units:
                 if query_unit.system_config:
-                    raise RuntimeError(
+                    raise errors.ProtocolError(
                         'system config commands are not supported '
                         'during restore')
                 elif query_unit.config_ops:
-                    raise RuntimeError(
+                    raise errors.ProtocolError(
                         'config commands are not supported '
                         'during restore')
                 else:
@@ -1830,12 +1848,32 @@ cdef class EdgeConnection:
                 mtype = self.buffer.get_message_type()
 
                 if mtype == b'=':
-                    self.reject_headers()
-                    data_schema_id = self.buffer.read_uuid()
-                    data_data = self.buffer.consume_message()
+                    block_type = None
+                    block_id = None
+                    block_num = None
+                    block_data = None
+
+                    num_headers = self.buffer.read_int16()
+                    for _ in range(num_headers):
+                        header = self.buffer.read_int16()
+                        if header == DUMP_HEADER_BLOCK_TYPE:
+                            block_type = self.buffer.read_len_prefixed_bytes()
+                        elif header == DUMP_HEADER_BLOCK_ID:
+                            block_id = self.buffer.read_len_prefixed_bytes()
+                            block_id = pg_UUID(block_id)
+                        elif header == DUMP_HEADER_BLOCK_NUM:
+                            block_num = self.buffer.read_len_prefixed_bytes()
+                        elif header == DUMP_HEADER_BLOCK_DATA:
+                            block_data = self.buffer.read_len_prefixed_bytes()
+
+                    self.buffer.finish_message()
+
+                    if (block_type is None or block_id is None
+                            or block_num is None or block_data is None):
+                        raise errors.ProtocolError('incomplete data block')
 
                     await pgcon.restore(
-                        restore_blocks[data_schema_id], data_data)
+                        restore_blocks[block_id], block_data)
 
                 elif mtype == b'.':
                     self.buffer.finish_message()
