@@ -304,16 +304,6 @@ class OptAnySubShape(Nonterm):
     def reduce_COLON_Shape(self, *kids):
         self.val = kids[1].val
 
-    def reduce_COLON_TypedShape(self, *kids):
-        # typed shape needs to be transformed here into a different
-        # expression
-        shape = kids[1].val
-        self.val = [qlast.TypeName(
-            maintype=shape.expr.steps[0],
-            context=context.get_context(shape.expr.steps[0])
-        )]
-        self.val += shape.elements
-
     def reduce_LBRACE(self, *kids):
         raise EdgeQLSyntaxError(
             f"Missing ':' before '{{' in a sub-shape",
@@ -325,7 +315,7 @@ class OptAnySubShape(Nonterm):
             context=kids[0].context)
 
     def reduce_empty(self, *kids):
-        self.val = None
+        self.val = []
 
 
 class ShapeElement(Nonterm):
@@ -334,19 +324,7 @@ class ShapeElement(Nonterm):
              OptAnySubShape OptFilterClause OptSortClause OptSelectLimit \
         """
         self.val = kids[0].val
-
-        shape = kids[1].val
-
-        # shape elements can have a path starting with a TypeExpr,
-        # this indicates a polymorphic shape and TypeExpr must be
-        # extracted from the path steps
-        if shape and isinstance(shape[0], qlast.TypeExpr):
-            self.val.expr.steps.append(qlast.TypeIntersection(
-                type=shape[0], context=shape[0].context))
-            self.val.elements = shape[1:]
-        else:
-            self.val.elements = shape or []
-
+        self.val.elements = kids[1].val
         self.val.where = kids[2].val
         self.val.orderby = kids[3].val
         self.val.offset = kids[4].val[0]
@@ -361,27 +339,19 @@ class ShapeElementList(ListNonterm, element=ShapeElement,
     pass
 
 
-class ShapePath(Nonterm):
-    # A form of Path appearing as an element in shapes.
-    #
-    # one-of:
-    #   __type__
-    #   link
-    #   @prop
-    #   [IS ObjectType].link
-    #   [IS Link]@prop - currently not supported
+class SimpleShapePath(Nonterm):
 
     def reduce_PathStepName(self, *kids):
         from edb.schema import pointers as s_pointers
 
-        self.val = qlast.Path(
-            steps=[
-                qlast.Ptr(
-                    ptr=kids[0].val,
-                    direction=s_pointers.PointerDirection.Outbound
-                )
-            ]
-        )
+        steps = [
+            qlast.Ptr(
+                ptr=kids[0].val,
+                direction=s_pointers.PointerDirection.Outbound
+            ),
+        ]
+
+        self.val = qlast.Path(steps=steps)
 
     def reduce_AT_ShortNodeName(self, *kids):
         self.val = qlast.Path(
@@ -393,25 +363,66 @@ class ShapePath(Nonterm):
             ]
         )
 
-    def reduce_ShapePathPtr_DOT_PathStepName(self, *kids):
-        from edb.schema import pointers as s_pointers
 
-        self.val = qlast.Path(
-            steps=[
-                qlast.TypeIntersection(
-                    type=kids[0].val,
-                ),
-                qlast.Ptr(
-                    ptr=kids[2].val,
-                    direction=s_pointers.PointerDirection.Outbound
-                ),
-            ]
+class SimpleShapePointer(Nonterm):
+
+    def reduce_SimpleShapePath(self, *kids):
+        self.val = qlast.ShapeElement(
+            expr=kids[0].val
         )
 
 
-class ShapePathPtr(Nonterm):
-    def reduce_LBRACKET_IS_FullTypeExpr_RBRACKET(self, *kids):
-        self.val = kids[2].val
+class ShapePath(Nonterm):
+    # A form of Path appearing as an element in shapes.
+    #
+    # one-of:
+    #   __type__
+    #   link
+    #   @prop
+    #   [IS ObjectType].link
+    #   [IS Link]@prop - currently not supported
+
+    def reduce_PathStepName_OptTypeIntersection(self, *kids):
+        from edb.schema import pointers as s_pointers
+
+        steps = [
+            qlast.Ptr(
+                ptr=kids[0].val,
+                direction=s_pointers.PointerDirection.Outbound
+            ),
+        ]
+
+        if kids[1].val is not None:
+            steps.append(kids[1].val)
+
+        self.val = qlast.Path(steps=steps)
+
+    def reduce_AT_ShortNodeName(self, *kids):
+        self.val = qlast.Path(
+            steps=[
+                qlast.Ptr(
+                    ptr=kids[1].val,
+                    type='property'
+                )
+            ]
+        )
+
+    def reduce_TypeIntersection_DOT_PathStepName_OptTypeIntersection(
+            self, *kids):
+        from edb.schema import pointers as s_pointers
+
+        steps = [
+            kids[0].val,
+            qlast.Ptr(
+                ptr=kids[2].val,
+                direction=s_pointers.PointerDirection.Outbound
+            ),
+        ]
+
+        if kids[3].val is not None:
+            steps.append(kids[3].val)
+
+        self.val = qlast.Path(steps=steps)
 
 
 class ShapePointer(Nonterm):
@@ -460,34 +471,34 @@ class OptPtrQuals(Nonterm):
 # by a keyword).
 class ComputableShapePointer(Nonterm):
 
-    def reduce_REQUIRED_ShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_REQUIRED_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.required = True
 
-    def reduce_MULTI_ShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.cardinality = qltypes.Cardinality.MANY
 
-    def reduce_SINGLE_ShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.cardinality = qltypes.Cardinality.ONE
 
-    def reduce_REQUIRED_MULTI_ShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_REQUIRED_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
         self.val.cardinality = qltypes.Cardinality.MANY
 
-    def reduce_REQUIRED_SINGLE_ShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_REQUIRED_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
         self.val.cardinality = qltypes.Cardinality.ONE
 
-    def reduce_ShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[0].val
         self.val.compexpr = kids[2].val
 
@@ -1095,10 +1106,23 @@ class PathStep(Nonterm):
             type='property'
         )
 
+    def reduce_TypeIntersection(self, *kids):
+        self.val = kids[0].val
+
+
+class TypeIntersection(Nonterm):
     def reduce_LBRACKET_IS_FullTypeExpr_RBRACKET(self, *kids):
         self.val = qlast.TypeIntersection(
             type=kids[2].val,
         )
+
+
+class OptTypeIntersection(Nonterm):
+    def reduce_TypeIntersection(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self):
+        self.val = None
 
 
 class PathStepName(Nonterm):

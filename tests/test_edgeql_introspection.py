@@ -264,7 +264,7 @@ class TestIntrospection(tb.QueryTestCase):
                 WITH MODULE schema
                 SELECT ObjectType {
                     properties: {
-                        target: Array {
+                        target[IS Array]: {
                             name,
                             element_type: {
                                 name
@@ -394,7 +394,7 @@ class TestIntrospection(tb.QueryTestCase):
                     name,
                     params: {
                         num,
-                        type: schema::Array {
+                        type[IS schema::Array]: {
                             name,
                             element_type: {
                                 name

@@ -234,7 +234,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                                     FILTER .name = 'owners')
                 SELECT
                     DCardOwners {
-                        target: ObjectType {
+                        target[IS ObjectType]: {
                             name,
                             pointers: {
                                 name

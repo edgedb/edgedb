@@ -1247,7 +1247,7 @@ aa';
     def test_edgeql_syntax_shape_30(self):
         """
         SELECT Named {
-            [IS Issue].references: File {
+            [IS Issue].references[IS File]: {
                 name
             }
         };
@@ -2340,17 +2340,6 @@ aa';
         INSERT Foo{
             bar := 42,
             baz := (SELECT Baz FILTER (Baz.spam = 'ham'))
-        };
-        """
-
-    def test_edgeql_syntax_insert_14(self):
-        """
-        INSERT Foo{
-            bar := 42,
-            baz: Baz{
-                spam := 'ham',
-                @weight := 2,
-            }
         };
         """
 
