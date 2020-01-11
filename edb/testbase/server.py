@@ -349,28 +349,35 @@ class ConnectedTestCaseMixin:
     def _assert_data_shape(self, data, shape, message=None):
         _void = object()
 
-        def _assert_type_shape(data, shape):
+        def _format_path(path):
+            if path:
+                return 'PATH: ' + ''.join(str(p) for p in path)
+            else:
+                return 'PATH: <top-level>'
+
+        def _assert_type_shape(path, data, shape):
             if shape in (int, float):
                 if not isinstance(data, shape):
                     self.fail(
-                        '{}: expected {}, got {!r}'.format(
-                            message, shape, data))
+                        f'{message}: expected {shape}, got {data!r} '
+                        f'{_format_path(path)}')
             else:
                 try:
                     shape(data)
                 except (ValueError, TypeError):
                     self.fail(
-                        '{}: expected {}, got {!r}'.format(
-                            message, shape, data))
+                        f'{message}: expected {shape}, got {data!r} '
+                        f'{_format_path(path)}')
 
-        def _assert_dict_shape(data, shape):
+        def _assert_dict_shape(path, data, shape):
             for sk, sv in shape.items():
                 if not data or sk not in data:
                     self.fail(
-                        '{}: key {!r} is missing\n{}'.format(
-                            message, sk, pprint.pformat(data)))
+                        f'{message}: key {sk!r} '
+                        f'is missing\n{pprint.pformat(data)} '
+                        f'{_format_path(path)}')
 
-                _assert_generic_shape(data[sk], sv)
+                _assert_generic_shape(path + (f'["{sk}"]',), data[sk], sv)
 
         def _list_shape_iter(shape):
             last_shape = _void
@@ -389,12 +396,16 @@ class ConnectedTestCaseMixin:
 
                 yield item
 
-        def _assert_list_shape(data, shape):
+        def _assert_list_shape(path, data, shape):
             if not isinstance(data, list):
-                self.fail('{}: expected list'.format(message))
+                self.fail(
+                    f'{message}: expected list '
+                    f'{_format_path(path)}')
 
             if not data and shape:
-                self.fail('{}: expected non-empty list'.format(message))
+                self.fail(
+                    f'{message}: expected non-empty list '
+                    f'{_format_path(path)}')
 
             shape_iter = _list_shape_iter(shape)
 
@@ -404,23 +415,30 @@ class ConnectedTestCaseMixin:
                     el_shape = next(shape_iter)
                 except StopIteration:
                     self.fail(
-                        '{}: unexpected trailing elements in list'.format(
-                            message))
+                        f'{message}: unexpected trailing elements in list '
+                        f'{_format_path(path)}')
 
-                _assert_generic_shape(el, el_shape)
+                _assert_generic_shape(
+                    path + (f'[{_data_count}]',),
+                    el,
+                    el_shape)
 
             if len(shape) > _data_count + 1:
                 if shape[_data_count + 1] is not Ellipsis:
                     self.fail(
-                        '{}: expecting more elements in list'.format(
-                            message))
+                        f'{message}: expecting more elements in list '
+                        f'{_format_path(path)}')
 
-        def _assert_set_shape(data, shape):
+        def _assert_set_shape(path, data, shape):
             if not isinstance(data, (list, set)):
-                self.fail('{}: expected list or set'.format(message))
+                self.fail(
+                    f'{message}: expected list or set '
+                    f'{_format_path(path)}')
 
             if not data and shape:
-                self.fail('{}: expected non-empty set'.format(message))
+                self.fail(
+                    f'{message}: expected non-empty set '
+                    f'{_format_path(path)}')
 
             shape_iter = _list_shape_iter(sorted(shape))
 
@@ -430,18 +448,19 @@ class ConnectedTestCaseMixin:
                     el_shape = next(shape_iter)
                 except StopIteration:
                     self.fail(
-                        '{}: unexpected trailing elements in set'.format(
-                            message))
+                        f'{message}: unexpected trailing elements in set '
+                        f'[path {_format_path(path)}]')
 
-                _assert_generic_shape(el, el_shape)
+                _assert_generic_shape(
+                    path + (f'{{{_data_count}}}',), el, el_shape)
 
             if len(shape) > _data_count + 1:
                 if Ellipsis not in shape:
                     self.fail(
-                        '{}: expecting more elements in set'.format(
-                            message))
+                        f'{message}: expecting more elements in set '
+                        f'{_format_path(path)}')
 
-        def _assert_generic_shape(data, shape):
+        def _assert_generic_shape(path, data, shape):
             if isinstance(shape, nullable):
                 if data is None:
                     return
@@ -449,31 +468,39 @@ class ConnectedTestCaseMixin:
                     shape = shape.value
 
             if isinstance(shape, list):
-                return _assert_list_shape(data, shape)
+                return _assert_list_shape(path, data, shape)
             elif isinstance(shape, set):
-                return _assert_set_shape(data, shape)
+                return _assert_set_shape(path, data, shape)
             elif isinstance(shape, dict):
-                return _assert_dict_shape(data, shape)
+                return _assert_dict_shape(path, data, shape)
             elif isinstance(shape, type):
-                return _assert_type_shape(data, shape)
+                return _assert_type_shape(path, data, shape)
             elif isinstance(shape, float):
                 if not math.isclose(data, shape, rel_tol=1e-04):
-                    self.fail(f'{message}: not isclose({data}, {shape})')
+                    self.fail(
+                        f'{message}: not isclose({data}, {shape}) '
+                        f'{_format_path(path)}')
             elif isinstance(shape, uuid.UUID):
                 # since the data comes from JSON, it will only have a str
                 if data != str(shape):
-                    self.fail(f'{message}: {data!r} != {shape!r}')
+                    self.fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
             elif isinstance(shape, (str, int, timedelta)):
                 if data != shape:
-                    self.fail(f'{message}: {data!r} != {shape!r}')
+                    self.fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
             elif shape is None:
                 if data is not None:
-                    self.fail(f'{message}: {data!r} is expected to be None')
+                    self.fail(
+                        f'{message}: {data!r} is expected to be None '
+                        f'{_format_path(path)}')
             else:
                 raise ValueError(f'unsupported shape type {shape}')
 
         message = message or 'data shape differs'
-        return _assert_generic_shape(data, shape)
+        return _assert_generic_shape((), data, shape)
 
 
 class CLITestCaseMixin:
