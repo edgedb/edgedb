@@ -737,9 +737,7 @@ class ParallelTextTestRunner:
             if setup:
                 self._echo()
                 self._echo('Shutting down test cluster... ', nl=False)
-                if cluster is not None:
-                    cluster.stop()
-                    cluster.destroy()
+                tb._shutdown_cluster(cluster, destroy=True)
                 self._echo('OK.')
 
         if result is not None:

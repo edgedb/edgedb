@@ -232,9 +232,12 @@ def _start_cluster(*, cleanup_atexit=True):
 
 
 def _shutdown_cluster(cluster, *, destroy=True):
-    cluster.stop()
-    if destroy:
-        cluster.destroy()
+    global _default_cluster
+    _default_cluster = None
+    if cluster is not None:
+        cluster.stop()
+        if destroy:
+            cluster.destroy()
 
 
 class ClusterTestCase(TestCase):
