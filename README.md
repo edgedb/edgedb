@@ -2,14 +2,12 @@
   <a href="https://edgedb.com"><img width="160px" src="logo.svg"></a>
 </p>
 
-[![Build Status](https://github.com/edgedb/edgedb/workflows/Tests/badge.svg?event=push&branch=master)](https://github.com/edgedb/edgedb/) [![Join the community on Spectrum](https://img.shields.io/badge/join%20the%20community-on%20spectrum-blueviolet)](https://spectrum.chat/edgedb)
+[![Build Status](https://github.com/edgedb/edgedb/workflows/Tests/badge.svg?event=push&branch=master)](https://github.com/edgedb/edgedb/actions) [![Join the community on Spectrum](https://img.shields.io/badge/join%20the%20community-on%20spectrum-blueviolet)](https://spectrum.chat/edgedb)
 
-
-What is EdgeDB?
-===============
+# What is EdgeDB?
 
 EdgeDB is an **open-source** object-relational database built on top of
-PostgreSQL.  The goal of EdgeDB is to *empower* its users to build safe
+PostgreSQL. The goal of EdgeDB is to _empower_ its users to build safe
 and efficient software with less effort.
 
 EdgeDB features:
@@ -24,9 +22,7 @@ Check out the [blog](https://edgedb.com/blog/edgedb-a-new-beginning)
 [posts](https://edgedb.com/blog/edgedb-1-0-alpha-1) for more examples and
 the philosophy behind EdgeDB.
 
-
-Modern Type-safe Schema
------------------------
+## Modern Type-safe Schema
 
 The data schema in EdgeDB is a clean high-level representation of a conceptual
 data model:
@@ -68,9 +64,7 @@ type Movie {
 
 EdgeDB has a rich library of datatypes and functions.
 
-
-EdgeQL
-------
+## EdgeQL
 
 EdgeQL is the query language of EdgeDB. It is efficient, intuitive, and easy
 to learn.
@@ -102,38 +96,28 @@ SELECT User {
 FILTER .id = <uuid>$id
 ```
 
-
-Status
-======
+# Status
 
 EdgeDB is currently in alpha. See our
 [Issues](https://github.com/edgedb/edgedb/issues) for a list of features
 planned or in development.
 
-
-Getting Started
-===============
+# Getting Started
 
 Please refer to the [Tutorial](https://edgedb.com/docs/tutorial/index) section
 of the documentation on how to install and run EdgeDB.
 
-
-Documentation
-=============
+# Documentation
 
 The EdgeDB documentation can be found at
 [edgedb.com/docs](https://edgedb.com/docs).
 
-
-Building From Source
-====================
+# Building From Source
 
 Please follow the instructions outlined
 [in the documentation](https://edgedb.com/docs/internals/dev).
 
-
-License
-=======
+# License
 
 The code in this repository is developed and distributed under the
-Apache 2.0 license.  See [LICENSE](LICENSE) for details.
+Apache 2.0 license. See [LICENSE](LICENSE) for details.
