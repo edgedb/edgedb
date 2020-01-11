@@ -473,7 +473,7 @@ class CommandContext:
     def __init__(self, *, declarative=False, modaliases=None,
                  schema=None, stdmode=False, testmode=False,
                  disable_dep_verification=False, descriptive_mode=False,
-                 emit_oids=False, schema_object_ids=None):
+                 schema_object_ids=None):
         self.stack = []
         self._cache = {}
         self.declarative = declarative
@@ -483,7 +483,6 @@ class CommandContext:
         self.testmode = testmode
         self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
-        self.emit_oids = emit_oids
         self.renames = {}
         self.renamed_objs = set()
         self.altered_targets = set()
@@ -1609,12 +1608,12 @@ class AlterObjectProperty(Command):
                 f'{self.property!r} is not a valid field',
                 context=self.context)
 
-        if ((not field.allow_ddl_set
+        if self.property == 'id':
+            return
+
+        if (not field.allow_ddl_set
                 and self.property != 'expr'
-                and parent_node_attr is None) or
-                (self.property == 'id'
-                 and (not context.emit_oids
-                      or not isinstance(parent_node, qlast.CreateObject)))):
+                and parent_node_attr is None):
             # Don't produce any AST if:
             #
             # * a field does not have the "allow_ddl_set" option, unless
@@ -1622,10 +1621,6 @@ class AlterObjectProperty(Command):
             #
             #   'expr' fields come from the "USING" clause and are specially
             #   treated in parser and codegen.
-            #
-            # * an 'id' field unless we asked for it by setting
-            #   the "emit_iods" option in the context.  This is used
-            #   for dumping the schema (for later restore.)
             return
 
         if self.source == 'inheritance':

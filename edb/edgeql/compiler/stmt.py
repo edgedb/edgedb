@@ -460,7 +460,6 @@ def compile_DescribeStmt(
                 # DESCRIBE SCHEMA
                 text = s_ddl.ddl_text_from_schema(
                     ctx.env.schema,
-                    emit_oids=ql.options.get_flag('EMIT OIDS').val,
                 )
             else:
                 raise errors.QueryError(
@@ -515,7 +514,6 @@ def compile_DescribeStmt(
 
                     items.append(obj.get_name(ictx.env.schema))
 
-            emit_oids = ql.options.get_flag('EMIT OIDS')
             verbose = ql.options.get_flag('VERBOSE')
 
             if ql.language is qltypes.DescribeLanguage.DDL:
@@ -531,13 +529,6 @@ def compile_DescribeStmt(
                     f'cannot handle describe language {ql.language}'
                 )
 
-            if (emit_oids.val
-                    and ql.language is not qltypes.DescribeLanguage.DDL):
-                raise errors.QueryError(
-                    f'EMIT OIDS is only valid for DDL mode',
-                    context=emit_oids.context,
-                )
-
             text = method(
                 ctx.env.schema,
                 included_modules=modules,
@@ -545,7 +536,6 @@ def compile_DescribeStmt(
                 included_ref_classes=referenced_classes,
                 include_module_ddl=False,
                 include_std_ddl=True,
-                emit_oids=emit_oids.val,
             )
 
         ct = typegen.type_to_typeref(

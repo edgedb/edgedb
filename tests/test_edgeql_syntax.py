@@ -3773,5 +3773,5 @@ aa';
 
     def test_edgeql_syntax_describe_04(self):
         """
-        DESCRIBE TYPE foo::Bar AS DDL VERBOSE EMIT OIDS;
+        DESCRIBE TYPE foo::Bar AS DDL VERBOSE;
         """

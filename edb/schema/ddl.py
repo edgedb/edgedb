@@ -446,12 +446,10 @@ def _text_from_delta(
     sdlmode: bool,
     descriptive_mode: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
-    emit_oids: bool = False,
 ) -> str:
 
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
-        emit_oids=emit_oids,
         declarative=sdlmode,
     )
     text = []
@@ -477,8 +475,6 @@ def _text_from_delta(
 def ddl_text_from_delta(
     schema: s_schema.Schema,
     delta: sd.DeltaRoot,
-    *,
-    emit_oids: bool = False,
 ) -> str:
     """Return DDL text corresponding to a delta plan.
 
@@ -488,13 +484,11 @@ def ddl_text_from_delta(
             applied.
         delta:
             The delta plan.
-        emit_oids:
-            Whether object ids should be included in the output.
 
     Returns:
         DDL text corresponding to *delta*.
     """
-    return _text_from_delta(schema, delta, sdlmode=False, emit_oids=emit_oids)
+    return _text_from_delta(schema, delta, sdlmode=False)
 
 
 def sdl_text_from_delta(schema: s_schema.Schema, delta: sd.DeltaRoot) -> str:
@@ -572,7 +566,6 @@ def ddl_text_from_schema(
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
-    emit_oids: bool=False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,
@@ -585,7 +578,7 @@ def ddl_text_from_schema(
         include_std_diff=include_std_ddl,
         include_derived_types=False,
     )
-    return ddl_text_from_delta(schema, diff, emit_oids=emit_oids)
+    return ddl_text_from_delta(schema, diff)
 
 
 def sdl_text_from_schema(
@@ -597,7 +590,6 @@ def sdl_text_from_schema(
     included_ref_classes: Iterable[so.ObjectMeta]=tuple(),
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
-    emit_oids: bool=False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,
@@ -624,7 +616,6 @@ def descriptive_text_from_schema(
     include_module_ddl: bool=True,
     include_std_ddl: bool=False,
     include_derived_types: bool=False,
-    emit_oids: bool=False,
 ) -> str:
     diff = delta_schemas(
         schema_a=None,

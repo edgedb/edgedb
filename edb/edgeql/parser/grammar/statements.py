@@ -152,9 +152,6 @@ class DescribeOption(Nonterm):
     def reduce_VERBOSE(self, *kids):
         self.val = qlast.Flag(name='VERBOSE', val=True)
 
-    def reduce_EMIT_OIDS(self, *kids):
-        self.val = qlast.Flag(name='EMIT OIDS', val=True)
-
 
 class DescribeOptions(ListNonterm, element=DescribeOption):
     def _reduce_list(self, lst, el):

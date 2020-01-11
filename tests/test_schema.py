@@ -4482,39 +4482,6 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 '',
             )
 
-    def test_describe_emit_oids_overloaded_01(self):
-        self._assert_describe(
-            """
-            type A {
-                property foo -> str;
-            }
-
-            type B extending A {
-                overloaded property foo {
-                    annotation title := 'test'
-                }
-            }
-            """,
-
-            'DESCRIBE SCHEMA EMIT OIDS',
-
-            """
-            CREATE MODULE test IF NOT EXISTS;
-            CREATE TYPE test::A {
-                SET id := <std::uuid>'@SID@';
-                CREATE SINGLE PROPERTY foo -> std::str {
-                    SET id := <std::uuid>'@SID@';
-                };
-            };
-            CREATE TYPE test::B EXTENDING test::A {
-                SET id := <std::uuid>'@SID@';
-                ALTER PROPERTY foo {
-                    CREATE ANNOTATION std::title := 'test';
-                };
-            };
-            """
-        )
-
     def test_describe_on_target_delete_01(self):
         # Test "on target delete".
         self._assert_describe(
