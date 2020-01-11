@@ -1665,15 +1665,18 @@ cdef class EdgeConnection:
             for (tn, td, tid) in schema_ids:
                 msg_buf.write_len_prefixed_utf8(tn)
                 msg_buf.write_len_prefixed_utf8(td)
+                assert len(tid) == 16
                 msg_buf.write_bytes(tid)  # uuid
 
             msg_buf.write_int32(len(blocks))
             for block in blocks:
+                assert len(block.schema_object_id.bytes) == 16
                 msg_buf.write_bytes(block.schema_object_id.bytes)  # uuid
                 msg_buf.write_len_prefixed_bytes(block.type_desc)
 
                 msg_buf.write_int16(len(block.schema_deps))
                 for depid in block.schema_deps:
+                    assert len(depid.bytes) == 16
                     msg_buf.write_bytes(depid.bytes)  # uuid
 
             self._transport.write(msg_buf.end_message())
