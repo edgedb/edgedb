@@ -402,16 +402,16 @@ class ProcessFunctionBlockMixin:
 class OnTargetDeleteStmt(Nonterm):
     def reduce_ON_TARGET_DELETE_RESTRICT(self, *kids):
         self.val = qlast.OnTargetDelete(
-            cascade=qlast.LinkTargetDeleteAction.RESTRICT)
+            cascade=qltypes.LinkTargetDeleteAction.RESTRICT)
 
     def reduce_ON_TARGET_DELETE_DELETE_SOURCE(self, *kids):
         self.val = qlast.OnTargetDelete(
-            cascade=qlast.LinkTargetDeleteAction.DELETE_SOURCE)
+            cascade=qltypes.LinkTargetDeleteAction.DELETE_SOURCE)
 
     def reduce_ON_TARGET_DELETE_ALLOW(self, *kids):
         self.val = qlast.OnTargetDelete(
-            cascade=qlast.LinkTargetDeleteAction.ALLOW)
+            cascade=qltypes.LinkTargetDeleteAction.ALLOW)
 
     def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT(self, *kids):
         self.val = qlast.OnTargetDelete(
-            cascade=qlast.LinkTargetDeleteAction.DEFERRED_RESTRICT)
+            cascade=qltypes.LinkTargetDeleteAction.DEFERRED_RESTRICT)

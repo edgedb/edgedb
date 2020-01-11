@@ -45,6 +45,7 @@ async def fetch(
                 l.is_derived,
                 l.readonly,
                 l.default,
+                l.on_target_delete,
                 l.inherited_fields
             FROM
                 edgedb.link l

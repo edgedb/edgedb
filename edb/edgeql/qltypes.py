@@ -107,3 +107,10 @@ class SchemaObjectClass(s_enum.StrEnum):
     PROPERTY = 'PROPERTY'
     SCALAR_TYPE = 'SCALAR TYPE'
     TYPE = 'TYPE'
+
+
+class LinkTargetDeleteAction(s_enum.StrEnum):
+    RESTRICT = 'RESTRICT'
+    DELETE_SOURCE = 'DELETE SOURCE'
+    ALLOW = 'ALLOW'
+    DEFERRED_RESTRICT = 'DEFERRED RESTRICT'

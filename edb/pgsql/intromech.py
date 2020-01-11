@@ -682,6 +682,12 @@ class IntrospectionMech:
             else:
                 cardinality = None
 
+            if r['on_target_delete']:
+                on_target_delete = qltypes.LinkTargetDeleteAction(
+                    r['on_target_delete'])
+            else:
+                on_target_delete = None
+
             schema, link = s_links.Link.create_in_schema(
                 schema,
                 id=r['id'],
@@ -696,6 +702,7 @@ class IntrospectionMech:
                 is_abstract=r['is_abstract'],
                 is_final=r['is_final'],
                 is_local=r['is_local'],
+                on_target_delete=on_target_delete,
                 readonly=r['readonly'],
             )
 

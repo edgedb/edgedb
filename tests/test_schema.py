@@ -1535,6 +1535,27 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_get_migration_31(self):
+        # Test "on target delete".
+        schema = r'''
+        type Foo {
+            link link0 -> Object {
+                on target delete restrict;
+            };
+            link link1 -> Object {
+                on target delete delete source;
+            };
+            link link2 -> Object {
+                on target delete allow;
+            };
+            link link3 -> Object {
+                on target delete deferred restrict;
+            };
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
@@ -4495,4 +4516,52 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 };
             };
             """
+        )
+
+    def test_describe_on_target_delete_01(self):
+        # Test "on target delete".
+        self._assert_describe(
+            """
+            type Foo {
+                link bar -> Object {
+                    on target delete allow;
+                };
+            }
+            """,
+
+            'DESCRIBE TYPE Foo',
+
+            """
+            CREATE TYPE test::Foo {
+                CREATE SINGLE LINK bar -> std::Object {
+                    ON TARGET DELETE ALLOW;
+                };
+            };
+            """,
+
+            'DESCRIBE TYPE Foo AS SDL',
+
+            """
+            type test::Foo {
+                single link bar -> std::Object {
+                    on target delete  allow;
+                };
+            };
+            """,
+
+            'DESCRIBE TYPE Foo AS TEXT',
+
+            """
+            type test::Foo {
+                required single link __type__ -> schema::Type {
+                    readonly := true;
+                };
+                single link bar -> std::Object {
+                    on target delete  allow;
+                };
+                required single property id -> std::uuid {
+                    readonly := true;
+                };
+            };
+            """,
         )

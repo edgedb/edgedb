@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-LinkTargetDeleteAction = qlast.LinkTargetDeleteAction
+LinkTargetDeleteAction = qltypes.LinkTargetDeleteAction
 
 
 def merge_actions(target: so.Object, sources: List[so.Object],
@@ -241,6 +241,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         objtype = context.get(LinkSourceCommandContext)
 
         if op.property == 'required':
+            # Due to how SDL is processed the underlying AST may be an
+            # AlterConcreteLink, which requires different handling.
             if isinstance(node, qlast.CreateConcreteLink):
                 node.is_required = op.new_value
             else:
@@ -253,6 +255,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
         elif op.property == 'cardinality':
             node.cardinality = op.new_value
         elif op.property == 'target' and objtype:
+            # Due to how SDL is processed the underlying AST may be an
+            # AlterConcreteLink, which requires different handling.
             if isinstance(node, qlast.CreateConcreteLink):
                 if not node.target:
                     expr = self.get_attribute_value('expr')
@@ -267,6 +271,8 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
                         type=utils.typeref_to_ast(schema, op.new_value)
                     )
                 )
+        elif op.property == 'on_target_delete':
+            node.commands.append(qlast.OnTargetDelete(cascade=op.new_value))
         else:
             super()._apply_field_ast(schema, context, node, op)
 
