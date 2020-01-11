@@ -71,12 +71,14 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='do not run tests which match the given regular expression')
 @click.option('-x', '--failfast', is_flag=True,
               help='stop tests after a first failure/error')
+@click.option('--repeat', type=int, default=1,
+              help='repeat tests N times or until first unsuccessful run')
 @click.option('--cov', type=str, multiple=True,
               help='package name to measure code coverage for, '
                    'can be specified multiple times '
                    '(e.g --cov edb.common --cov edb.server)')
 def test(*, files, jobs, include, exclude, verbose, quiet, debug,
-         output_format, warnings, failfast, cov):
+         output_format, warnings, failfast, cov, repeat):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -100,6 +102,11 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
         click.secho(
             'Error: cannot use stacked output format in verbose mode.',
             fg='red')
+        sys.exit(1)
+
+    if repeat < 1:
+        click.secho(
+            'Error: --repeat must be a positive non-zero number.', fg='red')
         sys.exit(1)
 
     if not files:
@@ -128,6 +135,7 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
         output_format=output_format,
         warnings=warnings,
         failfast=failfast,
+        repeat=repeat,
     )
 
     if cov:
@@ -199,7 +207,7 @@ def _coverage_wrapper(paths):
 
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
-         warnings, failfast):
+         warnings, failfast, repeat):
     suite = unittest.TestSuite()
 
     total = 0
@@ -241,10 +249,18 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
             click.echo(styles.status(
                 f'Using up to {jobs} processes to run tests.'))
 
-    test_runner = runner.ParallelTextTestRunner(
-        verbosity=verbosity, output_format=output_format,
-        warnings=warnings, num_workers=jobs, failfast=failfast)
+    for rnum in range(repeat):
+        if repeat > 1:
+            click.echo(styles.status(
+                f'Repeat #{rnum + 1} out of {repeat}.'))
 
-    result = test_runner.run(suite)
+        test_runner = runner.ParallelTextTestRunner(
+            verbosity=verbosity, output_format=output_format,
+            warnings=warnings, num_workers=jobs, failfast=failfast)
 
-    return 0 if result.wasSuccessful() else 1
+        result = test_runner.run(suite)
+
+        if not result.wasSuccessful():
+            return 1
+
+    return 0
