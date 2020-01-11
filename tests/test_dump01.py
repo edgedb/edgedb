@@ -18,13 +18,14 @@
 
 
 import os.path
+import tempfile
 
 import edgedb
 
 from edb.testbase import server as tb
 
 
-class TestDump01(tb.QueryTestCase):
+class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'dump01_test.esdl')
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
@@ -33,7 +34,66 @@ class TestDump01(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'dump01_setup.edgeql')
 
-    async def test_dump01_in01(self):
+    ISOLATED_METHODS = False
+    SERIALIZED = True
+
+    async def test_dump01_basic(self):
+        await self.ensure_schema_data_integrity()
+
+    async def test_dump01_dump_restore(self):
+        with tempfile.NamedTemporaryFile() as f:
+            self.run_cli('dump', '-d', 'dump01', f.name)
+
+            await self.con.execute('CREATE DATABASE dump01_restored')
+            try:
+                self.run_cli('restore', '-d', 'dump01_restored', f.name)
+                con2 = await self.connect(database='dump01_restored')
+            except Exception:
+                await self.con.execute('DROP DATABASE dump01_restored')
+                raise
+
+        oldcon = self.con
+        self.__class__.con = con2
+        try:
+            await self.ensure_schema_data_integrity()
+        finally:
+            self.__class__.con = oldcon
+            await con2.aclose()
+            await self.con.execute('DROP DATABASE dump01_restored')
+
+    async def test_dump01_restore_compatibility(self):
+        dumpsdir = os.path.join(os.path.dirname(__file__), 'dumps', 'dump01')
+        for entry in os.scandir(dumpsdir):
+            if not entry.is_file():
+                continue
+
+            dumpfn = os.path.join(dumpsdir, entry.name)
+            await self.con.execute(f'CREATE DATABASE `{dumpfn}`')
+            try:
+                self.run_cli('restore', '-d', dumpfn, dumpfn)
+                con2 = await self.connect(database=dumpfn)
+            except Exception:
+                await self.con.execute(f'DROP DATABASE `{dumpfn}`')
+                raise
+
+            oldcon = self.con
+            self.__class__.con = con2
+            try:
+                await self.ensure_schema_data_integrity()
+            finally:
+                self.__class__.con = oldcon
+                await con2.aclose()
+                await self.con.execute(f'DROP DATABASE `{dumpfn}`')
+
+    async def ensure_schema_data_integrity(self):
+        tx = self.con.transaction()
+        await tx.start()
+        try:
+            await self._ensure_schema_data_integrity()
+        finally:
+            await tx.rollback()
+
+    async def _ensure_schema_data_integrity(self):
         # check that all the type annotations are in place
         await self.assert_query_result(
             r'''
@@ -694,7 +754,6 @@ class TestDump01(tb.QueryTestCase):
             ]
         )
 
-    async def test_dump01_01(self):
         # validate single props for all basic scalar types
         await self.assert_query_result(
             r'''
@@ -1153,7 +1212,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_func01(self):
         # validate user functions
         await self.assert_query_result(
             r'''
@@ -1190,7 +1248,6 @@ class TestDump01(tb.QueryTestCase):
             {'22', 'a'},
         )
 
-    async def test_dump01_enum01(self):
         # validate user enum
         await self.assert_query_result(
             r'''
@@ -1238,7 +1295,6 @@ class TestDump01(tb.QueryTestCase):
             [True, True, True],
         )
 
-    async def test_dump01_coll01(self):
         # validate collection properties
         await self.assert_query_result(
             r'''
@@ -1273,7 +1329,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_inh01(self):
         # validate multiple inheritance
         await self.assert_query_result(
             r'''
@@ -1311,7 +1366,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_alias01(self):
         # validate aliases
         await self.assert_query_result(
             r'''
@@ -1359,7 +1413,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_refs01(self):
         # validate self/mutually-referencing types
         await self.assert_query_result(
             r'''
@@ -1380,7 +1433,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_refs02(self):
         # validate self/mutually-referencing types
         await self.assert_query_result(
             r'''
@@ -1408,7 +1460,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_refs03(self):
         # validate self/mutually-referencing types
         await self.assert_query_result(
             r'''
@@ -1441,7 +1492,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_xmod01(self):
         # validate cross module types
         await self.assert_query_result(
             r'''
@@ -1504,7 +1554,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_del01(self):
         # validate on delete settings
         await self.assert_query_result(
             r'''
@@ -1536,7 +1585,6 @@ class TestDump01(tb.QueryTestCase):
             [],
         )
 
-    async def test_dump01_del02(self):
         # validate on delete settings
         await self.assert_query_result(
             r'''
@@ -1578,7 +1626,6 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_del03(self):
         # validate on delete settings
         await self.assert_query_result(
             r'''
@@ -1603,58 +1650,58 @@ class TestDump01(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r'prohibited by link target policy'):
-            await self.con.execute(r'DELETE TargetA FILTER .name = "t0"')
+            async with self.con.transaction():
+                await self.con.execute(r'DELETE TargetA FILTER .name = "t0"')
 
-    async def test_dump01_con01(self):
         # validate constraints
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r'must be greater than 5'):
-            await self.con.execute(r'SELECT <UserInt>1;')
+            async with self.con.transaction():
+                await self.con.execute(r'SELECT <UserInt>1;')
 
-    async def test_dump01_con02(self):
         # validate constraints
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r'must be no longer than 5 characters'):
-            await self.con.execute(r'SELECT <UserStr>"qwerty";')
+            async with self.con.transaction():
+                await self.con.execute(r'SELECT <UserStr>"qwerty";')
 
-    async def test_dump01_con03(self):
         # validate constraints
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r'must be greater than 3'):
-            await self.con.execute(r"INSERT M {m0 := 1, m1 := '1'};")
+            async with self.con.transaction():
+                await self.con.execute(r"INSERT M {m0 := 1, m1 := '1'};")
 
-    async def test_dump01_con04(self):
         # validate constraints
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r'must be no longer than 3 characters'):
-            await self.con.execute(r"INSERT M {m0 := 4, m1 := '12345'};")
+            async with self.con.transaction():
+                await self.con.execute(r"INSERT M {m0 := 4, m1 := '12345'};")
 
-    async def test_dump01_con05(self):
         # validate constraints
         with self.assertRaisesRegex(
                 edgedb.ConstraintViolationError,
                 r'name violates exclusivity constraint'):
-            await self.con.execute(r"INSERT W {name := 'w0'};")
+            async with self.con.transaction():
+                await self.con.execute(r"INSERT W {name := 'w0'};")
 
-    async def test_dump01_con06(self):
         # validate constraints
         with self.assertRaisesRegex(
                 edgedb.MissingRequiredError,
                 r'missing value for required property'):
-            await self.con.execute(r"INSERT C;")
+            async with self.con.transaction():
+                await self.con.execute(r"INSERT C;")
 
-    async def test_dump01_con07(self):
         # validate constraints
         with self.assertRaisesRegex(
                 edgedb.MissingRequiredError,
                 r'missing value for required link'):
-            await self.con.execute(r"INSERT F {num := 999};")
+            async with self.con.transaction():
+                await self.con.execute(r"INSERT F {num := 999};")
 
-    async def test_dump01_ro01(self):
         # validate read-only
         await self.assert_query_result(
             r'''
@@ -1684,33 +1731,32 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_ro02(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rop0.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROPropsA
-                SET {
-                    rop0 := 99,
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROPropsA
+                    SET {
+                        rop0 := 99,
+                    };
+                    ''')
 
-    async def test_dump01_ro03(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rop1.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROPropsA
-                SET {
-                    rop1 := 99,
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROPropsA
+                    SET {
+                        rop1 := 99,
+                    };
+                    ''')
 
-    async def test_dump01_ro04(self):
         # validate read-only
         await self.assert_query_result(
             r'''
@@ -1750,46 +1796,45 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_ro05(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rol0.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROLinksA
-                SET {
-                    rol0 := <C>{},
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROLinksA
+                    SET {
+                        rol0 := <C>{},
+                    };
+                    ''')
 
-    async def test_dump01_ro06(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rol1.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROLinksA
-                SET {
-                    rol1 := <C>{},
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROLinksA
+                    SET {
+                        rol1 := <C>{},
+                    };
+                    ''')
 
-    async def test_dump01_ro07(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rol2.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROLinksA
-                SET {
-                    rol2 := <C>{},
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROLinksA
+                    SET {
+                        rol2 := <C>{},
+                    };
+                    ''')
 
-    async def test_dump01_ro08(self):
         # validate read-only
         await self.assert_query_result(
             r'''
@@ -1828,54 +1873,54 @@ class TestDump01(tb.QueryTestCase):
             ],
         )
 
-    async def test_dump01_ro09(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rolp00.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROLinksB
-                SET {
-                    rol0: {@rolp00 := 1},
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROLinksB
+                    SET {
+                        rol0: {@rolp00 := 1},
+                    };
+                    ''')
 
-    async def test_dump01_ro10(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rolp01.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROLinksB
-                SET {
-                    rol0: {@rolp01 := 1},
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROLinksB
+                    SET {
+                        rol0: {@rolp01 := 1},
+                    };
+                    ''')
 
-    async def test_dump01_ro11(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rolp10.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROLinksB
-                SET {
-                    rol1: {@rolp10 := 1},
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROLinksB
+                    SET {
+                        rol1: {@rolp10 := 1},
+                    };
+                    ''')
 
-    async def test_dump01_ro12(self):
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'rolp11.*read-only'):
-            await self.con.execute(
-                r'''
-                UPDATE ROLinksB
-                SET {
-                    rol1: {@rolp11 := 1},
-                };
-                ''')
+            async with self.con.transaction():
+                await self.con.execute(
+                    r'''
+                    UPDATE ROLinksB
+                    SET {
+                        rol1: {@rolp11 := 1},
+                    };
+                    ''')

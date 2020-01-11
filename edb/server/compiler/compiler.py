@@ -90,6 +90,7 @@ class CompileContext:
     stmt_mode: enums.CompileStatementMode
     json_parameters: bool = False
     implicit_limit: int = 0
+    schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None
 
 
 EMPTY_MAP = immutables.Map()
@@ -283,6 +284,7 @@ class Compiler(BaseCompiler):
         context = s_delta.CommandContext()
         context.testmode = self._in_testmode(ctx)
         context.stdmode = self._bootstrap_mode
+        context.schema_object_ids = ctx.schema_object_ids
         return context
 
     def _process_delta(self, ctx: CompileContext, delta, schema):
@@ -545,6 +547,7 @@ class Compiler(BaseCompiler):
             schema=schema,
             modaliases=current_tx.get_modaliases(),
             testmode=self._in_testmode(ctx),
+            schema_object_ids=ctx.schema_object_ids,
         )
 
         return self._compile_command(ctx, cmd)
@@ -1053,7 +1056,8 @@ class Compiler(BaseCompiler):
         capability: enums.Capability,
         implicit_limit: int=0,
         json_parameters: bool=False,
-        schema: Optional[s_schema.Schema] = None
+        schema: Optional[s_schema.Schema] = None,
+        schema_object_ids: Optional[Mapping[str, uuid.UUID]] = None,
     ) -> CompileContext:
 
         if session_config is None:
@@ -1088,7 +1092,9 @@ class Compiler(BaseCompiler):
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
             stmt_mode=stmt_mode,
-            json_parameters=json_parameters)
+            json_parameters=json_parameters,
+            schema_object_ids=schema_object_ids,
+        )
 
         return ctx
 
@@ -1244,7 +1250,13 @@ class Compiler(BaseCompiler):
     ) -> DumpDescriptor:
         schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
 
-        schema_ddl = s_ddl.ddl_text_from_schema(schema, emit_oids=True)
+        schema_ddl = s_ddl.ddl_text_from_schema(schema)
+
+        all_objects = schema.get_objects(excluded_modules=s_schema.STD_MODULES)
+        ids = [
+            (str(o.get_name(schema)), str(type(o).get_ql_class()), o.id.bytes)
+            for o in all_objects
+        ]
 
         objtypes = schema.get_objects(
             type=s_objtypes.ObjectType,
@@ -1259,6 +1271,7 @@ class Compiler(BaseCompiler):
 
         return DumpDescriptor(
             schema_ddl=schema_ddl,
+            schema_ids=ids,
             blocks=descriptors,
         )
 
@@ -1353,7 +1366,15 @@ class Compiler(BaseCompiler):
                 if stor_info.table_type == 'ObjectType':
                     cols.append(pg_common.quote_ident(stor_info.column_name))
                     shape.append(ptr)
-                else:
+
+                link_stor_info = pg_types.get_pointer_storage_info(
+                    ptr,
+                    schema=schema,
+                    source=source,
+                    link_bias=True,
+                )
+
+                if link_stor_info is not None:
                     ptrdesc.extend(self._describe_object(schema, ptr))
 
             type_data, type_id = sertypes.TypeSerializer.describe(
@@ -1386,8 +1407,14 @@ class Compiler(BaseCompiler):
         self,
         tx_snapshot_id: str,
         schema_ddl: bytes,
+        schema_ids: List[Tuple[str, str, bytes]],
         blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
     ) -> RestoreDescriptor:
+        schema_object_ids = {
+            (name, qltype): uuidgen.from_bytes(objid)
+            for name, qltype, objid in schema_ids
+        }
+
         schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
         ctx = await self._ctx_new_con_state(
             dbver=-1,
@@ -1398,7 +1425,8 @@ class Compiler(BaseCompiler):
             stmt_mode=enums.CompileStatementMode.ALL,
             capability=enums.Capability.ALL,
             json_parameters=False,
-            schema=schema)
+            schema=schema,
+            schema_object_ids=schema_object_ids)
         ctx.state.start_tx()
 
         units = self._compile(ctx=ctx, eql=schema_ddl)
@@ -1489,6 +1517,7 @@ class Compiler(BaseCompiler):
 class DumpDescriptor(NamedTuple):
 
     schema_ddl: str
+    schema_ids: List[Tuple[str, str, bytes]]
     blocks: Sequence[DumpBlockDescriptor]
 
 
