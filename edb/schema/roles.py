@@ -22,6 +22,7 @@ from __future__ import annotations
 from edgedb import scram
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import annos as s_anno
 from . import delta as sd
@@ -30,7 +31,7 @@ from . import objects as so
 
 
 class Role(so.GlobalObject, inheriting.InheritingObject,
-           s_anno.AnnotationSubject):
+           s_anno.AnnotationSubject, qlkind=qltypes.SchemaObjectClass.ROLE):
 
     allow_login = so.SchemaField(
         bool,

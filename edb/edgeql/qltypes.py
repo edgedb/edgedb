@@ -98,14 +98,19 @@ class DescribeLanguage(s_enum.StrEnum):
 class SchemaObjectClass(s_enum.StrEnum):
 
     ANNOTATION = 'ANNOTATION'
+    ARRAY_TYPE = 'ARRAY TYPE'
     CAST = 'CAST'
     CONSTRAINT = 'CONSTRAINT'
+    DATABASE = 'DATABASE'
     FUNCTION = 'FUNCTION'
     LINK = 'LINK'
+    MIGRATION = 'MIGRATION'
     MODULE = 'MODULE'
     OPERATOR = 'OPERATOR'
     PROPERTY = 'PROPERTY'
+    ROLE = 'ROLE'
     SCALAR_TYPE = 'SCALAR TYPE'
+    TUPLE_TYPE = 'TUPLE TYPE'
     TYPE = 'TYPE'
 
 

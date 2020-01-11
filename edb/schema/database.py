@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -27,7 +28,8 @@ from . import delta as sd
 from . import objects as so
 
 
-class Database(so.GlobalObject, s_anno.AnnotationSubject, s_abc.Database):
+class Database(so.GlobalObject, s_anno.AnnotationSubject, s_abc.Database,
+               qlkind=qltypes.SchemaObjectClass.DATABASE):
     pass
 
 

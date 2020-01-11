@@ -1017,7 +1017,12 @@ class CreateObject(ObjectCommand):
             schema, _ = op.apply(schema, context)
 
         if context.schema_object_ids is not None:
-            key = (self.classname, self.get_schema_metaclass().get_ql_class())
+            mcls = self.get_schema_metaclass()
+            if issubclass(mcls, so.UnqualifiedObject):
+                qlclass = mcls.get_ql_class_or_die()
+            else:
+                qlclass = None
+            key = (self.classname, qlclass)
             specified_id = context.schema_object_ids.get(key)
             if specified_id is not None:
                 self.set_attribute_value('id', specified_id)

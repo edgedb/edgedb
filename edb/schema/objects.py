@@ -602,6 +602,12 @@ class ObjectMeta(type):
     def get_ql_class(cls) -> Optional[qltypes.SchemaObjectClass]:
         return cls._ql_class
 
+    def get_ql_class_or_die(cls) -> qltypes.SchemaObjectClass:
+        if cls._ql_class is not None:
+            return cls._ql_class
+        else:
+            raise LookupError(f'{cls} has no edgeql class string assigned')
+
 
 class FieldValueNotFoundError(Exception):
     pass

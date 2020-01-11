@@ -31,6 +31,7 @@ from edb.common import checked
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import delta as sd
@@ -1059,7 +1060,8 @@ class BaseSchemaArray(SchemaCollection, BaseArray):
         return (sa_ref, (self.__class__, sa_ref.name))
 
 
-class SchemaArray(SchemaAnonymousCollection, BaseSchemaArray):
+class SchemaArray(SchemaAnonymousCollection, BaseSchemaArray,
+                  qlkind=qltypes.SchemaObjectClass.ARRAY_TYPE):
     pass
 
 
@@ -1584,7 +1586,8 @@ class BaseSchemaTuple(SchemaCollection, BaseTuple):
         return (sa_ref, (self.__class__, sa_ref.name))
 
 
-class SchemaTuple(SchemaAnonymousCollection, BaseSchemaTuple):
+class SchemaTuple(SchemaAnonymousCollection, BaseSchemaTuple,
+                  qlkind=qltypes.SchemaObjectClass.TUPLE_TYPE):
     pass
 
 

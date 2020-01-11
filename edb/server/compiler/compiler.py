@@ -1253,10 +1253,18 @@ class Compiler(BaseCompiler):
         schema_ddl = s_ddl.ddl_text_from_schema(schema)
 
         all_objects = schema.get_objects(excluded_modules=s_schema.STD_MODULES)
-        ids = [
-            (str(o.get_name(schema)), str(type(o).get_ql_class()), o.id.bytes)
-            for o in all_objects
-        ]
+        ids = []
+        for obj in all_objects:
+            if isinstance(obj, s_obj.UnqualifiedObject):
+                ql_class = str(type(obj).get_ql_class_or_die())
+            else:
+                ql_class = ''
+
+            ids.append((
+                str(obj.get_name(schema)),
+                ql_class,
+                obj.id.bytes,
+            ))
 
         objtypes = schema.get_objects(
             type=s_objtypes.ObjectType,
@@ -1411,7 +1419,7 @@ class Compiler(BaseCompiler):
         blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
     ) -> RestoreDescriptor:
         schema_object_ids = {
-            (name, qltype): uuidgen.from_bytes(objid)
+            (name, qltype if qltype else None): uuidgen.from_bytes(objid)
             for name, qltype, objid in schema_ids
         }
 
