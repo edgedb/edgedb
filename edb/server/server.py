@@ -141,6 +141,7 @@ class Server:
                 mng_port.ManagementPort,
                 nethost=nethost,
                 netport=netport,
+                auto_shutdown=self._auto_shutdown,
             )
         except Exception:
             await self._mgmt_port.start()
