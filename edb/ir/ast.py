@@ -182,6 +182,7 @@ class BasePointerRef(ImmutableBase):
     has_properties: bool
     required: bool
     is_derived: bool
+    is_computable: bool
     # Relation cardinality in the direction specified
     # by *direction*.
     dir_cardinality: qltypes.Cardinality
@@ -251,6 +252,9 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
     def is_tuple_indirection(self) -> bool:
         return True
 
+    def get_computable(self, schema: s_schema.Schema) -> bool:
+        return False
+
 
 class TupleIndirectionPointerRef(BasePointerRef):
     pass
@@ -285,6 +289,9 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
 
     def get_cardinality(self, schema: s_schema.Schema) -> qltypes.Cardinality:
         return self._cardinality
+
+    def get_computable(self, schema: s_schema.Schema) -> bool:
+        return False
 
     def is_type_intersection(self) -> bool:
         return True

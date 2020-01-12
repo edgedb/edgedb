@@ -493,6 +493,7 @@ def ptrref_from_ptrcls(
         base_ptr=base_ptr,
         material_ptr=material_ptr,
         is_derived=ptrcls.get_is_derived(schema),
+        is_computable=ptrcls.get_computable(schema),
         union_components=union_components,
         union_is_concrete=union_is_concrete,
         has_properties=ptrcls.has_user_defined_properties(schema),
@@ -568,4 +569,4 @@ def is_inbound_ptrref(ptrref: irast.BasePointerRef) -> bool:
 
 def is_computable_ptrref(ptrref: irast.BasePointerRef) -> bool:
     """Return True if pointer described by *ptrref* is computed."""
-    return ptrref.is_derived
+    return ptrref.is_computable

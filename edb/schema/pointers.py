@@ -175,6 +175,15 @@ class Pointer(referencing.ReferencedInheritingObject,
         default=False, compcoef=0.909,
         merge_fn=merge_readonly)
 
+    # For non-derived pointers this is strongly correlated with
+    # "expr" below.  Derived pointers might have "computable" set,
+    # but expr=None.
+    computable = so.SchemaField(
+        bool,
+        default=None,
+        ephemeral=True,
+    )
+
     # Computable pointers have this set to an expression
     # definining them.
     expr = so.SchemaField(
@@ -665,19 +674,9 @@ class PointerCommandOrFragment:
                     expr_rptr.ptrref, schema=schema
                 )
 
-        self.add(
-            sd.AlterObjectProperty(
-                property='expr',
-                new_value=expr,
-            )
-        )
-
-        self.add(
-            sd.AlterObjectProperty(
-                property='cardinality',
-                new_value=expr.irast.cardinality
-            )
-        )
+        self.set_attribute_value('expr', expr)
+        self.set_attribute_value('cardinality', expr.irast.cardinality)
+        self.set_attribute_value('computable', True)
 
         return target, base
 

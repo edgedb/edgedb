@@ -619,8 +619,8 @@ def _normalize_view_ptr_expr(
                         ctx=ctx,
                     )
                 except errors.SchemaError as e:
-                    if shape_el.compexpr is not None:
-                        e.set_source_context(shape_el.compexpr.context)
+                    if compexpr is not None:
+                        e.set_source_context(compexpr.context)
                     else:
                         e.set_source_context(shape_el.expr.steps[-1].context)
                     raise
@@ -656,6 +656,13 @@ def _normalize_view_ptr_expr(
 
     if qlexpr is not None:
         ctx.source_map[ptrcls] = (qlexpr, ctx, path_id, path_id_namespace)
+
+    if compexpr is not None or is_polymorphic:
+        ctx.env.schema = ptrcls.set_field_value(
+            ctx.env.schema,
+            'computable',
+            True,
+        )
 
     if not is_mutation:
         if ptr_cardinality is None:
