@@ -416,6 +416,13 @@ def bump_rlimit_nofile() -> None:
                 logger.warning('could not set RLIMIT_NOFILE')
 
 
+def get_runstate_dir():
+    try:
+        return buildmeta.get_build_metadata_value("RUNSTATE_DIR")
+    except buildmeta.MetadataError:
+        return None
+
+
 _server_options = [
     click.option(
         '-D', '--data-dir', type=PathPath(), envvar='EDGEDB_DATADIR',
@@ -459,7 +466,7 @@ _server_options = [
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
     click.option(
-        '--pidfile', type=PathPath(), default='/run/edgedb/',
+        '--pidfile-dir', type=PathPath(), default='/run/edgedb/',
         help='path to PID file directory'),
     click.option(
         '--daemon-user', type=int),
@@ -468,7 +475,8 @@ _server_options = [
     click.option(
         '--runstate-dir', type=PathPath(), default=None,
         help='directory where UNIX sockets will be created '
-             '("/run" on Linux by default)'),
+             '(data-dir or {!r} by default)'
+             .format(get_runstate_dir())),
     click.option(
         '--max-backend-connections', type=int, default=100),
     click.option(
