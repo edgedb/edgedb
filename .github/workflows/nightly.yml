@@ -14,14 +14,19 @@ jobs:
       matrix:
         target: [
           debian-stretch,
+          debian-buster,
           ubuntu-xenial,
           ubuntu-bionic,
           centos-7,
+          centos-8,
         ]
         include:
           - target: debian-stretch
             platform: debian
             platform_version: stretch
+          - target: debian-buster
+            platform: debian
+            platform_version: buster
           - target: ubuntu-xenial
             platform: ubuntu
             platform_version: xenial
@@ -31,11 +36,14 @@ jobs:
           - target: centos-7
             platform: centos
             platform_version: 7
+          - target: centos-8
+            platform: centos
+            platform_version: 8
 
     steps:
 
     - name: Build (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/python/debian-stretch@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
       if: matrix.target == 'debian-stretch'
       env:
         SRC_REVISION: "${{ github.sha }}"
@@ -45,7 +53,7 @@ jobs:
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
 
     - name: Test (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/test/debian-stretch@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-stretch@master
       if: matrix.target == 'debian-stretch'
       env:
         PKG_SUBDIST: "nightly"
@@ -53,7 +61,25 @@ jobs:
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
 
     - name: Build (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/python/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
+      if: matrix.target == 'debian-buster'
+      env:
+        SRC_REVISION: "${{ github.sha }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+
+    - name: Test (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-buster@master
+      if: matrix.target == 'debian-buster'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
       if: matrix.target == 'ubuntu-xenial'
       env:
         SRC_REVISION: "${{ github.sha }}"
@@ -63,7 +89,7 @@ jobs:
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
 
     - name: Test (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/test/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-xenial@master
       if: matrix.target == 'ubuntu-xenial'
       env:
         PKG_SUBDIST: "nightly"
@@ -71,7 +97,7 @@ jobs:
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
 
     - name: Build (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/python/ubuntu-bionic@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       if: matrix.target == 'ubuntu-bionic'
       env:
         SRC_REVISION: "${{ github.sha }}"
@@ -81,7 +107,7 @@ jobs:
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
 
     - name: Test (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/test/ubuntu-bionic@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
       if: matrix.target == 'ubuntu-bionic'
       env:
         PKG_SUBDIST: "nightly"
@@ -89,7 +115,7 @@ jobs:
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
 
     - name: Build (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/python/centos-7@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
       if: matrix.target == 'centos-7'
       env:
         SRC_REVISION: "${{ github.sha }}"
@@ -99,8 +125,26 @@ jobs:
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
 
     - name: Test (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/test/centos-7@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/centos-7@master
       if: matrix.target == 'centos-7'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
+      if: matrix.target == 'centos-8'
+      env:
+        SRC_REVISION: "${{ github.sha }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+
+    - name: Test (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/test/centos-8@master
+      if: matrix.target == 'centos-8'
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"
@@ -113,18 +157,18 @@ jobs:
         path: artifacts/${{ matrix.target }}
 
   build-macos:
-    runs-on: macos-10.14
+    runs-on: macos-latest
 
     strategy:
       max-parallel: 4
       matrix:
         target: [
-          macos-10.14,
+          macos-latest,
         ]
         include:
-          - target: macos-10.14
+          - target: macos-latest
             platform: macos
-            platform_version: 10.14
+            platform_version: latest
 
     steps:
     - uses: actions/checkout@v1
@@ -164,14 +208,19 @@ jobs:
       matrix:
         target: [
           debian-stretch,
+          debian-buster,
           ubuntu-xenial,
           ubuntu-bionic,
           centos-7,
+          centos-8,
         ]
         include:
           - target: debian-stretch
             platform: debian
             platform_version: stretch
+          - target: debian-buster
+            platform: debian
+            platform_version: buster
           - target: ubuntu-xenial
             platform: ubuntu
             platform_version: xenial
@@ -181,6 +230,9 @@ jobs:
           - target: centos-7
             platform: centos
             platform_version: 7
+          - target: centos-8
+            platform: centos
+            platform_version: 8
 
     steps:
     - uses: actions/download-artifact@v1
@@ -195,7 +247,7 @@ jobs:
         target: "${{ matrix.target }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/upload/debian@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
       if: matrix.target == 'debian-stretch'
       env:
         PKG_SUBDIST: "nightly"
@@ -205,7 +257,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/testpublished/debian-stretch@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-stretch@master
       if: matrix.target == 'debian-stretch'
       env:
         PKG_SUBDIST: "nightly"
@@ -214,7 +266,26 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/upload/debian@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
+      if: matrix.target == 'debian-buster'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Test Published (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
+      if: matrix.target == 'debian-buster'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
       if: matrix.target == 'ubuntu-xenial'
       env:
         PKG_SUBDIST: "nightly"
@@ -224,7 +295,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/testpublished/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-xenial@master
       if: matrix.target == 'ubuntu-xenial'
       env:
         PKG_SUBDIST: "nightly"
@@ -233,7 +304,7 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/upload/debian@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian@master
       if: matrix.target == 'ubuntu-bionic'
       env:
         PKG_SUBDIST: "nightly"
@@ -243,7 +314,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/testpublished/ubuntu-bionic@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       if: matrix.target == 'ubuntu-bionic'
       env:
         PKG_SUBDIST: "nightly"
@@ -252,7 +323,7 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/upload/redhat@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/redhat@master
       if: matrix.target == 'centos-7'
       env:
         PKG_SUBDIST: "nightly"
@@ -262,8 +333,27 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/testpublished/centos-7@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
       if: matrix.target == 'centos-7'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/redhat@master
+      if: matrix.target == 'centos-8'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Test Published (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
+      if: matrix.target == 'centos-8'
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"
@@ -295,12 +385,12 @@ jobs:
       max-parallel: 4
       matrix:
         target: [
-          macos-10.14,
+          macos-latest,
         ]
         include:
-          - target: macos-10.14
+          - target: macos-latest
             platform: macos
-            platform_version: 10.14
+            platform_version: latest
 
     steps:
     - uses: actions/download-artifact@v1

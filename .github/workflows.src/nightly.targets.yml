@@ -4,6 +4,10 @@ targets:
           platform: debian
           platform_version: stretch
           family: debian
+        - name: debian-buster
+          platform: debian
+          platform_version: buster
+          family: debian
         - name: ubuntu-xenial
           platform: ubuntu
           platform_version: xenial
@@ -16,9 +20,13 @@ targets:
           platform: centos
           platform_version: 7
           family: redhat
+        - name: centos-8
+          platform: centos
+          platform_version: 8
+          family: redhat
 
     macos:
-        - name: macos-10.14
+        - name: macos-latest
           platform: macos
-          platform_version: 10.14
+          platform_version: latest
           family: macos

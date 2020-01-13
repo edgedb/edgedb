@@ -23,7 +23,7 @@ jobs:
     steps:
 <% for tgt in targets.linux %>
     - name: Build (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/python/<< tgt.name >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.name >>@master
       if: matrix.target == '<< tgt.name >>'
       env:
         SRC_REVISION: "${{ github.sha }}"
@@ -33,7 +33,7 @@ jobs:
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
 
     - name: Test (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/test/<< tgt.name >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/<< tgt.name >>@master
       if: matrix.target == '<< tgt.name >>'
       env:
         PKG_SUBDIST: "nightly"
@@ -47,7 +47,7 @@ jobs:
         path: artifacts/${{ matrix.target }}
 
   build-macos:
-    runs-on: macos-10.14
+    runs-on: macos-latest
 
     strategy:
       max-parallel: 4
@@ -117,7 +117,7 @@ jobs:
         target: "${{ matrix.target }}"
 <% for tgt in targets.linux %>
     - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/upload/<< tgt.family >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/<< tgt.family >>@master
       if: matrix.target == '<< tgt.name >>'
       env:
         PKG_SUBDIST: "nightly"
@@ -127,7 +127,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/containers/testpublished/<< tgt.name >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< tgt.name >>@master
       if: matrix.target == '<< tgt.name >>'
       env:
         PKG_SUBDIST: "nightly"
