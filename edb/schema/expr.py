@@ -131,7 +131,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         path_prefix_anchor: Optional[qlast_.SpecialAnchorT] = None,
         allow_generic_type_output: bool = False,
         func_params: Optional[s_func.ParameterLikeList] = None,
-        singletons: Optional[Sequence[s_types.Type]] = None,
+        singletons: Sequence[s_types.Type] = (),
     ) -> Expression:
 
         from edb.edgeql import compiler as qlcompiler
@@ -155,7 +155,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
                 func_params=func_params,
                 parent_object_type=parent_object_type,
                 allow_generic_type_output=allow_generic_type_output,
-                singletons=singletons or (),
+                singletons=singletons,
             )
 
         assert isinstance(ir, irast_.Statement)
