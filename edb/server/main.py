@@ -416,11 +416,11 @@ def bump_rlimit_nofile() -> None:
                 logger.warning('could not set RLIMIT_NOFILE')
 
 
-def get_runstate_dir() -> Optional[str]:
+def _get_runstate_dir_default() -> str:
     try:
         return buildmeta.get_build_metadata_value("RUNSTATE_DIR")
     except buildmeta.MetadataError:
-        return None
+        return '<data-dir>'
 
 
 _server_options = [
@@ -474,9 +474,9 @@ _server_options = [
         '--daemon-group', type=int),
     click.option(
         '--runstate-dir', type=PathPath(), default=None,
-        help='directory where UNIX sockets will be created '
-             '(data-dir or {!r} by default)'
-             .format(get_runstate_dir())),
+        help=f'directory where UNIX sockets and other temporary '
+             f'runtime files will be placed ({_get_runstate_dir_default()} '
+             f'by default)'),
     click.option(
         '--max-backend-connections', type=int, default=100),
     click.option(
