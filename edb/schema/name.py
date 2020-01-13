@@ -25,8 +25,7 @@ import functools
 from edb import errors
 
 
-if TYPE_CHECKING:
-    NameT = TypeVar("NameT", bound="SchemaName")
+NameT = TypeVar("NameT", bound="SchemaName")
 
 
 class SchemaName(str):
@@ -67,9 +66,9 @@ class SchemaName(str):
         result.name = _name
         result.module = _module
 
-        return result
+        return cast(NameT, result)
 
-    def as_tuple(self):
+    def as_tuple(self) -> Tuple[str, str]:
         return (self.module, self.name)
 
     @staticmethod
@@ -79,14 +78,14 @@ class SchemaName(str):
 
 class UnqualifiedName(SchemaName):
 
-    def __new__(cls: Type[NameT], name: str) -> NameT:
+    def __new__(cls, name: str) -> UnqualifiedName:
         # Ignore below since Mypy doesn't believe you can pass `name` to
         # object.__new__.
         result = str.__new__(cls, name)  # type: ignore
         result.name = name
         result.module = ''
 
-        return result
+        return cast(UnqualifiedName, result)
 
 
 Name = SchemaName

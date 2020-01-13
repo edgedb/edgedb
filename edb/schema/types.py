@@ -1684,7 +1684,7 @@ class TypeCommand(sd.ObjectCommand):
     @classmethod
     def _compile_view_expr(
         cls,
-        expr: qlast.Expr,
+        expr: qlast.Base,
         classname: s_name.SchemaName,
         schema: s_schema.Schema,
         context: sd.CommandContext,

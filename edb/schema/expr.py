@@ -24,12 +24,20 @@ import copy
 from edb.common import checked
 from edb.common import struct
 
-from edb.edgeql import ast as qlast
+from edb.edgeql import ast as qlast_
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import parser as qlparser
+from typing import *  # NoQA
 
 from . import abc as s_abc
 from . import objects as so
+
+
+if TYPE_CHECKING:
+    from edb.schema import types as s_types
+    from edb.schema import schema as s_schema
+    from edb.schema import functions as s_func
+    from edb.ir import ast as irast_
 
 
 class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
@@ -37,12 +45,16 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
     origtext = struct.Field(str, default=None, frozen=True)
     refs = struct.Field(so.ObjectSet, coerce=True, default=None, frozen=True)
 
-    def __init__(self, *args, _qlast=None, _irast=None, **kwargs):
+    def __init__(self,
+                 *args: Any,
+                 _qlast: Optional[qlast_.Base] = None,
+                 _irast: Optional[irast_.Command] = None,
+                 **kwargs: Any):
         super().__init__(*args, **kwargs)
         self._qlast = _qlast
         self._irast = _irast
 
-    def __getstate__(self):
+    def __getstate__(self) -> Dict[str, Optional[str]]:
         return {
             'text': self.text,
             'origtext': self.origtext,
@@ -52,21 +64,27 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         }
 
     @property
-    def qlast(self):
+    def qlast(self) -> qlast_.Base:
         if self._qlast is None:
             self._qlast = qlparser.parse_fragment(self.text)
         return self._qlast
 
     @property
-    def irast(self):
+    def irast(self) -> Optional[irast_.Command]:
         return self._irast
 
     def is_compiled(self) -> bool:
         return self.refs is not None
 
     @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
+    def compare_values(cls: Type[Expression],
+                       ours: Expression,
+                       theirs: Expression,
+                       *,
+                       our_schema: s_schema.Schema,
+                       their_schema: s_schema.Schema,
+                       context: Any,
+                       compcoef: float) -> float:
         if not ours and not theirs:
             return 1.0
         elif not ours or not theirs:
@@ -78,13 +96,13 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
 
     @classmethod
     def from_ast(
-        cls,
-        qltree,
-        schema,
-        modaliases,
+        cls: Type[Expression],
+        qltree: qlast_.Base,
+        schema: s_schema.Schema,
+        modaliases: Mapping[Optional[str], str],
         *,
-        as_fragment=False,
-        orig_text=None,
+        as_fragment: bool = False,
+        orig_text: Optional[str] = None,
     ) -> Expression:
         if orig_text is None:
             orig_text = qlcodegen.generate_source(qltree, pretty=False)
@@ -99,20 +117,28 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         )
 
     @classmethod
-    def compiled(cls, expr, schema, *,
-                 as_fragment=False,
-                 modaliases=None,
-                 parent_object_type=None,
-                 anchors=None,
-                 path_prefix_anchor=None,
-                 allow_generic_type_output=False,
-                 func_params=None,
-                 singletons=None) -> Expression:
+    def compiled(
+        cls: Type[Expression],
+        expr: Expression,
+        schema: s_schema.Schema,
+        *,
+        as_fragment: bool = False,
+        modaliases: Optional[Mapping[Optional[str], str]] = None,
+        parent_object_type: Optional[so.ObjectMeta] = None,
+        anchors: Optional[
+            Mapping[Union[str, qlast_.SpecialAnchorT], so.Object]
+        ] = None,
+        path_prefix_anchor: Optional[qlast_.SpecialAnchorT] = None,
+        allow_generic_type_output: bool = False,
+        func_params: Optional[s_func.ParameterLikeList] = None,
+        singletons: Sequence[s_types.Type] = (),
+    ) -> Expression:
 
         from edb.edgeql import compiler as qlcompiler
+        from edb.ir import ast as irast_
 
         if as_fragment:
-            ir = qlcompiler.compile_ast_fragment_to_ir(
+            ir: irast_.Command = qlcompiler.compile_ast_fragment_to_ir(
                 expr.qlast,
                 schema=schema,
                 modaliases=modaliases,
@@ -132,6 +158,8 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
                 singletons=singletons,
             )
 
+        assert isinstance(ir, irast_.Statement)
+
         return cls(
             text=expr.text,
             origtext=expr.origtext,
@@ -141,7 +169,10 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         )
 
     @classmethod
-    def from_ir(cls, expr, ir, schema) -> Expression:
+    def from_ir(cls: Type[Expression],
+                expr: Expression,
+                ir: irast_.Statement,
+                schema: s_schema.Schema) -> Expression:
         return cls(
             text=expr.text,
             origtext=expr.origtext,
@@ -151,7 +182,9 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         )
 
     @classmethod
-    def from_expr(cls, expr, schema) -> Expression:
+    def from_expr(cls: Type[Expression],
+                  expr: Expression,
+                  schema: s_schema.Schema) -> Expression:
         return cls(
             text=expr.text,
             origtext=expr.origtext,
@@ -163,7 +196,9 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
             _irast=expr._irast,
         )
 
-    def _reduce_to_ref(self, schema):
+    def _reduce_to_ref(self,
+                       schema: s_schema.Schema) -> Tuple[Expression,
+                                                         Expression]:
         return type(self)(
             text=self.text,
             origtext=self.origtext,
@@ -178,7 +213,11 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
 class ExpressionList(checked.FrozenCheckedList[Expression]):
 
     @staticmethod
-    def merge_values(target, sources, field_name, *, schema):
+    def merge_values(target: so.Object,
+                     sources: Sequence[so.Object],
+                     field_name: str,
+                     *,
+                     schema: s_schema.Schema) -> Any:
         result = target.get_explicit_field_value(schema, field_name, None)
         for source in sources:
             theirs = source.get_explicit_field_value(schema, field_name, None)
@@ -191,8 +230,14 @@ class ExpressionList(checked.FrozenCheckedList[Expression]):
         return result
 
     @classmethod
-    def compare_values(cls, ours, theirs, *,
-                       our_schema, their_schema, context, compcoef):
+    def compare_values(cls: Type[ExpressionList],
+                       ours: Optional[ExpressionList],
+                       theirs: Optional[ExpressionList],
+                       *,
+                       our_schema: s_schema.Schema,
+                       their_schema: s_schema.Schema,
+                       context: so.ComparisonContext,
+                       compcoef: float) -> float:
         """See the comment in Object.compare_values"""
         if not ours and not theirs:
             basecoef = 1.0
@@ -213,44 +258,48 @@ class ExpressionList(checked.FrozenCheckedList[Expression]):
         return basecoef + (1 - basecoef) * compcoef
 
 
-def imprint_expr_context(qltree, modaliases):
+def imprint_expr_context(
+    qltree: qlast_.Base,
+    modaliases: Mapping[Optional[str], str],
+) -> qlast_.Base:
     # Imprint current module aliases as explicit
     # alias declarations in the expression.
 
-    if (isinstance(qltree, qlast.BaseConstant)
+    if (isinstance(qltree, qlast_.BaseConstant)
             or qltree is None
-            or (isinstance(qltree, qlast.Set)
+            or (isinstance(qltree, qlast_.Set)
                 and not qltree.elements)
-            or (isinstance(qltree, qlast.Array)
-                and all(isinstance(el, qlast.BaseConstant)
+            or (isinstance(qltree, qlast_.Array)
+                and all(isinstance(el, qlast_.BaseConstant)
                         for el in qltree.elements))):
         # Leave constants alone.
         return qltree
 
-    if not isinstance(qltree, qlast.Command):
-        qltree = qlast.SelectQuery(result=qltree, implicit=True)
+    if not isinstance(qltree, qlast_.Command):
+        qltree = qlast_.SelectQuery(result=qltree, implicit=True)
     else:
         qltree = copy.copy(qltree)
         qltree.aliases = list(qltree.aliases)
 
-    existing_aliases = {}
+    existing_aliases: Dict[str, str] = {}
     for alias in qltree.aliases:
-        if isinstance(alias, qlast.ModuleAliasDecl):
+        if isinstance(alias, qlast_.ModuleAliasDecl):
             existing_aliases[alias.alias] = alias.module
 
     aliases_to_add = set(modaliases) - set(existing_aliases)
-    for alias in aliases_to_add:
+    for alias_name in aliases_to_add:
         qltree.aliases.append(
-            qlast.ModuleAliasDecl(
-                alias=alias,
-                module=modaliases[alias],
+            qlast_.ModuleAliasDecl(
+                alias=alias_name,
+                module=modaliases[alias_name],
             )
         )
 
     return qltree
 
 
-def get_expr_referrers(schema, obj):
+def get_expr_referrers(schema: s_schema.Schema,
+                       obj: so.Object) -> Dict[so.Object, str]:
     """Return schema referrers with refs in expressions."""
 
     refs = schema.get_referrers_ex(obj)
