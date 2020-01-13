@@ -299,7 +299,7 @@ def imprint_expr_context(
 
 
 def get_expr_referrers(schema: s_schema.Schema, 
-                       obj: so.Object) -> Dict[Any, Any]:
+                       obj: so.Object) -> Dict[so.Object, str]:
     """Return schema referrers with refs in expressions."""
 
     refs = schema.get_referrers_ex(obj)
