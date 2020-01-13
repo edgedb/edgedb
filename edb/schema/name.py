@@ -39,7 +39,7 @@ class SchemaName(str):
         cls: Type[NameT],
         name: Union[SchemaName, str],
         module: Optional[str] = None,
-    ) -> NameT:
+    ) -> Any:
         if not name:
             raise NameError('name must not be empty')
 
@@ -69,7 +69,7 @@ class SchemaName(str):
 
         return result
 
-    def as_tuple(self):
+    def as_tuple(self) -> Tuple[str, str]:
         return (self.module, self.name)
 
     @staticmethod
@@ -79,7 +79,7 @@ class SchemaName(str):
 
 class UnqualifiedName(SchemaName):
 
-    def __new__(cls: Type[NameT], name: str) -> NameT:
+    def __new__(cls: Type[NameT], name: str) -> Any:
         # Ignore below since Mypy doesn't believe you can pass `name` to
         # object.__new__.
         result = str.__new__(cls, name)  # type: ignore
