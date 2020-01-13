@@ -416,7 +416,7 @@ def bump_rlimit_nofile() -> None:
                 logger.warning('could not set RLIMIT_NOFILE')
 
 
-def get_runstate_dir():
+def get_runstate_dir() -> Optional[str]:
     try:
         return buildmeta.get_build_metadata_value("RUNSTATE_DIR")
     except buildmeta.MetadataError:
