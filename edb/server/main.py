@@ -390,7 +390,7 @@ class ServerConfig(typing.NamedTuple):
     bind_address: str
     port: int
     background: bool
-    pidfile: pathlib.Path
+    pidfile_dir: pathlib.Path
     daemon_user: str
     daemon_group: str
     runstate_dir: pathlib.Path
@@ -539,7 +539,7 @@ def server_main(*, insecure=False, **kwargs):
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}
-        pidfile = kwargs['pidfile'] / f".s.EDGEDB.{kwargs['port']}.lock"
+        pidfile = kwargs['pidfile_dir'] / f".s.EDGEDB.{kwargs['port']}.lock"
         daemon_opts['pidfile'] = pidfile
         if kwargs['daemon_user']:
             daemon_opts['uid'] = kwargs['daemon_user']
