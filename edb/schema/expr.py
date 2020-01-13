@@ -298,8 +298,8 @@ def imprint_expr_context(
     return qltree
 
 
-def get_expr_referrers(schema: s_schema.Schema, obj: so.Object) -> Dict[Any,
-                                                                        Any]:
+def get_expr_referrers(schema: s_schema.Schema, 
+                       obj: so.Object) -> Dict[Any, Any]:
     """Return schema referrers with refs in expressions."""
 
     refs = schema.get_referrers_ex(obj)
