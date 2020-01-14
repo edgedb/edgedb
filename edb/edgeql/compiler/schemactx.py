@@ -368,6 +368,7 @@ def apply_intersection(
             int_type = get_intersection_type((left, right), ctx=ctx)
         elif len(narrowed_union) == 1:
             int_type = narrowed_union[0]
+            is_subtype = int_type.issubclass(ctx.env.schema, left)
         else:
             int_type = get_union_type(narrowed_union, ctx=ctx)
     else:
