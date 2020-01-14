@@ -390,7 +390,7 @@ class ServerConfig(typing.NamedTuple):
     bind_address: str
     port: int
     background: bool
-    pidfile: pathlib.Path
+    pidfile_dir: pathlib.Path
     daemon_user: str
     daemon_group: str
     runstate_dir: pathlib.Path
@@ -414,6 +414,13 @@ def bump_rlimit_nofile() -> None:
                      fno_hard))
             except resource.error:
                 logger.warning('could not set RLIMIT_NOFILE')
+
+
+def _get_runstate_dir_default() -> str:
+    try:
+        return buildmeta.get_build_metadata_value("RUNSTATE_DIR")
+    except buildmeta.MetadataError:
+        return '<data-dir>'
 
 
 _server_options = [
@@ -459,7 +466,7 @@ _server_options = [
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
     click.option(
-        '--pidfile', type=PathPath(), default='/run/edgedb/',
+        '--pidfile-dir', type=PathPath(), default='/run/edgedb/',
         help='path to PID file directory'),
     click.option(
         '--daemon-user', type=int),
@@ -467,8 +474,9 @@ _server_options = [
         '--daemon-group', type=int),
     click.option(
         '--runstate-dir', type=PathPath(), default=None,
-        help='directory where UNIX sockets will be created '
-             '("/run" on Linux by default)'),
+        help=f'directory where UNIX sockets and other temporary '
+             f'runtime files will be placed ({_get_runstate_dir_default()} '
+             f'by default)'),
     click.option(
         '--max-backend-connections', type=int, default=100),
     click.option(
@@ -531,7 +539,7 @@ def server_main(*, insecure=False, **kwargs):
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}
-        pidfile = kwargs['pidfile'] / f".s.EDGEDB.{kwargs['port']}.lock"
+        pidfile = kwargs['pidfile_dir'] / f".s.EDGEDB.{kwargs['port']}.lock"
         daemon_opts['pidfile'] = pidfile
         if kwargs['daemon_user']:
             daemon_opts['uid'] = kwargs['daemon_user']
