@@ -24,7 +24,6 @@ import functools
 import os
 import pathlib
 import sys
-import tempfile
 import unittest
 import shutil
 
@@ -155,21 +154,22 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
     sys.exit(result)
 
 
-def _prepare_coverage_result_folder(container_folder: Path) -> None:
+def _prepare_coverage_result_folder(container_folder: pathlib.Path) -> None:
     # it is best to delete a folder with result, if it exists,
     # for two reasons: coverage might raise an exception if the folder
-    # contains a subfolder with reports (e.g. htmlcov), and results might be 
+    # contains a subfolder with reports (e.g. htmlcov), and results might be
     # outdated
     if container_folder.exists():
-        
+
         if container_folder.is_dir():
             shutil.rmtree(container_folder)
         else:
             click.secho(
                 f'Error: "{container_folder}" exists and is not a folder, '
-                 'remove this file to use --cov')
+                'remove this file to use --cov'
+            )
             sys.exit(1)
-    
+
     os.makedirs(container_folder)
 
 
@@ -195,7 +195,7 @@ def _coverage_wrapper(paths):
             break
     else:
         raise RuntimeError('cannot locate the .coveragerc file')
-    
+
     td = get_coverage_results_folder_path()
 
     cov_config = devmode.CoverageConfig(
