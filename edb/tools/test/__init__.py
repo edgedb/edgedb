@@ -155,8 +155,8 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
 
 
 def _prepare_coverage_result_folder(container_folder: pathlib.Path) -> None:
-    # it is best to delete a folder with result, if it exists,
-    # for two reasons: coverage might raise an exception if the folder
+    # it is best to delete a folder with results, if it exists,
+    # for two reasons: coverage lib might raise an exception if the folder
     # contains a subfolder with reports (e.g. htmlcov), and results might be
     # outdated
     if container_folder.exists():
