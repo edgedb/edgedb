@@ -30,3 +30,5 @@ docs/_build
 /.vscode
 /.pytest_cache
 /.mypy_cache
+/coverage_results
+

@@ -154,6 +154,12 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
     sys.exit(result)
 
 
+def get_coverage_results_folder_path() -> str:
+    container_folder = pathlib.Path().absolute() / 'coverage_results'
+    os.makedirs(container_folder, exist_ok=True)
+    return str(container_folder)
+
+
 @contextlib.contextmanager
 def _coverage_wrapper(paths):
     try:
@@ -170,40 +176,41 @@ def _coverage_wrapper(paths):
             break
     else:
         raise RuntimeError('cannot locate the .coveragerc file')
+    
+    td = get_coverage_results_folder_path()
 
-    with tempfile.TemporaryDirectory() as td:
-        cov_config = devmode.CoverageConfig(
-            paths=paths,
-            config=str(cov_rc),
-            datadir=td)
-        cov_config.save_to_environ()
+    cov_config = devmode.CoverageConfig(
+        paths=paths,
+        config=str(cov_rc),
+        datadir=td)
+    cov_config.save_to_environ()
 
-        main_cov = cov_config.new_coverage_object()
-        main_cov.start()
+    main_cov = cov_config.new_coverage_object()
+    main_cov.start()
 
-        try:
-            yield
-        finally:
-            main_cov.stop()
-            main_cov.save()
+    try:
+        yield
+    finally:
+        main_cov.stop()
+        main_cov.save()
 
-            data = coverage.CoverageData()
+        data = coverage.CoverageData()
 
-            with os.scandir(td) as it:
-                for entry in it:
-                    new_data = coverage.CoverageData()
-                    new_data.read_file(entry.path)
-                    data.update(new_data)
+        with os.scandir(td) as it:
+            for entry in it:
+                new_data = coverage.CoverageData()
+                new_data.read_file(entry.path)
+                data.update(new_data)
 
-            covfile = str(pathlib.Path(td) / '.coverage')
-            data.write_file(covfile)
-            report_cov = cov_config.new_custom_coverage_object(
-                config_file=str(cov_rc),
-                data_file=covfile,
-            )
-            report_cov.load()
-            click.secho('Coverage:')
-            report_cov.report()
+        covfile = str(pathlib.Path(td) / '.coverage')
+        data.write_file(covfile)
+        report_cov = cov_config.new_custom_coverage_object(
+            config_file=str(cov_rc),
+            data_file=covfile,
+        )
+        report_cov.load()
+        click.secho('Coverage:')
+        report_cov.report()
 
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
