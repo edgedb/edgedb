@@ -31,6 +31,7 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"
         PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        EXTRA_OPTIMIZATIONS: "true"
 
     - name: Test (${{ matrix.target }})
       uses: edgedb/edgedb-pkg/integration/linux/test/<< tgt.name >>@master
