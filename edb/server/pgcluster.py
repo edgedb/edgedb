@@ -56,17 +56,14 @@ else:
 
 
 def _is_c_utf8_locale_present() -> bool:
-    lang, encoding = locale.getlocale()
     try:
         locale.setlocale(locale.LC_CTYPE, 'C.UTF-8')
     except Exception:
         return False
     else:
-        if encoding:
-            current_locale = f'{lang}.{encoding}'
-        else:
-            current_locale = lang
-        locale.setlocale(locale.LC_CTYPE, current_locale)
+        # We specifically don't use locale.getlocale(), because
+        # it can lie and return a non-existent locale due to PEP 538.
+        locale.setlocale(locale.LC_CTYPE, '')
         return True
 
 
