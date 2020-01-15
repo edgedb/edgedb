@@ -26,7 +26,6 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.name >>@master
       if: matrix.target == '<< tgt.name >>'
       env:
-        SRC_REVISION: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"
@@ -70,7 +69,6 @@ jobs:
 
     - name: Build (${{ matrix.target }})
       env:
-        SRC_REVISION: "${{ github.sha }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "${{ matrix.platform }}"
