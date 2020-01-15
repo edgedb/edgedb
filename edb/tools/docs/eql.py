@@ -216,6 +216,7 @@ from edb.common import markup  # NoQA
 
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
+from docutils import utils as d_utils
 
 from sphinx import addnodes as s_nodes
 from sphinx import directives as s_directives
@@ -821,6 +822,77 @@ class EQLConstraintXRef(s_roles.XRefRole):
     pass
 
 
+class GitHubLinkRole:
+
+    DEFAULT_REPO = 'edgedb/edgedb'
+    BASE_URL = 'https://github.com/'
+
+    # \x00 means the "<" was backslash-escaped
+    explicit_title_re = re.compile(r'^(.+?)\s*(?<!\x00)<(.*?)>$', re.DOTALL)
+
+    link_re = re.compile(
+        r'''
+            (?:
+                (?P<repo>(?:[\w\d\-_]+)/(?:[\w\d\-_]+))
+                /
+            )?
+            (?:
+                (?:\#(?P<issue>\d+))
+                |
+                (?P<commit>[A-Fa-f\d]{8,40})
+            )
+        ''',
+        re.X)
+
+    def __call__(self, role, rawtext, text, lineno, inliner,
+                 options=None, content=None):
+        if options is None:
+            options = {}
+        if content is None:
+            content = []
+
+        matched = self.explicit_title_re.match(text)
+        if matched:
+            has_explicit_title = True
+            title = d_utils.unescape(matched.group(1))
+            target = d_utils.unescape(matched.group(2))
+        else:
+            has_explicit_title = False
+            title = d_utils.unescape(text)
+            target = d_utils.unescape(text)
+
+        matched = self.link_re.match(target)
+        if not matched:
+            raise shared.EdgeSphinxExtensionError(f'cannot parse {rawtext}')
+
+        repo = matched.group('repo')
+        explicit_repo = True
+        if not repo:
+            repo = self.DEFAULT_REPO
+            explicit_repo = False
+
+        issue = matched.group('issue')
+        commit = matched.group('commit')
+        if issue:
+            postfix = f'issues/{issue}'
+        elif commit:
+            postfix = f'commit/{commit}'
+            if not has_explicit_title:
+                if explicit_repo:
+                    title = f'{repo}/{commit[:8]}'
+                else:
+                    title = f'{commit[:8]}'
+        else:
+            raise shared.EdgeSphinxExtensionError(f'cannot parse {rawtext}')
+
+        url = f'{self.BASE_URL}{repo}/{postfix}'
+
+        node = d_nodes.reference(refuri=url, name=title)
+        node['eql-github'] = True
+        node += d_nodes.Text(title)
+        return [node], []
+
+
 class EdgeQLDomain(s_domains.Domain):
 
     name = "eql"
@@ -859,6 +931,7 @@ class EdgeQLDomain(s_domains.Domain):
         'op': s_roles.XRefRole(),
         'op-desc': EQLOperatorDescXRef(),
         'stmt': s_roles.XRefRole(),
+        'gh': GitHubLinkRole(),
     }
 
     desc_roles = {
