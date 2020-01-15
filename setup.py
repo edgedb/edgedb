@@ -56,7 +56,7 @@ RUNTIME_DEPS = [
 CYTHON_DEPENDENCY = 'Cython==0.29.14'
 
 DOCS_DEPS = [
-    'Sphinx~=2.0.0',
+    'Sphinx~=2.3.1',
     'lxml~=4.4.2',
     'sphinxcontrib-asyncio~=0.2.0',
 ]
