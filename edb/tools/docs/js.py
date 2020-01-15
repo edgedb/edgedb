@@ -147,4 +147,4 @@ class JSDomain(js.JavaScriptDomain):
 
 
 def setup_domain(app):
-    app.override_domain(JSDomain)
+    app.add_domain(JSDomain, override=True)
