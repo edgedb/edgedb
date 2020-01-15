@@ -770,7 +770,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
 
 
 @unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
-class TestEqlInlineCode(unittest.TestCase, BaseDomainTest):
+class TestEqlRoles(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_inline_role_01(self):
         src = '''
@@ -785,6 +785,81 @@ class TestEqlInlineCode(unittest.TestCase, BaseDomainTest):
                 //literal[@eql-lang="edgeql-synopsis"] / text()
             '''),
             ['WITH <aaaa>'])
+
+    def test_sphinx_eql_inline_role_02(self):
+        cases = [
+            (
+                '#123',
+                'edgedb/edgedb/issues/123',
+                None,
+                '#123',
+            ),
+            (
+                'magicstack/asyncpg/#227',
+                'magicstack/asyncpg/issues/227',
+                None,
+                'magicstack/asyncpg/#227',
+            ),
+            (
+                'ff123aaaaeeeee',
+                'edgedb/edgedb/commit/ff123aaaaeeeee',
+                None,
+                'ff123aaa'
+            ),
+            (
+                'magicstack/asyncpg/ff123aaaaeeeee',
+                'magicstack/asyncpg/commit/ff123aaaaeeeee',
+                None,
+                'magicstack/asyncpg/ff123aaa'
+            ),
+
+            (
+                '#123',
+                'edgedb/edgedb/issues/123',
+                'blah1',
+                'blah1',
+            ),
+            (
+                'magicstack/asyncpg/#227',
+                'magicstack/asyncpg/issues/227',
+                'blah2',
+                'blah2',
+            ),
+            (
+                'ff123aaaaeeeee',
+                'edgedb/edgedb/commit/ff123aaaaeeeee',
+                'blah3',
+                'blah3',
+            ),
+            (
+                'magicstack/asyncpg/ff123aaaaeeeee',
+                'magicstack/asyncpg/commit/ff123aaaaeeeee',
+                'blah4',
+                'blah4',
+            ),
+        ]
+
+        src = ''
+        for (body, _, title, _) in cases:
+            if title:
+                src += f':eql:gh:`{title} <{body}>`\n'
+            else:
+                src += f':eql:gh:`{body}`\n'
+
+        out = self.build(src, format='xml')
+        x = requests_xml.XML(xml=out)
+
+        for (_, expected_link, _, expected_title) in cases:
+            self.assertEqual(
+                x.xpath(f'''
+                    //reference[
+                        @eql-github="True" and
+                        @name="{expected_title}" and
+                        @refuri="https://github.com/{expected_link}"
+                    ]/text()
+                '''),
+                [expected_title]
+            )
 
 
 @unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
