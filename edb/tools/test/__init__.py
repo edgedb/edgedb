@@ -23,6 +23,7 @@ import contextlib
 import functools
 import os
 import pathlib
+import shutil
 import sys
 import tempfile
 import unittest
@@ -204,6 +205,9 @@ def _coverage_wrapper(paths):
             report_cov.load()
             click.secho('Coverage:')
             report_cov.report()
+            # store the coverage file in cwd, so it can be used to produce
+            # additional reports with coverage cli
+            shutil.copy(covfile, '.')
 
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
