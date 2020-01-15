@@ -1,0 +1,205 @@
+name: Build Test and Publish a Release
+
+on:
+  repository_dispatch:
+    types: ["release"]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        target: [<% for tgt in targets.linux %>
+          << tgt.name >>,<% endfor %>
+        ]
+        include:<% for tgt in targets.linux %>
+          - target: << tgt.name >>
+            platform: << tgt.platform >>
+            platform_version: << tgt.platform_version >><% endfor %>
+
+    steps:
+    - name: Determine package version
+      shell: bash
+      env:
+        BRANCH: "${{ github.event.client_payload.branch }}"
+      run: echo ::set-output name=version::${BRANCH#releases/}
+      id: whichver
+<% for tgt in targets.linux %>
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.name >>@master
+      if: matrix.target == '<< tgt.name >>'
+      env:
+        SRC_REF: "${{ github.event.client_payload.branch }}"
+        PKG_VERSION: "${{ steps.whichver.outputs.version }}"
+        PKG_REVISION: "<current-date>"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        EXTRA_OPTIMIZATIONS: "true"
+
+    - name: Test (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/test/<< tgt.name >>@master
+      if: matrix.target == '<< tgt.name >>'
+      env:
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+<% endfor %>
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-${{ matrix.target }}
+        path: artifacts/${{ matrix.target }}
+
+  build-macos:
+    runs-on: macos-latest
+
+    strategy:
+      max-parallel: 4
+      matrix:
+        target: [<% for tgt in targets.macos %>
+          << tgt.name >>,<% endfor %>
+        ]
+        include:<% for tgt in targets.macos %>
+          - target: << tgt.name >>
+            platform: << tgt.platform >>
+            platform_version: << tgt.platform_version >><% endfor %>
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb/edgedb-pkg
+
+    - name: Determine package version
+      shell: bash
+      env:
+        BRANCH: "${{ github.event.client_payload.branch }}"
+      run: echo ::set-output name=version::${BRANCH#releases/}
+      id: whichver
+
+    - name: Build (${{ matrix.target }})
+      env:
+        SRC_REF: "${{ github.event.client_payload.branch }}"
+        PKG_VERSION: "${{ steps.whichver.outputs.version }}"
+        PKG_REVISION: "<current-date>"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+      run: |
+        edgedb-pkg/integration/macos/build.sh
+
+    - name: Test (${{ matrix.target }})
+      env:
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+      run: |
+        edgedb-pkg/integration/macos/test.sh
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-${{ matrix.target }}
+        path: artifacts/${{ matrix.target }}
+
+  publish-linux:
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        target: [<% for tgt in targets.linux %>
+          << tgt.name >>,<% endfor %>
+        ]
+        include:<% for tgt in targets.linux %>
+          - target: << tgt.name >>
+            platform: << tgt.platform >>
+            platform_version: << tgt.platform_version >><% endfor %>
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-${{ matrix.target }}
+        path: artifacts/${{ matrix.target }}
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: "${{ matrix.target }}"
+<% for tgt in targets.linux %>
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/<< tgt.family >>@master
+      if: matrix.target == '<< tgt.name >>'
+      env:
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Test Published (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< tgt.name >>@master
+      if: matrix.target == '<< tgt.name >>'
+      env:
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+<% endfor %>
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
+
+    - name: Publish Docker Image (${{ matrix.target }})
+      uses: elgohr/Publish-Docker-Github-Action@2.6
+      if: matrix.target == 'debian-stretch'
+      with:
+        name: edgedb/edgedb:${{ steps.describe.outputs.version-slot }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        snapshot: true
+        workdir: dockerfile
+        buildargs: version=${{ steps.describe.outputs.version-slot }}
+
+  publish-macos:
+    needs: [build-linux, build-macos]
+    runs-on: macos-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        target: [<% for tgt in targets.macos %>
+          << tgt.name >>,<% endfor %>
+        ]
+        include:<% for tgt in targets.macos %>
+          - target: << tgt.name >>
+            platform: << tgt.platform >>
+            platform_version: << tgt.platform_version >><% endfor %>
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-${{ matrix.target }}
+        path: artifacts/${{ matrix.target }}
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb/edgedb-pkg
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: "${{ matrix.target }}"
+<% for tgt in targets.macos %>
+    - name: Publish (${{ matrix.target }})
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+      run: |
+        edgedb-pkg/integration/macos/publish.sh
+<% endfor %>
