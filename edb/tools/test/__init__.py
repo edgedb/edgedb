@@ -23,9 +23,10 @@ import contextlib
 import functools
 import os
 import pathlib
-import sys
-import unittest
 import shutil
+import sys
+import tempfile
+import unittest
 
 import click
 
@@ -154,31 +155,6 @@ def test(*, files, jobs, include, exclude, verbose, quiet, debug,
     sys.exit(result)
 
 
-def _prepare_coverage_result_folder(container_folder: pathlib.Path) -> None:
-    # it is best to delete a folder with results, if it exists,
-    # for two reasons: coverage lib might raise an exception if the folder
-    # contains a subfolder with reports (e.g. htmlcov), and results might be
-    # outdated
-    if container_folder.exists():
-
-        if container_folder.is_dir():
-            shutil.rmtree(container_folder)
-        else:
-            click.secho(
-                f'Error: "{container_folder}" exists and is not a folder, '
-                'remove this file to use --cov'
-            )
-            sys.exit(1)
-
-    os.makedirs(container_folder)
-
-
-def get_coverage_results_folder_path() -> str:
-    container_folder = pathlib.Path() / 'coverage_results'
-    _prepare_coverage_result_folder(container_folder)
-    return str(container_folder)
-
-
 @contextlib.contextmanager
 def _coverage_wrapper(paths):
     try:
@@ -196,40 +172,42 @@ def _coverage_wrapper(paths):
     else:
         raise RuntimeError('cannot locate the .coveragerc file')
 
-    td = get_coverage_results_folder_path()
+    with tempfile.TemporaryDirectory() as td:
+        cov_config = devmode.CoverageConfig(
+            paths=paths,
+            config=str(cov_rc),
+            datadir=td)
+        cov_config.save_to_environ()
 
-    cov_config = devmode.CoverageConfig(
-        paths=paths,
-        config=str(cov_rc),
-        datadir=td)
-    cov_config.save_to_environ()
+        main_cov = cov_config.new_coverage_object()
+        main_cov.start()
 
-    main_cov = cov_config.new_coverage_object()
-    main_cov.start()
+        try:
+            yield
+        finally:
+            main_cov.stop()
+            main_cov.save()
 
-    try:
-        yield
-    finally:
-        main_cov.stop()
-        main_cov.save()
+            data = coverage.CoverageData()
 
-        data = coverage.CoverageData()
+            with os.scandir(td) as it:
+                for entry in it:
+                    new_data = coverage.CoverageData()
+                    new_data.read_file(entry.path)
+                    data.update(new_data)
 
-        with os.scandir(td) as it:
-            for entry in it:
-                new_data = coverage.CoverageData()
-                new_data.read_file(entry.path)
-                data.update(new_data)
-
-        covfile = str(pathlib.Path(td) / '.coverage')
-        data.write_file(covfile)
-        report_cov = cov_config.new_custom_coverage_object(
-            config_file=str(cov_rc),
-            data_file=covfile,
-        )
-        report_cov.load()
-        click.secho('Coverage:')
-        report_cov.report()
+            covfile = str(pathlib.Path(td) / '.coverage')
+            data.write_file(covfile)
+            report_cov = cov_config.new_custom_coverage_object(
+                config_file=str(cov_rc),
+                data_file=covfile,
+            )
+            report_cov.load()
+            click.secho('Coverage:')
+            report_cov.report()
+            # store the coverage file in cwd, so it can be used to produce
+            # additional reports with coverage cli
+            shutil.copy(covfile, '.')
 
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
