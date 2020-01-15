@@ -19,16 +19,23 @@
 
 from __future__ import annotations
 
-from . import annos  # NOQA
-from . import casts  # NOQA
-from . import constraints  # NOQA
-from . import databases  # NOQA
-from . import functions  # NOQA
-from . import indexes  # NOQA
-from . import links  # NOQA
-from . import modules  # NOQA
-from . import objtypes  # NOQA
-from . import operators  # NOQA
-from . import roles  # NOQA
-from . import scalars  # NOQA
-from . import types  # NOQA
+import asyncpg
+from typing import *  # NoQA
+
+
+async def fetch(
+        conn: asyncpg.connection.Connection) -> List[asyncpg.Record]:
+    return await conn.fetch("""
+        SELECT
+            ((d.description)->>'id')::uuid              AS id,
+            datname                                     AS name
+        FROM
+            pg_database dat
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(dat.oid, 'pg_database')
+                        AS description
+            ) AS d
+        WHERE
+            (d.description)->>'id' IS NOT NULL
+    """)

@@ -509,15 +509,25 @@ class Compiler(BaseCompiler):
             new_types = frozenset(str(tid) for tid in plan.new_types)
 
         plan.generate(block)
-        sql = block.to_string().encode('utf-8')
+        is_transactional = block.is_transactional()
+        if not is_transactional:
+            sql = tuple(stmt.encode('utf-8')
+                        for stmt in block.get_statements())
+        else:
+            sql = (block.to_string().encode('utf-8'),)
 
         current_tx.update_schema(schema)
 
         if debug.flags.delta_execute:
             debug.header('Delta Script')
-            debug.dump_code(sql, lexer='sql')
+            debug.dump_code('\n'.join(sql), lexer='sql')
 
-        return dbstate.DDLQuery(sql=(sql,), new_types=new_types)
+        return dbstate.DDLQuery(
+            sql=sql,
+            is_transactional=is_transactional,
+            single_unit=not is_transactional,
+            new_types=new_types,
+        )
 
     def _compile_command(
             self, ctx: CompileContext, cmd) -> dbstate.BaseQuery:
@@ -914,8 +924,7 @@ class Compiler(BaseCompiler):
             comp: dbstate.BaseQuery = self._compile_dispatch_ql(ctx, stmt)
 
             if unit is not None:
-                if (isinstance(comp, dbstate.TxControlQuery) and
-                        comp.single_unit):
+                if comp.single_unit:
                     units.append(unit)
                     unit = None
 
@@ -927,6 +936,15 @@ class Compiler(BaseCompiler):
                     cardinality=default_cardinality)
             else:
                 unit.status = status.get_status(stmt)
+
+            if not comp.is_transactional:
+                if not comp.single_unit:
+                    raise errors.InternalServerError(
+                        'non-transactional compilation units must '
+                        'be single-unit'
+                    )
+
+                unit.is_transactional = False
 
             if isinstance(comp, dbstate.Query):
                 if single_stmt_mode:

@@ -33,7 +33,7 @@ class Database(so.GlobalObject, s_anno.AnnotationSubject, s_abc.Database,
     pass
 
 
-class DatabaseCommandContext(sd.CommandContextToken):
+class DatabaseCommandContext(sd.ObjectCommandContext):
     pass
 
 
@@ -42,13 +42,13 @@ class DatabaseCommand(sd.GlobalObjectCommand, schema_metaclass=Database,
     pass
 
 
-class CreateDatabase(DatabaseCommand):
+class CreateDatabase(DatabaseCommand, sd.CreateObject):
     astnode = qlast.CreateDatabase
 
 
-class AlterDatabase(DatabaseCommand):
+class AlterDatabase(DatabaseCommand, sd.AlterObject):
     astnode = qlast.AlterDatabase
 
 
-class DropDatabase(DatabaseCommand):
+class DropDatabase(DatabaseCommand, sd.DeleteObject):
     astnode = qlast.DropDatabase

@@ -854,6 +854,7 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
 
     def _validate_legal_command(self, schema, context):
         from . import functions as s_functions
+        from . import modules as s_mod
 
         if (not context.stdmode and not context.testmode and
                 not isinstance(self, s_functions.ParameterCommand)):
@@ -861,11 +862,13 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
             if isinstance(self.classname, sn.Name):
                 shortname = sn.shortname_from_fullname(self.classname)
                 modname = self.classname.module
-            else:
+            elif issubclass(self.get_schema_metaclass(), s_mod.Module):
                 # modules have classname as simple strings
                 shortname = modname = self.classname
+            else:
+                modname = None
 
-            if modname in s_schema.STD_MODULES:
+            if modname is not None and modname in s_schema.STD_MODULES:
                 raise errors.SchemaDefinitionError(
                     f'cannot {self._delta_action} `{shortname}`: '
                     f'module {modname} is read-only',

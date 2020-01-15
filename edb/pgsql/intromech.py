@@ -33,6 +33,7 @@ from edb import schema as so
 from edb.schema import abc as s_abc
 from edb.schema import annos as s_anno
 from edb.schema import casts as s_casts
+from edb.schema import database as s_db
 from edb.schema import scalars as s_scalars
 from edb.schema import objtypes as s_objtypes
 from edb.schema import constraints as s_constr
@@ -70,6 +71,8 @@ class IntrospectionMech:
             schema = so.Schema()
 
         schema = await self.read_roles(
+            schema)
+        schema = await self.read_databases(
             schema)
         schema = await self.read_modules(
             schema, only_modules=modules, exclude_modules=exclude_modules)
@@ -147,6 +150,18 @@ class IntrospectionMech:
                     schema,
                     'bases',
                     [schema.get_by_id(b) for b in bases])
+
+        return schema
+
+    async def read_databases(self, schema):
+        dbs = await datasources.schema.databases.fetch(self.connection)
+
+        for row in dbs:
+            schema, _ = s_db.Database.create_in_schema(
+                schema,
+                id=row['id'],
+                name=row['name'],
+            )
 
         return schema
 

@@ -40,6 +40,7 @@ class Database(base.DBObject):
         lc_collate: Optional[str] = None,
         lc_ctype: Optional[str] = None,
         template: Optional[str] = 'edgedb0',
+        metadata: Optional[Mapping[str, Any]] = None,
     ) -> None:
         super().__init__()
         self.name = name
@@ -49,6 +50,7 @@ class Database(base.DBObject):
         self.lc_collate = lc_collate
         self.lc_ctype = lc_ctype
         self.template = template
+        self.metadata = metadata
 
     def get_type(self):
         return 'DATABASE'
@@ -89,7 +91,7 @@ class DatabaseExists(base.Condition):
         ''')
 
 
-class CreateDatabase(ddl.CreateObject):
+class CreateDatabase(ddl.CreateObject, ddl.NonTransactionalDDLOperation):
     def __init__(
             self, db, *, conditions=None, neg_conditions=None, priority=0):
         super().__init__(
@@ -116,7 +118,8 @@ class CreateDatabase(ddl.CreateObject):
         return (f'CREATE DATABASE {self.object.get_id()} {extra}')
 
 
-class DropDatabase(ddl.SchemaObjectOperation):
+class DropDatabase(ddl.SchemaObjectOperation,
+                   ddl.NonTransactionalDDLOperation):
 
     def code(self, block: base.PLBlock) -> str:
         return f'DROP DATABASE {qi(self.name)}'

@@ -67,6 +67,7 @@ class SQLBlock:
     def __init__(self):
         self.commands = []
         self.disable_ddl_triggers = True
+        self._transactional = True
 
     def add_block(self):
         block = PLTopBlock()
@@ -74,8 +75,11 @@ class SQLBlock:
         return block
 
     def to_string(self) -> str:
-        stmts = ((cmd if isinstance(cmd, str) else cmd.to_string()).rstrip()
-                 for cmd in self.commands)
+        if not self._transactional:
+            raise ValueError(
+                'block is non-transactional, please use .get_statements()'
+            )
+        stmts = self.get_statements()
         body = '\n\n'.join(stmt + ';' if stmt[-1] != ';' else stmt
                            for stmt in stmts).rstrip()
         if body and body[-1] != ';':
@@ -83,14 +87,26 @@ class SQLBlock:
 
         return body
 
+    def get_statements(self) -> List[str]:
+        return [(cmd if isinstance(cmd, str) else cmd.to_string()).rstrip()
+                for cmd in self.commands]
+
     def add_command(self, stmt) -> None:
-        if isinstance(stmt, PLBlock) and not stmt.has_declarations():
+        if (isinstance(stmt, PLBlock)
+                and not stmt.has_declarations()
+                and not isinstance(stmt, PLTopBlock)):
             self.commands.extend(stmt.commands)
         else:
             self.commands.append(stmt)
 
     def has_declarations(self) -> bool:
         return False
+
+    def set_non_transactional(self) -> None:
+        self._transactional = False
+
+    def is_transactional(self) -> bool:
+        return self._transactional
 
 
 class PLBlock(SQLBlock):

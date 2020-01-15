@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import json
 import textwrap
@@ -95,6 +96,17 @@ class DDLOperation(base.Command):
                 trigger.generate_after(block, self)
 
 
+class NonTransactionalDDLOperation(DDLOperation):
+    def generate_self_block(
+        self,
+        block: base.PLBlock,
+    ) -> Optional[base.PLBlock]:
+        block.add_command(self.code(block))
+        block.set_non_transactional()
+        self_block = block.add_block()
+        return self_block
+
+
 class SchemaObjectOperation(DDLOperation):
     def __init__(
             self, name, *, conditions=None, neg_conditions=None, priority=0):
@@ -156,11 +168,11 @@ class GetMetadata(base.Command):
         is_shared = self.object.is_shared()
         if isinstance(oid, base.Query):
             qry = oid.text
-            objoid = block.declare_var('oid')
             classoid = block.declare_var('oid')
+            objoid = block.declare_var('oid')
             objsubid = block.declare_var('oid')
             block.add_command(
-                qry + f' INTO {objoid}, {classoid}, {objsubid}')
+                qry + f' INTO {classoid}, {objoid}, {objsubid}')
         else:
             objoid, classoid, objsubid = oid
 

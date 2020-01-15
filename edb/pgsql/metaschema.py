@@ -2396,17 +2396,19 @@ def _generate_database_view(schema):
 
     view_query = f'''
         SELECT
-            edgedb.uuid_generate_v5(
-                '{DATABASE_ID_NAMESPACE}'::uuid,
-                pg_database.oid::text)
-                            AS id,
+            ((d.description)->>'id')::uuid              AS id,
             datname         AS name,
             (SELECT id FROM edgedb.Object
                  WHERE name = 'sys::Database') AS __type__
         FROM
-            pg_database
+            pg_database dat
+            CROSS JOIN LATERAL (
+                SELECT
+                    edgedb.shobj_metadata(dat.oid, 'pg_database')
+                        AS description
+            ) AS d
         WHERE
-            datname NOT IN ('postgres', 'template0', 'template1')
+            (d.description)->>'id' IS NOT NULL
     '''
 
     return dbops.View(name=tabname(schema, Database), query=view_query)

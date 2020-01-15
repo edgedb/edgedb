@@ -659,8 +659,14 @@ cdef class EdgeConnection:
                 if query_unit.system_config:
                     await self._execute_system_config(query_unit)
                 else:
-                    await self.get_backend().pgcon.simple_query(
-                        b';'.join(query_unit.sql), ignore_data=True)
+                    if query_unit.is_transactional:
+                        await self.get_backend().pgcon.simple_query(
+                            b';'.join(query_unit.sql), ignore_data=True)
+                    else:
+                        for sql in query_unit.sql:
+                            await self.get_backend().pgcon.simple_query(
+                                sql, ignore_data=True)
+
                     if query_unit.config_ops:
                         await self.dbview.apply_config_ops(
                             self.get_backend().pgcon,

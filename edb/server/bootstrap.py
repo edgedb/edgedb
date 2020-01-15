@@ -83,11 +83,17 @@ async def _execute(conn, query, *args):
 
 
 async def _execute_block(conn, block: dbops.PLBlock) -> None:
-    sql_text = block.to_string()
+
+    if not block.is_transactional():
+        stmts = block.get_statements()
+    else:
+        stmts = [block.to_string()]
     if debug.flags.bootstrap:
         debug.header('Bootstrap')
-        debug.dump_code(sql_text, lexer='sql')
-    await _execute(conn, sql_text)
+        debug.dump_code(';\n'.join(stmts), lexer='sql')
+
+    for stmt in stmts:
+        await _execute(conn, stmt)
 
 
 async def _ensure_edgedb_role(
@@ -165,6 +171,9 @@ async def _ensure_edgedb_template_database(cluster, conn):
             lc_ctype=('C.UTF-8' if cluster.supports_c_utf8_locale()
                       else 'en_US.UTF-8'),
             encoding='UTF8',
+            metadata=dict(
+                id=str(uuidgen.uuid1mc()),
+            ),
         )
         dbops.CreateDatabase(db).generate(block)
         await _execute_block(conn, block)
@@ -584,7 +593,13 @@ async def _ensure_edgedb_database(conn, database, owner, *, cluster):
             f'{database}')
 
         block = dbops.SQLBlock()
-        db = dbops.Database(database, owner=owner)
+        db = dbops.Database(
+            database,
+            owner=owner,
+            metadata=dict(
+                id=str(uuidgen.uuid1mc()),
+            ),
+        )
         dbops.CreateDatabase(db).generate(block)
         await _execute_block(conn, block)
 

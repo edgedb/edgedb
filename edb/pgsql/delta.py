@@ -3647,14 +3647,23 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
 
 class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):
     def apply(self, schema, context):
-        schema, _ = s_db.CreateDatabase.apply(self, schema, context)
-        self.pgops.add(dbops.CreateDatabase(dbops.Database(self.classname)))
+        schema, db = s_db.CreateDatabase.apply(self, schema, context)
+        self.pgops.add(
+            dbops.CreateDatabase(
+                dbops.Database(
+                    self.classname,
+                    metadata=dict(
+                        id=str(db.id),
+                    ),
+                )
+            )
+        )
         return schema, None
 
 
 class DropDatabase(ObjectMetaCommand, adapts=s_db.DropDatabase):
     def apply(self, schema, context):
-        schema, _ = s_db.CreateDatabase.apply(self, schema, context)
+        schema, _ = s_db.DropDatabase.apply(self, schema, context)
         self.pgops.add(dbops.DropDatabase(self.classname))
         return schema, None
 

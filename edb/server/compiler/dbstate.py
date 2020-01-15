@@ -70,11 +70,16 @@ class Query(BaseQuery):
     # Set only when a query is compiled with "json_parameters=True"
     in_type_args: Optional[Tuple[str, ...]] = None
 
+    is_transactional: bool = True
+    single_unit: bool = False
+
 
 @dataclasses.dataclass(frozen=True)
 class SimpleQuery(BaseQuery):
 
     sql: Tuple[bytes, ...]
+    is_transactional: bool = True
+    single_unit: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -84,22 +89,27 @@ class SessionStateQuery(BaseQuery):
     is_backend_setting: bool = False
     requires_restart: bool = False
     config_op: Optional[config.Operation] = None
+    is_transactional: bool = True
+    single_unit: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
 class DDLQuery(BaseQuery):
 
     new_types: FrozenSet[str] = frozenset()
+    is_transactional: bool = True
+    single_unit: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
 class TxControlQuery(BaseQuery):
 
     action: TxAction
-    single_unit: bool
     cacheable: bool
 
     modaliases: Optional[immutables.Map]
+    is_transactional: bool = True
+    single_unit: bool = False
 
 
 #############################
@@ -121,6 +131,10 @@ class QueryUnit:
     # Set only for units that contain queries that can be cached
     # as prepared statements in Postgres.
     sql_hash: bytes = b''
+
+    # True if all statments in *sql* can be executed inside a transaction.
+    # If False, they will be executed separately.
+    is_transactional: bool = True
 
     # True if this unit contains DDL commands.
     has_ddl: bool = False
