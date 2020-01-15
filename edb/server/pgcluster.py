@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 import asyncio
+import locale
 import logging
 import os
 import os.path
@@ -52,6 +53,21 @@ if _system == 'Windows':
 else:
     def platform_exe(name):
         return name
+
+
+def _is_c_utf8_locale_present() -> bool:
+    lang, encoding = locale.getlocale()
+    try:
+        locale.setlocale(locale.LC_CTYPE, 'C.UTF-8')
+    except Exception:
+        return False
+    else:
+        if encoding:
+            current_locale = f'{lang}.{encoding}'
+        else:
+            current_locale = lang
+        locale.setlocale(locale.LC_CTYPE, current_locale)
+        return True
 
 
 class ClusterError(Exception):
@@ -127,12 +143,16 @@ class Cluster(BaseCluster):
         self._pg_ctl = None
         self._daemon_pid = None
         self._daemon_process = None
+        self._use_c_utf8_locale = _is_c_utf8_locale_present()
 
     def get_pg_version(self):
         return self._pg_version
 
     def is_managed(self):
         return True
+
+    def supports_c_utf8_locale(self) -> bool:
+        return self._use_c_utf8_locale
 
     def get_data_dir(self):
         return self._data_dir
@@ -171,7 +191,11 @@ class Cluster(BaseCluster):
             logger.info(
                 'Initializing database cluster in %s', self._data_dir)
             initdb_output = self.init(
-                username='postgres', locale='C', encoding='UTF8')
+                username='postgres',
+                locale='C.UTF-8' if self._use_c_utf8_locale else 'en_US.UTF-8',
+                lc_collate='C',
+                encoding='UTF8',
+            )
             for line in initdb_output.splitlines():
                 logger.debug('initdb: %s', line)
             self.reset_hba()
@@ -200,7 +224,7 @@ class Cluster(BaseCluster):
                     self._data_dir))
 
         if settings:
-            settings_args = ['--{}={}'.format(k, v)
+            settings_args = ['--{}={}'.format(k.replace('_', '-'), v)
                              for k, v in settings.items()]
             extra_args = ['-o'] + [' '.join(settings_args)]
         else:
@@ -645,6 +669,9 @@ class RemoteCluster(BaseCluster):
         super().__init__()
         self._connection_addr = addr
         self._connection_params = params
+
+    def supports_c_utf8_locale(self) -> bool:
+        return True
 
     def ensure_initialized(self, **settings):
         return False

@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import textwrap
 
@@ -29,10 +30,25 @@ from . import ddl
 
 
 class Database(base.DBObject):
-    def __init__(self, name, owner=None):
+    def __init__(
+        self,
+        name: str,
+        *,
+        owner: Optional[str] = None,
+        is_template: bool = False,
+        encoding: Optional[str] = None,
+        lc_collate: Optional[str] = None,
+        lc_ctype: Optional[str] = None,
+        template: Optional[str] = 'edgedb0',
+    ) -> None:
         super().__init__()
         self.name = name
         self.owner = owner
+        self.is_template = is_template
+        self.encoding = encoding
+        self.lc_collate = lc_collate
+        self.lc_ctype = lc_ctype
+        self.template = template
 
     def get_type(self):
         return 'DATABASE'
@@ -83,10 +99,21 @@ class CreateDatabase(ddl.CreateObject):
 
     def code(self, block: base.PLBlock) -> str:
         extra = ''
+
         if self.object.owner:
-            extra += f' OWNER={qi(self.object.owner)}'
-        return (f'CREATE DATABASE {self.object.get_id()} '
-                f'WITH TEMPLATE=edgedb0 {extra}')
+            extra += f' OWNER={ql(self.object.owner)}'
+        if self.object.is_template:
+            extra += f' IS_TEMPLATE = TRUE'
+        if self.object.template:
+            extra += f' TEMPLATE={ql(self.object.template)}'
+        if self.object.encoding:
+            extra += f' ENCODING={ql(self.object.encoding)}'
+        if self.object.lc_collate:
+            extra += f' LC_COLLATE={ql(self.object.lc_collate)}'
+        if self.object.lc_ctype:
+            extra += f' LC_CTYPE={ql(self.object.lc_ctype)}'
+
+        return (f'CREATE DATABASE {self.object.get_id()} {extra}')
 
 
 class DropDatabase(ddl.SchemaObjectOperation):

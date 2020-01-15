@@ -3404,8 +3404,8 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_str_case_01(self):
         await self.assert_query_result(
-            r'''SELECT str_lower({'HeLlO', 'WoRlD!'});''',
-            {'hello', 'world!'},
+            r'''SELECT str_lower({'HeLlO', 'WoRlD!', 'ПриВет', 'мИр'});''',
+            {'hello', 'world!', 'привет', 'мир'},
         )
 
         await self.assert_query_result(

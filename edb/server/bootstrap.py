@@ -144,16 +144,24 @@ async def _get_db_info(conn, dbname):
     return result
 
 
-async def _ensure_edgedb_template_database(conn):
+async def _ensure_edgedb_template_database(cluster, conn):
     result = await _get_db_info(conn, edbdef.EDGEDB_TEMPLATE_DB)
 
     if not result:
         logger.info('Creating template database...')
-        await _execute(
-            conn,
-            'CREATE DATABASE {} WITH OWNER = {} IS_TEMPLATE = TRUE'.format(
-                edbdef.EDGEDB_TEMPLATE_DB,
-                edbdef.EDGEDB_SUPERUSER))
+        block = dbops.SQLBlock()
+        db = dbops.Database(
+            edbdef.EDGEDB_TEMPLATE_DB,
+            owner=edbdef.EDGEDB_SUPERUSER,
+            is_template=True,
+            template='template0',
+            lc_collate='C',
+            lc_ctype=('C.UTF-8' if cluster.supports_c_utf8_locale()
+                      else 'en_US.UTF-8'),
+            encoding='UTF8',
+        )
+        dbops.CreateDatabase(db).generate(block)
+        await _execute_block(conn, block)
 
         return True
     else:
@@ -626,7 +634,8 @@ async def bootstrap(cluster, args) -> bool:
             )
             cluster.set_default_session_authorization(edbdef.EDGEDB_SUPERUSER)
 
-        need_meta_bootstrap = await _ensure_edgedb_template_database(pgconn)
+        need_meta_bootstrap = await _ensure_edgedb_template_database(
+            cluster, pgconn)
 
         if need_meta_bootstrap:
             conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
