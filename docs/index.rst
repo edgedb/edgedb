@@ -15,7 +15,6 @@ Welcome to the EdgeDB |version| documentation.
 
     intro
     tutorial/index
-    cookbook/index
     datamodel/__toc__
     edgeql/__toc__
     clients/__toc__
