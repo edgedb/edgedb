@@ -147,56 +147,35 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: std::duration
 
-    A type representing a relative time interval.
+    A type representing a span of time.
 
-    The time interval can be specified in terms of *microseconds*,
-    *milliseconds*, *seconds*, *minutes*, *hours*, *days*, *weeks*,
-    *months*, *years*, *decades*, *centuries*, *millennia*, e.g.:
+    Valid units when converting from a string (and combinations of them):
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
 
     .. code-block:: edgeql
 
-        SELECT <duration>'15 minutes';
         SELECT <duration>'45.6 seconds';
-        SELECT <duration>'2.3 millennia 3 weeks';
-
-    It's worth noting that time intervals are inherently ambiguous
-    when it comes to some units like *days*, *months* or *years*, but
-    for other units the conversion is unambiguous. For this reason,
-    the scalar actually stores its component parts independently. They
-    are grouped as follows:
-
-    - The value of units ranging from *microseconds* to *hours* can
-      all be unambiguously converted and this is done automatically.
-      This portion is stored as one whole part.
-    - The number of *hours* in a *day* is ambiguous (technically it's
-      not exactly 24, leap years and other leap rules exist to
-      compensate for this). So "next day" could mean something
-      slightly different from "in 86400 seconds exactly". For this
-      reason *days* are stored as a separate part. Number of *days* in
-      a *week* is well-defined and *weeks* are converted to *days*.
-    - The number of *days* in a *month* is ambiguous (simply because
-      different months have 28, 29, 30, or 31 days). So "next month"
-      could mean different things in terms of days. However,
-      everything bigger than a *month* is well-defined (12 *months* in
-      a *year*, 10 *years* in a *decade*, etc.). So the time interval
-      larger than a *month* gets normalized and stored as a whole
-      part.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT <duration>
-        ...     '12 decades 2403 months 3987 days 12348943ms';
-        {'320 years 3 months 3987 days 03:25:48.943'}
+        SELECT <duration>'15 milliseconds';
+        SELECT <duration>'48 hours 45 minutes';
+        SELECT <duration>'-7 minutes';
 
     All date/time types support the ``+`` and ``-`` arithmetic operations
-    with time intervals:
+    with durations:
 
     .. code-block:: edgeql-repl
 
-        db> select <datetime>'2019-01-01T00:00:00Z' - <duration>'1 day';
+        db> select <datetime>'2019-01-01T00:00:00Z' - <duration>'24 hours';
         {<datetime>'2018-12-31T00:00:00+00:00'}
         db> select <cal::local_time>'22:00' + <duration>'1 hour';
         {<cal::local_time>'23:00:00'}
+
+    Duration is a fixed number of seconds and microseconds and isn't
+    adjusted by timezone, length of month or anything else in datetime
+    calculations.
 
     See functions :eql:func:`to_duration`, and :eql:func:`to_str` and
     date/time :eql:op:`operators <DTMINUS>` for more ways of working with
