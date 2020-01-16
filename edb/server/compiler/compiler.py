@@ -22,7 +22,6 @@ from typing import *  # NoQA
 
 import collections
 import dataclasses
-import gc
 import hashlib
 import pickle
 import uuid
@@ -155,12 +154,7 @@ def compile_edgeql_script(
     compiler._std_schema = std_schema
     compiler._bootstrap_mode = True
 
-    # Note: there is a lot of GC activity due to contexts and other
-    # Schema-related reference cycles.  Postponing collection until after
-    # the compilation is complete speeds it up between 7% - 25%.
-    gc.disable()
     units = compiler._compile(ctx=ctx, eql=eql.encode())
-    gc.enable()
 
     sql_stmts = []
     for u in units:
