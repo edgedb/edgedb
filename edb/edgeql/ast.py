@@ -267,7 +267,7 @@ class BaseConstant(Expr):
         elif isinstance(val, int):
             return IntegerConstant(value=str(val))
         elif isinstance(val, decimal.Decimal):
-            return DecimalConstant(value=str(val))
+            return DecimalConstant(value=f'{val}n')
         elif isinstance(val, float):
             return FloatConstant(value=str(val))
         elif isinstance(val, bytes):

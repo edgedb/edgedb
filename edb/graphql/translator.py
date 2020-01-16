@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import contextlib
+import decimal
 import json
 import re
 from typing import *  # NoQA
@@ -46,6 +47,10 @@ ARG_TYPES = {
     'Int': gql_ast.IntValue,
     'String': gql_ast.StringValue,
 }
+
+
+MAX_INT64 = 2 ** 63 - 1
+MIN_INT64 = -2 ** 63
 
 
 class GraphQLTranslatorContext:
@@ -777,36 +782,31 @@ class GraphQLTranslator:
 
         # convert integers into qlast literals
         if offset is not None and not isinstance(offset, qlast.Base):
-            offset = qlast.BaseConstant.from_python(max(0, offset))
+            offset = qlast.IntegerConstant(value=str(max(0, offset)))
         if limit is not None:
-            limit = qlast.BaseConstant.from_python(max(0, limit))
+            limit = qlast.IntegerConstant(value=str(max(0, limit)))
 
         return offset, limit
 
+    def _get_int64_slice_value(self, value):
+        if value is None:
+            return None
+        if isinstance(value, qlast.Base):
+            return qlast.TypeCast(
+                type=qlast.TypeName(
+                    maintype=qlast.ObjectRef(name='int64')),
+                expr=value
+            )
+        else:
+            return qlast.IntegerConstant(value=str(value))
+
     def _get_general_offset_limit(self, after, before, first, last):
-        # convert any static values to corresponding qlast
-        if after is not None:
-            if isinstance(after, qlast.Base):
-                after = qlast.TypeCast(
-                    type=qlast.TypeName(
-                        maintype=qlast.ObjectRef(name='int64')),
-                    expr=after
-                )
-            else:
-                after = qlast.BaseConstant.from_python(after)
-        if before is not None:
-            if isinstance(before, qlast.Base):
-                before = qlast.TypeCast(
-                    type=qlast.TypeName(
-                        maintype=qlast.ObjectRef(name='int64')),
-                    expr=before
-                )
-            else:
-                before = qlast.BaseConstant.from_python(before)
-        if first is not None and not isinstance(first, qlast.Base):
-            first = qlast.BaseConstant.from_python(first)
-        if last is not None and not isinstance(last, qlast.Base):
-            last = qlast.BaseConstant.from_python(last)
+        # Convert any static values to corresponding qlast and
+        # normalize them as int64.
+        after = self._get_int64_slice_value(after)
+        before = self._get_int64_slice_value(before)
+        first = self._get_int64_slice_value(first)
+        last = self._get_int64_slice_value(last)
 
         offset = limit = None
         # convert before, after, first and last into offset and limit
@@ -1133,12 +1133,23 @@ class GraphQLTranslator:
                     args=[val]
                 )
             elif target.edb_base_name != 'std::str':
-                res = qlast.TypeCast(
-                    expr=val,
-                    type=qlast.TypeName(
-                        maintype=target.edb_base_name_ast
+
+                # bigint data would require a bigint input, so
+                # check if the expression is using a parameter
+                if (target.edb_base_name == 'std::bigint'
+                        and isinstance(node, gql_ast.Variable)
+                        and val.type.maintype.name == 'int64'):
+
+                    res = val
+                    res.type.maintype.name = target.edb_base_name
+
+                else:
+                    res = qlast.TypeCast(
+                        expr=val,
+                        type=qlast.TypeName(
+                            maintype=target.edb_base_name_ast
+                        )
                     )
-                )
 
                 if target.is_array:
                     res = qlast.TypeCast(
@@ -1240,6 +1251,12 @@ class GraphQLTranslator:
 
         if op:
             value = self.visit(node.value)
+            if self._context.right_cast is not None:
+                value = qlast.TypeCast(
+                    expr=value,
+                    type=self._context.right_cast,
+                )
+
             return qlast.BinOp(
                 left=self._context.base_expr, op=op, right=value)
 
@@ -1255,7 +1272,7 @@ class GraphQLTranslator:
         )
 
         ftype = target.get_field_type(fname)
-        typename = ftype.name
+        typename = ftype.edb_base_name
         if typename not in {'std::str', 'std::uuid'}:
             gql_type = gt.EDB_TO_GQL_SCALARS_MAP.get(typename)
             if gql_type == graphql.GraphQLString:
@@ -1267,6 +1284,12 @@ class GraphQLTranslator:
                 )
 
         self._context.base_expr = name
+        # potentially the right-hand-side needs to be cast into a float
+        if ftype.is_float:
+            self._context.right_cast = qlast.TypeName(
+                maintype=ftype.edb_base_name_ast)
+        else:
+            self._context.right_cast = None
 
         # insert current field in path
         path = self._context.path[-1]
@@ -1280,12 +1303,12 @@ class GraphQLTranslator:
                 value.right, qlast.TypeCast):
             value.right = qlast.TypeCast(
                 expr=value.right,
-                type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),
+                type=qlast.TypeName(maintype=ftype.edb_base_name_ast),
             )
         elif ftype.is_enum:
             value.right = qlast.TypeCast(
                 expr=value.right,
-                type=qlast.TypeName(maintype=qlast.ObjectRef(name=ftype.name)),
+                type=qlast.TypeName(maintype=ftype.edb_base_name_ast),
             )
 
         return value
@@ -1388,10 +1411,16 @@ class GraphQLTranslator:
         return qlast.StringConstant.from_python(node.value)
 
     def visit_IntValue(self, node):
-        return qlast.IntegerConstant(value=node.value)
+        # produces an int64 or bigint
+        val = int(node.value)
+        if MIN_INT64 <= val <= MAX_INT64:
+            return qlast.IntegerConstant(value=str(val))
+        else:
+            return qlast.BigintConstant(value=f'{val}n')
 
     def visit_FloatValue(self, node):
-        return qlast.FloatConstant(value=node.value)
+        # Treat all Float as Decimal by default and downcast as necessary
+        return qlast.DecimalConstant(value=f'{node.value}n')
 
     def visit_BooleanValue(self, node):
         value = 'true' if node.value else 'false'
@@ -1454,7 +1483,7 @@ def value_node_from_pyvalue(val: Any):
         return gql_ast.BooleanValue(value=bool(val))
     elif isinstance(val, int):
         return gql_ast.IntValue(value=str(val))
-    elif isinstance(val, float):
+    elif isinstance(val, (float, decimal.Decimal)):
         return gql_ast.FloatValue(value=str(val))
     elif isinstance(val, list):
         return gql_ast.ListValue(

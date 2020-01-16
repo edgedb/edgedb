@@ -54,6 +54,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             # of not being able to handle 64-bit integer literals
             # (GraphiQL is among them).
             'p_int64': 1234567890,
+            'p_bigint': 123456789123456789123456789,
             'p_float32': 4.5,
             'p_float64': 4.5,
             'p_decimal':
@@ -73,6 +74,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -94,6 +96,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         p_int16: 12345,
                         p_int32: 1234567890,
                         p_int64: 1234567890,
+                        p_bigint: 123456789123456789123456789,
                         p_float32: 4.5,
                         p_float64: 4.5,
                         p_decimal:
@@ -110,6 +113,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -136,6 +140,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1052,6 +1057,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'p_int16': 12345,
             'p_int32': 1234567890,
             'p_int64': 1234567890123,
+            'p_bigint': 123456789123456789123456789,
             'p_float32': 2.5,
             'p_float64': 2.5,
             'p_decimal':
@@ -1071,6 +1077,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             # of not being able to handle 64-bit integer literals
             # (GraphiQL is among them).
             'p_int64': 876543210,
+            'p_bigint': 333333333333333333333333333,
             'p_float32': 4.5,
             'p_float64': 4.5,
             'p_decimal':
@@ -1098,6 +1105,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1126,6 +1134,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         # limitation of not being able to handle 64-bit
                         # integer literals (GraphiQL is among them).
                         p_int64: {set: 876543210},
+                        p_bigint: {set: 333333333333333333333333333},
                         p_float32: {set: 4.5},
                         p_float64: {set: 4.5},
                         p_decimal: {set:
@@ -1142,6 +1151,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1167,6 +1177,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 $p_int16: Int,
                 $p_int32: Int,
                 $p_int64: Int,
+                $p_bigint: Int,
                 $p_float32: Float,
                 $p_float64: Float,
                 $p_decimal: Float,
@@ -1183,6 +1194,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         p_int16: {set: $p_int16},
                         p_int32: {set: $p_int32},
                         p_int64: {set: $p_int64},
+                        p_bigint: {set: $p_bigint},
                         p_float32: {set: $p_float32},
                         p_float64: {set: $p_float64},
                         p_decimal: {set: $p_decimal},
@@ -1198,6 +1210,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1372,6 +1385,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         p_int16: 0,
                         p_int32: 0,
                         p_int64: 0,
+                        p_bigint: 0,
                         p_float32: 0,
                         p_float64: 0,
                         p_decimal: 0,
@@ -1381,6 +1395,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1392,6 +1407,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 'p_int16': 0,
                 'p_int32': 0,
                 'p_int64': 0,
+                'p_bigint': 0,
                 'p_float32': 0,
                 'p_float64': 0,
                 'p_decimal': 0,
@@ -1406,6 +1422,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         p_int16: {increment: 2},
                         p_int32: {increment: 2},
                         p_int64: {increment: 2},
+                        p_bigint: {increment: 2},
                         p_float32: {increment: 1.5},
                         p_float64: {increment: 1.5},
                         p_decimal: {increment: 1.5},
@@ -1415,6 +1432,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1426,6 +1444,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 'p_int16': 2,
                 'p_int32': 2,
                 'p_int64': 2,
+                'p_bigint': 2,
                 'p_float32': 1.5,
                 'p_float64': 1.5,
                 'p_decimal': 1.5,
@@ -1440,6 +1459,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         p_int16: {decrement: 1},
                         p_int32: {decrement: 1},
                         p_int64: {decrement: 1},
+                        p_bigint: {decrement: 1},
                         p_float32: {decrement: 0.4},
                         p_float64: {decrement: 0.4},
                         p_decimal: {decrement: 0.4},
@@ -1449,6 +1469,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1460,6 +1481,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 'p_int16': 1,
                 'p_int32': 1,
                 'p_int64': 1,
+                'p_bigint': 1,
                 'p_float32': 1.1,
                 'p_float64': 1.1,
                 'p_decimal': 1.1,
@@ -1476,6 +1498,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1487,6 +1510,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 'p_int16': 1,
                 'p_int32': 1,
                 'p_int64': 1,
+                'p_bigint': 1,
                 'p_float32': 1.1,
                 'p_float64': 1.1,
                 'p_decimal': 1.1,

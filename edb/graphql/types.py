@@ -39,6 +39,7 @@ from graphql import (
     GraphQLEnumType,
 )
 from graphql.type import GraphQLEnumValue
+from graphql.language import ast as gql_ast
 import itertools
 
 from edb.edgeql import ast as qlast
@@ -56,6 +57,29 @@ from edb.schema import objects as s_objects
 from . import errors as g_errors
 
 
+def coerce_int(value):
+    if isinstance(value, int):
+        num = value
+    else:
+        num = int(value)
+    return num
+
+
+def parse_int_literal(ast):
+    if isinstance(ast, gql_ast.IntValue):
+        num = int(ast.value)
+        return num
+    return None
+
+
+# monkey-patch the GraphQLInt so that it doesn't restrict the range
+GraphQLInt.description = ("The `Int` scalar type represents non-fractional "
+                          "signed whole numeric values.")
+GraphQLInt.serialize = coerce_int
+GraphQLInt.parse_value = coerce_int
+GraphQLInt.parse_literal = parse_int_literal
+
+
 EDB_TO_GQL_SCALARS_MAP = {
     # For compatibility with GraphQL we cast json into a String, since
     # GraphQL doesn't have an equivalent type with arbitrary fields.
@@ -70,7 +94,7 @@ EDB_TO_GQL_SCALARS_MAP = {
     'std::float64': GraphQLFloat,
     'std::anyreal': GraphQLFloat,
     'std::decimal': GraphQLFloat,
-    'std::bigint': GraphQLFloat,
+    'std::bigint': GraphQLInt,
     'std::bool': GraphQLBoolean,
     'std::uuid': GraphQLID,
     'std::datetime': GraphQLString,
@@ -86,8 +110,12 @@ EDB_TO_GQL_SCALARS_MAP = {
 # used for casting input values from GraphQL to EdgeQL
 GQL_TO_EDB_SCALARS_MAP = {
     'String': 'str',
-    'Int': 'int64',
-    'Float': 'float64',
+    # By default treat unknown Int and Float as bigint and decimal
+    # respectively since there's no way to tell in GraphQL whether a
+    # specific number is meant to be of unlimited size and precision
+    # or not.
+    'Int': 'bigint',
+    'Float': 'decimal',
     'Boolean': 'bool',
     'ID': 'uuid',
 }
@@ -941,8 +969,12 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             bt_name = bt.get_name(self.edb_schema)
             self._is_json = bt_name == 'std::json'
             self._is_bool = bt_name == 'std::bool'
+            self._is_float = edb_base.issubclass(
+                self.edb_schema,
+                self.edb_schema.get('std::anyfloat'))
+
         else:
-            self._is_json = self._is_bool = False
+            self._is_json = self._is_bool = self._is_float = False
 
     @property
     def is_json(self):
@@ -955,6 +987,10 @@ class GQLBaseType(metaclass=GQLTypeMeta):
     @property
     def is_bool(self):
         return self._is_bool
+
+    @property
+    def is_float(self):
+        return self._is_float
 
     @property
     def is_array(self):

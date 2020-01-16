@@ -183,6 +183,15 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                     SELECT 2;
                 """)
 
+    def test_http_edgeql_query_09(self):
+        self.assert_edgeql_query_result(
+            r"""
+                SELECT <bigint>$number;
+            """,
+            [123456789123456789123456789],
+            variables={'number': 123456789123456789123456789}
+        )
+
     def test_http_edgeql_session_func_01(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'sys::advisory_lock\(\) cannot be '

@@ -72,6 +72,7 @@ type ScalarTest {
     property p_int16 -> int16;
     property p_int32 -> int32;
     property p_int64 -> int64;
+    property p_bigint -> bigint;
     property p_float32 -> float32;
     property p_float64 -> float64;
     property p_decimal -> decimal;

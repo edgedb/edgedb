@@ -1927,6 +1927,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     p_int16
                     p_int32
                     p_int64
+                    p_bigint
                     p_float32
                     p_float64
                     p_decimal
@@ -1944,6 +1945,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 'p_int16': 12345,
                 'p_int32': 1234567890,
                 'p_int64': 1234567890123,
+                'p_bigint': 123456789123456789123456789,
                 'p_float32': 2.5,
                 'p_float64': 2.5,
                 'p_decimal':
