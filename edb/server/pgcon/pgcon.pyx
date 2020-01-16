@@ -63,7 +63,7 @@ DEF PREP_STMTS_CACHE = 100
 DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
-cdef object CARD_NA = compiler.ResultCardinality.NOT_APPLICABLE
+cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
 
 
 cdef bytes INIT_CON_SCRIPT = (b'''
@@ -391,7 +391,7 @@ cdef class PGProto:
             bytes stmt_name
             bint store_stmt = 0
 
-            bint has_result = query.cardinality is not CARD_NA
+            bint has_result = query.cardinality is not CARD_NO_RESULT
 
             uint64_t msgs_num = <uint64_t>(len(query.sql))
             uint64_t msgs_parsed = 0

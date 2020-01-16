@@ -43,7 +43,7 @@ class ResultCardinality(strenum.StrEnum):
     # * the query is a command like CONFIGURE that
     #   does not return any data;
     # * the query is composed of multiple queries.
-    NOT_APPLICABLE = 'N/A'
+    NO_RESULT = 'NO_RESULT'
 
 
 class Capability(enum.Flag):
