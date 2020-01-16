@@ -857,7 +857,7 @@ class Cli:
         cmd = [
             str(psql),
             '-h', pgaddr['host'],
-            '-p', pgaddr['port'],
+            '-p', str(pgaddr['port']),
             '-d', self.connection.dbname,
             '-U', pgaddr['user']
         ]

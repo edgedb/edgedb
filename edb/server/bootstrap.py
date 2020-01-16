@@ -184,7 +184,7 @@ async def _ensure_edgedb_template_database(cluster, conn):
         alter_owner = False
 
         if not result['datistemplate']:
-            alter.append('IS_TEMPLATE')
+            alter.append('IS_TEMPLATE = true')
 
         if result['rolname'] != edbdef.EDGEDB_SUPERUSER:
             alter_owner = True
@@ -665,14 +665,10 @@ async def bootstrap(cluster, args) -> bool:
             conn = await cluster.connect(database=edbdef.EDGEDB_TEMPLATE_DB)
             conn.add_log_listener(_pg_log_listener)
 
-            superuser_role = cluster.get_superuser_role()
-            if superuser_role:
-                block = dbops.PLTopBlock()
-                reassign = dbops.ReassignOwned(
-                    session_user, edbdef.EDGEDB_SUPERUSER)
-                reassign.generate(block)
-
-                await _execute_block(conn, block)
+            await _execute(
+                conn,
+                f'ALTER SCHEMA public OWNER TO {edbdef.EDGEDB_SUPERUSER}',
+            )
 
             try:
                 conn.add_log_listener(_pg_log_listener)
@@ -751,7 +747,12 @@ async def bootstrap(cluster, args) -> bool:
         await _ensure_edgedb_template_not_connectable(pgconn)
 
         await _ensure_edgedb_role(
-            cluster, pgconn, args['default_database_user'], is_superuser=True)
+            cluster,
+            pgconn,
+            args['default_database_user'],
+            membership=membership,
+            is_superuser=True,
+        )
 
         await _execute(
             pgconn,

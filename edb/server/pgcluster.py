@@ -707,6 +707,9 @@ class RDSCluster(RemoteCluster):
     def get_superuser_role(self) -> Optional[str]:
         return 'rds_superuser'
 
+    def supports_c_utf8_locale(self) -> bool:
+        return False
+
 
 def get_local_pg_cluster(data_dir: os.PathLike) -> Cluster:
     pg_config = buildmeta.get_pg_config_path()
