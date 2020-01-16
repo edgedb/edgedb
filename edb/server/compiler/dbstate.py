@@ -150,10 +150,10 @@ class QueryUnit:
     # True if it is safe to cache this unit.
     cacheable: bool = False
 
-    # Cardinality of the result set.  Set to NOT_APPLICABLE if the
+    # Cardinality of the result set.  Set to NO_RESULT if the
     # unit represents multiple queries compiled as one script.
     cardinality: enums.ResultCardinality = \
-        enums.ResultCardinality.NOT_APPLICABLE
+        enums.ResultCardinality.NO_RESULT
 
     out_type_data: bytes = sertypes.NULL_TYPE_DESC
     out_type_id: bytes = sertypes.NULL_TYPE_ID

@@ -885,7 +885,7 @@ class Compiler(BaseCompiler):
         # That means that the returned QueryUnit has to have the in/out codec
         # information, correctly inferred "singleton_result" field etc.
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
-        default_cardinality = enums.ResultCardinality.NOT_APPLICABLE
+        default_cardinality = enums.ResultCardinality.NO_RESULT
 
         eql = eql.decode()
 
@@ -1017,7 +1017,7 @@ class Compiler(BaseCompiler):
         for unit in units:  # pragma: no cover
             # Sanity checks
             na_cardinality = (
-                unit.cardinality is enums.ResultCardinality.NOT_APPLICABLE
+                unit.cardinality is enums.ResultCardinality.NO_RESULT
             )
             if unit.cacheable and (unit.config_ops or unit.modaliases):
                 raise errors.InternalServerError(
