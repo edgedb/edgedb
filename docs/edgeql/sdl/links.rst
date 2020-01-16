@@ -33,6 +33,11 @@ Declare a *concrete* link "friends" within a "User" type:
         index on (__subject__.name);
     }
 
+.. _ref_eql_sdl_links_overloading:
+
+Overloading
+~~~~~~~~~~~
+
 Any time that the SDL declaration refers to an inherited link that is
 being overloaded (by adding more constraints or changing the target
 type, for example), the ``overloaded`` keyword must be used. This is
