@@ -44,7 +44,7 @@ def server(**kwargs):
     os.environ['EDGEDB_DEBUG_SERVER'] = '1'
     debug.init_debug_flags()
 
-    srv_main.server_main(insecure=True, **kwargs)
+    srv_main.server_main(insecure_bootstrap_defaults=True, **kwargs)
 
 
 # Import at the end of the file so that "edb.tools.edb.edbcommands"

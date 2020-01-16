@@ -135,7 +135,7 @@ def _init_cluster(cluster, args: ServerConfig) -> bool:
                              args.default_database_user),
         'default_database_user': args.default_database_user,
         'testmode': args.testmode,
-        'insecure': args.insecure,
+        'insecure_bootstrap_defaults': args.insecure_bootstrap_defaults,
     }
 
     need_restart = asyncio.run(bootstrap.bootstrap(cluster, bootstrap_args))
@@ -377,7 +377,7 @@ class PortType(click.ParamType):
 
 class ServerConfig(typing.NamedTuple):
 
-    insecure: bool
+    insecure_bootstrap_defaults: bool
     data_dir: pathlib.Path
     postgres_dsn: str
     log_level: str
@@ -458,6 +458,13 @@ _server_options = [
         help='enable or disable the test mode',
         default=False),
     click.option(
+        '--insecure-bootstrap-defaults',
+        is_flag=True,
+        help='when bootstrapping the database, allow any user to connect from'
+             ' any address without specifying a password.  ONLY USE THIS WITH'
+             ' THROWAWAY TEST DATA.',
+        default=False),
+    click.option(
         '-I', '--bind-address', type=str, default=None,
         help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS'),
     click.option(
@@ -500,7 +507,7 @@ def server_options(func):
     return func
 
 
-def server_main(*, insecure=False, **kwargs):
+def server_main(**kwargs):
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
 
@@ -534,8 +541,6 @@ def server_main(*, insecure=False, **kwargs):
                       'PostgreSQL cluster using the --postgres-dsn argument')
         elif kwargs['postgres_dsn']:
             abort('The -D and --postgres-dsn options are mutually exclusive.')
-
-    kwargs['insecure'] = insecure
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}

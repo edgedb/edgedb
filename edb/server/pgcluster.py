@@ -95,6 +95,9 @@ class BaseCluster:
 
         return conn
 
+    def is_managed(self) -> bool:
+        raise NotImplementedError
+
     def get_superuser_role(self) -> Optional[str]:
         return None
 
@@ -145,7 +148,7 @@ class Cluster(BaseCluster):
     def get_pg_version(self):
         return self._pg_version
 
-    def is_managed(self):
+    def is_managed(self) -> bool:
         return True
 
     def supports_c_utf8_locale(self) -> bool:
@@ -673,7 +676,7 @@ class RemoteCluster(BaseCluster):
     def ensure_initialized(self, **settings):
         return False
 
-    def is_managed(self):
+    def is_managed(self) -> bool:
         return False
 
     def get_status(self):

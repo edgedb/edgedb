@@ -59,6 +59,11 @@ from edb.pgsql import metaschema
 from edgedb import scram
 
 
+if TYPE_CHECKING:
+    from . import pgcluster
+    from asyncpg import connection as asyncpg_con
+
+
 CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
     (pathlib.Path(metaschema.__file__).parent, '.py'),
 )
@@ -457,10 +462,17 @@ async def _populate_data(std_schema, schema, conn):
     return schema
 
 
-async def _configure(schema, conn, cluster, *, insecure=False, testmode=False):
+async def _configure(
+    schema: s_schema.Schema,
+    conn: asyncpg_con.Connection,
+    cluster: pgcluster.BaseCluster,
+    *,
+    insecure: bool = False,
+    testmode: bool = False,
+) -> None:
     scripts = []
 
-    if not testmode:
+    if cluster.is_managed() and not testmode:
         memory_kb = psutil.virtual_memory().total // 1024
         settings = {
             'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
@@ -481,6 +493,9 @@ async def _configure(schema, conn, cluster, *, insecure=False, testmode=False):
                 priority := 0,
                 method := (INSERT Trust),
             };
+        ''')
+        scripts.append('''
+            CONFIGURE SYSTEM SET listen_addresses := {'0.0.0.0', '::'}
         ''')
 
     config_spec = config.get_settings()
@@ -663,7 +678,7 @@ async def bootstrap(cluster, args) -> bool:
                 schema = await _init_defaults(std_schema, std_schema, conn)
                 schema = await _populate_data(std_schema, schema, conn)
                 await _configure(std_schema, conn, cluster,
-                                 insecure=args['insecure'],
+                                 insecure=args['insecure_bootstrap_defaults'],
                                  testmode=args['testmode'])
             finally:
                 await conn.close()
