@@ -25,22 +25,40 @@ from . import name as sn
 from . import objects as so
 
 
+if TYPE_CHECKING:
+    from edb.schema import schema as s_schema
+
+
 class DerivableObjectBase(s_abc.Object):
     # Override name field comparison coefficient on the
     # presumption that the derived names may be different,
     # but base names may be equal.
     #
-    def compare(self, other, *, our_schema, their_schema, context=None):
-        similarity = super().compare(
+    def compare(self,
+                other: so.Object,
+                *,
+                our_schema: s_schema.Schema,
+                their_schema: s_schema.Schema,
+                context: Optional[so.ComparisonContext] = None) -> float:
+        similarity = super().compare(  # type: ignore
             other, our_schema=our_schema,
             their_schema=their_schema, context=context)
+
+        assert isinstance(similarity, float)
+        assert isinstance(self, so.Object)
+
         if self.get_shortname(our_schema) != other.get_shortname(their_schema):
             similarity *= 0.625
 
         return similarity
 
-    def derive_name(self, schema, source, *qualifiers,
-                    derived_name_base=None, module=None):
+    def derive_name(self,
+                    schema: s_schema.Schema,
+                    source: so.Object,
+                    *qualifiers: str,
+                    derived_name_base: Optional[str] = None,
+                    module: Optional[str] = None
+                    ) -> sn.SchemaName:
         if module is None:
             module = source.get_name(schema).module
         source_name = source.get_name(schema)
@@ -53,17 +71,21 @@ class DerivableObjectBase(s_abc.Object):
             parent=self,
             derived_name_base=derived_name_base)
 
-    def generic(self, schema):
+    def generic(self, schema: s_schema.Schema) -> bool:
+        assert isinstance(self, so.Object)
         return self.get_shortname(schema) == self.get_name(schema)
 
-    def get_derived_name_base(self, schema):
+    def get_derived_name_base(self, schema: s_schema.Schema) -> str:
+        assert isinstance(self, so.Object)
         return self.get_shortname(schema)
 
-    def get_derived_name(self, schema, source,
-                         *qualifiers,
-                         mark_derived=False,
-                         derived_name_base=None,
-                         module=None):
+    def get_derived_name(self,
+                         schema: s_schema.Schema,
+                         source: so.Object,
+                         *qualifiers: str,
+                         mark_derived: bool = False,
+                         derived_name_base: Optional[str] = None,
+                         module: Optional[str] = None) -> sn.Name:
         return self.derive_name(
             schema, source, *qualifiers,
             derived_name_base=derived_name_base,
@@ -88,13 +110,14 @@ class DerivableObject(so.InheritingObjectBase, DerivableObjectBase):
 
 
 def derive_name(
-    schema,
+    schema: s_schema.Schema,
     *qualifiers: str,
     module: str,
     parent: Optional[DerivableObjectBase] = None,
     derived_name_base: Optional[str] = None,
 ) -> sn.Name:
     if derived_name_base is None:
+        assert parent is not None
         derived_name_base = parent.get_derived_name_base(schema)
 
     name = sn.get_specialized_name(derived_name_base, *qualifiers)
