@@ -1,0 +1,480 @@
+===========
+1.0 Alpha 2
+===========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 alpha 2.
+
+
+JavaScript Driver
+=================
+
+EdgeDB has a new high-performance native
+`EdgeDB driver <https://github.com/edgedb/edgedb-js>`_ for NodeJS 10+.
+
+It is written in strict TypeScript, thoroughly tested, and has a
+first-class async/await support.  Not to mention it is at least **2x faster**
+than comparable current PostgreSQL JavaScript drivers.
+
+Install it via ``npm`` or ``yarn``:
+
+.. code-block:: bash
+
+   $ npm install edgedb
+
+and it is ready for use:
+
+.. code-block:: javascript
+
+    const edgedb = require("edgedb");
+
+    async function main() {
+      const conn = await edgedb.connect({
+        user: "edgedb",
+        host: "127.0.0.1",
+      });
+
+      try {
+        console.log(await conn.fetchOne("SELECT 1 + 1"));
+      } finally {
+        await conn.close();
+      }
+    }
+
+    main();
+
+The documentation can be found `here </docs/clients/01_js/index>`_.
+
+
+Standard Library
+================
+
+std::bigint
+-----------
+
+The new :eql:type:`std::bigint` scalar type is an arbitrary precision integral
+type.  The motivation for the new type is that many platforms lack a true
+multi-precision decimal type, but implement an arbitrary-precision integer
+type (JavaScript is a prominent example).  The syntax for decimal literals
+was updated:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT 1n IS std::bigint;
+    {true}
+
+    db> SELECT 1.0n IS std::decimal;
+    {true}
+
+The :eql:type:`std::bigint` and :eql:type:`std::decimal` maintain the
+relationship that is similar to the relationship between :eql:type:`std::int64`
+and :eql:type:`std::float64`.  All sized integer types are implicitly
+castable to bigint, and bigint itself can implicitly cast to
+:eql:type:`std::decimal`.
+
+
+New "cal" Module
+----------------
+
+Non-timezone aware date/time types and functions are moved into the new
+``cal`` module.  This new separation promotes :eql:type:`std::datetime`
+to be the default safe choice for most use cases.  The types in the ``cal::``
+module are useful to implement calendars, alarms, reminders, etc., but have
+to be used with great consideration.  The updated date/time types are
+listed below:
+
+.. list-table::
+    :class: funcoptable
+
+    * - :eql:type:`std::datetime`
+      - A timezone-aware date/time type.
+
+    * - :eql:type:`std::duration`
+      - An absolute time interval. Can be unambiguously used with
+        both :eql:type:`std::datetime` and :eql:type:`cal::local_datetime`
+        types.
+
+    * - :eql:type:`cal::local_datetime`
+      - Represents date and time without time zone.
+
+    * - :eql:type:`cal::local_date`
+      - Represents date without time zone and time components.
+
+    * - :eql:type:`cal::local_time`
+      - Represents time without time zone and date components.
+
+Type conversion between timezone-aware ``std::datetime`` and local date/time
+values (types in the ``cal::`` module) is always
+:ref:`explicit and unambiguous <ref_eql_funcops_datetime>`.
+
+(See :eql:gh:`#902` for details.)
+
+Other Fixes and Enhancements
+----------------------------
+
+* Prohibit ``NaN`` as a ``std::decimal`` value (:eql:gh:`5e16ace1`).
+
+* Rename ``std::datetime_trunc`` to ``std::datetime_truncate``
+  (:eql:gh:`#952`).
+
+* Make :eql:func:`datetime_get` and :eql:func:`datetime_truncate` stricter
+  (:eql:gh:`#958`).
+
+* Disable days and months units in :eql:type:`duration` (:eql:gh:`#947`).
+
+* Rename ``sys::transaction_isolation_t`` to ``sys::TransactionIsolation``
+  (:eql:gh:`c45ee4ba`).
+
+* Rename ``schema::cardinality_t`` to ``schema::Cardinality``
+  (:eql:gh:`b2ceaa61`).
+
+* Rename ``schema::target_delete_action_t`` to ``schema::TargetDeleteAction``
+  (:eql:gh:`6a7c6787`).
+
+* Rename ``schema::operator_kind_t`` to ``schema::OperatorKind``
+  (:eql:gh:`3a01f616`).
+
+* Rename ``schema::volatility_t`` to ``schema::Volatility``
+  (:eql:gh:`16e263cc`).
+
+
+Dump / Restore
+==============
+
+The new :ref:`edgedb dump <ref_cli_edgedb_dump>` and
+:ref:`edgedb restore <ref_cli_edgedb_restore>` commands can be used to
+safely dump and restore EdgeDB databases as well as for upgrading to a new
+version of EdgeDB.
+
+
+EdgeQL
+======
+
+[IS ...] Operator
+-----------------
+
+The :eql:op:`[IS ...] <ISINTERSECT>` operator is now used to specify the
+target types in shapes.  Consider the following query that fetches a ``User``
+along with everything linked to it via the ``favorites`` link:
+
+.. code-block:: edgeql
+
+    SELECT User {
+        favorites: {
+            title
+        }
+    }
+    FILTER .id = <uuid>$id;
+
+Using the :eql:op:`[IS ...] <ISINTERSECT>` operator we can filter the
+set of user favorites:
+
+.. code-block:: edgeql
+
+    SELECT User {
+        # the old syntax was "favorites: Book {...}"
+        favorites[IS Book]: {
+            title
+        }
+    }
+    FILTER .id = <uuid>$id;
+
+This change makes the shape construct consistent with the paths syntax and
+removes potential confusion with the similarly looking computable shape
+expressions.
+
+Another change is related to backward link navigation. Starting with Alpha 2
+it is required to use the :eql:op:`[IS ...] <ISINTERSECT>` operator in order
+to access target objects' properties and links:
+
+.. code-block:: edgeql
+
+    SELECT User.<profile[IS Profile].settings;
+
+(See :eql:gh:`#969` for details.)
+
+Other Fixes and Enhancements
+----------------------------
+
+* Update the semantics of line continuation (trailing ``\``) in strings
+  (:eql:gh:`#921`).
+* Remove the ``.>`` alternate syntax for forward link navigation
+  (:eql:gh:`#982`).
+* Fix interaction of the FOR statement and nested shapes (:eql:gh:`#834`).
+* Place restrictions on the use of DML statements (:eql:gh:`#741`).
+* Fix queries with unions with overlapping subtypes (:eql:gh:`#1010`).
+* Allow trailing commas in the WITH clause (:eql:gh:`#868`).
+* Ban use of ``::`` in quoted names (:eql:gh:`#840`).
+* Add syntax for quoting backticks in quoted names (:eql:gh:`#632`).
+* Remove SELECT-like clauses from the FOR statement (:eql:gh:`#743`).
+* Fix implicit ``id`` and ``__tid__`` properties injection in
+  DML statements (:eql:gh:`#664`).
+* Make type variants made by shapes consistent with schema inheriance
+  rules (:eql:gh:`36e86d56`).
+* Implement rudimentary support for type intersection (:eql:gh:`177aa1f8`).
+* Optimize single link type indirections when possible (:eql:gh:`48cdfa54`).
+* Stop enforcing common prefix ambiguity restriction on tuple dereference
+  (:eql:gh:`9011c821`).
+* Add an error hint for incorrect string line continuation
+  (:eql:gh:`7b982e09`).
+* Enable comparison of collections of distinct (but compatible) types
+  (:eql:gh:`c913df11`).
+* Implement std::IN as a derivative of std::= (:eql:gh:`f3682e92`).
+
+
+GraphQL
+=======
+
+Enhanced Fitering
+-----------------
+
+It is now possible to filter by traversing arbitrarily deep links,
+not just immediate properties:
+
+.. code-block:: graphql
+
+    query {
+      UserGroup(
+        filter: {settings: {name: {eq: "setting06"}}}
+      ) {
+        name
+        settings {
+          name
+          value
+        }
+      }
+    }
+
+Mutations
+---------
+
+Insert, update, and delete :ref:`mutations <ref_graphql_mutations>`
+are now supported.
+
+Mutations support all the same parameters as a query like ``filter``,
+``order``, ``first``, ``last``, ``after``, and ``before``.
+
+Insert and update mutations accept a ``data`` parameter that allows to
+specify what data to insert or how to update the existing data:
+
+.. using "graphql-schema" because the graphql syntax below is invalid
+.. code-block:: graphql-schema
+
+    mutation update_Foo(
+      filter: ...,
+      order: ...,
+      first: ...,
+      last: ...,
+      before: ...,
+      after: ...,
+
+      data: {
+        prop1: {clear: true},
+        prop2: {set: "new value"},
+        link1: {set:
+          [{
+            # objects can be specified via
+            # the same interface as a query
+            filter: ...,
+            order: ...,
+            first: ...,
+            last: ...,
+            before: ...,
+            after: ...
+          }]
+        }
+      }
+    ) {
+      id
+      prop1
+      ...
+    }
+
+Other Fixes and Enhancements
+----------------------------
+
+* Fix backward links in aliases (:eql:gh:`#990`).
+* Fix covarinat types support (:eql:gh:`#709`).
+
+
+DDL / SDL / Schema
+==================
+
+DDL and SDL layers are heavily refactored in alpha 2. A lot of issues were
+fixed; this section lists only new features and backwards incompatible
+changes:
+
+* Rename "views" to "expression aliases" (:eql:gh:`#989`).
+* Add a :ref:`"module" <ref_eql_sdl_modules>` block to SDL (:eql:gh:`#907`).
+* Rename SDL keyword "inherited" to
+  :ref:`"overloaded" <ref_eql_sdl_links_overloading>`. (:eql:gh:`#806`).
+* Reimplement :ref:`SDL <ref_eql_sdl>` through :ref:`DDL <ref_eql_ddl>`.
+  (:eql:gh:`824f14a6`).
+* Rename the DDL "FROM" clause to "USING" (:eql:gh:`4194ab46`).
+* Add support for collection type views :eql:gh:`367820ba`.
+* Prohibit "multi" or "required" link properties (:eql:gh:`#994`).
+* Forbid redefinition of read-only flag. (:eql:gh:`#1048`).
+* Change ``SET ANNOTATION`` to ``CREATE/ALTER ANNOTATION``
+  (:eql:gh:`0e53e2ff`).
+* Implement ``CREATE MODULE IF NOT EXISTS`` (:eql:gh:`27924c10`.)
+* Allow indexes to be annotated (:eql:gh:`50d8809a`).
+* Remove explicit index names (:eql:gh:`e0f462c2`).
+* Enforce correct expression cardinality and type in link/property default
+  (:eql:gh:`2f6039fc` and :eql:gh:`9fa18afb`).
+
+
+Introspection
+=============
+
+Generic Describe
+----------------
+
+``DESCRIBE`` is a new introspection command that can generate DDL, SDL, or
+a descriptive "text" summary of any schema object in EdgeDB.  A few examples:
+
+.. code-block:: edgeql-repl
+
+    db> DESCRIBE TYPE Movie AS DDL;
+    {
+      'CREATE TYPE default::Movie EXTENDING default::HasImage {
+        CREATE SINGLE PROPERTY avg_rating := (WITH
+          MODULE default
+        SELECT
+          math::mean(.<movie[IS Review].rating)
+        );
+
+        ...
+      };'
+    }
+
+    db> DESCRIBE TYPE Movie AS TEXT VERBOSE;
+    {
+      'type default::Movie extending default::HasImage {
+        index on (__subject__.image);
+
+        required single link __type__ -> schema::Type {
+          readonly := true;
+        };
+
+        required single property id -> std::uuid {
+          readonly := true;
+          constraint std::exclusive;
+        };
+
+        required single property image -> std::str;
+
+        ...
+      };'
+    }
+
+(Issue :eql:gh:`#790`.)
+
+
+Other Enhancements
+------------------
+
+* ``schema::bases`` and ``schema::ancestors`` are now ordered via the
+  ``@order`` link property (:eql:gh:`#854`).
+* Add ``schema::Module.builtin`` attribute (:eql:gh:`64f88a01`).
+
+
+REPL
+====
+
+Introspection
+-------------
+
+The REPL now recognizes a number of introspection commands:
+
+.. code-block::
+
+  (options: S = show system objects, I = case-sensitive match)
+  \d[+] NAME               describe schema object
+  \l                       list databases
+  \lr[I] [PATTERN]         list roles
+  \lm[I] [PATTERN]         list modules
+  \lT[IS] [PATTERN]        list scalar types
+  \lt[IS] [PATTERN]        list object types
+  \lc[I] [PATTERN]         list casts
+
+For example:
+
+.. code-block:: edgeql-repl
+
+    db> \lt
+    ------------------- Object Types -------------------
+     Name              | Extending
+    -------------------+--------------------------------
+     default::HasImage | std::Object
+     default::Movie    | default::HasImage, std::Object
+     default::Person   | default::HasImage, std::Object
+     default::Review   | std::Object
+     default::User     | default::HasImage, std::Object
+
+
+    db> \d HasImage
+    abstract type default::HasImage {
+      required single link __type__ -> schema::Type {
+        readonly := true;
+      };
+      required single property id -> std::uuid {
+        readonly := true;
+      };
+      required single property image -> std::str;
+    };
+
+(Issue :eql:gh:`#179`.)
+
+Auto Limit
+----------
+
+The REPL now automatically injects limits to user queries so that a simple
+``SELECT Log`` does not fetch all data from the database.  Auto limits are only
+enabled in parts of the query that return visible data; auto limits are
+disabled inside aggregate functions, so analytical queries work as expected.
+
+The auto-limit can be disabled with a ``\limit 0`` command, or the limit
+can be changed with ``\limit 42`` command.
+
+(Issue :eql:gh:`#846`.)
+
+
+Server
+======
+
+Postgres 12
+-----------
+
+EdgeDB is now based on PostgreSQL 12.
+
+Other Fixes and Enhancements
+----------------------------
+
+* Add an explicit database instance compatibility check (:eql:gh:`251517c0`).
+* Initial support for using a remote Postgres cluster as a backend
+  (:eql:gh:`b0db89b2`).
+* Protocol: prohibit tuples as query arguments (:eql:gh:`#745`).
+* Protocol: differentiate SASL message types (:eql:gh:`d52885c8`).
+* Protocol: Add "Terminate" message for graceful shutdown (:eql:gh:`d699352a`).
+* Protocol: use 32-bit length-prefixed strings everywhere.
+* Drop reliance on a custom PostgreSQL C extension.
+
+
+Misc
+====
+
+* Command-line tools now use ``-h`` for help; ``-H`` for hostname.
+  (:eql:gh:`#1039`).
+* ``edgedb`` subcommands were renamed to have dashes in their names instead
+  of spaces, e.g. ``edgedb create role`` became ``edgedb create-role``
+  (:eql:gh:`#1039`).
+* Rename the ``--pidfile`` argument of ``edgedb-server`` to ``--pidfile-dir``.
+  (:eql:gh:`#1093`).
+* Add command line arguments to ``edgedb-server`` for automatic temporary
+  cluster bootstrap to simplify CI (:eql:gh:`5161de72`).
+* Add developer tools for memory and performance profiling
+  (:eql:gh:`#1032`, :eql:gh:`#835`, and :eql:gh:`#858`).
+* Improve query compilation performance by ~30%.
+* Strictly type-annotate SQL and IR compilers, run ``mypy`` in
+  strict mode in CI for critical modules.
+* Upgrade to Python 3.8.
