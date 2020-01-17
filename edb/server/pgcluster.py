@@ -130,6 +130,9 @@ class BaseCluster:
     def _get_connection_addr(self):
         return self._connection_addr
 
+    def is_managed(self) -> bool:
+        raise NotImplementedError
+
 
 class Cluster(BaseCluster):
     def __init__(self, data_dir, *, pg_config_path=None):
@@ -145,7 +148,7 @@ class Cluster(BaseCluster):
     def get_pg_version(self):
         return self._pg_version
 
-    def is_managed(self):
+    def is_managed(self) -> bool:
         return True
 
     def supports_c_utf8_locale(self) -> bool:
@@ -673,7 +676,7 @@ class RemoteCluster(BaseCluster):
     def ensure_initialized(self, **settings):
         return False
 
-    def is_managed(self):
+    def is_managed(self) -> bool:
         return False
 
     def get_status(self):
