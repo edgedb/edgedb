@@ -35,7 +35,7 @@ from edb import errors
 from edb.schema import objects as s_obj
 from edb.server import defines
 
-from edb.pgsql import common as pg_common
+from edb.pgsql.common import quote_literal as pg_ql
 
 from edb.server.pgproto cimport hton
 from edb.server.pgproto cimport pgproto
@@ -47,6 +47,7 @@ from edb.server.pgproto.pgproto cimport (
     frb_read,
 )
 
+from edb.server import buildmeta
 from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
@@ -66,29 +67,36 @@ DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
 
 
-cdef bytes INIT_CON_SCRIPT = (b'''
-    CREATE TEMPORARY TABLE _edgecon_state (
-        name text NOT NULL,
-        value text NOT NULL,
-        type text NOT NULL CHECK(type = 'C' OR type = 'A'),
-        UNIQUE(name, type)
-    );
+cdef bytes INIT_CON_SCRIPT = None
 
-    CREATE TEMPORARY TABLE _edgecon_current_savepoint (
-        sp_id bigint NOT NULL,
-        _sentinel bigint DEFAULT -1,
-        UNIQUE(_sentinel)
-    );
 
-    INSERT INTO _edgecon_state(name, value, type)
-    VALUES ('', \'''' +
-       defines.DEFAULT_MODULE_ALIAS.replace("'", "''").encode() +
-    b'''\', 'A');
-    '''
-)
+def _build_init_con_script() -> bytes:
+    return (f'''
+        CREATE TEMPORARY TABLE _edgecon_state (
+            name text NOT NULL,
+            value text NOT NULL,
+            type text NOT NULL CHECK(type = 'C' OR type = 'A' OR type = 'R'),
+            UNIQUE(name, type)
+        );
+
+        CREATE TEMPORARY TABLE _edgecon_current_savepoint (
+            sp_id bigint NOT NULL,
+            _sentinel bigint DEFAULT -1,
+            UNIQUE(_sentinel)
+        );
+
+        INSERT INTO _edgecon_state
+            (name, value, type)
+        VALUES
+            ('', {pg_ql(defines.DEFAULT_MODULE_ALIAS)}, 'A'),
+            ('server_version', {pg_ql(buildmeta.get_version_json())}, 'R');
+
+    ''').encode('utf-8')
 
 
 async def connect(connargs, dbname):
+    global INIT_CON_SCRIPT
+
     loop = asyncio.get_running_loop()
 
     host = connargs.get("host")
@@ -110,6 +118,9 @@ async def connect(connargs, dbname):
             f'SET SESSION AUTHORIZATION {defines.EDGEDB_SUPERUSER}'.encode(),
             ignore_data=True,
         )
+
+    if INIT_CON_SCRIPT is None:
+        INIT_CON_SCRIPT = _build_init_con_script()
 
     await protocol.simple_query(INIT_CON_SCRIPT, ignore_data=True)
 

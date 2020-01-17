@@ -21,9 +21,11 @@ from __future__ import annotations
 from typing import *  # NoQA
 
 import enum
+import json
 import os
 import pathlib
-from typing import *  # NoQA
+
+import immutables as immu
 
 import edb
 from edb.common import devmode
@@ -108,10 +110,9 @@ class Version(NamedTuple):
     def __str__(self):
         ver = f'{self.major}.{self.minor}'
         if self.stage is not VersionStage.FINAL:
-            ver += (
-                f'-{self.stage.name.lower()}.{self.stage_no}'
-                f'{("+" + ".".join(self.local)) if self.local else ""}'
-            )
+            ver += f'-{self.stage.name.lower()}.{self.stage_no}'
+        if self.local:
+            ver += f'{("+" + ".".join(self.local)) if self.local else ""}'
 
         return ver
 
@@ -171,3 +172,32 @@ def get_version() -> Version:
         version = Version(*vertuple)
 
     return version
+
+
+_version_dict: Optional[immu.Map[str, Any]] = None
+
+
+def get_version_dict() -> immu.Map[str, Any]:
+    global _version_dict
+
+    if _version_dict is None:
+        ver = get_version()
+        _version_dict = immu.Map({
+            'major': ver.major,
+            'minor': ver.minor,
+            'stage': ver.stage.name.lower(),
+            'stage_no': ver.stage_no,
+            'local': tuple(ver.local) if ver.local else (),
+        })
+
+    return _version_dict
+
+
+_version_json: Optional[str] = None
+
+
+def get_version_json() -> str:
+    global _version_json
+    if _version_json is None:
+        _version_json = json.dumps(dict(get_version_dict()))
+    return _version_json

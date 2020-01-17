@@ -561,15 +561,8 @@ async def _compile_sys_queries(schema, cluster):
 async def _populate_misc_instance_data(cluster):
 
     mock_auth_nonce = scram.generate_nonce()
-    ver = buildmeta.get_version()
     json_instance_data = {
-        'version': {
-            'major': ver.major,
-            'minor': ver.minor,
-            'stage': ver.stage.name.lower(),
-            'stage_no': ver.stage_no,
-            'local': tuple(ver.local) if ver.local else (),
-        },
+        'version': dict(buildmeta.get_version_dict()),
         'catver': edbdef.EDGEDB_CATALOG_VERSION,
         'mock_auth_nonce': mock_auth_nonce,
     }

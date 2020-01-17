@@ -129,8 +129,8 @@ sys::__version_internal() -> tuple<major: std::int64,
                                    stage_no: std::int64,
                                    local: array<std::str>>
 {
-    # This function reads external data.
-    SET volatility := 'VOLATILE';
+    # This function reads from a table.
+    SET volatility := 'STABLE';
     USING SQL $$
     SELECT
         (v ->> 'major')::int8,
@@ -140,7 +140,7 @@ sys::__version_internal() -> tuple<major: std::int64,
         (SELECT coalesce(array_agg(el), ARRAY[]::text[])
          FROM jsonb_array_elements_text(v -> 'local') AS el)
     FROM
-        (SELECT edgedb.__syscache_instancedata() -> 'version' AS v) AS q;
+        edgedb._sys_version() as v
     $$;
 };
 
@@ -152,8 +152,7 @@ sys::get_version() -> tuple<major: std::int64,
                             stage_no: std::int64,
                             local: array<std::str>>
 {
-    # This function reads external data.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'STABLE';
     USING (
         SELECT <tuple<major: std::int64,
                     minor: std::int64,
@@ -167,18 +166,15 @@ sys::get_version() -> tuple<major: std::int64,
 CREATE FUNCTION
 sys::get_version_as_str() -> std::str
 {
-    # This function reads external data.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'STABLE';
     USING (
         WITH v := sys::get_version()
         SELECT
             <str>v.major
             ++ '.' ++ <str>v.minor
-            ++ ('-' ++ <str>v.stage
-                ++ '.' ++ <str>v.stage_no
-                ++ ('+' ++ std::to_str(v.local, '.')
-                    IF len(v.local) > 0 ELSE '')
-            ) IF v.stage != <sys::version_stage>'final' ELSE ''
+            ++ (('-' ++ <str>v.stage ++ '.' ++ <str>v.stage_no)
+                IF v.stage != <sys::version_stage>'final' ELSE '')
+            ++ (('+' ++ std::to_str(v.local, '.')) IF len(v.local) > 0 ELSE '')
     );
 };
 

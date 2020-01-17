@@ -111,7 +111,8 @@ def _compile_parsers(build_lib, inplace=False):
             shutil.copy2(cache, ROOT_PATH / pickle_path)
 
 
-def _compile_build_meta(build_lib, version, pg_config, runstatedir):
+def _compile_build_meta(build_lib, version, pg_config, runstatedir,
+                        version_suffix):
     import pkg_resources
     from edb.server import buildmeta
 
@@ -120,6 +121,8 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir):
 
     vertuple = list(parsed_version._asdict().values())
     vertuple[2] = int(vertuple[2])
+    if version_suffix:
+        vertuple[4] = tuple(version_suffix.split('.'))
     vertuple = tuple(vertuple)
 
     content = textwrap.dedent('''\
@@ -230,12 +233,14 @@ class build(distutils_build.build):
     user_options = distutils_build.build.user_options + [
         ('pg-config=', None, 'path to pg_config to use with this build'),
         ('runstatedir=', None, 'directory to use for the runtime state'),
+        ('version-suffix=', None, 'dot-separated local version suffix'),
     ]
 
     def initialize_options(self):
         super().initialize_options()
         self.pg_config = None
         self.runstatedir = None
+        self.version_suffix = None
 
     def finalize_options(self):
         super().finalize_options()
@@ -250,6 +255,7 @@ class build(distutils_build.build):
                 self.distribution.metadata.version,
                 self.pg_config,
                 self.runstatedir,
+                self.version_suffix,
             )
 
 

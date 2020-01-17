@@ -543,9 +543,10 @@ cdef class EdgeConnection:
                     if not sname:
                         sname = None
                     aliases = aliases.set(sname, svalue)
-                else:
-                    assert stype == b'S' and not sname
+                elif stype == b'S':
+                    assert not sname
                     sp_id = int(svalue)
+                # Ignore everything else in the state table.
 
         if self.debug:
             self.debug_print('RECOVER SP/ALIAS/CONF', sp_id, aliases, conf)
