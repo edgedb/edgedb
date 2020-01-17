@@ -23,6 +23,9 @@ to the ``schema::ObjectType``. For scalars there's the
 :eql:op:`INTROSPECT` and :eql:op:`TYPEOF` operators that can be used
 to get the type of an expression.
 
+Finally, the command :eql:stmt:`DESCRIBE` can be used to get
+information about EdgeDB types in a variety of human-readable formats.
+
 .. toctree::
     :maxdepth: 3
     :hidden:

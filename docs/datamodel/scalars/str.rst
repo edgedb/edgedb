@@ -8,6 +8,8 @@ String
 
 .. eql:type:: std::str
 
+    :index: continuation cont
+
     A unicode string of text.
 
     Any other type (except :eql:type:`bytes`) can be
@@ -49,6 +51,17 @@ String
         ... nested \!$$$marker$;
         {'something $$
         nested \!$$'}
+
+    Regular strings use ``\`` to indicate line continuation. When a
+    line continuation symbol is encountered the symbol itself as well
+    as all the whitespace characters up to the next non-whitespace
+    character are omitted from the string:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 'Hello, \
+        ...         world';
+        {'"Hello, world"'}
 
 
 See Also

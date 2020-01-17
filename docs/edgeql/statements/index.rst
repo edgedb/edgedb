@@ -62,6 +62,10 @@ Session state control statements:
 * :ref:`SET ALIAS <ref_eql_statements_session_set_alias>` and
   :ref:`RESET ALIAS <ref_eql_statements_session_reset_alias>`.
 
+Introspection command:
+
+* :ref:`DESCRIBE <ref_eql_statements_describe>`.
+
 
 .. toctree::
     :maxdepth: 3
@@ -83,3 +87,5 @@ Session state control statements:
 
     sess_set_alias
     sess_reset_alias
+
+    describe

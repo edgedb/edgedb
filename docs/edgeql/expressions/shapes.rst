@@ -37,13 +37,21 @@ the :eql:synopsis:`<expr>` set that are instances of
   by :eql:synopsis:`<expr>`;
 
 - a declaration of a computable link or property in the form
-  ``[@]<name> := <ptrexpr>``;
+
+  .. eql:synopsis ::
+
+    [@]<name> := <ptrexpr>
+
 
 - a *subshape* in the form
-  :eql:synopsis:`<pointer-name>: [<target-type>] "{" ... "}"`, where
-  :eql:synopsis:`<pointer-name>` is the name of an existing link or property,
-  and :eql:synopsis:`<target-type>` is an optional object type
-  that specifies the type of target objects selected or inserted,
+
+  .. eql:synopsis ::
+
+    <pointer-name>: [ "[" IS <target-type> "]" ] "{" ... "}"`
+
+  The :eql:synopsis:`<pointer-name>` is the name of an existing link
+  or property, and :eql:synopsis:`<target-type>` is an optional object
+  type that specifies the type of target objects selected or inserted,
   depending on the context.
 
 

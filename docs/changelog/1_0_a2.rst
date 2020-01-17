@@ -200,16 +200,19 @@ Other Fixes and Enhancements
   (:eql:gh:`#921`).
 * Remove the ``.>`` alternate syntax for forward link navigation
   (:eql:gh:`#982`).
-* Fix interaction of the FOR statement and nested shapes (:eql:gh:`#834`).
+* Fix interaction of the :eql:stmt:`FOR` statement and nested shapes
+  (:eql:gh:`#834`).
 * Place restrictions on the use of DML statements (:eql:gh:`#741`).
 * Fix queries with unions with overlapping subtypes (:eql:gh:`#1010`).
-* Allow trailing commas in the WITH clause (:eql:gh:`#868`).
+* Allow trailing commas in the :ref:`WITH <ref_eql_with>` clause
+  (:eql:gh:`#868`).
 * Ban use of ``::`` in quoted names (:eql:gh:`#840`).
 * Add syntax for quoting backticks in quoted names (:eql:gh:`#632`).
-* Remove SELECT-like clauses from the FOR statement (:eql:gh:`#743`).
+* Remove ``SELECT``-like clauses from the :eql:stmt:`FOR` statement
+  (:eql:gh:`#743`).
 * Fix implicit ``id`` and ``__tid__`` properties injection in
   DML statements (:eql:gh:`#664`).
-* Make type variants made by shapes consistent with schema inheriance
+* Make type variants made by shapes consistent with schema inheritance
   rules (:eql:gh:`36e86d56`).
 * Implement rudimentary support for type intersection (:eql:gh:`177aa1f8`).
 * Optimize single link type indirections when possible (:eql:gh:`48cdfa54`).
@@ -225,8 +228,8 @@ Other Fixes and Enhancements
 GraphQL
 =======
 
-Enhanced Fitering
------------------
+Enhanced Filtering
+------------------
 
 It is now possible to filter by traversing arbitrarily deep links,
 not just immediate properties:
@@ -329,8 +332,9 @@ Introspection
 Generic Describe
 ----------------
 
-``DESCRIBE`` is a new introspection command that can generate DDL, SDL, or
-a descriptive "text" summary of any schema object in EdgeDB.  A few examples:
+:eql:stmt:`DESCRIBE` is a new introspection command that can generate
+DDL, SDL, or a descriptive "text" summary of any schema object in
+EdgeDB.  A few examples:
 
 .. code-block:: edgeql-repl
 
