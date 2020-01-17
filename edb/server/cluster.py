@@ -266,7 +266,6 @@ class Cluster:
     def trust_local_connections(self):
         self._admin_query('''
             CONFIGURE SYSTEM INSERT Auth {
-                host := 'localhost',
                 priority := 0,
                 method := (INSERT Trust),
             }
