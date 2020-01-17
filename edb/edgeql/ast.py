@@ -623,7 +623,7 @@ class SetSpecialField(BaseSetField):
 class ObjectDDL(DDLCommand, CompositeDDL):
     __abstract_node__ = True
     name: ObjectRef
-    commands: typing.Sequence[DDLCommand]
+    commands: typing.List[DDLCommand]
 
 
 class CreateObject(ObjectDDL):
