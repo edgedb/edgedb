@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from edgedb import scram
 
+from edb import errors
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -33,16 +34,9 @@ from . import objects as so
 class Role(so.GlobalObject, inheriting.InheritingObject,
            s_anno.AnnotationSubject, qlkind=qltypes.SchemaObjectClass.ROLE):
 
-    allow_login = so.SchemaField(
-        bool,
-        default=False,
-        allow_ddl_set=True,
-        inheritable=False)
-
     is_superuser = so.SchemaField(
         bool,
         default=False,
-        allow_ddl_set=True,
         inheritable=False)
 
     password = so.SchemaField(
@@ -88,8 +82,23 @@ class CreateRole(RoleCommand, inheriting.CreateInheritingObject):
     @classmethod
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+
+        if not astnode.superuser and not context.testmode:
+            raise errors.EdgeQLSyntaxError(
+                'missing required SUPERUSER qualifier',
+                context=astnode.context,
+            )
+
+        cmd.set_attribute_value('is_superuser', astnode.superuser)
         cls._process_role_body(cmd, schema, astnode, context)
         return cmd
+
+    def _apply_field_ast(self, schema, context, node, op):
+        if op.property == 'is_superuser':
+            node.superuser = op.new_value
+            return
+
+        super()._apply_field_ast(schema, context, node, op)
 
 
 class RebaseRole(RoleCommand, inheriting.RebaseInheritingObject):

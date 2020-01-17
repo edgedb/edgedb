@@ -27,9 +27,8 @@ class TestServerAuth(tb.ConnectedTestCase):
 
     async def test_server_auth_01(self):
         await self.con.fetchall('''
-            CREATE ROLE foo {
+            CREATE SUPERUSER ROLE foo {
                 SET password := 'foo-pass';
-                SET allow_login := True
             }
         ''')
 
@@ -50,19 +49,6 @@ class TestServerAuth(tb.ConnectedTestCase):
         await conn.aclose()
 
         await self.con.fetchall('''
-            ALTER ROLE foo { SET allow_login := False };
-        ''')
-
-        # good password, but allow_login is False
-        with self.assertRaisesRegex(
-                edgedb.AuthenticationError,
-                'authentication failed'):
-            await self.connect(
-                user='foo',
-                password='foo-pass',
-            )
-
-        await self.con.fetchall('''
             CONFIGURE SYSTEM INSERT Auth {
                 comment := 'test',
                 priority := 0,
@@ -71,19 +57,6 @@ class TestServerAuth(tb.ConnectedTestCase):
         ''')
 
         try:
-            # even with trust, allow_login should still be honored
-            with self.assertRaisesRegex(
-                    edgedb.AuthenticationError,
-                    'authentication failed'):
-                await self.connect(
-                    user='foo',
-                    password='foo-pass',
-                )
-
-            await self.con.fetchall('''
-                ALTER ROLE foo { SET allow_login := True };
-            ''')
-
             # bad password, but the trust method doesn't care
             conn = await self.connect(
                 user='foo',

@@ -2398,7 +2398,6 @@ def _generate_role_views(schema):
                  WHERE name = 'sys::Role')              AS __type__,
             a.rolname                                   AS name,
             a.rolsuper                                  AS is_superuser,
-            a.rolcanlogin                               AS allow_login,
             (d.description)->>'password_hash'           AS password
         FROM
             pg_catalog.pg_roles AS a

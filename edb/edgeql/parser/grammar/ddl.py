@@ -552,15 +552,25 @@ commands_block(
 )
 
 
+class OptSuperuser(Nonterm):
+
+    def reduce_SUPERUSER(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
 class CreateRoleStmt(Nonterm):
     def reduce_CreateRoleStmt(self, *kids):
-        r"""%reduce CREATE ROLE ShortNodeName OptShortExtending \
-                                OptCreateRoleCommandsBlock \
+        r"""%reduce CREATE OptSuperuser ROLE ShortNodeName
+                    OptShortExtending OptCreateRoleCommandsBlock
         """
         self.val = qlast.CreateRole(
-            name=kids[2].val,
-            bases=kids[3].val,
-            commands=kids[4].val,
+            name=kids[3].val,
+            bases=kids[4].val,
+            commands=kids[5].val,
+            superuser=kids[1].val,
         )
 
 

@@ -92,10 +92,6 @@ Connection Settings
         The name(s) of the database role(s) this rule applies to.  If set to
         ``'*'``, then it applies to all roles.
 
-    :eql:synopsis:`database (SET OF str)`
-        The name(s) of the database(s) this rule applies to.  If set to
-        ``'*'``, then it applies to all databases.
-
     :eql:synopsis:`method`
         The name of the authentication method type.  Valid values are:
         ``Trust`` for no authentication and ``SCRAM`` for SCRAM-SHA-256

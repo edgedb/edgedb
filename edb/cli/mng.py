@@ -285,11 +285,10 @@ def options(options):
 _role_options = [
     click.option('--password/--no-password', default=None),
     click.option('--password-from-stdin', is_flag=True, default=False),
-    click.option('--allow-login/--no-allow-login', default=None),
 ]
 
 
-def _process_role_options(ctx, password, password_from_stdin, allow_login):
+def _process_role_options(ctx, password, password_from_stdin):
     if password is None and password_from_stdin:
         password = True
 
@@ -314,16 +313,9 @@ def _process_role_options(ctx, password, password_from_stdin, allow_login):
     else:
         password_value = None
 
-    if allow_login is not None:
-        allow_login_value = 'true' if allow_login else 'false'
-    else:
-        allow_login_value = None
-
     alters = []
     if password_value is not None:
         alters.append(f'SET password := {password_value}')
-    if allow_login_value is not None:
-        alters.append(f'SET allow_login := {allow_login_value}')
 
     if not alters:
         raise click.UsageError(
@@ -333,8 +325,8 @@ def _process_role_options(ctx, password, password_from_stdin, allow_login):
     return alters
 
 
-@cli.command(name='create-role',
-             help='Create a new database user')
+@cli.command(name='create-superuser-role',
+             help='Create a new database superuser')
 @click.argument('role-name', type=str)
 @options(_role_options)
 @click.pass_context
@@ -344,7 +336,7 @@ def create_role(ctx, role_name, **kwargs):
     attrs = ";\n".join(_process_role_options(ctx, **kwargs))
 
     qry = f'''
-        CREATE ROLE {qi(role_name)} {{
+        CREATE SUPERUSER ROLE {qi(role_name)} {{
             {attrs}
         }}
     '''

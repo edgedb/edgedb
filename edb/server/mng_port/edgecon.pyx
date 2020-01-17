@@ -238,7 +238,7 @@ cdef class EdgeConnection:
             authmethod_name = 'Trust'
         else:
             authmethod = await self.port.get_server().get_auth_method(
-                user, database, self._transport)
+                user, self._transport)
             authmethod_name = type(authmethod).__name__
 
         if authmethod_name == 'SCRAM':
@@ -342,7 +342,7 @@ cdef class EdgeConnection:
 
     async def _auth_trust(self, user):
         rolerec = await self._get_role_record(user)
-        if rolerec is None or not rolerec['allow_login']:
+        if rolerec is None:
             raise errors.AuthenticationError('authentication failed')
 
     async def _auth_scram(self, user):
@@ -483,7 +483,7 @@ cdef class EdgeConnection:
 
     async def _get_scram_verifier(self, user):
         rolerec = await self._get_role_record(user)
-        if rolerec is not None and rolerec['allow_login']:
+        if rolerec is not None:
             verifier_string = rolerec['password']
             if verifier_string is None:
                 raise errors.AuthenticationError(

@@ -706,7 +706,7 @@ class DropModule(DropObject):
 
 
 class CreateRole(CreateObject, BasesMixin):
-    pass
+    superuser: bool = False
 
 
 class AlterRole(AlterObject):

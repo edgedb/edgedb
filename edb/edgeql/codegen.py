@@ -956,7 +956,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateRole(self, node: qlast.CreateRole) -> None:
         after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'ROLE', after_name=after_name)
+        keywords = []
+        if node.superuser:
+            keywords.append('SUPERUSER')
+        keywords.append('ROLE')
+        self._visit_CreateObject(node, *keywords, after_name=after_name)
 
     def visit_AlterRole(self, node: qlast.AlterRole) -> None:
         self._visit_AlterObject(node, 'ROLE')

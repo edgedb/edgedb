@@ -132,7 +132,6 @@ class IntrospectionMech:
                 id=row['id'],
                 name=row['name'],
                 is_superuser=row['is_superuser'],
-                allow_login=row['allow_login'],
                 password=row['password'],
             )
 

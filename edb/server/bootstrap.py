@@ -523,7 +523,6 @@ async def _compile_sys_queries(schema, cluster):
     role_query = '''
         SELECT sys::Role {
             name,
-            allow_login,
             is_superuser,
             password,
         } FILTER .name = <str>$name;

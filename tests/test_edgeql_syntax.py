@@ -2720,6 +2720,7 @@ aa';
     def test_edgeql_syntax_ddl_role_01(self):
         """
         CREATE ROLE username;
+        CREATE SUPERUSER ROLE username;
         CREATE ROLE abstract;
         CREATE ROLE `mytest"role"`;
         CREATE ROLE `mytest"role"`
@@ -2728,6 +2729,7 @@ aa';
 % OK %
 
         CREATE ROLE username;
+        CREATE SUPERUSER ROLE username;
         CREATE ROLE abstract;
         CREATE ROLE `mytest"role"`;
         CREATE ROLE `mytest"role"`
@@ -2756,7 +2758,6 @@ aa';
     def test_edgeql_syntax_ddl_role_05(self):
         """
         CREATE ROLE username EXTENDING generic {
-            SET allow_login := True;
             SET password := 'secret';
         };
         """
@@ -2764,7 +2765,6 @@ aa';
     def test_edgeql_syntax_ddl_role_06(self):
         """
         ALTER ROLE username {
-            SET allow_login := False;
             SET password := {};
             EXTENDING generic, morestuff;
         };

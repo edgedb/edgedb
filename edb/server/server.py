@@ -309,7 +309,7 @@ class Server:
             g.create_task(self._mgmt_port.stop())
             self._mgmt_port = None
 
-    async def get_auth_method(self, user, database, conn):
+    async def get_auth_method(self, user, conn):
         authlist = self._sys_auth
 
         if not authlist:
@@ -319,7 +319,6 @@ class Server:
             for auth in authlist:
                 match = (
                     (user in auth.user or '*' in auth.user)
-                    and (database in auth.database or '*' in auth.database)
                 )
 
                 if match:

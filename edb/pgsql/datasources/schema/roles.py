@@ -30,7 +30,6 @@ async def fetch(
                 ((d.description)->>'id')::uuid AS id,
                 a.rolname AS name,
                 a.rolsuper AS is_superuser,
-                a.rolcanlogin AS allow_login,
                 (d.description)->>'password_hash' AS password,
                 (
                     SELECT

@@ -68,17 +68,7 @@ CREATE TYPE cfg::Auth {
         SET readonly := true;
     };
 
-    CREATE REQUIRED MULTI PROPERTY host -> std::str {
-        SET readonly := true;
-        SET default := {'*'};
-    };
-
     CREATE MULTI PROPERTY user -> std::str {
-        SET readonly := true;
-        SET default := {'*'};
-    };
-
-    CREATE MULTI PROPERTY database -> std::str {
         SET readonly := true;
         SET default := {'*'};
     };

@@ -38,7 +38,6 @@ CREATE TYPE sys::Role {
         CREATE CONSTRAINT std::exclusive;
     };
 
-    CREATE REQUIRED PROPERTY allow_login -> std::bool;
     CREATE REQUIRED PROPERTY is_superuser -> std::bool;
     CREATE PROPERTY password -> std::str;
 };

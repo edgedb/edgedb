@@ -88,6 +88,7 @@ unreserved_keywords = frozenset([
     "session",
     "single",
     "source",
+    "superuser",
     "system",
     "target",
     "ternary",

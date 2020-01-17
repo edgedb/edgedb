@@ -19,20 +19,24 @@ Create a role.
 
 .. eql:synopsis::
 
-    CREATE ROLE <name> [ EXTENDING <base> [, ...] ]
+    CREATE SUPERUSER ROLE <name> [ EXTENDING <base> [, ...] ]
     "{" <subcommand>; [...] "}" ;
 
     # where <subcommand> is one of
 
-      SET allow_login := {true | false}
-      SET is_superuser := {true | false}
       SET password := <password>
 
 
 Description
 -----------
 
-``CREATE ROLE`` defines a new role.
+``CREATE ROLE`` defines a new database role.
+
+:eql:synopsis:`SUPERUSER`
+    If specified, the created role will have the *superuser* status, and
+    will be exempt from all permission checks.  Currently,
+    the ``SUPERUSER`` qualifier is mandatory, i.e. it is not possible to
+    create non-superuser roles for now.
 
 :eql:synopsis:`<name>`
     The name of the role to create.
@@ -42,15 +46,6 @@ Description
     inherits all the privileges of the parents.
 
 The following subcommands are allowed in the ``CREATE ROLE`` block:
-
-:eql:synopsis:`SET allow_login := {true | false}`
-    A boolean flag that controls whether this role can be used to log
-    into EdgeDB. It is ``false`` by default.
-
-:eql:synopsis:`SET is_superuser := {true | false}`
-    A boolean flag that determines whether this role is a "superuser".
-    A "superuser" can override all access restrictions within EdgeDB.
-    It is ``false`` by default.
 
 :eql:synopsis:`SET password := <password>`
     Set the password for the role.
@@ -64,7 +59,6 @@ Create a new role:
 .. code-block:: edgeql
 
     CREATE ROLE alice {
-        SET allow_login := true;
         SET password := 'wonderland';
     };
 
@@ -83,8 +77,6 @@ Alter an existing role.
     # where <subcommand> is one of
 
       RENAME TO <newname>
-      SET allow_login := {true | false}
-      SET is_superuser := {true | false}
       SET password := <password>
       EXTENDING ...
 
@@ -125,9 +117,6 @@ The following subcommands are allowed in the ``ALTER ROLE`` block:
     * ``AFTER <parent>`` -- insert parent(s) after an existing
       *parent*.
 
-All the subcommands allowed in the ``CREATE ROLE`` block are also
-valid subcommands for ``ALTER ROLE`` block.
-
 
 Examples
 --------
@@ -137,7 +126,7 @@ Alter a role:
 .. code-block:: edgeql
 
     ALTER ROLE alice {
-        SET allow_login := false;
+        SET password := 'new password';
     };
 
 

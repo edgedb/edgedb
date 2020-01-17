@@ -3178,14 +3178,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"""
                 SELECT sys::Role {
                     name,
-                    allow_login,
                     is_superuser,
                     password,
                 } FILTER .name = 'foo_01'
             """,
             [{
                 'name': 'foo_01',
-                'allow_login': False,
                 'is_superuser': False,
                 'password': None,
             }]
@@ -3193,9 +3191,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_role_02(self):
         await self.con.execute(r"""
-            CREATE ROLE foo2 {
-                SET allow_login := true;
-                SET is_superuser := true;
+            CREATE SUPERUSER ROLE foo2 {
                 SET password := 'secret';
             };
         """)
@@ -3204,13 +3200,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"""
                 SELECT sys::Role {
                     name,
-                    allow_login,
                     is_superuser,
                 } FILTER .name = 'foo2'
             """,
             [{
                 'name': 'foo2',
-                'allow_login': True,
                 'is_superuser': True,
             }]
         )
@@ -3237,9 +3231,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_role_03(self):
         await self.con.execute(r"""
-            CREATE ROLE foo3 {
-                SET allow_login := true;
-                SET is_superuser := true;
+            CREATE SUPERUSER ROLE foo3 {
                 SET password := 'secret';
             };
         """)
@@ -3252,7 +3244,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"""
                 SELECT sys::Role {
                     name,
-                    allow_login,
                     is_superuser,
                     password,
                     member_of: {
@@ -3262,7 +3253,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """,
             [{
                 'name': 'foo4',
-                'allow_login': False,
                 'is_superuser': False,
                 'password': None,
                 'member_of': [{
