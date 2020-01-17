@@ -28,7 +28,7 @@ Options
 
 :cli:synopsis:`-H <hostname>, --host=<hostname>`
     Specifies the host name of the machine on which the server is running.
-    If :cli:synopsis:<hostname> begins with a slash (``/``), it is used
+    If :cli:synopsis:`<hostname>` begins with a slash (``/``), it is used
     as the directory where the command looks for the server Unix-domain
     socket.  Defaults to the value of the ``EDGEDB_HOST`` environment
     variable.
