@@ -69,7 +69,7 @@ def ast_objref_to_objref(
 def ast_to_typeref(
         node: qlast.TypeName, *,
         metaclass: Optional[so.ObjectMeta] = None,
-        modaliases: Dict[Optional[str], str],
+        modaliases: Mapping[Optional[str], str],
         schema: s_schema.Schema) -> so.Object:
 
     if node.subtypes is not None and isinstance(node.maintype,
