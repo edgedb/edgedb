@@ -58,6 +58,12 @@ from edb.pgsql import metaschema
 
 from edgedb import scram
 
+if TYPE_CHECKING:
+    import uuid
+
+    from . import pgcluster
+    from asyncpg import connection as asyncpg_con
+
 
 CACHE_SRC_DIRS = s_std.CACHE_SRC_DIRS + (
     (pathlib.Path(metaschema.__file__).parent, '.py'),
@@ -268,7 +274,9 @@ def _process_delta(delta, schema):
     return schema, delta
 
 
-async def _make_stdlib(testmode: bool):
+async def _make_stdlib(
+    testmode: bool
+) -> Tuple[s_schema.Schema, str, Set[uuid.UUID]]:
     schema = s_schema.Schema()
     schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
 
@@ -282,7 +290,7 @@ async def _make_stdlib(testmode: bool):
         std_texts.append(s_std.get_std_module_text('_testmode'))
 
     ddl_text = '\n'.join(std_texts)
-    new_types = set()
+    new_types: Set[uuid.UUID] = set()
 
     for ddl_cmd in edgeql.parse_block(ddl_text):
         delta_command = s_ddl.delta_from_ddl(
@@ -317,6 +325,7 @@ async def _make_stdlib(testmode: bool):
 
         plan.generate(current_block)
 
+    assert current_block is not None
     sql_text = current_block.to_string()
 
     mods = {
@@ -457,12 +466,19 @@ async def _populate_data(std_schema, schema, conn):
     return schema
 
 
-async def _configure(schema, conn, cluster, *, insecure=False, testmode=False):
+async def _configure(
+    schema: s_schema.Schema,
+    conn: asyncpg_con.Connection,
+    cluster: pgcluster.BaseCluster,
+    *,
+    insecure: bool = False,
+    testmode: bool = False,
+) -> None:
     scripts = []
 
-    if not testmode:
+    if cluster.is_managed() and not testmode:
         memory_kb = psutil.virtual_memory().total // 1024
-        settings = {
+        settings: Mapping[str, str] = {
             'shared_buffers': f'"{int(memory_kb * 0.2)}kB"',
             'effective_cache_size': f'"{int(memory_kb * 0.5)}kB"',
             'query_work_mem': f'"{6 * (2 ** 10)}kB"',
@@ -496,7 +512,8 @@ async def _configure(schema, conn, cluster, *, insecure=False, testmode=False):
         config_op_data = await conn.fetchval(sql)
         if config_op_data is not None and isinstance(config_op_data, str):
             config_op = config.Operation.from_json(config_op_data)
-            settings = config_op.apply(config_spec, immutables.Map())
+            storage: Mapping[str, str] = immutables.Map()
+            settings = config_op.apply(config_spec, storage)
 
     config_json = config.to_json(config_spec, settings)
     block = dbops.PLTopBlock()

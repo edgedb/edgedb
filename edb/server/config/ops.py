@@ -36,6 +36,10 @@ from . import spec
 from . import types
 
 
+if TYPE_CHECKING:
+    Mapping_T = TypeVar("Mapping_T", bound=Mapping[str, str])
+
+
 class OpLevel(enum.StrEnum):
 
     SESSION = 'SESSION'
@@ -98,7 +102,7 @@ class Operation(NamedTuple):
                     f'invalid value type for the {setting.name!r} setting')
 
     def apply(self, spec: spec.Spec,
-              storage: Mapping) -> Mapping:
+              storage: Mapping_T) -> Mapping_T:
 
         setting = self.get_setting(spec)
         allow_missing = (

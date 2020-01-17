@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from .ops import OpLevel, OpCode, Operation, lookup
 from .ops import spec_to_json, to_json, from_json
@@ -33,19 +34,19 @@ __all__ = (
     'spec_to_json', 'to_json', 'from_json',
     'value_from_json',
     'OpLevel', 'OpCode', 'Operation',
-    'ConfigType', 'Port',
+    'ConfigType',
     'load_spec_from_schema',
     'generate_config_query',
 )
 
 
-_settings = None
+_settings = Spec()
 
 
-def get_settings():
+def get_settings() -> Spec:
     return _settings
 
 
-def set_settings(settings):
+def set_settings(settings: Spec) -> None:
     global _settings
     _settings = settings
