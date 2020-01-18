@@ -25,13 +25,18 @@ import shutil
 import subprocess
 import textwrap
 
+import distutils
 from distutils import extension as distutils_extension
 from distutils.command import build as distutils_build
+from distutils.command import build_ext as distutils_build_ext
 
 import setuptools
-import setuptools_rust
-from setuptools_rust import build_ext as base_build_ext
 from setuptools.command import develop as setuptools_develop
+
+try:
+    import setuptools_rust
+except ImportError:
+    setuptools_rust = None
 
 
 RUNTIME_DEPS = [
@@ -45,7 +50,6 @@ RUNTIME_DEPS = [
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
     'setuptools_scm~=3.2.0',
-    'setuptools-rust==0.10.6',
     'typing_inspect~=0.5.0',
     'uvloop~=0.14.0',
 
@@ -65,6 +69,7 @@ DOCS_DEPS = [
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
+    'setuptools-rust==0.10.6',
 ]
 
 EXTRA_DEPS = {
@@ -329,9 +334,9 @@ class build_postgres(setuptools.Command):
             build_contrib=self.build_contrib)
 
 
-class build_ext(base_build_ext):
+class build_ext(distutils_build_ext.build_ext):
 
-    user_options = base_build_ext.user_options + [
+    user_options = distutils_build_ext.build_ext.user_options + [
         ('cython-annotate', None,
             'Produce a colorized HTML version of the Cython source.'),
         ('cython-directives=', None,
@@ -410,6 +415,26 @@ class build_ext(base_build_ext):
 
         super(build_ext, self).finalize_options()
 
+    def run(self):
+        if self.distribution.rust_extensions:
+            distutils.log.info("running build_rust")
+            build_rust = self.get_finalized_command("build_rust")
+            build_rust.inplace = self.inplace
+            build_rust.run()
+
+        super().run()
+
+
+if setuptools_rust is not None:
+    rust_extensions = [
+        setuptools_rust.RustExtension(
+            "edb.edgeql._edgeql_rust",
+            path="edgedb-rust/edgeql-python/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython),
+    ]
+else:
+    rust_extensions = []
+
 
 setuptools.setup(
     setup_requires=RUNTIME_DEPS + BUILD_DEPS,
@@ -433,12 +458,6 @@ setuptools.setup(
             'edgedb-server = edb.server.main:main',
         ]
     },
-    rust_extensions=[
-        setuptools_rust.RustExtension(
-            "edb.edgeql._edgeql_rust",
-            path="edgedb-rust/edgeql-python/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython),
-    ],
     ext_modules=[
         distutils_extension.Extension(
             "edb.server.pgproto.pgproto",
@@ -488,6 +507,7 @@ setuptools.setup(
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
     ],
+    rust_extensions=rust_extensions,
     install_requires=RUNTIME_DEPS,
     extras_require=EXTRA_DEPS,
     test_suite='tests.suite',
