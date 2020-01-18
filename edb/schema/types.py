@@ -1781,6 +1781,7 @@ class TypeCommand(sd.ObjectCommand):
             ct = vt.as_create_delta(
                 new_schema, view_name=classname,
                 attrs={
+                    'id': uuidgen.uuid1mc(),
                     'expr': expr,
                     'alias_is_persistent': True,
                     'expr_type': ExprType.Select,
