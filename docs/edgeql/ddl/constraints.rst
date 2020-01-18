@@ -351,12 +351,17 @@ Alter the definition of a concrete constraint on the specified schema item.
 
     [ WITH [ <module-alias> := ] MODULE <module-name> [, ...] ]
     ALTER CONSTRAINT <name>
+      [ ( [<argspec>] [, ...] ) ]
+      [ ON ( <subject-expr> ) ]
     "{" <subcommand>; [ ... ] "}" ;
 
     # -- or --
 
     [ WITH [ <module-alias> := ] MODULE <module-name> [, ...] ]
-    ALTER CONSTRAINT <name> <subcommand> ;
+    ALTER CONSTRAINT <name>
+      [ ( [<argspec>] [, ...] ) ]
+      [ ON ( <subject-expr> ) ]
+      <subcommand> ;
 
     # where <subcommand> is one of:
 
@@ -390,6 +395,15 @@ Parameters
     The name (optionally module-qualified) of the concrete constraint
     that is being altered.
 
+:eql:synopsis:`<argspec>`
+    A list of constraint arguments as specified at the time of
+    ``CREATE CONSTRAINT``.
+
+:eql:synopsis:`ON ( <subject-expr> )`
+    A expression defining the *subject* of the constraint as specified
+    at the time of ``CREATE CONSTRAINT``.
+
+
 The following subcommands are allowed in the ``ALTER CONSTRAINT`` block:
 
 :eql:synopsis:`SET DELEGATED`
@@ -420,7 +434,7 @@ Change the error message on the minimum value constraint on the property
 .. code-block:: edgeql
 
     ALTER TYPE User ALTER PROPERTY score
-    ALTER CONSTRAINT min_value
+    ALTER CONSTRAINT min_value(0)
     SET errmessage := 'Score cannot be negative';
 
 
@@ -435,7 +449,9 @@ Remove a concrete constraint from the specified schema item.
 .. eql:synopsis::
 
     [ WITH [ <module-alias> := ] MODULE <module-name> [, ...] ]
-    DROP CONSTRAINT <name>;
+    DROP CONSTRAINT <name>
+      [ ( [<argspec>] [, ...] ) ]
+      [ ON ( <subject-expr> ) ] ;
 
 
 Description
@@ -458,6 +474,14 @@ Parameters
     The name (optionally module-qualified) of the concrete constraint
     to remove.
 
+:eql:synopsis:`<argspec>`
+    A list of constraint arguments as specified at the time of
+    ``CREATE CONSTRAINT``.
+
+:eql:synopsis:`ON ( <subject-expr> )`
+    A expression defining the *subject* of the constraint as specified
+    at the time of ``CREATE CONSTRAINT``.
+
 
 Example
 -------
@@ -468,4 +492,4 @@ Remove constraint "min_value" from the property "score" of the
 .. code-block:: edgeql
 
     ALTER TYPE User ALTER PROPERTY score
-    DROP CONSTRAINT min_value;
+    DROP CONSTRAINT min_value(0);
