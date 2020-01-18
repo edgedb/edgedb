@@ -18,6 +18,7 @@
 
 
 import binascii
+import os
 import os.path
 import pathlib
 import platform
@@ -69,7 +70,7 @@ DOCS_DEPS = [
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
-    'setuptools-rust==0.10.6',
+    'setuptools-rust==0.10.3',
 ]
 
 EXTRA_DEPS = {
@@ -420,6 +421,8 @@ class build_ext(distutils_build_ext.build_ext):
             distutils.log.info("running build_rust")
             build_rust = self.get_finalized_command("build_rust")
             build_rust.inplace = self.inplace
+            os.environ['CARGO_TARGET_DIR'] = (
+                str(pathlib.Path(self.build_temp) / 'rust'))
             build_rust.run()
 
         super().run()
