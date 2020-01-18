@@ -3771,6 +3771,9 @@ aa';
         DESCRIBE TYPE foo::Bar AS TEXT VERBOSE;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected 'VERBOSE'",
+                  line=2, col=39)
     def test_edgeql_syntax_describe_04(self):
         """
         DESCRIBE TYPE foo::Bar AS DDL VERBOSE;

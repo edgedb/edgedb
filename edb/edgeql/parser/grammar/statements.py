@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import typing
+
 from edb import errors
 
 from edb.edgeql import ast as qlast
@@ -132,73 +134,68 @@ class TransactionStmt(Nonterm):
         self.val = qlast.ReleaseSavepoint(name=kids[2].val)
 
 
+class DescribeFmt(typing.NamedTuple):
+    language: typing.Optional[qltypes.DescribeLanguage] = None
+    options: qlast.Options = None
+
+
 class DescribeFormat(Nonterm):
 
     def reduce_empty(self, *kids):
-        self.val = qltypes.DescribeLanguage.DDL
+        self.val = DescribeFmt(
+            language=qltypes.DescribeLanguage.DDL,
+            options=qlast.Options(),
+        )
 
     def reduce_AS_DDL(self, *kids):
-        self.val = qltypes.DescribeLanguage.DDL
+        self.val = DescribeFmt(
+            language=qltypes.DescribeLanguage.DDL,
+            options=qlast.Options(),
+        )
 
     def reduce_AS_SDL(self, *kids):
-        self.val = qltypes.DescribeLanguage.SDL
+        self.val = DescribeFmt(
+            language=qltypes.DescribeLanguage.SDL,
+            options=qlast.Options(),
+        )
 
     def reduce_AS_TEXT(self, *kids):
-        self.val = qltypes.DescribeLanguage.TEXT
+        self.val = DescribeFmt(
+            language=qltypes.DescribeLanguage.TEXT,
+            options=qlast.Options(),
+        )
 
-
-class DescribeOption(Nonterm):
-
-    def reduce_VERBOSE(self, *kids):
-        self.val = qlast.Flag(name='VERBOSE', val=True)
-
-
-class DescribeOptions(ListNonterm, element=DescribeOption):
-    def _reduce_list(self, lst, el):
-        self.val = qlast.Options(
-            options={**lst.val.options, el.val.name: el.val})
-
-    def _reduce_el(self, el):
-        self.val = qlast.Options(options={el.val.name: el.val})
-
-
-class OptDescribeOptions(Nonterm):
-
-    def reduce_DescribeOptions(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self, *kids):
-        self.val = qlast.Options()
+    def reduce_AS_TEXT_VERBOSE(self, *kids):
+        self.val = DescribeFmt(
+            language=qltypes.DescribeLanguage.TEXT,
+            options=qlast.Options(
+                options={'VERBOSE': qlast.Flag(name='VERBOSE', val=True)}
+            ),
+        )
 
 
 class DescribeStmt(Nonterm):
 
     def reduce_DESCRIBE_SCHEMA(self, *kids):
-        """%reduce DESCRIBE SCHEMA DescribeFormat
-                   OptDescribeOptions
-        """
+        """%reduce DESCRIBE SCHEMA DescribeFormat"""
         self.val = qlast.DescribeStmt(
-            language=kids[2].val,
             object=None,
-            options=kids[3].val,
+            language=kids[2].val.language,
+            options=kids[2].val.options,
         )
 
     def reduce_DESCRIBE_SchemaItem(self, *kids):
-        """%reduce DESCRIBE SchemaItem DescribeFormat
-                   OptDescribeOptions
-        """
+        """%reduce DESCRIBE SchemaItem DescribeFormat"""
         self.val = qlast.DescribeStmt(
-            language=kids[2].val,
             object=kids[1].val,
-            options=kids[3].val,
+            language=kids[2].val.language,
+            options=kids[2].val.options,
         )
 
     def reduce_DESCRIBE_OBJECT(self, *kids):
-        """%reduce DESCRIBE OBJECT NodeName DescribeFormat
-                   OptDescribeOptions
-        """
+        """%reduce DESCRIBE OBJECT NodeName DescribeFormat"""
         self.val = qlast.DescribeStmt(
-            language=kids[3].val,
             object=kids[2].val,
-            options=kids[4].val,
+            language=kids[3].val.language,
+            options=kids[3].val.options,
         )
