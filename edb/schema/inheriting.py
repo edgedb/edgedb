@@ -36,7 +36,6 @@ from edb.schema import schema as s_schema
 if TYPE_CHECKING:
     from edb.schema import referencing as s_referencing
     from edb.schema import types as s_types
-    from edb.schema import links as s_links
 
 
 class InheritingObjectCommand(sd.ObjectCommand):
@@ -222,7 +221,6 @@ class InheritingObjectCommand(sd.ObjectCommand):
     def _recompute_inheritance(
         self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
-        from edb.schema import scalars
 
         scls = self.scls
         mcls = type(scls)
@@ -235,8 +233,6 @@ class InheritingObjectCommand(sd.ObjectCommand):
         )
         schema = scls.set_field_value(schema, "ancestors", new_ancestors)
         self.set_attribute_value("ancestors", new_ancestors)
-
-        assert isinstance(scls, scalars.ScalarType)
 
         bases = scls.get_bases(schema).objects(schema)
         self.inherit_fields(schema, context, scls, bases)
@@ -776,14 +772,12 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
 
     def apply(
         self, schema: s_schema.Schema, context: sd.CommandContext
-    ) -> Tuple[s_schema.Schema, s_links.Link]:
-        from edb.schema import links as s_links
-
+    ) -> Tuple[s_schema.Schema, so.InheritingObjectBase]:
         scls = self.get_object(schema, context)
 
-        assert isinstance(scls, s_types.Type)
+        self.scls = scls  # type: ignore
 
-        self.scls = scls
+        assert isinstance(scls, so.InheritingObjectBase)
 
         schema, props = self._get_field_updates(schema, context)
         schema = scls.update(schema, props)
@@ -816,7 +810,7 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
                         )
                     self.add(descendant_alter)
 
-        assert isinstance(scls, s_links.Link)
+        assert isinstance(scls, so.InheritingObjectBase), f'??? {type(scls)}'
 
         return schema, scls
 
@@ -893,9 +887,6 @@ class InheritingObject(derivable.DerivableObject):
         if context is None:
             context = so.ComparisonContext()
 
-        assert isinstance(old, InheritingObject)
-        assert isinstance(new, InheritingObject)
-
         with context(old, new):
             delta = super().delta(
                 old,
@@ -906,6 +897,9 @@ class InheritingObject(derivable.DerivableObject):
             )
 
             if old and new:
+                assert isinstance(old, InheritingObject)
+                assert isinstance(new, InheritingObject)
+
                 rebase = sd.ObjectCommandMeta.get_command_class(
                     RebaseInheritingObject, type(new)
                 )
