@@ -1395,7 +1395,7 @@ cdef class EdgeConnection:
                 f'This is most likely a bug in EdgeDB. '
                 f'Please consider opening an issue ticket '
                 f'at https://github.com/edgedb/edgedb/issues/new'
-                f'?template=bug_report.md'
+                f'?template=bug_report.yml'
             )
 
         try:
