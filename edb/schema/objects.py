@@ -2031,6 +2031,13 @@ class InheritingObjectBase(Object):
         bool,
         default=False, compcoef=0.909)
 
+    def inheritable_fields(self) -> Iterable[Any]:
+        raise NotImplementedError
+
+    @classmethod
+    def get_default_base_name(self) -> Optional[str]:
+        raise NotImplementedError
+
     def _issubclass(
         self, schema: s_schema.Schema, parent: InheritingObjectBase
     ) -> bool:
