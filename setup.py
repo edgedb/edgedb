@@ -420,7 +420,9 @@ class build_ext(distutils_build_ext.build_ext):
         if self.distribution.rust_extensions:
             distutils.log.info("running build_rust")
             build_rust = self.get_finalized_command("build_rust")
-            build_rust.inplace = self.inplace
+            # Always build in-place because later stages of the build
+            # may depend on the modules having been built.
+            build_rust.inplace = True
             os.environ['CARGO_TARGET_DIR'] = (
                 str(pathlib.Path(self.build_temp) / 'rust'))
             build_rust.run()
