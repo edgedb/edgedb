@@ -38,7 +38,7 @@ from graphql import (
     GraphQLID,
     GraphQLEnumType,
 )
-from graphql.type import GraphQLEnumValue
+from graphql.type import GraphQLEnumValue, GraphQLScalarType
 from graphql.language import ast as gql_ast
 import itertools
 
@@ -57,7 +57,19 @@ from edb.schema import objects as s_objects
 from . import errors as g_errors
 
 
-def coerce_int(value):
+def coerce_int64(value):
+    if isinstance(value, int):
+        num = value
+    else:
+        num = int(value)
+    if qlast.MIN_INT64 <= num <= qlast.MAX_INT64:
+        return num
+
+    raise Exception(
+        f"Int64 cannot represent non 64-bit signed integer value: {value}")
+
+
+def coerce_bigint(value):
     if isinstance(value, int):
         num = value
     else:
@@ -67,17 +79,45 @@ def coerce_int(value):
 
 def parse_int_literal(ast):
     if isinstance(ast, gql_ast.IntValue):
-        num = int(ast.value)
-        return num
+        return int(ast.value)
     return None
 
 
-# monkey-patch the GraphQLInt so that it doesn't restrict the range
-GraphQLInt.description = ("The `Int` scalar type represents non-fractional "
-                          "signed whole numeric values.")
-GraphQLInt.serialize = coerce_int
-GraphQLInt.parse_value = coerce_int
-GraphQLInt.parse_literal = parse_int_literal
+GraphQLInt64 = GraphQLScalarType(
+    name="Int64",
+    description="The `Int64` scalar type represents non-fractional signed "
+                "whole numeric values. Int can represent values between "
+                "-2^63 and 2^63 - 1.",
+    serialize=coerce_int64,
+    parse_value=coerce_int64,
+    parse_literal=parse_int_literal,
+)
+
+
+GraphQLBigint = GraphQLScalarType(
+    name="Bigint",
+    description="The `Bigint` scalar type represents non-fractional signed "
+                "whole numeric values.",
+    serialize=coerce_bigint,
+    parse_value=coerce_bigint,
+    parse_literal=parse_int_literal,
+)
+
+
+def parse_decimal_literal(ast):
+    if isinstance(ast, (gql_ast.FloatValue, gql_ast.IntValue)):
+        return float(ast.value)
+    return None
+
+
+GraphQLDecimal = GraphQLScalarType(
+    name="Decimal",
+    description="The `Decimal` scalar type represents signed "
+                "unlimited-precision fractional values.",
+    serialize=GraphQLFloat.serialize,
+    parse_value=GraphQLFloat.parse_value,
+    parse_literal=parse_decimal_literal,
+)
 
 
 EDB_TO_GQL_SCALARS_MAP = {
@@ -88,13 +128,13 @@ EDB_TO_GQL_SCALARS_MAP = {
     'std::anyint': GraphQLInt,
     'std::int16': GraphQLInt,
     'std::int32': GraphQLInt,
-    'std::int64': GraphQLInt,
+    'std::int64': GraphQLInt64,
+    'std::bigint': GraphQLBigint,
     'std::anyfloat': GraphQLFloat,
     'std::float32': GraphQLFloat,
     'std::float64': GraphQLFloat,
     'std::anyreal': GraphQLFloat,
-    'std::decimal': GraphQLFloat,
-    'std::bigint': GraphQLInt,
+    'std::decimal': GraphQLDecimal,
     'std::bool': GraphQLBoolean,
     'std::uuid': GraphQLID,
     'std::datetime': GraphQLString,
@@ -110,12 +150,11 @@ EDB_TO_GQL_SCALARS_MAP = {
 # used for casting input values from GraphQL to EdgeQL
 GQL_TO_EDB_SCALARS_MAP = {
     'String': 'str',
-    # By default treat unknown Int and Float as bigint and decimal
-    # respectively since there's no way to tell in GraphQL whether a
-    # specific number is meant to be of unlimited size and precision
-    # or not.
-    'Int': 'bigint',
-    'Float': 'decimal',
+    'Int': 'int32',
+    'Int64': 'int64',
+    'Bigint': 'bigint',
+    'Float': 'float64',
+    'Decimal': 'decimal',
     'Boolean': 'bool',
     'ID': 'uuid',
 }
@@ -596,7 +635,8 @@ class GQLCoreSchema:
         if not ptr.singular(self.edb_schema):
             fields['add'] = GraphQLInputObjectField(target)
             fields['remove'] = GraphQLInputObjectField(target)
-        elif target is GraphQLInt or target is GraphQLFloat:
+        elif target in {GraphQLInt, GraphQLInt64, GraphQLBigint,
+                        GraphQLFloat, GraphQLDecimal}:
             # anything that maps onto the numeric types is a fair game
             fields['increment'] = GraphQLInputObjectField(target)
             fields['decrement'] = GraphQLInputObjectField(target)
@@ -716,7 +756,10 @@ class GQLCoreSchema:
         self._make_generic_input_type(GraphQLBoolean, eq)
         self._make_generic_input_type(GraphQLID, eq)
         self._make_generic_input_type(GraphQLInt, comp)
+        self._make_generic_input_type(GraphQLInt64, comp)
+        self._make_generic_input_type(GraphQLBigint, comp)
         self._make_generic_input_type(GraphQLFloat, comp)
+        self._make_generic_input_type(GraphQLDecimal, comp)
         self._make_generic_input_type(GraphQLString, string)
 
         for name, etype in self._gql_enums.items():
@@ -731,8 +774,9 @@ class GQLCoreSchema:
         )
 
     def define_generic_insert_types(self):
-        for itype in [GraphQLBoolean, GraphQLID, GraphQLInt,
-                      GraphQLFloat, GraphQLString]:
+        for itype in [GraphQLBoolean, GraphQLID, GraphQLInt, GraphQLInt64,
+                      GraphQLBigint, GraphQLFloat, GraphQLDecimal,
+                      GraphQLString]:
             self._gql_inobjtypes[f'Insert{itype.name}'] = itype
 
     def define_generic_order_types(self):

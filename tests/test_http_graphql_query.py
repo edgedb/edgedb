@@ -393,7 +393,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         # Regression test: variables names were shadowing query names.
         self.assert_graphql_query_result(
             r"""
-                query users($name: String, $age: Int) {
+                query users($name: String, $age: Int64) {
                     User(filter: {or: [{name: {eq: $name}},
                                        {age: {gt: $age}}]},
                          order: {name: {dir: ASC}})
@@ -2226,7 +2226,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_02(self):
         self.assert_graphql_query_result(
             r"""
-                query($name: String, $age: Int) {
+                query($name: String, $age: Int64) {
                     User(filter: {or: [{name: {eq: $name}},
                                        {age: {gt: $age}}]},
                          order: {name: {dir: ASC}})
@@ -2332,7 +2332,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     def test_graphql_functional_variables_08(self):
         self.assert_graphql_query_result(r"""
-            query($val: Int = 20) {
+            query($val: Int64 = 20) {
                 User(filter: {age: {eq: $val}}) {
                     name,
                 }
@@ -2672,7 +2672,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             for _ in range(2):
                 self.assert_graphql_query_result(
                     r"""
-                        query($val: Boolean!, $min_age: Int!) {
+                        query($val: Boolean!, $min_age: Int64!) {
                             User(filter: {age: {gt: $min_age}}) {
                                 name @include(if: $val),
                                 age
@@ -2685,7 +2685,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
             self.assert_graphql_query_result(
                 r"""
-                    query($val: Boolean!, $min_age: Int!) {
+                    query($val: Boolean!, $min_age: Int64!) {
                         User(filter: {age: {gt: $min_age}}) {
                             name @include(if: $val),
                             age

@@ -174,7 +174,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         """
 
         self.assert_graphql_query_result(r"""
-            mutation insert_ScalarTest($num: Int!) {
+            mutation insert_ScalarTest($num: Int64!) {
                 insert_ScalarTest(
                     data: [{
                         p_str: "New ScalarTest02",
@@ -351,6 +351,67 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     filter: {p_str: {eq: "New \"ScalarTest05\"\\"}}
                 ) {
                     p_str
+                }
+            }
+        """, {
+            "delete_ScalarTest": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "ScalarTest": []
+        })
+
+    def test_graphql_mutation_insert_scalars_06(self):
+        # This tests float vs. decimal literals.
+        data = {
+            'p_str': 'New ScalarTest06',
+            'p_decimal':
+                123456789123456789123456789.123456789123456789123456789,
+            'p_decimal_str':
+                '123456789123456789123456789.123456789123456789123456789',
+        }
+
+        validation_query = r"""
+            query {
+                ScalarTest(filter: {p_str: {eq: "New ScalarTest06"}}) {
+                    p_str
+                    p_decimal
+                    p_decimal_str
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_ScalarTest {
+                insert_ScalarTest(
+                    data: [{
+                        p_str: "New ScalarTest06",
+                        p_decimal:
+                    123456789123456789123456789.123456789123456789123456789,
+                    }]
+                ) {
+                    p_str
+                    p_decimal
+                    p_decimal_str
+                }
+            }
+        """, {
+            "insert_ScalarTest": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "ScalarTest": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_ScalarTest {
+                delete_ScalarTest(
+                    filter: {p_str: {eq: "New ScalarTest06"}}
+                ) {
+                    p_str
+                    p_decimal
+                    p_decimal_str
                 }
             }
         """, {
@@ -1176,11 +1237,11 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 $p_duration: String,
                 $p_int16: Int,
                 $p_int32: Int,
-                $p_int64: Int,
-                $p_bigint: Int,
+                $p_int64: Int64,
+                $p_bigint: Bigint,
                 $p_float32: Float,
                 $p_float64: Float,
-                $p_decimal: Float,
+                $p_decimal: Decimal,
             ) {
                 update_ScalarTest(
                     data: {
@@ -1279,7 +1340,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         self.assert_graphql_query_result(r"""
             mutation update_ScalarTest(
                 $p_str: String,
-                $p_posint: Int,
+                $p_posint: Int64,
             ) {
                 update_ScalarTest(
                     data: {

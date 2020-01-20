@@ -84,6 +84,7 @@ type ScalarTest {
     property p_float32 -> float32;
     property p_float64 -> float64;
     property p_decimal -> decimal;
+    property p_decimal_str := <str>.p_decimal;
     property p_json -> json;
     property p_bytes -> bytes;
 

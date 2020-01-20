@@ -727,7 +727,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                         "kind": "NON_NULL",
                                         "ofType": {
                                             "__typename": "__Type",
-                                            "name": "Int",
+                                            "name": "Int64",
                                             "kind": "SCALAR",
                                             "ofType": None
                                         }
@@ -933,7 +933,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                     "kind": "NON_NULL",
                                     "ofType": {
                                         "__typename": "__Type",
-                                        "name": "Int",
+                                        "name": "Int64",
                                         "kind": "SCALAR"
                                     }
                                 },
@@ -1553,7 +1553,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                     "kind": "NON_NULL",
                                     "ofType": {
                                         "__typename": "__Type",
-                                        "name": "Int",
+                                        "name": "Int64",
                                         "kind": "SCALAR"
                                     }
                                 },
@@ -2001,7 +2001,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "name": "age",
                         "type": {
-                            "name": "FilterInt",
+                            "name": "FilterInt64",
                             "kind": "INPUT_OBJECT",
                             "ofType": None
                         }
