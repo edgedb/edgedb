@@ -183,7 +183,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
                 List[InheritingObject],
             ],
         ],
-    ) -> Dict[Any, Any]:
+    ) -> Dict[str, Type[sd.ObjectCommand]]:
 
         local_refs = self.scls.get_field_value(schema, refdict.attr)
         dropped_refs = {}
@@ -934,7 +934,7 @@ class InheritingObject(derivable.DerivableObject):
             property=fname, old_value=None, new_value=value,
             source='inheritance' if inherited_fields.get(fname) else None))
 
-    def inheritable_fields(self) -> Iterable[Any]:
+    def inheritable_fields(self) -> Iterable[str]:
         for fn, f in self.__class__.get_fields().items():
             if f.inheritable:
                 yield fn
@@ -959,14 +959,10 @@ class InheritingObject(derivable.DerivableObject):
             f'{self.get_verbosename(schema)} has no non-abstract ancestors')
 
     def get_base_for_cast(self, schema: s_schema.Schema) -> so.Object:
-        if self.is_enum(schema):  # type: ignore
-            # all enums have to use std::anyenum as base type for casts
-            return schema.get('std::anyenum')
-        else:
-            return self.get_topmost_concrete_base(schema)
+        return self.get_topmost_concrete_base(schema)
 
     @classmethod
-    def get_root_classes(cls) -> Tuple[s_types.Type, ...]:
+    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
         return tuple()
 
     @classmethod
