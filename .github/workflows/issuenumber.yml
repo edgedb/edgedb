@@ -1,0 +1,26 @@
+name: Issue Number
+
+on:
+  push:
+    branches:
+      - master
+      - ci
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
+    branches:
+      - '*'
+
+jobs:
+  issuenumber-job:
+    runs-on: ubuntu-latest
+    name: Check Relevant Commits
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        fetch-depth: 10
+        submodules: false
+    - uses: ambv/gha-issuenumber@master
+      id: issuenumber
+    - name: Check output
+      run: "echo \"Last issue number is ${{ steps.issuenumber.outputs.issuenumber }}\""
