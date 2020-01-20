@@ -35,7 +35,6 @@ from . import utils
 
 if TYPE_CHECKING:
     from edb.schema import referencing as s_referencing
-    from edb.schema import types as s_types
 
 
 class InheritingObjectCommand(sd.ObjectCommand):

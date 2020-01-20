@@ -35,6 +35,7 @@ from . import delta as sd
 from . import expr
 from . import inheriting
 from . import objects as so
+from . import schema as s_schema
 from . import types as s_types
 
 
