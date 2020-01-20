@@ -1,0 +1,18 @@
+name: Re-Run
+
+on:
+  pull_request:
+    types: [labeled, unlabeled]
+    branches:
+      - '*'
+
+jobs:
+  issuenumber-job:
+    runs-on: ubuntu-latest
+    name: Issue Number
+
+    steps:
+    - uses: ambv/gha-issuenumber/trigger@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        check_to_rerun: "Check Commit Messages"
