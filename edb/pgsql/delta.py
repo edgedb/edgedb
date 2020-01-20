@@ -2552,7 +2552,8 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
 
         self.pgops.update(extra_ops)
 
-        if source is not None and not source_is_view:
+        if (source is not None and not source_is_view
+                and not link.is_pure_computable(schema)):
             self.schedule_endpoint_delete_action_update(
                 link, orig_schema, schema, context)
 
@@ -2680,7 +2681,8 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             if isinstance(link.get_target(schema), s_scalars.ScalarType):
                 self.alter_pointer_default(link, schema, context)
 
-            if 'on_target_delete' in updates:
+            if ('on_target_delete' in updates
+                    and not link.is_pure_computable(schema)):
                 self.schedule_endpoint_delete_action_update(
                     link, orig_schema, schema, context)
 
@@ -3423,7 +3425,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             for l in source.get_pointers(src_schema).objects(src_schema):
                 if (not isinstance(l, s_links.Link)
-                        or not l.get_is_local(src_schema)):
+                        or not l.get_is_local(src_schema)
+                        or l.is_pure_computable(src_schema)):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     l, schema=src_schema)
@@ -3448,7 +3451,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             for l in schema.get_referrers(target, scls_type=s_links.Link,
                                           field_name='target'):
-                if not l.get_is_local(schema):
+                if not l.get_is_local(schema) or l.is_pure_computable(schema):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     l, schema=schema)

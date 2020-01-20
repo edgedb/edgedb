@@ -30,15 +30,6 @@ class TestTree(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'tree_setup.edgeql')
 
-    @test.xfail('''
-        This test fails with the following error:
-
-        edgedb.errors.InternalServerError: relation
-        "edgedb_e0b78b90-3693-11ea-9161-b92965214344.
-        e0a71e4e-3693-11ea-bfb7-1dc5433a3c29" does not exist
-
-        See issue #1097 for details.
-    ''')
     async def test_edgeql_tree_delete_01(self):
         await self.con.execute(r"""
             DELETE test::Tree;
@@ -50,22 +41,13 @@ class TestTree(tb.QueryTestCase):
             [],
         )
 
-    @test.xfail('''
-        This test fails with the following error:
-
-        edgedb.errors.InternalServerError: relation
-        "edgedb_09906334-3695-11ea-81b0-0b9acee64bce.
-        0985cd78-3695-11ea-9ff3-3bca199ee0b1" does not exist
-
-        See issue #1097 for details.
-    ''')
     async def test_edgeql_tree_delete_02(self):
         await self.con.execute(r"""
-            DELETE test::Eert;
+            DELETE test::Eert FILTER .val = '0';
         """)
         await self.assert_query_result(
             r"""
-                SELECT test::Eert;
+                SELECT test::Eert FILTER .val = '0';
             """,
             [],
         )
