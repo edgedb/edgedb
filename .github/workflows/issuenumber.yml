@@ -6,14 +6,13 @@ on:
       - master
       - ci
   pull_request:
-    types: [opened, synchronize, labeled, unlabeled]
     branches:
       - '*'
 
 jobs:
   issuenumber-job:
     runs-on: ubuntu-latest
-    name: Check Relevant Commits
+    name: Check Commit Messages
 
     steps:
     - uses: actions/checkout@v1
