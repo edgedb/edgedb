@@ -114,6 +114,18 @@ from :eql:type:`str` and :eql:type:`json`.
         db> SELECT 1e+100n IS decimal;
         {true}
 
+    .. note::
+
+        Caution is advised when casting ``bigint`` values into
+        ``json``. The JSON specification does not have a limit on
+        significant digits, so a ``bigint`` number can be losslessly
+        represented in JSON. However, JSON decoders in many languages
+        will read all such numbers as some kind of 32- or 64-bit
+        number type, which may result in errors or precision loss. If
+        such loss is unacceptable, then consider casting the value
+        into ``str`` and decoding it on the client side into a more
+        appropriate type.
+
 
 ----------
 
@@ -154,6 +166,17 @@ from :eql:type:`str` and :eql:type:`json`.
 
         db> SELECT 42n IS bigint;
         {true}
+
+    .. note::
+
+        Caution is advised when casting ``decimal`` values into
+        ``json``. The JSON specification does not have a limit on
+        significant digits, so a ``decimal`` number can be losslessly
+        represented in JSON. However, JSON decoders in many languages
+        will read all such numbers as some kind of floating point
+        values, which may result in precision loss. If such loss is
+        unacceptable, then consider casting the value into ``str`` and
+        decoding it on the client side into a more appropriate type.
 
 
 ----------

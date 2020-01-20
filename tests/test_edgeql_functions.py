@@ -17,6 +17,7 @@
 #
 
 
+import decimal
 import json
 import os.path
 
@@ -2378,17 +2379,20 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT to_decimal('123.457', '999.999');''',
-            {123.457},
+            exp_result_json={123.457},
+            exp_result_binary={decimal.Decimal('123.457')},
         )
 
         await self.assert_query_result(
             r'''SELECT to_decimal(' 123.456789000', '999.999999999');''',
-            {123.456789},
+            exp_result_json={123.456789},
+            exp_result_binary={decimal.Decimal('123.456789')},
         )
 
         await self.assert_query_result(
             r'''SELECT to_decimal('123.456789', 'FM999.999999999');''',
-            {123.456789},
+            exp_result_json={123.456789},
+            exp_result_binary={decimal.Decimal('123.456789')},
         )
 
         with self.assertRaisesRegex(edgedb.InvalidValueError,
@@ -2403,7 +2407,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 '123456789123456789123456789.123456789123456789123456789',
                 'FM999999999999999999999999999.999999999999999999999999999');
             ''',
-            {123456789123456789123456789.123456789123456789123456789},
+            exp_result_json={
+                123456789123456789123456789.123456789123456789123456789},
+            exp_result_binary={decimal.Decimal(
+                '123456789123456789123456789.123456789123456789123456789')},
         )
 
     async def test_edgeql_functions_len_01(self):

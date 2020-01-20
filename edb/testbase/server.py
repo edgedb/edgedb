@@ -23,6 +23,7 @@ import asyncio
 import atexit
 import collections
 import contextlib
+import decimal
 import functools
 import inspect
 import json
@@ -489,7 +490,7 @@ class ConnectedTestCaseMixin:
                     self.fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, timedelta)):
+            elif isinstance(shape, (str, int, timedelta, decimal.Decimal)):
                 if data != shape:
                     self.fail(
                         f'{message}: {data!r} != {shape!r} '

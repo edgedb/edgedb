@@ -56,3 +56,16 @@ actually occurred. The ``error`` will further contain the ``message``
 field with the error message string, the ``type`` field with the name
 of the type of error and the ``code`` field with an integer
 :ref:`error code <ref_protocol_error_codes>`.
+
+.. note::
+
+    Caution is advised when reading ``decimal`` or ``bigint`` values
+    using HTTP protocol because the results are provides in JSON
+    format. The JSON specification does not have a limit on
+    significant digits, so a ``decimal`` or a ``bigint`` number can be
+    losslessly represented in JSON. However, JSON decoders in many
+    languages will read all such numbers as some kind of of 32- or
+    64-bit number type, which may result in errors or precision loss.
+    If such loss is unacceptable, then consider casting the value into
+    ``str`` and decoding it on the client side into a more appropriate
+    type.
