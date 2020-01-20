@@ -85,12 +85,12 @@ specify the ``--postgres-dsn`` option when starting the EdgeDB server:
     $ edgedb-server \
         --postgres-dsn 'postgres://user:password@host:port/database?opt=val'
 
-The format of the connection string generally follows that of `libpq`_,
-including support for specifying the connection parameters via
-`environment variables <postgres envvars>`_ and reading passwords from
-`the password file <postgres passfile>`_.  Unlike libpq, EdgeDB will treat
-unrecognized options as `PostgreSQL settings <postgres settings>`_ to be used
-for the connection.  Multiple hosts in the connection string are unsupported.
+The format of the connection string generally follows that of
+`libpq`_, including support for specifying the connection parameters
+via `environment variables`_ and reading passwords from `the password
+file`_.  Unlike libpq, EdgeDB will treat unrecognized options as
+`PostgreSQL settings`_ to be used for the connection.  Multiple hosts
+in the connection string are unsupported.
 
 .. note::
 
@@ -102,11 +102,11 @@ for the connection.  Multiple hosts in the connection string are unsupported.
 .. _libpq:
     https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
 
-.. _postgres envvars:
+.. _environment variables:
     https://www.postgresql.org/docs/current/libpq-envars.html
 
-.. _postgres passfile:
+.. _the password file:
     https://www.postgresql.org/docs/current/libpq-pgpass.html
 
-.. _postgres settings:
+.. _PostgreSQL settings:
     https://www.postgresql.org/docs/current/static/runtime-config.html
