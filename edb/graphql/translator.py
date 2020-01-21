@@ -37,6 +37,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as ql_codegen
 from edb.edgeql import qltypes
 from edb.edgeql import quote as eql_quote
+from edb.schema import utils as s_utils
 
 from . import types as gt
 from . import errors as g_errors
@@ -47,10 +48,6 @@ ARG_TYPES = {
     'Int': gql_ast.IntValue,
     'String': gql_ast.StringValue,
 }
-
-
-MAX_INT64 = 2 ** 63 - 1
-MIN_INT64 = -2 ** 63
 
 
 class GraphQLTranslatorContext:
@@ -1413,7 +1410,7 @@ class GraphQLTranslator:
     def visit_IntValue(self, node):
         # produces an int64 or bigint
         val = int(node.value)
-        if MIN_INT64 <= val <= MAX_INT64:
+        if s_utils.MIN_INT64 <= val <= s_utils.MAX_INT64:
             return qlast.IntegerConstant(value=str(val))
         else:
             return qlast.BigintConstant(value=f'{val}n')

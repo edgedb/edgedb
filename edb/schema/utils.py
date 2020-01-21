@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import collections
+import decimal
 import itertools
 from typing import *  # NoQA
 
@@ -658,3 +659,27 @@ def _intersection_error(schema: s_schema.Schema,
         -> errors.SchemaError:
     names = ', '.join(sorted(c.get_displayname(schema) for c in components))
     return errors.SchemaError(f'cannot create an intersection of {names}')
+
+
+MAX_INT64 = 2 ** 63 - 1
+MIN_INT64 = -2 ** 63
+
+
+def const_ast_from_python(val: Any) -> qlast.BaseConstant:
+    if isinstance(val, str):
+        return qlast.StringConstant.from_python(val)
+    elif isinstance(val, bool):
+        return qlast.BooleanConstant(value='true' if val else 'false')
+    elif isinstance(val, int):
+        if MIN_INT64 <= val <= MAX_INT64:
+            return qlast.IntegerConstant(value=str(val))
+        else:
+            raise ValueError(f'int64 value out of range: {val}')
+    elif isinstance(val, decimal.Decimal):
+        return qlast.DecimalConstant(value=f'{val}n')
+    elif isinstance(val, float):
+        return qlast.FloatConstant(value=str(val))
+    elif isinstance(val, bytes):
+        return qlast.BytesConstant.from_python(value=val)
+    else:
+        raise ValueError(f'unexpected constant type: {type(val)!r}')

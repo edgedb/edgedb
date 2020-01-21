@@ -275,7 +275,7 @@ class CreateAnnotationValue(AnnotationValueCommand,
                          node: qlast.CreateAnnotationValue,
                          op: sd.AlterObjectProperty) -> None:
         if op.property == 'value':
-            node.value = qlast.BaseConstant.from_python(op.new_value)
+            node.value = qlast.StringConstant.from_python(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -323,7 +323,7 @@ class AlterAnnotationValue(AnnotationValueCommand,
         op: sd.AlterObjectProperty
     ) -> None:
         if op.property == 'value':
-            node.value = qlast.BaseConstant.from_python(op.new_value)
+            node.value = qlast.StringConstant.from_python(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
 

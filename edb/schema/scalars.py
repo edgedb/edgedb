@@ -233,7 +233,7 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
                         maintype=qlast.ObjectRef(name='enum'),
                         subtypes=[
                             qlast.TypeExprLiteral(
-                                val=qlast.BaseConstant.from_python(v)
+                                val=qlast.StringConstant.from_python(v)
                             )
                             for v in enum_values
                         ]
