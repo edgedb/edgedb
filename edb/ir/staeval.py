@@ -139,7 +139,9 @@ def evaluate_OperatorCall(
         args.append(arg_val)
 
     value = eval_func(*args)
-    qlconst = qlast.BaseConstant.from_python(value)
+    # Since we only perform string concatenations here, the constant
+    # in question is always a StringConstant.
+    qlconst = qlast.StringConstant.from_python(value)
 
     result = ql_compiler.compile_constant_tree_to_ir(
         qlconst, styperef=opcall.typeref, schema=schema)

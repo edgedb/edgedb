@@ -1662,11 +1662,11 @@ class AlterObjectProperty(Command):
             )
         elif utils.is_nontrivial_container(value):
             value = qlast.Tuple(elements=[
-                qlast.BaseConstant.from_python(el) for el in value
+                utils.const_ast_from_python(el) for el in value
             ])
         elif isinstance(value, uuid.UUID):
             value = qlast.TypeCast(
-                expr=qlast.BaseConstant.from_python(str(value)),
+                expr=qlast.StringConstant.from_python(str(value)),
                 type=qlast.TypeName(
                     maintype=qlast.ObjectRef(
                         name='uuid',
@@ -1675,7 +1675,7 @@ class AlterObjectProperty(Command):
                 )
             )
         else:
-            value = qlast.BaseConstant.from_python(value)
+            value = utils.const_ast_from_python(value)
 
         return astcls(name=self.property, value=value)
 

@@ -21,7 +21,6 @@ from __future__ import annotations
 # Do not import "from typing *"; this module contains
 # AST classes that name-clash with classes from the typing module.
 
-import decimal
 import typing
 
 from edb.common import enum as s_enum
@@ -263,20 +262,7 @@ class BaseConstant(Expr):
 
     @classmethod
     def from_python(cls, val: typing.Any) -> BaseConstant:
-        if isinstance(val, str):
-            return StringConstant.from_python(val)
-        elif isinstance(val, bool):
-            return BooleanConstant(value='true' if val else 'false')
-        elif isinstance(val, int):
-            return IntegerConstant(value=str(val))
-        elif isinstance(val, decimal.Decimal):
-            return DecimalConstant(value=f'{val}n')
-        elif isinstance(val, float):
-            return FloatConstant(value=str(val))
-        elif isinstance(val, bytes):
-            return BytesConstant.from_python(value=val)
-        else:
-            raise ValueError(f'unexpected constant type: {type(val)!r}')
+        raise NotImplementedError
 
 
 class StringConstant(BaseConstant):
