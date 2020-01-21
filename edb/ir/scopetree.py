@@ -287,6 +287,14 @@ class ScopeTreeNode:
             return self._parent()
 
     @property
+    def path_ancestor(self) -> Optional[ScopeTreeNodeWithPathId]:
+        for ancestor in self.strict_ancestors:
+            if ancestor.path_id is not None:
+                return cast(ScopeTreeNodeWithPathId, ancestor)
+
+        return None
+
+    @property
     def parent_fence(self) -> Optional[ScopeTreeNode]:
         """The nearest strict ancestor fence."""
         for ancestor in self.strict_ancestors:
@@ -337,11 +345,17 @@ class ScopeTreeNode:
         self.attach_child(fence)
         return fence
 
-    def attach_path(self, path_id: pathid.PathId) -> None:
+    def attach_path(
+        self,
+        path_id: pathid.PathId,
+        *,
+        fence_points: FrozenSet[pathid.PathId] = frozenset(),
+    ) -> List[ScopeTreeNode]:
         """Attach a scope subtree representing *path_id*."""
 
         subtree = parent = ScopeTreeNode(fenced=True)
         is_lprop = False
+        fences = []
 
         for prefix in reversed(list(path_id.iter_prefixes(include_ptr=True))):
             if prefix.is_ptr_path():
@@ -380,7 +394,14 @@ class ScopeTreeNode:
             if not prefix.is_type_intersection_path():
                 is_lprop = False
 
+            if prefix in fence_points:
+                fence = ScopeTreeNode()
+                fences.append(fence)
+                parent.attach_child(fence)
+                parent = fence
+
         self.attach_subtree(subtree)
+        return fences
 
     def attach_subtree(self, node: ScopeTreeNode) -> None:
         """Attach a subtree to this node.
@@ -460,9 +481,9 @@ class ScopeTreeNode:
                         if (unnest_fence
                                 and parent_fence.find_child(
                                     path_id, in_branches=True) is None):
-                            if (descendant.parent is not None
-                                    and descendant.parent.path_id):
-                                offending_node = descendant.parent
+                            path_ancestor = descendant.path_ancestor
+                            if path_ancestor is not None:
+                                offending_node = path_ancestor
                             else:
                                 offending_node = descendant
 
@@ -479,6 +500,7 @@ class ScopeTreeNode:
                             )
 
                         parent_fence.remove_descendants(path_id)
+                        node.remove_descendants(path_id)
                         existing.path_id = existing.path_id.strip_namespace(
                             existing_ns)
                         parent_fence.attach_child(existing)
@@ -495,7 +517,10 @@ class ScopeTreeNode:
 
             self.attach_child(child)
 
-    def fuse_subtree(self, node: ScopeTreeNode) -> None:
+    def fuse_subtree(
+        self,
+        node: ScopeTreeNode,
+    ) -> None:
         node.remove()
 
         if node.path_id is not None:
@@ -704,6 +729,18 @@ class ScopeTreeNode:
                 return descendant
 
         return None
+
+    def find_descendants(
+        self,
+        path_id: pathid.PathId,
+    ) -> List[ScopeTreeNodeWithPathId]:
+        matched = []
+        for descendant, dns, _ in self.strict_descendants_and_namespaces:
+            if (descendant.path_id is not None
+                    and _paths_equal(descendant.path_id, path_id, dns)):
+                matched.append(cast(ScopeTreeNodeWithPathId, descendant))
+
+        return matched
 
     def find_descendant_and_ns(
         self,

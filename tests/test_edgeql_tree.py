@@ -336,11 +336,6 @@ class TestTree(tb.QueryTestCase):
             ['0'],
         )
 
-    @test.xfail('''
-        The query produces: ['0', '0']
-
-        See issue #1098.
-    ''')
     async def test_edgeql_tree_select_04(self):
         await self.assert_query_result(
             r"""
@@ -369,14 +364,6 @@ class TestTree(tb.QueryTestCase):
             {'000', '010'},
         )
 
-    @test.xfail('''
-        This test fails with the following error:
-
-        InternalServerError: missing FROM-clause entry for table
-        "Tree_children~5"
-
-        See issue #1098.
-    ''')
     async def test_edgeql_tree_select_07(self):
         await self.assert_query_result(
             r"""
@@ -395,14 +382,6 @@ class TestTree(tb.QueryTestCase):
             {'000', '010'},
         )
 
-    @test.xfail('''
-        This test fails with the following error:
-
-        InternalServerError: missing FROM-clause entry for table
-        "default|Tree@@view~1_children~4"
-
-        See issue #1098.
-    ''')
     async def test_edgeql_tree_select_09(self):
         await self.assert_query_result(
             r"""

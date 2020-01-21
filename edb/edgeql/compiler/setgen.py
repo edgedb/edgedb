@@ -382,7 +382,40 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         path_sets.append(path_tip)
 
     path_tip.context = expr.context
-    pathctx.register_set_in_scope(path_tip, ctx=ctx)
+    # Since we are attaching the computable scopes as siblings to
+    # the subpaths they're computing, we must make sure that the
+    # actual path head is not visible from inside the computable scope.
+    #
+    # Example:
+    # type Tree {
+    #   multi link children -> Tree;
+    #   parent := .<children[IS Tree];
+    # }
+    # `SELECT Tree.parent` should generate rougly the following scope tree:
+    #
+    # (test::Tree).>parent[IS test::Tree]: {
+    #    "BRANCH": {
+    #       "(test::Tree)"
+    #    },
+    #    "FENCE": {
+    #        "ns@(test::Tree).<children": {
+    #            "(test::Tree) 0x7f30c7885d90"
+    #        }
+    #    },
+    # }
+    #
+    # Note that we use an unfenced BRANCH node to isolate the path head,
+    # to make sure it is still properly factorable.  We temporarily flip
+    # the branch to be a full fence for the compilation of the computable.
+    fence_points = frozenset(c.path_id for c in computables)
+    fences = pathctx.register_set_in_scope(
+        path_tip,
+        fence_points=fence_points,
+        ctx=ctx,
+    )
+
+    for fence in fences:
+        fence.fenced = True
 
     for ir_set in computables:
         scope = ctx.path_scope.find_descendant(ir_set.path_id)
@@ -402,16 +435,25 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             path_sets[i] = comp_ir_set
 
     for ir_set, scope in extra_scopes.items():
-        node = ctx.path_scope.find_descendant(ir_set.path_id)
-        if node is None:
+        nodes = tuple(
+            node for node in ctx.path_scope.find_descendants(ir_set.path_id)
+            if node.parent_fence not in fences
+        )
+
+        if not nodes:
             # The path portion not being a descendant means
             # that is is already present in the scope above us,
             # along with the view scope.
             continue
 
-        node.fuse_subtree(scope)
+        assert len(nodes) == 1
+
+        nodes[0].fuse_subtree(scope)
         if ir_set.path_scope_id is None:
-            pathctx.assign_set_scope(ir_set, node, ctx=ctx)
+            pathctx.assign_set_scope(ir_set, nodes[0], ctx=ctx)
+
+    for fence in fences:
+        fence.fenced = False
 
     return path_tip
 

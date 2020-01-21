@@ -21,7 +21,6 @@ import json
 import os.path
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLExprAliases(tb.QueryTestCase):
@@ -891,13 +890,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: missing FROM-clause entry
-        for table "SpecialCard~8"
-
-        See `test_edgeql_aliases_collection_04` or
-        `test_edgeql_aliases_collection_05` for minimal setup.
-    ''')
     async def test_edgeql_aliases_collection_02(self):
         await self.assert_query_result(
             r"""
@@ -909,13 +901,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: missing FROM-clause entry
-        for table "SpecialCard~8"
-
-        See `test_edgeql_aliases_collection_04` or
-        `test_edgeql_aliases_collection_05` for minimal setup.
-    ''')
     async def test_edgeql_aliases_collection_03(self):
         await self.assert_query_result(
             r"""
@@ -931,10 +916,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: missing FROM-clause entry
-        for table "SpecialCard~4"
-    ''')
     async def test_edgeql_aliases_collection_04(self):
         await self.assert_query_result(
             r"""
@@ -950,10 +931,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: missing FROM-clause entry
-        for table "SpecialCard~4"
-    ''')
     async def test_edgeql_aliases_collection_05(self):
         await self.assert_query_result(
             r"""

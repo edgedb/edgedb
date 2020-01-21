@@ -82,12 +82,16 @@ def get_expression_path_id(
 def register_set_in_scope(
         ir_set: irast.Set, *,
         path_scope: irast.ScopeTreeNode=None,
-        ctx: context.ContextLevel) -> None:
+        fence_points: FrozenSet[irast.PathId]=frozenset(),
+        ctx: context.ContextLevel) -> List[irast.ScopeTreeNode]:
     if path_scope is None:
         path_scope = ctx.path_scope
 
     try:
-        path_scope.attach_path(ir_set.path_id)
+        return path_scope.attach_path(
+            ir_set.path_id,
+            fence_points=fence_points,
+        )
     except irast.InvalidScopeConfiguration as e:
         raise errors.QueryError(
             e.args[0], context=ir_set.context) from e
