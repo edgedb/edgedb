@@ -50,6 +50,7 @@ RUNTIME_DEPS = [
     'psutil~=5.6.1',
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
+    'setuptools-rust==0.10.3',
     'setuptools_scm~=3.2.0',
     'typing_inspect~=0.5.0',
     'uvloop~=0.14.0',
@@ -70,7 +71,6 @@ DOCS_DEPS = [
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
-    'setuptools-rust==0.10.3',
 ]
 
 EXTRA_DEPS = {
