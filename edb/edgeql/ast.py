@@ -31,6 +31,9 @@ from . import qltypes
 from . import quote
 
 
+ObjectDDL_T = typing.TypeVar('ObjectDDL_T', bound='ObjectDDL')
+
+
 class SortOrder(s_enum.StrEnum):
     Asc = 'ASC'
     Desc = 'DESC'

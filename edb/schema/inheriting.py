@@ -490,21 +490,23 @@ def delta_bases(
     return tuple(removed_bases), tuple(added_bases)
 
 
-class AlterInherit(sd.Command):
+class AlterInherit(sd.Command, Generic[qlast.ObjectDDL_T]):
     astnode = qlast.AlterAddInherit, qlast.AlterDropInherit
 
     @classmethod
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: Any,
+        astnode: qlast.ObjectDDL_T,
         context: sd.CommandContext,
     ) -> Any:
         # The base changes are handled by AlterNamedObject
         return None
 
 
-class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
+class CreateInheritingObject(InheritingObjectCommand,
+                             sd.CreateObject,
+                             Generic[qlast.ObjectDDL_T]):
     def _create_begin(
         self,
         schema: s_schema.Schema,
@@ -570,7 +572,7 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: Any,
+        astnode: qlast.ObjectDDL_T,
         context: sd.CommandContext,
     ) -> Any:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
@@ -588,7 +590,7 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        node: Any,
+        node: qlast.ObjectDDL_T,
         op: sd.AlterObjectProperty,
     ) -> None:
         if op.property == 'bases':
@@ -661,13 +663,15 @@ class CreateInheritingObject(InheritingObjectCommand, sd.CreateObject):
         return group
 
 
-class AlterInheritingObject(InheritingObjectCommand, sd.AlterObject):
+class AlterInheritingObject(InheritingObjectCommand,
+                            sd.AlterObject,
+                            Generic[qlast.ObjectDDL_T]):
 
     @classmethod
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: Any,
+        astnode: qlast.ObjectDDL_T,
         context: sd.CommandContext,
     ) -> Any:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
