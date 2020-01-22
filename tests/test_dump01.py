@@ -67,13 +67,14 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
             if not entry.is_file():
                 continue
 
-            dumpfn = os.path.join(dumpsdir, entry.name)
-            await self.con.execute(f'CREATE DATABASE `{dumpfn}`')
+            dbname = entry.name
+            dumpfn = os.path.join(dumpsdir, dbname)
+            await self.con.execute(f'CREATE DATABASE `{dbname}`')
             try:
-                self.run_cli('restore', '-d', dumpfn, dumpfn)
-                con2 = await self.connect(database=dumpfn)
+                self.run_cli('restore', '-d', dbname, dumpfn)
+                con2 = await self.connect(database=dbname)
             except Exception:
-                await self.con.execute(f'DROP DATABASE `{dumpfn}`')
+                await self.con.execute(f'DROP DATABASE `{dbname}`')
                 raise
 
             oldcon = self.con
@@ -83,7 +84,7 @@ class TestDump01(tb.QueryTestCase, tb.CLITestCaseMixin):
             finally:
                 self.__class__.con = oldcon
                 await con2.aclose()
-                await self.con.execute(f'DROP DATABASE `{dumpfn}`')
+                await self.con.execute(f'DROP DATABASE `{dbname}`')
 
     async def ensure_schema_data_integrity(self):
         tx = self.con.transaction()
