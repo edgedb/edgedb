@@ -35,6 +35,7 @@ from . import delta as sd
 from . import expr
 from . import inheriting
 from . import objects as so
+from . import schema as s_schema
 from . import types as s_types
 
 
@@ -125,6 +126,13 @@ class ScalarType(s_types.Type, constraints.ConsistencySubject,
             return left
         else:
             return s_casts.find_common_castable_type(schema, left, right)
+
+    def get_base_for_cast(self, schema: s_schema.Schema) -> so.Object:
+        if self.is_enum(schema):
+            # all enums have to use std::anyenum as base type for casts
+            return schema.get('std::anyenum')
+        else:
+            return super().get_base_for_cast(schema)
 
 
 class AnonymousEnumTypeRef(so.ObjectRef):

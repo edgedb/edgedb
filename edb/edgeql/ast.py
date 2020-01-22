@@ -31,6 +31,9 @@ from . import qltypes
 from . import quote
 
 
+ObjectDDL_T = typing.TypeVar('ObjectDDL_T', bound='ObjectDDL')
+
+
 class SortOrder(s_enum.StrEnum):
     Asc = 'ASC'
     Desc = 'DESC'
@@ -623,7 +626,7 @@ class SetSpecialField(BaseSetField):
 class ObjectDDL(DDLCommand, CompositeDDL):
     __abstract_node__ = True
     name: ObjectRef
-    commands: typing.Sequence[DDLCommand]
+    commands: typing.List[DDLCommand]
 
 
 class CreateObject(ObjectDDL):

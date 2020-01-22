@@ -195,6 +195,7 @@ def type_to_typeref(
             if base_type is material_type:
                 base_typeref = None
             else:
+                assert isinstance(base_type, s_types.Type)
                 base_typeref = type_to_typeref(
                     schema, base_type, cache=cache
                 )
