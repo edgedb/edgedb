@@ -47,6 +47,11 @@ CREATE ABSTRACT TYPE schema::Object {
 CREATE ABSTRACT TYPE schema::Type EXTENDING schema::Object;
 CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
+ALTER TYPE schema::Type {
+    CREATE PROPERTY expr -> std::str;
+    CREATE PROPERTY is_from_alias := EXISTS(.expr);
+};
+
 
 ALTER TYPE std::Object {
     CREATE LINK __type__ -> schema::Type {

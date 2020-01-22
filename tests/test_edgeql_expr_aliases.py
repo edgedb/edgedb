@@ -945,3 +945,46 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 ['Air'],
             ]
         )
+
+    async def test_edgeql_aliases_introspection(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Type {
+                    name
+                }
+                FILTER .is_from_alias AND .name LIKE 'test::Air%'
+                ORDER BY .name
+            """,
+            [{
+                'name': 'test::AirCard',
+            }]
+        )
+
+        await self.con.execute('''
+            CREATE ALIAS test::tuple_alias := ('foo', 10);
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Tuple {
+                    name,
+                    element_types: {
+                        name := .type.name
+                    } ORDER BY .num
+                }
+                FILTER
+                    .is_from_alias
+                    AND .name = 'test::tuple_alias'
+                ORDER BY .name
+            """,
+            [{
+                'name': 'test::tuple_alias',
+                'element_types': [{
+                    'name': 'std::str',
+                }, {
+                    'name': 'std::int64',
+                }]
+            }]
+        )

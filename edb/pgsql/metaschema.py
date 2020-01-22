@@ -20,6 +20,7 @@
 """Database structure and objects supporting EdgeDB metadata."""
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import collections
 import re
@@ -2528,6 +2529,24 @@ def _generate_type_element_view(schema, type_fields):
             types AS q
         WHERE
             q.position IS NOT NULL
+
+        UNION ALL
+
+        SELECT
+            st.id           AS id,
+            (SELECT id FROM edgedb.Object
+                 WHERE name = 'schema::TypeElement')
+                            AS __type__,
+            st.maintype     AS type,
+            st.name         AS name,
+            st.position     AS num
+        FROM
+            edgedb.TupleExprAlias AS q,
+            LATERAL UNNEST ((q.element_types).types) AS st(
+                id, maintype, name, position
+            )
+        WHERE
+            st.position IS NOT NULL
     '''
 
     return dbops.View(name=tabname(schema, TypeElement), query=view_query)
@@ -2553,11 +2572,29 @@ def _generate_types_views(schema, type_fields):
                             AS __type__,
             {_lookup_type('q.subtypes[1]')}
                             AS element_type,
-            q.dimensions    AS dimensions
+            q.dimensions    AS dimensions,
+            NULL            AS expr
         FROM
             types AS q
         WHERE
             q.collection = 'array'
+
+        UNION ALL
+
+        SELECT
+            id              AS id,
+            name            AS name,
+            (SELECT id FROM edgedb.Object
+                 WHERE name = 'schema::Array')
+                            AS __type__,
+            (q.element_type).types[0].maintype
+                            AS element_type,
+            dimensions      AS dimensions,
+            (q.expr).origtext
+                            AS expr
+        FROM
+            edgedb.ArrayExprAlias AS q
+
     '''
 
     views.append(dbops.View(name=tabname(schema, Array), query=view_query))
@@ -2570,11 +2607,25 @@ def _generate_types_views(schema, type_fields):
             q.collection    AS name,
             (SELECT id FROM edgedb.Object
                  WHERE name = 'schema::Tuple')
-                            AS __type__
+                            AS __type__,
+            NULL            AS expr
         FROM
             types AS q
         WHERE
             q.collection = 'tuple'
+
+        UNION ALL
+
+        SELECT
+            id              AS id,
+            name            AS name,
+            (SELECT id FROM edgedb.Object
+                 WHERE name = 'schema::Tuple')
+                            AS __type__,
+            (q.expr).origtext
+                            AS expr
+        FROM
+            edgedb.TupleExprAlias q
     '''
 
     views.append(dbops.View(name=tabname(schema, Tuple), query=view_query))
@@ -2587,9 +2638,23 @@ def _generate_types_views(schema, type_fields):
             st.id           AS target
         FROM
             types AS q,
-            LATERAL UNNEST (q.subtypes) WITH ORDINALITY AS st(id)
+            LATERAL UNNEST (q.subtypes) AS st(id)
         WHERE
             q.collection = 'tuple'
+
+        UNION ALL
+
+        SELECT
+            q.id            AS source,
+            st.id           AS target
+        FROM
+            edgedb.TupleExprAlias AS q,
+            LATERAL UNNEST ((q.element_types).types) AS st(
+                id, maintype, name, position
+            )
+        WHERE
+            st.position IS NOT NULL
+
     '''
 
     link_views.append(
@@ -3229,6 +3294,7 @@ async def generate_views(conn, schema):
     types_view.query += '\nUNION ALL\n' + '\nUNION ALL\n'.join(f'''
         (
             SELECT
+                "expr",
                 "id",
                 "name",
                 "__type__"

@@ -208,6 +208,20 @@ class Cli:
                 ),
 
                 cmd.Command(
+                    trigger='la',
+                    desc='list expression aliases',
+                    group='Introspection',
+                    arg_name='PATTERN',
+                    arg_optional=True,
+                    flags={
+                        'I': 'case_sensitive',
+                        'S': 'system',
+                        '+': 'verbose',
+                    },
+                    callback=self._command_list_expression_aliases,
+                ),
+
+                cmd.Command(
                     trigger='lc',
                     desc='list casts',
                     group='Introspection',
@@ -645,10 +659,10 @@ class Cli:
 
         flag = '' if 'case_sensitive' in flags else 'i'
         pattern = arg or ''
-        filter_and = ''
+        filter_and = 'NOT .is_from_alias'
         if 'system' not in flags:
             filter_and = f'''
-                NOT (re_test("^({STD_RE})::", .name))
+                AND NOT (re_test("^({STD_RE})::", .name))
             '''
 
         filter_clause, qkw = utils.get_filter_based_on_pattern(
@@ -716,10 +730,10 @@ class Cli:
     ) -> None:
         flag = '' if 'case_sensitive' in flags else 'i'
         pattern = arg or ''
-        filter_and = ''
+        filter_and = 'NOT .is_from_alias'
         if 'system' not in flags:
-            filter_and = f'''
-                NOT (re_test("^({STD_RE})::", .name))
+            filter_and += f'''
+                AND NOT (re_test("^({STD_RE})::", .name))
             '''
 
         filter_clause, qkw = utils.get_filter_based_on_pattern(
@@ -770,6 +784,88 @@ class Cli:
                     self._command_semicolon_hint(arg)
                 elif 'system' not in flags:
                     print(R'No user-defined object types found. Try \ltS.')
+
+    def _command_list_expression_aliases(
+        self,
+        *,
+        flags: AbstractSet[str],
+        arg: Optional[str]
+    ) -> None:
+        flag = '' if 'case_sensitive' in flags else 'i'
+        pattern = arg or ''
+        filter_and = '.is_from_alias'
+        if 'system' not in flags:
+            filter_and += f'''
+                AND NOT (re_test("^({STD_RE})::", .name))
+            '''
+
+        filter_clause, qkw = utils.get_filter_based_on_pattern(
+            pattern, flag=flag, filter_and=filter_and)
+
+        base_query = r'''
+            WITH MODULE schema
+            SELECT Type {
+                name,
+                expr,
+                class := (
+                    'object' IF Type IS ObjectType ELSE
+                    'scalar' IF Type IS ScalarType ELSE
+                    'tuple' IF Type IS Tuple ELSE
+                    'array' IF Type IS Array ELSE
+                    'unknown'
+                ),
+            }
+        '''
+
+        query = f'''
+            {base_query}
+            {filter_clause}
+            ORDER BY .name;
+        '''
+
+        try:
+            result, _ = self.fetch(
+                query,
+                json=False,
+                kwargs=qkw
+            )
+        except edgedb.EdgeDBError as exc:
+            render.render_exception(self.context, exc)
+        else:
+            if result:
+                columns = [
+                    table.ColumnSpec(field='name', title='Name',
+                                     width=2, align='left'),
+                    table.ColumnSpec(field='class', title='Class',
+                                     width=3, align='left'),
+                ]
+                if 'verbose' in flags:
+                    columns.append(
+                        table.ColumnSpec(
+                            field='expr',
+                            title='Expression',
+                            width=4,
+                            align='left',
+                        )
+                    )
+
+                max_width = self.prompt.output.get_size().columns
+                render.render_table(
+                    self.context,
+                    title='Expression Aliases',
+                    data=result,
+                    columns=columns,
+                    max_width=min(max_width, MAX_WIDTH),
+                )
+
+            else:
+                if pattern:
+                    print(f'No expression aliases found matching '
+                          f'{eql_quote.quote_literal(pattern)}.')
+                    self._command_semicolon_hint(arg)
+                elif 'system' not in flags:
+                    print(
+                        R'No user-defined expression aliases found. Try \laS.')
 
     def _command_list_casts(
         self,
