@@ -6,17 +6,17 @@ This changelog summarizes new features and breaking changes in
 EdgeDB 1.0 alpha 2.
 
 
-JavaScript Driver
-=================
+New JavaScript Driver
+=====================
 
 EdgeDB has a new high-performance native
 `EdgeDB driver <https://github.com/edgedb/edgedb-js>`_ for NodeJS 10+.
 
-It is written in strict TypeScript, thoroughly tested, and has a
-first-class async/await support.  Not to mention it is at least **2x faster**
-than comparable current PostgreSQL JavaScript drivers.
+The driver is written in strict TypeScript, thoroughly tested, and has
+first-class async/await support.  It is at least **twice** as efficient as
+comparable current PostgreSQL JavaScript drivers.
 
-Install it via ``npm`` or ``yarn``:
+Install it with ``npm`` or ``yarn``:
 
 .. code-block:: bash
 
@@ -55,8 +55,8 @@ std::bigint
 The new :eql:type:`std::bigint` scalar type is an arbitrary precision integral
 type.  The motivation for the new type is that many platforms lack a true
 multi-precision decimal type, but implement an arbitrary-precision integer
-type (JavaScript is a prominent example).  The syntax for decimal literals
-was updated:
+type (JavaScript is a prominent example).  The ``n`` suffix on numeric literals
+can now be used to express both ``std::bigint`` and :eql:type:`std::decimal`:
 
 .. code-block:: edgeql-repl
 
@@ -66,21 +66,21 @@ was updated:
     db> SELECT 1.0n IS std::decimal;
     {true}
 
-The :eql:type:`std::bigint` and :eql:type:`std::decimal` maintain the
+The ``std::bigint`` and ``std::decimal`` maintain the
 relationship that is similar to the relationship between :eql:type:`std::int64`
 and :eql:type:`std::float64`.  All sized integer types are implicitly
-castable to bigint, and bigint itself can implicitly cast to
-:eql:type:`std::decimal`.
+castable to ``bigint``, and ``bigint`` itself can implicitly cast to
+``std::decimal``.
 
 
 New "cal" Module
 ----------------
 
 Non-timezone aware date/time types and functions are moved into the new
-``cal`` module.  This new separation promotes :eql:type:`std::datetime`
+``cal`` module.  This separation promotes :eql:type:`std::datetime`
 to be the default safe choice for most use cases.  The types in the ``cal::``
-module are useful to implement calendars, alarms, reminders, etc., but have
-to be used with great consideration.  The updated date/time types are
+module are useful to implement calendars, alarms, reminders, and other cases
+where time is relative and imprecise.  The updated date/time types are
 listed below:
 
 .. list-table::
@@ -143,8 +143,8 @@ Dump / Restore
 
 The new :ref:`edgedb dump <ref_cli_edgedb_dump>` and
 :ref:`edgedb restore <ref_cli_edgedb_restore>` commands can be used to
-safely dump and restore EdgeDB databases as well as for upgrading to a new
-version of EdgeDB.
+safely dump and restore EdgeDB databases, including when upgrading to new
+versions of EdgeDB.
 
 
 EdgeQL
@@ -154,8 +154,8 @@ EdgeQL
 -----------------
 
 The :eql:op:`[IS ...] <ISINTERSECT>` operator is now used to specify the
-target types in shapes.  Consider the following query that fetches a ``User``
-along with everything linked to it via the ``favorites`` link:
+link target type in shapes.  Consider the following query that fetches a
+``User`` along with everything linked to it via the ``favorites`` link:
 
 .. code-block:: edgeql
 
@@ -298,6 +298,8 @@ Other Fixes and Enhancements
 
 * Fix backward links in aliases (:eql:gh:`#990`).
 * Fix covarinat types support (:eql:gh:`#709`).
+* Implement explicit handling of 64-bit integers, and arbitrary precision
+  integers and decimals (:eql:gh:`#1138`).
 
 
 DDL / SDL / Schema
@@ -333,7 +335,7 @@ Generic Describe
 ----------------
 
 :eql:stmt:`DESCRIBE` is a new introspection command that can generate
-DDL, SDL, or a descriptive "text" summary of any schema object in
+DDL, SDL, or a descriptive text summary of any schema object in
 EdgeDB.  A few examples:
 
 .. code-block:: edgeql-repl
@@ -399,6 +401,7 @@ The REPL now recognizes a number of introspection commands:
   \lm[I] [PATTERN]         list modules
   \lT[IS] [PATTERN]        list scalar types
   \lt[IS] [PATTERN]        list object types
+  \la[IS+] [PATTERN]       list expression aliases
   \lc[I] [PATTERN]         list casts
 
 For example:
