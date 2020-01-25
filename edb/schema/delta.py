@@ -487,6 +487,7 @@ class CommandContext:
         self.renamed_objs = set()
         self.altered_targets = set()
         self.schema_object_ids = schema_object_ids
+        self.op: Optional[Command] = None
 
     @property
     def modaliases(self) -> Mapping[Optional[str], str]:
@@ -768,7 +769,9 @@ class ObjectCommand(Command, metaclass=ObjectCommandMeta):
         if subnode is not None:
             node.commands.append(subnode)
 
-    def _get_ast_node(self, schema, context):
+    def _get_ast_node(self,
+                      schema: s_schema.Schema,
+                      context: CommandContext) -> qlast.ObjectDDL:
         return self.__class__.astnode
 
     def _get_ast(
@@ -1136,7 +1139,7 @@ class AlterObjectFragment(ObjectCommand):
 class RenameObject(AlterObjectFragment):
     _delta_action = 'rename'
 
-    astnode = qlast.Rename
+    astnode: Union[qlast.DDLCommand, Iterable[qlast.DDLCommand]] = qlast.Rename
 
     new_name = struct.Field(sn.Name)
 
