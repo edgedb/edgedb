@@ -158,7 +158,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
                 context.current().preserve_path_id = True
 
             delta.add(cmd)
-            schema, _ = delta.apply(schema, context)
+            schema = delta.apply(schema, context)
 
         derived = typing.cast(TypeT, schema.get(name))
 
@@ -1781,7 +1781,7 @@ class TypeCommand(sd.ObjectCommand):
                     'alias_is_persistent': True,
                     'expr_type': ExprType.Select,
                 })
-            new_schema, _ = ct.apply(new_schema, context)
+            new_schema = ct.apply(new_schema, context)
             derived_delta.add(ct)
 
         derived_delta = s_ordering.linearize_delta(

@@ -255,7 +255,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
                 )
 
                 group.add(cmd)
-                schema, _ = cmd.apply(schema, context)
+                schema = cmd.apply(schema, context)
             else:
                 assert isinstance(obj,
                                   s_referencing.ReferencedInheritingObject)
@@ -263,12 +263,12 @@ class InheritingObjectCommand(sd.ObjectCommand):
                 schema, cmd = self._rebase_ref(
                     schema, context, obj, existing_bases, bases)
                 group.add(cmd)
-                schema, _ = cmd.apply(schema, context)
+                schema = cmd.apply(schema, context)
 
         for fqname, delete_cmd in deleted_refs.items():
             cmd = delete_cmd(classname=fqname)
             group.add(cmd)
-            schema, _ = cmd.apply(schema, context)
+            schema = cmd.apply(schema, context)
 
         self.add(group)
 
@@ -767,7 +767,7 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext
-    ) -> Tuple[s_schema.Schema, so.InheritingObjectBase]:
+    ) -> s_schema.Schema:
         scls = self.get_object(schema, context)
         self.scls = scls  # type: ignore
 
@@ -777,7 +777,7 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
         schema = scls.update(schema, props)
 
         for op in self.get_subcommands(type=sd.ObjectCommand):
-            schema, _ = op.apply(schema, context)
+            schema = op.apply(schema, context)
 
         if not context.canonical:
             bases = self._apply_base_delta(schema, context, scls)
@@ -802,7 +802,7 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
 
         assert isinstance(scls, so.InheritingObjectBase)
 
-        return schema, scls
+        return schema
 
     def _apply_base_delta(
         self,

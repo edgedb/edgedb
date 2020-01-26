@@ -683,7 +683,7 @@ class CallableCommand(sd.ObjectCommand):
         schema = super()._alter_innards(schema, context)
 
         for op in self.get_subcommands(metaclass=Parameter):
-            schema, _ = op.apply(schema, context=context)
+            schema = op.apply(schema, context=context)
 
         return schema
 

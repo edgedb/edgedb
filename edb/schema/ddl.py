@@ -365,7 +365,7 @@ def apply_sdl(
                 context=context, testmode=testmode)
 
             delta.add(cmd)
-            target_schema, _ = delta.apply(target_schema, context)
+            target_schema = delta.apply(target_schema, context)
             context.schema = target_schema
 
     return target_schema
@@ -421,7 +421,7 @@ def _delta_from_ddl(
         cmd = cmd_from_ddl(
             ddl_stmt, schema=schema, modaliases={},
             context=context, testmode=testmode)
-        schema, _ = cmd.apply(schema, context)
+        schema = cmd.apply(schema, context)
         delta.add(cmd)
 
     delta.canonical = True
@@ -542,7 +542,7 @@ def ddl_text_from_migration(
     delta = migration.get_delta(schema)
     assert delta is not None
     context = sd.CommandContext()
-    migrated_schema, _ = delta.apply(schema, context)
+    migrated_schema = delta.apply(schema, context)
     return ddl_text_from_delta(migrated_schema, delta)
 
 

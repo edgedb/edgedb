@@ -971,7 +971,7 @@ class SetPointerType(
 
         else:
             for op in self.get_subcommands(type=sd.ObjectCommand):
-                schema, _ = op.apply(schema, context)
+                schema = op.apply(schema, context)
 
         return schema
 

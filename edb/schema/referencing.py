@@ -60,7 +60,7 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
 
         parent_cmd.add(cmd)
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
-            schema, _ = delta.apply(schema, context)
+            schema = delta.apply(schema, context)
 
         return schema
 
@@ -162,7 +162,7 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
                 context.current().preserve_path_id = True
 
             parent_cmd.add(cmd)
-            schema, _ = delta.apply(schema, context)
+            schema = delta.apply(schema, context)
 
         derived = schema.get(derived_name)
 
@@ -517,7 +517,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
             ref_del_cmd = get_cmd(sd.DeleteObject, mcls)
             cmd = ref_del_cmd(classname=existing.get_name(schema))
 
-        schema, _ = cmd.apply(schema, context)
+        schema = cmd.apply(schema, context)
 
         return schema, cmd
 
@@ -669,7 +669,7 @@ class ReferencedInheritingObjectCommand(
 
                 r_alter_cmd.add(d_alter_cmd)
 
-            schema, _ = r_alter_cmd.apply(schema, context)
+            schema = r_alter_cmd.apply(schema, context)
             self.add(r_alter_cmd)
 
         context.current().enable_recursion = rec
@@ -858,7 +858,7 @@ class RenameReferencedInheritingObject(
 
         else:
             for op in self.get_subcommands(type=sd.ObjectCommand):
-                schema, _ = op.apply(schema, context)
+                schema = op.apply(schema, context)
 
         return schema
 

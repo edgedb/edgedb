@@ -292,7 +292,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         self.ops.discard(command)
 
     def apply(self, schema, context):
-        return schema, None
+        return schema
 
     def get_ast(
         self,
@@ -437,10 +437,10 @@ CommandList = checked.CheckedList[Command]
 
 
 class CommandGroup(Command):
-    def apply(self, schema, context=None):
+    def apply(self, schema, context):
         for op in self.get_subcommands():
-            schema, _ = op.apply(schema, context)
-        return schema, None
+            schema = op.apply(schema, context)
+        return schema
 
 
 class CommandContextToken:
@@ -634,7 +634,7 @@ class DeltaRoot(CommandGroup):
         self.new_types = set()
         self.deleted_types = {}
 
-    def apply(self, schema, context=None):
+    def apply(self, schema, context):
         from . import modules
         from . import types as s_types
 
@@ -644,23 +644,23 @@ class DeltaRoot(CommandGroup):
             mods = []
 
             for op in self.get_subcommands(type=modules.CreateModule):
-                schema, mod = op.apply(schema, context)
-                mods.append(mod)
+                schema = op.apply(schema, context)
+                mods.append(op.scls)
 
             for op in self.get_subcommands(type=modules.AlterModule):
-                schema, mod = op.apply(schema, context)
-                mods.append(mod)
+                schema = op.apply(schema, context)
+                mods.append(op.scls)
 
             for op in self.get_subcommands():
                 if not isinstance(op, (modules.CreateModule,
                                        modules.AlterModule,
                                        s_types.DeleteCollectionType)):
-                    schema, _ = op.apply(schema, context)
+                    schema = op.apply(schema, context)
 
             for op in self.get_subcommands(type=s_types.DeleteCollectionType):
-                schema, _ = op.apply(schema, context)
+                schema = op.apply(schema, context)
 
-        return schema, None
+        return schema
 
 
 class ObjectCommandMeta(CommandMeta):
@@ -1014,10 +1014,10 @@ class CreateObject(ObjectCommand):
         self._validate_legal_command(schema, context)
 
         for op in self.get_prerequisites():
-            schema, _ = op.apply(schema, context)
+            schema = op.apply(schema, context)
 
         for op in self.get_subcommands(type=CreateObjectFragment):
-            schema, _ = op.apply(schema, context)
+            schema = op.apply(schema, context)
 
         if context.schema_object_ids is not None:
             mcls = self.get_schema_metaclass()
@@ -1070,12 +1070,12 @@ class CreateObject(ObjectCommand):
         from . import types as s_types
 
         for op in self.get_subcommands(type=s_types.CollectionTypeCommand):
-            schema, _ = op.apply(schema, context)
+            schema = op.apply(schema, context)
 
         for op in self.get_subcommands(include_prerequisites=False):
             if not isinstance(op, (s_types.CollectionTypeCommand,
                                    CreateObjectFragment)):
-                schema, _ = op.apply(schema, context=context)
+                schema = op.apply(schema, context=context)
 
         return schema
 
@@ -1086,17 +1086,17 @@ class CreateObject(ObjectCommand):
         with self.new_context(schema, context, None):
             if self.if_not_exists:
                 try:
-                    obj = self.get_object(schema, context)
+                    self.scls = self.get_object(schema, context)
                 except errors.InvalidReferenceError:
                     pass
                 else:
-                    return schema, obj
+                    return schema
 
             schema = self._create_begin(schema, context)
             context.current().scls = self.scls
             schema = self._create_innards(schema, context)
             schema = self._create_finalize(schema, context)
-        return schema, self.scls
+        return schema
 
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__,
@@ -1119,7 +1119,7 @@ class AlterObjectFragment(ObjectCommand):
         schema = self._alter_innards(schema, context)
         schema = self._alter_finalize(schema, context)
 
-        return schema, scls
+        return schema
 
     def _alter_begin(self, schema, context):
         schema, props = self._get_field_updates(schema, context)
@@ -1177,7 +1177,7 @@ class RenameObject(AlterObjectFragment):
         schema = self._rename_innards(schema, context)
         schema = self._rename_finalize(schema, context)
 
-        return schema, scls
+        return schema
 
     def _get_ast(
         self,
@@ -1341,13 +1341,13 @@ class AlterObject(ObjectCommand):
         self._validate_legal_command(schema, context)
 
         for op in self.get_prerequisites():
-            schema, _ = op.apply(schema, context)
+            schema = op.apply(schema, context)
 
         for op in self.get_subcommands(type=AlterObjectFragment):
-            schema, _ = op.apply(schema, context)
+            schema = op.apply(schema, context)
 
         for op in self.get_subcommands(type=s_types.CollectionTypeCommand):
-            schema, _ = op.apply(schema, context)
+            schema = op.apply(schema, context)
 
         schema, props = self._get_field_updates(schema, context)
         schema = self.scls.update(schema, props)
@@ -1356,7 +1356,7 @@ class AlterObject(ObjectCommand):
     def _alter_innards(self, schema, context):
         for op in self.get_subcommands(include_prerequisites=False):
             if not isinstance(op, (AlterObjectFragment, AlterObjectProperty)):
-                schema, _ = op.apply(schema, context=context)
+                schema = op.apply(schema, context=context)
 
         return schema
 
@@ -1372,7 +1372,7 @@ class AlterObject(ObjectCommand):
             schema = self._alter_innards(schema, context)
             schema = self._alter_finalize(schema, context)
 
-        return schema, scls
+        return schema
 
 
 class DeleteObject(ObjectCommand):
@@ -1415,7 +1415,7 @@ class DeleteObject(ObjectCommand):
 
     def _delete_innards(self, schema, context):
         for op in self.get_subcommands(metaclass=so.Object):
-            schema, _ = op.apply(schema, context=context)
+            schema = op.apply(schema, context=context)
 
         return schema
 
@@ -1445,7 +1445,7 @@ class DeleteObject(ObjectCommand):
         schema = schema.delete(self.scls)
         return schema
 
-    def apply(self, schema, context=None):
+    def apply(self, schema, context):
         scls = self.get_object(schema, context)
         self.scls = scls
 
@@ -1454,7 +1454,7 @@ class DeleteObject(ObjectCommand):
             schema = self._delete_innards(schema, context)
             schema = self._delete_finalize(schema, context)
 
-        return schema, scls
+        return schema
 
 
 class AlterSpecialObjectProperty(Command):

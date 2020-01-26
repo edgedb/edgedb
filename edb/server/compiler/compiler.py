@@ -290,7 +290,7 @@ class Compiler(BaseCompiler):
 
         delta = pg_delta.CommandMeta.adapt(delta)
         context = self._new_delta_context(ctx)
-        schema, _ = delta.apply(schema, context)
+        schema = delta.apply(schema, context)
 
         if debug.flags.delta_pgsql_plan:
             debug.header('PgSQL Delta Plan')
@@ -472,7 +472,7 @@ class Compiler(BaseCompiler):
                 return self._compile_ql_query(ctx, query_ql)
 
             elif isinstance(cmd, s_migrations.CreateMigration):
-                schema, _ = cmd.apply(schema, context)
+                schema = cmd.apply(schema, context)
                 current_tx.update_schema(schema)
                 # We must return *some* SQL; return a no-op command.
                 return dbstate.DDLQuery(

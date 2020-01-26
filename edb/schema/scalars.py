@@ -284,7 +284,7 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
             schema = self._validate_enum_change(
                 scls, enum_values, new_values, schema, context)
 
-            return schema, scls
+            return schema
         else:
             return super().apply(self, schema, context)
 

@@ -83,13 +83,12 @@ class CommitMigration(MigrationCommand):
 
     def apply(self, schema, context):
         migration = schema.get(self.classname)
-        schema, _ = migration.get_delta(schema).apply(schema, context)
-        return schema, migration
+        schema = migration.get_delta(schema).apply(schema, context)
+        return schema
 
 
 class GetMigration(MigrationCommand):
     astnode = qlast.GetMigration
 
     def apply(self, schema, context):
-        delta = schema.get(self.classname)
-        return schema, delta
+        return schema
