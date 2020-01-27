@@ -18,6 +18,7 @@
 
 
 import binascii
+import os
 import os.path
 import pathlib
 import platform
@@ -25,12 +26,18 @@ import shutil
 import subprocess
 import textwrap
 
+import distutils
 from distutils import extension as distutils_extension
 from distutils.command import build as distutils_build
 from distutils.command import build_ext as distutils_build_ext
 
 import setuptools
 from setuptools.command import develop as setuptools_develop
+
+try:
+    import setuptools_rust
+except ImportError:
+    setuptools_rust = None
 
 
 RUNTIME_DEPS = [
@@ -43,6 +50,7 @@ RUNTIME_DEPS = [
     'psutil~=5.6.1',
     'Pygments~=2.3.0',
     'setproctitle~=1.1.10',
+    'setuptools-rust==0.10.3',
     'setuptools_scm~=3.2.0',
     'typing_inspect~=0.5.0',
     'uvloop~=0.14.0',
@@ -262,15 +270,15 @@ class build(distutils_build.build):
 class develop(setuptools_develop.develop):
 
     def run(self, *args, **kwargs):
-        _compile_parsers(pathlib.Path('build/lib'), inplace=True)
-        _compile_postgres(pathlib.Path('build').resolve())
-
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = [s + '_dev' for s in scripts]
         patched_scripts.append('edb = edb.tools.edb:edbcommands')
         self.distribution.entry_points['console_scripts'] = patched_scripts
 
         super().run(*args, **kwargs)
+
+        _compile_parsers(pathlib.Path('build/lib'), inplace=True)
+        _compile_postgres(pathlib.Path('build').resolve())
 
 
 class gen_build_cache_key(setuptools.Command):
@@ -279,10 +287,12 @@ class gen_build_cache_key(setuptools.Command):
     user_options = []
 
     def run(self, *args, **kwargs):
-        import edb.edgeql.parser.grammar as _grammar
+        import edb as _edb
         from edb.common.devmode import hash_dirs
 
-        parser_hash = hash_dirs([(_grammar.__path__[0], '.py')])
+        parser_hash = hash_dirs([(
+            os.path.join(_edb.__path__[0], 'edgeql/parser/grammar'),
+            '.py')])
 
         proc = subprocess.run(
             ['git', 'submodule', 'status', 'postgres'],
@@ -406,6 +416,45 @@ class build_ext(distutils_build_ext.build_ext):
 
         super(build_ext, self).finalize_options()
 
+    def run(self):
+        if self.distribution.rust_extensions:
+            distutils.log.info("running build_rust")
+            build_rust = self.get_finalized_command("build_rust")
+            # Workaround a bug in setuptools-rust: it uses
+            # shutil.copyfile(), which is not safe w.r.t mmap,
+            # so if the target module has been previously loaded
+            # bad things will happen.
+            build_ext = self.get_finalized_command("build_ext")
+            orig_inplace = build_ext.inplace
+            build_ext.inplace = True
+            for ext in self.distribution.rust_extensions:
+                target_path = build_ext.get_ext_fullpath(ext.name)
+                if os.path.exists(target_path):
+                    os.unlink(target_path)
+
+            # Always build in-place because later stages of the build
+            # may depend on the modules having been built
+            build_rust.inplace = True
+            build_rust.debug = self.debug
+            os.environ['CARGO_TARGET_DIR'] = (
+                str(pathlib.Path(self.build_temp) / 'rust'))
+            build_rust.run()
+
+            build_ext.inplace = orig_inplace
+
+        super().run()
+
+
+if setuptools_rust is not None:
+    rust_extensions = [
+        setuptools_rust.RustExtension(
+            "edb.edgeql._edgeql_rust",
+            path="edgedb-rust/edgeql-python/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython),
+    ]
+else:
+    rust_extensions = []
+
 
 setuptools.setup(
     setup_requires=RUNTIME_DEPS + BUILD_DEPS,
@@ -478,6 +527,7 @@ setuptools.setup(
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
     ],
+    rust_extensions=rust_extensions,
     install_requires=RUNTIME_DEPS,
     extras_require=EXTRA_DEPS,
     test_suite='tests.suite',
