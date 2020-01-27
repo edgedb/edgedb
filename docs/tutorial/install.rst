@@ -38,7 +38,7 @@ using the newly set password:
 
 .. code-block:: bash
 
-    $ edgedb -u edgedb
+    $ edgedb -u edgedb --password
 
 .. _`download page`:
         https://www.edgedb.com/download/
