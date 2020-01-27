@@ -493,13 +493,6 @@ setuptools.setup(
             'edgedb-server = edb.server.main:main',
         ]
     },
-    rust_extensions=[
-        setuptools_rust.RustExtension(
-            "edb._edgeql_rust",
-            debug=False,
-            path="edgedb-rust/edgeql-python/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython),
-    ],
     ext_modules=[
         distutils_extension.Extension(
             "edb.server.pgproto.pgproto",
