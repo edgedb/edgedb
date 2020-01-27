@@ -18,13 +18,13 @@ On Linux:
 
 .. code-block:: bash
 
-    $ sudo systemctl start edgedb-1-alpha1
+    $ sudo systemctl start edgedb-1-alpha2
 
 On macOS:
 
 .. code-block:: bash
 
-    $ sudo launchctl enable system/com.edgedb.edgedb-1-alpha1
+    $ sudo launchctl enable system/com.edgedb.edgedb-1-alpha2
 
 Once the installation is complete, we need to set the password for the
 database superuser:
