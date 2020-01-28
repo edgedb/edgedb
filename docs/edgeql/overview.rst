@@ -285,7 +285,7 @@ syntax can be used:
             [IS Article].url,
 
             # specific to User
-            [IS Game].avatar,
+            [IS User].avatar,
 
             # a computable value tracking how many favorites
             # does my favorite User have?

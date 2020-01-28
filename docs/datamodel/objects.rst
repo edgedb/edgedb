@@ -17,10 +17,13 @@ changes.  Referring to object's ``id`` property yields its identity as a
 cannot be changed or masked with a different :ref:`computable
 <ref_datamodel_computables>` expression.
 
-Object types can *extend* other object types, in which case the extending
-type is called a *subtype* and types being extended are called *supertypes*.
-A subtype inherits all links, properties and other aspects of its
-supertypes.
+Object types can *extend* other object types, in which case the
+extending type is called a *subtype* and types being extended are
+called *supertypes*. A subtype inherits all links, properties and
+other aspects of its supertypes. It is possible to :ref:`extend more
+than one type <ref_eql_sdl_object_types_inheritance>` - that's called
+*multiple inheritance*. This mechanism allows building complex object
+types out of combinations of more basic types.
 
 ``std::Object`` is the root of the object type hierarchy and all object
 types in EdgeDB extend ``std::Object`` directly or indirectly.
