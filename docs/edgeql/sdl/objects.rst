@@ -11,6 +11,8 @@ This section describes the SDL declarations pertaining to
 Example
 -------
 
+Consider a ``User`` type with a few properties:
+
 .. code-block:: sdl
 
     type User {
@@ -23,6 +25,33 @@ Example
         # define an index for User based on name
         index on (__subject__.name);
     }
+
+.. _ref_eql_sdl_object_types_inheritance:
+
+An alternative way to define the same ``User`` type could be by using
+abstract types. These abstract types can then be re-used in other type
+definitions as well:
+
+.. code-block:: sdl
+
+    abstract type Named {
+        required property name -> str;
+    }
+
+    abstract type HasAddress {
+        property address -> str;
+    }
+
+    type User extending Named, HasAddress {
+        # define some user-specific properties and a link
+        multi link friends -> User;
+
+        # define an index for User based on name
+        index on (__subject__.name);
+    }
+
+Introducing abstract types opens up the possibility of
+:ref:`polymorphic queries <ref_eql_polymorphic_queries>`.
 
 
 Syntax

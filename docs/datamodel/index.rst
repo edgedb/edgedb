@@ -65,6 +65,14 @@ aspects.  Additionally, for instances of the child type
 instances of the child type are included in the set of all instances of
 the parent type.
 
+Multiple inheritance allows composing several types into one. A common
+pattern is to have many basic abstract types (such as ``Named``,
+``HasEmail``, ``HasAddress``, etc.) each with their own links and
+properties and then extending different combinations of them.
+
+Finally, various inheritance structures enable the use of
+:ref:`polymorphic queries <ref_eql_polymorphic_queries>`.
+
 
 EdgeDB Schema
 =============
