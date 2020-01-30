@@ -420,27 +420,36 @@ class build_ext(distutils_build_ext.build_ext):
         if self.distribution.rust_extensions:
             distutils.log.info("running build_rust")
             build_rust = self.get_finalized_command("build_rust")
-            # Workaround a bug in setuptools-rust: it uses
-            # shutil.copyfile(), which is not safe w.r.t mmap,
-            # so if the target module has been previously loaded
-            # bad things will happen.
             build_ext = self.get_finalized_command("build_ext")
-            orig_inplace = build_ext.inplace
-            build_ext.inplace = True
-            for ext in self.distribution.rust_extensions:
-                target_path = build_ext.get_ext_fullpath(ext.name)
-                if os.path.exists(target_path):
-                    os.unlink(target_path)
+            copy_list = []
+            if not self.inplace:
+                for ext in self.distribution.rust_extensions:
+                    # Always build in-place because later stages of the build
+                    # may depend on the modules having been built
+                    dylib_path = pathlib.Path(
+                        build_ext.get_ext_fullpath(ext.name))
+                    build_ext.inplace = True
+                    target_path = pathlib.Path(
+                        build_ext.get_ext_fullpath(ext.name))
+                    build_ext.inplace = False
+                    copy_list.append((dylib_path, target_path))
 
-            # Always build in-place because later stages of the build
-            # may depend on the modules having been built
-            build_rust.inplace = True
+                    # Workaround a bug in setuptools-rust: it uses
+                    # shutil.copyfile(), which is not safe w.r.t mmap,
+                    # so if the target module has been previously loaded
+                    # bad things will happen.
+                    if target_path.exists():
+                        target_path.unlink()
+
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+
             build_rust.debug = self.debug
             os.environ['CARGO_TARGET_DIR'] = (
                 str(pathlib.Path(self.build_temp) / 'rust'))
             build_rust.run()
 
-            build_ext.inplace = orig_inplace
+            for src, dst in copy_list:
+                shutil.copyfile(src, dst)
 
         super().run()
 
