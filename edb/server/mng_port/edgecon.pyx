@@ -80,6 +80,10 @@ cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
 cdef object CARD_ONE = compiler.ResultCardinality.ONE
 cdef object CARD_MANY = compiler.ResultCardinality.MANY
 
+cdef object FMT_BINARY = compiler.IoFormat.BINARY
+cdef object FMT_JSON = compiler.IoFormat.JSON
+cdef object FMT_JSON_ROWS = compiler.IoFormat.JSON_ROWS
+
 cdef object logger = logging.getLogger('edb.server')
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
@@ -562,7 +566,7 @@ cdef class EdgeConnection:
         self,
         eql: bytes,
         *,
-        json_mode: bint = False,
+        io_format: compiler.IoFormat = FMT_BINARY,
         expect_one: bint = False,
         stmt_mode: str = 'single',
         implicit_limit: uint64_t = 0,
@@ -575,7 +579,7 @@ cdef class EdgeConnection:
                 'compile_eql_in_tx',
                 self.dbview.txid,
                 eql,
-                json_mode,
+                io_format,
                 expect_one,
                 implicit_limit,
                 stmt_mode,
@@ -587,7 +591,7 @@ cdef class EdgeConnection:
                 eql,
                 self.dbview.modaliases,
                 self.dbview.get_session_config(),
-                json_mode,
+                io_format,
                 expect_one,
                 implicit_limit,
                 stmt_mode,
@@ -697,7 +701,7 @@ cdef class EdgeConnection:
     async def _parse(
         self,
         bytes eql,
-        bint json_mode,
+        object io_format,
         bint expect_one,
         uint64_t implicit_limit,
     ):
@@ -705,7 +709,7 @@ cdef class EdgeConnection:
             self.debug_print('PARSE', eql)
 
         query_unit = self.dbview.lookup_compiled_query(
-            eql, json_mode, expect_one, implicit_limit)
+            eql, io_format, expect_one, implicit_limit)
         cached = True
         if query_unit is None:
             # Cache miss; need to compile this query.
@@ -723,7 +727,7 @@ cdef class EdgeConnection:
             else:
                 query_unit = await self._compile(
                     eql,
-                    json_mode=json_mode,
+                    io_format=io_format,
                     expect_one=expect_one,
                     stmt_mode='single',
                     implicit_limit=implicit_limit,
@@ -749,7 +753,7 @@ cdef class EdgeConnection:
 
         if not cached and query_unit.cacheable:
             self.dbview.cache_compiled_query(
-                eql, json_mode, expect_one, implicit_limit, query_unit)
+                eql, io_format, expect_one, implicit_limit, query_unit)
 
         return query_unit
 
@@ -776,13 +780,13 @@ cdef class EdgeConnection:
             raise errors.InternalServerError(
                 f'unknown cardinality {query_unit.cardinality!r}')
 
-    cdef parse_json_mode(self, bytes mode):
+    cdef _parse_io_format(self, bytes mode):
         if mode == b'j':
-            # json
-            return True
+            return FMT_JSON
+        elif mode == b'J':
+            return FMT_JSON_ROWS
         elif mode == b'b':
-            # binary
-            return False
+            return FMT_BINARY
         else:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
@@ -836,7 +840,7 @@ cdef class EdgeConnection:
 
     async def parse(self):
         cdef:
-            bint json_mode
+            object io_format
             bytes eql
             dict headers
             uint64_t implicit_limit = 0
@@ -853,7 +857,7 @@ cdef class EdgeConnection:
                         f'unexpected message header: {k}'
                     )
 
-        json_mode = self.parse_json_mode(self.buffer.read_byte())
+        io_format = self._parse_io_format(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
         )
@@ -868,7 +872,7 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError('empty query')
 
         query_unit = await self._parse(
-            eql, json_mode, expect_one, implicit_limit)
+            eql, io_format, expect_one, implicit_limit)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
         buf.write_int16(0)  # no headers
@@ -1127,7 +1131,7 @@ cdef class EdgeConnection:
                         f'unexpected message header: {k}'
                     )
 
-        json_mode = self.parse_json_mode(self.buffer.read_byte())
+        io_format = self._parse_io_format(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
         )
@@ -1141,13 +1145,13 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError('empty query')
 
         query_unit = self.dbview.lookup_compiled_query(
-            query, json_mode, expect_one, implicit_limit)
+            query, io_format, expect_one, implicit_limit)
         if query_unit is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
 
             query_unit = await self._parse(
-                query, json_mode, expect_one, implicit_limit)
+                query, io_format, expect_one, implicit_limit)
             self._last_anon_compiled = query_unit
 
         if (query_unit.in_type_id != in_tid or
@@ -1163,7 +1167,7 @@ cdef class EdgeConnection:
             # Otherwise the `await self._execute` below would execute
             # some other query.
             query_unit = await self._parse(
-                query, json_mode, expect_one, implicit_limit)
+                query, io_format, expect_one, implicit_limit)
             self._last_anon_compiled = query_unit
             return
 

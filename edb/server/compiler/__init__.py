@@ -24,12 +24,13 @@ from .compiler import compile_edgeql_script, compile_bootstrap_script
 from .compiler import load_std_schema
 from .dbstate import QueryUnit
 from .enums import Capability, CompileStatementMode, ResultCardinality
+from .enums import IoFormat
 
 
 __all__ = (
     'Compiler', 'BaseCompiler', 'CompilerDatabaseState',
     'QueryUnit',
-    'Capability', 'CompileStatementMode', 'ResultCardinality',
+    'Capability', 'CompileStatementMode', 'ResultCardinality', 'IoFormat',
     'compile_edgeql_script',
     'compile_bootstrap_script',
     'load_std_schema',

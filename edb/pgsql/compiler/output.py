@@ -32,9 +32,12 @@ from edb.pgsql import types as pgtypes
 from . import context
 
 
+_JSON_FORMATS = {context.OutputFormat.JSON, context.OutputFormat.JSON_ROWS}
+
+
 def _get_json_func(name: str, *,
                    env: context.Environment) -> Tuple[str, ...]:
-    if env.output_format is context.OutputFormat.JSON:
+    if env.output_format in _JSON_FORMATS:
         prefix_suffix = 'json'
     else:
         prefix_suffix = 'jsonb'
@@ -416,6 +419,9 @@ def serialize_expr(
                              context.OutputFormat.JSONB):
         val = serialize_expr_to_json(
             expr, path_id=path_id, nested=nested, env=env)
+    elif env.output_format == context.OutputFormat.JSON_ROWS:
+        val = serialize_expr_to_json(
+            expr, path_id=path_id, nested=nested, env=env)
 
     elif env.output_format == context.OutputFormat.NATIVE:
         val = output_as_value(expr, env=env)
@@ -433,7 +439,7 @@ def get_pg_type(
     if in_serialization_ctx(ctx):
         if ctx.env.output_format is context.OutputFormat.JSONB:
             return ('jsonb',)
-        elif ctx.env.output_format is context.OutputFormat.JSON:
+        elif ctx.env.output_format in _JSON_FORMATS:
             return ('json',)
         elif irtyputils.is_object(typeref):
             return ('record',)
@@ -523,6 +529,9 @@ def top_output_as_value(
             val=typecast,
         )
 
+        return stmt
+
+    elif env.output_format is context.OutputFormat.JSON_ROWS:
         return stmt
 
     else:

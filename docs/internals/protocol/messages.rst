@@ -303,8 +303,16 @@ Format:
     };
 
     enum IOFormat {
+        // Default format that should be used in most cases
         BINARY = 0x62,
-        JSON = 0x6a
+
+        // Returns a single row and single field that contains
+        // a resultset as a single JSON array
+        JSON = 0x6a,
+
+        // Returns a single JSON string per row, preferred over JSON format
+        // because might be used for larger responses
+        JSON_ROWS = 0x4a,
     };
 
     enum Cardinality {
