@@ -73,13 +73,17 @@ BUILD_DEPS = [
     CYTHON_DEPENDENCY,
 ]
 
+PYCODESTYLE_REPO = 'http://github.com/PyCQA/pycodestyle'
+PYCODESTYLE_COMMIT = 'd69c15eb7ecf77e94988fb55207a78936b48079c'
+
 EXTRA_DEPS = {
     'test': [
+        # Depend on unreleased version for Python 3.8 support,
+        f'pycodestyle @ {PYCODESTYLE_REPO}/archive/{PYCODESTYLE_COMMIT}.zip',
         'black~=19.3b0',
         'flake8~=3.7.9',
         'flake8-bugbear~=19.8.0',
         'mypy==0.750',
-        'pycodestyle~=2.5.0',
         'coverage~=4.5.2',
         'requests-xml~=0.2.3',
         'lxml',

@@ -300,7 +300,7 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
             raise errors.SchemaError(
                 f'cannot remove labels from an enumeration type')
 
-        existing = [l for l in new_labels if l in cur_set]
+        existing = [label for label in new_labels if label in cur_set]
         if existing != cur_labels:
             raise errors.SchemaError(
                 f'cannot change the relative order of existing labels '

@@ -2221,10 +2221,10 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             elif src.get_name(schema) == 'std::link':
                 return True
             else:
-                for l in src.children(schema):
-                    if not l.generic(schema):
+                for link in src.children(schema):
+                    if not link.generic(schema):
                         ptr_stor_info = types.get_pointer_storage_info(
-                            l, resolve_type=False, schema=schema)
+                            link, resolve_type=False, schema=schema)
                         if ptr_stor_info.table_type == 'link':
                             return True
                 return False
@@ -3423,17 +3423,17 @@ class UpdateEndpointDeleteActions(MetaCommand):
         for source, src_schema in affected_sources:
             links = []
 
-            for l in source.get_pointers(src_schema).objects(src_schema):
-                if (not isinstance(l, s_links.Link)
-                        or not l.get_is_local(src_schema)
-                        or l.is_pure_computable(src_schema)):
+            for link in source.get_pointers(src_schema).objects(src_schema):
+                if (not isinstance(link, s_links.Link)
+                        or not link.get_is_local(src_schema)
+                        or link.is_pure_computable(src_schema)):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
-                    l, schema=src_schema)
+                    link, schema=src_schema)
                 if ptr_stor_info.table_type != 'link':
                     continue
 
-                links.append(l)
+                links.append(link)
 
             links.sort(
                 key=lambda l: (l.get_on_target_delete(src_schema),
@@ -3449,22 +3449,25 @@ class UpdateEndpointDeleteActions(MetaCommand):
             links = []
             inline_links = []
 
-            for l in schema.get_referrers(target, scls_type=s_links.Link,
-                                          field_name='target'):
-                if not l.get_is_local(schema) or l.is_pure_computable(schema):
+            for link in schema.get_referrers(target, scls_type=s_links.Link,
+                                             field_name='target'):
+                if (not link.get_is_local(schema)
+                        or link.is_pure_computable(schema)):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
-                    l, schema=schema)
+                    link, schema=schema)
                 if ptr_stor_info.table_type != 'link':
-                    if l.get_on_target_delete(schema) is DA.DEFERRED_RESTRICT:
-                        deferred_inline_links.append(l)
+                    if (link.get_on_target_delete(schema)
+                            is DA.DEFERRED_RESTRICT):
+                        deferred_inline_links.append(link)
                     else:
-                        inline_links.append(l)
+                        inline_links.append(link)
                 else:
-                    if l.get_on_target_delete(schema) is DA.DEFERRED_RESTRICT:
-                        deferred_links.append(l)
+                    if (link.get_on_target_delete(schema)
+                            is DA.DEFERRED_RESTRICT):
+                        deferred_links.append(link)
                     else:
-                        links.append(l)
+                        links.append(link)
 
             links.sort(
                 key=lambda l: (l.get_on_target_delete(schema),

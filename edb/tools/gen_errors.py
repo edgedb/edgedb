@@ -275,7 +275,7 @@ class ErrorsTree:
 
         lines = '\n\n\n'.join(lines)
 
-        all_lines = '    ' + ',\n    '.join(repr(l) for l in all_lines) + ','
+        all_lines = '    ' + ',\n    '.join(repr(ln) for ln in all_lines) + ','
         all_lines = f'__all__ = {extra_all} + (\n{all_lines}\n)'
 
         code = (
