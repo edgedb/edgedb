@@ -1030,6 +1030,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         with context(old, new):
             command_args: Dict[str, Any] = {'canonical': True}
 
+            delta: sd.ObjectCommand
+
             if old and new:
                 try:
                     name = old.get_name(old_schema)  # type: ignore
@@ -1283,7 +1285,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         *,
         old_schema: s_schema.Schema,
         new_schema: s_schema.Schema,
-    ) -> Object:
+    ) -> sd.RenameObject:
         from . import delta as sd
 
         rename_class = sd.ObjectCommandMeta.get_command_class_or_die(
@@ -1302,7 +1304,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         *,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
-    ) -> Union[sd.DeltaRoot, Tuple[sd.DeltaRoot, ...]]:
+    ) -> sd.DeltaRoot:
         from edb.schema import delta as sd
         from edb.schema import inheriting as s_inh
 
@@ -1316,7 +1318,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 adds_mods.add(n.delta(None, n, context=context,
                                       old_schema=old_schema,
                                       new_schema=new_schema))
-            return adds_mods, dels
+            return adds_mods
         elif new is None:
             if old is None:
                 raise ValueError("`old` and `new` cannot be both None.")
@@ -1324,7 +1326,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 dels.add(o.delta(o, None, context=context,
                                  old_schema=old_schema,
                                  new_schema=new_schema))
-            return adds_mods, dels
+            return dels
 
         old = list(old)
         new = list(new)

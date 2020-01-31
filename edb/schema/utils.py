@@ -251,11 +251,13 @@ def resolve_typeref(ref: so.Object, schema: s_schema.Schema) -> so.Object:
     return ref._resolve_ref(schema)
 
 
-def is_nontrivial_container(value: Any) -> bool:
-    coll_classes = (collections.abc.Sequence, collections.abc.Set)
+def is_nontrivial_container(value: Any) -> Optional[collections.abc.Iterable]:
     trivial_classes = (str, bytes, bytearray, memoryview)
-    return (isinstance(value, coll_classes) and
-            not isinstance(value, trivial_classes))
+    if (isinstance(value, collections.abc.Iterable) and
+            not isinstance(value, trivial_classes)):
+        return value
+    else:
+        return None
 
 
 def get_class_nearest_common_ancestor(
@@ -564,7 +566,6 @@ def get_union_type(
     opaque: bool = False,
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, s_types.Type]:
-    from . import schema as s_schema
 
     schema, union, _ = ensure_union_type(
         schema, types, opaque=opaque, module=module)

@@ -217,7 +217,7 @@ class ParameterDesc(ParameterLike):
         ))
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
-            sd.ensure_schema_collection(
+            s_types.ensure_schema_collection(
                 schema, self.type, cmd, context=context)
 
         for attr in ('num', 'typemod', 'kind', 'default'):
@@ -248,8 +248,8 @@ class ParameterDesc(ParameterLike):
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
             param = schema.get(param_name)
-            sd.cleanup_schema_collection(schema, self.type, param, cmd,
-                                         context=context)
+            s_types.cleanup_schema_collection(schema, self.type, param, cmd,
+                                              context=context)
 
         return cmd
 
@@ -749,7 +749,7 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
 
             if (return_type.is_collection()
                     and not return_type.is_polymorphic(schema)):
-                sd.ensure_schema_collection(
+                s_types.ensure_schema_collection(
                     schema, return_type, cmd,
                     src_context=astnode.returning.context,
                     context=context,
@@ -785,7 +785,7 @@ class DeleteCallableObject(CallableCommand, sd.DeleteObject):
         return_type = obj.get_return_type(schema)
         if (return_type.is_collection()
                 and not return_type.is_polymorphic(schema)):
-            sd.cleanup_schema_collection(
+            s_types.cleanup_schema_collection(
                 schema, return_type, obj, cmd, context=context,
                 src_context=astnode.context)
 

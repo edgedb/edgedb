@@ -37,8 +37,8 @@ class StructTests(unittest.TestCase):
 
     def test_common_struct_basics(self):
         class Test(Struct):
-            field1 = Field(type=str, default='42')
-            field2 = Field(type=bool)
+            field1 = Field(str, default='42')
+            field2 = Field(bool)
 
         with self.assertRaisesRegex(TypeError, 'field2 is required'):
             Test()
@@ -51,7 +51,7 @@ class StructTests(unittest.TestCase):
 
     def test_common_struct_coercion(self):
         class Test(Struct):
-            field = Field(type=int, coerce=True)
+            field = Field(int, coerce=True)
 
         assert Test(field=1).field == 1
         assert Test(field='42').field == 42
@@ -59,7 +59,7 @@ class StructTests(unittest.TestCase):
             Test(field='42.2')
 
         class Test(Struct):
-            field = Field(type=int)
+            field = Field(int)
 
         assert Test(field=1).field == 1
         with self.assertRaisesRegex(TypeError, 'expected int'):
@@ -100,8 +100,8 @@ class StructTests(unittest.TestCase):
 
     def test_common_struct_mixed(self):
         class Test(MixedStruct):
-            field1 = Field(type=str, default='42')
-            field2 = Field(type=bool)
+            field1 = Field(str, default='42')
+            field2 = Field(bool)
 
         t1 = Test(field1='field1', field2=True, spam='ham')
         t1.update(ham='spam')
@@ -122,8 +122,8 @@ class StructTests(unittest.TestCase):
 
     def test_common_struct_frozen(self):
         class Test(MixedStruct):
-            field1 = Field(type=str, default='42', frozen=True)
-            field2 = Field(type=bool)
+            field1 = Field(str, default='42', frozen=True)
+            field2 = Field(bool)
 
         t1 = Test(field1='field1', field2=True, spam='ham')
 

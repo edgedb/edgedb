@@ -926,7 +926,7 @@ class SetPointerType(
             tgt = self.get_attribute_value('target')
             if tgt.is_collection():
                 srcctx = self.get_attribute_source_context('target')
-                sd.ensure_schema_collection(
+                s_types.ensure_schema_collection(
                     schema, tgt, self,
                     src_context=srcctx,
                     context=context,

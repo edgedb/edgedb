@@ -21,12 +21,16 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 from edb.edgeql import ast as qlast
 
 from . import abc as s_abc
 from . import delta as sd
 from . import objects as so
+
+if TYPE_CHECKING:
+    from . import schema as s_schema
 
 
 class Migration(so.UnqualifiedObject, s_abc.Migration):
@@ -81,7 +85,11 @@ class DeleteMigration(MigrationCommand):
 class CommitMigration(MigrationCommand):
     astnode = qlast.CommitMigration
 
-    def apply(self, schema, context):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         migration = schema.get(self.classname)
         schema = migration.get_delta(schema).apply(schema, context)
         return schema
@@ -90,5 +98,9 @@ class CommitMigration(MigrationCommand):
 class GetMigration(MigrationCommand):
     astnode = qlast.GetMigration
 
-    def apply(self, schema, context):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         return schema

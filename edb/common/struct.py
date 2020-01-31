@@ -18,84 +18,103 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
+from typing_extensions import Final
 
 import collections
+import enum
 
 from . import checked
-
-
-class NoDefault:
-    pass
 
 
 class ProtoField:
     pass
 
 
-class Field(ProtoField):
+class NoDefaultT(enum.Enum):
+    NoDefault = 0
+
+
+NoDefault: Final = NoDefaultT.NoDefault
+
+
+T = TypeVar("T")
+
+
+class Field(ProtoField, Generic[T]):
     """``Field`` objects: attributes of :class:`Struct`."""
 
     __slots__ = ('name', 'type', 'default', 'coerce', 'formatters',
                  'frozen')
 
-    def __init__(
-            self, type, default=NoDefault, *, coerce=False, str_formatter=str,
-            repr_formatter=repr, frozen=False):
-        """
-        :param type: A type, or a tuple of types allowed for the field value.
-        :param default: Default field value.  If not specified, the field would
-                        be considered required and a failure to specify its
-                        value when initializing a ``Struct`` will raise
-                        :exc:`TypeError`.  `default` can be a callable taking
-                        no arguments.
-        :param bool coerce: If set to ``True`` - coerce field's value to its
-                            type.
-        """
-        if not isinstance(type, tuple):
-            type = (type, )
+    name: str
 
-        self.type = type
+    def __init__(
+        self,
+        type_: Type[T],
+        default: Union[T, NoDefaultT] = NoDefault,
+        *,
+        coerce: bool = False,
+        str_formatter: Callable[[T], str] = str,
+        repr_formatter: Callable[[T], str] = repr,
+        frozen: bool = False,
+    ) -> None:
+        """
+        :param type:
+            The type of the value in the field.
+        :param default:
+            Default field value.  If not specified, the field would
+            be considered required and a failure to specify its
+            value when initializing a ``Struct`` will raise
+            :exc:`TypeError`.  `default` can be a callable taking
+            no arguments.
+        :param bool coerce:
+            If set to ``True`` - coerce field's value to its type.
+        """
+        self.type = type_
         self.default = default
         self.coerce = coerce
         self.frozen = frozen
-
-        if coerce and len(type) > 1:
-            raise ValueError(
-                'unable to coerce values for fields with multiple types')
-
         self.formatters = {'str': str_formatter, 'repr': repr_formatter}
 
-    def copy(self):
+    def copy(self) -> Field[T]:
         return self.__class__(
             self.type, self.default, coerce=self.coerce,
             str_formatter=self.formatters['str'],
             repr_formatter=self.formatters['repr'])
 
-    def adapt(self, value):
-        if not isinstance(value, self.type):
-            for t in self.type:
-                try:
-                    value = t(value)
-                except TypeError:
-                    pass
-                else:
-                    break
+    def adapt(self, value: Any) -> T:
+        # cast() below due to https://github.com/python/mypy/issues/7920
+        ctype = cast(type, self.type)
 
-        return value
+        if not isinstance(value, ctype):
+            value = ctype(value)
+
+        # Type ignore below because with ctype we lost information that
+        # it is indeed a Type[T].
+        return value  # type: ignore
 
     @property
-    def required(self):
+    def required(self) -> bool:
         return self.default is NoDefault
 
-    def __get__(self, instance, owner):
-        if instance is not None:
-            return None
-        else:
-            return self
+
+StructMeta_T = TypeVar("StructMeta_T", bound="StructMeta")
 
 
 class StructMeta(type):
-    def __new__(mcls, name, bases, clsdict, *, use_slots=True):
+
+    _fields: Dict[str, Field[Any]]
+    _sorted_fields: Dict[str, Field[Any]]
+
+    def __new__(
+        mcls: Type[StructMeta_T],
+        name: str,
+        bases: Tuple[type, ...],
+        clsdict: Dict[str, Any],
+        *,
+        use_slots: bool = True,
+    ) -> StructMeta_T:
         fields = {}
         myfields = {}
 
@@ -123,7 +142,10 @@ class StructMeta(type):
                 for key in myfields.keys():
                     del clsdict[key]
 
-        cls = super().__new__(mcls, name, bases, clsdict)
+        cls = cast(
+            StructMeta_T,
+            super().__new__(mcls, name, bases, clsdict),
+        )
 
         if use_slots:
             sa = '{}.{}_slots'.format(cls.__module__, cls.__name__)
@@ -142,18 +164,28 @@ class StructMeta(type):
         setattr(cls, fa, myfields)
         return cls
 
-    def __init__(cls, name, bases, clsdict, *, use_slots=None):
+    def __init__(
+        cls,
+        name: str,
+        bases: Tuple[type, ...],
+        clsdict: Dict[str, Any],
+        *,
+        use_slots: bool = None,
+    ) -> None:
         super().__init__(name, bases, clsdict)
 
-    def get_field(cls, name):
+    def get_field(cls, name: str) -> Optional[Field[Any]]:
         return cls._fields.get(name)
 
-    def get_fields(cls, sorted=False):
+    def get_fields(cls, sorted: bool = False) -> Dict[str, Field[Any]]:
         return cls._sorted_fields if sorted else cls._fields
 
-    def get_ownfields(cls):
-        return getattr(
+    def get_ownfields(cls) -> Dict[str, Field[Any]]:
+        return getattr(  # type: ignore
             cls, '{}.{}_fields'.format(cls.__module__, cls.__name__))
+
+
+Struct_T = TypeVar("Struct_T", bound="Struct")
 
 
 class Struct(metaclass=StructMeta):
@@ -199,7 +231,12 @@ class Struct(metaclass=StructMeta):
 
     __slots__ = ('_in_init_',)
 
-    def __init__(self, *, _setdefaults_=True, _relaxrequired_=False, **kwargs):
+    def __init__(
+        self, *,
+        _setdefaults_: bool = True,
+        _relaxrequired_: bool = False,
+        **kwargs: Any,
+    ) -> None:
         """
         :param bool _setdefaults_: If False, fields will not be initialized
                                    with default values immediately.  It is
@@ -222,7 +259,7 @@ class Struct(metaclass=StructMeta):
         finally:
             self._in_init_ = False
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: Mapping[str, Any]) -> None:
         self._in_init_ = True
         try:
             if isinstance(state, tuple) and len(state) == 2:
@@ -238,9 +275,9 @@ class Struct(metaclass=StructMeta):
         finally:
             self._in_init_ = False
 
-    def update(self, *args, **kwargs):
+    def update(self, *args: Any, **kwargs: Any) -> None:
         """Update the field values."""
-        values = {}
+        values: Dict[str, Any] = {}
         values.update(*args, **kwargs)
 
         self._check_init_argnames(values)
@@ -248,7 +285,7 @@ class Struct(metaclass=StructMeta):
         for k, v in values.items():
             setattr(self, k, v)
 
-    def setdefaults(self):
+    def setdefaults(self) -> List[str]:
         """Initialize unset fields with default values."""
         fields_set = []
         for field_name, field in self.__class__._fields.items():
@@ -259,36 +296,43 @@ class Struct(metaclass=StructMeta):
                 fields_set.append(field_name)
         return fields_set
 
-    def set_default_value(self, field_name, value):
+    def set_default_value(self, field_name: str, value: Any) -> None:
         setattr(self, field_name, value)
 
-    def formatfields(self, formatter='str'):
+    def formatfields(
+        self,
+        formatter: str = 'str',
+    ) -> Iterator[Tuple[str, str]]:
         """Return an iterator over fields formatted using `formatter`."""
         for name, field in self.__class__._fields.items():
             formatter_obj = field.formatters.get(formatter)
             if formatter_obj:
                 yield (name, formatter_obj(getattr(self, name)))
 
-    def _copy_and_replace(self, cls, **replacements):
+    def _copy_and_replace(
+        self,
+        cls: Type[Struct_T],
+        **replacements: Any,
+    ) -> Struct_T:
         args = {f: getattr(self, f) for f in cls._fields.keys()}
         if replacements:
             args.update(replacements)
         return cls(**args)
 
-    def copy_with_class(self, cls):
+    def copy_with_class(self, cls: Type[Struct_T]) -> Struct_T:
         return self._copy_and_replace(cls)
 
-    def copy(self):
+    def copy(self: Struct_T) -> Struct_T:
         return self.copy_with_class(type(self))
 
-    def replace(self, **replacements):
+    def replace(self: Struct_T, **replacements: Any) -> Struct_T:
         return self._copy_and_replace(type(self), **replacements)
 
-    def items(self):
+    def items(self) -> Iterator[Tuple[str, Any]]:
         for field in self.__class__._fields:
             yield field, getattr(self, field, None)
 
-    def as_tuple(self):
+    def as_tuple(self) -> Tuple[Any, ...]:
         result = []
         for field in self.__class__._fields:
             result.append(getattr(self, field, None))
@@ -296,22 +340,27 @@ class Struct(metaclass=StructMeta):
 
     __copy__ = copy
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.__class__._fields)
 
-    def __str__(self):
+    def __str__(self) -> str:
         fields = ', '.join(('%s=%s' % (name, value))
                            for name, value in self.formatfields('str'))
         return '<{}{}>'.format(
             self.__class__.__name__, ' ' + fields if fields else '')
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         fields = ', '.join(('%s=%s' % (name, value))
                            for name, value in self.formatfields('repr'))
         return '<{}{}>'.format(
             self.__class__.__name__, ' ' + fields if fields else '')
 
-    def _init_fields(self, setdefaults, relaxrequired, values):
+    def _init_fields(
+        self,
+        setdefaults: bool,
+        relaxrequired: bool,
+        values: Mapping[str, Any],
+    ) -> None:
         for field_name, field in self.__class__._fields.items():
             value = values.get(field_name)
 
@@ -320,15 +369,15 @@ class Struct(metaclass=StructMeta):
 
             setattr(self, field_name, value)
 
-    def __setattr__(self, name, value):
-        field = self._fields.get(name)
+    def __setattr__(self, name: str, value: Any) -> None:
+        field = type(self)._fields.get(name)
         if field is not None:
             value = self._check_field_type(field, name, value)
             if field.frozen and not self._in_init_:
                 raise ValueError(f'cannot assign to frozen field {name!r}')
         super().__setattr__(name, value)
 
-    def _check_init_argnames(self, args):
+    def _check_init_argnames(self, args: Iterable[str]) -> None:
         extra = set(args) - set(self.__class__._fields) - {'_in_init_'}
         if extra:
             fmt = '{} {} invalid argument{} for struct {}.{}'
@@ -338,34 +387,34 @@ class Struct(metaclass=StructMeta):
                 else '', self.__class__.__module__, self.__class__.__name__)
             raise TypeError(msg)
 
-    def _check_field_type(self, field, name, value):
+    def _check_field_type(self, field: Field[T], name: str, value: Any) -> T:
         if (field.type and value is not None and
                 not isinstance(value, field.type)):
             if field.coerce:
-                ftype = field.type[0]
+                ftype = field.type
 
                 if issubclass(ftype, (checked.AbstractCheckedList,
                                       checked.AbstractCheckedSet)):
-                    casted_value = []
+                    val_list = []
                     for v in value:
                         if v is not None and not isinstance(v, ftype.type):
                             v = ftype.type(v)
-                        casted_value.append(v)
-                    value = casted_value
+                        val_list.append(v)
+                    value = val_list
                 elif issubclass(ftype, checked.CheckedDict):
-                    casted_value = {}
+                    val_dict = {}
                     for k, v in value.items():
                         if k is not None and not isinstance(k, ftype.keytype):
                             k = ftype.keytype(k)
                         if (v is not None and
                                 not isinstance(v, ftype.valuetype)):
                             v = ftype.valuetype(v)
-                        casted_value[k] = v
+                        val_dict[k] = v
 
-                    value = casted_value
+                    value = val_dict
 
                 try:
-                    return ftype(value)
+                    return ftype(value)  # type: ignore
                 except Exception as ex:
                     raise TypeError(
                         'cannot coerce {!r} value {!r} '
@@ -374,13 +423,19 @@ class Struct(metaclass=StructMeta):
             raise TypeError(
                 '{}.{}.{}: expected {} but got {!r}'.format(
                     self.__class__.__module__, self.__class__.__name__, name,
-                    ' or '.join(t.__name__ for t in field.type), value))
+                    field.type.__name__, value))
 
-        return value
+        return value  # type: ignore
 
-    def _getdefault(self, field_name, field, relaxrequired=False):
-        if field.default in field.type:
-            value = field.default()
+    def _getdefault(
+        self,
+        field_name: str,
+        field: Field[T],
+        relaxrequired: bool = False,
+    ) -> T:
+        ftype = cast(type, field.type)
+        if field.default == ftype:
+            value = field.default()  # type: ignore
         elif field.default is NoDefault:
             if relaxrequired:
                 value = None
@@ -391,13 +446,17 @@ class Struct(metaclass=StructMeta):
                         field_name))
         else:
             value = field.default
-        return value
 
-    def get_field_value(self, field_name):
+        return value  # type: ignore
+
+    def get_field_value(self, field_name: str) -> Any:
         try:
             return self.__dict__[field_name]
         except KeyError as e:
             field = self.__class__.get_field(field_name)
+            if field is None:
+                raise TypeError(
+                    f'{field_name} is not a valid field in this struct')
             try:
                 return self._getdefault(field_name, field)
             except TypeError:
@@ -405,10 +464,17 @@ class Struct(metaclass=StructMeta):
 
 
 class MixedStructMeta(StructMeta):
-    def __new__(mcls, name, bases, clsdict, *, use_slots=False):
+    def __new__(
+        mcls,
+        name: str,
+        bases: Tuple[type, ...],
+        clsdict: Dict[str, Any],
+        *,
+        use_slots: bool = False,
+    ) -> MixedStructMeta:
         return super().__new__(mcls, name, bases, clsdict, use_slots=use_slots)
 
 
 class MixedStruct(Struct, metaclass=MixedStructMeta):
-    def _check_init_argnames(self, args):
+    def _check_init_argnames(self, args: Iterable[Any]) -> None:
         pass

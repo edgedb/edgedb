@@ -1718,9 +1718,10 @@ class TypeCommand(sd.ObjectCommand):
             # because they use the type id in the general case,
             # but in the case of an explicit named view, we
             # still want a properly qualified name.
-            classname = sd.ObjectCommand._classname_from_ast(
+            fq_classname = sd.ObjectCommand._classname_from_ast(
                 schema, astnode, context)
-            cmd.classname = classname
+            assert isinstance(fq_classname, s_name.Name)
+            cmd.classname = fq_classname
 
         expr = s_expr.Expression.from_ast(
             view_expr, schema, context.modaliases)
@@ -1789,6 +1790,7 @@ class TypeCommand(sd.ObjectCommand):
 
         real_cmd = None
         for op in derived_delta.get_subcommands():
+            assert isinstance(op, sd.ObjectCommand)
             if op.classname == classname:
                 real_cmd = op
                 break
@@ -1809,8 +1811,10 @@ class TypeCommand(sd.ObjectCommand):
         self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._create_begin(schema, context)
+        assert isinstance(self.scls, Type)
         if not self.scls.is_view(schema):
             delta_root = context.top().op
+            assert isinstance(delta_root, sd.DeltaRoot)
             delta_root.new_types.add(self.scls.id)
         return schema
 
@@ -1828,8 +1832,8 @@ class CollectionTypeCommand(sd.UnqualifiedObjectCommand,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        parent_node: Optional[qlast.DDL] = None,
-    ) -> Optional[qlast.DDL]:
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
         # CollectionTypeCommand cannot have its own AST because it is a
         # side-effect of some other command.
         return None
@@ -1841,10 +1845,12 @@ class CollectionExprAliasCommand(TypeCommand,
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.CreateAlias,
+        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> sd.CommandGroup:
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.ObjectDDL)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, sd.ObjectCommand)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
@@ -1909,3 +1915,60 @@ class DeleteArray(DeleteCollectionType, schema_metaclass=SchemaArray):
 class DeleteArrayExprAlias(DeleteCollectionExprAlias,
                            schema_metaclass=ArrayExprAlias):
     pass
+
+
+def ensure_schema_collection(
+    schema: s_schema.Schema,
+    coll_type: Type,
+    parent_cmd: sd.Command,
+    *,
+    src_context: Optional[parsing.ParserContext] = None,
+    context: sd.CommandContext,
+) -> None:
+    if not isinstance(coll_type, Collection):
+        raise ValueError(
+            f'{coll_type.get_displayname(schema)} is not a collection')
+
+    if coll_type.contains_array_of_tuples(schema):
+        raise errors.UnsupportedFeatureError(
+            'arrays of tuples are not supported at the schema level',
+            context=src_context,
+        )
+
+    delta_root = context.top().op
+    assert isinstance(delta_root, sd.DeltaRoot)
+
+    if (schema.get_by_id(coll_type.id, None) is None
+            and coll_type.id not in delta_root.new_types):
+        parent_cmd.add(coll_type.as_create_delta(schema))
+        delta_root.new_types.add(coll_type.id)
+
+    if coll_type.id in delta_root.deleted_types:
+        # Revert the deletion decision.
+        del_cmd = delta_root.deleted_types.pop(coll_type.id)
+        delta_root.discard(del_cmd)
+
+
+def cleanup_schema_collection(
+    schema: s_schema.Schema,
+    coll_type: Type,
+    parent: Type,
+    parent_cmd: sd.Command,
+    *,
+    src_context: Optional[parsing.ParserContext] = None,
+    context: sd.CommandContext,
+) -> None:
+    if not isinstance(coll_type, Collection):
+        raise ValueError(
+            f'{coll_type.get_displayname(schema)} is not a collection')
+
+    delta_root = context.top().op
+    assert isinstance(delta_root, sd.DeltaRoot)
+
+    refs = schema.get_referrers(coll_type)
+    if (len(refs) == 1 and list(refs)[0].id == parent.id
+            and coll_type.id not in delta_root.deleted_types):
+        # The parent is the last user of this collection, drop it.
+        del_cmd = coll_type.as_delete_delta(schema)
+        delta_root.deleted_types[coll_type.id] = del_cmd
+        delta_root.add(del_cmd)

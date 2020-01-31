@@ -166,8 +166,6 @@ class LinkCommand(lproperties.PropertySourceCommand,
                   schema_metaclass=Link, context_class=LinkCommandContext,
                   referrer_context_class=LinkSourceCommandContext):
 
-    _command_subject = 'link'
-
     def _set_pointer_type(self, schema, astnode, context, target_ref):
         slt = SetLinkType(classname=self.classname, type=target_ref)
         slt.set_attribute_value(
@@ -206,8 +204,8 @@ class LinkCommand(lproperties.PropertySourceCommand,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        parent_node: Optional[qlast.DDL],
-    ) -> Optional[qlast.DDL]:
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
         node = super()._get_ast(schema, context, parent_node=parent_node)
         # __type__ link is special, and while it exists on every object
         # it doesn not have a defined default in the schema (and therefore
@@ -452,7 +450,7 @@ class DeleteLink(LinkCommand, inheriting.DeleteInheritingObject):
     referenced_astnode = qlast.DropConcreteLink
 
     def _canonicalize(self, schema, context, scls):
-        super()._canonicalize(schema, context, scls)
+        commands = super()._canonicalize(schema, context, scls)
 
         target = scls.get_target(schema)
 
@@ -467,5 +465,8 @@ class DeleteLink(LinkCommand, inheriting.DeleteInheritingObject):
                 sd.DeleteObject, type(target))
 
             del_cmd = Cmd(classname=target.get_name(schema))
-            del_cmd._canonicalize(schema, context, target)
-            self.add(del_cmd)
+            subcmds = del_cmd._canonicalize(schema, context, target)
+            del_cmd.update(subcmds)
+            commands.append(del_cmd)
+
+        return commands

@@ -397,8 +397,8 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        parent_node: Optional[qlast.DDL],
-    ) -> Optional[qlast.DDL]:
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
         if (self.get_attribute_value('expr_type')
                 and not self.get_attribute_value('expr')):
             # This is a nested view type, e.g

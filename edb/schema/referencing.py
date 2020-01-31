@@ -180,7 +180,7 @@ class ReferencedInheritingObject(inheriting.InheritingObject,
 
 
 class ReferencedObjectCommandMeta(sd.ObjectCommandMeta):
-    _transparent_adapter_subclass = True
+    _transparent_adapter_subclass: ClassVar[bool] = True
 
     def __new__(mcls, name, bases, clsdct, *,
                 referrer_context_class=None, **kwargs):
@@ -712,8 +712,8 @@ class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        parent_node: Optional[qlast.DDL],
-    ) -> Optional[qlast.DDL]:
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
         refctx = type(self).get_referrer_context(context)
         if refctx is not None:
             if not self.get_attribute_value('is_local'):
