@@ -82,7 +82,7 @@ cdef object CARD_MANY = compiler.ResultCardinality.MANY
 
 cdef object FMT_BINARY = compiler.IoFormat.BINARY
 cdef object FMT_JSON = compiler.IoFormat.JSON
-cdef object FMT_JSON_ROWS = compiler.IoFormat.JSON_ROWS
+cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 
 cdef object logger = logging.getLogger('edb.server')
 
@@ -784,7 +784,7 @@ cdef class EdgeConnection:
         if mode == b'j':
             return FMT_JSON
         elif mode == b'J':
-            return FMT_JSON_ROWS
+            return FMT_JSON_ELEMENTS
         elif mode == b'b':
             return FMT_BINARY
         else:

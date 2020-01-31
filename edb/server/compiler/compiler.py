@@ -98,7 +98,7 @@ DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
 _IO_FORMAT_MAP = {
     enums.IoFormat.BINARY: pg_compiler.OutputFormat.NATIVE,
     enums.IoFormat.JSON: pg_compiler.OutputFormat.JSON,
-    enums.IoFormat.JSON_ROWS: pg_compiler.OutputFormat.JSON_ROWS,
+    enums.IoFormat.JSON_ELEMENTS: pg_compiler.OutputFormat.JSON_ELEMENTS,
 }
 
 

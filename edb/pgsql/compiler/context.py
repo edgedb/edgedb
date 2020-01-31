@@ -52,7 +52,7 @@ class OutputFormat(enum.Enum):
     NATIVE = enum.auto()
     JSON = enum.auto()
     JSONB = enum.auto()
-    JSON_ROWS = enum.auto()
+    JSON_ELEMENTS = enum.auto()
 
 
 class NoVolatilitySentinel:

@@ -32,7 +32,7 @@ from edb.pgsql import types as pgtypes
 from . import context
 
 
-_JSON_FORMATS = {context.OutputFormat.JSON, context.OutputFormat.JSON_ROWS}
+_JSON_FORMATS = {context.OutputFormat.JSON, context.OutputFormat.JSON_ELEMENTS}
 
 
 def _get_json_func(name: str, *,
@@ -419,7 +419,7 @@ def serialize_expr(
                              context.OutputFormat.JSONB):
         val = serialize_expr_to_json(
             expr, path_id=path_id, nested=nested, env=env)
-    elif env.output_format == context.OutputFormat.JSON_ROWS:
+    elif env.output_format == context.OutputFormat.JSON_ELEMENTS:
         val = serialize_expr_to_json(
             expr, path_id=path_id, nested=nested, env=env)
 
@@ -531,7 +531,7 @@ def top_output_as_value(
 
         return stmt
 
-    elif env.output_format is context.OutputFormat.JSON_ROWS:
+    elif env.output_format is context.OutputFormat.JSON_ELEMENTS:
         return stmt
 
     else:

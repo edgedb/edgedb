@@ -310,9 +310,10 @@ Format:
         // a resultset as a single JSON array
         JSON = 0x6a,
 
-        // Returns a single JSON string per row, preferred over JSON format
-        // because might be used for larger responses
-        JSON_ROWS = 0x4a,
+        // Returns a single JSON string per top-level set element.
+        // Preferred over JSON format because might be used for
+        // larger responses
+        JSON_ELEMENTS = 0x4a,
     };
 
     enum Cardinality {

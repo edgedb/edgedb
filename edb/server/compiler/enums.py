@@ -59,4 +59,4 @@ class Capability(enum.Flag):
 class IoFormat(strenum.StrEnum):
     BINARY = 'BINARY'
     JSON = 'JSON'
-    JSON_ROWS = 'JSON_ROWS'
+    JSON_ELEMENTS = 'JSON_ELEMENTS'
