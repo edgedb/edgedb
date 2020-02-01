@@ -48,7 +48,7 @@ Consider the following schema:
     type User {
         required property name -> str;
         multi link friends -> User {
-            property since -> local_date;
+            property since -> cal::local_date;
         }
     }
 
