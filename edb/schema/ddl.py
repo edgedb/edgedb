@@ -57,7 +57,7 @@ if TYPE_CHECKING:
     import uuid
 
 
-def get_global_dep_order() -> Tuple[so.ObjectMeta, ...]:
+def get_global_dep_order() -> Tuple[Type[so.Object], ...]:
     return (
         annos.Annotation,
         functions.Function,
@@ -234,37 +234,26 @@ def delta_schemas(
         if issubclass(sclass, so.UnqualifiedObject):
             # UnqualifiedObjects (like anonymous tuples and arrays)
             # should not use an included_modules filter.
-            new = schema_b.get_objects(
-                type=sclass,
-                excluded_modules=excluded_modules,
-                included_items=included_items,
-                excluded_items=excluded_items,
-                extra_filters=filters + schema_b_filters,
-            )
-            old = schema_a.get_objects(
-                type=sclass,
-                excluded_modules=excluded_modules,
-                included_items=included_items,
-                excluded_items=excluded_items,
-                extra_filters=filters + schema_a_filters,
-            )
+            incl_modules = None
         else:
-            new = schema_b.get_objects(
-                type=sclass,
-                included_modules=included_modules,
-                excluded_modules=excluded_modules,
-                included_items=included_items,
-                excluded_items=excluded_items,
-                extra_filters=filters + schema_b_filters,
-            )
-            old = schema_a.get_objects(
-                type=sclass,
-                included_modules=included_modules,
-                excluded_modules=excluded_modules,
-                included_items=included_items,
-                excluded_items=excluded_items,
-                extra_filters=filters + schema_a_filters,
-            )
+            incl_modules = included_modules
+
+        new = schema_b.get_objects(
+            type=sclass,
+            included_modules=incl_modules,
+            excluded_modules=excluded_modules,
+            included_items=included_items,
+            excluded_items=excluded_items,
+            extra_filters=filters + schema_b_filters,
+        )
+        old = schema_a.get_objects(
+            type=sclass,
+            included_modules=incl_modules,
+            excluded_modules=excluded_modules,
+            included_items=included_items,
+            excluded_items=excluded_items,
+            extra_filters=filters + schema_a_filters,
+        )
 
         objects.add(so.Object.delta_sets(
             old, new, old_schema=schema_a, new_schema=schema_b))

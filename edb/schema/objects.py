@@ -593,11 +593,11 @@ class ObjectMeta(type):
     def get_schema_metaclass_for_ql_class(
         mcls,
         qlkind: qltypes.SchemaObjectClass
-    ) -> ObjectMeta:
+    ) -> Type[Object]:
         cls = mcls._ql_map.get(qlkind)
         if cls is None:
             raise LookupError(f'no schema metaclass for {qlkind}')
-        return cls
+        return cast(Type[Object], cls)
 
     def get_ql_class(cls) -> Optional[qltypes.SchemaObjectClass]:
         return cls._ql_class
@@ -949,7 +949,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return similarity
 
     def is_blocking_ref(
-        self, schema: s_schema.Schema, reference: InheritingObjectBase
+        self, schema: s_schema.Schema, reference: Object
     ) -> bool:
         return True
 
@@ -1407,7 +1407,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                         altered_idx[op.new_name] = p
 
                 for p in altered:
-                    old_class = old_schema.get(p.classname)
+                    old_class: Object = old_schema.get(p.classname)
 
                     for op in p.get_subcommands(
                             type=sd.RenameObject):
@@ -1416,7 +1416,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     else:
                         new_name = p.classname
 
-                    new_class = new_schema.get(new_name)
+                    new_class: Object = new_schema.get(new_name)
 
                     assert isinstance(old_class, s_inh.InheritingObject)
                     assert isinstance(new_class, s_inh.InheritingObject)
@@ -1492,7 +1492,7 @@ class BaseObjectRef:
 class ObjectRef(Object, BaseObjectRef):
     _name: str
     _origname: Optional[str]
-    _schemaclass: Optional[ObjectMeta]
+    _schemaclass: Optional[Type[Object]]
     _sourcectx: Optional[parsing.ParserContext]
 
     def __init__(
@@ -1500,7 +1500,7 @@ class ObjectRef(Object, BaseObjectRef):
         *,
         name: str,
         origname: Optional[str] = None,
-        schemaclass: Optional[ObjectMeta] = None,
+        schemaclass: Optional[Type[Object]] = None,
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         self.__dict__['_name'] = name
@@ -1539,14 +1539,9 @@ class ObjectRef(Object, BaseObjectRef):
         return self, self.get_name(schema)
 
     def _resolve_ref(self, schema: s_schema.Schema) -> Object:
-        type_filter: Tuple[ObjectMeta, ...]
-        if self._schemaclass is not None:
-            type_filter = (self._schemaclass,)
-        else:
-            type_filter = tuple()
         return schema.get(
             self.get_name(schema),
-            type=type_filter,
+            type=self._schemaclass,
             refname=self._origname,
             sourcectx=self.get_sourcectx(schema),
         )
@@ -2062,8 +2057,8 @@ class InheritingObjectBase(Object):
                 return self._issubclass(schema, parent)
 
     def descendants(
-        self, schema: s_schema.Schema
-    ) -> FrozenSet[objtypes.ObjectType]:
+        self: InheritingObjectBaseT, schema: s_schema.Schema
+    ) -> FrozenSet[InheritingObjectBaseT]:
         return schema.get_descendants(self)
 
     def ordered_descendants(

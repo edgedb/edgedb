@@ -243,9 +243,7 @@ class CreateAnnotationValue(AnnotationValueCommand,
             raise ValueError(
                 f'unexpected value type in AnnotationValue: {value!r}')
 
-        attr = schema.get(propname)
-
-        assert isinstance(attr, Annotation)
+        attr: Annotation = schema.get(propname)
 
         cmd.update((
             sd.AlterObjectProperty(

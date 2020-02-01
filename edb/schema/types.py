@@ -100,7 +100,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         default=None, inheritable=False, introspectable=False)
 
     def is_blocking_ref(
-        self, schema: s_schema.Schema, reference: so.InheritingObjectBase
+        self, schema: s_schema.Schema, reference: so.Object
     ) -> bool:
         return reference is not self.get_rptr(schema)
 
@@ -353,12 +353,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def as_create_delta_for_compound_type(
         self,
         schema: s_schema.Schema,
-        *,
-        id: uuid.UUID,
-        name: s_name.Name,
-        compound_type: str,
-        components: typing.Iterable[Type],
-    ) -> typing.Optional[sd.CreateObject]:
+    ) -> Optional[sd.CreateObject]:
         return None
 
     def allow_ref_propagation(
@@ -411,7 +406,7 @@ class UnionTypeRef(TypeExprRef):
     def _resolve_ref(self, schema: s_schema.Schema) -> Type:
         components = self.resolve_components(schema)
         type_id, _ = get_union_type_id(schema, components, module=self.module)
-        return schema.get_by_id(type_id)
+        return typing.cast(Type, schema.get_by_id(type_id))
 
     def get_union_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
         return self._components
@@ -429,7 +424,7 @@ class ExistingUnionTypeRef(UnionTypeRef, so.ObjectRef):  # type: ignore
         name: s_name.Name,
         components: Iterable[so.ObjectRef],
         origname: Optional[str]=None,
-        schemaclass: Optional[so.ObjectMeta]=None,
+        schemaclass: Optional[typing.Type[so.Object]]=None,
         sourcectx=None,
     ) -> None:
 
@@ -447,7 +442,7 @@ class IntersectionTypeRef(TypeExprRef):
         components = self.resolve_components(schema)
         type_id, _ = get_intersection_type_id(
             schema, components, module=self.module)
-        return schema.get_by_id(type_id)
+        return typing.cast(Type, schema.get_by_id(type_id))
 
     def get_intersection_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
         return self._components
@@ -466,7 +461,7 @@ class ExistingIntersectionTypeRef(  # type: ignore
         name: s_name.Name,
         components: Iterable[so.ObjectRef],
         origname: Optional[str]=None,
-        schemaclass: Optional[so.ObjectMeta]=None,
+        schemaclass: Optional[typing.Type[so.Object]]=None,
         sourcectx=None,
     ) -> None:
 

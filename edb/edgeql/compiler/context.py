@@ -253,20 +253,46 @@ class Environment:
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
 
-    def get_track_schema_object(
+    @overload
+    def get_track_schema_object(  # NoQA: F811
         self,
         name: str,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Tuple[s_obj.ObjectMeta, ...] = (),
-        default: Union[s_obj.Object, s_obj.NoDefaultT, None] = s_obj.NoDefault,
+        type: Optional[Type[s_obj.Object]] = None,
+        default: Union[s_obj.Object, s_obj.NoDefaultT] = s_obj.NoDefault,
         label: Optional[str] = None,
         condition: Optional[Callable[[s_obj.Object], bool]] = None,
     ) -> s_obj.Object:
+        ...
+
+    @overload
+    def get_track_schema_object(  # NoQA: F811
+        self,
+        name: str,
+        *,
+        modaliases: Optional[Mapping[Optional[str], str]] = None,
+        type: Optional[Type[s_obj.Object]] = None,
+        default: Union[s_obj.Object, s_obj.NoDefaultT, None] = s_obj.NoDefault,
+        label: Optional[str] = None,
+        condition: Optional[Callable[[s_obj.Object], bool]] = None,
+    ) -> Optional[s_obj.Object]:
+        ...
+
+    def get_track_schema_object(  # NoQA: F811
+        self,
+        name: str,
+        *,
+        modaliases: Optional[Mapping[Optional[str], str]] = None,
+        type: Optional[Type[s_obj.Object]] = None,
+        default: Union[s_obj.Object, s_obj.NoDefaultT, None] = s_obj.NoDefault,
+        label: Optional[str] = None,
+        condition: Optional[Callable[[s_obj.Object], bool]] = None,
+    ) -> Optional[s_obj.Object]:
         sobj = self.schema.get(name, module_aliases=modaliases, type=type,
                                condition=condition, label=label,
                                default=default)
-        if sobj is not default:
+        if sobj is not None and sobj is not default:
             self.schema_refs.add(sobj)
 
         return sobj
@@ -283,7 +309,7 @@ class Environment:
 
         stype = self.get_track_schema_object(
             name, modaliases=modaliases, default=default, label=label,
-            condition=condition, type=(s_types.Type,),
+            condition=condition, type=s_types.Type,
         )
 
         return cast(s_types.Type, stype)

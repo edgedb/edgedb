@@ -605,7 +605,7 @@ class PointerCommandOrFragment:
                         e, target_ref.get_refname(schema),
                         modaliases=context.modaliases,
                         schema=schema,
-                        item_types=(s_types.Type,),
+                        item_type=s_types.Type,
                         context=srcctx,
                     )
                     raise

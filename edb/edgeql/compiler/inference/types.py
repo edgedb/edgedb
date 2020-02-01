@@ -297,7 +297,9 @@ def __infer_typeref(
             result = coll.from_subtypes(
                 env.schema, [infer_type(t, env) for t in ir.subtypes])
     else:
-        result = env.schema.get_by_id(ir.id)
+        t = env.schema.get_by_id(ir.id)
+        assert isinstance(t, s_types.Type)
+        result = t
 
     return result
 

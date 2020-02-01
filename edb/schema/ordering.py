@@ -316,7 +316,8 @@ def _trace_op(
             if isinstance(obj, s_func.Function) and old_schema is not None:
                 old_funcs = old_schema.get_functions(
                     sn.shortname_from_fullname(op.classname),
-                    default=[])
+                    default=(),
+                )
                 for old_func in old_funcs:
                     deps.add(('delete', old_func.get_name(old_schema)))
 
@@ -367,7 +368,7 @@ def _get_referrers(
     strongrefs: Dict[str, str],
 ) -> Set[so.Object]:
     refs = schema.get_referrers(obj)
-    result = set()
+    result: Set[so.Object] = set()
 
     for ref in refs:
         if not ref.is_blocking_ref(schema, obj):

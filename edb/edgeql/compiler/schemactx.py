@@ -51,7 +51,7 @@ from . import stmtctx
 def get_schema_object(
         name: Union[str, qlast.BaseObjectRef],
         module: Optional[str]=None, *,
-        item_types: Tuple[s_obj.ObjectMeta, ...] = (),
+        item_type: Optional[Type[s_obj.Object]]=None,
         condition: Optional[Callable[[s_obj.Object], bool]]=None,
         label: Optional[str]=None,
         ctx: context.ContextLevel,
@@ -80,14 +80,14 @@ def get_schema_object(
     try:
         stype = ctx.env.get_track_schema_object(
             name=name, modaliases=ctx.modaliases,
-            type=item_types, condition=condition,
+            type=item_type, condition=condition,
             label=label,
         )
 
     except errors.QueryError as e:
         s_utils.enrich_schema_lookup_error(
             e, name, modaliases=ctx.modaliases, schema=ctx.env.schema,
-            item_types=item_types, condition=condition, context=srcctx)
+            item_type=item_type, condition=condition, context=srcctx)
         raise
 
     view = _get_type_variant(stype.get_name(ctx.env.schema), ctx)
@@ -120,11 +120,11 @@ def get_schema_type(
         ctx: context.ContextLevel,
         label: Optional[str] = None,
         condition: Optional[Callable[[s_obj.Object], bool]] = None,
-        item_types: Tuple[s_obj.ObjectMeta, ...] = (),
+        item_type: Optional[Type[s_obj.Object]] = None,
         srcctx: Optional[parsing.ParserContext] = None) -> s_types.Type:
-    if not item_types:
-        item_types = (s_types.Type,)
-    obj = get_schema_object(name, module, item_types=item_types,
+    if item_type is None:
+        item_type = s_types.Type
+    obj = get_schema_object(name, module, item_type=item_type,
                             condition=condition, label=label,
                             ctx=ctx, srcctx=srcctx)
     assert isinstance(obj, s_types.Type)
