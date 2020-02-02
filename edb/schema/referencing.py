@@ -420,13 +420,14 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
 
         return cmd
 
-    def _delete_innards(self, schema, context, scls):
-        schema = super()._delete_innards(schema, context, scls)
+    def _delete_innards(self, schema, context):
+        schema = super()._delete_innards(schema, context)
 
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
             return schema
 
+        scls = self.scls
         referrer = referrer_ctx.scls
         referrer_class = type(referrer)
         mcls = type(scls)
@@ -591,9 +592,10 @@ class ReferencedInheritingObjectCommand(
 
         return schema
 
-    def _alter_begin(self, schema, context, scls):
+    def _alter_begin(self, schema, context):
+        scls = self.scls
         was_local = scls.get_is_local(schema)
-        schema = super()._alter_begin(schema, context, scls)
+        schema = super()._alter_begin(schema, context)
         now_local = scls.get_is_local(schema)
         if not was_local and now_local:
             self._validate(schema, context)
@@ -822,9 +824,10 @@ class RenameReferencedInheritingObject(
         ReferencedInheritingObjectCommand,
         sd.RenameObject):
 
-    def _rename_begin(self, schema, context, scls):
+    def _rename_begin(self, schema, context):
         orig_schema = schema
-        schema = super()._rename_begin(schema, context, scls)
+        schema = super()._rename_begin(schema, context)
+        scls = self.scls
 
         if not context.canonical and not scls.generic(schema):
             implicit_bases = scls.get_implicit_bases(schema)

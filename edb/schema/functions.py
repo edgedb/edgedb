@@ -679,8 +679,8 @@ class CallableCommand(sd.ObjectCommand):
             params.append(param)
         return FuncParameterList.create(schema, params)
 
-    def _alter_innards(self, schema: s_schema.Schema, context, scls):
-        schema = super()._alter_innards(schema, context, scls)
+    def _alter_innards(self, schema: s_schema.Schema, context):
+        schema = super()._alter_innards(schema, context)
 
         for op in self.get_subcommands(metaclass=Parameter):
             schema, _ = op.apply(schema, context=context)

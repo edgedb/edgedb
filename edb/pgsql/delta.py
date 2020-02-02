@@ -1028,8 +1028,9 @@ class RenameConstraint(
 class AlterConstraint(
         ConstraintCommand, AlterObject,
         adapts=s_constr.AlterConstraint):
-    def _alter_finalize(self, schema, context, constraint):
-        schema = super()._alter_finalize(schema, context, constraint)
+    def _alter_finalize(self, schema, context):
+        schema = super()._alter_finalize(schema, context)
+        constraint = self.scls
         if not self.constraint_is_effective(schema, constraint):
             return schema
 
@@ -2566,8 +2567,9 @@ class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
         schema, _ = LinkMetaCommand.apply(self, schema, context)
         return schema, result
 
-    def _rename_begin(self, schema, context, scls):
-        schema = super()._rename_begin(schema, context, scls)
+    def _rename_begin(self, schema, context):
+        schema = super()._rename_begin(schema, context)
+        scls = self.scls
 
         self.rename_pointer(
             scls, schema, context, self.classname, self.new_name)
@@ -2908,11 +2910,11 @@ class RenameProperty(
         schema, _ = PropertyMetaCommand.apply(self, schema, context)
         return schema, result
 
-    def _rename_begin(self, schema, context, scls):
-        schema = super()._rename_begin(schema, context, scls)
+    def _rename_begin(self, schema, context):
+        schema = super()._rename_begin(schema, context)
 
         self.rename_pointer(
-            scls, schema, context, self.classname, self.new_name)
+            self.scls, schema, context, self.classname, self.new_name)
 
         return schema
 

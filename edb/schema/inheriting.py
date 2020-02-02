@@ -51,9 +51,8 @@ class InheritingObjectCommand(sd.ObjectCommand):
 
     def _alter_begin(self,
                      schema: s_schema.Schema,
-                     context: sd.CommandContext,
-                     scls: so.InheritingObjectBase) -> s_schema.Schema:
-        schema = super()._alter_begin(schema, context, scls)  # type: ignore
+                     context: sd.CommandContext) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)  # type: ignore
 
         assert isinstance(schema, s_schema.Schema)
         if not context.canonical:
@@ -702,9 +701,9 @@ class AlterInheritingObject(InheritingObjectCommand,
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: so.InheritingObjectBase,
     ) -> s_schema.Schema:
-        schema = super()._alter_begin(schema, context, scls)
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
 
         if not context.canonical:
             schema, props = self._get_field_updates(schema, context)

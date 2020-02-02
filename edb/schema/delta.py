@@ -1115,21 +1115,21 @@ class AlterObjectFragment(ObjectCommand):
         # of a parent AlterObject command.
         scls = context.current().op.scls
         self.scls = scls
-        schema = self._alter_begin(schema, context, scls)
-        schema = self._alter_innards(schema, context, scls)
-        schema = self._alter_finalize(schema, context, scls)
+        schema = self._alter_begin(schema, context)
+        schema = self._alter_innards(schema, context)
+        schema = self._alter_finalize(schema, context)
 
         return schema, scls
 
-    def _alter_begin(self, schema, context, scls):
+    def _alter_begin(self, schema, context):
         schema, props = self._get_field_updates(schema, context)
-        schema = scls.update(schema, props)
+        schema = self.scls.update(schema, props)
         return schema
 
-    def _alter_innards(self, schema, context, scls):
+    def _alter_innards(self, schema, context):
         return schema
 
-    def _alter_finalize(self, schema, context, scls):
+    def _alter_finalize(self, schema, context):
         return schema
 
 
@@ -1145,8 +1145,9 @@ class RenameObject(AlterObjectFragment):
                                          self.__class__.__name__,
                                          self.classname, self.new_name)
 
-    def _rename_begin(self, schema, context, scls):
+    def _rename_begin(self, schema, context):
         self._validate_legal_command(schema, context)
+        scls = self.scls
 
         # Renames of schema objects used in expressions is
         # not supported yet.  Eventually we'll add support
@@ -1159,10 +1160,10 @@ class RenameObject(AlterObjectFragment):
 
         return schema
 
-    def _rename_innards(self, schema, context, scls):
+    def _rename_innards(self, schema, context):
         return schema
 
-    def _rename_finalize(self, schema, context, scls):
+    def _rename_finalize(self, schema, context):
         return schema
 
     def apply(self, schema, context):
@@ -1172,9 +1173,9 @@ class RenameObject(AlterObjectFragment):
         context.renames[self.classname] = self.new_name
         context.renamed_objs.add(scls)
 
-        schema = self._rename_begin(schema, context, scls)
-        schema = self._rename_innards(schema, context, scls)
-        schema = self._rename_finalize(schema, context, scls)
+        schema = self._rename_begin(schema, context)
+        schema = self._rename_innards(schema, context)
+        schema = self._rename_finalize(schema, context)
 
         return schema, scls
 
@@ -1334,7 +1335,7 @@ class AlterObject(ObjectCommand):
             node = None
         return node
 
-    def _alter_begin(self, schema, context, scls):
+    def _alter_begin(self, schema, context):
         from . import types as s_types
 
         self._validate_legal_command(schema, context)
@@ -1349,17 +1350,17 @@ class AlterObject(ObjectCommand):
             schema, _ = op.apply(schema, context)
 
         schema, props = self._get_field_updates(schema, context)
-        schema = scls.update(schema, props)
+        schema = self.scls.update(schema, props)
         return schema
 
-    def _alter_innards(self, schema, context, scls):
+    def _alter_innards(self, schema, context):
         for op in self.get_subcommands(include_prerequisites=False):
             if not isinstance(op, (AlterObjectFragment, AlterObjectProperty)):
                 schema, _ = op.apply(schema, context=context)
 
         return schema
 
-    def _alter_finalize(self, schema, context, scls):
+    def _alter_finalize(self, schema, context):
         return schema
 
     def apply(self, schema, context):
@@ -1367,9 +1368,9 @@ class AlterObject(ObjectCommand):
         self.scls = scls
 
         with self.new_context(schema, context, scls):
-            schema = self._alter_begin(schema, context, scls)
-            schema = self._alter_innards(schema, context, scls)
-            schema = self._alter_finalize(schema, context, scls)
+            schema = self._alter_begin(schema, context)
+            schema = self._alter_innards(schema, context)
+            schema = self._alter_finalize(schema, context)
 
         return schema, scls
 
@@ -1377,13 +1378,13 @@ class AlterObject(ObjectCommand):
 class DeleteObject(ObjectCommand):
     _delta_action = 'delete'
 
-    def _delete_begin(self, schema, context, scls):
+    def _delete_begin(self, schema, context):
         from . import ordering
 
         self._validate_legal_command(schema, context)
 
         if not context.canonical:
-            self._canonicalize(schema, context, scls)
+            self._canonicalize(schema, context, self.scls)
             ordering.linearize_delta(self, schema, schema)
 
         return schema
@@ -1412,13 +1413,13 @@ class DeleteObject(ObjectCommand):
                 op._canonicalize(schema, context, ref)
                 self.add(op)
 
-    def _delete_innards(self, schema, context, scls):
+    def _delete_innards(self, schema, context):
         for op in self.get_subcommands(metaclass=so.Object):
             schema, _ = op.apply(schema, context=context)
 
         return schema
 
-    def _delete_finalize(self, schema, context, scls):
+    def _delete_finalize(self, schema, context):
         ref_strs = []
 
         if not context.canonical:
@@ -1426,7 +1427,7 @@ class DeleteObject(ObjectCommand):
             if refs:
                 for ref in refs:
                     if (not context.is_deleting(ref)
-                            and ref.is_blocking_ref(schema, scls)):
+                            and ref.is_blocking_ref(schema, self.scls)):
                         ref_strs.append(
                             ref.get_verbosename(schema, with_parent=True))
 
@@ -1441,7 +1442,7 @@ class DeleteObject(ObjectCommand):
                     details=detail,
                 )
 
-        schema = schema.delete(scls)
+        schema = schema.delete(self.scls)
         return schema
 
     def apply(self, schema, context=None):
@@ -1449,9 +1450,9 @@ class DeleteObject(ObjectCommand):
         self.scls = scls
 
         with self.new_context(schema, context):
-            schema = self._delete_begin(schema, context, scls)
-            schema = self._delete_innards(schema, context, scls)
-            schema = self._delete_finalize(schema, context, scls)
+            schema = self._delete_begin(schema, context)
+            schema = self._delete_innards(schema, context)
+            schema = self._delete_finalize(schema, context)
 
         return schema, scls
 
