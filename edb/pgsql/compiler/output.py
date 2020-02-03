@@ -416,10 +416,8 @@ def serialize_expr(
         env: context.Environment) -> pgast.BaseExpr:
 
     if env.output_format in (context.OutputFormat.JSON,
+                             context.OutputFormat.JSON_ELEMENTS,
                              context.OutputFormat.JSONB):
-        val = serialize_expr_to_json(
-            expr, path_id=path_id, nested=nested, env=env)
-    elif env.output_format == context.OutputFormat.JSON_ELEMENTS:
         val = serialize_expr_to_json(
             expr, path_id=path_id, nested=nested, env=env)
 
@@ -531,8 +529,6 @@ def top_output_as_value(
 
         return stmt
 
-    elif env.output_format is context.OutputFormat.JSON_ELEMENTS:
-        return stmt
-
     else:
+        # JSON_ELEMENTS and BINARY doesn't require any wrapping
         return stmt
