@@ -406,6 +406,182 @@ class TestTree(tb.QueryTestCase):
             [{'val': '0'}],
         )
 
+    async def test_edgeql_tree_select_11(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    x := '010',
+                SELECT Tree {
+                    val,
+                    children: {
+                        val,
+                        children: {
+                            val,
+                            children: {
+                                val,
+                            } ORDER BY .val,
+                        } ORDER BY .val,
+                    } ORDER BY .val,
+                }
+                FILTER
+                    NOT EXISTS .parent
+                    AND x IN {
+                        .val,
+                        .children.val,
+                        .children.children.val,
+                        .children.children.children.val,
+                    };
+            """,
+            [
+                {
+                    'val': '0',
+                    'children': [
+                        {
+                            'val': '00',
+                            'children': [{'val': '000', 'children': []}]
+                        },
+                        {
+                            'val': '01',
+                            'children': [{'val': '010', 'children': []}]
+                        },
+                        {
+                            'val': '02',
+                            'children': []
+                        },
+                    ],
+                },
+            ],
+        )
+
+    async def test_edgeql_tree_select_12(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    x := '12',
+                SELECT Tree {
+                    val,
+                    children: {
+                        val,
+                        children: {
+                            val,
+                            children: {
+                                val,
+                            } ORDER BY .val,
+                        } ORDER BY .val,
+                    } ORDER BY .val,
+                }
+                FILTER
+                    NOT EXISTS .parent
+                    AND x IN {
+                        .val,
+                        .children.val,
+                        .children.children.val,
+                        .children.children.children.val,
+                    };
+            """,
+            [
+                {
+                    'val': '1',
+                    'children': [
+                        {'val': '10', 'children': []},
+                        {'val': '11', 'children': []},
+                        {'val': '12', 'children': []},
+                        {'val': '13', 'children': []},
+                    ],
+                },
+            ],
+        )
+
+    async def test_edgeql_tree_select_13(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    x := '010',
+                SELECT Eert {
+                    val,
+                    children: {
+                        val,
+                        children: {
+                            val,
+                            children: {
+                                val,
+                            } ORDER BY .val,
+                        } ORDER BY .val,
+                    } ORDER BY .val,
+                }
+                FILTER
+                    NOT EXISTS .parent
+                    AND x IN {
+                        .val,
+                        .children.val,
+                        .children.children.val,
+                        .children.children.children.val,
+                    };
+            """,
+            [
+                {
+                    'val': '0',
+                    'children': [
+                        {
+                            'val': '00',
+                            'children': [{'val': '000', 'children': []}]
+                        },
+                        {
+                            'val': '01',
+                            'children': [{'val': '010', 'children': []}]
+                        },
+                        {
+                            'val': '02',
+                            'children': []
+                        },
+                    ],
+                },
+            ],
+        )
+
+    async def test_edgeql_tree_select_14(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    MODULE test,
+                    x := '12',
+                SELECT Eert {
+                    val,
+                    children: {
+                        val,
+                        children: {
+                            val,
+                            children: {
+                                val,
+                            } ORDER BY .val,
+                        } ORDER BY .val,
+                    } ORDER BY .val,
+                }
+                FILTER
+                    NOT EXISTS .parent
+                    AND x IN {
+                        .val,
+                        .children.val,
+                        .children.children.val,
+                        .children.children.children.val,
+                    };
+            """,
+            [
+                {
+                    'val': '1',
+                    'children': [
+                        {'val': '10', 'children': []},
+                        {'val': '11', 'children': []},
+                        {'val': '12', 'children': []},
+                        {'val': '13', 'children': []},
+                    ],
+                },
+            ],
+        )
+
     async def test_edgeql_tree_update_01(self):
         # Update all the tree nodes to base their val on the children
         # vals.
