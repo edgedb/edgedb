@@ -29,10 +29,9 @@ import textwrap
 import distutils
 from distutils import extension as distutils_extension
 from distutils.command import build as distutils_build
+from distutils.command import build_ext as distutils_build_ext
 
 import setuptools
-import setuptools_rust
-from setuptools_rust import build_ext as base_build_ext
 from setuptools.command import develop as setuptools_develop
 
 try:
@@ -53,7 +52,6 @@ RUNTIME_DEPS = [
     'setproctitle~=1.1.10',
     'setuptools-rust==0.10.3',
     'setuptools_scm~=3.2.0',
-    'setuptools-rust==0.10.6',
     'typing_inspect~=0.5.0',
     'uvloop~=0.14.0',
 
@@ -341,9 +339,9 @@ class build_postgres(setuptools.Command):
             build_contrib=self.build_contrib)
 
 
-class build_ext(base_build_ext):
+class build_ext(distutils_build_ext.build_ext):
 
-    user_options = base_build_ext.user_options + [
+    user_options = distutils_build_ext.build_ext.user_options + [
         ('cython-annotate', None,
             'Produce a colorized HTML version of the Cython source.'),
         ('cython-directives=', None,
@@ -463,7 +461,7 @@ class build_ext(base_build_ext):
 if setuptools_rust is not None:
     rust_extensions = [
         setuptools_rust.RustExtension(
-            "edb.edgeql._edgeql_rust",
+            "edb._edgeql_rust",
             path="edgedb-rust/edgeql-python/Cargo.toml",
             binding=setuptools_rust.Binding.RustCPython),
     ]
