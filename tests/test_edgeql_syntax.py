@@ -963,28 +963,28 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'backtick-quoted name can\'t contain `::`', line=2, col=16)
+                  'backtick-quoted name cannot contain `::`', line=2, col=16)
     def test_edgeql_syntax_name_23(self):
         """
         SELECT `foo::bar`;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'backtick quotes can\'t be empty', line=2, col=16)
+                  'backtick quotes cannot be empty', line=2, col=16)
     def test_edgeql_syntax_name_24(self):
         """
         SELECT ``;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'backtick quotes can\'t be empty', line=2, col=21)
+                  'backtick quotes cannot be empty', line=2, col=21)
     def test_edgeql_syntax_name_25(self):
         """
         SELECT foo::``;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'backtick quotes can\'t be empty', line=2, col=16)
+                  'backtick quotes cannot be empty', line=2, col=16)
     def test_edgeql_syntax_name_26(self):
         """
         SELECT ``::Bar;
