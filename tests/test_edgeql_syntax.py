@@ -390,11 +390,15 @@ aa';
 
     def test_edgeql_syntax_constants_35(self):
         r"""
+        SELECT r"\n\w\d";
+% OK %
         SELECT r'\n\w\d';
         """
 
     def test_edgeql_syntax_constants_36(self):
         r"""
+        SELECT $aa$\n\w\d$aa$;
+% OK %
         SELECT r'\n\w\d';
         """
 
@@ -405,6 +409,8 @@ aa';
 
     def test_edgeql_syntax_constants_38(self):
         r"""
+        SELECT "\n";
+% OK %
         SELECT '\n';
         """
 
