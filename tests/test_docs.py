@@ -294,7 +294,7 @@ class TestDocSnippets(unittest.TestCase):
                 f'{block.filename}, around line {block.lineno}') from ex
 
     @unittest.skipIf(docutils is None, 'docutils is missing')
-    def test_doc_snippets(self):
+    def test_cqa_doc_snippets(self):
         edgepath = edgepath = find_edgedb_root()
         docspath = os.path.join(edgepath, 'docs')
 
