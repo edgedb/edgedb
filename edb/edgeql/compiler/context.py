@@ -441,7 +441,7 @@ class ContextLevel(compiler.ContextLevel):
     empty_result_type_hint: Optional[s_types.Type]
     """Type to use if the statement result expression is an empty set ctor."""
 
-    defining_view: bool
+    defining_view: Optional[s_types.Type]
     """Whether a view is currently being defined (as opposed to be compiled)"""
 
     in_conditional: Optional[parsing.ParserContext]
@@ -502,7 +502,7 @@ class ContextLevel(compiler.ContextLevel):
             self.inhibit_implicit_limit = False
             self.special_computables_in_mutation_shape = frozenset()
             self.empty_result_type_hint = None
-            self.defining_view = False
+            self.defining_view = None
             self.in_conditional = None
 
         else:
