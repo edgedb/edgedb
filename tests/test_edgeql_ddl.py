@@ -3481,6 +3481,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['rename alias 01']
         )
 
+    async def test_edgeql_ddl_illegal_alias_01(self):
+        # Issue #1187
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "illegal self-reference in definition of 'IllegalAlias01'"):
+
+            await self.con.execute(r"""
+                WITH MODULE test
+                CREATE ALIAS IllegalAlias01 := Object {a := IllegalAlias01};
+            """)
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::InhTest01 {

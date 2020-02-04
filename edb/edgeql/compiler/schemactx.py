@@ -73,9 +73,8 @@ def get_schema_object(
         name = sn.Name(name=name, module=module)
 
     elif isinstance(name, str):
-        view = ctx.aliased_views.get(name)
+        view = _get_type_variant(name, ctx)
         if view is not None:
-            ctx.must_use_views.pop(view, None)
             return view
 
     try:
@@ -91,12 +90,28 @@ def get_schema_object(
             item_types=item_types, condition=condition, context=srcctx)
         raise
 
-    view = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
+    view = _get_type_variant(stype.get_name(ctx.env.schema), ctx)
     if view is not None:
-        ctx.must_use_views.pop(view, None)
         return view
+    elif stype == ctx.defining_view:
+        # stype is the view in process of being defined and as such is
+        # not yet a valid schema object
+        raise errors.SchemaDefinitionError(
+            f'illegal self-reference in definition of {name!r}',
+            context=srcctx)
     else:
         return stype
+
+
+def _get_type_variant(
+        name: Union[str, sn.Name],
+        ctx: context.ContextLevel) -> Optional[s_obj.Object]:
+    type_variant = ctx.aliased_views.get(name)
+    if type_variant is not None:
+        ctx.must_use_views.pop(type_variant, None)
+        return type_variant
+    else:
+        return None
 
 
 def get_schema_type(
