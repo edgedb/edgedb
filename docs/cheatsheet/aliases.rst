@@ -38,25 +38,4 @@ useful for GraphQL access:
     <ref_graphql_index>`.
 
 The aliases defined above allow you to query ``MovieAlias`` with
-:ref:`GraphQL <ref_graphql_index>` like this:
-
-.. code-block:: graphql
-
-    {
-        MovieAlias {
-            title
-            directors {
-                full_name
-            }
-            actors {
-                full_name
-            }
-            reviews {
-                body
-                rating
-                author {
-                    name
-                }
-            }
-        }
-    }
+:ref:`GraphQL <ref_cheatsheet_graphql>`.
