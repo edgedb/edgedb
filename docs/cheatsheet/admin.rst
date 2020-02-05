@@ -72,6 +72,8 @@ Configure a port for accessing ``my_new_project`` database using EdgeQL:
     ... };
     CONFIGURE SYSTEM
 
+.. _ref_cheatsheet_admin_graphql:
+
 Configure a port for accessing ``my_new_project`` database using GraphQL:
 
 .. code-block:: edgeql-repl

@@ -45,7 +45,7 @@ Select movies with Keanu Reeves:
         year,
         description,
     }
-    FILTER .cast.full_name = 'Keanu Reeves'
+    FILTER .actors.full_name = 'Keanu Reeves'
 
 Select all actors that share the last name with other actors and
 include the same-last-name actor list as well:

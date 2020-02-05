@@ -18,3 +18,4 @@ Cheat Sheet
     annotations
     migrations
     syntax
+    graphql
