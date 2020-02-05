@@ -1445,7 +1445,7 @@ class Compiler(BaseCompiler):
         schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
         ctx = await self._ctx_new_con_state(
             dbver=-1,
-            io_format=enums.IoFormat.Binary,
+            io_format=enums.IoFormat.BINARY,
             expect_one=False,
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,
