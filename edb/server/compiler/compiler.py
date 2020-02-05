@@ -520,7 +520,7 @@ class Compiler(BaseCompiler):
 
         if debug.flags.delta_execute:
             debug.header('Delta Script')
-            debug.dump_code('\n'.join(sql), lexer='sql')
+            debug.dump_code(b'\n'.join(sql), lexer='sql')
 
         return dbstate.DDLQuery(
             sql=sql,
