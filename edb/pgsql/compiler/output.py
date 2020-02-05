@@ -530,5 +530,5 @@ def top_output_as_value(
         return stmt
 
     else:
-        # JSON_ELEMENTS and BINARY doesn't require any wrapping
+        # JSON_ELEMENTS and BINARY don't require any wrapping
         return stmt
