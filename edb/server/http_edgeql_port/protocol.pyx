@@ -29,6 +29,7 @@ from edb.common import debug
 from edb.common import markup
 
 from edb.server import compiler
+from edb.server.compiler import IoFormat
 from edb.server.http import http
 from edb.server.http cimport http
 
@@ -131,14 +132,14 @@ cdef class Protocol(http.HttpProtocol):
                 'compile_eql',
                 dbver,
                 query,
-                None,  # modaliases
-                None,  # session config
-                True,  # json mode
-                False, # expected cardinality is MANY
-                0,     # no implicit limit
+                None,           # modaliases
+                None,           # session config
+                IoFormat.JSON,  # json mode
+                False,          # expected cardinality is MANY
+                0,              # no implicit limit
                 compiler.CompileStatementMode.SINGLE,
                 compiler.Capability.QUERY,
-                True,  # json parameters
+                True,           # json parameters
             )
             return units[0]
         finally:
