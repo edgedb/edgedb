@@ -119,7 +119,7 @@ class TestReplUtils(unittest.TestCase):
 
         self.assertEqual(
             utils.split_edgeql('SELECT 1 #;', script_mode=False),
-            ([], 'SELECT 1 #;'))
+            ([], 'SELECT 1 '))
 
     def test_repl_split_edgeql_05(self):
         # test invalid tokens

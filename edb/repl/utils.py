@@ -59,6 +59,10 @@ def split_edgeql(
     buffer = []
     brace_level = 0
     for tok in lex.lex():
+        if tok.type == 'COMMENT':
+            # skip the comments completely
+            continue
+
         buffer.append(tok.text)
 
         if tok.type == '{':
