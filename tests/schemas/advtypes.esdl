@@ -47,13 +47,15 @@ type W {
     link w -> W;
 }
 
+type X extending W, U;
+
 type Z {
     required property name -> str {
         constraint exclusive;
     };
 
     # have 'name' in common
-    link stw0 -> S | T | W;
+    multi link stw0 -> S | T | W;
 }
 
 # 3 abstract base types and their concrete permutations

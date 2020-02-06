@@ -20,7 +20,6 @@
 import os.path
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
@@ -37,7 +36,6 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
                 name := 'z0',
                 stw0 := (
                     SELECT V FILTER .name = 'v0'
-                    LIMIT 1
                 ),
             };
         ''')
@@ -47,7 +45,7 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
                 SELECT Z {stw0: {name}} FILTER .name = 'z0';
             ''',
             [{
-                'stw0': {'name': 'v0'}
+                'stw0': [{'name': 'v0'}],
             }]
         )
 
@@ -166,9 +164,6 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             {'default::CBaBb', 'default::CBaBbBc'},
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: column Bc~1.ba does not exist
-    ''')
     async def test_edgeql_advtypes_basic_intersection_02(self):
         await self._setup_basic_data()
         await self.assert_query_result(
@@ -187,9 +182,6 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             {2, 3, 8, 9},
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: column Bb~1.ba does not exist
-    ''')
     async def test_edgeql_advtypes_basic_intersection_04(self):
         await self._setup_basic_data()
         await self.assert_query_result(
@@ -206,4 +198,96 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
                 {'tn': 'default::CBaBbBc', 'ba': 'cba8', 'bb': 8, 'bc': 8.5},
                 {'tn': 'default::CBaBbBc', 'ba': 'cba9', 'bb': 9, 'bc': 9.5},
             ],
+        )
+
+    async def test_edgeql_advtypes_union_narrowing_supertype(self):
+        await self.con.execute("""
+            INSERT S { name := 'sss', s := 'sss' };
+            INSERT T { name := 'ttt', t := 'ttt' };
+            INSERT W { name := 'www' };
+            INSERT Z {
+                name := 'zzz',
+                stw0 := {S, T, W},
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            WITH My_Z := (SELECT Z FILTER .name = 'zzz')
+            SELECT _ := My_Z.stw0[IS R].name
+            ORDER BY _
+            """,
+            [
+                'sss',
+                'ttt',
+            ]
+        )
+
+    async def test_edgeql_advtypes_union_narrowing_subtype(self):
+        await self.con.execute("""
+            INSERT S { name := 'sss', s := 'sss' };
+            INSERT T { name := 'ttt', t := 'ttt' };
+            INSERT W { name := 'www' };
+            INSERT X { name := 'xxx', u := 'xxx_uuu' };
+            INSERT Z {
+                name := 'zzz',
+                stw0 := {S, T, W},
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            WITH My_Z := (SELECT Z FILTER .name = 'zzz')
+            SELECT _ := My_Z.stw0[IS X].name
+            ORDER BY _
+            """,
+            [
+                'xxx',
+            ]
+        )
+
+    async def test_edgeql_advtypes_union_opaque_narrowing_subtype(self):
+        await self.con.execute("""
+            INSERT W { name := 'www' };
+            INSERT X {
+                name := 'xxx',
+                u := 'xxx_uuu',
+                w := (SELECT DETACHED W LIMIT 1),
+            };
+            INSERT W {
+                name := 'www-2',
+                w := (SELECT (DETACHED W) FILTER .name = 'www'),
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT W {
+                w_of := .<w[IS X] {
+                    name
+                }
+            }
+            FILTER .name = 'www'
+            """,
+            [{
+                'w_of': [{
+                    'name': 'xxx',
+                }],
+            }]
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT W {
+                w_of := .<w[IS U] {
+                    u
+                }
+            }
+            FILTER .name = 'www'
+            """,
+            [{
+                'w_of': [{
+                    'u': 'xxx_uuu',
+                }],
+            }]
         )

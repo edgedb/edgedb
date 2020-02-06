@@ -157,12 +157,13 @@ def wrap_dml_cte(
     dml_cte: pgast.CommonTableExpr,
     *,
     ctx: context.CompilerContextLevel,
-) -> pgast.RelRangeVar:
+) -> pgast.PathRangeVar:
 
     wrapper = ctx.rel
-    dml_rvar = pgast.RelRangeVar(
-        relation=dml_cte,
-        alias=pgast.Alias(aliasname=ctx.env.aliases.get('d'))
+    dml_rvar = relctx.rvar_for_rel(
+        dml_cte,
+        typeref=ir_stmt.subject.typeref,
+        ctx=ctx,
     )
     relctx.include_rvar(wrapper, dml_rvar, ir_stmt.subject.path_id, ctx=ctx)
     pathctx.put_path_bond(wrapper, ir_stmt.subject.path_id)

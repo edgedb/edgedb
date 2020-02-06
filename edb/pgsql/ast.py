@@ -186,6 +186,9 @@ class CommonTableExpr(Base):
 
 class PathRangeVar(BaseRangeVar):
 
+    #: The IR TypeRef this rvar represents (if any).
+    typeref: typing.Optional[irast.TypeRef]
+
     @property
     def query(self) -> BaseRelation:
         raise NotImplementedError
@@ -203,6 +206,11 @@ class RelRangeVar(PathRangeVar):
             return self.relation.query
         else:
             return self.relation
+
+
+class IntersectionRangeVar(PathRangeVar):
+
+    component_rvars: typing.List[PathRangeVar]
 
 
 class TypeName(ImmutableBase):

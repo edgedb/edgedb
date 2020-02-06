@@ -358,7 +358,8 @@ def apply_intersection(
     Returns:
         A :class:`~TypeIntersectionResult` named tuple containing the
         result intersection type, whether the type system considers
-        the intersection empty and whether *left* is a subtype of *right*.
+        the intersection empty and whether *left* is related to *right*
+        (i.e either is a subtype of another).
     """
 
     if left.issubclass(ctx.env.schema, right):
@@ -376,11 +377,12 @@ def apply_intersection(
         for component_type in union.objects(ctx.env.schema):
             if component_type.issubclass(ctx.env.schema, right):
                 narrowed_union.append(component_type)
+            elif right.issubclass(ctx.env.schema, component_type):
+                narrowed_union.append(right)
 
         if len(narrowed_union) == 0:
-            # No intersection.
-            empty_intersection = True
             int_type = get_intersection_type((left, right), ctx=ctx)
+            is_subtype = int_type.issubclass(ctx.env.schema, left)
         elif len(narrowed_union) == 1:
             int_type = narrowed_union[0]
             is_subtype = int_type.issubclass(ctx.env.schema, left)

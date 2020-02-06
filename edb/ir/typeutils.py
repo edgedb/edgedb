@@ -575,3 +575,53 @@ def is_inbound_ptrref(ptrref: irast.BasePointerRef) -> bool:
 def is_computable_ptrref(ptrref: irast.BasePointerRef) -> bool:
     """Return True if pointer described by *ptrref* is computed."""
     return ptrref.is_computable
+
+
+def type_contains(
+    parent: irast.TypeRef,
+    typeref: irast.TypeRef,
+) -> bool:
+    """Check if *parent* typeref contains the given *typeref*.
+
+    *Containment* here means that either *parent* == *typeref* or, if
+    *parent* is a compound type, *typeref* is properly contained within
+    a compound type.
+    """
+
+    if typeref == parent:
+        return True
+
+    elif typeref.union:
+        # A union is considered a subtype of a type, if
+        # ALL its components are subtypes of that type.
+        return all(
+            type_contains(parent, component)
+            for component in typeref.union
+        )
+
+    elif typeref.intersection:
+        # An intersection is considered a subtype of a type, if
+        # ANY of its components are subtypes of that type.
+        return any(
+            type_contains(parent, component)
+            for component in typeref.intersection
+        )
+
+    elif parent.union:
+        # A type is considered a subtype of a union type,
+        # if it is a subtype of ANY of the union components.
+        return any(
+            type_contains(component, typeref)
+            for component in parent.union
+        )
+
+    elif parent.intersection:
+        # A type is considered a subtype of an intersection type,
+        # if it is a subtype of ALL of the intersection components.
+        return any(
+            type_contains(component, typeref)
+            for component in parent.intersection
+        )
+
+    else:
+        return False

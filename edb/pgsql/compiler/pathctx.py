@@ -278,6 +278,15 @@ def get_path_var(
             f'there is no range var for '
             f'{src_path_id} {src_aspect} in {rel}')
 
+    if isinstance(rel_rvar, pgast.IntersectionRangeVar):
+        # Intersection rvars are basically JOINs of the relevant
+        # parts of the type intersection, and so we need to make
+        # sure we pick the correct component relation of that JOIN.
+        rel_rvar = _find_rvar_in_intersection(
+            path_id,
+            rel_rvar.component_rvars,
+        )
+
     source_rel = rel_rvar.query
 
     drilldown_path_id = map_path_id(path_id, rel.view_path_id_map)
@@ -295,6 +304,32 @@ def get_path_var(
                                        aspect=aspect, env=env)
 
     return var
+
+
+def _find_rvar_in_intersection(
+    path_id: irast.PathId,
+    component_rvars: Sequence[pgast.PathRangeVar],
+) -> pgast.PathRangeVar:
+
+    assert component_rvars
+
+    pid_rptr = path_id.rptr()
+    if pid_rptr is not None:
+        if pid_rptr.material_ptr is not None:
+            pid_rptr = pid_rptr.material_ptr
+        tref = pid_rptr.out_source
+    else:
+        tref = path_id.target
+
+    for component_rvar in component_rvars:
+        assert component_rvar.typeref is not None
+        if irtyputils.type_contains(tref, component_rvar.typeref):
+            rel_rvar = component_rvar
+            break
+    else:
+        rel_rvar = component_rvars[0]
+
+    return rel_rvar
 
 
 def get_path_identity_var(
@@ -527,8 +562,13 @@ def put_path_rvar(
     # will not be exposed in a query namespace.  However, when the masked
     # path in the *main* path of a set, it must still be exposed, but no
     # further than the immediate parent query.
-    if hasattr(rvar, 'query') and path_id in rvar.query.path_id_mask:
-        stmt.path_id_mask.add(path_id)
+    try:
+        query = rvar.query
+    except NotImplementedError:
+        pass
+    else:
+        if path_id in query.path_id_mask:
+            stmt.path_id_mask.add(path_id)
 
 
 def put_path_value_rvar(

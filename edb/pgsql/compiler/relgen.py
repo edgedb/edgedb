@@ -785,6 +785,23 @@ def process_set_as_path(
             assert prefix_path_id is not None, 'expected a path'
             pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
             relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
+            int_rvar = pgast.IntersectionRangeVar(
+                component_rvars=[
+                    source_rvar,
+                    poly_rvar,
+                ]
+            )
+
+            stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
+
+            for aspect in ('source', 'value'):
+                pathctx.put_path_rvar(
+                    stmt,
+                    ir_source.path_id,
+                    int_rvar,
+                    aspect=aspect,
+                    env=ctx.env,
+                )
 
         sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
         return new_simple_set_rvar(ir_set, sub_rvar, ['value', 'source'])
@@ -1159,7 +1176,8 @@ def process_set_as_setop(
         union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
         relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
-    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
+    rvar = relctx.rvar_for_rel(
+        stmt, typeref=ir_set.typeref, lateral=True, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 
@@ -1174,7 +1192,8 @@ def process_set_as_distinct(
         arg = expr.args[0].expr
         subqry.view_path_id_map[ir_set.path_id] = arg.path_id
         dispatch.visit(arg, ctx=subctx)
-        subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
+        subrvar = relctx.rvar_for_rel(
+            subqry, typeref=arg.typeref, lateral=True, ctx=subctx)
 
     relctx.include_rvar(stmt, subrvar, ir_set.path_id, ctx=ctx)
 
@@ -1184,7 +1203,8 @@ def process_set_as_distinct(
     stmt.distinct_clause = pathctx.get_rvar_output_var_as_col_list(
         subrvar, value_var, aspect='value', env=ctx.env)
 
-    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
+    rvar = relctx.rvar_for_rel(
+        stmt, typeref=ir_set.typeref, lateral=True, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 

@@ -81,7 +81,7 @@ def pull_path_namespace(
         for path_id, aspect in s_paths:
             path_id = pathctx.reverse_map_path_id(path_id, view_path_id_map)
 
-            if path_id in source.query.path_id_mask:
+            if path_id in squery.path_id_mask:
                 continue
 
             rvar = maybe_get_path_rvar(target, path_id, aspect=aspect, ctx=ctx)
@@ -326,6 +326,7 @@ def new_empty_rvar(
 def new_root_rvar(
         ir_set: irast.Set, *,
         typeref: Optional[irast.TypeRef]=None,
+        as_intersection_el: bool=False,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     if not ir_set.path_id.is_objtype_path():
         raise ValueError('cannot create root rvar for non-object path')
@@ -334,12 +335,27 @@ def new_root_rvar(
 
     if typeref.intersection:
         wrapper = pgast.SelectStmt()
+        component_rvars = []
         for component in typeref.intersection:
-            component_rvar = new_root_rvar(ir_set, typeref=component, ctx=ctx)
-            pathctx.put_rvar_path_bond(component_rvar, ir_set.path_id)
+            component_rvar = new_root_rvar(
+                ir_set,
+                typeref=component,
+                as_intersection_el=True,
+                ctx=ctx,
+            )
+            component_rvars.append(component_rvar)
             include_rvar(wrapper, component_rvar, ir_set.path_id, ctx=ctx)
 
-        return rvar_for_rel(wrapper, ctx=ctx)
+        int_rvar = pgast.IntersectionRangeVar(component_rvars=component_rvars)
+        for aspect in ('source', 'value'):
+            pathctx.put_path_rvar(
+                wrapper, ir_set.path_id, int_rvar, aspect=aspect, env=ctx.env
+            )
+
+        result_rvar = rvar_for_rel(wrapper, ctx=ctx)
+        pathctx.put_rvar_path_bond(result_rvar, ir_set.path_id)
+
+        return result_rvar
 
     dml_source = irutils.get_nearest_dml_stmt(ir_set)
     set_rvar = range_for_typeref(
@@ -352,7 +368,8 @@ def new_root_rvar(
         ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=False, link_bias=False)
 
-        if ptr_info.table_type == 'ObjectType':
+        if (ptr_info.table_type == 'ObjectType'
+                and (not as_intersection_el or typeref == ptrref.dir_target)):
             # Inline link
             prefix_path_id = ir_set.path_id.src_path()
             assert prefix_path_id is not None, 'expected a path'
@@ -484,7 +501,7 @@ def new_rel_rvar(
     if irutils.is_scalar_view_set(ir_set):
         ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
 
-    return rvar_for_rel(stmt, lateral=lateral, ctx=ctx)
+    return rvar_for_rel(stmt, typeref=ir_set.typeref, lateral=lateral, ctx=ctx)
 
 
 def semi_join(
@@ -707,6 +724,7 @@ def range_for_material_objtype(
 
     rvar: pgast.PathRangeVar = pgast.RelRangeVar(
         relation=relation,
+        typeref=typeref,
         include_inherited=include_descendants,
         alias=pgast.Alias(
             aliasname=env.aliases.get(typeref.name_hint.name)
@@ -729,6 +747,7 @@ def range_for_material_objtype(
         for op, cte, cte_path_id in overlays:
             rvar = pgast.RelRangeVar(
                 relation=cte,
+                typeref=typeref,
                 alias=pgast.Alias(
                     aliasname=env.aliases.get(hint=cte.name)
                 )
@@ -991,9 +1010,13 @@ def range_for_pointer(
 
 
 def rvar_for_rel(
-        rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
-        lateral: bool=False, colnames: Optional[List[str]]=None,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    rel: Union[pgast.BaseRelation, pgast.CommonTableExpr],
+    *,
+    typeref: Optional[irast.TypeRef] = None,
+    lateral: bool = False,
+    colnames: Optional[List[str]] = None,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
 
     rvar: pgast.PathRangeVar
 
@@ -1007,13 +1030,15 @@ def rvar_for_rel(
             subquery=rel,
             alias=pgast.Alias(aliasname=alias, colnames=colnames),
             lateral=lateral,
+            typeref=typeref,
         )
     else:
         alias = ctx.env.aliases.get(rel.name)
 
         rvar = pgast.RelRangeVar(
             relation=rel,
-            alias=pgast.Alias(aliasname=alias, colnames=colnames)
+            alias=pgast.Alias(aliasname=alias, colnames=colnames),
+            typeref=typeref,
         )
 
     return rvar
