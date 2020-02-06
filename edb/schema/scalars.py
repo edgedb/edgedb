@@ -251,7 +251,11 @@ class RenameScalarType(ScalarTypeCommand, sd.RenameObject):
 
 class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
 
-    def apply(self, schema, context):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         scls = self.get_object(schema, context)
         self.scls = scls
 
@@ -284,7 +288,7 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
             schema = self._validate_enum_change(
                 scls, enum_values, new_values, schema, context)
 
-            return schema, scls
+            return schema
         else:
             return super().apply(self, schema, context)
 
@@ -300,7 +304,7 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
             raise errors.SchemaError(
                 f'cannot remove labels from an enumeration type')
 
-        existing = [l for l in new_labels if l in cur_set]
+        existing = [label for label in new_labels if label in cur_set]
         if existing != cur_labels:
             raise errors.SchemaError(
                 f'cannot change the relative order of existing labels '

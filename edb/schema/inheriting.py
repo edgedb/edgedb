@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from edb.schema import referencing as s_referencing
 
 
-class InheritingObjectCommand(sd.ObjectCommand):
+class InheritingObjectCommand(sd.ObjectCommand["InheritingObject"]):
 
     def _create_begin(self,
                       schema: s_schema.Schema,
@@ -51,9 +51,8 @@ class InheritingObjectCommand(sd.ObjectCommand):
 
     def _alter_begin(self,
                      schema: s_schema.Schema,
-                     context: sd.CommandContext,
-                     scls: so.InheritingObjectBase) -> s_schema.Schema:
-        schema = super()._alter_begin(schema, context, scls)  # type: ignore
+                     context: sd.CommandContext) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)  # type: ignore
 
         assert isinstance(schema, s_schema.Schema)
         if not context.canonical:
@@ -128,19 +127,21 @@ class InheritingObjectCommand(sd.ObjectCommand):
         context: sd.CommandContext,
         refdict: so.RefDict
     ) -> Dict[
-        s_schema.Schema,
+        sn.Name,
         Tuple[
-            s_referencing.CreateReferencedObject,
+            Type[s_referencing.CreateReferencedObject],
             qlast.ObjectDDL,
             List[InheritingObject],
         ],
     ]:
+        from . import referencing as s_referencing
+
         attr = refdict.attr
         bases = self.scls.get_bases(schema)
         refs: Dict[
-            s_schema.Schema,
+            sn.Name,
             Tuple[
-                s_referencing.CreateReferencedObject,
+                Type[s_referencing.CreateReferencedObject],
                 qlast.ObjectDDL,
                 List[InheritingObject],
             ],
@@ -155,6 +156,10 @@ class InheritingObjectCommand(sd.ObjectCommand):
                 mcls = type(v)
                 create_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
                     sd.CreateObject, mcls)
+                assert issubclass(
+                    create_cmd,
+                    s_referencing.CreateReferencedObject,
+                )
 
                 astnode = create_cmd.as_inherited_ref_ast(
                     schema, context, k, v)
@@ -175,22 +180,27 @@ class InheritingObjectCommand(sd.ObjectCommand):
         context: sd.CommandContext,
         refdict: so.RefDict,
         present_refs: Dict[
-            s_schema.Schema,
+            sn.Name,
             Tuple[
-                s_referencing.CreateReferencedObject,
+                Type[s_referencing.CreateReferencedObject],
                 qlast.ObjectDDL,
                 List[InheritingObject],
             ],
         ],
-    ) -> Dict[str, Type[sd.ObjectCommand]]:
+    ) -> Dict[str, Type[sd.ObjectCommand[so.Object]]]:
+        from . import referencing as s_referencing
 
         local_refs = self.scls.get_field_value(schema, refdict.attr)
-        dropped_refs = {}
+        dropped_refs: Dict[str, Type[sd.ObjectCommand[so.Object]]] = {}
         for k, v in local_refs.items(schema):
             if not v.get_is_local(schema):
                 mcls = type(v)
                 create_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
                     sd.CreateObject, mcls)
+                assert issubclass(
+                    create_cmd,
+                    s_referencing.CreateReferencedObject,
+                )
 
                 astnode = create_cmd.as_inherited_ref_ast(
                     schema, context, k, v)
@@ -256,7 +266,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
                 )
 
                 group.add(cmd)
-                schema, _ = cmd.apply(schema, context)
+                schema = cmd.apply(schema, context)
             else:
                 assert isinstance(obj,
                                   s_referencing.ReferencedInheritingObject)
@@ -264,12 +274,12 @@ class InheritingObjectCommand(sd.ObjectCommand):
                 schema, cmd = self._rebase_ref(
                     schema, context, obj, existing_bases, bases)
                 group.add(cmd)
-                schema, _ = cmd.apply(schema, context)
+                schema = cmd.apply(schema, context)
 
         for fqname, delete_cmd in deleted_refs.items():
             cmd = delete_cmd(classname=fqname)
             group.add(cmd)
-            schema, _ = cmd.apply(schema, context)
+            schema = cmd.apply(schema, context)
 
         self.add(group)
 
@@ -282,7 +292,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
         scls: s_referencing.ReferencedInheritingObject,
         old_bases: List[InheritingObject],
         new_bases: List[InheritingObject],
-    ) -> Tuple[s_schema.Schema, s_referencing.AlterReferencedInheritingObject]:
+    ) -> Tuple[s_schema.Schema, AlterInheritingObject]:
         old_base_names = [b.get_name(schema) for b in old_bases]
         new_base_names = [b.get_name(schema) for b in new_bases]
 
@@ -292,8 +302,9 @@ class InheritingObjectCommand(sd.ObjectCommand):
         rebase = sd.ObjectCommandMeta.get_command_class(
             RebaseInheritingObject, type(scls))
 
-        alter = sd.ObjectCommandMeta.get_command_class(
+        alter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.AlterObject, type(scls))
+        assert issubclass(alter, AlterInheritingObject)
 
         new_bases_coll = so.ObjectList.create(schema, new_bases)
         schema = scls.set_field_value(schema, 'bases', new_bases_coll)
@@ -341,7 +352,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
     def _classbases_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.Base,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> so.ObjectList:
         modaliases = context.modaliases
@@ -358,7 +369,7 @@ class InheritingObjectCommand(sd.ObjectCommand):
         cls,
         schema: s_schema.Schema,
         base_refs: List[so.Object],
-        astnode: qlast.Base,
+        astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> so.ObjectList:
         classname = cls._classname_from_ast(schema, astnode, context)
@@ -430,6 +441,26 @@ class InheritingObjectCommand(sd.ObjectCommand):
                 )
             )
 
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        assert isinstance(node, qlast.ObjectDDL)
+        if op.property in {'is_abstract', 'is_final'}:
+            node.commands.append(
+                qlast.SetSpecialField(
+                    name=op.property,
+                    value=op.new_value
+                )
+            )
+        elif op.property == 'bases':
+            self._apply_rebase_ast(context, node, op)
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
 
 def delta_bases(
     old_bases: Iterable[str], new_bases: Iterable[str]
@@ -490,14 +521,14 @@ def delta_bases(
     return tuple(removed_bases), tuple(added_bases)
 
 
-class AlterInherit(sd.Command, Generic[qlast.ObjectDDL_T]):
+class AlterInherit(sd.Command):
     astnode = qlast.AlterAddInherit, qlast.AlterDropInherit
 
     @classmethod
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.ObjectDDL_T,
+        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> Any:
         # The base changes are handled by AlterNamedObject
@@ -505,8 +536,7 @@ class AlterInherit(sd.Command, Generic[qlast.ObjectDDL_T]):
 
 
 class CreateInheritingObject(InheritingObjectCommand,
-                             sd.CreateObject,
-                             Generic[qlast.ObjectDDL_T]):
+                             sd.CreateObject["InheritingObject"]):
     def _create_begin(
         self,
         schema: s_schema.Schema,
@@ -572,11 +602,12 @@ class CreateInheritingObject(InheritingObjectCommand,
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.ObjectDDL_T,
+        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> Any:
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
+        assert isinstance(astnode, qlast.ObjectDDL)
         bases = cls._classbases_from_ast(schema, astnode, context)
         if bases is not None:
             cmd.set_attribute_value('bases', bases)
@@ -590,17 +621,15 @@ class CreateInheritingObject(InheritingObjectCommand,
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        node: qlast.ObjectDDL_T,
+        node: qlast.DDLOperation,
         op: sd.AlterObjectProperty,
     ) -> None:
         if op.property == 'bases':
             mcls = self.get_schema_metaclass()
             default_base = mcls.get_default_base_name()
 
-            if not isinstance(op.new_value, so.ObjectList):
-                bases = so.ObjectList.create(schema, op.new_value)
-            else:
-                bases = op.new_value
+            bases = op.new_value
+            assert isinstance(bases, so.ObjectList)
 
             base_names: List[sn.SchemaName] = [
                 b for b in bases.names(schema, allow_unresolved=True)
@@ -664,17 +693,18 @@ class CreateInheritingObject(InheritingObjectCommand,
 
 
 class AlterInheritingObject(InheritingObjectCommand,
-                            sd.AlterObject,
-                            Generic[qlast.ObjectDDL_T]):
+                            sd.AlterObject["InheritingObject"]):
 
     @classmethod
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.ObjectDDL_T,
+        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> Any:
+    ) -> AlterInheritingObject:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, AlterInheritingObject)
+        assert isinstance(astnode, qlast.ObjectDDL)
 
         if getattr(astnode, 'bases', None):
             bases = cls._classbases_from_ast(schema, astnode, context)
@@ -682,7 +712,7 @@ class AlterInheritingObject(InheritingObjectCommand,
                 _, added = delta_bases(
                     [], [b.get_name(schema) for b in bases.objects(schema)])
 
-                rebase = sd.ObjectCommandMeta.get_command_class(
+                rebase = sd.ObjectCommandMeta.get_command_class_or_die(
                     RebaseInheritingObject, cmd.get_schema_metaclass())
 
                 rebase_cmd = rebase(
@@ -702,9 +732,9 @@ class AlterInheritingObject(InheritingObjectCommand,
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: so.InheritingObjectBase,
     ) -> s_schema.Schema:
-        schema = super()._alter_begin(schema, context, scls)
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
 
         if not context.canonical:
             schema, props = self._get_field_updates(schema, context)
@@ -723,8 +753,9 @@ class AlterInheritingObject(InheritingObjectCommand,
         scls: so.InheritingObjectBase,
         props: Dict[str, Iterable[str]],
     ) -> None:
-        alter_cmd = sd.ObjectCommandMeta.get_command_class(
+        alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.AlterObject, type(scls))
+        assert issubclass(alter_cmd, AlterInheritingObject)
 
         for descendant in scls.ordered_descendants(schema):
             descendant_alter = alter_cmd(classname=descendant.get_name(schema))
@@ -748,16 +779,18 @@ class AlterInheritingObjectFragment(InheritingObjectCommand,
     pass
 
 
-class DeleteInheritingObject(InheritingObjectCommand, sd.DeleteObject):
-
+class DeleteInheritingObject(
+    InheritingObjectCommand,
+    sd.DeleteObject["InheritingObject"],
+):
     pass
 
 
 class RebaseInheritingObject(AlterInheritingObjectFragment):
     _delta_action = 'rebase'
 
-    removed_bases = struct.Field(tuple)
-    added_bases = struct.Field(tuple)
+    removed_bases = struct.Field(tuple)  # type: ignore
+    added_bases = struct.Field(tuple)  # type: ignore
 
     def __repr__(self) -> str:
         return '<%s.%s "%s">' % (self.__class__.__module__,
@@ -768,9 +801,9 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext
-    ) -> Tuple[s_schema.Schema, so.InheritingObjectBase]:
+    ) -> s_schema.Schema:
         scls = self.get_object(schema, context)
-        self.scls = scls  # type: ignore
+        self.scls = scls
 
         assert isinstance(scls, so.InheritingObjectBase)
 
@@ -778,7 +811,7 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
         schema = scls.update(schema, props)
 
         for op in self.get_subcommands(type=sd.ObjectCommand):
-            schema, _ = op.apply(schema, context)
+            schema = op.apply(schema, context)
 
         if not context.canonical:
             bases = self._apply_base_delta(schema, context, scls)
@@ -788,8 +821,9 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
             schema = self._recompute_inheritance(schema, context)
 
             if context.enable_recursion:
-                alter_cmd = sd.ObjectCommandMeta.get_command_class(
+                alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
                     sd.AlterObject, type(scls))
+                assert issubclass(alter_cmd, AlterInheritingObject)
 
                 for descendant in scls.ordered_descendants(schema):
                     descendant_alter = alter_cmd(
@@ -803,7 +837,7 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
 
         assert isinstance(scls, so.InheritingObjectBase)
 
-        return schema, scls
+        return schema
 
     def _apply_base_delta(
         self,
@@ -874,7 +908,7 @@ class InheritingObject(derivable.DerivableObject):
         context: Optional[so.ComparisonContext] = None,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
-    ) -> sd.ObjectCommand:
+    ) -> sd.ObjectCommand[InheritingObject]:
         if context is None:
             context = so.ComparisonContext()
 
@@ -927,7 +961,7 @@ class InheritingObject(derivable.DerivableObject):
         cls,
         schema: s_schema.Schema,
         scls: so.Object,
-        delta: sd.ObjectCommand,
+        delta: sd.Command,
         fname: str,
         value: Any,
     ) -> None:

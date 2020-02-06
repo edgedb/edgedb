@@ -112,25 +112,25 @@ class BaseObjectType(sources.Source,
                 'references to concrete pointers must not be qualified')
 
         ptrs = {
-            l for l in schema.get_referrers(self, scls_type=links.Link,
-                                            field_name='target')
+            lnk for lnk in schema.get_referrers(self, scls_type=links.Link,
+                                                field_name='target')
             if (
-                l.get_shortname(schema).name == name
-                and not l.get_source(schema).is_view(schema)
-                and l.get_is_local(schema)
-                and (not sources or l.get_source(schema) in sources)
+                lnk.get_shortname(schema).name == name
+                and not lnk.get_source(schema).is_view(schema)
+                and lnk.get_is_local(schema)
+                and (not sources or lnk.get_source(schema) in sources)
             )
         }
 
         for obj in self.get_ancestors(schema).objects(schema):
             ptrs.update(
-                l for l in schema.get_referrers(obj, scls_type=links.Link,
-                                                field_name='target')
+                lnk for lnk in schema.get_referrers(obj, scls_type=links.Link,
+                                                    field_name='target')
                 if (
-                    l.get_shortname(schema).name == name
-                    and not l.get_source(schema).is_view(schema)
-                    and l.get_is_local(schema)
-                    and (not sources or l.get_source(schema) in sources)
+                    lnk.get_shortname(schema).name == name
+                    and not lnk.get_source(schema).is_view(schema)
+                    and lnk.get_is_local(schema)
+                    and (not sources or lnk.get_source(schema) in sources)
                 )
             )
 
@@ -397,8 +397,8 @@ class CreateObjectType(ObjectTypeCommand, inheriting.CreateInheritingObject):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        parent_node: Optional[qlast.DDL],
-    ) -> Optional[qlast.DDL]:
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
         if (self.get_attribute_value('expr_type')
                 and not self.get_attribute_value('expr')):
             # This is a nested view type, e.g

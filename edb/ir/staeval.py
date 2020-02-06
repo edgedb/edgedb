@@ -47,6 +47,9 @@ from edb.schema import schema as s_schema
 
 from edb.server import config
 
+if TYPE_CHECKING:
+    from edb.schema import constraints as s_constr
+
 
 class StaticEvaluationError(errors.QueryError):
     pass
@@ -189,6 +192,7 @@ def int_const_to_python(
         schema: s_schema.Schema) -> Any:
 
     stype = schema.get_by_id(ir.typeref.id)
+    assert isinstance(stype, s_types.Type)
     if stype.issubclass(schema, schema.get('std::bigint')):
         return decimal.Decimal(ir.value)
     else:
@@ -201,6 +205,7 @@ def float_const_to_python(
         schema: s_schema.Schema) -> Any:
 
     stype = schema.get_by_id(ir.typeref.id)
+    assert isinstance(stype, s_types.Type)
     if stype.issubclass(schema, schema.get('std::decimal')):
         return decimal.Decimal(ir.value)
     else:
@@ -270,8 +275,7 @@ def scalar_type_to_python_type(
     }
 
     for basetype_name, python_type in typemap.items():
-        basetype = schema.get(basetype_name)
-        assert isinstance(basetype, s_inh.InheritingObject)
+        basetype: s_inh.InheritingObject = schema.get(basetype_name)
         if stype.issubclass(schema, basetype):
             return python_type
 
@@ -328,7 +332,7 @@ def object_type_to_python_type(
                 default = frozenset((default,))
 
         constraints = p.get_constraints(schema).objects(schema)
-        exclusive = schema.get('std::exclusive')
+        exclusive: s_constr.Constraint = schema.get('std::exclusive')
         unique = (
             not ptype.is_object_type()
             and any(c.issubclass(schema, exclusive) for c in constraints)

@@ -142,26 +142,29 @@ class AnnotationSubject(so.Object):
         return schema
 
 
-class AnnotationCommandContext(sd.ObjectCommandContext):
+class AnnotationCommandContext(sd.ObjectCommandContext[Annotation]):
     pass
 
 
-class AnnotationCommand(sd.ObjectCommand, schema_metaclass=Annotation,
+class AnnotationCommand(sd.ObjectCommand[Annotation],
+                        schema_metaclass=Annotation,
                         context_class=AnnotationCommandContext):
     pass
 
 
-class CreateAnnotation(AnnotationCommand, sd.CreateObject):
+class CreateAnnotation(AnnotationCommand, sd.CreateObject[Annotation]):
     astnode = qlast.CreateAnnotation
 
     @classmethod
-    def _cmd_tree_from_ast(cls: sd.ObjectCommandMeta,
+    def _cmd_tree_from_ast(cls,
                            schema: s_schema.Schema,
-                           astnode: qlast.CreateAnnotation,
+                           astnode: qlast.DDLOperation,
                            context: sd.CommandContext) -> CreateAnnotation:
-        cmd = super()._cmd_tree_from_ast(schema,  # type: ignore
+        cmd = super()._cmd_tree_from_ast(schema,
                                          astnode,
                                          context)
+
+        assert isinstance(astnode, qlast.CreateAnnotation)
 
         cmd.set_attribute_value('inheritable', astnode.inheritable)
         cmd.set_attribute_value('is_abstract', True)
@@ -172,7 +175,7 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject):
     def _apply_field_ast(self,
                          schema: s_schema.Schema,
                          context: sd.CommandContext,
-                         node: qlast.CreateAnnotation,
+                         node: qlast.DDLOperation,
                          op: sd.AlterObjectProperty) -> None:
         if op.property == 'inheritable':
             node.inheritable = op.new_value
@@ -180,11 +183,11 @@ class CreateAnnotation(AnnotationCommand, sd.CreateObject):
             super()._apply_field_ast(schema, context, node, op)
 
 
-class AlterAnnotation(AnnotationCommand, sd.AlterObject):
+class AlterAnnotation(AnnotationCommand, sd.AlterObject[Annotation]):
     pass
 
 
-class DeleteAnnotation(AnnotationCommand, sd.DeleteObject):
+class DeleteAnnotation(AnnotationCommand, sd.DeleteObject[Annotation]):
     astnode = qlast.DropAnnotation
 
 
@@ -192,11 +195,11 @@ class AnnotationSubjectCommandContext:
     pass
 
 
-class AnnotationSubjectCommand(sd.ObjectCommand):
+class AnnotationSubjectCommand(sd.ObjectCommand[so.Object]):
     pass
 
 
-class AnnotationValueCommandContext(sd.ObjectCommandContext):
+class AnnotationValueCommandContext(sd.ObjectCommandContext[AnnotationValue]):
     pass
 
 
@@ -228,11 +231,12 @@ class CreateAnnotationValue(AnnotationValueCommand,
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.CreateAnnotationValue,
+        astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> CreateAnnotationValue:
         from edb.edgeql import compiler as qlcompiler
 
+        assert isinstance(astnode, qlast.CreateAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         propname = sn.shortname_from_fullname(cmd.classname)
 
@@ -243,9 +247,7 @@ class CreateAnnotationValue(AnnotationValueCommand,
             raise ValueError(
                 f'unexpected value type in AnnotationValue: {value!r}')
 
-        attr = schema.get(propname)
-
-        assert isinstance(attr, Annotation)
+        attr: Annotation = schema.get(propname)
 
         cmd.update((
             sd.AlterObjectProperty(
@@ -272,9 +274,10 @@ class CreateAnnotationValue(AnnotationValueCommand,
     def _apply_field_ast(self,
                          schema: s_schema.Schema,
                          context: sd.CommandContext,
-                         node: qlast.CreateAnnotationValue,
+                         node: qlast.DDLOperation,
                          op: sd.AlterObjectProperty) -> None:
         if op.property == 'value':
+            assert isinstance(op.new_value, str)
             node.value = qlast.StringConstant.from_python(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)
@@ -290,10 +293,12 @@ class AlterAnnotationValue(AnnotationValueCommand,
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.AlterAnnotationValue,
+        astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> AlterAnnotationValue:
         from edb.edgeql import compiler as qlcompiler
+
+        assert isinstance(astnode, qlast.AlterAnnotationValue)
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
@@ -319,10 +324,13 @@ class AlterAnnotationValue(AnnotationValueCommand,
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        node: qlast.AlterAnnotationValue,
+        node: qlast.DDLOperation,
         op: sd.AlterObjectProperty
     ) -> None:
+        assert isinstance(node, qlast.AlterAnnotationValue)
+
         if op.property == 'value':
+            assert isinstance(op.new_value, str)
             node.value = qlast.StringConstant.from_python(op.new_value)
         else:
             super()._apply_field_ast(schema, context, node, op)

@@ -19,11 +19,11 @@
 
 from __future__ import annotations
 
-from edb.common.struct import Struct, Field
+from edb.common.struct import Struct, StructMeta, Field
 from edb.common import checked
 
 
-class MarkupMeta(type(Struct)):
+class MarkupMeta(StructMeta):
     def __new__(mcls, name, bases, dct, ns=None, **kwargs):
         cls = super().__new__(mcls, name, bases, dct, **kwargs)
         cls._markup_ns = ns

@@ -100,7 +100,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         default=None, inheritable=False, introspectable=False)
 
     def is_blocking_ref(
-        self, schema: s_schema.Schema, reference: so.InheritingObjectBase
+        self, schema: s_schema.Schema, reference: so.Object
     ) -> bool:
         return reference is not self.get_rptr(schema)
 
@@ -158,7 +158,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
                 context.current().preserve_path_id = True
 
             delta.add(cmd)
-            schema, _ = delta.apply(schema, context)
+            schema = delta.apply(schema, context)
 
         derived = typing.cast(TypeT, schema.get(name))
 
@@ -353,12 +353,7 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def as_create_delta_for_compound_type(
         self,
         schema: s_schema.Schema,
-        *,
-        id: uuid.UUID,
-        name: s_name.Name,
-        compound_type: str,
-        components: typing.Iterable[Type],
-    ) -> typing.Optional[sd.CreateObject]:
+    ) -> Optional[sd.CreateObject]:
         return None
 
     def allow_ref_propagation(
@@ -411,7 +406,7 @@ class UnionTypeRef(TypeExprRef):
     def _resolve_ref(self, schema: s_schema.Schema) -> Type:
         components = self.resolve_components(schema)
         type_id, _ = get_union_type_id(schema, components, module=self.module)
-        return schema.get_by_id(type_id)
+        return typing.cast(Type, schema.get_by_id(type_id))
 
     def get_union_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
         return self._components
@@ -429,7 +424,7 @@ class ExistingUnionTypeRef(UnionTypeRef, so.ObjectRef):  # type: ignore
         name: s_name.Name,
         components: Iterable[so.ObjectRef],
         origname: Optional[str]=None,
-        schemaclass: Optional[so.ObjectMeta]=None,
+        schemaclass: Optional[typing.Type[so.Object]]=None,
         sourcectx=None,
     ) -> None:
 
@@ -447,7 +442,7 @@ class IntersectionTypeRef(TypeExprRef):
         components = self.resolve_components(schema)
         type_id, _ = get_intersection_type_id(
             schema, components, module=self.module)
-        return schema.get_by_id(type_id)
+        return typing.cast(Type, schema.get_by_id(type_id))
 
     def get_intersection_of(self, schema) -> typing.Tuple[so.ObjectRef, ...]:
         return self._components
@@ -466,7 +461,7 @@ class ExistingIntersectionTypeRef(  # type: ignore
         name: s_name.Name,
         components: Iterable[so.ObjectRef],
         origname: Optional[str]=None,
-        schemaclass: Optional[so.ObjectMeta]=None,
+        schemaclass: Optional[typing.Type[so.Object]]=None,
         sourcectx=None,
     ) -> None:
 
@@ -1723,9 +1718,10 @@ class TypeCommand(sd.ObjectCommand):
             # because they use the type id in the general case,
             # but in the case of an explicit named view, we
             # still want a properly qualified name.
-            classname = sd.ObjectCommand._classname_from_ast(
+            fq_classname = sd.ObjectCommand._classname_from_ast(
                 schema, astnode, context)
-            cmd.classname = classname
+            assert isinstance(fq_classname, s_name.Name)
+            cmd.classname = fq_classname
 
         expr = s_expr.Expression.from_ast(
             view_expr, schema, context.modaliases)
@@ -1786,7 +1782,7 @@ class TypeCommand(sd.ObjectCommand):
                     'alias_is_persistent': True,
                     'expr_type': ExprType.Select,
                 })
-            new_schema, _ = ct.apply(new_schema, context)
+            new_schema = ct.apply(new_schema, context)
             derived_delta.add(ct)
 
         derived_delta = s_ordering.linearize_delta(
@@ -1794,6 +1790,7 @@ class TypeCommand(sd.ObjectCommand):
 
         real_cmd = None
         for op in derived_delta.get_subcommands():
+            assert isinstance(op, sd.ObjectCommand)
             if op.classname == classname:
                 real_cmd = op
                 break
@@ -1814,8 +1811,10 @@ class TypeCommand(sd.ObjectCommand):
         self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super()._create_begin(schema, context)
+        assert isinstance(self.scls, Type)
         if not self.scls.is_view(schema):
             delta_root = context.top().op
+            assert isinstance(delta_root, sd.DeltaRoot)
             delta_root.new_types.add(self.scls.id)
         return schema
 
@@ -1833,8 +1832,8 @@ class CollectionTypeCommand(sd.UnqualifiedObjectCommand,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        parent_node: Optional[qlast.DDL] = None,
-    ) -> Optional[qlast.DDL]:
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
         # CollectionTypeCommand cannot have its own AST because it is a
         # side-effect of some other command.
         return None
@@ -1846,10 +1845,12 @@ class CollectionExprAliasCommand(TypeCommand,
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.CreateAlias,
+        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> sd.CommandGroup:
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.ObjectDDL)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, sd.ObjectCommand)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
@@ -1914,3 +1915,60 @@ class DeleteArray(DeleteCollectionType, schema_metaclass=SchemaArray):
 class DeleteArrayExprAlias(DeleteCollectionExprAlias,
                            schema_metaclass=ArrayExprAlias):
     pass
+
+
+def ensure_schema_collection(
+    schema: s_schema.Schema,
+    coll_type: Type,
+    parent_cmd: sd.Command,
+    *,
+    src_context: Optional[parsing.ParserContext] = None,
+    context: sd.CommandContext,
+) -> None:
+    if not isinstance(coll_type, Collection):
+        raise ValueError(
+            f'{coll_type.get_displayname(schema)} is not a collection')
+
+    if coll_type.contains_array_of_tuples(schema):
+        raise errors.UnsupportedFeatureError(
+            'arrays of tuples are not supported at the schema level',
+            context=src_context,
+        )
+
+    delta_root = context.top().op
+    assert isinstance(delta_root, sd.DeltaRoot)
+
+    if (schema.get_by_id(coll_type.id, None) is None
+            and coll_type.id not in delta_root.new_types):
+        parent_cmd.add(coll_type.as_create_delta(schema))
+        delta_root.new_types.add(coll_type.id)
+
+    if coll_type.id in delta_root.deleted_types:
+        # Revert the deletion decision.
+        del_cmd = delta_root.deleted_types.pop(coll_type.id)
+        delta_root.discard(del_cmd)
+
+
+def cleanup_schema_collection(
+    schema: s_schema.Schema,
+    coll_type: Type,
+    parent: Type,
+    parent_cmd: sd.Command,
+    *,
+    src_context: Optional[parsing.ParserContext] = None,
+    context: sd.CommandContext,
+) -> None:
+    if not isinstance(coll_type, Collection):
+        raise ValueError(
+            f'{coll_type.get_displayname(schema)} is not a collection')
+
+    delta_root = context.top().op
+    assert isinstance(delta_root, sd.DeltaRoot)
+
+    refs = schema.get_referrers(coll_type)
+    if (len(refs) == 1 and list(refs)[0].id == parent.id
+            and coll_type.id not in delta_root.deleted_types):
+        # The parent is the last user of this collection, drop it.
+        del_cmd = coll_type.as_delete_delta(schema)
+        delta_root.deleted_types[coll_type.id] = del_cmd
+        delta_root.add(del_cmd)

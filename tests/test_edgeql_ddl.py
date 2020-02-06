@@ -642,60 +642,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ]
         )
 
-    @test.xfail('''
-        Fails with the below on "CREATE ALIAS Alias2":
-
-        edb.errors.InvalidReferenceError: schema item
-        'test::__test|Alias1@@w~1__user2' does not exist
-    ''')
-    async def test_edgeql_ddl_21(self):
-        await self.con.execute("""
-            SET MODULE test;
-
-            CREATE TYPE User {
-                CREATE REQUIRED PROPERTY name -> str;
-            };
-
-            CREATE TYPE Award {
-                CREATE LINK user -> User;
-            };
-
-            CREATE ALIAS Alias1 := (SELECT Award {
-                user2 := (SELECT .user {name2 := .name ++ '!'})
-            });
-
-            CREATE ALIAS Alias2 := (SELECT Alias1);
-        """)
-
-        # TODO: Add an actual INSERT/SELECT test.
-
-    @test.xfail('''
-        Fails with the below on "CREATE ALIAS Alias2":
-
-        edgedb.errors.SchemaError: ObjectType 'test::test|User@@view~1'
-        is already present in the schema <Schema gen:4121 at 0x109f222d0>
-    ''')
-    async def test_edgeql_ddl_22(self):
-        await self.con.execute("""
-            SET MODULE test;
-
-            CREATE TYPE User {
-                CREATE REQUIRED PROPERTY name -> str;
-            };
-
-            CREATE TYPE Award {
-                CREATE REQUIRED PROPERTY name -> str;
-            };
-
-            CREATE ALIAS Alias1 := (SELECT Award {
-                a_user := (SELECT User { name } LIMIT 1)
-            });
-
-            CREATE ALIAS Alias2 := (SELECT Alias1);
-        """)
-
-        # TODO: Add an actual INSERT/SELECT test.
-
     async def test_edgeql_ddl_23(self):
         # Test that an unqualifed reverse link expression
         # as an alias pointer target is handled correctly and
@@ -3461,25 +3407,190 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE test::Foo RENAME TO test::FooRenamed;
             """)
 
-    async def test_edgeql_ddl_rename_alias_01(self):
+    @test.xfail('''
+        Fails with the below on "CREATE ALIAS Alias2":
+
+        edb.errors.InvalidReferenceError: schema item
+        'test::__test|Alias1@@w~1__user2' does not exist
+    ''')
+    async def test_edgeql_ddl_alias_01(self):
+        # Issue #1184
         await self.con.execute(r"""
-            CREATE ALIAS test::RenameAlias01 := (
+            SET MODULE test;
+
+            CREATE TYPE User {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE TYPE Award {
+                CREATE LINK user -> User;
+            };
+
+            CREATE ALIAS Alias1 := Award {
+                user2 := (SELECT .user {name2 := .name ++ '!'})
+            };
+
+            CREATE ALIAS Alias2 := Alias1;
+        """)
+
+        # TODO: Add an actual INSERT/SELECT test.
+
+    @test.xfail('''
+        Fails with the below on "CREATE ALIAS Alias2":
+
+        edgedb.errors.SchemaError: ObjectType 'test::test|User@@view~1'
+        is already present in the schema <Schema gen:4121 at 0x109f222d0>
+    ''')
+    async def test_edgeql_ddl_alias_02(self):
+        # Issue #1184
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE User {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE TYPE Award {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+
+            CREATE ALIAS Alias1 := Award {
+                a_user := (SELECT User { name } LIMIT 1)
+            };
+
+            CREATE ALIAS Alias2 := Alias1;
+        """)
+
+        # TODO: Add an actual INSERT/SELECT test.
+
+    async def test_edgeql_ddl_alias_03(self):
+        await self.con.execute(r"""
+            CREATE ALIAS test::RenameAlias03 := (
                 SELECT Object {
-                    alias_computable := 'rename alias 01'
+                    alias_computable := 'rename alias 03'
                 }
             );
 
-            ALTER ALIAS test::RenameAlias01 {
-                RENAME TO test::NewAlias01;
+            ALTER ALIAS test::RenameAlias03 {
+                RENAME TO test::NewAlias03;
             };
         """)
 
         await self.assert_query_result(
             r'''
-                SELECT test::NewAlias01.alias_computable LIMIT 1;
+                SELECT test::NewAlias03.alias_computable LIMIT 1;
             ''',
-            ['rename alias 01']
+            ['rename alias 03']
         )
+
+    async def test_edgeql_ddl_alias_04(self):
+        await self.con.execute(r"""
+            CREATE ALIAS test::DupAlias04_1 := Object {
+                foo := 'hello world 04'
+            };
+
+            # create an identical alias with a different name
+            CREATE ALIAS test::DupAlias04_2 := Object {
+                foo := 'hello world 04'
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::DupAlias04_1.foo LIMIT 1;
+            ''',
+            ['hello world 04']
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT test::DupAlias04_2.foo LIMIT 1;
+            ''',
+            ['hello world 04']
+        )
+
+    async def test_edgeql_ddl_alias_05(self):
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE BaseType05 {
+                CREATE PROPERTY name -> str;
+            };
+
+            CREATE ALIAS BT05Alias1 := BaseType05 {
+                a := .name ++ '_more'
+            };
+
+            # alias of an alias
+            CREATE ALIAS BT05Alias2 := BT05Alias1 {
+                b := .a ++ '_stuff'
+            };
+
+            INSERT BaseType05 {name := 'bt05'};
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT BT05Alias1 {name, a};
+            ''',
+            [{
+                'name': 'bt05',
+                'a': 'bt05_more',
+            }]
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT BT05Alias2 {name, a, b};
+            ''',
+            [{
+                'name': 'bt05',
+                'a': 'bt05_more',
+                'b': 'bt05_more_stuff',
+            }]
+        )
+
+    @test.xfail('''
+        Fails to create "BT06Alias3":
+
+        edgedb.errors.SchemaError: ObjectType
+        'test::test|BT06Alias1@@w~1' is already present in the
+        schema <Schema gen:3431 at 0x7fe1a7b69880>
+    ''')
+    async def test_edgeql_ddl_alias_06(self):
+        # Issue #1184
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE BaseType06 {
+                CREATE PROPERTY name -> str;
+            };
+
+            CREATE ALIAS BT06Alias1 := BaseType06 {
+                a := .name ++ '_a'
+            };
+
+            CREATE ALIAS BT06Alias2 := BT06Alias1 {
+                b := .a ++ '_b'
+            };
+
+            CREATE ALIAS BT06Alias3 := BaseType06 {
+                b := BT06Alias1
+            };
+        """)
+
+        # TODO: Add an actual INSERT/SELECT test.
+
+    async def test_edgeql_ddl_alias_07(self):
+        # Issue #1187
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                "illegal self-reference in definition of 'IllegalAlias07'"):
+
+            await self.con.execute(r"""
+                WITH MODULE test
+                CREATE ALIAS IllegalAlias07 := Object {a := IllegalAlias07};
+            """)
 
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""

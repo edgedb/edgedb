@@ -721,26 +721,21 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def _ddl_visit_body(
         self,
-        commands: Sequence[qlast.DDLCommand],
+        commands: Sequence[qlast.DDLOperation],
         group_by_system_comment: bool, *,
         allow_short: bool = False
     ) -> None:
         if self.limit_ref_classes:
             commands = [
                 c for c in commands
-                # If c.name is an ObjectRef we want to check if the
-                # property in in the white list;
-                # if it's not, then it's a regular SetField for things
-                # like 'default' or 'readonly'.
                 if (
-                    (isinstance(c.name, qlast.ObjectRef)
-                        and c.name.itemclass in self.limit_ref_classes)
-                    or not isinstance(c.name, qlast.ObjectRef)
+                    not isinstance(c, qlast.ObjectDDL)
+                    or c.name.itemclass in self.limit_ref_classes
                 )
             ]
 
         if len(commands) == 1 and allow_short and not (
-            isinstance(commands[0], qlast.CompositeDDL)
+            isinstance(commands[0], qlast.ObjectDDL)
         ):
             self.write(' ')
             self.visit(commands[0])
@@ -771,11 +766,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.visit_list(list(items), terminator=';')
             elif self.descmode or self.sdlmode:
                 sort_key = lambda c: (
-                    (c.name.itemclass or '')
-                    if isinstance(c.name, qlast.ObjectRef)
-                    else '',
-                    c.name.name if isinstance(c.name, qlast.ObjectRef)
-                    else c.name
+                    (c.name.itemclass or '', c.name.name)
+                    if isinstance(c, qlast.ObjectDDL)
+                    else ('', c.name if isinstance(c, qlast.SetField) else '')
                 )
 
                 if not self.unsorted:
@@ -829,7 +822,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         after_name: Optional[Callable[[], None]] = None,
         unqualified: bool = False,
         named: bool = True,
-        ignored_cmds: Optional[AbstractSet[qlast.DDLCommand]] = None,
+        ignored_cmds: Optional[AbstractSet[qlast.DDLOperation]] = None,
         group_by_system_comment: bool = False
     ) -> None:
         self._visit_aliases(node)
@@ -1233,7 +1226,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def _process_AlterConcretePointer_for_SDL(
         self,
         node: Union[qlast.AlterConcreteProperty, qlast.AlterConcreteLink],
-    ) -> Tuple[List[str], FrozenSet[qlast.DDLCommand]]:
+    ) -> Tuple[List[str], FrozenSet[qlast.DDLOperation]]:
         keywords = []
         specials = set()
 
@@ -1254,7 +1247,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         node: qlast.AlterConcreteProperty
     ) -> None:
         keywords = []
-        ignored_cmds: Set[qlast.DDLCommand] = set()
+        ignored_cmds: Set[qlast.DDLOperation] = set()
         after_name: Optional[Callable[[], None]] = None
 
         if self.sdlmode:
@@ -1342,7 +1335,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_AlterConcreteLink(self, node: qlast.AlterConcreteLink) -> None:
         keywords = []
-        ignored_cmds: Set[qlast.DDLCommand] = set()
+        ignored_cmds: Set[qlast.DDLOperation] = set()
 
         after_name: Optional[Callable[[], None]]
 

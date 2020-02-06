@@ -274,7 +274,7 @@ def _process_delta(delta, schema):
     context = sd.CommandContext()
     context.stdmode = True
 
-    schema, _ = delta.apply(schema, context)
+    schema = delta.apply(schema, context)
 
     if debug.flags.delta_pgsql_plan:
         debug.header('PgSQL Delta Plan')

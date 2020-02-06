@@ -59,7 +59,7 @@ class AliasCommand(s_types.TypeCommand, context_class=AliasCommandContext):
     }
 
     @classmethod
-    def _command_for_ast_node(cls, astnode, schema, context):
+    def command_for_ast_node(cls, astnode, schema, context):
         modaliases = cls._modaliases_from_ast(schema, astnode, context)
 
         with context(AliasCommandContext(

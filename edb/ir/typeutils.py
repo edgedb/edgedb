@@ -540,16 +540,20 @@ def ptrcls_from_ptrref(
             element_name=ptrref.name.name,
         )
     elif isinstance(ptrref, irast.TypeIntersectionPointerRef):
+        target = schema.get_by_id(ptrref.out_target.id)
+        assert isinstance(target, s_types.Type)
         ptrcls = irast.TypeIntersectionLink(
             source=schema.get_by_id(ptrref.out_source.id),
-            target=schema.get_by_id(ptrref.out_target.id),
+            target=target,
             optional=ptrref.optional,
             is_empty=ptrref.is_empty,
             is_subtype=ptrref.is_subtype,
             cardinality=ptrref.out_cardinality,
         )
     elif isinstance(ptrref, irast.PointerRef):
-        ptrcls = schema.get_by_id(ptrref.id)
+        ptr = schema.get_by_id(ptrref.id)
+        assert isinstance(ptr, s_pointers.Pointer)
+        ptrcls = ptr
     else:
         raise TypeError(f'unexpected pointer ref type: {ptrref!r}')
 

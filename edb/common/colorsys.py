@@ -217,7 +217,7 @@ class Color:
         return cls(r, g, b, a=alpha)
 
     @classmethod
-    def from_hls(cls, h, l, s, alpha=1.):
+    def from_hls(cls, h, l, s, alpha=1.):  # NoQA: E741
         return cls(*(int(c * 255) for c in hls_to_rgb(h, l, s)), a=alpha)
 
     def rgb_channels(self, *, as_floats=False):

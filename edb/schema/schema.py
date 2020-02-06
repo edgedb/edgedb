@@ -39,8 +39,16 @@ from . import operators as s_oper
 from . import types as s_types
 
 if TYPE_CHECKING:
+    import uuid
     from edb.common import parsing
 
+    Refs_T = immu.Map[
+        uuid.UUID,
+        immu.Map[
+            Tuple[Type[so.Object], str],
+            immu.Map[uuid.UUID, None],
+        ],
+    ]
 
 STD_LIB = ('std', 'schema', 'math', 'sys', 'cfg', 'cal')
 STD_MODULES = frozenset(STD_LIB + ('stdgraphql',))
@@ -51,7 +59,18 @@ _void = object()
 
 class Schema(s_abc.Schema):
 
-    def __init__(self):
+    _id_to_data: immu.Map[uuid.UUID, immu.Map[str, Any]]
+    _id_to_type: immu.Map[uuid.UUID, so.Object]
+    _name_to_id: immu.Map[str, uuid.UUID]
+    _shortname_to_id: immu.Map[
+        Tuple[Type[so.Object], str],
+        FrozenSet[uuid.UUID]
+    ]
+    _globalname_to_id: immu.Map[Tuple[Type[so.Object], str], uuid.UUID]
+    _refs_to: Refs_T
+    _generation: int
+
+    def __init__(self) -> None:
         self._id_to_data = immu.Map()
         self._id_to_type = immu.Map()
         self._shortname_to_id = immu.Map()
@@ -60,9 +79,23 @@ class Schema(s_abc.Schema):
         self._refs_to = immu.Map()
         self._generation = 0
 
-    def _replace(self, *, id_to_data=None, id_to_type=None,
-                 name_to_id=None, shortname_to_id=None, globalname_to_id=None,
-                 refs_to=None):
+    def _replace(
+        self,
+        *,
+        id_to_data: Optional[immu.Map[uuid.UUID, immu.Map[str, Any]]] = None,
+        id_to_type: Optional[immu.Map[uuid.UUID, so.Object]] = None,
+        name_to_id: Optional[immu.Map[str, uuid.UUID]] = None,
+        shortname_to_id: Optional[
+            immu.Map[
+                Tuple[Type[so.Object], str],
+                FrozenSet[uuid.UUID]
+            ]
+        ],
+        globalname_to_id: Optional[
+            immu.Map[Tuple[Type[so.Object], str], uuid.UUID]
+        ],
+        refs_to: Optional[Refs_T] = None,
+    ) -> Schema:
         new = Schema.__new__(Schema)
 
         if id_to_data is None:
@@ -97,9 +130,19 @@ class Schema(s_abc.Schema):
 
         new._generation = self._generation + 1
 
-        return new
+        return new  # type: ignore
 
-    def _update_obj_name(self, obj_id, scls, old_name, new_name):
+    def _update_obj_name(
+        self,
+        obj_id: uuid.UUID,
+        scls: so.Object,
+        old_name: Optional[str],
+        new_name: Optional[str],
+    ) -> Tuple[
+        immu.Map[str, uuid.UUID],
+        immu.Map[Tuple[Type[so.Object], str], FrozenSet[uuid.UUID]],
+        immu.Map[Tuple[Type[so.Object], str], uuid.UUID],
+    ]:
         name_to_id = self._name_to_id
         shortname_to_id = self._shortname_to_id
         globalname_to_id = self._globalname_to_id
@@ -152,7 +195,11 @@ class Schema(s_abc.Schema):
 
         return name_to_id, shortname_to_id, globalname_to_id
 
-    def _update_obj(self, obj_id, updates):
+    def _update_obj(
+        self,
+        obj_id: uuid.UUID,
+        updates: Mapping[str, Any],
+    ) -> Schema:
         if not updates:
             return self
 
@@ -192,7 +239,11 @@ class Schema(s_abc.Schema):
                              id_to_data=id_to_data,
                              refs_to=refs_to)
 
-    def _get_obj_field(self, obj_id, field):
+    def _get_obj_field(
+        self,
+        obj_id: uuid.UUID,
+        field: str,
+    ) -> Any:
         try:
             d = self._id_to_data[obj_id]
         except KeyError:
@@ -202,7 +253,12 @@ class Schema(s_abc.Schema):
 
         return d.get(field)
 
-    def _set_obj_field(self, obj_id, field, value):
+    def _set_obj_field(
+        self,
+        obj_id: uuid.UUID,
+        field: str,
+        value: Any,
+    ) -> Schema:
         try:
             data = self._id_to_data[obj_id]
         except KeyError:
@@ -241,7 +297,11 @@ class Schema(s_abc.Schema):
                              id_to_data=id_to_data,
                              refs_to=refs_to)
 
-    def _unset_obj_field(self, obj_id, field):
+    def _unset_obj_field(
+        self,
+        obj_id: uuid.UUID,
+        field: str,
+    ) -> Schema:
         try:
             data = self._id_to_data[obj_id]
         except KeyError:
@@ -277,7 +337,12 @@ class Schema(s_abc.Schema):
                              id_to_data=id_to_data,
                              refs_to=refs_to)
 
-    def _update_refs_to(self, scls, orig_data, new_data) -> immu.Map:
+    def _update_refs_to(
+        self,
+        scls: so.Object,
+        orig_data: Optional[Mapping[str, Any]],
+        new_data: Optional[Mapping[str, Any]],
+    ) -> Refs_T:
         scls_type = type(scls)
         objfields = scls_type.get_object_fields()
         if not objfields:
@@ -324,6 +389,9 @@ class Schema(s_abc.Schema):
                 if not ids and not orig_ids:
                     continue
 
+                old_ids: Optional[FrozenSet[uuid.UUID]]
+                new_ids: Optional[FrozenSet[uuid.UUID]]
+
                 key = (scls_type, field.name)
 
                 if ids and orig_ids:
@@ -364,7 +432,12 @@ class Schema(s_abc.Schema):
 
             return mm.finish()
 
-    def _add(self, id, scls, data) -> Schema:
+    def _add(
+        self,
+        id: uuid.UUID,
+        scls: so.Object,
+        data: Mapping[str, Any],
+    ) -> Schema:
         name = data['name']
 
         if name in self._name_to_id:
@@ -391,9 +464,9 @@ class Schema(s_abc.Schema):
             raise errors.UnknownModuleError(
                 f'module {name.module!r} is not in this schema')
 
-        return self._replace(**updates)
+        return self._replace(**updates)  # type: ignore
 
-    def _delete(self, obj):
+    def _delete(self, obj: so.Object) -> Schema:
         data = self._id_to_data.get(obj.id)
         if data is None:
             raise errors.InvalidReferenceError(
@@ -417,18 +490,25 @@ class Schema(s_abc.Schema):
             refs_to=refs_to,
         ))
 
-        return self._replace(**updates)
+        return self._replace(**updates)  # type: ignore
 
-    def discard(self, obj) -> Schema:
+    def discard(self, obj: so.Object) -> Schema:
         if obj.id in self._id_to_data:
             return self._delete(obj)
         else:
             return self
 
-    def delete(self, obj) -> Schema:
+    def delete(self, obj: so.Object) -> Schema:
         return self._delete(obj)
 
-    def _get(self, name, *, getter, default, module_aliases):
+    def _get(
+        self,
+        name: str,
+        *,
+        getter: Callable[[Schema, str], Any],
+        default: Any,
+        module_aliases: Optional[Mapping[Optional[str], str]],
+    ) -> Any:
         name, module, shortname = sn.split_name(name)
         implicit_builtins = module is None
 
@@ -453,86 +533,111 @@ class Schema(s_abc.Schema):
 
     def get_functions(
         self,
-        name,
-        default=so.NoDefault,
+        name: str,
+        default: Union[
+            Tuple[s_func.Function, ...], so.NoDefaultT
+        ] = so.NoDefault,
         *,
-        module_aliases=None
-    ):
+        module_aliases: Optional[Mapping[Optional[str], str]] = None,
+    ) -> Tuple[s_func.Function, ...]:
         funcs = self._get(name,
                           getter=_get_functions,
                           module_aliases=module_aliases,
                           default=default)
 
         if funcs is not so.NoDefault:
-            return funcs
+            return cast(
+                Tuple[s_func.Function, ...],
+                funcs,
+            )
 
         raise errors.InvalidReferenceError(
             f'function {name!r} does not exist')
 
     def get_operators(
         self,
-        name,
-        default=so.NoDefault,
+        name: str,
+        default: Union[
+            Tuple[s_oper.Operator, ...], so.NoDefaultT
+        ] = so.NoDefault,
         *,
-        module_aliases=None,
-    ):
+        module_aliases: Optional[Mapping[Optional[str], str]] = None,
+    ) -> Tuple[s_oper.Operator, ...]:
         funcs = self._get(name,
                           getter=_get_operators,
                           module_aliases=module_aliases,
                           default=default)
 
         if funcs is not so.NoDefault:
-            return funcs
+            return cast(
+                Tuple[s_oper.Operator, ...],
+                funcs,
+            )
 
         raise errors.InvalidReferenceError(
             f'operator {name!r} does not exist')
 
     @functools.lru_cache()
     def _get_casts(
-            self, stype: s_types.Type, *,
-            disposition: str,
-            implicit: bool=False,
-            assignment: bool=False) -> FrozenSet[s_casts.Cast]:
+        self,
+        stype: s_types.Type,
+        *,
+        disposition: str,
+        implicit: bool = False,
+        assignment: bool = False,
+    ) -> FrozenSet[s_casts.Cast]:
 
-        all_casts = self.get_referrers(
-            stype, scls_type=s_casts.Cast, field_name=disposition)
+        all_casts = cast(
+            FrozenSet[s_casts.Cast],
+            self.get_referrers(
+                stype, scls_type=s_casts.Cast, field_name=disposition),
+        )
 
         casts = []
-        for cast in all_casts:
-            if implicit and not cast.get_allow_implicit(self):
+        for castobj in all_casts:
+            if implicit and not castobj.get_allow_implicit(self):
                 continue
-            if assignment and not cast.get_allow_assignment(self):
+            if assignment and not castobj.get_allow_assignment(self):
                 continue
-            casts.append(cast)
+            casts.append(castobj)
 
         return frozenset(casts)
 
     def get_casts_to_type(
-            self, to_type: s_types.Type, *,
-            implicit: bool=False,
-            assignment: bool=False) -> FrozenSet[s_casts.Cast]:
+        self,
+        to_type: s_types.Type,
+        *,
+        implicit: bool = False,
+        assignment: bool = False,
+    ) -> FrozenSet[s_casts.Cast]:
         return self._get_casts(to_type, disposition='to_type',
                                implicit=implicit, assignment=assignment)
 
     def get_casts_from_type(
-            self, from_type: s_types.Type, *,
-            implicit: bool=False,
-            assignment: bool=False) -> FrozenSet[s_casts.Cast]:
+        self,
+        from_type: s_types.Type,
+        *,
+        implicit: bool = False,
+        assignment: bool = False,
+    ) -> FrozenSet[s_casts.Cast]:
         return self._get_casts(from_type, disposition='from_type',
                                implicit=implicit, assignment=assignment)
 
     @functools.lru_cache()
     def get_referrers(
-            self, scls: so.Object, *,
-            scls_type: Optional[so.ObjectMeta]=None,
-            field_name: Optional[str]=None):
+        self,
+        scls: so.Object,
+        *,
+        scls_type: Optional[Type[so.Object]] = None,
+        field_name: Optional[str] = None,
+    ) -> FrozenSet[so.Object]:
 
         try:
             refs = self._refs_to[scls.id]
         except KeyError:
             return frozenset()
         else:
-            referrers = set()
+            referrers: Set[so.Object] = set()
 
             if scls_type is not None:
                 if field_name is not None:
@@ -550,14 +655,19 @@ class Schema(s_abc.Schema):
                     'get_referrers: field_name cannot be used '
                     'without scls_type')
             else:
-                ids = itertools.chain.from_iterable(refs.values())
-                referrers.update(self._id_to_type[objid] for objid in ids)
+                refids = itertools.chain.from_iterable(refs.values())
+                referrers.update(self._id_to_type[objid] for objid in refids)
 
             return frozenset(referrers)
 
     @functools.lru_cache()
-    def get_referrers_ex(self, scls: so.Object):
-
+    def get_referrers_ex(
+        self,
+        scls: so.Object,
+    ) -> Dict[
+        Tuple[Type[so.Object], str],
+        Set[so.Object],
+    ]:
         try:
             refs = self._refs_to[scls.id]
         except KeyError:
@@ -570,7 +680,27 @@ class Schema(s_abc.Schema):
 
             return result
 
-    def get_by_id(self, obj_id, default=so.NoDefault):
+    @overload
+    def get_by_id(
+        self,
+        obj_id: uuid.UUID,
+        default: Union[so.Object, so.NoDefaultT] = so.NoDefault,
+    ) -> so.Object:
+        ...
+
+    @overload
+    def get_by_id(  # NoQA: F811
+        self,
+        obj_id: uuid.UUID,
+        default: None = None,
+    ) -> Optional[so.Object]:
+        ...
+
+    def get_by_id(  # NoQA: F811
+        self,
+        obj_id: uuid.UUID,
+        default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
+    ) -> Optional[so.Object]:
         try:
             return self._id_to_type[obj_id]
         except KeyError:
@@ -582,28 +712,49 @@ class Schema(s_abc.Schema):
             else:
                 return default
 
-    def _get_by_name(self, name, *, type=()):
-        if type and isinstance(type, tuple):
-            for typ in type:
-                scls = self._get_by_name(name, type=typ)
-                if scls is not None:
-                    return scls
-            return None
-
+    def _get_by_name(
+        self,
+        name: str,
+        *,
+        type: Optional[Type[so.Object]],
+    ) -> Optional[so.Object]:
         obj_id = self._name_to_id.get(name)
         if obj_id is None:
             return None
 
         obj = self._id_to_type[obj_id]
-        if type and not isinstance(obj, type):
+        if type is not None and not isinstance(obj, type):
             return None
 
         return obj
 
-    def get_global(self, objtype, name, default=so.NoDefault):
+    @overload
+    def get_global(
+        self,
+        objtype: Type[so.Object_T],
+        name: str,
+        default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
+    ) -> so.Object_T:
+        ...
+
+    @overload
+    def get_global(  # NoQA: F811
+        self,
+        objtype: Type[so.Object_T],
+        name: str,
+        default: None = None,
+    ) -> Optional[so.Object_T]:
+        ...
+
+    def get_global(  # NoQA: F811
+        self,
+        objtype: Type[so.Object_T],
+        name: str,
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+    ) -> Optional[so.Object_T]:
         obj_id = self._globalname_to_id.get((objtype, name))
         if obj_id is not None:
-            return self._id_to_type[obj_id]
+            return cast(so.Object_T, self._id_to_type[obj_id])
         elif default is not so.NoDefault:
             return default
         else:
@@ -611,19 +762,49 @@ class Schema(s_abc.Schema):
             raise errors.InvalidReferenceError(
                 f'{desc} {name!r} does not exist')
 
-    def get(
+    @overload
+    def get(  # NoQA: F811
         self,
         name: str,
-        default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
+        default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
         *,
         refname: Optional[str] = None,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
-        type: Tuple[so.ObjectMeta, ...] = (),
+        type: Optional[Type[so.Object_T]] = None,
         condition: Optional[Callable[[so.Object], bool]] = None,
         label: Optional[str] = None,
-        sourcectx: Optional[parsing.SourceContext] = None,
-    ) -> so.Object:
-        def getter(schema, name):
+        sourcectx: Optional[parsing.ParserContext] = None,
+    ) -> so.Object_T:
+        ...
+
+    @overload
+    def get(  # NoQA: F811
+        self,
+        name: str,
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+        *,
+        refname: Optional[str] = None,
+        module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        type: Optional[Type[so.Object_T]] = None,
+        condition: Optional[Callable[[so.Object], bool]] = None,
+        label: Optional[str] = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
+    ) -> Optional[so.Object_T]:
+        ...
+
+    def get(  # NoQA: F811
+        self,
+        name: str,
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+        *,
+        refname: Optional[str] = None,
+        module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        type: Optional[Type[so.Object_T]] = None,
+        condition: Optional[Callable[[so.Object], bool]] = None,
+        label: Optional[str] = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
+    ) -> Optional[so.Object_T]:
+        def getter(schema: Schema, name: str) -> Optional[so.Object]:
             obj = schema._get_by_name(name, type=type)
             if obj is not None and condition is not None:
                 if not condition(obj):
@@ -636,16 +817,11 @@ class Schema(s_abc.Schema):
                         default=default)
 
         if obj is not so.NoDefault:
-            return obj
+            return cast(so.Object_T, obj)
 
         if label is None:
-            assert isinstance(type, tuple)
-            if type:
-                if isinstance(type, tuple):
-                    label = " or ".join(t.get_schema_class_displayname()
-                                        for t in type)
-                else:
-                    label = type.get_schema_class_displayname()
+            if type is not None:
+                label = type.get_schema_class_displayname()
             else:
                 label = 'schema item'
 
@@ -656,27 +832,39 @@ class Schema(s_abc.Schema):
             f'{label} {refname!r} does not exist',
             context=sourcectx)
 
-    def has_module(self, module):
+    def has_module(self, module: str) -> bool:
         return self.get_global(s_mod.Module, module, None) is not None
 
-    def get_children(self, scls):
-        return self.get_referrers(
-            scls, scls_type=type(scls), field_name='bases')
+    def get_children(
+        self,
+        scls: so.Object_T,
+    ) -> FrozenSet[so.Object_T]:
+        # Ideally get_referrers needs to be made generic via
+        # an overload on scls_type, but mypy crashes on that.
+        return self.get_referrers(  # type: ignore
+            scls,
+            scls_type=type(scls),
+            field_name='bases',
+        )
 
-    def get_descendants(self, scls):
-        return self.get_referrers(
+    def get_descendants(
+        self,
+        scls: so.Object_T,
+    ) -> FrozenSet[so.Object_T]:
+        return self.get_referrers(  # type: ignore
             scls, scls_type=type(scls), field_name='ancestors')
 
     def get_objects(
-        self, *,
-        included_modules: Optional[Iterable[str]]=None,
-        excluded_modules: Optional[Iterable[str]]=None,
-        included_items: Optional[Iterable[str]]=None,
-        excluded_items: Optional[Iterable[str]]=None,
-        type: Optional[so.ObjectMeta]=None,
+        self,
+        *,
+        included_modules: Optional[Iterable[str]] = None,
+        excluded_modules: Optional[Iterable[str]] = None,
+        included_items: Optional[Iterable[str]] = None,
+        excluded_items: Optional[Iterable[str]] = None,
+        type: Optional[Type[so.Object_T]] = None,
         extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
-    ) -> Iterator[so.Object]:
-        return SchemaIterator(
+    ) -> SchemaIterator[so.Object_T]:
+        return SchemaIterator[so.Object_T](
             self,
             included_modules=included_modules,
             excluded_modules=excluded_modules,
@@ -689,30 +877,31 @@ class Schema(s_abc.Schema):
     def get_modules(self) -> Iterator[s_mod.Module]:
         for (objtype, _), objid in self._globalname_to_id.items():
             if objtype is s_mod.Module:
-                yield self.get_by_id(objid)
+                yield self.get_by_id(objid)  # type: ignore
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f'<{type(self).__name__} gen:{self._generation} at {id(self):#x}>')
 
 
-class SchemaIterator:
+class SchemaIterator(Generic[so.Object_T]):
     def __init__(
         self,
         schema: Schema,
         *,
         included_modules: Optional[Iterable[str]],
         excluded_modules: Optional[Iterable[str]],
-        included_items: Optional[Iterable[str]]=None,
-        excluded_items: Optional[Iterable[str]]=None,
-        type: Optional[so.ObjectMeta],
+        included_items: Optional[Iterable[str]] = None,
+        excluded_items: Optional[Iterable[str]] = None,
+        type: Optional[Type[so.Object_T]] = None,
         extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
     ) -> None:
 
         filters = []
 
         if type is not None:
-            filters.append(lambda schema, obj: isinstance(obj, type))
+            t = type
+            filters.append(lambda schema, obj: isinstance(obj, t))
 
         if included_modules:
             modules = frozenset(included_modules)
@@ -722,11 +911,13 @@ class SchemaIterator:
                     obj.get_name(schema).module in modules)
 
         if excluded_modules:
-            excluded_modules = frozenset(excluded_modules)
+            excmod = frozenset(excluded_modules)
             filters.append(
-                lambda schema, obj:
-                    isinstance(obj, so.UnqualifiedObject) or
-                    obj.get_name(schema).module not in excluded_modules)
+                lambda schema, obj: (
+                    isinstance(obj, so.UnqualifiedObject)
+                    or obj.get_name(schema).module not in excmod
+                )
+            )
 
         if included_items:
             objs = frozenset(included_items)
@@ -744,26 +935,38 @@ class SchemaIterator:
         self._filters = filters
         self._schema = schema
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[so.Object_T]:
         filters = self._filters
         index = self._schema._id_to_type
 
         for obj in index.values():
             if all(f(self._schema, obj) for f in filters):
-                yield obj
+                yield obj  # type: ignore
 
 
 @functools.lru_cache()
-def _get_functions(schema, name):
+def _get_functions(
+    schema: Schema,
+    name: str,
+) -> Optional[Tuple[s_func.Function, ...]]:
     objids = schema._shortname_to_id.get((s_func.Function, name))
     if objids is None:
-        return
-    return tuple(schema._id_to_type[oid] for oid in objids)
+        return None
+    return cast(
+        Tuple[s_func.Function, ...],
+        tuple(schema._id_to_type[oid] for oid in objids),
+    )
 
 
 @functools.lru_cache()
-def _get_operators(schema, name):
+def _get_operators(
+    schema: Schema,
+    name: str,
+) -> Optional[Tuple[s_oper.Operator, ...]]:
     objids = schema._shortname_to_id.get((s_oper.Operator, name))
     if objids is None:
         return
-    return tuple(schema._id_to_type[oid] for oid in objids)
+    return cast(
+        Tuple[s_oper.Operator, ...],
+        tuple(schema._id_to_type[oid] for oid in objids),
+    )

@@ -580,7 +580,7 @@ def resolve_ptr(
             ctx.env.schema)
         s_utils.enrich_schema_lookup_error(
             err, pointer_name, modaliases=ctx.modaliases,
-            item_types=(s_pointers.Pointer,),
+            item_type=s_pointers.Pointer,
             collection=near_enpoint_pointers.objects(ctx.env.schema),
             schema=ctx.env.schema
         )

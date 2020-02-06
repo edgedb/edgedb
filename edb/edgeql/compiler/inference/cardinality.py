@@ -34,6 +34,9 @@ from edb.ir import utils as irutils
 
 from .. import context
 
+if TYPE_CHECKING:
+    from edb.schema import constraints as s_constr
+
 
 ONE = qltypes.Cardinality.ONE
 MANY = qltypes.Cardinality.MANY
@@ -406,7 +409,7 @@ def _analyse_filter_clause(
     filtered_ptrs = extract_filters(result_set, filter_clause, scope_tree, env)
 
     if filtered_ptrs:
-        exclusive_constr = schema.get('std::exclusive')
+        exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
 
         for ptr, _ in filtered_ptrs:
             ptr = cast(

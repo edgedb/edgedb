@@ -30,7 +30,17 @@ from . import qltypes
 from . import quote
 
 
-ObjectDDL_T = typing.TypeVar('ObjectDDL_T', bound='ObjectDDL')
+DDLCommand_T = typing.TypeVar(
+    'DDLCommand_T',
+    bound='DDLCommand',
+    covariant=True,
+)
+
+ObjectDDL_T = typing.TypeVar(
+    'ObjectDDL_T',
+    bound='ObjectDDL',
+    covariant=True,
+)
 
 
 class SortOrder(s_enum.StrEnum):
@@ -139,11 +149,12 @@ class SortExpr(Clause):
 
 class BaseAlias(Clause):
     __abstract_node__ = True
-    alias: str
+    alias: typing.Optional[str]
 
 
 class AliasedExpr(BaseAlias):
     expr: Expr
+    alias: str
 
 
 class ModuleAliasDecl(BaseAlias):
@@ -172,7 +183,7 @@ class BaseSessionReset(BaseSessionCommand):
 
 
 class SessionResetAliasDecl(BaseAlias, BaseSessionReset):
-    pass
+    alias: str
 
 
 class SessionResetModule(BaseSessionReset):
@@ -407,7 +418,7 @@ class NamedTuple(Expr):
 
 
 class Tuple(Expr):
-    elements: typing.List[Expr]
+    elements: typing.List[TupleElement]
 
 
 class Array(Expr):
@@ -551,13 +562,9 @@ class DDL(Base):
     __abstract_node__ = True
 
 
-class CompositeDDL(Command, DDL):
-    __abstract_node__ = True
-
-
 class BasesMixin(DDL):
     __abstract_node__ = True
-    bases: typing.Union[typing.List[TypeName], typing.List[ObjectRef], None]
+    bases: typing.List[TypeName]
 
 
 class Position(DDL):
@@ -565,13 +572,16 @@ class Position(DDL):
     position: str
 
 
-class DDLCommand(DDL):
-    # `name` will either be `str` if node is BaseSetField, or
-    # `ObjectRef` if node is ObjectDDL.
-    name: typing.Any
+class DDLOperation(DDL):
+    __abstract_node__ = True
+    commands: typing.List[DDLOperation]
 
 
-class SetPointerType(DDLCommand):
+class DDLCommand(Command, DDLOperation):
+    __abstract_node__ = True
+
+
+class SetPointerType(DDLOperation):
     type: TypeExpr
 
 
@@ -583,19 +593,19 @@ class SetPropertyType(SetPointerType):
     pass
 
 
-class AlterAddInherit(DDLCommand, BasesMixin):
+class AlterAddInherit(DDLOperation, BasesMixin):
     position: Position
 
 
-class AlterDropInherit(DDLCommand, BasesMixin):
+class AlterDropInherit(DDLOperation, BasesMixin):
     pass
 
 
-class OnTargetDelete(DDLCommand):
+class OnTargetDelete(DDLOperation):
     cascade: qltypes.LinkTargetDeleteAction
 
 
-class BaseSetField(DDLCommand):
+class BaseSetField(DDLOperation):
     __abstract_node__ = True
     name: str
     value: Expr
@@ -609,10 +619,13 @@ class SetSpecialField(BaseSetField):
     value: typing.Any
 
 
-class ObjectDDL(DDLCommand, CompositeDDL):
+class NamedDDL(DDLCommand):
     __abstract_node__ = True
     name: ObjectRef
-    commands: typing.List[DDLCommand]
+
+
+class ObjectDDL(NamedDDL):
+    __abstract_node__ = True
 
 
 class CreateObject(ObjectDDL):
@@ -633,7 +646,7 @@ class CreateExtendingObject(CreateObject, BasesMixin):
     is_final: bool = False
 
 
-class Rename(DDLCommand):
+class Rename(NamedDDL):
     new_name: ObjectRef
 
     @property
@@ -1028,7 +1041,10 @@ def get_targets(target: TypeExpr):
         return [target]
 
 
-def get_ddl_field_value(ddlcmd: ObjectDDL, name: str) -> typing.Optional[Expr]:
+def get_ddl_field_value(
+    ddlcmd: DDLOperation,
+    name: str,
+) -> typing.Optional[Expr]:
     for cmd in ddlcmd.commands:
         if isinstance(cmd, (SetField, SetSpecialField)) and cmd.name == name:
             return cmd.value
