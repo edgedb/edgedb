@@ -233,6 +233,20 @@ class Cli:
                     callback=self._command_list_casts,
                 ),
 
+                cmd.Command(
+                    trigger='li',
+                    desc='list indexes',
+                    group='Introspection',
+                    arg_name='PATTERN',
+                    arg_optional=True,
+                    flags={
+                        'I': 'case_sensitive',
+                        'S': 'system',
+                        '+': 'verbose',
+                    },
+                    callback=self._command_list_indexes,
+                ),
+
                 # REPL setting
 
                 cmd.Command(
@@ -935,6 +949,96 @@ class Cli:
                     self._command_semicolon_hint(arg)
                 else:
                     print('No casts found.')
+
+    def _command_list_indexes(
+        self,
+        *,
+        flags: AbstractSet[str],
+        arg: Optional[str]
+    ) -> None:
+        flag = '' if 'case_sensitive' in flags else 'i'
+        pattern = arg or ''
+
+        filter_and = []
+        if 'system' not in flags:
+            filter_and.append(f'''
+                NOT (re_test("^({STD_RE})::", .subject_name))
+            ''')
+        if 'verbose' not in flags:
+            filter_and.append('NOT .is_implicit')
+
+        filter_clause, qkw = utils.get_filter_based_on_pattern(
+            pattern, ['.subject_name'], flag=flag,
+            filter_and=' AND '.join(filter_and))
+
+        base_query = r'''
+            WITH
+                MODULE schema,
+                I := {
+                    Index,
+                    (
+                        SELECT Constraint
+                        FILTER .name = 'std::exclusive' AND NOT .is_abstract
+                    )
+                }
+            SELECT I {
+                expr,
+                subject_name := I[IS Index].<indexes[IS Source].name,
+                cons_on := '.' ++ I[IS Constraint].subject.name,
+                cons_of := I[Is Constraint].subject[IS Pointer]
+                    .<pointers[IS Source].name,
+                cons_of_of := I[Is Constraint].subject[IS Pointer]
+                    .<properties[IS Source].<links[IS Source].name,
+            } {
+                expr := .cons_on ?? .expr,
+                is_implicit := EXISTS .cons_on,
+                subject_name :=
+                    (.cons_of_of ++ '.' ++ .cons_of) ??
+                    (.cons_of) ??
+                    (.subject_name)
+            }
+        '''
+
+        try:
+            result, _ = self.fetch(
+                f'''
+                    {base_query}
+                    {filter_clause}
+                    ORDER BY .subject_name THEN .is_implicit THEN .expr;
+                ''',
+                json=False,
+                kwargs=qkw
+            )
+        except edgedb.EdgeDBError as exc:
+            render.render_exception(self.context, exc)
+        else:
+            if result:
+                max_width = self.prompt.output.get_size().columns
+                render.render_table(
+                    self.context,
+                    title='Indexes',
+                    columns=[
+                        table.ColumnSpec(
+                            field='expr', title='Index on',
+                            width=3, align='left'),
+                        table.ColumnSpec(
+                            field='is_implicit', title='Implicit',
+                            width=1, align='left'),
+                        table.ColumnSpec(
+                            field='subject_name', title='Subject',
+                            width=3, align='left'),
+                    ],
+                    data=result,
+                    max_width=min(max_width, MAX_WIDTH),
+                )
+
+            else:
+                if pattern:
+                    print(f'No indexes found matching '
+                          f'{eql_quote.quote_literal(pattern)}.')
+                    self._command_semicolon_hint(arg)
+                else:
+                    print('No indexes found.')
 
     def _command_psql(
         self,
