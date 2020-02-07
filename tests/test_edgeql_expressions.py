@@ -3070,7 +3070,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_string_10(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"invalid string literal: invalid escape sequence '\\ '",):
+                r"invalid string literal: invalid escape sequence '\\ '",
+                _hint="consider removing trailing whitespace"):
             await self.con.execute(
                 r"SELECT 'bb\   "
                 "\naa';"

@@ -18,11 +18,14 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import logging
 import os
 import sys
 import types
+import re
+
 
 import parsing
 
@@ -37,6 +40,7 @@ from edb.errors import EdgeQLSyntaxError
 ParserContext = pctx.ParserContext
 
 logger = logging.getLogger('edb.common.parsing')
+TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
 class TokenMeta(type):
@@ -306,6 +310,14 @@ class Spec(parsing.Spec):
         return ret
 
 
+def _derive_hint(
+        input: str, message: str, position: (int, int, int)) -> Optional[str]:
+    _, _, off = position
+    if message == r"invalid string literal: invalid escape sequence '\ '":
+        if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
+            return "consider removing trailing whitespace"
+
+
 class Parser:
     def __init__(self, **parser_data):
         self.lexer = None
@@ -394,8 +406,9 @@ class Parser:
 
         except TokenizerError as e:
             message, position = e.args
+            hint = _derive_hint(input, message, position)
             raise EdgeQLSyntaxError(
-                message, context=self.context(pos=position)) from e
+                message, context=self.context(pos=position), hint=hint) from e
 
         except parsing.SyntaxError as e:
             raise self.get_exception(
