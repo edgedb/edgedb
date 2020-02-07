@@ -568,6 +568,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     else:
                         self.write(d, node.value, d)
                     return
+            self.write(edgeql_quote.dollar_quote_literal(node.value))
+            return
         self.write(repr(node.value))
 
     def visit_IntegerConstant(self, node: qlast.IntegerConstant) -> None:
