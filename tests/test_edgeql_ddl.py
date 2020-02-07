@@ -3551,6 +3551,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
     @test.xfail('''
+        See test_edgeql_ddl_alias_08 first.
+
         Fails to create "BT06Alias3":
 
         edgedb.errors.SchemaError: ObjectType
@@ -3591,6 +3593,47 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 WITH MODULE test
                 CREATE ALIAS IllegalAlias07 := Object {a := IllegalAlias07};
             """)
+
+    @test.xfail('''
+        Fails to create "BT06Alias3":
+
+        edgedb.errors.SchemaError: ObjectType
+        'test::test|BT06Alias1@@w~1' is already present in the
+        schema <Schema gen:3431 at 0x7fe1a7b69880>
+
+        This is actually causing the same issue as test_edgeql_ddl_alias_06,
+        but it means that the implicit aliases don't get cleaned up.
+
+        This means that this should be fixed first before it gets
+        masked by the fix to the other bug.
+    ''')
+    async def test_edgeql_ddl_alias_08(self):
+        # Issue #1184
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE BaseType06 {
+                CREATE PROPERTY name -> str;
+            };
+
+            CREATE ALIAS BT06Alias1 := BaseType06 {
+                a := .name ++ '_a'
+            };
+
+            CREATE ALIAS BT06Alias2 := BT06Alias1 {
+                b := .a ++ '_b'
+            };
+
+            # drop the freshly created alias
+            DROP ALIAS BT06Alias2;
+
+            # re-create the alias that was just dropped
+            CREATE ALIAS BT06Alias2 := BT06Alias1 {
+                b := .a ++ '_b'
+            };
+        """)
+
+        # TODO: Add an actual INSERT/SELECT test.
 
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
