@@ -359,8 +359,6 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @test.xfail('not sure how to test multi-line semantics, '
-                'as strings no longer preserve original structure')
     def test_eschema_syntax_type_22(self):
         """
         module test {
@@ -396,11 +394,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                 };
                 property bar -> str {
                     # multi-line definition with correct indentation
-                    default := some_func('\n                        1, 2, 3');
+                    default := some_func('\\n                        1, 2, 3');
                 };
                 property baz -> str {
                     # multi-line definition with correct indentation
-                    default := 'some_func(\n                        1, 2, 3)';
+                    default := 'some_func(\\n                        1, 2, 3)';
                 };
             };
         };
