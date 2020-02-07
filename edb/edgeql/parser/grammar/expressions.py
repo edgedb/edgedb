@@ -920,7 +920,7 @@ class BaseNumberConstant(Nonterm):
 class BaseStringConstant(Nonterm):
 
     def reduce_SCONST(self, token):
-        self.val = qlast.RawStringConstant(value=token.clean_value)
+        self.val = qlast.StringConstant(value=token.clean_value)
 
 
 class BaseBytesConstant(Nonterm):

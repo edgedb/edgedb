@@ -570,17 +570,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     return
         self.write(repr(node.value))
 
-    def visit_RawStringConstant(self, node: qlast.RawStringConstant) -> None:
-        if node.value.isprintable():
-            for d in ("'", '"', '$$'):
-                if d not in node.value:
-                    if '\\' in node.value and d != '$$':
-                        self.write('r', d, node.value, d)
-                    else:
-                        self.write(d, node.value, d)
-                    return
-        self.write(repr(node.value))
-
     def visit_IntegerConstant(self, node: qlast.IntegerConstant) -> None:
         if node.is_negative:
             self.write('-')

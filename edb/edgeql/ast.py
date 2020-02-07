@@ -271,13 +271,6 @@ class StringConstant(BaseConstant):
         return cls(value=s)
 
 
-class RawStringConstant(BaseConstant):
-
-    @classmethod
-    def from_python(cls, s: str):
-        return cls(value=s)
-
-
 class BaseRealConstant(BaseConstant):
     __abstract_node__ = True
     is_negative: bool = False

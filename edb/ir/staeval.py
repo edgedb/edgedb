@@ -206,14 +206,6 @@ def float_const_to_python(
         return float(ir.value)
 
 
-@const_to_python.register(irast.RawStringConstant)
-def raw_str_const_to_python(
-        ir: irast.RawStringConstant,
-        schema: s_schema.Schema) -> Any:
-
-    return ir.value
-
-
 @const_to_python.register(irast.StringConstant)
 def str_const_to_python(
         ir: irast.StringConstant,

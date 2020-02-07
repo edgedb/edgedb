@@ -445,10 +445,6 @@ class StringConstant(BaseStrConstant):
     pass
 
 
-class RawStringConstant(BaseStrConstant):
-    pass
-
-
 class IntegerConstant(BaseStrConstant):
     pass
 

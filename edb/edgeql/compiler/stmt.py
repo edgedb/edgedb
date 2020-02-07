@@ -544,7 +544,7 @@ def compile_DescribeStmt(
         )
 
         stmt.result = setgen.ensure_set(
-            irast.RawStringConstant(value=text, typeref=ct),
+            irast.StringConstant(value=text, typeref=ct),
             ctx=ictx,
         )
 

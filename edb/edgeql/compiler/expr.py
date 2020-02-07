@@ -175,9 +175,6 @@ def compile_BaseConstant(
     if isinstance(expr, qlast.StringConstant):
         std_type = 'std::str'
         node_cls = irast.StringConstant
-    elif isinstance(expr, qlast.RawStringConstant):
-        std_type = 'std::str'
-        node_cls = irast.RawStringConstant
     elif isinstance(expr, qlast.IntegerConstant):
         int_value = int(expr.value)
         if expr.is_negative:
