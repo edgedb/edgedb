@@ -64,7 +64,8 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
             'create-superuser-role',
             'create-role-empty-options'
         )
-        assert result.exit_code == 0
+
+        self.assertEqual(result.exit_code, 0)
 
     async def test_cli_repl_script(self):
         result = self.run_cli(input='SELECT 1 + 1')
