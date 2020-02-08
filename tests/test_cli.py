@@ -60,7 +60,10 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
                               '--password', input='foo-pass\n')
         self.assertIn('input is not a TTY', result.output)
 
-        result = self.run_cli('create-superuser-role', 'create-role-empty-options')
+        result = self.run_cli(
+            'create-superuser-role',
+            'create-role-empty-options'
+        )
         assert result.exit_code == 0
 
     async def test_cli_repl_script(self):
