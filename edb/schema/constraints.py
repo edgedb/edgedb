@@ -1013,6 +1013,33 @@ class AlterConstraint(
         else:
             super()._apply_field_ast(schema, context, node, op)
 
+    def validate_alter(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_alter(schema, context)
+
+        self_delegated = self.get_attribute_value('delegated')
+        if not self_delegated:
+            return
+
+        concrete_bases = [
+            b for b in self.scls.get_bases(schema).objects(schema)
+            if not b.generic(schema) and not b.get_delegated(schema)
+        ]
+        if concrete_bases:
+            tgt_repr = self.scls.get_verbosename(schema, with_parent=True)
+            bases_repr = ', '.join(
+                b.get_subject(schema).get_verbosename(schema, with_parent=True)
+                for b in concrete_bases
+            )
+            raise errors.InvalidConstraintDefinitionError(
+                f'cannot redefine {tgt_repr} as delegated:'
+                f' it is defined as non-delegated in {bases_repr}',
+                context=self.source_context,
+            )
+
 
 class DeleteConstraint(
     ConstraintCommand,

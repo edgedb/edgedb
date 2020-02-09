@@ -697,12 +697,15 @@ def rel_join(
 
 
 def range_for_material_objtype(
-        typeref: irast.TypeRef,
-        path_id: irast.PathId, *,
-        include_overlays: bool=True,
-        include_descendants: bool=True,
-        dml_source: Optional[irast.MutatingStmt]=None,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    typeref: irast.TypeRef,
+    path_id: irast.PathId,
+    *,
+    for_mutation: bool=False,
+    include_overlays: bool=True,
+    include_descendants: bool=True,
+    dml_source: Optional[irast.MutatingStmt]=None,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
 
     env = ctx.env
 
@@ -710,7 +713,13 @@ def range_for_material_objtype(
         typeref = typeref.material_type
 
     table_schema_name, table_name = common.get_objtype_backend_name(
-        typeref.id, typeref.module_id, catenate=False)
+        typeref.id,
+        typeref.module_id,
+        aspect=(
+            'table' if for_mutation or not include_descendants else 'inhview'
+        ),
+        catenate=False,
+    )
 
     if typeref.name_hint.module in {'cfg', 'sys'}:
         # Redirect all queries to schema tables to edgedbss
@@ -790,20 +799,22 @@ def range_for_material_objtype(
 
 
 def range_for_typeref(
-        typeref: irast.TypeRef,
-        path_id: irast.PathId, *,
-        include_overlays: bool=True,
-        include_descendants: bool=True,
-        dml_source: Optional[irast.MutatingStmt]=None,
-        common_parent: bool=False,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    typeref: irast.TypeRef,
+    path_id: irast.PathId,
+    *,
+    for_mutation: bool=False,
+    include_descendants: bool=True,
+    dml_source: Optional[irast.MutatingStmt]=None,
+    common_parent: bool=False,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
 
     if typeref.common_parent is not None and common_parent:
         rvar = range_for_material_objtype(
             typeref.common_parent,
             path_id,
-            include_overlays=include_overlays,
             include_descendants=include_descendants,
+            for_mutation=for_mutation,
             dml_source=dml_source,
             ctx=ctx,
         )
@@ -818,8 +829,8 @@ def range_for_typeref(
             c_rvar = range_for_typeref(
                 child,
                 path_id=path_id,
-                include_overlays=include_overlays,
                 include_descendants=not typeref.union_is_concrete,
+                for_mutation=for_mutation,
                 dml_source=dml_source,
                 ctx=ctx,
             )
@@ -842,8 +853,8 @@ def range_for_typeref(
         rvar = range_for_material_objtype(
             typeref,
             path_id,
-            include_overlays=include_overlays,
             include_descendants=include_descendants,
+            for_mutation=for_mutation,
             dml_source=dml_source,
             ctx=ctx,
         )
@@ -891,12 +902,21 @@ def range_from_queryset(
 
 
 def table_from_ptrref(
-        ptrref: irast.PointerRef, *,
-        include_descendants: bool = True,
-        ctx: context.CompilerContextLevel) -> pgast.RelRangeVar:
+    ptrref: irast.PointerRef,
+    *,
+    include_descendants: bool = True,
+    for_mutation: bool = False,
+    ctx: context.CompilerContextLevel,
+) -> pgast.RelRangeVar:
     """Return a Table corresponding to a given Link."""
     table_schema_name, table_name = common.get_pointer_backend_name(
-        ptrref.id, ptrref.module_id, catenate=False)
+        ptrref.id,
+        ptrref.module_id,
+        aspect=(
+            'table' if for_mutation or not include_descendants else 'inhview'
+        ),
+        catenate=False,
+    )
 
     if ptrref.name.module in {'cfg', 'sys'}:
         # Redirect all queries to schema tables to edgedbss
@@ -920,11 +940,12 @@ def table_from_ptrref(
 
 
 def range_for_ptrref(
-        ptrref: irast.BasePointerRef, *,
-        dml_source: Optional[irast.MutatingStmt]=None,
-        include_overlays: bool=True,
-        only_self: bool=False,
-        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+    ptrref: irast.BasePointerRef, *,
+    dml_source: Optional[irast.MutatingStmt]=None,
+    for_mutation: bool=False,
+    only_self: bool=False,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
     """"Return a Range subclass corresponding to a given ptr step.
 
     The return value may potentially be a UNION of all tables
@@ -956,6 +977,7 @@ def range_for_ptrref(
         table = table_from_ptrref(
             src_ptrref,
             include_descendants=not ptrref.union_is_concrete,
+            for_mutation=for_mutation,
             ctx=ctx,
         )
 
@@ -973,7 +995,7 @@ def range_for_ptrref(
 
         overlays = get_ptr_rel_overlays(
             src_ptrref, dml_source=dml_source, ctx=ctx)
-        if overlays and include_overlays:
+        if overlays and not for_mutation:
             for op, cte in overlays:
                 rvar = pgast.RelRangeVar(
                     relation=cte,

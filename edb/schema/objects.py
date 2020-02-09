@@ -2353,7 +2353,7 @@ class InheritingObject(SubclassableObject):
         default=DEFAULT_CONSTRUCTOR,
         coerce=True,
         inheritable=False,
-        compcoef=0.714,
+        compcoef=0.900,
     )
 
     ancestors = SchemaField(

@@ -19,8 +19,9 @@
 """Utilities for IR type descriptors."""
 
 from __future__ import annotations
-
 from typing import *
+
+import uuid
 
 from edb.edgeql import qltypes
 
@@ -36,12 +37,18 @@ from edb.schema import utils as s_utils
 from . import ast as irast
 
 if TYPE_CHECKING:
-    import uuid
 
     from edb.schema import name as s_name
     from edb.schema import schema as s_schema
 
-    PtrRefCacheKey = Tuple[s_pointers.PointerLike, s_pointers.PointerDirection]
+
+TypeRefCacheKey = Tuple[uuid.UUID, bool]
+
+PtrRefCacheKey = Tuple[
+    s_pointers.PointerLike,
+    s_pointers.PointerDirection,
+    bool,
+]
 
 
 def is_scalar(typeref: irast.TypeRef) -> bool:
@@ -117,8 +124,9 @@ def type_to_typeref(
     schema: s_schema.Schema,
     t: s_types.Type,
     *,
-    cache: Optional[Dict[uuid.UUID, irast.TypeRef]] = None,
+    cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
     typename: Optional[s_name.Name] = None,
+    include_descendants: bool = False,
     _name: Optional[str] = None,
 ) -> irast.TypeRef:
     """Return an instance of :class:`ir.ast.TypeRef` for a given type.
@@ -136,6 +144,9 @@ def type_to_typeref(
         typename:
             Optional name hint to use for the type in the returned
             TypeRef.  If ``None``, the type name is used.
+        include_descendants:
+            Whether to include the description of all material type descendants
+            of *t*.
         _name:
             Optional subtype element name if this type is a collection within
             a Tuple,
@@ -148,7 +159,7 @@ def type_to_typeref(
     material_type: s_types.Type
 
     if cache is not None and typename is None:
-        cached_result = cache.get(t.id)
+        cached_result = cache.get((t.id, include_descendants))
         if cached_result is not None:
             # If the schema changed due to an ongoing compilation, the name
             # hint might be outdated.
@@ -197,7 +208,10 @@ def type_to_typeref(
         material_typeref: Optional[irast.TypeRef]
         if material_type is not t:
             material_typeref = type_to_typeref(
-                schema, material_type, cache=cache
+                schema,
+                material_type,
+                include_descendants=include_descendants,
+                cache=cache,
             )
         else:
             material_typeref = None
@@ -233,12 +247,28 @@ def type_to_typeref(
         else:
             common_parent_ref = None
 
+        descendants: Optional[FrozenSet[irast.TypeRef]]
+
+        if material_typeref is None and include_descendants:
+            descendants = frozenset(
+                type_to_typeref(
+                    schema,
+                    child,
+                    cache=cache,
+                )
+                for child in t.children(schema)
+                if not child.get_is_derived(schema)
+            )
+        else:
+            descendants = None
+
         result = irast.TypeRef(
             id=t.id,
             module_id=module.id,
             name_hint=name,
             material_type=material_typeref,
             base_type=base_typeref,
+            descendants=descendants,
             union=union,
             union_is_concrete=union_is_concrete,
             intersection=intersection,
@@ -301,7 +331,7 @@ def type_to_typeref(
         # There's also no variant for types with custom typenames since they
         # proved to have a very low hit rate.
         # This way we save on the size of the key tuple.
-        cache[t.id] = result
+        cache[t.id, include_descendants] = result
     return result
 
 
@@ -368,8 +398,8 @@ def ptrref_from_ptrcls(
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound),
     cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
-    typeref_cache: Optional[Dict[uuid.UUID, irast.TypeRef]] = None,
-    _include_descendants: bool = True,
+    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+    include_descendants: bool = False,
 ) -> irast.BasePointerRef:
     """Return an IR pointer descriptor for a given schema pointer.
 
@@ -391,7 +421,7 @@ def ptrref_from_ptrcls(
     """
 
     if cache is not None:
-        cached = cache.get((ptrcls, direction))
+        cached = cache.get((ptrcls, direction, include_descendants))
         if cached is not None:
             return cached
 
@@ -469,6 +499,7 @@ def ptrref_from_ptrcls(
             schema=schema,
             cache=cache,
             typeref_cache=typeref_cache,
+            include_descendants=include_descendants,
         )
     else:
         material_ptr = None
@@ -520,6 +551,25 @@ def ptrref_from_ptrcls(
     else:
         base_ptr = None
 
+    if (
+        material_ptr is None
+        and include_descendants
+        and isinstance(ptrcls, s_pointers.Pointer)
+    ):
+        descendants = frozenset(
+            ptrref_from_ptrcls(
+                ptrcls=child,
+                direction=direction,
+                schema=schema,
+                cache=cache,
+                typeref_cache=typeref_cache,
+            )
+            for child in ptrcls.children(schema)
+            if not child.get_is_derived(schema)
+        )
+    else:
+        descendants = frozenset()
+
     kwargs.update(dict(
         out_source=out_source,
         out_target=out_target,
@@ -531,6 +581,7 @@ def ptrref_from_ptrcls(
         source_ptr=source_ptr,
         base_ptr=base_ptr,
         material_ptr=material_ptr,
+        descendants=descendants,
         is_derived=ptrcls.get_is_derived(schema),
         is_computable=ptrcls.get_computable(schema),
         union_components=union_components,
@@ -543,7 +594,7 @@ def ptrref_from_ptrcls(
     ptrref = ircls(**kwargs)
 
     if cache is not None:
-        cache[ptrcls, direction] = ptrref
+        cache[ptrcls, direction, include_descendants] = ptrref
 
     return ptrref
 

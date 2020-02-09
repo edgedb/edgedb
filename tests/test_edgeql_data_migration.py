@@ -390,7 +390,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 SELECT Base {
                     __type__: {name},
                     [IS Further].foo2,
-                } ORDER BY .foo2;
+                } ORDER BY .__type__.name;
             """,
             [{
                 '__type__': {'name': 'test::Base'},
@@ -703,16 +703,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: column Derived~2.bar does
-        not exist
-
-        A problem arises when a link was inherited, but then needs to
-        be moved towards the derived types in the inheritance
-        hierarchy. This is the opposite of factoring out common link.
-
-        See also `test_edgeql_migration_27`
-    ''')
     async def test_edgeql_migration_13(self):
         await self.con.execute("""
             SET MODULE test;
@@ -1091,13 +1081,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        edgedb.errors.InvalidReferenceError: reference to a
-        non-existent schema item 9a576552-d980-11e9-ab34-4b202b90ea53
-        in schema <Schema gen:4923 at 0x7f074da5b198>
-
-        Note that the `test_migrations_equivalence_23` works fine.
-    ''')
     async def test_edgeql_migration_23(self):
         await self.con.execute("""
             SET MODULE test;
@@ -3741,10 +3724,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        This appears to fail to find the link property 'foo' or 'bar'
-        when applying the delta of the second migration.
-    ''')
     async def test_edgeql_migration_linkprops_12(self):
         # merging a link with different properties
         await self.con.execute("""

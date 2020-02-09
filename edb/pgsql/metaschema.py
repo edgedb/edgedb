@@ -2141,7 +2141,7 @@ async def bootstrap(conn):
         dbops.CreateFunction(GetBaseScalarTypeMap()),
     ])
 
-    block = dbops.PLTopBlock(disable_ddl_triggers=True)
+    block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
 
@@ -2152,10 +2152,32 @@ classref_attr_aliases = {
 }
 
 
-dbname = lambda n: \
-    common.quote_ident(common.edgedb_name_to_pg_name(sn.Name(n)))
-tabname = lambda schema, obj: \
-    ('edgedbss', common.get_backend_name(schema, obj, catenate=False)[1])
+def dbname(n):
+    return common.quote_ident(common.edgedb_name_to_pg_name(sn.Name(n)))
+
+
+def tabname(schema, obj):
+    return (
+        'edgedbss',
+        common.get_backend_name(
+            schema,
+            obj,
+            aspect='table',
+            catenate=False,
+        )[1],
+    )
+
+
+def inhviewname(schema, obj):
+    return (
+        'edgedbss',
+        common.get_backend_name(
+            schema,
+            obj,
+            aspect='inhview',
+            catenate=False,
+        )[1],
+    )
 
 
 def _generate_database_views(schema):
@@ -2180,7 +2202,7 @@ def _generate_database_views(schema):
             (d.description)->>'id' IS NOT NULL
     '''
 
-    annotations_link_query = f'''
+    annos_link_query = f'''
         SELECT
             ((d.description)->>'id')::uuid              AS source,
             (annotations->>'id')::uuid                  AS target,
@@ -2199,7 +2221,7 @@ def _generate_database_views(schema):
                 ) AS annotations
     '''
 
-    int_annotations_link_query = f'''
+    int_annos_link_query = f'''
         SELECT
             ((d.description)->>'id')::uuid              AS source,
             (annotations->>'id')::uuid                  AS target,
@@ -2220,20 +2242,20 @@ def _generate_database_views(schema):
                 ) AS annotations
     '''
 
-    return [
-        dbops.View(name=tabname(schema, Database), query=view_query),
-        dbops.View(
-            name=tabname(schema, Database.getptr(schema, 'annotations')),
-            query=annotations_link_query,
-        ),
-        dbops.View(
-            name=tabname(
-                schema,
-                Database.getptr(schema, 'annotations__internal'),
-            ),
-            query=int_annotations_link_query,
-        ),
-    ]
+    objects = {
+        Database: view_query,
+        Database.getptr(schema, 'annotations'): annos_link_query,
+        Database.getptr(schema, 'annotations__internal'): int_annos_link_query,
+    }
+
+    views = []
+    for obj, query in objects.items():
+        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        inhview = dbops.View(name=inhviewname(schema, obj), query=query)
+        views.append(tabview)
+        views.append(inhview)
+
+    return views
 
 
 def _generate_role_views(schema):
@@ -2285,7 +2307,7 @@ def _generate_role_views(schema):
             ) AS md
     '''
 
-    annotations_link_query = f'''
+    annos_link_query = f'''
         SELECT
             ((d.description)->>'id')::uuid              AS source,
             (annotations->>'id')::uuid                  AS target,
@@ -2306,7 +2328,7 @@ def _generate_role_views(schema):
                 ) AS annotations
     '''
 
-    int_annotations_link_query = f'''
+    int_annos_link_query = f'''
         SELECT
             ((d.description)->>'id')::uuid              AS source,
             (annotations->>'id')::uuid                  AS target,
@@ -2327,32 +2349,23 @@ def _generate_role_views(schema):
                 ) AS annotations
     '''
 
-    return [
-        dbops.View(
-            name=tabname(schema, Role),
-            query=view_query
-        ),
-        dbops.View(
-            name=tabname(schema, Role.getptr(schema, 'member_of')),
-            query=member_of_link_query,
-        ),
-        dbops.View(
-            name=tabname(schema, Role.getptr(schema, 'bases')),
-            query=member_of_link_query,
-        ),
-        dbops.View(
-            name=tabname(schema, Role.getptr(schema, 'ancestors')),
-            query=member_of_link_query,
-        ),
-        dbops.View(
-            name=tabname(schema, Role.getptr(schema, 'annotations')),
-            query=annotations_link_query,
-        ),
-        dbops.View(
-            name=tabname(schema, Role.getptr(schema, 'annotations__internal')),
-            query=int_annotations_link_query,
-        ),
-    ]
+    objects = {
+        Role: view_query,
+        Role.getptr(schema, 'member_of'): member_of_link_query,
+        Role.getptr(schema, 'bases'): member_of_link_query,
+        Role.getptr(schema, 'ancestors'): member_of_link_query,
+        Role.getptr(schema, 'annotations'): annos_link_query,
+        Role.getptr(schema, 'annotations__internal'): int_annos_link_query,
+    }
+
+    views = []
+    for obj, query in objects.items():
+        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        inhview = dbops.View(name=inhviewname(schema, obj), query=query)
+        views.append(tabview)
+        views.append(inhview)
+
+    return views
 
 
 def _make_json_caster(schema, json_casts, stype, context):
@@ -2394,7 +2407,12 @@ async def generate_support_views(conn, schema):
 
     )
     for schema_obj in schema_objs:
-        bn = common.get_backend_name(schema, schema_obj, catenate=False)
+        bn = common.get_backend_name(
+            schema,
+            schema_obj,
+            aspect='inhview',
+            catenate=False,
+        )
         alias_view = dbops.View(
             name=('edgedb', f'_Schema{schema_obj.get_name(schema).name}'),
             query=(f'SELECT * FROM {q(*bn)}')
@@ -2406,7 +2424,13 @@ async def generate_support_views(conn, schema):
     assert InhObject_ancestors is not None
 
     # "issubclass" SQL functions rely on access to the ancestors link.
-    bn = common.get_backend_name(schema, InhObject_ancestors, catenate=False)
+    bn = common.get_backend_name(
+        schema,
+        InhObject_ancestors,
+        aspect='inhview',
+        catenate=False,
+    )
+
     alias_view = dbops.View(
         name=('edgedb', f'_SchemaInheritingObject__ancestors'),
         query=(f'SELECT * FROM {q(*bn)}')
@@ -2426,7 +2450,7 @@ async def generate_support_views(conn, schema):
     for roleview in _generate_role_views(schema):
         commands.add_command(dbops.CreateView(roleview, or_replace=True))
 
-    block = dbops.PLTopBlock(disable_ddl_triggers=True)
+    block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
 
@@ -2441,7 +2465,7 @@ async def generate_support_functions(conn, schema):
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
     ])
 
-    block = dbops.PLTopBlock(disable_ddl_triggers=True)
+    block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
 
@@ -2598,7 +2622,6 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
             if exc_props:
                 key_start = i
 
-    target_tab = tabname(schema, stype)
     exclusive_props = []
     single_links = []
     multi_links = []
@@ -2738,7 +2761,8 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
     if where:
         target_query += f'\nWHERE\n    {where}'
 
-    views.append((target_tab, target_query))
+    views.append((tabname(schema, stype), target_query))
+    views.append((inhviewname(schema, stype), target_query))
 
     for link in multi_links:
         target_sources = list(sources)
@@ -2792,6 +2816,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
             ''')
 
         views.append((tabname(schema, link), link_query))
+        views.append((inhviewname(schema, link), link_query))
 
     for prop, pp_cast in multi_props:
         target_sources = list(sources)
@@ -2813,6 +2838,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
         ''')
 
         views.append((tabname(schema, prop), link_query))
+        views.append((inhviewname(schema, prop), link_query))
 
     return views, exclusive_props
 

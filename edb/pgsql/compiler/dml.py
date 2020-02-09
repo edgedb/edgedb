@@ -35,6 +35,8 @@ from __future__ import annotations
 import collections
 from typing import *
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -55,66 +57,170 @@ from . import relgen
 from . import shapecomp
 
 
+class DMLParts(NamedTuple):
+
+    dml_ctes: Mapping[
+        irast.TypeRef,
+        Tuple[pgast.CommonTableExpr, pgast.PathRangeVar],
+    ]
+
+    union_cte: pgast.CommonTableExpr
+
+    range_cte: Optional[pgast.CommonTableExpr]
+
+
 def init_dml_stmt(
-        ir_stmt: irast.MutatingStmt, dml_stmt: pgast.DMLQuery, *,
-        ctx: context.CompilerContextLevel,
-        parent_ctx: context.CompilerContextLevel) \
-        -> Tuple[pgast.SelectStmt, pgast.CommonTableExpr,
-                 pgast.PathRangeVar,
-                 Optional[pgast.CommonTableExpr]]:
+    ir_stmt: irast.MutatingStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+    parent_ctx: context.CompilerContextLevel,
+) -> DMLParts:
     """Prepare the common structure of the query representing a DML stmt.
 
     :param ir_stmt:
-        IR of the statement.
-    :param dml_stmt:
-        SQL DML node instance.
+        IR of the DML statement.
 
     :return:
-        A (*wrapper*, *dml_cte*, *range_cte*) tuple, where *wrapper* the
-        the wrapping SQL statement, *dml_cte* is the CTE representing the
-        SQL DML operation in the main relation of the Object, and
-        *range_cte* is the CTE for the subset affected by the statement.
-        *range_cte* is None for INSERT statmenets.
+        A DMLParts tuple containing a map of DML CTEs as well as the
+        common range CTE for UPDATE/DELETE statements.
     """
-    wrapper = ctx.rel
-
     clauses.init_stmt(ir_stmt, ctx, parent_ctx)
 
-    target_ir_set = ir_stmt.subject
-
-    dml_stmt.relation = relctx.range_for_typeref(
-        ir_stmt.subject.typeref,
-        ir_stmt.subject.path_id,
-        include_overlays=False,
-        common_parent=True,
-        ctx=ctx,
-    )
-    pathctx.put_path_value_rvar(
-        dml_stmt, target_ir_set.path_id, dml_stmt.relation, env=ctx.env)
-    pathctx.put_path_source_rvar(
-        dml_stmt, target_ir_set.path_id, dml_stmt.relation, env=ctx.env)
-    pathctx.put_path_bond(
-        dml_stmt, target_ir_set.path_id)
-
-    dml_cte = pgast.CommonTableExpr(
-        query=dml_stmt,
-        name=ctx.env.aliases.get(hint='m')
-    )
-
-    range_cte = None
+    range_cte: Optional[pgast.CommonTableExpr]
+    range_rvar: Optional[pgast.RelRangeVar]
 
     if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
         # UPDATE and DELETE operate over a range, so generate
-        # the corresponding CTE and connect it to the DML query.
-        range_cte = get_dml_range(ir_stmt, dml_stmt, ctx=ctx)
-
+        # the corresponding CTE and connect it to the DML stetements.
+        range_cte = get_dml_range(ir_stmt, ctx=ctx)
         range_rvar = pgast.RelRangeVar(
             relation=range_cte,
             alias=pgast.Alias(
                 aliasname=ctx.env.aliases.get(hint='range')
             )
         )
+    else:
+        range_cte = None
+        range_rvar = None
 
+    top_typeref = ir_stmt.subject.typeref
+    if top_typeref.material_type:
+        top_typeref = top_typeref.material_type
+
+    typerefs = [top_typeref]
+
+    if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
+        if top_typeref.union:
+            for component in top_typeref.union:
+                if component.material_type:
+                    component = component.material_type
+
+                typerefs.append(component)
+                if component.descendants:
+                    typerefs.extend(component.descendants)
+
+        if top_typeref.descendants:
+            typerefs.extend(top_typeref.descendants)
+
+    dml_map = {}
+
+    for typeref in typerefs:
+        dml_cte, dml_rvar = gen_dml_cte(
+            ir_stmt,
+            range_rvar=range_rvar,
+            typeref=typeref,
+            ctx=ctx,
+        )
+
+        dml_map[typeref] = (dml_cte, dml_rvar)
+
+    if len(dml_map) == 1:
+        union_cte, union_rvar = next(iter(dml_map.values()))
+    else:
+        union_components = []
+        for _, dml_rvar in dml_map.values():
+            union_component = pgast.SelectStmt()
+            relctx.include_rvar(
+                union_component,
+                dml_rvar,
+                ir_stmt.subject.path_id,
+                ctx=ctx,
+            )
+            union_components.append(union_component)
+
+        qry = pgast.SelectStmt(
+            all=True,
+            larg=union_components[0],
+        )
+
+        for union_component in union_components[1:]:
+            qry.op = 'UNION'
+            qry.rarg = union_component
+            qry = pgast.SelectStmt(
+                all=True,
+                larg=qry,
+            )
+
+        union_cte = pgast.CommonTableExpr(
+            query=qry.larg,
+            name=ctx.env.aliases.get(hint='ma')
+        )
+
+        union_rvar = relctx.rvar_for_rel(
+            union_cte,
+            typeref=ir_stmt.subject.typeref,
+            ctx=ctx,
+        )
+
+    relctx.include_rvar(ctx.rel, union_rvar, ir_stmt.subject.path_id, ctx=ctx)
+    pathctx.put_path_bond(ctx.rel, ir_stmt.subject.path_id)
+
+    ctx.dml_stmts[ir_stmt] = union_cte
+
+    return DMLParts(dml_ctes=dml_map, range_cte=range_cte, union_cte=union_cte)
+
+
+def gen_dml_cte(
+    ir_stmt: irast.MutatingStmt,
+    *,
+    range_rvar: Optional[pgast.RelRangeVar],
+    typeref: irast.TypeRef,
+    ctx: context.CompilerContextLevel,
+) -> Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]:
+
+    target_ir_set = ir_stmt.subject
+    target_path_id = target_ir_set.path_id
+
+    dml_stmt: pgast.Query
+    if isinstance(ir_stmt, irast.InsertStmt):
+        dml_stmt = pgast.InsertStmt()
+    elif isinstance(ir_stmt, irast.UpdateStmt):
+        dml_stmt = pgast.UpdateStmt()
+    elif isinstance(ir_stmt, irast.DeleteStmt):
+        dml_stmt = pgast.DeleteStmt()
+    else:
+        raise AssertionError(f'unexpected DML IR: {ir_stmt!r}')
+
+    dml_stmt.relation = relctx.range_for_typeref(
+        typeref,
+        target_path_id,
+        for_mutation=True,
+        common_parent=True,
+        ctx=ctx,
+    )
+    pathctx.put_path_value_rvar(
+        dml_stmt, target_path_id, dml_stmt.relation, env=ctx.env)
+    pathctx.put_path_source_rvar(
+        dml_stmt, target_path_id, dml_stmt.relation, env=ctx.env)
+    pathctx.put_path_bond(
+        dml_stmt, target_path_id)
+
+    dml_cte = pgast.CommonTableExpr(
+        query=dml_stmt,
+        name=ctx.env.aliases.get(hint='m')
+    )
+
+    if range_rvar is not None:
         relctx.pull_path_namespace(
             target=dml_stmt, source=range_rvar, ctx=ctx)
 
@@ -144,15 +250,14 @@ def init_dml_stmt(
     ctx.path_scope.clear()
 
     pathctx.put_path_value_rvar(
-        dml_stmt, ir_stmt.subject.path_id, dml_stmt.relation, env=ctx.env)
+        dml_stmt, target_path_id, dml_stmt.relation, env=ctx.env)
 
     pathctx.put_path_source_rvar(
-        dml_stmt, ir_stmt.subject.path_id, dml_stmt.relation, env=ctx.env)
+        dml_stmt, target_path_id, dml_stmt.relation, env=ctx.env)
 
-    dml_rvar = wrap_dml_cte(ir_stmt, dml_cte, ctx=ctx)
-    ctx.dml_stmts[ir_stmt] = dml_cte
+    dml_rvar = relctx.rvar_for_rel(dml_cte, typeref=typeref, ctx=ctx)
 
-    return wrapper, dml_cte, dml_rvar, range_cte
+    return dml_cte, dml_rvar
 
 
 def wrap_dml_cte(
@@ -175,11 +280,13 @@ def wrap_dml_cte(
 
 
 def fini_dml_stmt(
-        ir_stmt: irast.MutatingStmt, wrapper: pgast.Query,
-        dml_cte: pgast.CommonTableExpr,
-        dml_rvar: pgast.BaseRangeVar, *,
-        parent_ctx: context.CompilerContextLevel,
-        ctx: context.CompilerContextLevel) -> pgast.Query:
+    ir_stmt: irast.MutatingStmt,
+    wrapper: pgast.Query,
+    parts: DMLParts,
+    *,
+    parent_ctx: context.CompilerContextLevel,
+    ctx: context.CompilerContextLevel,
+) -> pgast.Query:
 
     # Record the effect of this insertion in the relation overlay
     # context to ensure that the RETURNING clause potentially
@@ -187,11 +294,11 @@ def fini_dml_stmt(
     dml_stack = get_dml_stmt_stack(ir_stmt, ctx=ctx)
     if isinstance(ir_stmt, irast.InsertStmt):
         relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'union', dml_cte,
+            ir_stmt.subject.typeref, 'union', parts.union_cte,
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
     elif isinstance(ir_stmt, irast.DeleteStmt):
         relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'except', dml_cte,
+            ir_stmt.subject.typeref, 'except', parts.union_cte,
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
     clauses.compile_output(ir_stmt.result, ctx=ctx)
@@ -214,9 +321,10 @@ def get_dml_stmt_stack(
 
 
 def get_dml_range(
-        ir_stmt: Union[irast.UpdateStmt, irast.DeleteStmt],
-        dml_stmt: pgast.DMLQuery, *,
-        ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
+    ir_stmt: Union[irast.UpdateStmt, irast.DeleteStmt],
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.CommonTableExpr:
     """Create a range CTE for the given DML statement.
 
     :param ir_stmt:
@@ -433,9 +541,16 @@ def process_insert_body(
     # Process necessary updates to the link tables.
     for shape_el, props_only in external_inserts:
         process_link_update(
-            ir_stmt=ir_stmt, ir_set=shape_el, props_only=props_only,
-            wrapper=wrapper, dml_cte=insert_cte, iterator_cte=iterator_cte,
-            is_insert=True, ctx=ctx)
+            ir_stmt=ir_stmt,
+            ir_set=shape_el,
+            props_only=props_only,
+            wrapper=wrapper,
+            dml_cte=insert_cte,
+            source_typeref=typeref,
+            iterator_cte=iterator_cte,
+            is_insert=True,
+            ctx=ctx,
+        )
 
 
 def compile_insert_shape_element(
@@ -469,10 +584,13 @@ def compile_insert_shape_element(
 
 
 def process_update_body(
-        ir_stmt: irast.MutatingStmt,
-        wrapper: pgast.Query, update_cte: pgast.CommonTableExpr,
-        range_cte: pgast.CommonTableExpr, *,
-        ctx: context.CompilerContextLevel) -> None:
+    ir_stmt: irast.MutatingStmt,
+    wrapper: pgast.Query,
+    update_cte: pgast.CommonTableExpr,
+    typeref: irast.TypeRef,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
     """Generate SQL DML CTEs from an UpdateStmt IR.
 
     :param ir_stmt:
@@ -481,8 +599,8 @@ def process_update_body(
         Top-level SQL query.
     :param update_cte:
         CTE representing the SQL UPDATE to the main relation of the Object.
-    :param range_cte:
-        CTE representing the range affected by the statement.
+    :param typeref:
+        The specific TypeRef of a set being updated.
     """
     update_stmt = update_cte.query
     assert isinstance(update_stmt, pgast.UpdateStmt)
@@ -519,8 +637,24 @@ def process_update_body(
                             ctx=scopectx,
                         )
                     else:
+                        if (
+                            isinstance(updvalue, irast.MutatingStmt)
+                            and updvalue in ctx.dml_stmts
+                        ):
+                            with scopectx.substmt() as relctx:
+                                dml_cte = ctx.dml_stmts[updvalue]
+                                wrap_dml_cte(updvalue, dml_cte, ctx=relctx)
+                                pathctx.get_path_identity_output(
+                                    relctx.rel,
+                                    updvalue.subject.path_id,
+                                    env=relctx.env,
+                                )
+                                val = relctx.rel
+                        else:
+                            val = dispatch.compile(updvalue, ctx=scopectx)
+
                         val = pgast.TypeCast(
-                            arg=dispatch.compile(updvalue, ctx=scopectx),
+                            arg=val,
                             type_name=pgast.TypeName(name=ptr_info.column_type)
                         )
 
@@ -567,7 +701,6 @@ def process_update_body(
         )
 
     toplevel = ctx.toplevel_stmt
-    toplevel.ctes.append(range_cte)
     toplevel.ctes.append(update_cte)
 
     # Process necessary updates to the link tables.
@@ -581,6 +714,7 @@ def process_update_body(
             iterator_cte=None,
             is_insert=False,
             shape_op=shape_op,
+            source_typeref=typeref,
             ctx=ctx,
         )
 
@@ -608,6 +742,7 @@ def process_link_update(
     props_only: bool,
     is_insert: bool,
     shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
+    source_typeref: irast.TypeRef,
     wrapper: pgast.Query,
     dml_cte: pgast.CommonTableExpr,
     iterator_cte: Optional[pgast.CommonTableExpr],
@@ -643,12 +778,22 @@ def process_link_update(
     # base material type.
     if ptrref.material_ptr is not None:
         mptrref = ptrref.material_ptr
-        assert isinstance(mptrref, irast.PointerRef)
     else:
         mptrref = ptrref
 
+    if mptrref.out_source.id != source_typeref.id:
+        for descendant in mptrref.descendants:
+            if descendant.out_source.id == source_typeref.id:
+                mptrref = descendant
+                break
+        else:
+            raise errors.InternalServerError(
+                'missing PointerRef descriptor for source typeref')
+
+    assert isinstance(mptrref, irast.PointerRef)
+
     target_rvar = relctx.range_for_ptrref(
-        mptrref, include_overlays=False, only_self=True, ctx=ctx)
+        mptrref, for_mutation=True, only_self=True, ctx=ctx)
     assert isinstance(target_rvar, pgast.RelRangeVar)
     assert isinstance(target_rvar.relation, pgast.Relation)
     target_alias = target_rvar.alias.aliasname
@@ -929,7 +1074,7 @@ def process_linkprop_update(
         ptrref = ptrref.material_ptr
 
     target_tab = relctx.range_for_ptrref(
-        ptrref, include_overlays=False, ctx=ctx)
+        ptrref, for_mutation=True, ctx=ctx)
 
     dml_cte_rvar = pgast.RelRangeVar(
         relation=dml_cte,

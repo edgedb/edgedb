@@ -444,7 +444,11 @@ def compile_DeleteQuery(
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
             stmt.subject = compile_query_subject(
-                subject, shape=None, ctx=bodyctx)
+                subject,
+                shape=None,
+                is_delete=True,
+                ctx=bodyctx,
+            )
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
         result = setgen.class_set(
@@ -783,6 +787,7 @@ def compile_query_subject(
         compile_views: bool=True,
         is_insert: bool=False,
         is_update: bool=False,
+        is_delete: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
 
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
@@ -814,11 +819,16 @@ def compile_query_subject(
             view_rptr.base_ptrcls = base_ptrcls
             view_rptr.ptrcls_is_alias = True
 
-    if (ctx.expr_exposed
-            and viewgen.has_implicit_tid(
-                expr_stype, is_mutation=is_insert or is_update, ctx=ctx)
-            and shape is None
-            and expr_stype not in ctx.env.view_shapes):
+    if (
+        ctx.expr_exposed
+        and viewgen.has_implicit_tid(
+            expr_stype,
+            is_mutation=is_insert or is_update or is_delete,
+            ctx=ctx,
+        )
+        and shape is None
+        and expr_stype not in ctx.env.view_shapes
+    ):
         # Force the subject to be compiled as a view if a __tid__
         # insertion is anticipated (the actual decision is taken
         # by the compile_view_shapes() flow).
@@ -836,10 +846,16 @@ def compile_query_subject(
             )
 
         view_scls = viewgen.process_view(
-            stype=expr_stype, path_id=expr.path_id,
-            elements=shape, view_rptr=view_rptr,
-            view_name=view_name, is_insert=is_insert,
-            is_update=is_update, ctx=ctx)
+            stype=expr_stype,
+            path_id=expr.path_id,
+            elements=shape,
+            view_rptr=view_rptr,
+            view_name=view_name,
+            is_insert=is_insert,
+            is_update=is_update,
+            is_delete=is_delete,
+            ctx=ctx,
+        )
 
     if view_scls is not None:
         expr = setgen.ensure_set(expr, type_override=view_scls, ctx=ctx)

@@ -742,6 +742,27 @@ _123456789_123456789_123456789 -> str
                 extending aaa;
         """
 
+    @tb.must_fail(errors.InvalidConstraintDefinitionError,
+                  "cannot redefine constraint 'std::exclusive'"
+                  " of property 'name' of object type 'test::B' as delegated:"
+                  " it is defined as non-delegated in property 'name'"
+                  " of object type 'test::A'",
+                  line=10, col=21)
+    def test_schema_constraint_inheritance_13(self):
+        """
+            type A {
+                property name -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type B extending A {
+                overloaded property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+        """
+
     def test_schema_ref_diamond_inheritance(self):
         schema = tb._load_std_schema()
 

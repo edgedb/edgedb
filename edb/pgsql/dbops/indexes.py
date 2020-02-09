@@ -276,7 +276,7 @@ class IndexExists(base.Condition):
         ''')
 
 
-class CreateIndex(tables.CreateInheritableTableObject):
+class CreateIndex(ddl.CreateObject):
     def __init__(self, index, *, conditional=False, **kwargs):
         super().__init__(index, **kwargs)
         self.index = index
@@ -292,7 +292,7 @@ class CreateIndex(tables.CreateInheritableTableObject):
         return Index.creation_pl_code(index_desc_var, block)
 
 
-class RenameIndex(tables.RenameInheritableTableObject):
+class RenameIndex(ddl.RenameObject):
     def __init__(self, index, *, new_name, conditional=False, **kwargs):
         super().__init__(index, new_name=new_name, **kwargs)
         if conditional:
@@ -336,7 +336,7 @@ class RenameIndexSimple(ddl.DDLOperation):
             qn(*self.old_name), self.new_name)
 
 
-class DropIndex(tables.DropInheritableTableObject):
+class DropIndex(ddl.DropObject):
     def __init__(self, index, *, conditional=False, **kwargs):
         super().__init__(index, **kwargs)
         if conditional:
@@ -354,49 +354,3 @@ class DropIndex(tables.DropInheritableTableObject):
             f" || '.' || quote_ident({index_desc_var}.name))"
         )
         return f"EXECUTE 'DROP INDEX ' || {index_name};"
-
-
-class DDLTriggerBase:
-    @classmethod
-    def get_inherited_indexes(
-        cls,
-        block: base.PLBlock,
-        bases: List[Tuple[str, str]],
-    ) -> Tuple[str, str]:
-        bases = [ql('{}.{}'.format(*base.name)) for base in bases]
-        var = block.declare_var(
-            ('edgedb', 'intro_index_desc_t'), 'idx', shared=True)
-
-        return var, textwrap.dedent(f'''\
-            SELECT * FROM edgedb.introspect_indexes(
-                table_list := ARRAY[{', '.join(bases)}]::text[],
-                inheritable_only := TRUE,
-                include_inherited := TRUE
-            )
-        ''')
-
-
-class DDLTriggerCreateTable(
-        ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin, DDLTriggerBase):
-    operations = tables.CreateTable,
-
-    @classmethod
-    def generate_after(cls, block, op):
-        return cls.apply_inheritance(
-            block, op, cls.get_inherited_indexes, CreateIndex,
-            comment='Index inheritance propagation on type table creation.')
-
-
-class DDLTriggerAlterTable(
-        ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin, DDLTriggerBase):
-    operations = (tables.AlterTableAddParent, tables.AlterTableDropParent)
-
-    @classmethod
-    def generate_after(cls, block, op):
-        return cls.apply_inheritance(
-            block, op, cls.get_inherited_indexes, CreateIndex, DropIndex,
-            comment='Index inheritance propagation on type table alteration.')
-
-
-# class DDLTriggerAlterTableRename(ddl.DDLTrigger, DDLTriggerBase):
-#     operations = tables.AlterTableRenameTo,

@@ -151,7 +151,6 @@ CREATE ABSTRACT TYPE schema::CallableObject
     EXTENDING schema::AnnotationSubject
 {
     CREATE MULTI LINK params -> schema::Parameter {
-        CREATE CONSTRAINT std::exclusive;
         ON TARGET DELETE ALLOW;
     };
 

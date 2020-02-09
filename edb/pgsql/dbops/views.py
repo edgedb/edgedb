@@ -22,6 +22,7 @@ from __future__ import annotations
 import textwrap
 
 from ..common import qname as qn
+from ..common import quote_literal as ql
 
 from . import base
 from . import ddl
@@ -55,3 +56,26 @@ class CreateView(ddl.SchemaObjectOperation):
             f'CREATE {"OR REPLACE" if self.or_replace else ""}'
             f' VIEW {qn(*self.view.name)} AS\n{query}'
         )
+
+
+class DropView(ddl.SchemaObjectOperation):
+
+    def code(self, block: base.PLBlock) -> str:
+        return f'DROP VIEW {qn(*self.name)}'
+
+
+class ViewExists(base.Condition):
+
+    def __init__(self, name):
+        self.name = name
+
+    def code(self, block: base.PLBlock) -> str:
+        return textwrap.dedent(f'''\
+            SELECT
+                viewname
+            FROM
+                pg_catalog.pg_views
+            WHERE
+                schemaname = {ql(self.name[0])}
+                AND viewname = {ql(self.name[1])}
+        ''')

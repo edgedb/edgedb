@@ -141,6 +141,7 @@ def extend_path_id(
     path_id: irast.PathId,
     *,
     ptrcls: s_pointers.PointerLike,
+    include_descendants_in_ptrref: bool = False,
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound),
     ns: AbstractSet[str] = frozenset(),
@@ -156,6 +157,7 @@ def extend_path_id(
         direction=direction,
         cache=ctx.env.ptr_ref_cache,
         typeref_cache=ctx.env.type_ref_cache,
+        include_descendants=include_descendants_in_ptrref,
     )
     stmtctx.ensure_ptrref_cardinality(ptrcls, ptrref, ctx=ctx)
 

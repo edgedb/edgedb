@@ -56,15 +56,17 @@ if TYPE_CHECKING:
 
 
 def process_view(
-        *,
-        stype: s_objtypes.ObjectType,
-        path_id: irast.PathId,
-        elements: List[qlast.ShapeElement],
-        view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[sn.SchemaName]=None,
-        is_insert: bool=False,
-        is_update: bool=False,
-        ctx: context.ContextLevel) -> s_objtypes.ObjectType:
+    *,
+    stype: s_objtypes.ObjectType,
+    path_id: irast.PathId,
+    elements: List[qlast.ShapeElement],
+    view_rptr: Optional[context.ViewRPtr] = None,
+    view_name: Optional[sn.SchemaName] = None,
+    is_insert: bool = False,
+    is_update: bool = False,
+    is_delete: bool = False,
+    ctx: context.ContextLevel,
+) -> s_objtypes.ObjectType:
 
     cache_key = (stype, tuple(elements))
     view_scls = ctx.shape_type_cache.get(cache_key)
@@ -80,10 +82,16 @@ def process_view(
             scopectx.path_scope.add_namespaces({view_path_id_ns})
 
         view_scls = _process_view(
-            stype=stype, path_id=path_id, elements=elements,
-            view_rptr=view_rptr, view_name=view_name,
-            is_insert=is_insert, is_update=is_update,
-            path_id_namespace=view_path_id_ns, ctx=scopectx
+            stype=stype,
+            path_id=path_id,
+            elements=elements,
+            view_rptr=view_rptr,
+            view_name=view_name,
+            is_insert=is_insert,
+            is_update=is_update,
+            is_delete=is_delete,
+            path_id_namespace=view_path_id_ns,
+            ctx=scopectx,
         )
 
     ctx.shape_type_cache[cache_key] = view_scls
@@ -92,16 +100,18 @@ def process_view(
 
 
 def _process_view(
-        *,
-        stype: s_objtypes.ObjectType,
-        path_id: irast.PathId,
-        path_id_namespace: Optional[irast.WeakNamespace]=None,
-        elements: List[qlast.ShapeElement],
-        view_rptr: Optional[context.ViewRPtr]=None,
-        view_name: Optional[sn.SchemaName]=None,
-        is_insert: bool=False,
-        is_update: bool=False,
-        ctx: context.ContextLevel) -> s_objtypes.ObjectType:
+    *,
+    stype: s_objtypes.ObjectType,
+    path_id: irast.PathId,
+    path_id_namespace: Optional[irast.WeakNamespace] = None,
+    elements: List[qlast.ShapeElement],
+    view_rptr: Optional[context.ViewRPtr] = None,
+    view_name: Optional[sn.SchemaName] = None,
+    is_insert: bool = False,
+    is_update: bool = False,
+    is_delete: bool = False,
+    ctx: context.ContextLevel,
+) -> s_objtypes.ObjectType:
 
     if (view_name is None and ctx.env.options.schema_view_mode
             and view_rptr is not None):
@@ -136,8 +146,13 @@ def _process_view(
         )
 
     view_scls = schemactx.derive_view(
-        stype, is_insert=is_insert, is_update=is_update,
-        derived_name=view_name, ctx=ctx)
+        stype,
+        is_insert=is_insert,
+        is_update=is_update,
+        is_delete=is_delete,
+        derived_name=view_name,
+        ctx=ctx,
+    )
     assert isinstance(view_scls, s_objtypes.ObjectType)
     is_mutation = is_insert or is_update
     is_defining_shape = ctx.expr_exposed or is_mutation

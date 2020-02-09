@@ -188,17 +188,19 @@ def get_scalar_backend_name(id, module_id, catenate=True, *, aspect=None):
 def get_objtype_backend_name(id, module_id, *, catenate=True, aspect=None):
     if aspect is None:
         aspect = 'table'
-    if aspect != 'table' and not re.match(
+    if aspect not in {'table', 'inhview'} and not re.match(
             r'(source|target)-del-(def|imm)-(inl|otl)-(f|t)', aspect):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
 
     name = s_name.Name(module=str(module_id), name=str(id))
 
-    if aspect != 'table':
-        suffix = aspect
-    else:
+    if aspect == 'table':
         suffix = ''
+    elif aspect == 'inhview':
+        suffix = 't'
+    else:
+        suffix = aspect
 
     return convert_name(name, suffix=suffix, catenate=catenate)
 
@@ -207,16 +209,18 @@ def get_pointer_backend_name(id, module_id, *, catenate=False, aspect=None):
     if aspect is None:
         aspect = 'table'
 
-    if aspect not in ('table', 'index'):
+    if aspect not in ('table', 'index', 'inhview'):
         raise ValueError(
             f'unexpected aspect for pointer backend name: {aspect!r}')
 
     name = s_name.Name(module=str(module_id), name=str(id))
 
-    if aspect != 'table':
-        suffix = aspect
-    else:
+    if aspect == 'table':
         suffix = ''
+    elif aspect == 'inhview':
+        suffix = 't'
+    else:
+        suffix = aspect
 
     return convert_name(name, suffix=suffix, catenate=catenate)
 

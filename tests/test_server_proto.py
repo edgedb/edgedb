@@ -37,6 +37,7 @@ from edb.tools import test
 class TestServerProto(tb.QueryTestCase):
 
     ISOLATED_METHODS = False
+    SERIALIZED = True
 
     SETUP = '''
         CREATE TYPE test::Tmp {

@@ -1468,9 +1468,6 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         for op in self.get_prerequisites():
             schema = op.apply(schema, context)
 
-        for op in self.get_subcommands(type=CreateObjectFragment):
-            schema = op.apply(schema, context)
-
         if context.schema_object_ids is not None:
             mcls = self.get_schema_metaclass()
             qlclass: Optional[qltypes.SchemaObjectClass]
@@ -1516,9 +1513,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> s_schema.Schema:
         for op in self.get_subcommands(include_prerequisites=False):
-            if not isinstance(op, CreateObjectFragment):
-                schema = op.apply(schema, context=context)
-
+            schema = op.apply(schema, context=context)
         return schema
 
     def _create_finalize(
@@ -1558,10 +1553,6 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         return '<%s.%s "%s">' % (self.__class__.__module__,
                                  self.__class__.__name__,
                                  self.classname)
-
-
-class CreateObjectFragment(ObjectCommand[so.Object]):
-    pass
 
 
 class AlterObjectFragment(ObjectCommand[so.Object]):
@@ -1851,6 +1842,10 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         for op in self.get_subcommands(type=AlterObjectFragment):
             schema = op.apply(schema, context)
 
+        if not context.canonical:
+            schema = self.resolve_refs(schema, context)
+            self.validate_alter(schema, context)
+
         props = self.get_resolved_attributes(schema, context)
         schema = self.scls.update(schema, props)
         return schema
@@ -1872,6 +1867,13 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> s_schema.Schema:
         return schema
+
+    def validate_alter(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> None:
+        pass
 
     def apply(
         self,

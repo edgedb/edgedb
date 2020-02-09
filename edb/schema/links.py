@@ -169,10 +169,6 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         return sn.Name('std::link')
 
 
-class DerivedLink(pointers.Pointer, sources.Source):
-    pass
-
-
 class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 

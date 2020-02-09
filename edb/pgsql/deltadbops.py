@@ -93,13 +93,26 @@ class SchemaConstraintDomainConstraint(
 
 
 class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
-    def __init__(self, table_name, *,
-                 constraint, exprdata, scope, type, schema):
+    def __init__(
+        self,
+        table_name,
+        *,
+        origin_table_name,
+        constraint,
+        exprdata,
+        scope,
+        type,
+        schema,
+    ):
         ConstraintCommon.__init__(self, constraint, schema)
         dbops.TableConstraint.__init__(self, table_name, None)
+        self._origin_table_name = origin_table_name
         self._exprdata = exprdata
         self._scope = scope
         self._type = type
+
+    def get_origin_table_name(self):
+        return self._origin_table_name
 
     def constraint_code(self, block: dbops.PLBlock) -> str:
         if self._scope == 'row':
@@ -172,8 +185,6 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         errmsg = 'duplicate key value violates unique ' \
                  'constraint {constr}'.format(constr=constr_name)
 
-        subject_table = self.get_subject_name()
-
         for expr in self._exprdata:
             exprdata = expr['exprdata']
 
@@ -194,8 +205,12 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                           DETAIL = 'Key ({plain_expr}) already exists.';
                 END IF;
             '''.format(
-                plain_expr=exprdata['plain'], new_expr=exprdata['new'],
-                table=subject_table, constr=raw_constr_name, errmsg=errmsg)
+                plain_expr=exprdata['plain'],
+                new_expr=exprdata['new'],
+                table=common.qname(*self.get_origin_table_name()),
+                constr=raw_constr_name,
+                errmsg=errmsg,
+            )
 
             chunks.append(text)
 
@@ -207,9 +222,14 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         """Determine if multiple database constraints are needed."""
         return self._scope != 'row' and len(self._exprdata) > 1
 
-    def is_natively_inherited(self):
-        """Determine if this constraint can be inherited natively."""
-        return self._type == 'check'
+    def requires_triggers(self):
+        return (
+            self._type != 'check'
+            and (
+                self.get_origin_table_name()
+                != self.get_subject_name(quote=False)
+            )
+        )
 
     def __repr__(self):
         return '<{}.{} {!r} at 0x{:x}>'.format(
@@ -361,8 +381,7 @@ class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
         return code
 
 
-class AlterTableInheritableConstraintBase(
-        dbops.AlterTableBaseMixin, dbops.CommandGroup):
+class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
     def __init__(
             self, name, *, constraint, contained=False, conditions=None,
             neg_conditions=None, priority=0):
@@ -388,9 +407,6 @@ class AlterTableInheritableConstraintBase(
         cr_ins_trigger = dbops.CreateTrigger(ins_trigger)
         cmds.append(cr_ins_trigger)
 
-        disable_ins_trigger = dbops.DisableTrigger(ins_trigger, self_only=True)
-        cmds.append(disable_ins_trigger)
-
         upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
         condition = constraint.get_trigger_condition()
 
@@ -400,9 +416,6 @@ class AlterTableInheritableConstraintBase(
             inherit=True)
         cr_upd_trigger = dbops.CreateTrigger(upd_trigger)
         cmds.append(cr_upd_trigger)
-
-        disable_upd_trigger = dbops.DisableTrigger(upd_trigger, self_only=True)
-        cmds.append(disable_upd_trigger)
 
         return cmds
 
@@ -478,10 +491,7 @@ class AlterTableInheritableConstraintBase(
 
         self.add_command(my_alter)
 
-        if not constraint.is_natively_inherited():
-            # The constraint is not inherited by descendant tables natively,
-            # use triggers to emulate inheritance.
-
+        if constraint.requires_triggers():
             # Create trigger function
             self.add_commands(self.create_constr_trigger_function(constraint))
 
@@ -501,9 +511,7 @@ class AlterTableInheritableConstraintBase(
             new_constraint=new_constraint)
         self.add_command(rename_constr)
 
-        if not old_constraint.is_natively_inherited():
-            # Alter trigger function
-            #
+        if old_constraint.requires_triggers():
             old_proc_name = old_constraint.get_trigger_procname()
             new_proc_name = new_constraint.get_trigger_procname()
 
@@ -532,11 +540,8 @@ class AlterTableInheritableConstraintBase(
             self.create_constraint(new_constraint)
 
     def drop_constraint(self, constraint):
-        if not constraint.is_natively_inherited():
+        if constraint.requires_triggers():
             self.add_commands(self.drop_constr_trigger(self.name, constraint))
-
-            # Drop trigger function
-            #
             proc_name = constraint.get_trigger_procname()
             self.add_commands(self.drop_constr_trigger_function(proc_name))
 
@@ -550,7 +555,7 @@ class AlterTableInheritableConstraintBase(
         self.add_command(my_alter)
 
 
-class AlterTableAddInheritableConstraint(AlterTableInheritableConstraintBase):
+class AlterTableAddConstraint(AlterTableConstraintBase):
     def __repr__(self):
         return '<{}.{} {!r}>'.format(
             self.__class__.__module__, self.__class__.__name__,
@@ -562,8 +567,7 @@ class AlterTableAddInheritableConstraint(AlterTableInheritableConstraintBase):
         super().generate(block)
 
 
-class AlterTableRenameInheritableConstraint(
-        AlterTableInheritableConstraintBase):
+class AlterTableRenameConstraint(AlterTableConstraintBase):
     def __init__(self, name, *, constraint, new_constraint, **kwargs):
         super().__init__(name, constraint=constraint, **kwargs)
         self._new_constraint = new_constraint
@@ -579,8 +583,7 @@ class AlterTableRenameInheritableConstraint(
         super().generate(block)
 
 
-class AlterTableAlterInheritableConstraint(
-        AlterTableInheritableConstraintBase):
+class AlterTableAlterConstraint(AlterTableConstraintBase):
     def __init__(self, name, *, constraint, new_constraint, **kwargs):
         super().__init__(name, constraint=constraint, **kwargs)
         self._new_constraint = new_constraint
@@ -595,7 +598,7 @@ class AlterTableAlterInheritableConstraint(
         super().generate(block)
 
 
-class AlterTableDropInheritableConstraint(AlterTableInheritableConstraintBase):
+class AlterTableDropConstraint(AlterTableConstraintBase):
     def __repr__(self):
         return '<{}.{} {!r}>'.format(
             self.__class__.__module__, self.__class__.__name__,

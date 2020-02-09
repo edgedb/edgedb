@@ -613,15 +613,16 @@ def resolve_ptr(
 
 
 def extend_path(
-        source_set: irast.Set,
-        ptrcls: s_pointers.Pointer,
-        direction: PtrDir=PtrDir.Outbound,
-        *,
-        ignore_computable: bool=False,
-        hoist_iterators: bool=False,
-        unnest_fence: bool=False,
-        same_computable_scope: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
+    source_set: irast.Set,
+    ptrcls: s_pointers.Pointer,
+    direction: PtrDir = PtrDir.Outbound,
+    *,
+    ignore_computable: bool = False,
+    hoist_iterators: bool = False,
+    unnest_fence: bool = False,
+    same_computable_scope: bool = False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
     """Return a Set node representing the new path tip."""
 
     if ptrcls.is_link_property(ctx.env.schema):
@@ -638,10 +639,15 @@ def extend_path(
 
         src_path_id = source_set.path_id
 
+    expr_type = get_set_type(source_set, ctx=ctx).get_expr_type(ctx.env.schema)
     path_id = pathctx.extend_path_id(
         src_path_id,
-        ptrcls=ptrcls, direction=direction,
-        ns=ctx.path_id_namespace, ctx=ctx)
+        ptrcls=ptrcls,
+        direction=direction,
+        ns=ctx.path_id_namespace,
+        include_descendants_in_ptrref=expr_type is s_types.ExprType.Update,
+        ctx=ctx,
+    )
 
     target = ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)

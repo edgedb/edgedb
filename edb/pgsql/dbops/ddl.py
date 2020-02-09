@@ -31,69 +31,8 @@ from ..common import quote_literal as ql
 from . import base
 
 
-class DDLTriggerMeta(type):
-    _triggers = {}
-    _trigger_cache = {}
-
-    def __new__(mcls, name, bases, dct):
-        cls = super().__new__(mcls, name, bases, dct)
-        if cls.operations:
-            for op in cls.operations:
-                try:
-                    triggers = mcls._triggers[op]
-                except KeyError:
-                    triggers = mcls._triggers[op] = []
-
-                triggers.append(cls)
-                mcls._trigger_cache.clear()
-
-        return cls
-
-    @classmethod
-    def get_triggers(mcls, opcls):
-        try:
-            triggers = mcls._trigger_cache[opcls]
-        except KeyError:
-            triggers = set()
-
-            for cls in opcls.__mro__:
-                try:
-                    trg = mcls._triggers[cls]
-                except KeyError:
-                    pass
-                else:
-                    triggers.update(trg)
-
-            mcls._trigger_cache[opcls] = triggers
-
-        return triggers
-
-
-class DDLTrigger(metaclass=DDLTriggerMeta):
-    operations = None
-
-    @classmethod
-    def generate_before(cls, block, op):
-        pass
-
-    @classmethod
-    def generate_after(cls, block, op):
-        pass
-
-
 class DDLOperation(base.Command):
-    def generate(self, block: base.SQLBlock) -> None:
-        triggers = DDLTriggerMeta.get_triggers(self.__class__)
-
-        if not block.disable_ddl_triggers:
-            for trigger in triggers:
-                trigger.generate_before(block, self)
-
-        super().generate(block)
-
-        if not block.disable_ddl_triggers:
-            for trigger in triggers:
-                trigger.generate_after(block, self)
+    pass
 
 
 class NonTransactionalDDLOperation(DDLOperation):
@@ -257,6 +196,11 @@ class UpdateMetadata(PutMetadata):
 
 
 class CreateObject(SchemaObjectOperation):
+
+    def __init__(self, object, **kwargs):
+        super().__init__(object.get_id(), **kwargs)
+        self.object = object
+
     def generate_extra(self, block: base.PLBlock) -> None:
         super().generate_extra(block)
         if self.object.metadata:
@@ -281,8 +225,19 @@ class RenameObject(SchemaObjectOperation):
 
 
 class AlterObject(SchemaObjectOperation):
+    def __init__(self, object, **kwargs):
+        super().__init__(object.get_id(), **kwargs)
+        self.object = object
+
     def generate_extra(self, block: base.PLBlock) -> None:
         super().generate_extra(block)
         if self.object.metadata:
             mdata = SetMetadata(self.object, self.object.metadata)
             block.add_command(mdata.code(block))
+
+
+class DropObject(SchemaObjectOperation):
+
+    def __init__(self, object, **kwargs):
+        super().__init__(object.get_id(), **kwargs)
+        self.object = object

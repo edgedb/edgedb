@@ -208,6 +208,17 @@ class ConstraintMech:
             exprdata=exprdata, is_multicol=is_multicol, is_trivial=is_trivial)
 
     @classmethod
+    def _get_constraint_origin(cls, schema, constraint):
+        ancestors = list(constraint.get_ancestors(schema).objects(schema))
+        origin = constraint
+        for ancestor in ancestors:
+            if ancestor.generic(schema) or ancestor.get_delegated(schema):
+                break
+            origin = ancestor
+
+        return origin
+
+    @classmethod
     def schema_constraint_to_backend_constraint(
             cls, subject, constraint, schema):
         assert constraint.get_subject(schema) is not None
@@ -241,6 +252,35 @@ class ConstraintMech:
             'expressions': []
         }
 
+        constraint_origin = cls._get_constraint_origin(schema, constraint)
+        if constraint_origin != constraint:
+            origin_subject = constraint_origin.get_subject(schema)
+            origin_ir = qlcompiler.compile_ast_to_ir(
+                constraint_origin.get_finalexpr(schema).qlast,
+                schema,
+                options=qlcompiler.CompilerOptions(
+                    anchors={qlast.Subject().name: origin_subject},
+                ),
+            )
+
+            origin_terminal_refs = ir_utils.get_longest_paths(
+                origin_ir.expr.expr.result)
+            origin_ref_tables = cls._get_ref_storage_info(
+                origin_ir.schema, origin_terminal_refs)
+
+            if origin_ref_tables:
+                origin_subject_db_name, _ = (
+                    next(iter(origin_ref_tables.items()))
+                )
+            else:
+                origin_subject_db_name = common.get_backend_name(
+                    schema, origin_subject, catenate=False,
+                )
+
+            pg_constr_data['origin_subject_db_name'] = origin_subject_db_name
+        else:
+            pg_constr_data['origin_subject_db_name'] = subject_db_name
+
         exprs = pg_constr_data['expressions']
 
         if exclusive_expr_refs:
@@ -251,13 +291,11 @@ class ConstraintMech:
 
             pg_constr_data['scope'] = 'relation'
             pg_constr_data['type'] = 'unique'
-            pg_constr_data['subject_db_name'] = subject_db_name
         else:
             exprdata = cls._edgeql_ref_to_pg_constr(
                 subject, ir, schema, link_bias)
             exprs.append(exprdata)
 
-            pg_constr_data['subject_db_name'] = subject_db_name
             pg_constr_data['scope'] = 'row'
             pg_constr_data['type'] = 'check'
 
@@ -343,12 +381,18 @@ class SchemaTableConstraint:
         pg_c = constr._pg_constr_data
 
         table_name = pg_c['subject_db_name']
+        origin_table_name = pg_c['origin_subject_db_name']
         expressions = pg_c['expressions']
 
         constr = deltadbops.SchemaConstraintTableConstraint(
-            table_name, constraint=constr._constraint, exprdata=expressions,
-            scope=pg_c['scope'], type=pg_c['type'],
-            schema=constr._schema)
+            table_name,
+            origin_table_name=origin_table_name,
+            constraint=constr._constraint,
+            exprdata=expressions,
+            scope=pg_c['scope'],
+            type=pg_c['type'],
+            schema=constr._schema,
+        )
 
         return constr
 
@@ -356,7 +400,7 @@ class SchemaTableConstraint:
         ops = dbops.CommandGroup()
 
         tabconstr = self._table_constraint(self)
-        add_constr = deltadbops.AlterTableAddInheritableConstraint(
+        add_constr = deltadbops.AlterTableAddConstraint(
             name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
 
         ops.add_command(add_constr)
@@ -369,7 +413,7 @@ class SchemaTableConstraint:
         tabconstr = self._table_constraint(self)
         orig_tabconstr = self._table_constraint(orig_constr)
 
-        rename_constr = deltadbops.AlterTableRenameInheritableConstraint(
+        rename_constr = deltadbops.AlterTableRenameConstraint(
             name=tabconstr.get_subject_name(quote=False),
             constraint=orig_tabconstr, new_constraint=tabconstr)
 
@@ -383,7 +427,7 @@ class SchemaTableConstraint:
         tabconstr = self._table_constraint(self)
         orig_tabconstr = self._table_constraint(orig_constr)
 
-        alter_constr = deltadbops.AlterTableAlterInheritableConstraint(
+        alter_constr = deltadbops.AlterTableAlterConstraint(
             name=tabconstr.get_subject_name(quote=False),
             constraint=orig_tabconstr, new_constraint=tabconstr)
 
@@ -395,7 +439,7 @@ class SchemaTableConstraint:
         ops = dbops.CommandGroup()
 
         tabconstr = self._table_constraint(self)
-        add_constr = deltadbops.AlterTableDropInheritableConstraint(
+        add_constr = deltadbops.AlterTableDropConstraint(
             name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
 
         ops.add_command(add_constr)

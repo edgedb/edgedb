@@ -61,6 +61,7 @@ class ExprType(enum.IntEnum):
     Select = enum.auto()
     Insert = enum.auto()
     Update = enum.auto()
+    Delete = enum.auto()
 
 
 TypeT = typing.TypeVar('TypeT', bound='Type')

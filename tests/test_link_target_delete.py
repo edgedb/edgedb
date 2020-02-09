@@ -125,7 +125,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
-                    'deletion of test::Target1 .* is prohibited by link'):
+                    'deletion of test::Target1.* is prohibited by link'):
                 await self.con.execute("""
                     DELETE (SELECT test::Target1 FILTER .name = 'Target1.1');
                 """)
@@ -148,7 +148,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
-                    'deletion of test::Target1 .* is prohibited by link'):
+                    'deletion of test::Target1.* is prohibited by link'):
                 await self.con.execute("""
                     DELETE (SELECT test::Target1Child
                             FILTER .name = 'Target1Child.1');
@@ -195,7 +195,7 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.ConstraintViolationError,
-                    'deletion of test::Target1 .* is prohibited by link'):
+                    'deletion of test::Target1.* is prohibited by link'):
                 await self.con.execute("""
                     DELETE (SELECT test::Target1Child
                             FILTER .name = 'Target1Child.1');

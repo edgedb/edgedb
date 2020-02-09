@@ -141,7 +141,9 @@ async def _ensure_edgedb_role(
     )
 
     create_role = dbops.CreateRole(
-        role=role, neg_conditions=[dbops.RoleExists(username)])
+        role,
+        neg_conditions=[dbops.RoleExists(username)],
+    )
 
     block = dbops.PLTopBlock()
     create_role.generate(block)
@@ -849,7 +851,7 @@ async def _populate_misc_instance_data(cluster, conn):
         dbops.CreateSchema(name='edgedbinstdata'),
     ])
 
-    block = dbops.PLTopBlock(disable_ddl_triggers=True)
+    block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)
 

@@ -92,12 +92,6 @@ class DatabaseExists(base.Condition):
 
 
 class CreateDatabase(ddl.CreateObject, ddl.NonTransactionalDDLOperation):
-    def __init__(
-            self, db, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            db.name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self.object = db
 
     def code(self, block: base.PLBlock) -> str:
         extra = ''

@@ -101,12 +101,6 @@ class RoleCommand:
 
 
 class CreateRole(ddl.CreateObject, RoleCommand):
-    def __init__(
-            self, role, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            role.name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self.object = role
 
     def code(self, block: base.PLBlock) -> str:
         if self.object.membership:
@@ -118,12 +112,6 @@ class CreateRole(ddl.CreateObject, RoleCommand):
 
 
 class AlterRole(ddl.AlterObject, RoleCommand):
-    def __init__(
-            self, role, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            role.name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-        self.object = role
 
     def code(self, block: base.PLBlock) -> str:
         return f'ALTER {self._render()}'

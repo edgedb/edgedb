@@ -222,12 +222,3 @@ type BecomingConcreteConstraint {
 }
 
 type BecomingConcreteConstraintChild extending BecomingConcreteConstraint;
-
-type AbstractInheritingNonAbstract extending ParentUniqueName {
-    overloaded property name -> str {
-        delegated constraint exclusive;
-    }
-}
-
-type AbstractInheritingNonAbstractChild
-    extending AbstractInheritingNonAbstract;

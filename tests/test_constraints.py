@@ -352,36 +352,6 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'name violates exclusivity constraint'):
-                # non-abstract inherited constraint
-                await self.con.execute("""
-                    INSERT test::AbstractInheritingNonAbstract {
-                        name := 'exclusive_name_ana'
-                    };
-
-                    INSERT test::AbstractInheritingNonAbstract {
-                        name := 'exclusive_name_ana'
-                    };
-                """)
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'name violates exclusivity constraint'):
-                # non-abstract inherited constraint
-                await self.con.execute("""
-                    INSERT test::AbstractInheritingNonAbstract {
-                        name := 'exclusive_name_ana1'
-                    };
-
-                    INSERT test::AbstractInheritingNonAbstractChild {
-                        name := 'exclusive_name_ana1'
-                    };
-                """)
-
 
 class TestConstraintsSchemaMigration(tb.QueryTestCase):
     ISOLATED_METHODS = False
@@ -545,45 +515,6 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
 
                     INSERT test::AbstractConstraintMultipleParentsFlattening{
                         name := 'exclusive_name_AP8'
-                    };
-                """)
-
-        async with self._run_and_rollback():
-            # Parent lost its concrete constraint inheritance
-            await self.con.execute("""
-                INSERT test::AbstractInheritingNonAbstract {
-                    name := 'exclusive_name_ana'
-                };
-
-                INSERT test::AbstractInheritingNonAbstract {
-                    name := 'exclusive_name_ana'
-                };
-            """)
-
-        async with self._run_and_rollback():
-            # Parent lost its concrete constraint inheritance
-            await self.con.execute("""
-                INSERT test::AbstractInheritingNonAbstract {
-                    name := 'exclusive_name_ana1'
-                };
-
-                INSERT test::AbstractInheritingNonAbstractChild {
-                    name := 'exclusive_name_ana1'
-                };
-            """)
-
-        async with self._run_and_rollback():
-            with self.assertRaisesRegex(
-                    edgedb.ConstraintViolationError,
-                    'name violates exclusivity constraint'):
-                # Child uniqueness is still enforced
-                await self.con.execute("""
-                    INSERT test::AbstractInheritingNonAbstractChild{
-                        name := 'exclusive_name_ana2'
-                    };
-
-                    INSERT test::AbstractInheritingNonAbstractChild{
-                        name := 'exclusive_name_ana2'
                     };
                 """)
 

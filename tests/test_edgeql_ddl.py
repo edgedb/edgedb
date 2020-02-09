@@ -3255,13 +3255,15 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     CREATE PROPERTY clash -> str;
                 };
 
+                CREATE TYPE test_other::Target;
                 CREATE TYPE test_other::ModuleTest01 {
-                    CREATE LINK clash -> Object;
+                    CREATE LINK clash -> test_other::Target;
                 };
             """)
 
             await self.con.execute("""
                 DROP TYPE test_other::ModuleTest01;
+                DROP TYPE test_other::Target;
             """)
 
         finally:

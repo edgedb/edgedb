@@ -33,7 +33,9 @@ from edb.common import parsing
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+
 from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from edb.schema import functions as s_func
 from edb.schema import name as s_name
@@ -139,12 +141,7 @@ class PendingCardinality(NamedTuple):
     shape_op: qlast.ShapeOp
 
 
-class PointerRefCache(
-    Dict[
-        Tuple[s_pointers.PointerLike, s_pointers.PointerDirection],
-        irast.BasePointerRef,
-    ]
-):
+class PointerRefCache(Dict[irtyputils.PtrRefCacheKey, irast.BasePointerRef]):
 
     _rcache: Dict[irast.BasePointerRef, s_pointers.PointerLike]
 
@@ -154,7 +151,7 @@ class PointerRefCache(
 
     def __setitem__(
         self,
-        key: Tuple[s_pointers.PointerLike, s_pointers.PointerDirection],
+        key: irtyputils.PtrRefCacheKey,
         val: irast.BasePointerRef,
     ) -> None:
         super().__setitem__(key, val)
@@ -228,7 +225,7 @@ class Environment:
 
     # Caches for costly operations in edb.ir.typeutils
     ptr_ref_cache: PointerRefCache
-    type_ref_cache: Dict[uuid.UUID, irast.TypeRef]
+    type_ref_cache: Dict[irtyputils.TypeRefCacheKey, irast.TypeRef]
 
     def __init__(
         self,

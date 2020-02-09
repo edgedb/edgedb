@@ -122,6 +122,9 @@ class TypeRef(ImmutableBase):
     # If this is a scalar type, base_type would be the highest
     # non-abstract base type.
     base_type: typing.Optional[TypeRef]
+    # A set of type descendant descriptors, if necessary for
+    # this type description.
+    descendants: typing.Optional[typing.FrozenSet[TypeRef]]
     # If this is a union type, this would be a set of
     # union elements.
     union: typing.FrozenSet[TypeRef]
@@ -178,6 +181,7 @@ class BasePointerRef(ImmutableBase):
     source_ptr: PointerRef
     base_ptr: typing.Optional[BasePointerRef]
     material_ptr: BasePointerRef
+    descendants: typing.FrozenSet[BasePointerRef]
     union_components: typing.Set[BasePointerRef]
     union_is_concrete: bool
     has_properties: bool

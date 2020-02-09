@@ -187,7 +187,7 @@ class Trigger(tables.InheritableTableObject):
                 events=' OR '.join(self.events))
 
 
-class CreateTrigger(tables.CreateInheritableTableObject):
+class CreateTrigger(ddl.CreateObject):
     def __init__(self, object, *, conditional=False, **kwargs):
         super().__init__(object, **kwargs)
         self.trigger = object
@@ -275,7 +275,7 @@ class CreateTrigger(tables.CreateInheritableTableObject):
         ''')
 
 
-class AlterTriggerRenameTo(tables.RenameInheritableTableObject):
+class AlterTriggerRenameTo(ddl.RenameObject):
     def __init__(self, object, *, conditional=False, **kwargs):
         super().__init__(object, **kwargs)
         self.trigger = object
@@ -302,7 +302,7 @@ class AlterTriggerRenameTo(tables.RenameInheritableTableObject):
         ''')
 
 
-class DropTrigger(tables.DropInheritableTableObject):
+class DropTrigger(ddl.DropObject):
     def __init__(self, object, *, conditional=False, **kwargs):
         super().__init__(object, **kwargs)
         self.trigger = object
@@ -345,52 +345,3 @@ class DisableTrigger(ddl.DDLOperation):
             mod=self.__class__.__module__,
             cls=self.__class__.__name__,
             trigger=self.trigger)
-
-
-class DDLTriggerBase:
-    @classmethod
-    def get_inherited_triggers(
-        cls,
-        block: base.PLBlock,
-        bases: List[Tuple[str, str]]
-    ) -> Tuple[str, str]:
-        bases = [ql('{}.{}'.format(*base.name)) for base in bases]
-        var = block.declare_var(
-            ('edgedb', 'intro_trigger_desc_t'),
-            var_name_prefix='t',
-            shared=True,
-        )
-
-        return var, textwrap.dedent(f'''\
-            SELECT DISTINCT ON (triggers.name)
-                triggers.*
-            FROM
-                edgedb.introspect_triggers(
-                    table_list := ARRAY[{', '.join(bases)}]::text[],
-                    inheritable_only := TRUE,
-                    include_inherited := TRUE
-                ) AS triggers
-        ''')
-
-
-class DDLTriggerCreateTable(
-        ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin, DDLTriggerBase):
-    operations = tables.CreateTable,
-
-    @classmethod
-    def generate_after(cls, block, op):
-        # Apply inherited triggers
-        return cls.apply_inheritance(
-            block, op, cls.get_inherited_triggers, CreateTrigger,
-            comment='Trigger inheritance propagation on type table creation.')
-
-
-class DDLTriggerAlterTable(
-        ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin, DDLTriggerBase):
-    operations = (tables.AlterTableAddParent, tables.AlterTableDropParent)
-
-    @classmethod
-    def generate_after(cls, block, op):
-        return cls.apply_inheritance(
-            block, op, cls.get_inherited_triggers, CreateTrigger, DropTrigger,
-            comment='Trigger inheritance propagation on type table alter.')
