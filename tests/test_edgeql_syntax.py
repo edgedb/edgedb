@@ -259,8 +259,6 @@ aa';
         r"""
         SELECT 'aa
         aa';
-% OK %
-        SELECT 'aa\n        aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -411,7 +409,8 @@ aa';
         r"""
         SELECT "\n";
 % OK %
-        SELECT '\n';
+        SELECT '
+';
         """
 
     def test_edgeql_syntax_constants_39(self):

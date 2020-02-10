@@ -393,11 +393,13 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                 };
                 property bar -> str {
                     # multi-line definition with correct indentation
-                    default := some_func('\\n                        1, 2, 3');
+                    default := some_func('
+                        1, 2, 3');
                 };
                 property baz -> str {
                     # multi-line definition with correct indentation
-                    default := 'some_func(\\n                        1, 2, 3)';
+                    default := 'some_func(
+                        1, 2, 3)';
                 };
             };
         };

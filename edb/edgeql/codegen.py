@@ -34,6 +34,8 @@ from . import qltypes
 
 _module_name_re = re.compile(r'^(?!=\d)\w+(\.(?!=\d)\w+)*$')
 _BYTES_ESCAPE_RE = re.compile(b'[\\\'\x00-\x1f\x7e-\xff]')
+_NON_PRINTABLE_RE = re.compile(
+    r'[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u0080-\u009F]')
 _ESCAPES = {
     b'\\': b'\\\\',
     b'\'': b'\\\'',
@@ -560,7 +562,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(param_to_str(node.name))
 
     def visit_StringConstant(self, node: qlast.StringConstant) -> None:
-        if node.value.isprintable():
+        if not _NON_PRINTABLE_RE.search(node.value):
             for d in ("'", '"', '$$'):
                 if d not in node.value:
                     if '\\' in node.value and d != '$$':

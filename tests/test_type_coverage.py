@@ -196,7 +196,7 @@ class TypeCoverageTests(unittest.TestCase):
     def test_cqa_type_coverage_cli(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "cli", 36.67)
 
-    def test_cqa_type_coverage_common(self) -> None:/
+    def test_cqa_type_coverage_common(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "common", 34.17)
 
     def test_cqa_type_coverage_common_ast(self) -> None:
