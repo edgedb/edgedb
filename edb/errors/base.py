@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb.common import context as pctx
 from edb.common import exceptions as ex

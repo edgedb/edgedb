@@ -27,7 +27,7 @@ from edb.common import struct
 from edb.edgeql import ast as qlast_
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import parser as qlparser
-from typing import *  # NoQA
+from typing import *
 
 from . import abc as s_abc
 from . import objects as so

@@ -33,7 +33,7 @@
 from __future__ import annotations
 
 import collections
-from typing import *  # NoQA
+from typing import *
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils

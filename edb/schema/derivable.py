@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 from . import abc as s_abc
 from . import name as sn

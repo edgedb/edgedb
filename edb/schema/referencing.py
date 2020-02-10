@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import *  # NoQA
+from typing import *
 
 from edb.edgeql import ast as qlast
 

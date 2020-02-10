@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast

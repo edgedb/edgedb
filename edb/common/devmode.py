@@ -27,7 +27,7 @@ import os
 import pathlib
 import pickle
 import tempfile
-from typing import *  # NoQA
+from typing import *
 
 
 logger = logging.getLogger('edb.devmode.cache')

@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections.abc
 import dataclasses
 import json
-from typing import *  # NoQA
+from typing import *
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import collections
 import functools
-from typing import *  # NoQA
+from typing import *
 
 from edb.common import uuidgen
 from edb.edgeql import qltypes

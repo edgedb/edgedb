@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import copy
 import itertools
-from typing import *  # NoQA
+from typing import *
 
 from edb.common import ast
 from edb.schema import schema as s_schema

@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from mypy import exprtotype
 import mypy.plugin as mypy_plugin

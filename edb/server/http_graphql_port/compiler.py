@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 from edb import graphql

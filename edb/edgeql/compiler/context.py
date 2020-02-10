@@ -20,7 +20,7 @@
 """EdgeQL to IR compiler context."""
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 from typing_extensions import Protocol  # type: ignore
 
 import collections

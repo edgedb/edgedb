@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 from .ops import OpLevel, OpCode, Operation, lookup
 from .ops import spec_to_json, to_json, from_json

@@ -22,7 +22,7 @@ from __future__ import annotations
 import enum
 import json
 import re
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 from edb.common import uuidgen

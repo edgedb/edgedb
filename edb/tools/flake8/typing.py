@@ -30,7 +30,7 @@ the `typing` module (if it was imported with `from typing import *`).
 import re
 import typing  # NoQA
 
-from pyflakes import checker
+from pyflakes import checker, messages
 
 
 typing_star_import_re = re.compile(r'''
@@ -38,8 +38,8 @@ typing_star_import_re = re.compile(r'''
 ''', re.X | re.M)
 
 
-# Remember the old pyflakes.Checker.__init__
 old_init = checker.Checker.__init__
+old_report = checker.Checker.report
 
 
 def __init__(self, tree, filename='(none)', builtins=None, *args, **kwargs):
@@ -65,8 +65,25 @@ def __init__(self, tree, filename='(none)', builtins=None, *args, **kwargs):
     old_init(self, tree, filename, builtins, *args, **kwargs)
 
 
-# Monkey-patch pyflakes.Checker.__init__
+def report(self, messageClass, *args, **kwargs):
+    if messageClass is messages.ImportStarUsed:
+        if not kwargs and len(args) == 2:
+            node, module = args
+            if module == "typing":
+                return
+
+    if messageClass is messages.UnusedImport:
+        if not kwargs and len(args) == 2:
+            source, value = args
+            if value == "typing.*":
+                return
+
+    old_report(self, messageClass, *args, **kwargs)
+
+
+# Monkey patches
 checker.Checker.__init__ = __init__
+checker.Checker.report = report
 
 
 class MonkeyPatchPyFlakesChecker:

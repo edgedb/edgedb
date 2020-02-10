@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import textwrap
-from typing import *  # NoQA
+from typing import *
 
 from ..common import qname as qn
 from ..common import quote_ident as qi
