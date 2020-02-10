@@ -20,7 +20,7 @@
 """Query scope tree implementation."""
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 import textwrap
 import weakref

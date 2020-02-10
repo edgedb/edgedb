@@ -22,7 +22,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import time
-from typing import *  # NoQA
+from typing import *
 
 import immutables
 

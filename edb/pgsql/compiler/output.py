@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils

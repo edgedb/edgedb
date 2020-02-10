@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import asyncpg
-from typing import *  # NoQA
+from typing import *
 
 
 async def fetch(

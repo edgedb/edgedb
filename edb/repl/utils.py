@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import functools
 import re
-from typing import *  # NoQA
+from typing import *
 
 from edb.edgeql import quote as eql_quote
 from edb.edgeql.parser.grammar import lexer

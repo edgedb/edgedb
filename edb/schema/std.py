@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import pathlib
-from typing import *  # NoQA
+from typing import *
 
 from edb import lib as stdlib
 from edb import errors

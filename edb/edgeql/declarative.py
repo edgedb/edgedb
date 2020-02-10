@@ -33,7 +33,7 @@ from __future__ import annotations
 import copy
 import functools
 import re
-from typing import *  # NoQA
+from typing import *
 from collections import defaultdict
 
 from edb import errors

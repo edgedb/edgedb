@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import functools
-from typing import *  # NoQA
+from typing import *
 
 from edb.common import enum as s_enum
 

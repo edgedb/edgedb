@@ -23,7 +23,7 @@ import collections.abc
 import itertools
 import json
 import textwrap
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 

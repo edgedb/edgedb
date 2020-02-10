@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections
 import decimal
 import itertools
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 

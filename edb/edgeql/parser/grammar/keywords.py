@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import re
-from typing import *  # NoQA
+from typing import *
 
 
 keyword_types = range(1, 4)

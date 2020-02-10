@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import textwrap
-from typing import *  # NoQA
+from typing import *
 
 from edb.common import ordered
 from edb.server import defines

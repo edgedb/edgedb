@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 import json
 
@@ -29,7 +29,6 @@ from edb.errors import base as base_errors
 from edb.common.markup.renderers import terminal
 from edb.common.markup.renderers import styles
 
-from typing import *  # NoQA
 from . import context
 from . import render_binary as _binary
 from . import render_json as _json
