@@ -35,12 +35,12 @@ from . import objects as so
 from . import pointers
 from . import referencing
 from . import sources
+from . import types as s_types
 from . import utils
 
 if TYPE_CHECKING:
     from . import schema as s_schema
     from . import sources as s_sources
-    from . import types as s_types
 
 
 class Property(pointers.Pointer, s_abc.Property,
@@ -172,8 +172,6 @@ class PropertyCommand(pointers.PointerCommand,
                       context_class=PropertyCommandContext,
                       referrer_context_class=PropertySourceContext):
 
-    _command_subject = 'property'
-
     def _set_pointer_type(self, schema, astnode, context, target_ref):
         spt = SetPropertyType(classname=self.classname, type=target_ref)
         spt.set_attribute_value(
@@ -229,7 +227,7 @@ class PropertyCommand(pointers.PointerCommand,
 
         if target_type.is_collection():
             srcctx = self.get_attribute_source_context('target')
-            sd.ensure_schema_collection(
+            s_types.ensure_schema_collection(
                 schema, target_type, self,
                 src_context=srcctx,
                 context=context,
@@ -351,7 +349,7 @@ class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
             target = prop.get_target(schema)
 
             if target.is_collection():
-                sd.cleanup_schema_collection(
+                s_types.cleanup_schema_collection(
                     schema, target, prop, cmd, context=context,
                     src_context=astnode.context)
 

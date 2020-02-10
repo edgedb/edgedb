@@ -605,7 +605,7 @@ class PointerCommandOrFragment:
                         e, target_ref.get_refname(schema),
                         modaliases=context.modaliases,
                         schema=schema,
-                        item_types=(s_types.Type,),
+                        item_type=s_types.Type,
                         context=srcctx,
                     )
                     raise
@@ -696,11 +696,11 @@ class PointerCommand(constraints.ConsistencySubjectCommand,
             self._validate_pointer_def(schema, context)
         return schema
 
-    def _alter_begin(self, schema, context, scls):
+    def _alter_begin(self, schema, context):
         if not context.canonical:
             schema = self._resolve_refs_in_pointer_def(schema, context)
 
-        schema = super()._alter_begin(schema, context, scls)
+        schema = super()._alter_begin(schema, context)
         if not context.canonical:
             self._validate_pointer_def(schema, context)
         return schema
@@ -902,11 +902,12 @@ class SetPointerType(
         inheriting.AlterInheritingObjectFragment,
         PointerCommandOrFragment):
 
-    def _alter_begin(self, schema, context, scls):
+    def _alter_begin(self, schema, context):
         if not context.canonical:
             schema = self._resolve_refs_in_pointer_def(schema, context)
 
-        schema = super()._alter_begin(schema, context, scls)
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
 
         context.altered_targets.add(scls)
 
@@ -925,7 +926,7 @@ class SetPointerType(
             tgt = self.get_attribute_value('target')
             if tgt.is_collection():
                 srcctx = self.get_attribute_source_context('target')
-                sd.ensure_schema_collection(
+                s_types.ensure_schema_collection(
                     schema, tgt, self,
                     src_context=srcctx,
                     context=context,
@@ -970,7 +971,7 @@ class SetPointerType(
 
         else:
             for op in self.get_subcommands(type=sd.ObjectCommand):
-                schema, _ = op.apply(schema, context)
+                schema = op.apply(schema, context)
 
         return schema
 

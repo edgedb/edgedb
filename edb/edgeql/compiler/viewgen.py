@@ -103,7 +103,7 @@ def _process_view(
 
     if (view_name is None and ctx.env.schema_view_mode
             and view_rptr is not None):
-        # Make sure persistent schema exprssion aliases have properly formed
+        # Make sure persistent schema expression aliases have properly formed
         # names as opposed to the usual mangled form of the ephemeral
         # aliases.  This is needed for introspection readability, as well
         # as helps in maintaining proper type names for schema
@@ -464,7 +464,7 @@ def _normalize_view_ptr_expr(
                 is_update=is_update,
             )
 
-            shape_expr_ctx.defining_view = True
+            shape_expr_ctx.defining_view = view_scls
             shape_expr_ctx.path_scope.unnest_fence = True
             shape_expr_ctx.partial_path_prefix = setgen.class_set(
                 view_scls.get_bases(ctx.env.schema).first(ctx.env.schema),

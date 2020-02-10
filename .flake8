@@ -1,5 +1,5 @@
 [flake8]
-ignore = B008,B306,E203,E402,E731,D100,D101,D102,D103,D104,D105,W503,W504,E252
+ignore = B008,B306,E203,E402,E731,D100,D101,D102,D103,D104,D105,W503,W504,E252,F999
 max-line-length = 79
 exclude = .git,__pycache__,build,dist,.eggs,postgres
 

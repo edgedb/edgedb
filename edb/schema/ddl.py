@@ -57,7 +57,7 @@ if TYPE_CHECKING:
     import uuid
 
 
-def get_global_dep_order() -> Tuple[so.ObjectMeta, ...]:
+def get_global_dep_order() -> Tuple[Type[so.Object], ...]:
     return (
         annos.Annotation,
         functions.Function,
@@ -234,37 +234,26 @@ def delta_schemas(
         if issubclass(sclass, so.UnqualifiedObject):
             # UnqualifiedObjects (like anonymous tuples and arrays)
             # should not use an included_modules filter.
-            new = schema_b.get_objects(
-                type=sclass,
-                excluded_modules=excluded_modules,
-                included_items=included_items,
-                excluded_items=excluded_items,
-                extra_filters=filters + schema_b_filters,
-            )
-            old = schema_a.get_objects(
-                type=sclass,
-                excluded_modules=excluded_modules,
-                included_items=included_items,
-                excluded_items=excluded_items,
-                extra_filters=filters + schema_a_filters,
-            )
+            incl_modules = None
         else:
-            new = schema_b.get_objects(
-                type=sclass,
-                included_modules=included_modules,
-                excluded_modules=excluded_modules,
-                included_items=included_items,
-                excluded_items=excluded_items,
-                extra_filters=filters + schema_b_filters,
-            )
-            old = schema_a.get_objects(
-                type=sclass,
-                included_modules=included_modules,
-                excluded_modules=excluded_modules,
-                included_items=included_items,
-                excluded_items=excluded_items,
-                extra_filters=filters + schema_a_filters,
-            )
+            incl_modules = included_modules
+
+        new = schema_b.get_objects(
+            type=sclass,
+            included_modules=incl_modules,
+            excluded_modules=excluded_modules,
+            included_items=included_items,
+            excluded_items=excluded_items,
+            extra_filters=filters + schema_b_filters,
+        )
+        old = schema_a.get_objects(
+            type=sclass,
+            included_modules=incl_modules,
+            excluded_modules=excluded_modules,
+            included_items=included_items,
+            excluded_items=excluded_items,
+            extra_filters=filters + schema_a_filters,
+        )
 
         objects.add(so.Object.delta_sets(
             old, new, old_schema=schema_a, new_schema=schema_b))
@@ -298,7 +287,7 @@ def delta_schemas(
 
 
 def cmd_from_ddl(
-    stmt: qlast.DDL,
+    stmt: qlast.DDLCommand,
     *,
     context: Optional[sd.CommandContext]=None,
     schema: s_schema.Schema,
@@ -306,12 +295,13 @@ def cmd_from_ddl(
     testmode: bool=False
 ) -> sd.Command:
     ddl = s_expr.imprint_expr_context(stmt, modaliases)
+    assert isinstance(ddl, qlast.DDLCommand)
 
     if context is None:
         context = sd.CommandContext(
             schema=schema, modaliases=modaliases, testmode=testmode)
 
-    return sd.Command.from_ast(schema, ddl, context=context)
+    return sd.compile_ddl(schema, ddl, context=context)
 
 
 def compile_migration(
@@ -376,14 +366,14 @@ def apply_sdl(
                 context=context, testmode=testmode)
 
             delta.add(cmd)
-            target_schema, _ = delta.apply(target_schema, context)
+            target_schema = delta.apply(target_schema, context)
             context.schema = target_schema
 
     return target_schema
 
 
 def apply_ddl(
-    ddl_stmt: qlast.DDL,
+    ddl_stmt: qlast.DDLCommand,
     *,
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
@@ -396,13 +386,15 @@ def apply_ddl(
 
 
 def delta_from_ddl(
-    ddl_stmt: qlast.DDL,
+    ddl_stmt: qlast.DDLCommand,
     *,
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
     testmode: bool=False,
-    schema_object_ids: Optional[Mapping[Tuple[str, str], uuid.UUID]]=None,
+    schema_object_ids: Optional[
+        Mapping[Tuple[str, Optional[str]], uuid.UUID]
+    ]=None,
 ) -> sd.DeltaRoot:
     _, cmd = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
                              stdmode=stdmode, testmode=testmode,
@@ -411,13 +403,15 @@ def delta_from_ddl(
 
 
 def _delta_from_ddl(
-    ddl_stmt: qlast.DDL,
+    ddl_stmt: qlast.DDLCommand,
     *,
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
     stdmode: bool=False,
     testmode: bool=False,
-    schema_object_ids: Optional[Mapping[Tuple[str, str], uuid.UUID]]=None,
+    schema_object_ids: Optional[
+        Mapping[Tuple[str, Optional[str]], uuid.UUID]
+    ]=None,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
     delta = sd.DeltaRoot()
     context = sd.CommandContext(
@@ -432,7 +426,7 @@ def _delta_from_ddl(
         cmd = cmd_from_ddl(
             ddl_stmt, schema=schema, modaliases={},
             context=context, testmode=testmode)
-        schema, _ = cmd.apply(schema, context)
+        schema = cmd.apply(schema, context)
         delta.add(cmd)
 
     delta.canonical = True
@@ -553,7 +547,7 @@ def ddl_text_from_migration(
     delta = migration.get_delta(schema)
     assert delta is not None
     context = sd.CommandContext()
-    migrated_schema, _ = delta.apply(schema, context)
+    migrated_schema = delta.apply(schema, context)
     return ddl_text_from_delta(migrated_schema, delta)
 
 

@@ -51,7 +51,7 @@ from . import stmtctx
 def get_schema_object(
         name: Union[str, qlast.BaseObjectRef],
         module: Optional[str]=None, *,
-        item_types: Tuple[s_obj.ObjectMeta, ...] = (),
+        item_type: Optional[Type[s_obj.Object]]=None,
         condition: Optional[Callable[[s_obj.Object], bool]]=None,
         label: Optional[str]=None,
         ctx: context.ContextLevel,
@@ -73,30 +73,45 @@ def get_schema_object(
         name = sn.Name(name=name, module=module)
 
     elif isinstance(name, str):
-        view = ctx.aliased_views.get(name)
+        view = _get_type_variant(name, ctx)
         if view is not None:
-            ctx.must_use_views.pop(view, None)
             return view
 
     try:
         stype = ctx.env.get_track_schema_object(
             name=name, modaliases=ctx.modaliases,
-            type=item_types, condition=condition,
+            type=item_type, condition=condition,
             label=label,
         )
 
     except errors.QueryError as e:
         s_utils.enrich_schema_lookup_error(
             e, name, modaliases=ctx.modaliases, schema=ctx.env.schema,
-            item_types=item_types, condition=condition, context=srcctx)
+            item_type=item_type, condition=condition, context=srcctx)
         raise
 
-    view = ctx.aliased_views.get(stype.get_name(ctx.env.schema))
+    view = _get_type_variant(stype.get_name(ctx.env.schema), ctx)
     if view is not None:
-        ctx.must_use_views.pop(view, None)
         return view
+    elif stype == ctx.defining_view:
+        # stype is the view in process of being defined and as such is
+        # not yet a valid schema object
+        raise errors.SchemaDefinitionError(
+            f'illegal self-reference in definition of {name!r}',
+            context=srcctx)
     else:
         return stype
+
+
+def _get_type_variant(
+        name: Union[str, sn.Name],
+        ctx: context.ContextLevel) -> Optional[s_obj.Object]:
+    type_variant = ctx.aliased_views.get(name)
+    if type_variant is not None:
+        ctx.must_use_views.pop(type_variant, None)
+        return type_variant
+    else:
+        return None
 
 
 def get_schema_type(
@@ -105,11 +120,11 @@ def get_schema_type(
         ctx: context.ContextLevel,
         label: Optional[str] = None,
         condition: Optional[Callable[[s_obj.Object], bool]] = None,
-        item_types: Tuple[s_obj.ObjectMeta, ...] = (),
+        item_type: Optional[Type[s_obj.Object]] = None,
         srcctx: Optional[parsing.ParserContext] = None) -> s_types.Type:
-    if not item_types:
-        item_types = (s_types.Type,)
-    obj = get_schema_object(name, module, item_types=item_types,
+    if item_type is None:
+        item_type = s_types.Type
+    obj = get_schema_object(name, module, item_type=item_type,
                             condition=condition, label=label,
                             ctx=ctx, srcctx=srcctx)
     assert isinstance(obj, s_types.Type)

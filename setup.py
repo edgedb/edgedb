@@ -76,10 +76,14 @@ BUILD_DEPS = [
 PYCODESTYLE_REPO = 'http://github.com/PyCQA/pycodestyle'
 PYCODESTYLE_COMMIT = 'd69c15eb7ecf77e94988fb55207a78936b48079c'
 
+PYFLAKES_REPO = 'http://github.com/PyCQA/pyflakes'
+PYFLAKES_COMMIT = 'be88036019005b769596ca82fb7b82dfdffdca0f'
+
 EXTRA_DEPS = {
     'test': [
         # Depend on unreleased version for Python 3.8 support,
         f'pycodestyle @ {PYCODESTYLE_REPO}/archive/{PYCODESTYLE_COMMIT}.zip',
+        f'pyflakes @ {PYFLAKES_REPO}/archive/{PYFLAKES_COMMIT}.zip',
         'black~=19.3b0',
         'flake8~=3.7.9',
         'flake8-bugbear~=19.8.0',

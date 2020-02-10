@@ -218,8 +218,9 @@ class Cluster:
 
         return await st.fetchval(edgedb_defines.EDGEDB_TEMPLATE_DB)
 
-    def _test_connection(self, timeout=60):
+    def _test_connection(self, timeout=30):
         async def test(timeout):
+            left = timeout
             while True:
                 started = time.monotonic()
                 try:
@@ -229,13 +230,13 @@ class Cluster:
                         admin=True,
                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
                         user=edgedb_defines.EDGEDB_SUPERUSER,
-                        timeout=timeout)
+                        timeout=left)
                 except (OSError, asyncio.TimeoutError,
                         edgedb.ClientConnectionError):
-                    timeout -= (time.monotonic() - started)
-                    if timeout > 0.05:
+                    left -= (time.monotonic() - started)
+                    if left > 0.05:
                         await asyncio.sleep(0.05)
-                        timeout -= 0.05
+                        left -= 0.05
                         continue
                     raise ClusterError(
                         f'could not connect to edgedb-server '

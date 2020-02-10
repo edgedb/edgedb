@@ -217,7 +217,7 @@ class ParameterDesc(ParameterLike):
         ))
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
-            sd.ensure_schema_collection(
+            s_types.ensure_schema_collection(
                 schema, self.type, cmd, context=context)
 
         for attr in ('num', 'typemod', 'kind', 'default'):
@@ -248,8 +248,8 @@ class ParameterDesc(ParameterLike):
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
             param = schema.get(param_name)
-            sd.cleanup_schema_collection(schema, self.type, param, cmd,
-                                         context=context)
+            s_types.cleanup_schema_collection(schema, self.type, param, cmd,
+                                              context=context)
 
         return cmd
 
@@ -679,11 +679,11 @@ class CallableCommand(sd.ObjectCommand):
             params.append(param)
         return FuncParameterList.create(schema, params)
 
-    def _alter_innards(self, schema: s_schema.Schema, context, scls):
-        schema = super()._alter_innards(schema, context, scls)
+    def _alter_innards(self, schema: s_schema.Schema, context):
+        schema = super()._alter_innards(schema, context)
 
         for op in self.get_subcommands(metaclass=Parameter):
-            schema, _ = op.apply(schema, context=context)
+            schema = op.apply(schema, context=context)
 
         return schema
 
@@ -749,7 +749,7 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
 
             if (return_type.is_collection()
                     and not return_type.is_polymorphic(schema)):
-                sd.ensure_schema_collection(
+                s_types.ensure_schema_collection(
                     schema, return_type, cmd,
                     src_context=astnode.returning.context,
                     context=context,
@@ -785,7 +785,7 @@ class DeleteCallableObject(CallableCommand, sd.DeleteObject):
         return_type = obj.get_return_type(schema)
         if (return_type.is_collection()
                 and not return_type.is_polymorphic(schema)):
-            sd.cleanup_schema_collection(
+            s_types.cleanup_schema_collection(
                 schema, return_type, obj, cmd, context=context,
                 src_context=astnode.context)
 

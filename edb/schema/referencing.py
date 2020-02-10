@@ -60,7 +60,7 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
 
         parent_cmd.add(cmd)
         with context(sd.DeltaRootContext(schema=schema, op=delta)):
-            schema, _ = delta.apply(schema, context)
+            schema = delta.apply(schema, context)
 
         return schema
 
@@ -162,7 +162,7 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
                 context.current().preserve_path_id = True
 
             parent_cmd.add(cmd)
-            schema, _ = delta.apply(schema, context)
+            schema = delta.apply(schema, context)
 
         derived = schema.get(derived_name)
 
@@ -180,7 +180,7 @@ class ReferencedInheritingObject(inheriting.InheritingObject,
 
 
 class ReferencedObjectCommandMeta(sd.ObjectCommandMeta):
-    _transparent_adapter_subclass = True
+    _transparent_adapter_subclass: ClassVar[bool] = True
 
     def __new__(mcls, name, bases, clsdct, *,
                 referrer_context_class=None, **kwargs):
@@ -420,13 +420,14 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
 
         return cmd
 
-    def _delete_innards(self, schema, context, scls):
-        schema = super()._delete_innards(schema, context, scls)
+    def _delete_innards(self, schema, context):
+        schema = super()._delete_innards(schema, context)
 
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
             return schema
 
+        scls = self.scls
         referrer = referrer_ctx.scls
         referrer_class = type(referrer)
         mcls = type(scls)
@@ -516,7 +517,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
             ref_del_cmd = get_cmd(sd.DeleteObject, mcls)
             cmd = ref_del_cmd(classname=existing.get_name(schema))
 
-        schema, _ = cmd.apply(schema, context)
+        schema = cmd.apply(schema, context)
 
         return schema, cmd
 
@@ -591,9 +592,10 @@ class ReferencedInheritingObjectCommand(
 
         return schema
 
-    def _alter_begin(self, schema, context, scls):
+    def _alter_begin(self, schema, context):
+        scls = self.scls
         was_local = scls.get_is_local(schema)
-        schema = super()._alter_begin(schema, context, scls)
+        schema = super()._alter_begin(schema, context)
         now_local = scls.get_is_local(schema)
         if not was_local and now_local:
             self._validate(schema, context)
@@ -667,7 +669,7 @@ class ReferencedInheritingObjectCommand(
 
                 r_alter_cmd.add(d_alter_cmd)
 
-            schema, _ = r_alter_cmd.apply(schema, context)
+            schema = r_alter_cmd.apply(schema, context)
             self.add(r_alter_cmd)
 
         context.current().enable_recursion = rec
@@ -710,8 +712,8 @@ class CreateReferencedObject(ReferencedObjectCommand, sd.CreateObject):
         schema: s_schema.Schema,
         context: sd.CommandContext,
         *,
-        parent_node: Optional[qlast.DDL],
-    ) -> Optional[qlast.DDL]:
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
         refctx = type(self).get_referrer_context(context)
         if refctx is not None:
             if not self.get_attribute_value('is_local'):
@@ -822,9 +824,10 @@ class RenameReferencedInheritingObject(
         ReferencedInheritingObjectCommand,
         sd.RenameObject):
 
-    def _rename_begin(self, schema, context, scls):
+    def _rename_begin(self, schema, context):
         orig_schema = schema
-        schema = super()._rename_begin(schema, context, scls)
+        schema = super()._rename_begin(schema, context)
+        scls = self.scls
 
         if not context.canonical and not scls.generic(schema):
             implicit_bases = scls.get_implicit_bases(schema)
@@ -855,7 +858,7 @@ class RenameReferencedInheritingObject(
 
         else:
             for op in self.get_subcommands(type=sd.ObjectCommand):
-                schema, _ = op.apply(schema, context)
+                schema = op.apply(schema, context)
 
         return schema
 

@@ -279,7 +279,9 @@ def _validate_op(
                 ct, scls_type=s_links.Link, field_name='target')
 
             if ptrs:
-                ptr_candidate = next(iter(ptrs))
+                ptr = next(iter(ptrs))
+                assert isinstance(ptr, s_links.Link)
+                ptr_candidate = ptr
                 break
 
         if (ptr_candidate is None

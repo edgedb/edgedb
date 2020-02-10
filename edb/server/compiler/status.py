@@ -145,3 +145,8 @@ def _sess_set_config(ql):
 @get_status.register(qlast.DescribeStmt)
 def _describe(ql):
     return f'DESCRIBE'.encode()
+
+
+@get_status.register(qlast.Rename)
+def _rename(ql):
+    return f'RENAME'.encode()

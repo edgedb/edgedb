@@ -296,7 +296,7 @@ class BaseSchemaTest(BaseDocTest):
 
             context = sd.CommandContext()
             context.testmode = True
-            current_schema, _ = ddl_plan.apply(current_schema, context)
+            current_schema = ddl_plan.apply(current_schema, context)
 
         return current_schema
 

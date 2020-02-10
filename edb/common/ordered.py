@@ -35,7 +35,7 @@ class OrderedSet(MutableSet[K]):
             # inherits a limitation of the built-in set that disallows |= with
             # iterables that are not sets themselves.  However, the mixin
             # *does* allow this and OrderedSet depends on this.
-            self.update(iterable)  # type: ignore
+            self.update(iterable)
 
     def add(self, item: K, *, last: Optional[bool] = None) -> None:
         self.map[item] = item
@@ -49,7 +49,10 @@ class OrderedSet(MutableSet[K]):
         key, item = self.map.popitem(last)
         return item
 
-    update = collections.abc.MutableSet.__ior__
+    def update(self, iterable: Iterable[K]) -> None:
+        for item in iterable:
+            self.add(item)
+
     difference_update = collections.abc.MutableSet.__isub__
     symmetric_difference_update = collections.abc.MutableSet.__ixor__
     intersection_update = collections.abc.MutableSet.__iand__

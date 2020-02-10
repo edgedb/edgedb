@@ -475,7 +475,7 @@ def compile_DescribeStmt(
             if itemclass is qltypes.SchemaObjectClass.MODULE:
                 modules.append(objref.name)
             else:
-                itemtypes: Tuple[s_obj.ObjectMeta, ...] = ()
+                itemtype: Optional[Type[s_obj.Object]] = None
                 found = False
 
                 name: str
@@ -485,19 +485,20 @@ def compile_DescribeStmt(
                     name = objref.name
 
                 if itemclass is not None:
-                    itemtypes = (
+                    itemtype = (
                         s_obj.ObjectMeta.get_schema_metaclass_for_ql_class(
-                            itemclass),
+                            itemclass)
                     )
 
                 if (itemclass is None or
                         itemclass is qltypes.SchemaObjectClass.FUNCTION):
 
                     try:
-                        funcs: Tuple[s_func.Function] = \
+                        funcs: Tuple[s_func.Function, ...] = (
                             ictx.env.schema.get_functions(
                                 name,
                                 module_aliases=ictx.modaliases)
+                        )
                     except errors.InvalidReferenceError:
                         pass
                     else:
@@ -508,7 +509,7 @@ def compile_DescribeStmt(
                 if not found:
                     obj = schemactx.get_schema_object(
                         objref,
-                        item_types=itemtypes,
+                        item_type=itemtype,
                         ctx=ictx,
                     )
 

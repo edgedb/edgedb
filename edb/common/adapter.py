@@ -18,6 +18,11 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
+
+
+T = TypeVar("T")
+Adapter_T = TypeVar("Adapter_T", bound="Adapter")
 
 
 class AdapterError(Exception):
@@ -25,13 +30,23 @@ class AdapterError(Exception):
 
 
 class Adapter(type):
-    adapters = {}
-    instance_adapters = {}
-    _transparent_adapter_subclass = False
+    adapters: ClassVar[Dict[Any, Dict[type, Adapter]]] = {}
+    instance_adapters: ClassVar[Dict[Any, Dict[type, Adapter]]] = {}
+    _transparent_adapter_subclass: ClassVar[bool] = False
+    __edb_adaptee__: Optional[type]
 
     def __new__(
-            mcls, name, bases, clsdict, *, adapts=None,
-            adapts_instances_of=None, pure=False, adapterargs=None, **kwargs):
+        mcls: Type[Adapter_T],
+        name: str,
+        bases: Tuple[type, ...],
+        clsdict: Dict[str, Any],
+        *,
+        adapts: Optional[type] = None,
+        adapts_instances_of: Optional[type] = None,
+        pure: bool = False,
+        adapterargs: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Adapter_T:
 
         if adapts is not None and adapts_instances_of is not None:
             msg = 'adapter class: adapts and adapts_instances_of args are ' + \
@@ -50,11 +65,22 @@ class Adapter(type):
         else:
             collection = Adapter.adapters
 
-        result = super().__new__(mcls, name, bases, clsdict, **kwargs)
+        result = cast(
+            Adapter_T,
+            super().__new__(  # type: ignore
+                mcls,
+                name,
+                bases,
+                clsdict,
+                **kwargs,
+            ),
+        )
+
         if adapts is not None:
             assert issubclass(mcls, Adapter) and mcls is not Adapter
 
             registry_key = mcls.get_registry_key(adapterargs)
+            adapters: Dict[Any, Adapter]
 
             try:
                 adapters = collection[registry_key]
@@ -63,49 +89,75 @@ class Adapter(type):
 
             mcls.register_adapter(adapters, adapts, result)
 
-        result.__sx_adaptee__ = adapts
+        result.__edb_adaptee__ = adapts
         return result
 
     def __init__(
-            cls, name, bases, clsdict, *, adapts=None,
-            adapts_instances_of=None, pure=False, adapterargs=None, **kwargs):
-        super().__init__(name, bases, clsdict, **kwargs)
+        cls,
+        name: str,
+        bases: Tuple[type, ...],
+        clsdict: Dict[str, Any],
+        *,
+        adapts: Optional[type] = None,
+        adapts_instances_of: Optional[type] = None,
+        pure: bool = False,
+        adapterargs: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ):
+        super().__init__(name, bases, clsdict, **kwargs)  # type: ignore
 
     @classmethod
-    def register_adapter(mcls, registry, adaptee, adapter):
+    def register_adapter(
+        mcls,
+        registry: Dict[type, Adapter],
+        adaptee: type,
+        adapter: Adapter,
+    ) -> None:
         assert adaptee not in registry
         registry[adaptee] = adapter
 
     @classmethod
-    def match_adapter(mcls, obj, adaptee, adapter):
+    def _match_adapter(
+        mcls,
+        obj: type,
+        adaptee: type,
+        adapter: Adapter,
+    ) -> Optional[Adapter]:
         if issubclass(obj, adapter) and obj is not adapter:
-            return obj
+            # mypy bug below
+            return obj  # type: ignore
         elif issubclass(obj, adaptee):
             return adapter
+        else:
+            return None
 
     @classmethod
-    def _get_adapter(mcls, obj, reversed_mro, collection, kwargs):
+    def _get_adapter(
+        mcls,
+        reversed_mro: Tuple[type, ...],
+        collection: Dict[Any, Dict[type, Adapter]],
+        kwargs: Dict[str, Any],
+    ) -> Optional[Adapter]:
         registry_key = mcls.get_registry_key(kwargs)
 
         adapters = collection.get(registry_key)
         if adapters is None:
-            return
+            return None
 
         result = None
-        seen = set()
+        seen: Set[Adapter] = set()
         for base in reversed_mro:
             for adaptee, adapter in adapters.items():
-                found = mcls.match_adapter(base, adaptee, adapter)
+                found = mcls._match_adapter(base, adaptee, adapter)
 
                 if found and found not in seen:
                     result = found
                     seen.add(found)
 
-        if result is not None:
-            return result
+        return result
 
     @classmethod
-    def get_adapter(mcls, obj, **kwargs):
+    def get_adapter(mcls, obj: Any, **kwargs: Any) -> Optional[Adapter]:
         if isinstance(obj, type):
             collection = Adapter.adapters
             mro = obj.__mro__
@@ -115,17 +167,19 @@ class Adapter(type):
 
         reversed_mro = tuple(reversed(mro))
 
-        result = mcls._get_adapter(obj, reversed_mro, collection, kwargs)
+        result = mcls._get_adapter(reversed_mro, collection, kwargs)
         if result is not None:
             return result
 
         for mc in mcls.__subclasses__(mcls):
-            result = mc._get_adapter(obj, reversed_mro, collection, kwargs)
+            result = mc._get_adapter(reversed_mro, collection, kwargs)
             if result is not None:
                 return result
 
+        return None
+
     @classmethod
-    def adapt(mcls, obj):
+    def adapt(mcls, obj: T) -> T:
         adapter = mcls.get_adapter(obj.__class__)
         if adapter is None:
             raise AdapterError(
@@ -137,19 +191,33 @@ class Adapter(type):
             return obj
 
     @classmethod
-    def get_registry_key(mcls, adapterargs):
+    def get_registry_key(
+        mcls,
+        adapterargs: Optional[Dict[str, Any]],
+    ) -> Tuple[Type[Adapter], Optional[FrozenSet[Tuple[str, Any]]]]:
         if mcls._transparent_adapter_subclass:
             for parent in mcls.__mro__[1:]:
-                if not parent._transparent_adapter_subclass:
+                if (issubclass(parent, Adapter) and
+                        not parent._transparent_adapter_subclass):
                     registry_holder = parent
                     break
+            else:
+                raise TypeError(
+                    'cannot find Adapter metaclass for mcls'
+                )
         else:
             registry_holder = mcls
 
         if adapterargs:
             return (registry_holder, frozenset(adapterargs.items()))
         else:
-            return registry_holder
+            return (registry_holder, None)
 
-    def get_adaptee(cls):
-        return cls.__sx_adaptee__
+    def get_adaptee(cls) -> type:
+        adaptee = cls.__edb_adaptee__
+        if adaptee is None:
+            raise LookupError(f'adapter {cls} has no adaptee type')
+        return adaptee
+
+    def has_adaptee(cls) -> bool:
+        return cls.__edb_adaptee__ is not None

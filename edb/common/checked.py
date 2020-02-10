@@ -138,6 +138,9 @@ class AbstractCheckedList(Generic[T]):
             )
         return cast(T, value)
 
+    def __init__(self, iterable: Iterable[T] = ()) -> None:
+        pass
+
     def __lt__(self, other: List[T]) -> bool:
         return self._container < self._cast(other)
 
@@ -314,6 +317,9 @@ class CheckedList(
 class AbstractCheckedSet(AbstractSet[T]):
     type: type
     _container: AbstractSet[T]
+
+    def __init__(self, iterable: Iterable[T] = ()) -> None:
+        pass
 
     @classmethod
     def _check_type(cls, value: Any) -> T:

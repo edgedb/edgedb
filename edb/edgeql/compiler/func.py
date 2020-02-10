@@ -260,6 +260,7 @@ def compile_operator(
     # Check if the operator is a derived operator, and if so,
     # find the origins.
     origin_op = opers[0].get_derivative_of(env.schema)
+    derivative_op: Optional[s_oper.Operator]
     if origin_op is not None:
         # If this is a derived operator, there should be
         # exactly one form of it.  This is enforced at the DDL
