@@ -1552,6 +1552,28 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_get_migration_32(self):
+        # Test migration of index dependent on two links.
+        # Issue #1181
+        schema = r'''
+        type Author {
+            required property name -> str;
+        }
+
+        type Comment {
+            required property body -> str;
+        }
+
+        type CommentRating {
+            required link author -> Author;
+            required link comment -> Comment;
+
+            index on ((__subject__.author, __subject__.comment));
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
