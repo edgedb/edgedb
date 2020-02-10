@@ -27,7 +27,6 @@ from edb.common import enum as s_enum
 from edb.common import ast, parsing
 
 from . import qltypes
-from . import quote
 
 
 DDLCommand_T = typing.TypeVar(
@@ -277,22 +276,10 @@ class BaseConstant(Expr):
 
 
 class StringConstant(BaseConstant):
-    quote: str
 
     @classmethod
     def from_python(cls, s: str):
-        s = s.replace('\\', '\\\\')
-        value = quote.quote_literal(s)
-        return cls(value=value[1:-1], quote="'")
-
-
-class RawStringConstant(BaseConstant):
-    quote: str
-
-    @classmethod
-    def from_python(cls, s: str):
-        value = quote.quote_literal(s)
-        return cls(value=value[1:-1], quote="'")
+        return cls(value=s)
 
 
 class BaseRealConstant(BaseConstant):
@@ -321,12 +308,11 @@ class BooleanConstant(BaseConstant):
 
 
 class BytesConstant(BaseConstant):
-    quote: str
+    value: bytes
 
     @classmethod
     def from_python(cls, s: bytes):
-        rs = repr(s)
-        return cls(value=rs[2:-1], quote=rs[-1])
+        return cls(value=s)
 
 
 class Parameter(Expr):

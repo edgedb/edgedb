@@ -490,12 +490,6 @@ class NullConstant(BaseConstant):
     nullable: bool = True
 
 
-class EscapedStringConstant(BaseConstant):
-    """An "E"-prefixed string."""
-
-    val: str
-
-
 class ByteaConstant(BaseConstant):
     """An bytea string."""
 

@@ -342,7 +342,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_12(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError,
-                r"Unexpected '`__subject__`'"):
+                r"backtick-quoted names surrounded by double underscores "
+                r"are forbidden"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY foo -> std::str {

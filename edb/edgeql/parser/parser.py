@@ -21,7 +21,7 @@ from __future__ import annotations
 from edb import errors
 from edb.common import debug, parsing
 
-from .grammar import lexer
+from .grammar import rust_lexer
 
 
 class EdgeQLParserBase(parsing.Parser):
@@ -37,19 +37,19 @@ class EdgeQLParserBase(parsing.Parser):
             if msg.startswith('Unexpected token: '):
                 token = token or getattr(native_err, 'token', None)
 
-                if not token or token.type == 'EOF':
+                if not token or token.kind() == 'EOF':
                     msg = 'Unexpected end of line'
                 elif hasattr(token, 'val'):
                     msg = f'Unexpected {token.val!r}'
-                elif token.type == 'NL':
+                elif token.kind() == 'NL':
                     msg = 'Unexpected end of line'
                 else:
-                    msg = f'Unexpected {token.text!r}'
+                    msg = f'Unexpected {token.text()!r}'
 
         return errors.EdgeQLSyntaxError(msg, context=context, token=token)
 
     def get_lexer(self):
-        return lexer.EdgeQLLexer()
+        return rust_lexer.EdgeQLLexer()
 
 
 class EdgeQLExpressionParser(EdgeQLParserBase):

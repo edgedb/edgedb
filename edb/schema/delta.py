@@ -2241,7 +2241,7 @@ class AlterObjectProperty(Command):
                 parent_node.commands.append(
                     qlast.SetField(
                         name=orig_fname,
-                        value=qlast.RawStringConstant.from_python(
+                        value=qlast.StringConstant.from_python(
                             self.new_value.origtext),
                     )
                 )

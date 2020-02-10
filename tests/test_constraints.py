@@ -88,12 +88,12 @@ class TestConstraintsSchema(tb.QueryTestCase):
     async def test_constraints_scalar_minmax(self):
         data = {
             # max-value is "9999999989"
-            (10 ** 9 - 1, 'Maximum allowed value for .* is "9999999989".'),
+            (10 ** 9 - 1, "Maximum allowed value for .* is '9999999989'."),
             (10 ** 9 - 11, 'good'),
 
             # min-value is "99990000"
             (10 ** 8 - 10 ** 4 - 1,
-             'Minimum allowed value for .* is "99990000".'),
+             "Minimum allowed value for .* is '99990000'."),
             (10 ** 8 - 21, 'good'),
         }
 

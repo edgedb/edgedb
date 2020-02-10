@@ -18,11 +18,14 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
 import logging
 import os
 import sys
 import types
+import re
+
 
 import parsing
 
@@ -31,10 +34,13 @@ from edb import errors
 from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx
 from edb.common import lexer
+from edb._edgeql_rust import TokenizerError
+from edb.errors import EdgeQLSyntaxError
 
 ParserContext = pctx.ParserContext
 
 logger = logging.getLogger('edb.common.parsing')
+TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
 class TokenMeta(type):
@@ -97,9 +103,10 @@ class TokenMeta(type):
 
 
 class Token(parsing.Token, metaclass=TokenMeta):
-    def __init__(self, parser, val, context=None):
+    def __init__(self, parser, val, clean_value, context=None):
         super().__init__(parser)
         self.val = val
+        self.clean_value = clean_value
         self.context = context
 
     def __repr__(self):
@@ -303,6 +310,14 @@ class Spec(parsing.Spec):
         return ret
 
 
+def _derive_hint(
+        input: str, message: str, position: (int, int, int)) -> Optional[str]:
+    _, _, off = position
+    if message == r"invalid string literal: invalid escape sequence '\ '":
+        if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
+            return "consider removing trailing whitespace"
+
+
 class Parser:
     def __init__(self, **parser_data):
         self.lexer = None
@@ -370,14 +385,14 @@ class Parser:
         self.lexer.setinputstr(input)
 
     def process_lex_token(self, mod, tok):
-        return mod.TokenMeta.for_lex_token(tok.type)(
-            self.parser, tok.value, self.context(tok))
+        return mod.TokenMeta.for_lex_token(tok.kind())(
+            self.parser, tok.text(), tok.value(), self.context(tok))
 
     def parse(self, input):
-        self.reset_parser(input)
-        mod = self.get_parser_spec_module()
-
         try:
+            self.reset_parser(input)
+            mod = self.get_parser_spec_module()
+
             tok = self.lexer.token()
 
             while tok:
@@ -388,6 +403,12 @@ class Parser:
                 tok = self.lexer.token()
 
             self.parser.eoi()
+
+        except TokenizerError as e:
+            message, position = e.args
+            hint = _derive_hint(input, message, position)
+            raise EdgeQLSyntaxError(
+                message, context=self.context(pos=position), hint=hint) from e
 
         except parsing.SyntaxError as e:
             raise self.get_exception(
@@ -405,20 +426,22 @@ class Parser:
 
         return self.parser.start[0].val
 
-    def context(self, tok=None):
+    def context(self, tok=None, pos: (int, int, int) = None):
         lex = self.lexer
         name = lex.filename if lex.filename else '<string>'
 
         if tok is None:
-            position = pctx.SourcePoint(
-                line=lex.lineno, column=lex.column, pointer=lex.start)
+            if pos is None:
+                pos = lex.end_of_input
+            position = pctx.SourcePoint(*pos)
             context = pctx.ParserContext(
-                name=name, buffer=lex.inputstr, start=position, end=position)
-
+                name=name, buffer=lex.inputstr,
+                start=position, end=position)
         else:
             context = pctx.ParserContext(
-                name=name, buffer=lex.inputstr, start=tok.start,
-                end=tok.end)
+                name=name, buffer=lex.inputstr,
+                start=pctx.SourcePoint(*tok.start()),
+                end=pctx.SourcePoint(*tok.end()))
 
         return context
 
