@@ -38,11 +38,14 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
-                SELECT `ObjectType` {
+                SELECT ObjectType {
                     name
                 }
-                FILTER `ObjectType`.name LIKE 'test::%'
-                ORDER BY `ObjectType`.name;
+                FILTER
+                    .name LIKE 'test::%'
+                    AND NOT .is_compound_type
+                ORDER BY
+                    .name;
             """,
             [
                 {'name': 'test::Comment'},
@@ -1282,8 +1285,11 @@ class TestIntrospection(tb.QueryTestCase):
                         SELECT std::count(ObjectType.<__type__)
                     )
                 }
-                FILTER ObjectType.name LIKE 'test::%'
-                ORDER BY ObjectType.name;
+                FILTER
+                    .name LIKE 'test::%'
+                    AND NOT .is_compound_type
+                ORDER BY
+                    .name;
             """,
             [
                 {'name': 'test::Comment', 'count': 0},

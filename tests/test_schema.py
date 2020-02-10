@@ -4473,20 +4473,43 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             # the links order is non-deterministic
             """
             CREATE TYPE schema::ObjectType
-            EXTENDING schema::BaseObjectType {
-                CREATE MULTI LINK links :=
-                    (.pointers[IS schema::Link]);
-                CREATE MULTI LINK properties :=
-                    (.pointers[IS schema::Property]);
+            EXTENDING schema::InheritingObject,
+                      schema::ConsistencySubject,
+                      schema::AnnotationSubject,
+                      schema::Type,
+                      schema::Source
+            {
+                CREATE MULTI LINK intersection_of -> schema::ObjectType;
+                CREATE MULTI LINK union_of -> schema::ObjectType;
+                CREATE SINGLE PROPERTY is_compound_type := (
+                    (EXISTS (.union_of) OR EXISTS (.intersection_of))
+                );
+                CREATE MULTI LINK links := (
+                    .pointers[IS schema::Link]
+                );
+                CREATE MULTI LINK properties := (
+                    .pointers[IS schema::Property]
+                );
             };
             """,
 
             'DESCRIBE TYPE schema::ObjectType AS SDL',
 
             """
-            type schema::ObjectType extending schema::BaseObjectType {
+            type schema::ObjectType extending
+                    schema::InheritingObject,
+                    schema::ConsistencySubject,
+                    schema::AnnotationSubject,
+                    schema::Type,
+                    schema::Source
+            {
+                multi link intersection_of -> schema::ObjectType;
                 multi link links := (.pointers[IS schema::Link]);
                 multi link properties := (.pointers[IS schema::Property]);
+                multi link union_of -> schema::ObjectType;
+                single property is_compound_type := (
+                    (EXISTS (.union_of) OR EXISTS (.intersection_of))
+                );
             };
             """,
         )

@@ -44,11 +44,14 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class BaseObjectType(sources.Source,
-                     s_types.Type,
-                     constraints.ConsistencySubject,
-                     s_anno.AnnotationSubject,
-                     s_abc.ObjectType):
+class ObjectType(
+    sources.Source,
+    s_types.Type,
+    constraints.ConsistencySubject,
+    s_anno.AnnotationSubject,
+    s_abc.ObjectType,
+    qlkind=qltypes.SchemaObjectClass.TYPE,
+):
 
     union_of = so.SchemaField(
         so.ObjectSet,
@@ -180,7 +183,7 @@ class BaseObjectType(sources.Source,
         if parent in lineage:
             return True
 
-        elif isinstance(parent, BaseObjectType):
+        elif isinstance(parent, ObjectType):
             parent_union = parent.get_union_of(schema)
             if parent_union:
                 # A type is considered a subclass of a union type,
@@ -255,16 +258,6 @@ class BaseObjectType(sources.Source,
         refdict: so.RefDict,
     ) -> bool:
         return not self.is_view(schema) or refdict.attr == 'pointers'
-
-
-class ObjectType(BaseObjectType, qlkind=qltypes.SchemaObjectClass.TYPE):
-    pass
-
-
-# This class exists exclusively for introspection reflection,
-# union and intersection types are actually instances of ObjectType.
-class CompoundObjectType(BaseObjectType):
-    pass
 
 
 def get_or_create_union_type(

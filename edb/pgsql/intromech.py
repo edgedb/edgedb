@@ -933,7 +933,7 @@ class IntrospectionMech:
         return schema, exprmap
 
     async def order_objtypes(self, schema, exprmap):
-        for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
+        for objtype in schema.get_objects(type=s_objtypes.ObjectType):
             try:
                 expr = exprmap[objtype.get_name(schema)]
             except KeyError:

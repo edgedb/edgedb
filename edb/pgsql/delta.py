@@ -1905,11 +1905,7 @@ class RebaseIndex(
 class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
     def get_table(self, schema):
-        if self.scls.is_compound_type(schema):
-            mcls = s_objtypes.CompoundObjectType
-        else:
-            mcls = s_objtypes.ObjectType
-
+        mcls = s_objtypes.ObjectType
         return metaschema.get_metaclass_table(mcls)
 
     @classmethod

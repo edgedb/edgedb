@@ -45,7 +45,7 @@ async def fetch(
                 c.inherited_fields AS inherited_fields
 
             FROM
-                edgedb.BaseObjectType c
+                edgedb.ObjectType c
             WHERE
                 ($1::text[] IS NULL
                  OR split_part(c.name, '::', 1) = any($1::text[]))

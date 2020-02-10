@@ -71,7 +71,7 @@ def get_global_dep_order() -> Tuple[Type[so.Object], ...]:
         types.TupleExprAlias,
         lproperties.Property,
         links.Link,
-        objtypes.BaseObjectType,
+        objtypes.ObjectType,
     )
 
 
