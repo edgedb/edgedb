@@ -87,9 +87,7 @@ def linearize_delta(
             dep_stack = opmap[dep_op]
             dep_parent = _get_parent_op(dep_stack)
             assert isinstance(dep_parent, sd.ObjectCommand)
-            if ((dep_item['tag'], dep_parent.classname)
-                    != (info['tag'], parent.classname)):
-                dependencies[op].add(dep_op)
+            dependencies[op].add(dep_op)
 
     for _key, info in ordered:
         op = info['op']
@@ -101,58 +99,48 @@ def linearize_delta(
         opstack = opmap[op]
         parent = _get_parent_op(opstack)
 
-        reattachment_offset = 1
+        reattachment_depth = 1
 
-        for offset, ancestor_op in enumerate(reversed(opstack[1:-1])):
+        for depth, ancestor_op in enumerate(reversed(opstack[1:-1])):
             assert isinstance(ancestor_op, sd.ObjectCommand)
             mcls = ancestor_op.get_schema_metaclass()
             create_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.CreateObject, mcls)
-            ancestor_key: Tuple[Type[sd.ObjectCommand], sn.Name] = (
-                create_cmd_cls, ancestor_op.classname)
+            attached_root: Optional[sd.ObjectCommand] = None
 
-            attached_parent = parents.get(ancestor_key)
-            if attached_parent is not None:
-                parent_offset = offsets[attached_parent]
-                deps = dependencies.get(op)
+            # Try attaching to a "Create" op, if that doesn't work
+            # attach to whatever the ancestor is right now.
+            for ancestor_cls in [create_cmd_cls, type(ancestor_op)]:
+                ancestor_key: Tuple[Type[sd.ObjectCommand], sn.Name] = (
+                    ancestor_cls, ancestor_op.classname)
+                # The root operation is the top-level operation in the delta.
+                attached_root = parents.get(ancestor_key)
+                if attached_root is not None:
+                    root_offset = offsets[attached_root]
+                    deps = dependencies.get(op, set())
 
-                ok_to_reattach = (
-                    not deps
-                    or all(offsets.get(dep, max_offset) < parent_offset
-                           for dep in deps)
-                )
+                    # It's OK to reattach if no dependency has offset
+                    # higher than our root operation.
+                    if all(offsets.get(dep, max_offset) <= root_offset
+                           for dep in deps):
+                        reattachment_depth = -(depth + 1)
+                        attached_root.add(opstack[reattachment_depth])
+                        # record where this branch was reattached
+                        offset = root_offset
 
-                if ok_to_reattach:
-                    reattachment_offset = -(offset + 1)
-                    attached_parent.add(opstack[reattachment_offset])
-                    offset = parent_offset
+                    break
 
+            if attached_root is not None:
+                # As long as we found our root operation, we consider
+                # the potential reattachment process complete.
                 break
 
-            ancestor_key = (type(ancestor_op), ancestor_op.classname)
-            attached_parent = parents.get(ancestor_key)
-            if attached_parent is not None:
-                parent_offset = offsets[attached_parent]
-                deps = dependencies.get(op)
-                ok_to_reattach = (
-                    not deps
-                    or all(offsets.get(dep, max_offset) < parent_offset
-                           for dep in deps)
-                )
-
-                if ok_to_reattach:
-                    reattachment_offset = -(offset + 1)
-                    attached_parent.add(opstack[reattachment_offset])
-                    offset = parent_offset
-
-                break
-
-        if reattachment_offset == 1:
+        if reattachment_depth == 1:
             # Haven't seen this op branch yet
             ops.append(parent)
             offset = len(ops) - 1
 
-        for op in opstack[reattachment_offset:]:
+        for op in opstack[reattachment_depth:]:
             if isinstance(op, sd.ObjectCommand):
                 ancestor_key = (type(op), op.classname)
                 parents[ancestor_key] = op
