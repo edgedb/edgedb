@@ -187,3 +187,12 @@ sys::get_transaction_isolation() -> sys::TransactionIsolation
     SET force_return_cast := true;
     USING SQL FUNCTION 'edgedb._get_transaction_isolation';
 };
+
+
+CREATE FUNCTION
+sys::get_current_database() -> str
+{
+    # The results won't change within a single statement.
+    SET volatility := 'STABLE';
+    USING SQL FUNCTION 'current_database';
+};

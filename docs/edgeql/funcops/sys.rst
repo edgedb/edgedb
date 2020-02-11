@@ -29,6 +29,9 @@ System
     * - :eql:func:`sys::get_version_as_str`
       - :eql:func-desc:`sys::get_version_as_str`
 
+    * - :eql:func:`sys::get_current_database`
+      - :eql:func-desc:`sys::get_current_database`
+
 
 -----------
 
@@ -135,6 +138,9 @@ System
         {'1.0-alpha.1'}
 
 
+----------
+
+
 .. eql:function:: sys::get_transaction_isolation() -> \
                         sys::TransactionIsolation
 
@@ -147,6 +153,19 @@ System
 
         db> SELECT sys::get_transaction_isolation();
         {<enum>'REPEATABLE READ'}
+
+
+----------
+
+
+.. eql:function:: sys::get_current_database() -> str
+
+    Return the name of the current database as a string.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT sys::get_current_database();
+        {'my_database'}
 
 
 -----------

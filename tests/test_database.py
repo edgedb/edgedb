@@ -23,7 +23,7 @@ from edb.testbase import server as tb
 
 
 class TestDatabase(tb.ConnectedTestCase):
-    async def test_database_create01(self):
+    async def test_database_create_01(self):
         await self.con.execute('CREATE DATABASE mytestdb;')
 
         try:
@@ -42,3 +42,16 @@ class TestDatabase(tb.ConnectedTestCase):
             await conn.aclose()
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')
+
+    async def test_database_current_database_01(self):
+        await self.con.execute('CREATE DATABASE currentdb;')
+
+        try:
+            conn = await self.connect(database='currentdb')
+
+            dbname = await conn.fetchall('SELECT sys::get_current_database();')
+            self.assertEqual(dbname, ['currentdb'])
+
+            await conn.aclose()
+        finally:
+            await self.con.execute('DROP DATABASE currentdb;')
