@@ -60,6 +60,8 @@ class PGErrorCode(enum.Enum):
 
     InvalidCatalogNameError = '3D000'
 
+    ObjectInUse = '55006'
+
 
 class SchemaRequired:
     '''A sentinel used to signal that a particular error requires a schema.'''
@@ -312,6 +314,9 @@ def static_interpret_backend_error(fields):
 
     elif err_details.code == PGErrorCode.InvalidCatalogNameError:
         return errors.AuthenticationError(err_details.message)
+
+    elif err_details.code == PGErrorCode.ObjectInUse:
+        return errors.ExecutionError(err_details.message)
 
     return errors.InternalServerError(err_details.message)
 
