@@ -29,6 +29,9 @@ class TestDatabase(tb.ConnectedTestCase):
         try:
             conn = await self.connect(database='mytestdb')
 
+            dbname = await conn.fetchall('SELECT sys::get_current_database();')
+            self.assertEqual(dbname, ['mytestdb'])
+
             with self.assertRaisesRegex(edgedb.ExecutionError,
                                         r'cannot drop the currently open '
                                         r'database'):
@@ -42,16 +45,3 @@ class TestDatabase(tb.ConnectedTestCase):
             await conn.aclose()
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')
-
-    async def test_database_current_database_01(self):
-        await self.con.execute('CREATE DATABASE currentdb;')
-
-        try:
-            conn = await self.connect(database='currentdb')
-
-            dbname = await conn.fetchall('SELECT sys::get_current_database();')
-            self.assertEqual(dbname, ['currentdb'])
-
-            await conn.aclose()
-        finally:
-            await self.con.execute('DROP DATABASE currentdb;')
