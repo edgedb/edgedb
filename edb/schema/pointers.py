@@ -629,6 +629,17 @@ class PointerCommandOrFragment:
                         )
 
                 target = utils.reduce_to_typeref(schema, target_t)
+
+            elif isinstance(target_ref, s_types.Collection):
+                srcctx = self.get_attribute_source_context('target')
+                target = utils.resolve_typeref(target_ref, schema)
+                s_types.ensure_schema_collection(
+                    schema,
+                    target,
+                    parent_cmd=self,
+                    src_context=srcctx,
+                    context=context,
+                )
             else:
                 target = target_ref
 

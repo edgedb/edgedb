@@ -225,14 +225,6 @@ class PropertyCommand(pointers.PointerCommand,
                 context=srcctx,
             )
 
-        if target_type.is_collection():
-            srcctx = self.get_attribute_source_context('target')
-            s_types.ensure_schema_collection(
-                schema, target_type, self,
-                src_context=srcctx,
-                context=context,
-            )
-
 
 class CreateProperty(PropertyCommand,
                      referencing.CreateReferencedInheritingObject):

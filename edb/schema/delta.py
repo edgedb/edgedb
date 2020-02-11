@@ -313,9 +313,11 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         metaclass: Optional[Type[so.Object]] = None,
         include_prerequisites: bool = True,
     ) -> Tuple[Command, ...]:
-        ops: Iterable[Command] = self.ops
+        ops: Iterable[Command]
         if include_prerequisites:
-            ops = itertools.chain(ops, self.before_ops)
+            ops = itertools.chain(self.before_ops, self.ops)
+        else:
+            ops = self.ops
 
         filters = []
 
@@ -1468,14 +1470,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        from . import types as s_types
-
-        for cop in self.get_subcommands(type=s_types.CollectionTypeCommand):
-            schema = cop.apply(schema, context)
-
         for op in self.get_subcommands(include_prerequisites=False):
-            if not isinstance(op, (s_types.CollectionTypeCommand,
-                                   CreateObjectFragment)):
+            if not isinstance(op, CreateObjectFragment):
                 schema = op.apply(schema, context=context)
 
         return schema
@@ -1782,17 +1778,12 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        from . import types as s_types
-
         self._validate_legal_command(schema, context)
 
         for op in self.get_prerequisites():
             schema = op.apply(schema, context)
 
         for op in self.get_subcommands(type=AlterObjectFragment):
-            schema = op.apply(schema, context)
-
-        for op in self.get_subcommands(type=s_types.CollectionTypeCommand):
             schema = op.apply(schema, context)
 
         schema, props = self._get_field_updates(schema, context)

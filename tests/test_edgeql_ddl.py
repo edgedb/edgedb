@@ -4260,6 +4260,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+        await self.con.execute(r"""
+            ALTER TYPE test::TupProp02 {
+                CREATE PROPERTY p5 -> array<tuple<int64>>;
+            };
+        """)
+
         await self.con.execute('DECLARE SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
@@ -4268,22 +4274,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r"""
                 ALTER TYPE test::TupProp02 {
-                    CREATE PROPERTY p5 -> tuple<test::TupProp02>;
+                    CREATE PROPERTY p6 -> tuple<test::TupProp02>;
                 };
             """)
 
         # Recover.
         await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                'arrays of tuples are not supported'):
-
-            await self.con.execute(r"""
-                ALTER TYPE test::TupProp02 {
-                    CREATE PROPERTY p5 -> array<tuple<int64>>;
-                };
-            """)
 
     async def test_edgeql_ddl_enum_01(self):
         await self.con.execute('''

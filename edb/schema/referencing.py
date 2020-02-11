@@ -196,14 +196,19 @@ class ReferencedObjectCommandBase(sd.ObjectCommand,
     _referrer_context_class = None
 
     @classmethod
-    def get_referrer_context_class(cls) -> Type[sd.CommandContext]:
+    def get_referrer_context_class(
+        cls,
+    ) -> Type[sd.CommandContextToken[sd.Command]]:
         if cls._referrer_context_class is None:
             raise TypeError(
                 f'referrer_context_class is not defined for {cls}')
         return cls._referrer_context_class
 
     @classmethod
-    def get_referrer_context(cls, context) -> Optional[sd.CommandContext]:
+    def get_referrer_context(
+        cls,
+        context,
+    ) -> Optional[sd.CommandContextToken[sd.Command]]:
         """Get the context of the command for the referring object, if any.
 
         E.g. for a `create/alter/etc concrete link` command this would

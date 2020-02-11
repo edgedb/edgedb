@@ -509,6 +509,12 @@ def _normalize_view_ptr_expr(
         ptr_cardinality = None
         ptr_target = inference.infer_type(irexpr, ctx.env)
 
+        if (isinstance(ptr_target, s_types.Collection)
+                and not ctx.env.schema.get_by_id(ptr_target.id, default=None)):
+            # Record references to implicitly defined collection types,
+            # so that the alias delta machinery can pick them up.
+            ctx.env.created_schema_objects.add(ptr_target)
+
         anytype = ptr_target.find_any(ctx.env.schema)
         if anytype is not None:
             raise errors.QueryError(
@@ -527,8 +533,14 @@ def _normalize_view_ptr_expr(
                 # Force assignment casts if the target type is not a
                 # subclass of the base type and the cast is not to an
                 # object type.
-                if not (base_target.is_object_type() or
-                        ptr_target.issubclass(ctx.env.schema, base_target)):
+                if not (
+                    base_target.is_object_type()
+                    or schemactx.is_type_compatible(
+                        base_target,
+                        ptr_target,
+                        ctx=ctx
+                    )
+                ):
                     qlexpr = astutils.ensure_qlstmt(qlast.TypeCast(
                         type=astutils.type_to_ql_typeref(
                             base_target, schema=ctx.env.schema),

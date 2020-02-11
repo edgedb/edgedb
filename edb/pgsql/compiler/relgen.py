@@ -556,8 +556,14 @@ def finalize_optional_rel(
                     tvarels.append(pgast.TupleElementBase(
                         path_id=element.path_id))
                 pathctx.put_path_value_var(
-                    optrel.emptyrel, path_id,
-                    pgast.TupleVarBase(elements=tvarels), env=subctx.env)
+                    optrel.emptyrel,
+                    path_id,
+                    pgast.TupleVarBase(
+                        elements=tvarels,
+                        typeref=tvar.typeref,
+                    ),
+                    env=subctx.env,
+                )
                 pathctx.put_path_source_rvar(
                     optrel.emptyrel, path_id, null_rvar, env=subctx.env)
 
@@ -1444,7 +1450,11 @@ def process_set_as_tuple(
                 pathctx.put_path_var(stmt, path_id, var,
                                      aspect='serialized', env=subctx.env)
 
-        set_expr = pgast.TupleVarBase(elements=elements, named=expr.named)
+        set_expr = pgast.TupleVarBase(
+            elements=elements,
+            named=expr.named,
+            typeref=ir_set.typeref,
+        )
 
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
@@ -1745,7 +1755,8 @@ def _process_set_func_with_ordinality(
                 )
                 for i, n in enumerate(colnames[:-1])
             ],
-            named=inner_named_tuple
+            named=inner_named_tuple,
+            typeref=inner_rtype,
         )
     else:
         inner_expr = astutils.get_column(
@@ -1852,7 +1863,8 @@ def _process_set_func(
                 )
                 for i, n in enumerate(colnames)
             ],
-            named=named_tuple
+            named=named_tuple,
+            typeref=rtype,
         )
 
         for element in set_expr.elements:

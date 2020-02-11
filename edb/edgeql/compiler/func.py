@@ -661,24 +661,13 @@ def finalize_args(
             assert isinstance(paramtype, s_types.Array)
             paramtype = list(paramtype.get_subtypes(ctx.env.schema))[0]
 
-        val_material_type = barg.valtype.material_type(ctx.env.schema)
-        param_material_type = paramtype.material_type(ctx.env.schema)
-
         # Check if we need to cast the argument value before passing
         # it to the callable.
-        compatible = val_material_type.issubclass(
-            ctx.env.schema, param_material_type
+        compatible = schemactx.is_type_compatible(
+            paramtype,
+            barg.valtype,
+            ctx=ctx,
         )
-        if compatible:
-            if (
-                isinstance(param_material_type, s_types.Tuple)
-                and isinstance(val_material_type, s_types.Tuple)
-            ):
-                # For tuples, we also check that the element names match.
-                compatible = (
-                    param_material_type.get_element_names(ctx.env.schema) ==
-                    val_material_type.get_element_names(ctx.env.schema)
-                )
 
         if not compatible:
             # The callable form was chosen via an implicit cast,

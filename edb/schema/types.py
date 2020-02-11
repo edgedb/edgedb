@@ -668,6 +668,12 @@ class Collection(Type, s_abc.Collection):
     ) -> sd.Command:
         raise NotImplementedError
 
+    def as_schema_coll(
+        self,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[s_schema.Schema, SchemaCollection]:
+        raise NotImplementedError
+
 
 class EphemeralCollection(Collection):
     # Mypy is unhappy with fields being so.Fields here and not so.SchemaFields.
@@ -998,7 +1004,7 @@ class SchemaCollectionMeta(so.ObjectMeta):
         return True
 
 
-class SchemaCollection(so.Object, metaclass=SchemaCollectionMeta):
+class SchemaCollection(Type, metaclass=SchemaCollectionMeta):
     def __repr__(self):
         return (
             f'<{self.__class__.__name__} '
@@ -1764,6 +1770,14 @@ class TypeCommand(sd.ObjectCommand):
 
         derived_delta = sd.DeltaRoot()
 
+        for ref in ir.new_coll_types:
+            ensure_schema_collection(
+                schema,
+                ref,
+                derived_delta,
+                context=context,
+            )
+
         derived_delta.add(so.Object.delta_sets(
             prev_expr_aliases, expr_aliases,
             old_schema=old_schema, new_schema=new_schema))
@@ -1924,29 +1938,31 @@ def ensure_schema_collection(
     *,
     src_context: Optional[parsing.ParserContext] = None,
     context: sd.CommandContext,
-) -> None:
+) -> Optional[sd.Command]:
     if not isinstance(coll_type, Collection):
         raise ValueError(
             f'{coll_type.get_displayname(schema)} is not a collection')
 
-    if coll_type.contains_array_of_tuples(schema):
-        raise errors.UnsupportedFeatureError(
-            'arrays of tuples are not supported at the schema level',
-            context=src_context,
-        )
-
     delta_root = context.top().op
     assert isinstance(delta_root, sd.DeltaRoot)
+    cmd: Optional[sd.Command] = None
 
     if (schema.get_by_id(coll_type.id, None) is None
             and coll_type.id not in delta_root.new_types):
-        parent_cmd.add(coll_type.as_create_delta(schema))
+        cmd = coll_type.as_create_delta(schema)
+        if isinstance(parent_cmd, sd.DeltaRoot):
+            parent_cmd.add(cmd)
+        else:
+            parent_cmd.add_prerequisite(cmd)
+
         delta_root.new_types.add(coll_type.id)
 
     if coll_type.id in delta_root.deleted_types:
         # Revert the deletion decision.
         del_cmd = delta_root.deleted_types.pop(coll_type.id)
         delta_root.discard(del_cmd)
+
+    return cmd
 
 
 def cleanup_schema_collection(

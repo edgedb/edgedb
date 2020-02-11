@@ -851,7 +851,11 @@ def _get_path_output(
             elements.append(pgast.TupleElementBase(
                 path_id=el_path_id, name=element))
 
-        result = pgast.TupleVarBase(elements=elements, named=ref.named)
+        result = pgast.TupleVarBase(
+            elements=elements,
+            named=ref.named,
+            typeref=ref.typeref,
+        )
 
     else:
         if astutils.is_set_op_query(rel):

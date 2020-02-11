@@ -485,7 +485,7 @@ def compile_Tuple(
         val = dispatch.compile(e.val, ctx=ctx)
         elements.append(pgast.TupleElement(path_id=e.path_id, val=val))
 
-    result = pgast.TupleVar(elements=elements)
+    result = pgast.TupleVar(elements=elements, typeref=ttype)
 
     return output.output_as_value(result, env=ctx.env)
 

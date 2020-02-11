@@ -1171,17 +1171,21 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             ]
         )
 
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                'arrays of tuples are not supported'):
-            await self.con.execute('''
-                CREATE FUNCTION test::call33_2(
-                    a: array<tuple<int64, int64>>
-                ) -> int64
-                    USING EdgeQL $$
-                        SELECT a[0].0
-                    $$;
-            ''')
+        await self.con.execute('''
+            CREATE FUNCTION test::call33_2(
+                a: array<tuple<int64, int64>>
+            ) -> int64
+                USING EdgeQL $$
+                    SELECT a[0].0
+                $$;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call33_2([(1, 2), (3, 4)]);''',
+            [
+                1,
+            ]
+        )
 
     async def test_edgeql_calls_34(self):
         # Tuple return
@@ -1209,17 +1213,21 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             ]
         )
 
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                'arrays of tuples are not supported'):
-            await self.con.execute('''
-                CREATE FUNCTION test::call34_2(
-                    a: int64
-                ) -> array<tuple<int64>>
-                    USING EdgeQL $$
-                        SELECT [(a,)]
-                    $$;
-            ''')
+        await self.con.execute('''
+            CREATE FUNCTION test::call34_2(
+                a: int64
+            ) -> array<tuple<int64>>
+                USING EdgeQL $$
+                    SELECT [(a,)]
+                $$;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT test::call34_2(1);''',
+            [
+                [[1]]
+            ]
+        )
 
     async def test_edgeql_calls_35(self):
         # define a function with positional arguments with defaults

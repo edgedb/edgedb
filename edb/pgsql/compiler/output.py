@@ -74,10 +74,10 @@ def array_as_json_object(
 
         for i, st in enumerate(el_type.subtypes):
             if is_named:
-                colname = env.aliases.get(st.element_name)
+                colname = st.element_name
                 json_args.append(pgast.StringConstant(val=st.element_name))
             else:
-                colname = env.aliases.get(str(i))
+                colname = str(i)
 
             val: pgast.BaseExpr = pgast.ColumnRef(name=[colname])
             if irtyputils.is_collection(st):
@@ -85,14 +85,18 @@ def array_as_json_object(
 
             json_args.append(val)
 
-            coldeflist.append(
-                pgast.ColumnDef(
-                    name=colname,
-                    typename=pgast.TypeName(
-                        name=pgtypes.pg_type_from_ir_typeref(st)
+            if not el_type.in_schema:
+                # Column definition list is only allowed for functions
+                # returning "record", i.e. an anonymous tuple, which
+                # would not be the case for schema-persistent tuple types.
+                coldeflist.append(
+                    pgast.ColumnDef(
+                        name=colname,
+                        typename=pgast.TypeName(
+                            name=pgtypes.pg_type_from_ir_typeref(st)
+                        )
                     )
                 )
-            )
 
         if is_named:
             json_func = _get_json_func('build_object', env=env)
@@ -360,6 +364,17 @@ def output_as_value(
         val = RowCls(args=[
             output_as_value(e.val, env=env) for e in expr.elements
         ])
+
+        if (expr.typeref is not None
+                and not env.singleton_mode
+                and expr.typeref.in_schema):
+            pg_type = pgtypes.pg_type_from_ir_typeref(expr.typeref)
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(
+                    name=pg_type,
+                ),
+            )
 
     return val
 

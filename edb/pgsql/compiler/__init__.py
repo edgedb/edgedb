@@ -56,7 +56,8 @@ def compile_ir_to_sql_tree(
             expected_cardinality_one=expected_cardinality_one,
             use_named_params=use_named_params,
             ignore_object_shapes=ignore_shapes,
-            explicit_top_cast=explicit_top_cast)
+            explicit_top_cast=explicit_top_cast,
+            singleton_mode=singleton_mode)
 
         if isinstance(ir_expr, irast.Statement):
             scope_tree = ir_expr.scope_tree
