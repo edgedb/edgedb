@@ -17,6 +17,8 @@
 #
 
 
+import edgedb
+
 from edb.testbase import server as tb
 
 
@@ -26,6 +28,17 @@ class TestDatabase(tb.ConnectedTestCase):
 
         try:
             conn = await self.connect(database='mytestdb')
+
+            with self.assertRaisesRegex(edgedb.ExecutionError,
+                                        r'cannot drop the currently open '
+                                        r'database'):
+                await conn.execute('DROP DATABASE mytestdb;')
+
+            with self.assertRaisesRegex(edgedb.ExecutionError,
+                                        r'database "mytestdb" is being '
+                                        r'accessed by other users'):
+                await self.con.execute('DROP DATABASE mytestdb;')
+
             await conn.aclose()
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')
