@@ -60,6 +60,13 @@ class TestCLI(tb.ConnectedTestCase, tb.CLITestCaseMixin):
                               '--password', input='foo-pass\n')
         self.assertIn('input is not a TTY', result.output)
 
+        result = self.run_cli(
+            'create-superuser-role',
+            'create-role-empty-options'
+        )
+
+        self.assertEqual(result.exit_code, 0)
+
     async def test_cli_repl_script(self):
         result = self.run_cli(input='SELECT 1 + 1')
         self.assertEqual(list(result.output.split('\n'))[0], '{2}')
