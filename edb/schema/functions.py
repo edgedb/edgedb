@@ -177,7 +177,7 @@ class ParameterDesc(ParameterLike):
 
     @classmethod
     def from_create_delta(cls, schema: s_schema.Schema, context, cmd):
-        props = cmd.get_struct_properties(schema)
+        props = cmd.get_resolved_attributes(schema, context)
         props['name'] = Parameter.paramname_from_fullname(props['name'])
         return schema, cls(
             num=props['num'],
@@ -656,16 +656,6 @@ class CallableObject(s_anno.AnnotationSubject, CallableLike):
 
 class CallableCommand(sd.ObjectCommand):
 
-    def _prepare_create_fields(self, schema: s_schema.Schema, context):
-        params = self.get_attribute_value('params')
-
-        if params is None:
-            params = self._get_params(schema, context)
-
-        schema, props = super()._prepare_create_fields(schema, context)
-        props['params'] = params
-        return schema, props
-
     def _get_params(self, schema: s_schema.Schema, context):
         params = []
         for cr_param in self.get_subcommands(type=ParameterCommand):
@@ -755,6 +745,16 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
                 'return_typemod', astnode.returning_typemod)
 
         return cmd
+
+    def get_resolved_attributes(self, schema: s_schema.Schema, context):
+        params = self.get_attribute_value('params')
+
+        if params is None:
+            params = self._get_params(schema, context)
+
+        props = super().get_resolved_attributes(schema, context)
+        props['params'] = params
+        return props
 
 
 class DeleteCallableObject(CallableCommand, sd.DeleteObject):
@@ -1060,7 +1060,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
         params = []
         for op in self.get_subcommands(type=ParameterCommand):
-            props = op.get_struct_properties(schema)
+            props = op.get_resolved_attributes(schema, context)
             num = props['num']
             default = props.get('default')
             param = qlast.FuncParam(

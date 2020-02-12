@@ -488,7 +488,7 @@ class CreateConstraint(ConstraintCommand,
             )
 
         if not context.canonical:
-            schema, props = self._get_create_fields(schema, context)
+            props = self.get_resolved_attributes(schema, context)
             props.pop('name')
             props.pop('subject', None)
             fullname = self.classname
@@ -614,7 +614,7 @@ class CreateConstraint(ConstraintCommand,
         if isinstance(node, qlast.CreateConstraint):
             params = []
             for op in self.get_subcommands(type=s_func.ParameterCommand):
-                props = op.get_struct_properties(schema)
+                props = op.get_resolved_attributes(schema, context)
                 pname = s_func.Parameter.paramname_from_fullname(props['name'])
                 if pname == '__subject__':
                     continue

@@ -125,12 +125,16 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     ops: ordered.OrderedSet[Command]
     before_ops: ordered.OrderedSet[Command]
 
+    #: AlterObjectProperty lookup table for get|set_attribute_value
+    _attrs: Dict[str, AlterObjectProperty]
+
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.ops = ordered.OrderedSet()
         self.before_ops = ordered.OrderedSet()
         self.qlast: qlast.DDLOperation
         self.classname: str
+        self._attrs = {}
 
     def copy(self: Command_T) -> Command_T:
         result = super().copy()
@@ -208,23 +212,16 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         return value
 
     def enumerate_attributes(self) -> Tuple[str, ...]:
-        alters = self.get_subcommands(type=AlterObjectProperty)
-        return tuple(op.property for op in alters)
+        return tuple(self._attrs)
 
     def has_attribute_value(self, attr_name: str) -> bool:
-        for op in self.get_subcommands(type=AlterObjectProperty):
-            if op.property == attr_name:
-                return True
-        return False
+        return attr_name in self._attrs
 
     def get_attribute_set_cmd(
         self,
         attr_name: str,
     ) -> Optional[AlterObjectProperty]:
-        for op in self.get_subcommands(type=AlterObjectProperty):
-            if op.property == attr_name:
-                return op
-        return None
+        return self._attrs.get(attr_name)
 
     def get_attribute_value(
         self,
@@ -266,32 +263,26 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         inherited: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
     ) -> None:
-        for op in self.get_subcommands(type=AlterObjectProperty):
-            if op.property == attr_name:
-                op.new_value = value
-                if inherited:
-                    op.source = 'inheritance'
-                if source_context is not None:
-                    op.source_context = source_context
-                if orig_value is not None:
-                    op.old_value = orig_value
-                break
-        else:
+        orig_op = op = self.get_attribute_set_cmd(attr_name)
+        if op is None:
             op = AlterObjectProperty(property=attr_name, new_value=value)
-            if inherited:
-                op.source = 'inheritance'
-            if source_context is not None:
-                op.source_context = source_context
-            if orig_value is not None:
-                op.old_value = orig_value
+        else:
+            op.new_value = value
 
+        if inherited:
+            op.source = 'inheritance'
+        if source_context is not None:
+            op.source_context = source_context
+        if orig_value is not None:
+            op.old_value = orig_value
+
+        if orig_op is None:
             self.add(op)
 
     def discard_attribute(self, attr_name: str) -> None:
-        for op in self.get_subcommands(type=AlterObjectProperty):
-            if op.property == attr_name:
-                self.discard(op)
-                return
+        op = self.get_attribute_set_cmd(attr_name)
+        if op is not None:
+            self.discard(op)
 
     def __iter__(self) -> NoReturn:
         raise TypeError(f'{type(self)} object is not iterable')
@@ -390,14 +381,18 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     def prepend(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
             for op in reversed(command.get_subcommands()):
-                self.ops.add(op, last=False)
+                self.prepend(op)
         else:
+            if isinstance(command, AlterObjectProperty):
+                self._attrs[command.property] = command
             self.ops.add(command, last=False)
 
     def add(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
-            self.ops.update(command.get_subcommands())  # type: ignore
+            self.update(command.get_subcommands())
         else:
+            if isinstance(command, AlterObjectProperty):
+                self._attrs[command.property] = command
             self.ops.add(command)
 
     def update(self, commands: Iterable[Command]) -> None:  # type: ignore
@@ -406,10 +401,13 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
     def replace(self, commands: Iterable[Command]) -> None:  # type: ignore
         self.ops.clear()
-        self.ops.update(commands)  # type: ignore
+        self._attrs.clear()
+        self.update(commands)
 
     def discard(self, command: Command) -> None:
         self.ops.discard(command)
+        if isinstance(command, AlterObjectProperty):
+            self._attrs.pop(command.property)
 
     def apply(
         self,
@@ -1102,24 +1100,6 @@ class ObjectCommand(
             raise TypeError(f'schema metaclass not set for {cls}')
         return cls._schema_metaclass
 
-    def get_struct_properties(self, schema: s_schema.Schema) -> Dict[str, Any]:
-        result = {}
-        metaclass = self.get_schema_metaclass()
-
-        for op in self.get_subcommands(type=AlterObjectProperty):
-            field = metaclass.get_field(op.property)
-            if field is None:
-                raise errors.SchemaDefinitionError(
-                    f'got AlterObjectProperty command for '
-                    f'invalid field: {metaclass.__name__}.{op.property}')
-
-            val = self._resolve_attr_value(
-                op.new_value, op.property, field, schema)
-
-            result[op.property] = val
-
-        return result
-
     def _validate_legal_command(
         self,
         schema: s_schema.Schema,
@@ -1198,43 +1178,49 @@ class ObjectCommand(
 
         return immu.Map(result)
 
-    def _prepare_field_updates(
+    def get_resolved_attribute_value(
         self,
+        attr_name: str,
+        *,
         schema: s_schema.Schema,
         context: CommandContext,
-    ) -> Tuple[s_schema.Schema, Dict[str, Any]]:
-        result = {}
-        metaclass = self.get_schema_metaclass()
+    ) -> Any:
+        raw_value = self.get_attribute_value(attr_name)
+        if raw_value is None:
+            return None
 
-        for op in self.get_subcommands(type=AlterObjectProperty):
-            field = metaclass.get_field(op.property)
+        value = context.get_cached((self, 'attribute', attr_name))
+        if value is None:
+            metaclass = self.get_schema_metaclass()
+            field = metaclass.get_field(attr_name)
             if field is None:
                 raise errors.SchemaDefinitionError(
                     f'got AlterObjectProperty command for '
-                    f'invalid field: {metaclass.__name__}.{op.property}')
+                    f'invalid field: {metaclass.__name__}.{attr_name}')
 
-            val = self._resolve_attr_value(
-                op.new_value, op.property, field, schema)
+            value = self._resolve_attr_value(
+                raw_value, attr_name, field, schema)
 
-            if isinstance(val, s_expr.Expression) and not val.is_compiled():
-                val = self.compile_expr_field(schema, context, field, val)
+            if (isinstance(value, s_expr.Expression)
+                    and not value.is_compiled()):
+                value = self.compile_expr_field(schema, context, field, value)
 
-            result[op.property] = val
+            context.cache_value((self, 'attribute', attr_name), value)
 
-        return schema, result
+        return value
 
-    def _get_field_updates(
+    def get_resolved_attributes(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
-    ) -> Tuple[s_schema.Schema, Dict[str, Any]]:
-        field_updates = context.get_cached((self, 'field_updates'))
-        if field_updates is None or True:
-            schema, field_updates = self._prepare_field_updates(
-                schema, context)
-            context.cache_value((self, 'field_updates'), field_updates)
+    ) -> Dict[str, Any]:
+        result = {}
 
-        return schema, field_updates
+        for attr in self.enumerate_attributes():
+            result[attr] = self.get_resolved_attribute_value(
+                attr, schema=schema, context=context)
+
+        return result
 
     def compile_expr_field(
         self,
@@ -1425,7 +1411,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             if specified_id is not None:
                 self.set_attribute_value('id', specified_id)
 
-        schema, props = self._get_create_fields(schema, context)
+        props = self.get_resolved_attributes(schema, context)
         metaclass = self.get_schema_metaclass()
         schema, self.scls = metaclass.create_in_schema(schema, **props)
 
@@ -1446,26 +1432,6 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         if node is not None and self.if_not_exists:
             node.create_if_not_exists = True
         return node
-
-    def _prepare_create_fields(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> Tuple[s_schema.Schema, Dict[str, Any]]:
-        return self._prepare_field_updates(schema, context)
-
-    def _get_create_fields(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> Tuple[s_schema.Schema, Dict[str, Any]]:
-        field_updates = context.get_cached((self, 'create_fields'))
-        if field_updates is None or True:
-            schema, field_updates = self._prepare_create_fields(
-                schema, context)
-            context.cache_value((self, 'create_fields'), field_updates)
-
-        return schema, field_updates
 
     def _create_innards(
         self,
@@ -1542,7 +1508,7 @@ class AlterObjectFragment(ObjectCommand[so.Object]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        schema, props = self._get_field_updates(schema, context)
+        props = self.get_resolved_attributes(schema, context)
         schema = self.scls.update(schema, props)
         return schema
 
@@ -1785,7 +1751,7 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         for op in self.get_subcommands(type=AlterObjectFragment):
             schema = op.apply(schema, context)
 
-        schema, props = self._get_field_updates(schema, context)
+        props = self.get_resolved_attributes(schema, context)
         schema = self.scls.update(schema, props)
         return schema
 
