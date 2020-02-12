@@ -14,7 +14,7 @@ configuration:
     .........     address := "127.0.0.1",
     .........     port := 8888,
     .........     user := "http",
-    .........     concurrency := 4,
+    .........     concurrency := 1,
     ......... };
     CONFIGURE SYSTEM
 
