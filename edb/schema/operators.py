@@ -235,36 +235,36 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
     def _cmd_tree_from_ast(cls, schema, astnode, context):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        cmd.add(sd.AlterObjectProperty(
-            property='operator_kind',
-            new_value=astnode.kind,
-        ))
+        cmd.set_attribute_value(
+            'operator_kind',
+            astnode.kind,
+        )
 
         if astnode.code is not None:
-            cmd.add(sd.AlterObjectProperty(
-                property='language',
-                new_value=astnode.code.language
-            ))
+            cmd.set_attribute_value(
+                'language',
+                astnode.code.language,
+            )
             if astnode.code.from_operator is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='from_operator',
-                    new_value=astnode.code.from_operator
-                ))
+                cmd.set_attribute_value(
+                    'from_operator',
+                    astnode.code.from_operator,
+                )
             if astnode.code.from_function is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='from_function',
-                    new_value=astnode.code.from_function
-                ))
+                cmd.set_attribute_value(
+                    'from_function',
+                    astnode.code.from_function,
+                )
             if astnode.code.code is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='code',
-                    new_value=astnode.code.code
-                ))
+                cmd.set_attribute_value(
+                    'code',
+                    astnode.code.code,
+                )
             if astnode.code.from_expr is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='from_expr',
-                    new_value=astnode.code.from_expr
-                ))
+                cmd.set_attribute_value(
+                    'from_expr',
+                    astnode.code.from_expr,
+                )
 
         return cmd
 

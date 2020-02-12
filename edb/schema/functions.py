@@ -206,25 +206,19 @@ class ParameterDesc(ParameterLike):
 
         cmd = CreateParameter(classname=param_name)
 
-        cmd.add(sd.AlterObjectProperty(
-            property='name',
-            new_value=param_name,
-        ))
+        cmd.set_attribute_value('name', param_name)
 
-        cmd.add(sd.AlterObjectProperty(
-            property='type',
-            new_value=utils.reduce_to_typeref(schema, self.type),
-        ))
+        cmd.set_attribute_value(
+            'type',
+            utils.reduce_to_typeref(schema, self.type),
+        )
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
             s_types.ensure_schema_collection(
                 schema, self.type, cmd, context=context)
 
         for attr in ('num', 'typemod', 'kind', 'default'):
-            cmd.add(sd.AlterObjectProperty(
-                property=attr,
-                new_value=getattr(self, attr),
-            ))
+            cmd.set_attribute_value(attr, getattr(self, attr))
 
         return cmd
 
@@ -755,15 +749,10 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
                     context=context,
                 )
 
-            cmd.add(sd.AlterObjectProperty(
-                property='return_type',
-                new_value=return_type_ref,
-            ))
-
-            cmd.add(sd.AlterObjectProperty(
-                property='return_typemod',
-                new_value=astnode.returning_typemod
-            ))
+            cmd.set_attribute_value(
+                'return_type', return_type_ref)
+            cmd.set_attribute_value(
+                'return_typemod', astnode.returning_typemod)
 
         return cmd
 
@@ -1049,20 +1038,20 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if astnode.code is not None:
-            cmd.add(sd.AlterObjectProperty(
-                property='language',
-                new_value=astnode.code.language
-            ))
+            cmd.set_attribute_value(
+                'language',
+                astnode.code.language,
+            )
             if astnode.code.from_function is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='from_function',
-                    new_value=astnode.code.from_function
-                ))
+                cmd.set_attribute_value(
+                    'from_function',
+                    astnode.code.from_function
+                )
             else:
-                cmd.add(sd.AlterObjectProperty(
-                    property='code',
-                    new_value=astnode.code.code
-                ))
+                cmd.set_attribute_value(
+                    'code',
+                    astnode.code.code,
+                )
 
         return cmd
 

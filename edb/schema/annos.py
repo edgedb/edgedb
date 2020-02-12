@@ -249,24 +249,25 @@ class CreateAnnotationValue(AnnotationValueCommand,
 
         attr: Annotation = schema.get(propname)
 
-        cmd.update((
-            sd.AlterObjectProperty(
-                property='annotation',
-                new_value=utils.reduce_to_typeref(schema, attr)
-            ),
-            sd.AlterObjectProperty(
-                property='value',
-                new_value=value
-            ),
-            sd.AlterObjectProperty(
-                property='inheritable',
-                new_value=attr.get_inheritable(schema),
-            ),
-            sd.AlterObjectProperty(
-                property='is_final',
-                new_value=not attr.get_inheritable(schema),
-            ),
-        ))
+        cmd.set_attribute_value(
+            'annotation',
+            utils.reduce_to_typeref(schema, attr),
+        )
+
+        cmd.set_attribute_value(
+            'value',
+            value,
+        )
+
+        cmd.set_attribute_value(
+            'inheritable',
+            attr.get_inheritable(schema),
+        )
+
+        cmd.set_attribute_value(
+            'is_final',
+            not attr.get_inheritable(schema),
+        )
 
         assert isinstance(cmd, CreateAnnotationValue)
         return cmd
@@ -309,12 +310,10 @@ class AlterAnnotationValue(AnnotationValueCommand,
             raise ValueError(
                 f'unexpected value type in AnnotationValue: {value!r}')
 
-        cmd.update((
-            sd.AlterObjectProperty(
-                property='value',
-                new_value=value
-            ),
-        ))
+        cmd.set_attribute_value(
+            'value',
+            value,
+        )
 
         assert isinstance(cmd, AlterAnnotationValue)
 

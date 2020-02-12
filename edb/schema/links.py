@@ -296,51 +296,24 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             classname=src_prop_name,
             metaclass=lproperties.Property
         )
-        src_prop.update((
-            sd.AlterObjectProperty(
-                property='name',
-                new_value=src_prop_name
-            ),
-            sd.AlterObjectProperty(
-                property='bases',
-                new_value=so.ObjectList.create(
-                    schema,
-                    [so.ObjectRef(name=base_prop_name)],
-                ),
-            ),
-            sd.AlterObjectProperty(
-                property='source',
-                new_value=so.ObjectRef(
-                    name=self.classname
-                )
-            ),
-            sd.AlterObjectProperty(
-                property='target',
-                new_value=so.ObjectRef(
-                    name=source_name
-                )
-            ),
-            sd.AlterObjectProperty(
-                property='required',
-                new_value=True
-            ),
-            sd.AlterObjectProperty(
-                property='readonly',
-                new_value=True
-            ),
-            sd.AlterObjectProperty(
-                property='is_final',
-                new_value=True
-            ),
-            sd.AlterObjectProperty(
-                property='is_local',
-                new_value=True
-            ),
-            sd.AlterObjectProperty(
-                property='cardinality',
-                new_value=qltypes.Cardinality.ONE,
-            ),
-        ))
+        src_prop.set_attribute_value('name', src_prop_name)
+        src_prop.set_attribute_value(
+            'bases',
+            so.ObjectList.create(schema, [so.ObjectRef(name=base_prop_name)]),
+        )
+        src_prop.set_attribute_value(
+            'source',
+            so.ObjectRef(name=self.classname),
+        )
+        src_prop.set_attribute_value(
+            'target',
+            so.ObjectRef(name=source_name),
+        )
+        src_prop.set_attribute_value('required', True)
+        src_prop.set_attribute_value('readonly', True)
+        src_prop.set_attribute_value('is_final', True)
+        src_prop.set_attribute_value('is_local', True)
+        src_prop.set_attribute_value('cardinality', qltypes.Cardinality.ONE)
 
         cmd.prepend(src_prop)
 
@@ -354,49 +327,25 @@ class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
             classname=tgt_prop_name,
             metaclass=lproperties.Property
         )
-        tgt_prop.update((
-            sd.AlterObjectProperty(
-                property='name',
-                new_value=tgt_prop_name
-            ),
-            sd.AlterObjectProperty(
-                property='bases',
-                new_value=so.ObjectList.create(
-                    schema,
-                    [so.ObjectRef(name=base_prop_name)],
-                ),
-            ),
-            sd.AlterObjectProperty(
-                property='source',
-                new_value=so.ObjectRef(
-                    name=self.classname
-                )
-            ),
-            sd.AlterObjectProperty(
-                property='target',
-                new_value=self.get_attribute_value('target'),
-            ),
-            sd.AlterObjectProperty(
-                property='required',
-                new_value=False
-            ),
-            sd.AlterObjectProperty(
-                property='readonly',
-                new_value=True
-            ),
-            sd.AlterObjectProperty(
-                property='is_final',
-                new_value=True
-            ),
-            sd.AlterObjectProperty(
-                property='is_local',
-                new_value=True
-            ),
-            sd.AlterObjectProperty(
-                property='cardinality',
-                new_value=qltypes.Cardinality.ONE,
-            ),
-        ))
+
+        tgt_prop.set_attribute_value('name', tgt_prop_name)
+        tgt_prop.set_attribute_value(
+            'bases',
+            so.ObjectList.create(schema, [so.ObjectRef(name=base_prop_name)]),
+        )
+        tgt_prop.set_attribute_value(
+            'source',
+            so.ObjectRef(name=self.classname),
+        )
+        tgt_prop.set_attribute_value(
+            'target',
+            self.get_attribute_value('target'),
+        )
+        tgt_prop.set_attribute_value('required', False)
+        tgt_prop.set_attribute_value('readonly', True)
+        tgt_prop.set_attribute_value('is_final', True)
+        tgt_prop.set_attribute_value('is_local', True)
+        tgt_prop.set_attribute_value('cardinality', qltypes.Cardinality.ONE)
 
         cmd.prepend(tgt_prop)
 

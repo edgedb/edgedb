@@ -238,53 +238,59 @@ class CreateCast(CastCommand, sd.CreateObject):
 
         modaliases = context.modaliases
 
-        cmd.add(sd.AlterObjectProperty(
-            property='from_type',
-            new_value=utils.ast_to_typeref(
-                astnode.from_type, modaliases=modaliases, schema=schema),
-        ))
+        cmd.set_attribute_value(
+            'from_type',
+            utils.ast_to_typeref(
+                astnode.from_type,
+                modaliases=modaliases,
+                schema=schema,
+            ),
+        )
 
-        cmd.add(sd.AlterObjectProperty(
-            property='to_type',
-            new_value=utils.ast_to_typeref(
-                astnode.to_type, modaliases=modaliases, schema=schema),
-        ))
+        cmd.set_attribute_value(
+            'to_type',
+            utils.ast_to_typeref(
+                astnode.to_type,
+                modaliases=modaliases,
+                schema=schema,
+            ),
+        )
 
-        cmd.add(sd.AlterObjectProperty(
-            property='allow_implicit',
-            new_value=astnode.allow_implicit,
-        ))
+        cmd.set_attribute_value(
+            'allow_implicit',
+            astnode.allow_implicit,
+        )
 
-        cmd.add(sd.AlterObjectProperty(
-            property='allow_assignment',
-            new_value=astnode.allow_assignment,
-        ))
+        cmd.set_attribute_value(
+            'allow_assignment',
+            astnode.allow_assignment,
+        )
 
         if astnode.code is not None:
-            cmd.add(sd.AlterObjectProperty(
-                property='language',
-                new_value=astnode.code.language
-            ))
+            cmd.set_attribute_value(
+                'language',
+                astnode.code.language,
+            )
             if astnode.code.from_function is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='from_function',
-                    new_value=astnode.code.from_function
-                ))
+                cmd.set_attribute_value(
+                    'from_function',
+                    astnode.code.from_function,
+                )
             if astnode.code.code is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='code',
-                    new_value=astnode.code.code
-                ))
+                cmd.set_attribute_value(
+                    'code',
+                    astnode.code.code,
+                )
             if astnode.code.from_expr is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='from_expr',
-                    new_value=astnode.code.from_expr
-                ))
+                cmd.set_attribute_value(
+                    'from_expr',
+                    astnode.code.from_expr,
+                )
             if astnode.code.from_cast is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='from_cast',
-                    new_value=astnode.code.from_cast
-                ))
+                cmd.set_attribute_value(
+                    'from_cast',
+                    astnode.code.from_cast,
+                )
 
         return cmd
 

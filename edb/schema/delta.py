@@ -207,6 +207,10 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
 
         return value
 
+    def enumerate_attributes(self) -> Tuple[str, ...]:
+        alters = self.get_subcommands(type=AlterObjectProperty)
+        return tuple(op.property for op in alters)
+
     def has_attribute_value(self, attr_name: str) -> bool:
         for op in self.get_subcommands(type=AlterObjectProperty):
             if op.property == attr_name:
@@ -258,6 +262,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         attr_name: str,
         value: Any,
         *,
+        orig_value: Any = None,
         inherited: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
     ) -> None:
@@ -268,6 +273,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                     op.source = 'inheritance'
                 if source_context is not None:
                     op.source_context = source_context
+                if orig_value is not None:
+                    op.old_value = orig_value
                 break
         else:
             op = AlterObjectProperty(property=attr_name, new_value=value)
@@ -275,6 +282,8 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
                 op.source = 'inheritance'
             if source_context is not None:
                 op.source_context = source_context
+            if orig_value is not None:
+                op.old_value = orig_value
 
             self.add(op)
 
@@ -1384,18 +1393,10 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
         cmd.if_not_exists = astnode.create_if_not_exists
 
-        cmd.add(
-            AlterObjectProperty(
-                property='name',
-                new_value=cmd.classname
-            )
-        )
+        cmd.set_attribute_value('name', cmd.classname)
 
         if getattr(astnode, 'is_abstract', False):
-            cmd.add(AlterObjectProperty(
-                property='is_abstract',
-                new_value=True
-            ))
+            cmd.set_attribute_value('is_abstract', True)
 
         return cmd
 
@@ -1696,10 +1697,7 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         assert isinstance(cmd, AlterObject)
 
         if getattr(astnode, 'is_abstract', False):
-            cmd.add(AlterObjectProperty(
-                property='is_abstract',
-                new_value=True
-            ))
+            cmd.set_attribute_value('is_abstract', True)
 
         added_bases = []
         dropped_bases: List[so.Object] = []

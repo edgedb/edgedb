@@ -1218,8 +1218,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
     ) -> None:
-        from edb.schema import delta as sd
-
         ff = type(new).get_fields(sorted=True).items()
         fields = {fn: f for fn, f in ff
                   if f.simpledelta and not f.ephemeral and f.introspectable}
@@ -1248,14 +1246,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                     context=context)
 
                 if fcoef != 1.0:
-                    delta.add(sd.AlterObjectProperty(
-                        property=fn, old_value=oldattr_v, new_value=newattr_v))
+                    delta.set_attribute_value(
+                        fn, newattr_v, orig_value=oldattr_v)
         elif new:
             # IDs are assigned once when the object is created and
             # never changed.
             id_value = new.get_explicit_field_value(new_schema, 'id')
-            delta.add(sd.AlterObjectProperty(
-                property='id', old_value=None, new_value=id_value))
+            delta.set_attribute_value('id', id_value)
 
             for fn in fields:
                 value = new.get_explicit_field_value(new_schema, fn, None)
@@ -1272,10 +1269,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         fname: str,
         value: Any,
     ) -> None:
-        from edb.schema import delta as sd
-
-        delta.add(sd.AlterObjectProperty(
-            property=fname, old_value=None, new_value=value))
+        delta.set_attribute_value(fname, value)
 
     @classmethod
     def delta_rename(

@@ -837,12 +837,7 @@ class CreateReferencedObject(ReferencedObjectCommand,
             cmd.set_attribute_value('is_local', True)
 
             if getattr(astnode, 'is_abstract', None):
-                cmd.add(
-                    sd.AlterObjectProperty(
-                        property='is_abstract',
-                        new_value=True
-                    )
-                )
+                cmd.set_attribute_value('is_abstract', True)
 
         return cmd
 

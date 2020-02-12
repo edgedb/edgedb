@@ -269,12 +269,10 @@ class Constraint(referencing.ReferencedInheritingObject,
         if new is not None and new.get_subject(new_schema) is not None:
             new_params = new.get_params(new_schema)
             if old is None or new_params != old.get_params(old_schema):
-                delta.add(
-                    sd.AlterObjectProperty(
-                        property='params',
-                        new_value=new_params,
-                        source='inheritance',
-                    )
+                delta.set_attribute_value(
+                    'params',
+                    new_params,
+                    inherited=True,
                 )
 
     @classmethod
@@ -559,12 +557,7 @@ class CreateConstraint(ConstraintCommand,
 
             args = cls._constraint_args_from_ast(schema, astnode, context)
             if args:
-                cmd.add(
-                    sd.AlterObjectProperty(
-                        property='args',
-                        new_value=args
-                    )
-                )
+                cmd.set_attribute_value('args', args)
 
         elif isinstance(astnode, qlast.CreateConstraint):
             params = cls._get_param_desc_from_ast(
@@ -584,18 +577,16 @@ class CreateConstraint(ConstraintCommand,
                         context=astnode.context)
 
         if cmd.get_attribute_value('return_type') is None:
-            cmd.add(sd.AlterObjectProperty(
-                property='return_type',
-                new_value=utils.reduce_to_typeref(
-                    schema, schema.get('std::bool')
-                )
-            ))
+            cmd.set_attribute_value(
+                'return_type',
+                utils.reduce_to_typeref(schema, schema.get('std::bool')),
+            )
 
         if cmd.get_attribute_value('return_typemod') is None:
-            cmd.add(sd.AlterObjectProperty(
-                property='return_typemod',
-                new_value=ft.TypeModifier.SINGLETON,
-            ))
+            cmd.set_attribute_value(
+                'return_typemod',
+                ft.TypeModifier.SINGLETON,
+            )
 
         # 'subjectexpr' can be present in either astnode type
         if astnode.subjectexpr:
@@ -608,10 +599,10 @@ class CreateConstraint(ConstraintCommand,
                 orig_text=orig_text,
             )
 
-            cmd.add(sd.AlterObjectProperty(
-                property='subjectexpr',
-                new_value=subjectexpr
-            ))
+            cmd.set_attribute_value(
+                'subjectexpr',
+                subjectexpr,
+            )
 
         cls._validate_subcommands(astnode)
 
@@ -704,13 +695,9 @@ class AlterConstraint(ConstraintCommand,
                 new_subject_name = op.new_name
 
             if new_subject_name is not None:
-                cmd.add(
-                    sd.AlterObjectProperty(
-                        property='subject',
-                        new_value=so.ObjectRef(
-                            classname=new_subject_name
-                        )
-                    )
+                cmd.set_attribute_value(
+                    'subject',
+                    so.ObjectRef(classname=new_subject_name),
                 )
 
             new_name = None
@@ -718,11 +705,9 @@ class AlterConstraint(ConstraintCommand,
                 new_name = op.new_name
 
             if new_name is not None:
-                cmd.add(
-                    sd.AlterObjectProperty(
-                        property='name',
-                        new_value=new_name
-                    )
+                cmd.set_attribute_value(
+                    'name',
+                    new_name,
                 )
 
         cls._validate_subcommands(astnode)

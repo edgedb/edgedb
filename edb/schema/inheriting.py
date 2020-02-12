@@ -737,7 +737,7 @@ class AlterInheritingObject(InheritingObjectCommand,
         scls = self.scls
 
         if not context.canonical:
-            schema, props = self._get_field_updates(schema, context)
+            props = self.enumerate_attributes()
             if props:
                 if context.enable_recursion:
                     self._propagate_field_alter(schema, context, scls, props)
@@ -751,7 +751,7 @@ class AlterInheritingObject(InheritingObjectCommand,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         scls: so.InheritingObjectBase,
-        props: Dict[str, Iterable[str]],
+        props: Tuple[str, ...],
     ) -> None:
         alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.AlterObject, type(scls))
@@ -802,13 +802,10 @@ class RebaseInheritingObject(AlterInheritingObjectFragment):
         schema: s_schema.Schema,
         context: sd.CommandContext
     ) -> s_schema.Schema:
-        scls = self.get_object(schema, context)
-        self.scls = scls
+        schema = super().apply(schema, context)
+        scls = self.scls
 
         assert isinstance(scls, so.InheritingObjectBase)
-
-        schema, props = self._get_field_updates(schema, context)
-        schema = scls.update(schema, props)
 
         for op in self.get_subcommands(type=sd.ObjectCommand):
             schema = op.apply(schema, context)
@@ -967,9 +964,11 @@ class InheritingObject(derivable.DerivableObject):
     ) -> None:
         assert isinstance(scls, so.InheritingObjectBase)
         inherited_fields = scls.get_inherited_fields(schema)
-        delta.add(sd.AlterObjectProperty(
-            property=fname, old_value=None, new_value=value,
-            source='inheritance' if inherited_fields.get(fname) else None))
+        delta.set_attribute_value(
+            fname,
+            value,
+            inherited=bool(inherited_fields.get(fname)),
+        )
 
     def inheritable_fields(self) -> Iterable[str]:
         for fn, f in self.__class__.get_fields().items():

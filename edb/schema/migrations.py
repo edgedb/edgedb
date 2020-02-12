@@ -66,10 +66,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if astnode.target is not None:
-            cmd.add(sd.AlterObjectProperty(
-                property='target',
-                new_value=astnode.target
-            ))
+            cmd.set_attribute_value('target', astnode.target)
 
         return cmd
 
