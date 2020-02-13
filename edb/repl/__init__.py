@@ -676,7 +676,7 @@ class Cli:
         filter_and = 'NOT .is_from_alias'
         if 'system' not in flags:
             filter_and = f'''
-                AND NOT (re_test("^({STD_RE})::", .name))
+                {filter_and} AND NOT (re_test("^({STD_RE})::", .name))
             '''
 
         filter_clause, qkw = utils.get_filter_based_on_pattern(
@@ -734,7 +734,7 @@ class Cli:
                           f'{eql_quote.quote_literal(pattern)}.')
                     self._command_semicolon_hint(arg)
                 elif 'system' not in flags:
-                    print(R'No user-defined sclar types found. Try \lTS.')
+                    print(R'No user-defined scalar types found. Try \lTS.')
 
     def _command_list_object_types(
         self,
