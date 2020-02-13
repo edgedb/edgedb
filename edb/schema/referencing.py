@@ -194,6 +194,7 @@ class ReferencedInheritingObject(inheriting.InheritingObject,
 
 class ReferencedObjectCommandMeta(sd.ObjectCommandMeta):
     _transparent_adapter_subclass: ClassVar[bool] = True
+    _referrer_context_class = None
 
     def __new__(mcls,
                 name: str,
@@ -204,6 +205,7 @@ class ReferencedObjectCommandMeta(sd.ObjectCommandMeta):
                 **kwargs: Any
                 ) -> ReferencedObjectCommandMeta:
         cls = super().__new__(mcls, name, bases, clsdct, **kwargs)
+        assert isinstance(cls, ReferencedObjectCommandMeta)
         if referrer_context_class is not None:
             cls._referrer_context_class = referrer_context_class
         return cls
@@ -211,8 +213,6 @@ class ReferencedObjectCommandMeta(sd.ObjectCommandMeta):
 
 class ReferencedObjectCommandBase(sd.ObjectCommand[ReferencedObject],
                                   metaclass=ReferencedObjectCommandMeta):
-
-    _referrer_context_class = None
 
     @classmethod
     def get_referrer_context_class(
@@ -434,6 +434,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
                 refname = ref_field_type.get_key_for_name(
                     schema, parent_fq_refname)
 
+                assert isinstance(ref_create_cmd, CreateReferencedObject)
                 astnode = ref_create_cmd.as_inherited_ref_ast(
                     schema, context, refname, self.scls)
                 fq_name = self._classname_from_ast(schema, astnode, context)
@@ -947,6 +948,7 @@ class AlterReferencedInheritingObject(
         if refctx is not None:
             cmd.set_attribute_value('is_local', True)
 
+        assert isinstance(cmd, AlterReferencedInheritingObject)
         return cmd
 
 
@@ -956,8 +958,7 @@ class RenameReferencedInheritingObject(
 
     def _rename_begin(self,
                       schema: s_schema.Schema,
-                      context: sd.CommandContext,
-                      scls: ReferencedInheritingObject
+                      context: sd.CommandContext
                       ) -> s_schema.Schema:
         orig_schema = schema
         schema = super()._rename_begin(schema, context)
