@@ -862,7 +862,6 @@ class IntrospectionMech:
                 subject=subject,
                 annotation=anno,
                 value=value,
-                inheritable=r['inheritable'],
                 is_local=r['is_local'],
                 is_final=r['is_final'],
             )

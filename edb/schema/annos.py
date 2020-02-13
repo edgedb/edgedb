@@ -64,9 +64,6 @@ class AnnotationValue(referencing.ReferencedInheritingObject):
     value = so.SchemaField(
         str, compcoef=0.909)
 
-    inheritable = so.SchemaField(
-        bool, default=False, compcoef=0.2)
-
     def __str__(self) -> str:
         return '<{}: at 0x{:x}>'.format(self.__class__.__name__, id(self))
 
@@ -132,8 +129,7 @@ class AnnotationSubject(so.Object):
             an = sn.Name(name=ann, module=my_name.module)
             schema, av = AnnotationValue.create_in_schema(
                 schema, name=an, value=value,
-                subject=self, annotation=attr,
-                inheritable=attr.get_inheritable(schema))
+                subject=self, annotation=attr)
             schema = self.add_annotation(schema, av)
         else:
             schema, updated = existing.set_field_value('value', value)
@@ -257,11 +253,6 @@ class CreateAnnotationValue(AnnotationValueCommand,
         cmd.set_attribute_value(
             'value',
             value,
-        )
-
-        cmd.set_attribute_value(
-            'inheritable',
-            attr.get_inheritable(schema),
         )
 
         cmd.set_attribute_value(
