@@ -52,8 +52,8 @@ from edb.server.dbview cimport dbview
 
 from edb.server import config
 
-from edb.server import compiler
 from edb.server import buildmeta
+from edb.server import compiler
 from edb.server.compiler import errormech
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
@@ -84,10 +84,12 @@ cdef object logger = logging.getLogger('edb.server')
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
 
+
 @cython.final
 cdef class EdgeConnection:
 
-    def __init__(self, server, external_auth: bool = False):
+    def __init__(self, server, external_auth: bool = False,
+            max_protocol: tuple = CURRENT_PROTOCOL):
         self._con_status = EDGECON_NEW
         self._id = server.on_client_connected()
         self.port = server
@@ -117,6 +119,9 @@ cdef class EdgeConnection:
 
         self.server = server
         self.authed = False
+
+        self.protocol_version = max_protocol
+        self.max_protocol = max_protocol
 
     cdef get_backend(self):
         if self._con_status is EDGECON_BAD:
@@ -310,13 +315,24 @@ cdef class EdgeConnection:
 
         self.buffer.finish_message()
 
-        if major != PROTO_VER_MAJOR or minor != PROTO_VER_MINOR or nexts > 0:
+        self.protocol_version = major, minor
+        negotiate = nexts > 0
+        if self.protocol_version < MIN_PROTOCOL:
+            target_proto = MIN_PROTOCOL
+            negotiate = True
+        elif self.protocol_version > CURRENT_PROTOCOL:
+            target_proto = CURRENT_PROTOCOL
+            negotiate = True
+        else:
+            target_proto = self.protocol_version
+
+        if negotiate:
             # NegotiateProtocolVersion
             buf = WriteBuffer.new_message(b'v')
             # Highest supported major version of the protocol.
-            buf.write_int16(PROTO_VER_MAJOR)
+            buf.write_int16(target_proto[0])
             # Highest supported minor version of the protocol.
-            buf.write_int16(PROTO_VER_MINOR)
+            buf.write_int16(target_proto[1])
             # No extensions are currently supported.
             buf.write_int16(0)
             buf.end_message()

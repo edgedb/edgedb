@@ -53,7 +53,8 @@ class Server:
                  max_backend_connections,
                  nethost, netport,
                  auto_shutdown: bool=False,
-                 echo_runtime_info: bool = False):
+                 echo_runtime_info: bool = False,
+                 max_protocol: Tuple[int, int]):
 
         self._loop = loop
 
@@ -72,6 +73,7 @@ class Server:
         self._mgmt_port = None
         self._mgmt_host_addr = nethost
         self._mgmt_port_no = netport
+        self._mgmt_protocol_max = max_protocol
 
         self._ports = []
         self._sys_conf_ports = {}
@@ -100,6 +102,7 @@ class Server:
             nethost=self._mgmt_host_addr,
             netport=self._mgmt_port_no,
             auto_shutdown=self._auto_shutdown,
+            max_protocol=self._mgmt_protocol_max,
         )
 
     def _populate_sys_auth(self):
@@ -142,6 +145,7 @@ class Server:
                 nethost=nethost,
                 netport=netport,
                 auto_shutdown=self._auto_shutdown,
+                max_protocol=self._mgmt_protocol_max,
             )
         except Exception:
             await self._mgmt_port.start()

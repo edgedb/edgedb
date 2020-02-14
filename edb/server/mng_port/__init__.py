@@ -19,7 +19,12 @@
 
 from __future__ import annotations
 
+
+MIN_PROTOCOL = (0, 7)
+CURRENT_PROTOCOL = (0, 8)
+
+
 from .port import ManagementPort
 
 
-__all__ = ('ManagementPort',)
+__all__ = ('ManagementPort', 'MIN_PROTOCOL', 'CURRENT_PROTOCOL')
