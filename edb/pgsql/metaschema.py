@@ -1989,7 +1989,8 @@ def _field_to_column(field):
     elif issubclass(ftype, s_expr.ExpressionList):
         coltype = 'edgedb.expression_t[]'
 
-    elif (issubclass(ftype, (checked.CheckedList, checked.FrozenCheckedList))
+    elif (issubclass(ftype, (checked.CheckedList, checked.FrozenCheckedList,
+                             checked.CheckedSet, checked.FrozenCheckedSet))
             and issubclass(ftype.type, str)):
         coltype = 'text[]'
 
@@ -3099,15 +3100,6 @@ async def generate_views(conn, schema):
     metaclasses = get_interesting_metaclasses()
     views = collections.OrderedDict()
     type_fields = []
-    non_intro_fields = set()
-
-    for mcls in metaclasses:
-        non_intro_fields.update(
-            fn for fn, f in mcls.get_fields().items() if not f.introspectable
-        )
-
-    non_intro_fields_list = ','.join(ql(f) for f in non_intro_fields)
-    non_intro_fields_expr = f'({non_intro_fields_list})'
 
     for mcls in metaclasses:
         if mcls is s_obj.Object:
@@ -3201,13 +3193,7 @@ async def generate_views(conn, schema):
                         )
 
                 elif pn == 'inherited_fields':
-                    col_expr = f'''
-                        (SELECT array_agg(key)
-                         FROM jsonb_each(t.{qi(ptrstor.column_name)})
-                         WHERE key NOT IN {non_intro_fields_expr}
-                               AND value = 'true'::jsonb)
-                    '''
-
+                    col_expr = f't.{qi(ptrstor.column_name)}'
                     col_default_expr = 'ARRAY[]::text[]'
                 elif field.type is s_expr.Expression:
                     col_expr = f'(t.{qi(ptrstor.column_name)}).origtext'

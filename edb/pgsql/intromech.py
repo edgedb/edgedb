@@ -21,9 +21,6 @@
 from __future__ import annotations
 
 import collections
-import json
-
-import immutables as immu
 
 from edb import errors
 
@@ -519,9 +516,9 @@ class IntrospectionMech:
 
     def _unpack_inherited_fields(self, value):
         if value is None:
-            return immu.Map()
+            return frozenset()
         else:
-            return immu.Map(json.loads(value))
+            return frozenset(value)
 
     def _unpack_typedesc_node(self, typemap, id, schema):
         t = typemap[id]

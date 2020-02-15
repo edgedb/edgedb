@@ -45,7 +45,8 @@ class InheritingObjectCommand(sd.ObjectCommand["InheritingObject"]):
         schema = super()._create_begin(schema, context)
 
         if not context.canonical:
-            schema = self._update_inherited_fields(schema, context)
+            inh_update = self.compute_inherited_fields(schema, context)
+            schema = self._update_inherited_fields(schema, context, inh_update)
 
         return schema
 
@@ -56,20 +57,27 @@ class InheritingObjectCommand(sd.ObjectCommand["InheritingObject"]):
 
         assert isinstance(schema, s_schema.Schema)
         if not context.canonical:
-            schema = self._update_inherited_fields(schema, context)
+            inh_update = self.compute_inherited_fields(schema, context)
+            schema = self._update_inherited_fields(schema, context, inh_update)
 
         return schema
 
-    def _update_inherited_fields(self,
-                                 schema: s_schema.Schema,
-                                 context: sd.CommandContext
-                                 ) -> s_schema.Schema:
-        current_inh_fields = self.scls.get_inherited_fields(schema)
-        new_inh_fields = self.compute_inherited_fields(schema, context)
-        inherited_fields = current_inh_fields.update(new_inh_fields)
-        self.set_attribute_value('inherited_fields', inherited_fields)
+    def _update_inherited_fields(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        update: Mapping[str, bool],
+    ) -> s_schema.Schema:
+        inh_fields = set(self.scls.get_inherited_fields(schema))
+        for fn, inherited in update.items():
+            if inherited:
+                inh_fields.add(fn)
+            else:
+                inh_fields.discard(fn)
+        self.set_attribute_value(
+            'inherited_fields', frozenset(inh_fields))
         schema = self.scls.set_field_value(
-            schema, 'inherited_fields', inherited_fields)
+            schema, 'inherited_fields', inh_fields)
         return schema
 
     def inherit_fields(self,
@@ -95,7 +103,7 @@ class InheritingObjectCommand(sd.ObjectCommand["InheritingObject"]):
             field = mcls.get_field(field_name)
             result = field.merge_fn(scls, bases, field_name, schema=schema)
 
-            if not inherited_fields.get(field_name):
+            if field_name not in inherited_fields:
                 ours = scls.get_explicit_field_value(schema, field_name, None)
             else:
                 ours = None
@@ -109,15 +117,8 @@ class InheritingObjectCommand(sd.ObjectCommand["InheritingObject"]):
                 self.set_attribute_value(field_name, result,
                                          inherited=inherited)
 
-        inherited_fields = inherited_fields.update(inherited_fields_update)
-
-        schema = scls.set_field_value(
-            schema,
-            'inherited_fields',
-            inherited_fields,
-        )
-
-        self.set_attribute_value('inherited_fields', inherited_fields)
+        schema = self._update_inherited_fields(
+            schema, context, inherited_fields_update)
 
         return schema
 
@@ -967,7 +968,7 @@ class InheritingObject(derivable.DerivableObject):
         delta.set_attribute_value(
             fname,
             value,
-            inherited=bool(inherited_fields.get(fname)),
+            inherited=fname in inherited_fields,
         )
 
     def inheritable_fields(self) -> Iterable[str]:

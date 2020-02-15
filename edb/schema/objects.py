@@ -29,8 +29,6 @@ import sys
 import types
 import uuid
 
-import immutables as immu
-
 from edb import errors
 from edb.edgeql import qltypes
 
@@ -2003,8 +2001,9 @@ class InheritingObjectBase(Object):
 
     # Attributes that have been set locally as opposed to inherited.
     inherited_fields = SchemaField(
-        immu.Map,
-        default=immu.Map(),
+        checked.FrozenCheckedSet[str],
+        default=checked.FrozenCheckedSet[str](),
+        coerce=True,
         inheritable=False,
         hashable=False,
     )
@@ -2090,7 +2089,7 @@ class InheritingObjectBase(Object):
         default: Any = NoDefault,
     ) -> Any:
         inherited_fields = self.get_inherited_fields(schema)
-        if not inherited_fields.get(field_name):
+        if field_name not in inherited_fields:
             return self.get_explicit_field_value(schema, field_name, default)
         elif default is not NoDefault:
             return default

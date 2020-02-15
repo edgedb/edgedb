@@ -25,8 +25,6 @@ import collections.abc
 import itertools
 import uuid
 
-import immutables as immu
-
 from edb import errors
 
 from edb.common import adapter
@@ -1168,7 +1166,7 @@ class ObjectCommand(
         self,
         schema: s_schema.Schema,
         context: CommandContext,
-    ) -> immu.Map[str, bool]:
+    ) -> Dict[str, bool]:
         result = {}
         mcls = self.get_schema_metaclass()
         for op in self.get_subcommands(type=AlterObjectProperty):
@@ -1176,7 +1174,7 @@ class ObjectCommand(
             if field.inheritable:
                 result[op.property] = op.source == 'inheritance'
 
-        return immu.Map(result)
+        return result
 
     def get_resolved_attribute_value(
         self,
