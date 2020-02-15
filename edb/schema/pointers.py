@@ -137,7 +137,7 @@ def merge_target(ptr: Pointer, bases: List[so.Pointer],
             target = base_target
         else:
             schema, target = Pointer.merge_targets(
-                schema, ptr, target, base_target)
+                schema, ptr, target, base_target, allow_contravariant=True)
 
     local_target = ptr.get_target(schema)
     if target is None:
@@ -262,17 +262,12 @@ class Pointer(referencing.ReferencedInheritingObject,
         return self.set_field_value(schema, 'target', target)
 
     @classmethod
-    def merge_targets(cls, schema, ptr, t1, t2):
-        from . import objtypes as s_objtypes
-
+    def merge_targets(cls, schema, ptr, t1, t2, *, allow_contravariant=False):
         if t1 is t2:
             return schema, t1
 
         # When two pointers are merged, check target compatibility
         # and return a target that satisfies both specified targets.
-        #
-
-        source = ptr.get_source(schema)
 
         if (isinstance(t1, s_abc.ScalarType) !=
                 isinstance(t2, s_abc.ScalarType)):
@@ -303,29 +298,16 @@ class Pointer(referencing.ReferencedInheritingObject,
             return schema, t1
 
         else:
-            # Targets are both objects
-            t1_union_of = t1.get_union_of(schema)
-            if t1_union_of:
-                tt1 = tuple(t1_union_of.objects(schema))
-            else:
-                tt1 = (t1,)
-
-            t2_union_of = t2.get_union_of(schema)
-            if t2_union_of:
-                tt2 = tuple(t2_union_of.objects(schema))
-            else:
-                tt2 = (t2,)
-
-            new_targets = []
-
-            if all(tgt2.issubclass(schema, tt1) for tgt2 in tt2):
+            if t2.issubclass(schema, t1):
                 # The new target is a subclass of the current target, so
                 # it is a more specific requirement.
-                new_targets = tt2
+                current_target = t2
+            elif allow_contravariant and t1.issubclass(schema, t2):
+                current_target = t1
             else:
-                # The link is neither a subclass, nor a superclass
-                # of the previously seen targets, which creates an
-                # unresolvable target requirement conflict.
+                # The new target is not a subclass, of the previously seen
+                # targets, which creates an unresolvable target requirement
+                # conflict.
                 vnp = ptr.get_verbosename(schema, with_parent=True)
                 vn = ptr.get_verbosename(schema)
                 t2_vn = t2.get_verbosename(schema)
@@ -335,17 +317,6 @@ class Pointer(referencing.ReferencedInheritingObject,
                         f'{vn} targets {t2_vn} that is not related '
                         f'to a type found in this link in the parent type: '
                         f'{t1.get_displayname(schema)!r}.'))
-
-            if len(new_targets) > 1:
-                schema, current_target, _ = (
-                    s_objtypes.get_or_create_union_type(
-                        schema,
-                        new_targets,
-                        module=source.get_name(schema).module,
-                    )
-                )
-            else:
-                current_target = new_targets[0]
 
             return schema, current_target
 

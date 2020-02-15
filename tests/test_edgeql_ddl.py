@@ -734,6 +734,86 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+    async def test_edgeql_ddl_link_target_bad_01(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> A;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> B;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine link 'foo' of object type 'test::Derived' "
+                "as object type 'test::B'"):
+            await self.con.execute('''
+                CREATE TYPE Derived EXTENDING Base0, Base1;
+            ''')
+
+    async def test_edgeql_ddl_link_target_bad_02(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B;
+            CREATE TYPE C;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> A | B;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> C;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine link 'foo' of object type 'test::Derived' "
+                "as object type 'test::C'"):
+            await self.con.execute('''
+                CREATE TYPE Derived EXTENDING Base0, Base1;
+            ''')
+
+    async def test_edgeql_ddl_link_target_merge_01(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B EXTENDING A;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> B;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> A;
+            };
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+        ''')
+
+    async def test_edgeql_ddl_link_target_merge_02(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B;
+            CREATE TYPE C;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> A;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> A | B;
+            };
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+        ''')
+
     async def test_edgeql_ddl_link_target_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::GrandParent01 {
@@ -813,6 +893,40 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
                 ALTER TYPE test::Foo ALTER PROPERTY bar SET TYPE int32;
             """)
+
+    async def test_edgeql_ddl_link_target_alter_04(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> A | B;
+            };
+
+            CREATE TYPE Derived EXTENDING Base0 {
+                ALTER LINK foo SET TYPE B;
+            }
+        ''')
+
+    async def test_edgeql_ddl_link_target_alter_05(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B EXTENDING A;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> B;
+            };
+
+            CREATE TYPE Base1;
+
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+
+            ALTER TYPE Base1 CREATE LINK foo -> A;
+        ''')
 
     async def test_edgeql_ddl_link_property_01(self):
         with self.assertRaisesRegex(
