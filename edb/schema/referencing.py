@@ -39,17 +39,23 @@ ReferencedT = TypeVar('ReferencedT', bound='ReferencedObject')
 
 
 if TYPE_CHECKING:
-    from edb.schema import annos as s_annos
     from edb.schema import inheriting as s_inheriting
-    from edb.schema import types as s_types
 
 
 class ReferencedObject(so.Object, derivable.DerivableObjectBase):
 
-    def get_referrer(self,
-                     schema: s_schema.Schema) -> s_annos.AnnotationSubject:
-        subject = self.get_subject(schema)
-        return subject
+    def get_referrer(self, schema: s_schema.Schema) -> Optional[so.Object]:
+        # NB: the only classes defining a subject are:
+        # annos.AnnotationValue, indexes.Index, constraints.Constraint
+        from edb.schema import annos as s_annos
+        from edb.schema import indexes as s_indexes
+        from edb.schema import constraints as s_constraints
+
+        assert isinstance(self, (s_annos.AnnotationValue,
+                                 s_indexes.Index,
+                                 s_constraints.Constraint))
+
+        return self.get_subject(schema)
 
     def delete(self, schema: s_schema.Schema) -> s_schema.Schema:
         cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
@@ -117,10 +123,10 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
         existing = refcoll.get(schema, refname, default=None)
 
         if existing is not None:
-            cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
-                sd.AlterObject, type(self))
+            cmdcls: Type[sd.Command] = \
+                sd.ObjectCommandMeta.get_command_class_or_die(sd.AlterObject,
+                                                              type(self))
         else:
-            #
             cmdcls = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.CreateObject, type(self))
 
@@ -155,6 +161,7 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
             modaliases={},
             schema=schema,
         )
+        assert isinstance(cmd, sd.ObjectCommand)
 
         delta, parent_cmd = cmd._build_alter_cmd_stack(
             schema, context, self, referrer=referrer)
@@ -182,7 +189,6 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
 
 class ReferencedInheritingObject(inheriting.InheritingObject,
                                  ReferencedObject):
-
     def get_implicit_bases(self,
                            schema: s_schema.Schema
                            ) -> List[s_inheriting.InheritingObject]:
@@ -194,14 +200,18 @@ class ReferencedInheritingObject(inheriting.InheritingObject,
 
 class ReferencedObjectCommandMeta(sd.ObjectCommandMeta):
     _transparent_adapter_subclass: ClassVar[bool] = True
-    _referrer_context_class = None
+    _referrer_context_class: Optional[
+        Type[sd.CommandContextToken[sd.Command]]
+    ] = None
 
     def __new__(mcls,
                 name: str,
                 bases: Tuple[type, ...],
                 clsdct: Dict[str, Any],
                 *,
-                referrer_context_class: Optional[Type[sd.CommandContext]] = None,
+                referrer_context_class: Optional[
+                    Type[sd.CommandContextToken[sd.Command]]
+                ] = None,
                 **kwargs: Any
                 ) -> ReferencedObjectCommandMeta:
         cls = super().__new__(mcls, name, bases, clsdct, **kwargs)
@@ -286,7 +296,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
     @classmethod
     def _classname_quals_from_ast(cls,
                                   schema: s_schema.Schema,
-                                  astnode: qlast.ObjectDDL,
+                                  astnode: qlast.NamedDDL,
                                   base_name: sn.SchemaName,
                                   referrer_name: str,
                                   context: sd.CommandContext
@@ -327,7 +337,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
     def _create_innards(self,
                         schema: s_schema.Schema,
                         context: sd.CommandContext
-                        ) ->  s_schema.Schema:
+                        ) -> s_schema.Schema:
+        assert isinstance(self, sd.CreateObject)
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
             return super()._create_innards(schema, context)
@@ -434,7 +445,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
                 refname = ref_field_type.get_key_for_name(
                     schema, parent_fq_refname)
 
-                assert isinstance(ref_create_cmd, CreateReferencedObject)
+                assert issubclass(ref_create_cmd,
+                                  CreateReferencedInheritingObject)
                 astnode = ref_create_cmd.as_inherited_ref_ast(
                     schema, context, refname, self.scls)
                 fq_name = self._classname_from_ast(schema, astnode, context)
@@ -491,6 +503,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
                         schema: s_schema.Schema,
                         context: sd.CommandContext
                         ) -> s_schema.Schema:
+        assert isinstance(self, sd.DeleteObject)
         schema = super()._delete_innards(schema, context)
 
         referrer_ctx = self.get_referrer_context(context)
@@ -578,6 +591,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         implicit_bases = self._get_implicit_ref_bases(
             schema, context, child, refdict, parent_fq_refname)
 
+        cmd: Union[sd.AlterObject[Any], sd.DeleteObject[Any]]
+
         if existing.get_is_local(schema) or implicit_bases:
             # Child is either defined locally or is inherited
             # from another parent, so we need to do a rebase.
@@ -624,7 +639,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
             else:
                 obj = None
 
-        cmd = delta
+        cmd: Union[sd.DeltaRoot, sd.AlterObject[Any]] = delta
         for obj in reversed(object_stack):
             alter_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.AlterObject, type(obj))
@@ -648,7 +663,13 @@ class ReferencedInheritingObjectCommand(
 
         if referrer_ctx is not None and not context.canonical:
             objcls = self.get_schema_metaclass()
-            referrer = referrer_ctx.scls
+            assert isinstance(referrer_ctx.op, sd.ObjectCommand)
+
+            # type ignore in the line below, because mypy gets confused when
+            # asserting that referrer_ctx is an instance of
+            # sd.ObjectCommandContext[so.Object]); and assigns <nothing> to it
+
+            referrer = referrer_ctx.scls  # type: ignore
             referrer_class = referrer_ctx.op.get_schema_metaclass()
             refdict = referrer_class.get_refdict_for_class(objcls)
 
@@ -683,6 +704,7 @@ class ReferencedInheritingObjectCommand(
                      context: sd.CommandContext
                      ) -> s_schema.Schema:
         scls = self.scls
+        assert isinstance(scls, ReferencedInheritingObject)
         was_local = scls.get_is_local(schema)
         schema = super()._alter_begin(schema, context)
         now_local = scls.get_is_local(schema)
@@ -694,17 +716,22 @@ class ReferencedInheritingObjectCommand(
                   schema: s_schema.Schema,
                   context: sd.CommandContext
                   ) -> None:
+        scls = self.scls
+        assert isinstance(scls, ReferencedInheritingObject)
         implicit_bases = [
-            b for b in self.scls.get_bases(schema).objects(schema)
+            b for b in scls.get_bases(schema).objects(schema)
             if not b.generic(schema)
         ]
 
         referrer_ctx = self.get_referrer_context(context)
+
+        assert referrer_ctx is not None
+        assert isinstance(referrer_ctx.op, sd.ObjectCommand)
         objcls = self.get_schema_metaclass()
         referrer_class = referrer_ctx.op.get_schema_metaclass()
         refdict = referrer_class.get_refdict_for_class(objcls)
 
-        if context.declarative and self.scls.get_is_local(schema):
+        if context.declarative and scls.get_is_local(schema):
             if (implicit_bases
                     and refdict.requires_explicit_overloaded
                     and not self.get_attribute_value('declared_overloaded')):
@@ -736,11 +763,15 @@ class ReferencedInheritingObjectCommand(
                           scls: ReferencedInheritingObject,
                           cb: Callable[[sd.Command, str], None]
                           ) -> s_schema.Schema:
+        from edb.schema import pointers as s_pointers
         rec = context.current().enable_recursion
         context.current().enable_recursion = False
-
         referrer_ctx = self.get_referrer_context(context)
-        referrer = referrer_ctx.scls
+
+        # type ignore below, because mypy doesn't trust referrer_ctx to be an
+        # instance of sd.ObjectCommandContext (considers it <nothing>)
+        assert isinstance(referrer_ctx, sd.ObjectCommandContext)
+        referrer = referrer_ctx.scls  # type: ignore
         referrer_class = type(referrer)
         mcls = type(scls)
         refdict = referrer_class.get_refdict_for_class(mcls)
@@ -754,6 +785,7 @@ class ReferencedInheritingObjectCommand(
 
         for descendant in scls.ordered_descendants(schema):
             d_name = descendant.get_name(schema)
+            assert isinstance(descendant, s_pointers.Pointer)
             d_referrer = descendant.get_referrer(schema)
             d_alter_cmd = alter_cmdcls(classname=d_name)
             r_alter_cmd = r_alter_cmdcls(
@@ -792,7 +824,8 @@ class CreateReferencedObject(ReferencedObjectCommand,
 
             referrer_ctx = cls.get_referrer_context(context)
             assert referrer_ctx is not None
-            assert referrer_ctx.op is not None
+            assert isinstance(referrer_ctx.op, sd.ObjectCommand)
+
             referrer_class = referrer_ctx.op.get_schema_metaclass()
             referrer_name = referrer_ctx.op.classname
             refdict = referrer_class.get_refdict_for_class(objcls)
@@ -856,9 +889,11 @@ class CreateReferencedObject(ReferencedObjectCommand,
 
                 if context.declarative:
                     scls = self.get_object(schema, context)
+                    assert isinstance(scls, ReferencedInheritingObject)
                     implicit_bases = scls.get_implicit_bases(schema)
                     objcls = self.get_schema_metaclass()
-                    assert refctx.op is not None
+                    assert isinstance(refctx.op, sd.ObjectCommand)
+
                     referrer_class = refctx.op.get_schema_metaclass()
                     refdict = referrer_class.get_refdict_for_class(objcls)
                     if refdict.requires_explicit_overloaded and implicit_bases:
@@ -874,6 +909,7 @@ class CreateReferencedObject(ReferencedObjectCommand,
                       context: sd.CommandContext
                       ) -> Type[qlast.DDLOperation]:
         scls = self.get_object(schema, context)
+        assert isinstance(scls, ReferencedInheritingObject)
         implicit_bases = scls.get_implicit_bases(schema)
         if implicit_bases and not context.declarative:
             mcls = self.get_schema_metaclass()
@@ -899,7 +935,7 @@ class CreateReferencedObject(ReferencedObjectCommand,
                              schema: s_schema.Schema,
                              context: sd.CommandContext,
                              name: str,
-                             parent: s_types.Type) -> qlast.ObjectDDL:
+                             parent: Any) -> qlast.ObjectDDL:
         nref = cls.get_inherited_ref_name(schema, context, parent, name)
         astnode_cls = cls.referenced_astnode
         astnode = astnode_cls(name=nref)
@@ -910,7 +946,7 @@ class CreateReferencedObject(ReferencedObjectCommand,
     def get_inherited_ref_name(cls,
                                schema: s_schema.Schema,
                                context: sd.CommandContext,
-                               parent: s_types.Type,
+                               parent: Any,
                                name: str
                                ) -> qlast.ObjectRef:
         # reduce name to shortname
@@ -965,6 +1001,7 @@ class RenameReferencedInheritingObject(
         scls = self.scls
 
         if not context.canonical and not scls.generic(schema):
+            assert isinstance(scls, ReferencedInheritingObject)
             implicit_bases = scls.get_implicit_bases(schema)
             non_renamed_bases = set(implicit_bases) - context.renamed_objs
 
