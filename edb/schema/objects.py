@@ -762,7 +762,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         self,
         field_name: str,
         field: SchemaField[Type[T]],
-        relaxrequired: bool = False,
     ) -> Optional[T]:
         if field.default == field.type:
             if issubclass(field.default, ObjectCollection):
@@ -770,13 +769,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             else:
                 value = field.default()
         elif field.default is NoDefault:
-            if relaxrequired:
-                value = None
-            else:
-                raise TypeError(
-                    '%s.%s.%s is required' % (
-                        self.__class__.__module__, self.__class__.__name__,
-                        field_name))
+            raise TypeError(
+                '%s.%s.%s is required' % (
+                    self.__class__.__module__, self.__class__.__name__,
+                    field_name))
         else:
             value = field.default
         return value

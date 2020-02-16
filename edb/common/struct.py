@@ -231,31 +231,16 @@ class Struct(metaclass=StructMeta):
 
     __slots__ = ('_in_init_',)
 
-    def __init__(
-        self, *,
-        _setdefaults_: bool = True,
-        _relaxrequired_: bool = False,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """
-        :param bool _setdefaults_: If False, fields will not be initialized
-                                   with default values immediately.  It is
-                                   possible to call ``Struct.setdefaults()``
-                                   later to initialize unset fields.
-
-        :param bool _relaxrequired_: If True, missing values for required
-                                     fields will not
-                                     cause an exception.
-
         :raises: TypeError if invalid field value was provided or a value was
-                 not provided for a field without a default value and
-                 `_relaxrequired_` is False.
+                 not provided for a field without a default value.
         """
         self._check_init_argnames(kwargs)
 
         self._in_init_ = True
         try:
-            self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
+            self._init_fields(kwargs)
         finally:
             self._in_init_ = False
 
@@ -357,15 +342,13 @@ class Struct(metaclass=StructMeta):
 
     def _init_fields(
         self,
-        setdefaults: bool,
-        relaxrequired: bool,
         values: Mapping[str, Any],
     ) -> None:
         for field_name, field in self.__class__._fields.items():
             value = values.get(field_name)
 
-            if value is None and field.default is not None and setdefaults:
-                value = self._getdefault(field_name, field, relaxrequired)
+            if value is None and field.default is not None:
+                value = self._getdefault(field_name, field)
 
             setattr(self, field_name, value)
 
@@ -431,19 +414,15 @@ class Struct(metaclass=StructMeta):
         self,
         field_name: str,
         field: Field[T],
-        relaxrequired: bool = False,
     ) -> T:
         ftype = cast(type, field.type)
         if field.default == ftype:
             value = field.default()  # type: ignore
         elif field.default is NoDefault:
-            if relaxrequired:
-                value = None
-            else:
-                raise TypeError(
-                    '%s.%s.%s is required' % (
-                        self.__class__.__module__, self.__class__.__name__,
-                        field_name))
+            raise TypeError(
+                '%s.%s.%s is required' % (
+                    self.__class__.__module__, self.__class__.__name__,
+                    field_name))
         else:
             value = field.default
 
