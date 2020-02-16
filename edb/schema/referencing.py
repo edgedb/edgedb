@@ -765,7 +765,6 @@ class ReferencedInheritingObjectCommand(
                           scls: ReferencedInheritingObject,
                           cb: Callable[[sd.Command, str], None]
                           ) -> s_schema.Schema:
-        from edb.schema import pointers as s_pointers
         rec = context.current().enable_recursion
         context.current().enable_recursion = False
         referrer_ctx = self.get_referrer_context(context)
@@ -787,7 +786,7 @@ class ReferencedInheritingObjectCommand(
 
         for descendant in scls.ordered_descendants(schema):
             d_name = descendant.get_name(schema)
-            assert isinstance(descendant, s_pointers.Pointer)
+            assert isinstance(descendant, ReferencedObject)
             d_referrer = descendant.get_referrer(schema)
             d_alter_cmd = alter_cmdcls(classname=d_name)
             r_alter_cmd = r_alter_cmdcls(
