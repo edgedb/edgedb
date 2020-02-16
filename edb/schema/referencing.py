@@ -76,10 +76,10 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
     def derive_ref(
         self: ReferencedT,
         schema: s_schema.Schema,
-        referrer: so.InheritingObjectBase,
+        referrer: so.Object,
         *qualifiers: str,
         mark_derived: bool = False,
-        attrs: Optional[Dict[str, object]] = None,
+        attrs: Optional[Dict[str, Any]] = None,
         dctx: Optional[sd.CommandContext] = None,
         derived_name_base: Optional[str] = None,
         inheritance_merge: bool = True,

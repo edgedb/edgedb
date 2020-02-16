@@ -643,7 +643,6 @@ class CommandContext:
         self.renamed_objs: Set[so.Object] = set()
         self.altered_targets: Set[so.Object] = set()
         self.schema_object_ids = schema_object_ids
-        self.op: Optional[Command] = None
 
     @property
     def modaliases(self) -> Mapping[Optional[str], str]:
