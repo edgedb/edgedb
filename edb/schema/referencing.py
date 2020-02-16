@@ -89,7 +89,7 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
         derived_name_base: Optional[str] = None,
         inheritance_merge: bool = True,
         preserve_path_id: Optional[bool] = None,
-        refdict_whitelist: Any = None,
+        refdict_whitelist: Optional[AbstractSet[str]] = None,
         name: Optional[str] = None,
         **kwargs: Any,
     ) -> Tuple[s_schema.Schema, ReferencedT]:
@@ -323,11 +323,11 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
                       context: sd.CommandContext
                       ) -> Type[qlast.DDLOperation]:
         subject_ctx = self.get_referrer_context(context)
-        ref_astnode = getattr(self, 'referenced_astnode', None)
+        ref_astnode: Type[qlast.DDLOperation] = getattr(self,
+                                                        'referenced_astnode',
+                                                        None)
         if subject_ctx is not None and ref_astnode is not None:
-            # type ignore below, because asserting issubclass doesn't work
-            # in the current stable version of mypy
-            return ref_astnode  # type: ignore
+            return ref_astnode
         else:
             if isinstance(self.astnode, (list, tuple)):
                 return self.astnode[1]
@@ -389,7 +389,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
     def _get_ref_rebase(self,
                         schema: s_schema.Schema,
                         context: sd.CommandContext,
-                        refcls: Any,
+                        refcls: so.InheritingObjectBase,
                         implicit_bases: List[s_inheriting.InheritingObject]
                         ) -> sd.Command:
         mcls = type(self.scls)
@@ -481,8 +481,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
     def _implicit_ref_rebase(self,
                              schema: s_schema.Schema,
                              context: sd.CommandContext,
-                             child: Any,
-                             existing: Any,
+                             child: Optional[so.InheritingObjectBase],
+                             existing: so.InheritingObjectBase,
                              refdict: so.RefDict,
                              fq_name: sn.SchemaName) -> sd.Command:
         get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
@@ -616,7 +616,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: Any,
+        scls: so.Object,
         *,
         referrer: Optional[so.Object] = None
     ) -> Tuple[sd.DeltaRoot, sd.Command]:
@@ -624,6 +624,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         delta = sd.DeltaRoot()
 
         if referrer is None:
+            assert isinstance(scls, ReferencedObject)
             referrer = scls.get_referrer(schema)
 
         obj = referrer
@@ -641,6 +642,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
 
         cmd: Union[sd.DeltaRoot, sd.AlterObject[Any]] = delta
         for obj in reversed(object_stack):
+            assert obj is not None
             alter_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
                 sd.AlterObject, type(obj))
 
@@ -935,7 +937,7 @@ class CreateReferencedObject(ReferencedObjectCommand,
                              schema: s_schema.Schema,
                              context: sd.CommandContext,
                              name: str,
-                             parent: Any) -> qlast.ObjectDDL:
+                             parent: so.Object) -> qlast.ObjectDDL:
         nref = cls.get_inherited_ref_name(schema, context, parent, name)
         astnode_cls = cls.referenced_astnode
         astnode = astnode_cls(name=nref)
@@ -946,7 +948,7 @@ class CreateReferencedObject(ReferencedObjectCommand,
     def get_inherited_ref_name(cls,
                                schema: s_schema.Schema,
                                context: sd.CommandContext,
-                               parent: Any,
+                               parent: so.Object,
                                name: str
                                ) -> qlast.ObjectRef:
         # reduce name to shortname
