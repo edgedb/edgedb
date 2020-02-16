@@ -44,17 +44,12 @@ if TYPE_CHECKING:
 
 class ReferencedObject(so.Object, derivable.DerivableObjectBase):
 
+    def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
+        # NB: classes that inherit ReferencedObject define a `get_subject`
+        # method dynamically, with `subject = SchemaField`
+        raise NotImplementedError
+
     def get_referrer(self, schema: s_schema.Schema) -> Optional[so.Object]:
-        # NB: the only classes defining a subject are:
-        # annos.AnnotationValue, indexes.Index, constraints.Constraint
-        from edb.schema import annos as s_annos
-        from edb.schema import indexes as s_indexes
-        from edb.schema import constraints as s_constraints
-
-        assert isinstance(self, (s_annos.AnnotationValue,
-                                 s_indexes.Index,
-                                 s_constraints.Constraint))
-
         return self.get_subject(schema)
 
     def delete(self, schema: s_schema.Schema) -> s_schema.Schema:
