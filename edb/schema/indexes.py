@@ -65,7 +65,7 @@ class IndexableSubject(so.InheritingObject):
         ref_cls=Index)
 
     indexes = so.SchemaField(
-        so.ObjectIndexByUnqualifiedName,
+        so.ObjectIndexByUnqualifiedName[Index],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
         default=so.DEFAULT_CONSTRUCTOR)
 

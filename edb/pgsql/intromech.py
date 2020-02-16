@@ -586,7 +586,7 @@ class IntrospectionMech:
         if refs is None:
             refs = []
 
-        refs = s_obj.ObjectSet.create(
+        refs = s_obj.ObjectSet[s_obj.Object].create(
             schema, [schema.get_by_id(ref) for ref in refs])
 
         return s_expr.Expression(text=text, origtext=origtext, refs=refs)

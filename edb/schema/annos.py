@@ -93,7 +93,7 @@ class AnnotationSubject(so.Object):
         ref_cls=AnnotationValue)
 
     annotations = so.SchemaField(
-        so.ObjectIndexByShortname,
+        so.ObjectIndexByShortname[AnnotationValue],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
         default=so.DEFAULT_CONSTRUCTOR)
 

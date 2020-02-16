@@ -438,7 +438,7 @@ class ParameterLikeList(abc.ABC):
         raise NotImplementedError
 
 
-class FuncParameterList(so.ObjectList, ParameterLikeList, type=Parameter):
+class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
 
     def get_by_name(self, schema: s_schema.Schema, name) -> Parameter:
         for param in self.objects(schema):

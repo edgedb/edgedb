@@ -20,11 +20,11 @@ from __future__ import annotations
 from typing import *
 
 import collections.abc
-import functools
 import itertools
 import types
 
 from edb.common import debug
+from edb.common import parametric
 
 
 __all__ = [
@@ -41,62 +41,11 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class ParametricType:
-    types: Optional[Tuple[type, ...]] = None
-
-    def __init__(self) -> None:
-        if self.types is None:
-            raise TypeError(
-                f"{type(self)!r} must be parametrized to instantiate"
-            )
-
-        super().__init__()
-
-    @classmethod
-    @functools.lru_cache()
-    def __class_getitem__(
-        cls, params: Union[type, Tuple[type, ...]]
-    ) -> Type[ParametricType]:
-        """Return a dynamic subclass parametrized with `params`.
-
-        We cannot use `_GenericAlias` provided by `Generic[T]` because the
-        default `__class_getitem__` on `_GenericAlias` is not a real type and
-        so it doesn't retain information on generics on the class.  Even on
-        the object, it adds the relevant `__orig_class__` link too late, after
-        `__init__()` is called.  That means we wouldn't be able to type-check
-        in the initializer using built-in `Generic[T]`.
-        """
-        if cls.types is not None:
-            raise TypeError(f"{cls!r} is already parametrized")
-
-        if not isinstance(params, tuple):
-            params = (params,)
-        params_str = ", ".join(_type_repr(a) for a in params)
-        name = f"{cls.__name__}[{params_str}]"
-        bases = (cls,)
-        type_dict = {"types": params, "__module__": cls.__module__}
-        if issubclass(cls, SingleParameter):
-            if len(params) != 1:
-                raise TypeError(f"{cls!r} expects one type parameter")
-            type_dict["type"] = params[0]
-        elif issubclass(cls, KeyValueParameter):
-            if len(params) != 2:
-                raise TypeError(f"{cls!r} expects two type parameters")
-            type_dict["keytype"] = params[0]
-            type_dict["valuetype"] = params[1]
-        if not all(isinstance(param, type) for param in params):
-            if not all(type(param) == TypeVar for param in params):
-                raise TypeError(f"{cls!r} expects types as type parameters")
-            # All parameters are type variables: return the regular generic
-            # alias to allow proper subclassing.
-            generic = super(ParametricType, cls)
-            return generic.__class_getitem__(params)  # type: ignore
-
-        return type(name, bases, type_dict)
+class ParametricContainer(parametric.ParametricType):
 
     def __reduce__(self) -> Tuple[Any, ...]:
-        assert self.types is not None
-        cls: Type[ParametricType] = self.__class__
+        assert self.types is not None, f'missing parameters in {type(self)}'
+        cls: Type[ParametricContainer] = self.__class__
         container = getattr(self, "_container", ())
         if cls.__name__.endswith("]"):
             # Parametrized type.
@@ -111,17 +60,8 @@ class ParametricType:
     @classmethod
     def __restore__(
         cls, params: Tuple[type, ...], data: Iterable[Any]
-    ) -> ParametricType:
+    ) -> ParametricContainer:
         return cls[params](data)  # type: ignore
-
-
-class SingleParameter:
-    type: type
-
-
-class KeyValueParameter:
-    keytype: type
-    valuetype: type
 
 
 class AbstractCheckedList(Generic[T]):
@@ -172,7 +112,10 @@ class AbstractCheckedList(Generic[T]):
 
 
 class FrozenCheckedList(
-    ParametricType, SingleParameter, AbstractCheckedList[T], Sequence[T]
+    ParametricContainer,
+    parametric.SingleParameter,
+    AbstractCheckedList[T],
+    Sequence[T],
 ):
     def __init__(self, iterable: Iterable[T] = ()) -> None:
         super().__init__()
@@ -222,7 +165,10 @@ class FrozenCheckedList(
 
 
 class CheckedList(
-    ParametricType, SingleParameter, AbstractCheckedList[T], MutableSequence[T]
+    ParametricContainer,
+    parametric.SingleParameter,
+    AbstractCheckedList[T],
+    MutableSequence[T],
 ):
     def __init__(self, iterable: Iterable[T] = ()) -> None:
         super().__init__()
@@ -375,7 +321,11 @@ class AbstractCheckedSet(AbstractSet[T]):
         return self.__ge__(other)
 
 
-class FrozenCheckedSet(ParametricType, SingleParameter, AbstractCheckedSet[T]):
+class FrozenCheckedSet(
+    ParametricContainer,
+    parametric.SingleParameter,
+    AbstractCheckedSet[T],
+):
     def __init__(self, iterable: Iterable[T] = ()) -> None:
         super().__init__()
         self._container = {self._check_type(element) for element in iterable}
@@ -446,7 +396,10 @@ class FrozenCheckedSet(ParametricType, SingleParameter, AbstractCheckedSet[T]):
 
 
 class CheckedSet(
-    ParametricType, SingleParameter, AbstractCheckedSet[T], MutableSet[T]
+    ParametricContainer,
+    parametric.SingleParameter,
+    AbstractCheckedSet[T],
+    MutableSet[T],
 ):
     _container: Set[T]
 
@@ -600,8 +553,8 @@ class AbstractCheckedDict(Generic[K, V]):
 
 
 class CheckedDict(
-    ParametricType,
-    KeyValueParameter,
+    ParametricContainer,
+    parametric.KeyValueParameter,
     AbstractCheckedDict[K, V],
     MutableMapping[K, V],
 ):

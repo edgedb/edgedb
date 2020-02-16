@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 from typing_extensions import Final
 
+import builtins
 import collections
 import collections.abc
 import enum
@@ -35,6 +36,7 @@ from edb.edgeql import qltypes
 from edb.common import checked
 from edb.common import markup
 from edb.common import ordered
+from edb.common import parametric
 from edb.common import parsing
 from edb.common import struct
 from edb.common import topological
@@ -545,6 +547,11 @@ class ObjectMeta(type):
 
         setattr(cls, '{}.{}_refdicts'.format(cls.__module__, cls.__name__),
                      mydicts)
+
+        for f in myfields.values():
+            if (issubclass(f.type, parametric.ParametricType)
+                    and not f.type.is_fully_resolved()):
+                f.type.resolve_types({cls.__name__: cls})
 
         cls._ql_class = qlkind
         mcls._all_types.append(cls)
@@ -1596,19 +1603,20 @@ class ObjectCollectionDuplicateNameError(Exception):
     pass
 
 
-class ObjectCollection(s_abc.ObjectContainer, Generic[Object_T]):
-    _type: Type[Object_T]
-    _container: Type[CollectionFactory]
+class ObjectCollection(
+    s_abc.ObjectContainer,
+    parametric.ParametricType,
+    parametric.SingleParameter,
+    Generic[Object_T],
+):
+    type: ClassVar[Type[Object]] = Object
+    _container: ClassVar[Type[CollectionFactory]]
 
     def __init_subclass__(
         cls,
         *,
-        type: Type[Object_T] = Object,  # type: ignore
         container: Optional[Type[Collection]] = None,
     ) -> None:
-        # Type ignore above due to https://github.com/python/mypy/issues/7927
-
-        cls._type = type
         if container is not None:
             cls._container = container
 
@@ -1618,6 +1626,10 @@ class ObjectCollection(s_abc.ObjectContainer, Generic[Object_T]):
         *,
         _private_init: bool,
     ) -> None:
+        if not self.is_fully_resolved():
+            raise TypeError(
+                f"{type(self)!r} unresolved type parameters"
+            )
         self._ids = ids
 
     def __len__(self) -> int:
@@ -1630,6 +1642,41 @@ class ObjectCollection(s_abc.ObjectContainer, Generic[Object_T]):
 
     def __hash__(self) -> int:
         return hash(self._ids)
+
+    def __reduce__(self) -> Tuple[Any, ...]:
+        assert type(self).is_fully_resolved(), \
+            f'{type(self)} parameters are not resolved'
+        types: Optional[Tuple[Optional[type], ...]] = self.types
+        if types is None:
+            types = (None,)
+        cls: Type[ObjectCollection] = self.__class__
+        if cls.__name__.endswith("]"):
+            # Parametrized type.
+            cls = cls.__bases__[0]
+        else:
+            # A subclass of a parametrized type.
+            types = (None,)
+
+        typeargs = types[0] if len(types) == 1 else types
+        return cls.__restore__, (typeargs, self.__dict__)
+
+    @classmethod
+    def __restore__(
+        cls,
+        params: Optional[Tuple[builtins.type, ...]],
+        objdict: Dict[str, Any],
+    ) -> ObjectCollection:
+        ids = objdict.pop('_ids')
+
+        if params is None:
+            obj = cls(ids=ids, _private_init=True)  # type: ignore
+        else:
+            obj = cls[params](ids=ids, _private_init=True)  # type: ignore
+
+        if objdict:
+            obj.__dict__.update(objdict)
+
+        return obj
 
     def dump(self, schema: s_schema.Schema) -> str:
         return (
@@ -1662,10 +1709,10 @@ class ObjectCollection(s_abc.ObjectContainer, Generic[Object_T]):
     def _validate_value(
         cls, schema: s_schema.Schema, v: Object
     ) -> Union[ObjectRef, uuid.UUID]:
-        if not isinstance(v, cls._type):
+        if not isinstance(v, cls.type) and not isinstance(v, ObjectRef):
             raise TypeError(
                 f'invalid input data for ObjectIndexByShortname: '
-                f'expected {cls._type} values, got {type(v)}')
+                f'expected {cls.type} values, got {type(v)}')
 
         if v.id is not None:
             return v.id
@@ -1764,8 +1811,11 @@ OIBT = TypeVar("OIBT", bound="ObjectIndexBase")
 class ObjectIndexBase(ObjectCollection, container=tuple):
     _key: KeyFunction
 
-    def __init_subclass__(cls, *, key: KeyFunction):
-        cls._key = key
+    def __init_subclass__(cls, *, key: Optional[KeyFunction] = None) -> None:
+        if key is not None:
+            cls._key = key
+        elif cls._key is None:
+            raise TypeError('missing required "key" class argument')
 
     @classmethod
     def get_key_for(cls, schema: s_schema.Schema, obj: Object) -> str:
@@ -1908,6 +1958,7 @@ class ObjectIndexByFullname(
 
 class ObjectIndexByShortname(
         ObjectIndexBase,
+        Generic[Object_T],
         key=lambda schema, o: o.get_shortname(schema)):
 
     @classmethod
@@ -1917,6 +1968,7 @@ class ObjectIndexByShortname(
 
 class ObjectIndexByUnqualifiedName(
         ObjectIndexBase,
+        Generic[Object_T],
         key=lambda schema, o: o.get_shortname(schema).name):
 
     @classmethod
@@ -1924,7 +1976,10 @@ class ObjectIndexByUnqualifiedName(
         return sn.shortname_from_fullname(name).name
 
 
-class ObjectDict(ObjectCollection, container=tuple):
+class ObjectDict(
+        ObjectCollection,
+        Generic[Object_T],
+        container=tuple):
     _keys: Tuple[Any, ...]
 
     # Breaking the Liskov Substitution Principle
@@ -2007,7 +2062,7 @@ class ObjectSet(ObjectCollection, Generic[Object_T], container=frozenset):
         return result
 
 
-class ObjectList(ObjectCollection, container=tuple):
+class ObjectList(ObjectCollection, Generic[Object_T], container=tuple):
 
     def __repr__(self) -> str:
         return f'[{", ".join(str(id) for id in self._ids)}]'
@@ -2065,7 +2120,7 @@ InheritingObjectT = TypeVar('InheritingObjectT', bound='InheritingObject')
 class InheritingObject(SubclassableObject, DerivableObject):
 
     bases = SchemaField(
-        ObjectList,
+        ObjectList['InheritingObject'],
         default=DEFAULT_CONSTRUCTOR,
         coerce=True,
         inheritable=False,
@@ -2073,7 +2128,7 @@ class InheritingObject(SubclassableObject, DerivableObject):
     )
 
     ancestors = SchemaField(
-        ObjectList,
+        ObjectList['InheritingObject'],
         default=DEFAULT_CONSTRUCTOR,
         coerce=True,
         inheritable=False,

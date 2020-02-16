@@ -46,7 +46,7 @@ class Source(indexes.IndexableSubject):
         ref_cls=pointers.Pointer)
 
     pointers = so.SchemaField(
-        so.ObjectIndexByUnqualifiedName,
+        so.ObjectIndexByUnqualifiedName[pointers.Pointer],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
         default=so.DEFAULT_CONSTRUCTOR)
 

@@ -197,7 +197,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "cli", 36.67)
 
     def test_cqa_type_coverage_common(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "common", 34.29)
+        self.assertFunctionCoverage(EDB_DIR / "common", 34.79)
 
     def test_cqa_type_coverage_common_ast(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "common" / "ast", 7.58)
@@ -245,7 +245,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "repl", 100.0)
 
     def test_cqa_type_coverage_schema(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "schema", 69.27)
+        self.assertFunctionCoverage(EDB_DIR / "schema", 69.43)
 
     def test_cqa_type_coverage_server(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "server", 13.88)

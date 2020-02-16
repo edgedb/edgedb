@@ -292,7 +292,7 @@ class ConsistencySubject(so.InheritingObject):
         ref_cls=Constraint)
 
     constraints = so.SchemaField(
-        so.ObjectIndexByFullname,
+        so.ObjectIndexByFullname[Constraint],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.887,
         default=so.DEFAULT_CONSTRUCTOR)
 
