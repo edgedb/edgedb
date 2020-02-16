@@ -48,7 +48,7 @@ class Source(indexes.IndexableSubject):
     pointers = so.SchemaField(
         so.ObjectIndexByUnqualifiedName,
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
-        default=so.ObjectIndexByUnqualifiedName)
+        default=so.DEFAULT_CONSTRUCTOR)
 
     def getptr(
         self,

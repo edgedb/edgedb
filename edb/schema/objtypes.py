@@ -55,12 +55,12 @@ class ObjectType(
 
     union_of = so.SchemaField(
         so.ObjectSet,
-        default=so.ObjectSet,
+        default=so.DEFAULT_CONSTRUCTOR,
         coerce=True)
 
     intersection_of = so.SchemaField(
         so.ObjectSet,
-        default=so.ObjectSet,
+        default=so.DEFAULT_CONSTRUCTOR,
         coerce=True)
 
     is_opaque_union = so.SchemaField(

@@ -67,7 +67,7 @@ class IndexableSubject(inheriting.InheritingObject):
     indexes = so.SchemaField(
         so.ObjectIndexByUnqualifiedName,
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
-        default=so.ObjectIndexByUnqualifiedName)
+        default=so.DEFAULT_CONSTRUCTOR)
 
     def add_index(self, schema, index):
         return self.add_classref(schema, 'indexes', index)

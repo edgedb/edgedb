@@ -82,6 +82,15 @@ class NoDefaultT(enum.Enum):
 
 
 NoDefault: Final = NoDefaultT.NoDefault
+
+
+class DefaultConstructorT(enum.Enum):
+    DefaultConstructor = 0
+
+
+DEFAULT_CONSTRUCTOR: Final = DefaultConstructorT.DefaultConstructor
+
+
 T = TypeVar("T")
 Type_T = TypeVar("Type_T", bound=type)
 Object_T = TypeVar("Object_T", bound="Object")
@@ -763,16 +772,16 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         field_name: str,
         field: SchemaField[Type[T]],
     ) -> Optional[T]:
-        if field.default == field.type:
-            if issubclass(field.default, ObjectCollection):
-                value = field.default.create_empty()
+        if field.default is NoDefault:
+            raise TypeError(f'{type(self).__name__}.{field_name} is required')
+        elif field.default is DEFAULT_CONSTRUCTOR:
+            if issubclass(field.type, ObjectCollection):
+                value = field.type.create_empty()
             else:
-                value = field.default()
-        elif field.default is NoDefault:
-            raise TypeError(
-                '%s.%s.%s is required' % (
-                    self.__class__.__module__, self.__class__.__name__,
-                    field_name))
+                # The dance below is required to workaround a bug in mypy:
+                # Unsupported type Type["Type[T]"]
+                t = cast(type, field.type)
+                value = t()
         else:
             value = field.default
         return value
@@ -1981,7 +1990,7 @@ class InheritingObjectBase(Object):
 
     bases = SchemaField(
         ObjectList,
-        default=ObjectList,
+        default=DEFAULT_CONSTRUCTOR,
         coerce=True,
         inheritable=False,
         compcoef=0.714,
@@ -1989,7 +1998,7 @@ class InheritingObjectBase(Object):
 
     ancestors = SchemaField(
         ObjectList,
-        default=ObjectList,
+        default=DEFAULT_CONSTRUCTOR,
         coerce=True,
         inheritable=False,
         compcoef=0.999,
@@ -1998,7 +2007,7 @@ class InheritingObjectBase(Object):
     # Attributes that have been set locally as opposed to inherited.
     inherited_fields = SchemaField(
         checked.FrozenCheckedSet[str],
-        default=checked.FrozenCheckedSet[str](),
+        default=DEFAULT_CONSTRUCTOR,
         coerce=True,
         inheritable=False,
         hashable=False,

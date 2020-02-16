@@ -294,7 +294,7 @@ class ConsistencySubject(inheriting.InheritingObject):
     constraints = so.SchemaField(
         so.ObjectIndexByFullname,
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.887,
-        default=so.ObjectIndexByFullname)
+        default=so.DEFAULT_CONSTRUCTOR)
 
     def add_constraint(self, schema, constraint, replace=False):
         return self.add_classref(

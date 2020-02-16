@@ -95,7 +95,7 @@ class AnnotationSubject(so.Object):
     annotations = so.SchemaField(
         so.ObjectIndexByShortname,
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
-        default=so.ObjectIndexByShortname)
+        default=so.DEFAULT_CONSTRUCTOR)
 
     def add_annotation(self,
                        schema: s_schema.Schema,

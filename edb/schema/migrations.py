@@ -37,7 +37,7 @@ class Migration(so.UnqualifiedObject, s_abc.Migration):
 
     parents = so.SchemaField(
         so.ObjectList,
-        default=so.ObjectList, coerce=True, inheritable=False)
+        default=so.DEFAULT_CONSTRUCTOR, coerce=True, inheritable=False)
 
     target = so.SchemaField(
         qlast.Schema,
