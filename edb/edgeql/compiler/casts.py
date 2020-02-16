@@ -288,7 +288,7 @@ def _find_cast(
         ctx: context.ContextLevel) -> Optional[s_casts.Cast]:
 
     casts = ctx.env.schema.get_casts_to_type(new_stype)
-    if not casts and not new_stype.is_collection():
+    if not casts and isinstance(new_stype, s_types.InheritingType):
         ancestors = new_stype.get_ancestors(ctx.env.schema)
         for t in ancestors.objects(ctx.env.schema):
             casts = ctx.env.schema.get_casts_to_type(t)

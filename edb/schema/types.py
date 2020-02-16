@@ -65,7 +65,11 @@ class ExprType(enum.IntEnum):
 TypeT = typing.TypeVar('TypeT', bound='Type')
 
 
-class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
+class Type(
+    so.SubclassableObject,
+    derivable.DerivableObjectBase,
+    s_abc.Type,
+):
     """A schema item that is a valid *type*."""
 
     # If this type is an alias, expr will contain an expression that
@@ -319,6 +323,34 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def material_type(
         self, schema: s_schema.Schema
     ) -> Type:
+        return self
+
+    def peel_view(self, schema: s_schema.Schema) -> Type:
+        return self
+
+    def get_common_parent_type_distance(self, other: Type, schema) -> int:
+        raise NotImplementedError
+
+    def as_create_delta_for_compound_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[sd.CreateObject]:
+        return None
+
+    def allow_ref_propagation(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> bool:
+        return not self.is_view(schema)
+
+
+class InheritingType(Type, so.InheritingObjectBase):
+
+    def material_type(
+        self, schema: s_schema.Schema
+    ) -> Type:
         return typing.cast(Type, self.get_nearest_non_derived_parent(schema))
 
     def peel_view(self, schema: s_schema.Schema) -> Type:
@@ -349,20 +381,6 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         else:
             ancestors = list(self.get_ancestors(schema).objects(schema))
             return ancestors.index(ancestor) + 1
-
-    def as_create_delta_for_compound_type(
-        self,
-        schema: s_schema.Schema,
-    ) -> Optional[sd.CreateObject]:
-        return None
-
-    def allow_ref_propagation(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        refdict: so.RefDict,
-    ) -> bool:
-        return not self.is_view(schema)
 
 
 TypeExprRefT = typing.TypeVar('TypeExprRefT', bound='TypeExprRef')
@@ -526,7 +544,7 @@ class Collection(Type, s_abc.Collection):
         return type_dist
 
     def _issubclass(
-        self, schema: s_schema.Schema, parent: so.InheritingObjectBase
+        self, schema: s_schema.Schema, parent: so.SubclassableObject
     ) -> bool:
         if isinstance(parent, Type) and parent.is_any():
             return True
@@ -549,8 +567,8 @@ class Collection(Type, s_abc.Collection):
         self,
         schema: s_schema.Schema,
         parent: Union[
-            so.InheritingObjectBase,
-            typing.Tuple[so.InheritingObjectBase, ...],
+            so.SubclassableObject,
+            typing.Tuple[so.SubclassableObject, ...],
         ],
     ) -> bool:
         if isinstance(parent, tuple):

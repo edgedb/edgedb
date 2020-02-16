@@ -1982,11 +1982,42 @@ class ObjectList(ObjectCollection, container=tuple):
             return default
 
 
+class SubclassableObject(Object):
+
+    is_abstract = SchemaField(
+        bool,
+        default=False,
+        inheritable=False, compcoef=0.909)
+
+    is_final = SchemaField(
+        bool,
+        default=False, compcoef=0.909)
+
+    def _issubclass(
+        self, schema: s_schema.Schema, parent: SubclassableObject
+    ) -> bool:
+        return parent == self
+
+    def issubclass(
+        self,
+        schema: s_schema.Schema,
+        parent: Union[SubclassableObject, Tuple[SubclassableObject, ...]],
+    ) -> bool:
+        from . import types as s_types
+        if isinstance(parent, tuple):
+            return any(self.issubclass(schema, p) for p in parent)
+        else:
+            if isinstance(parent, s_types.Type) and parent.is_any():
+                return True
+            else:
+                return self._issubclass(schema, parent)
+
+
 InheritingObjectBaseT = TypeVar('InheritingObjectBaseT',
                                 bound='InheritingObjectBase')
 
 
-class InheritingObjectBase(Object):
+class InheritingObjectBase(SubclassableObject):
 
     bases = SchemaField(
         ObjectList,
@@ -2017,15 +2048,6 @@ class InheritingObjectBase(Object):
         bool,
         default=False, compcoef=0.909)
 
-    is_abstract = SchemaField(
-        bool,
-        default=False,
-        inheritable=False, compcoef=0.909)
-
-    is_final = SchemaField(
-        bool,
-        default=False, compcoef=0.909)
-
     def inheritable_fields(self) -> Iterable[Any]:
         raise NotImplementedError
 
@@ -2034,27 +2056,15 @@ class InheritingObjectBase(Object):
         raise NotImplementedError
 
     def _issubclass(
-        self, schema: s_schema.Schema, parent: InheritingObjectBase
+        self,
+        schema: s_schema.Schema,
+        parent: SubclassableObject,
     ) -> bool:
         if parent == self:
             return True
 
         lineage = self.get_ancestors(schema).objects(schema)
         return parent in lineage
-
-    def issubclass(
-        self,
-        schema: s_schema.Schema,
-        parent: Union[InheritingObjectBase, Tuple[InheritingObjectBase, ...]],
-    ) -> bool:
-        from . import types as s_types
-        if isinstance(parent, tuple):
-            return any(self.issubclass(schema, p) for p in parent)
-        else:
-            if isinstance(parent, s_types.Type) and parent.is_any():
-                return True
-            else:
-                return self._issubclass(schema, parent)
 
     def descendants(
         self: InheritingObjectBaseT, schema: s_schema.Schema

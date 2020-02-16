@@ -159,6 +159,7 @@ def fini_expression(
             if view.is_collection():
                 continue
 
+            assert isinstance(view, s_types.InheritingType)
             _elide_derived_ancestors(view, ctx=ctx)
 
             if not isinstance(view, s_sources.Source):
@@ -229,7 +230,7 @@ def fini_expression(
 
 
 def _elide_derived_ancestors(
-    obj: Union[s_types.Type, s_pointers.Pointer], *,
+    obj: Union[s_types.InheritingType, s_pointers.Pointer], *,
     ctx: context.ContextLevel
 ) -> None:
     """Collapse references to derived objects in bases.

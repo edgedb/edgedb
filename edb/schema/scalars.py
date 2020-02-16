@@ -39,9 +39,13 @@ from . import schema as s_schema
 from . import types as s_types
 
 
-class ScalarType(s_types.Type, constraints.ConsistencySubject,
-                 s_anno.AnnotationSubject, s_abc.ScalarType,
-                 qlkind=qltypes.SchemaObjectClass.SCALAR_TYPE):
+class ScalarType(
+    s_types.InheritingType,
+    constraints.ConsistencySubject,
+    s_anno.AnnotationSubject,
+    s_abc.ScalarType,
+    qlkind=qltypes.SchemaObjectClass.SCALAR_TYPE,
+):
 
     default = so.SchemaField(
         expr.Expression, default=None,

@@ -270,6 +270,7 @@ def _validate_op(
                 context=expr.context
             )
 
+        assert isinstance(cfg_type, s_objtypes.ObjectType)
         ptr_candidate: Optional[s_pointers.Pointer] = None
 
         mro = [cfg_type] + list(

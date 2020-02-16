@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 
 class ObjectType(
     sources.Source,
-    s_types.Type,
+    s_types.InheritingType,
     constraints.ConsistencySubject,
     s_anno.AnnotationSubject,
     s_abc.ObjectType,
