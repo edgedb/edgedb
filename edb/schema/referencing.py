@@ -586,7 +586,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         implicit_bases = self._get_implicit_ref_bases(
             schema, context, child, refdict, parent_fq_refname)
 
-        cmd: Union[sd.AlterObject[Any], sd.DeleteObject[Any]]
+        cmd: sd.Command
 
         if existing.get_is_local(schema) or implicit_bases:
             # Child is either defined locally or is inherited
@@ -635,7 +635,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
             else:
                 obj = None
 
-        cmd: Union[sd.DeltaRoot, sd.AlterObject[Any]] = delta
+        cmd: sd.Command = delta
         for obj in reversed(object_stack):
             assert obj is not None
             alter_cmd_cls = sd.ObjectCommandMeta.get_command_class_or_die(
