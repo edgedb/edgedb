@@ -899,7 +899,7 @@ class Cli:
                 to_type_name := .to_type.name,
                 kind := (
                     'implicit' IF .allow_implicit ELSE
-                    'assignemnt' IF .allow_assignment ELSE
+                    'assignment' IF .allow_assignment ELSE
                     'regular'
                 ),
                 volatility,
