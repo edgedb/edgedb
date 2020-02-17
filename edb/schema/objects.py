@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     class MergeFunction(Protocol):
         def __call__(
             self,  # not actually part of the signature
-            target: InheritingObjectBase,
+            target: InheritingObject,
             sources: List[Object],
             field_name: str,
             *,
@@ -101,7 +101,7 @@ HashCriterion = Union[Type[Object_T], Tuple[str, Any]]
 
 
 def default_field_merge(
-    target: InheritingObjectBase,
+    target: InheritingObject,
     sources: List[Object],
     field_name: str,
     *,
@@ -1303,7 +1303,6 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         new_schema: s_schema.Schema,
     ) -> sd.DeltaRoot:
         from edb.schema import delta as sd
-        from edb.schema import inheriting as s_inh
 
         adds_mods = sd.DeltaRoot()
         dels = sd.DeltaRoot()
@@ -1392,7 +1391,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 probe = None
 
             if probe is not None:
-                has_bases = isinstance(probe, s_inh.InheritingObject)
+                has_bases = isinstance(probe, InheritingObject)
             else:
                 has_bases = False
 
@@ -1417,8 +1416,8 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
                     new_class: Object = new_schema.get(new_name)
 
-                    assert isinstance(old_class, s_inh.InheritingObject)
-                    assert isinstance(new_class, s_inh.InheritingObject)
+                    assert isinstance(old_class, InheritingObject)
+                    assert isinstance(new_class, InheritingObject)
 
                     old_bases = \
                         old_class.get_bases(old_schema).objects(old_schema)
@@ -1477,9 +1476,56 @@ class UnqualifiedObject(Object):
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return self.get_name(schema)
 
+    def get_shortname(self, schema: s_schema.Schema) -> str:  # type: ignore
+        return self.get_name(schema)
+
 
 class GlobalObject(UnqualifiedObject):
     pass
+
+
+class DerivableObject(Object):
+
+    def derive_name(
+        self,
+        schema: s_schema.Schema,
+        source: Object,
+        *qualifiers: str,
+        derived_name_base: Optional[str] = None,
+        module: Optional[str] = None,
+    ) -> sn.SchemaName:
+        if module is None:
+            module = source.get_name(schema).module
+        source_name = source.get_name(schema)
+        qualifiers = (source_name,) + qualifiers
+
+        return derive_name(
+            schema,
+            *qualifiers,
+            module=module,
+            parent=self,
+            derived_name_base=derived_name_base,
+        )
+
+    def generic(self, schema: s_schema.Schema) -> bool:
+        return self.get_shortname(schema) == self.get_name(schema)
+
+    def get_derived_name_base(self, schema: s_schema.Schema) -> str:
+        return self.get_shortname(schema)
+
+    def get_derived_name(
+        self,
+        schema: s_schema.Schema,
+        source: Object,
+        *qualifiers: str,
+        mark_derived: bool = False,
+        derived_name_base: Optional[str] = None,
+        module: Optional[str] = None,
+    ) -> sn.Name:
+        return self.derive_name(
+            schema, source, *qualifiers,
+            derived_name_base=derived_name_base,
+            module=module)
 
 
 class BaseObjectRef:
@@ -2013,11 +2059,10 @@ class SubclassableObject(Object):
                 return self._issubclass(schema, parent)
 
 
-InheritingObjectBaseT = TypeVar('InheritingObjectBaseT',
-                                bound='InheritingObjectBase')
+InheritingObjectT = TypeVar('InheritingObjectT', bound='InheritingObject')
 
 
-class InheritingObjectBase(SubclassableObject):
+class InheritingObject(SubclassableObject, DerivableObject):
 
     bases = SchemaField(
         ObjectList,
@@ -2048,12 +2093,40 @@ class InheritingObjectBase(SubclassableObject):
         bool,
         default=False, compcoef=0.909)
 
-    def inheritable_fields(self) -> Iterable[Any]:
-        raise NotImplementedError
+    def inheritable_fields(self) -> Iterable[str]:
+        for fn, f in self.__class__.get_fields().items():
+            if f.inheritable:
+                yield fn
 
     @classmethod
     def get_default_base_name(self) -> Optional[str]:
-        raise NotImplementedError
+        return None
+
+    def get_base_names(self, schema: s_schema.Schema) -> Collection[str]:
+        return self.get_bases(schema).names(schema)
+
+    def get_topmost_concrete_base(
+        self, schema: s_schema.Schema
+    ) -> InheritingObject:
+        """Get the topmost non-abstract base."""
+        lineage = [self]
+        lineage.extend(self.get_ancestors(schema).objects(schema))
+        for ancestor in reversed(lineage):
+            if not ancestor.get_is_abstract(schema):
+                return ancestor
+
+        if not self.get_is_abstract(schema):
+            return self
+
+        raise errors.SchemaError(
+            f'{self.get_verbosename(schema)} has no non-abstract ancestors')
+
+    def get_base_for_cast(self, schema: s_schema.Schema) -> Object:
+        return self.get_topmost_concrete_base(schema)
+
+    @classmethod
+    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
+        return tuple()
 
     def _issubclass(
         self,
@@ -2067,8 +2140,8 @@ class InheritingObjectBase(SubclassableObject):
         return parent in lineage
 
     def descendants(
-        self: InheritingObjectBaseT, schema: s_schema.Schema
-    ) -> FrozenSet[InheritingObjectBaseT]:
+        self: InheritingObjectT, schema: s_schema.Schema
+    ) -> FrozenSet[InheritingObjectT]:
         return schema.get_descendants(self)
 
     def ordered_descendants(
@@ -2093,7 +2166,7 @@ class InheritingObjectBase(SubclassableObject):
         obj = self
         while obj.get_is_derived(schema):
             obj = cast(
-                InheritingObjectBase, obj.get_bases(schema).first(schema)
+                InheritingObject, obj.get_bases(schema).first(schema)
             )
         return obj
 
@@ -2121,6 +2194,83 @@ class InheritingObjectBase(SubclassableObject):
         refdict: RefDict,
     ) -> bool:
         return True
+
+    @classmethod
+    def delta(
+        cls,
+        old: Optional[Object],
+        new: Optional[Object],
+        *,
+        context: Optional[ComparisonContext] = None,
+        old_schema: Optional[s_schema.Schema],
+        new_schema: s_schema.Schema,
+    ) -> sd.ObjectCommand[InheritingObject]:
+        from . import delta as sd
+        from . import inheriting as s_inh
+
+        if context is None:
+            context = ComparisonContext()
+
+        with context(old, new):
+            delta = super().delta(old, new, context=context,
+                                  old_schema=old_schema,
+                                  new_schema=new_schema)
+
+            if old and new:
+                assert isinstance(old, InheritingObject)
+                assert isinstance(new, InheritingObject)
+
+                rebase = sd.ObjectCommandMeta.get_command_class(
+                    s_inh.RebaseInheritingObject, type(new))
+
+                assert old_schema is not None
+
+                old_base_names = old.get_base_names(old_schema)
+                new_base_names = new.get_base_names(new_schema)
+
+                if old_base_names != new_base_names and rebase is not None:
+                    removed, added = s_inh.delta_bases(
+                        old_base_names, new_base_names)
+
+                    rebase_cmd = rebase(
+                        classname=new.get_name(new_schema),
+                        metaclass=type(new),
+                        removed_bases=removed,
+                        added_bases=added,
+                    )
+
+                    rebase_cmd.set_attribute_value(
+                        'bases',
+                        new._reduce_refs(
+                            new_schema, new.get_bases(new_schema))[0],
+                    )
+
+                    rebase_cmd.set_attribute_value(
+                        'ancestors',
+                        new._reduce_refs(
+                            new_schema, new.get_ancestors(new_schema))[0],
+                    )
+
+                    delta.add(rebase_cmd)
+
+        return delta
+
+    @classmethod
+    def delta_property(
+        cls,
+        schema: s_schema.Schema,
+        scls: Object,
+        delta: sd.Command,
+        fname: str,
+        value: Any,
+    ) -> None:
+        assert isinstance(scls, InheritingObject)
+        inherited_fields = scls.get_inherited_fields(schema)
+        delta.set_attribute_value(
+            fname,
+            value,
+            inherited=fname in inherited_fields,
+        )
 
 
 @markup.serializer.serializer.register(Object)
@@ -2169,7 +2319,7 @@ def _merge_lineage(
 
 
 def compute_lineage(
-    schema: s_schema.Schema, obj: InheritingObjectBase
+    schema: s_schema.Schema, obj: InheritingObject
 ) -> List[Any]:
     bases = tuple(obj.get_bases(schema).objects(schema))
     lineage = [[obj]]
@@ -2183,6 +2333,22 @@ def compute_lineage(
 
 
 def compute_ancestors(
-    schema: s_schema.Schema, obj: InheritingObjectBase
+    schema: s_schema.Schema, obj: InheritingObject
 ) -> List[Any]:
     return compute_lineage(schema, obj)[1:]
+
+
+def derive_name(
+    schema: s_schema.Schema,
+    *qualifiers: str,
+    module: str,
+    parent: Optional[DerivableObject] = None,
+    derived_name_base: Optional[str] = None,
+) -> sn.Name:
+    if derived_name_base is None:
+        assert parent is not None
+        derived_name_base = parent.get_derived_name_base(schema)
+
+    name = sn.get_specialized_name(derived_name_base, *qualifiers)
+
+    return sn.Name(name=name, module=module)

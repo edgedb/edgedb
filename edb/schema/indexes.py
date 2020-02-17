@@ -59,7 +59,7 @@ class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
         return expr.origtext
 
 
-class IndexableSubject(inheriting.InheritingObject):
+class IndexableSubject(so.InheritingObject):
     indexes_refs = so.RefDict(
         attr='indexes',
         ref_cls=Index)

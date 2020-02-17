@@ -38,7 +38,6 @@ from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constraints
 from edb.schema import database as s_db
 from edb.schema import expr as s_expr
-from edb.schema import inheriting as s_inheriting
 from edb.schema import migrations  # NoQA
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
@@ -3175,7 +3174,7 @@ async def generate_views(conn, schema):
                         f'edgedb.shortname_from_fullname({name_expr})'
                     )
 
-                    if issubclass(mcls, s_inheriting.InheritingObject):
+                    if issubclass(mcls, s_obj.InheritingObject):
                         ptr = (
                             "(SELECT ARRAY[id] FROM edgedb.Object "
                             " WHERE name = 'schema::Pointer')"
@@ -3237,7 +3236,7 @@ async def generate_views(conn, schema):
             ' ' * 16,
         )
 
-        if issubclass(mcls, s_inheriting.InheritingObject):
+        if issubclass(mcls, s_obj.InheritingObject):
             objtab = 'edgedb.InheritingObject'
         else:
             objtab = 'edgedb.Object'

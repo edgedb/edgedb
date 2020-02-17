@@ -38,7 +38,7 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
-from edb.schema import inheriting as s_inh
+from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import types as s_types
 from edb.schema import scalars as s_scalars
@@ -266,7 +266,7 @@ def scalar_type_to_python_type(
     }
 
     for basetype_name, python_type in typemap.items():
-        basetype: s_inh.InheritingObject = schema.get(basetype_name)
+        basetype: s_obj.InheritingObject = schema.get(basetype_name)
         if stype.issubclass(schema, basetype):
             return python_type
 

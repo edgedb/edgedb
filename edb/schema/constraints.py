@@ -286,7 +286,7 @@ class Constraint(referencing.ReferencedInheritingObject,
         return sn.Name('std::constraint')
 
 
-class ConsistencySubject(inheriting.InheritingObject):
+class ConsistencySubject(so.InheritingObject):
     constraints_refs = so.RefDict(
         attr='constraints',
         ref_cls=Constraint)

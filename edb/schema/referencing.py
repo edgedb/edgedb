@@ -27,7 +27,6 @@ from edb.edgeql import ast as qlast
 from edb import errors
 
 from . import delta as sd
-from . import derivable
 from . import inheriting
 from . import objects as so
 from . import schema as s_schema
@@ -40,11 +39,15 @@ ReferencedInheritingObjectT = TypeVar('ReferencedInheritingObjectT',
                                       bound='ReferencedInheritingObject')
 
 
-if TYPE_CHECKING:
-    from edb.schema import inheriting as s_inheriting
+class ReferencedObject(so.DerivableObject):
 
-
-class ReferencedObject(so.Object, derivable.DerivableObjectBase):
+    #: True if the object has an explicit definition and is not
+    #: purely inherited.
+    is_local = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.909)
 
     def get_subject(self, schema: s_schema.Schema) -> Optional[so.Object]:
         # NB: classes that inherit ReferencedObject define a `get_subject`
@@ -184,8 +187,19 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
         return schema, derived
 
 
-class ReferencedInheritingObject(inheriting.InheritingObject,
-                                 ReferencedObject):
+class ReferencedInheritingObject(so.InheritingObject, ReferencedObject):
+
+    # Indicates that the object has been declared as
+    # explicitly inherited.
+    declared_overloaded = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=None,
+        introspectable=False,
+        inheritable=False,
+        ephemeral=True,
+    )
+
     def get_implicit_bases(
         self: ReferencedInheritingObjectT,
         schema: s_schema.Schema,
@@ -349,7 +363,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         schema = referrer.add_classref(schema, refdict.attr, self.scls)
 
         if (not self.scls.get_is_final(schema)
-                and isinstance(referrer, inheriting.InheritingObject)
+                and isinstance(referrer, so.InheritingObject)
                 and not context.canonical
                 and context.enable_recursion):
             # Propagate the creation of a new ref to descendants of
@@ -361,11 +375,11 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
     def _get_implicit_ref_bases(self,
                                 schema: s_schema.Schema,
                                 context: sd.CommandContext,
-                                referrer: Optional[so.InheritingObjectBase],
+                                referrer: Optional[so.InheritingObject],
                                 refdict: so.RefDict,
                                 fq_name: sn.SchemaName,
-                                ) -> List[s_inheriting.InheritingObject]:
-        if not isinstance(referrer, inheriting.InheritingObject):
+                                ) -> List[so.InheritingObject]:
+        if not isinstance(referrer, so.InheritingObject):
             return []
 
         child_referrer_bases = referrer.get_bases(schema).objects(schema)
@@ -387,8 +401,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
     def _get_ref_rebase(self,
                         schema: s_schema.Schema,
                         context: sd.CommandContext,
-                        refcls: so.InheritingObjectBase,
-                        implicit_bases: List[s_inheriting.InheritingObject]
+                        refcls: so.InheritingObject,
+                        implicit_bases: List[so.InheritingObject]
                         ) -> sd.Command:
         mcls = type(self.scls)
         ref_rebase_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
@@ -419,7 +433,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
     def _propagate_ref_creation(self,
                                 schema: s_schema.Schema,
                                 context: sd.CommandContext,
-                                referrer: so.InheritingObjectBase
+                                referrer: so.InheritingObject
                                 ) -> s_schema.Schema:
 
         get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
@@ -479,8 +493,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
     def _implicit_ref_rebase(self,
                              schema: s_schema.Schema,
                              context: sd.CommandContext,
-                             child: Optional[so.InheritingObjectBase],
-                             existing: so.InheritingObjectBase,
+                             child: Optional[so.InheritingObject],
+                             existing: so.InheritingObject,
                              refdict: so.RefDict,
                              fq_name: sn.SchemaName) -> sd.Command:
         get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
@@ -551,7 +565,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
 
         schema = referrer.del_classref(schema, refdict.attr, refname)
 
-        if isinstance(referrer, inheriting.InheritingObject):
+        if isinstance(referrer, so.InheritingObject):
             if not context.canonical:
                 alter_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
                     sd.AlterObject, referrer_class)
@@ -576,7 +590,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         context: sd.CommandContext,
         refdict: so.RefDict,
         parent_fq_refname: sn.SchemaName,
-        child: so.InheritingObjectBase
+        child: so.InheritingObject
     ) -> Tuple[s_schema.Schema, sd.Command]:
         get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
         mcls = type(self.scls)

@@ -31,7 +31,7 @@ from . import inheriting
 from . import objects as so
 
 
-class Role(so.GlobalObject, inheriting.InheritingObject,
+class Role(so.GlobalObject, so.InheritingObject,
            s_anno.AnnotationSubject, qlkind=qltypes.SchemaObjectClass.ROLE):
 
     is_superuser = so.SchemaField(

@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class Annotation(inheriting.InheritingObject,
+class Annotation(so.InheritingObject,
                  qlkind=qltypes.SchemaObjectClass.ANNOTATION):
     # Annotations cannot be renamed, so make sure the name
     # has low compcoef.

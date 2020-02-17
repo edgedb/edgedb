@@ -29,8 +29,6 @@ from edb import errors
 from edb.common import parsing
 
 from edb.schema import abc as s_abc
-from edb.schema import derivable as s_der
-from edb.schema import inheriting as s_inh
 from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
@@ -179,7 +177,7 @@ def derive_view(
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema, name=derived_name)
 
-    elif isinstance(stype, s_inh.InheritingObject):
+    elif isinstance(stype, s_obj.InheritingObject):
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema,
             name=derived_name,
@@ -277,7 +275,7 @@ def derive_ptr(
 
 
 def derive_view_name(
-        stype: Optional[s_der.DerivableObjectBase],
+        stype: Optional[s_obj.DerivableObject],
         derived_name_quals: Optional[Sequence[str]]=(),
         derived_name_base: Optional[str]=None, *,
         ctx: context.ContextLevel) -> sn.Name:
@@ -290,7 +288,7 @@ def derive_view_name(
     else:
         derived_name_module = '__derived__'
 
-    return s_der.derive_name(
+    return s_obj.derive_name(
         ctx.env.schema,
         *derived_name_quals,
         module=derived_name_module,

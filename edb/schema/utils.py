@@ -262,8 +262,8 @@ def is_nontrivial_container(value: Any) -> Optional[collections.abc.Iterable]:
 
 def get_class_nearest_common_ancestor(
     schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectBaseT]) \
-        -> Optional[so.InheritingObjectBaseT]:
+    classes: Iterable[so.InheritingObjectT]) \
+        -> Optional[so.InheritingObjectT]:
     # First, find the intersection of parents
     classes = list(classes)
     first = [classes[0]]
@@ -280,8 +280,8 @@ def get_class_nearest_common_ancestor(
 
 def minimize_class_set_by_most_generic(
     schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectBaseT]
-) -> List[so.InheritingObjectBaseT]:
+    classes: Iterable[so.InheritingObjectT]
+) -> List[so.InheritingObjectT]:
     """Minimize the given set of objects by filtering out all subclasses."""
 
     classes = list(classes)
@@ -302,8 +302,8 @@ def minimize_class_set_by_most_generic(
 
 def minimize_class_set_by_least_generic(
     schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectBaseT]
-) -> List[so.InheritingObjectBaseT]:
+    classes: Iterable[so.InheritingObjectT]
+) -> List[so.InheritingObjectT]:
     """Minimize the given set of objects by filtering out all superclasses."""
 
     classes = list(classes)
@@ -323,13 +323,13 @@ def minimize_class_set_by_least_generic(
     return result
 
 
-def merge_reduce(target: so.InheritingObjectBaseT,
-                 sources: Iterable[so.InheritingObjectBaseT],
+def merge_reduce(target: so.InheritingObjectT,
+                 sources: Iterable[so.InheritingObjectT],
                  field_name: str,
                  *,
                  schema: s_schema.Schema,
-                 f: Callable[[List[Any]], so.InheritingObjectBaseT]) \
-        -> Optional[so.InheritingObjectBaseT]:
+                 f: Callable[[List[Any]], so.InheritingObjectT]) \
+        -> Optional[so.InheritingObjectT]:
     values = []
     ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is not None:
@@ -345,21 +345,21 @@ def merge_reduce(target: so.InheritingObjectBaseT,
         return None
 
 
-def merge_sticky_bool(target: so.InheritingObjectBaseT,
-                      sources: Iterable[so.InheritingObjectBaseT],
+def merge_sticky_bool(target: so.InheritingObjectT,
+                      sources: Iterable[so.InheritingObjectT],
                       field_name: str,
                       *,
                       schema: s_schema.Schema) \
-        -> Optional[so.InheritingObjectBaseT]:
+        -> Optional[so.InheritingObjectT]:
     return merge_reduce(target, sources, field_name, schema=schema, f=max)
 
 
-def merge_weak_bool(target: so.InheritingObjectBaseT,
-                    sources: Iterable[so.InheritingObjectBaseT],
+def merge_weak_bool(target: so.InheritingObjectT,
+                    sources: Iterable[so.InheritingObjectT],
                     field_name: str,
                     *,
                     schema: s_schema.Schema) \
-        -> Optional[so.InheritingObjectBaseT]:
+        -> Optional[so.InheritingObjectT]:
     return merge_reduce(target, sources, field_name, schema=schema, f=min)
 
 
@@ -575,10 +575,10 @@ def get_union_type(
 
 def get_non_overlapping_union(
     schema: s_schema.Schema,
-    objects: Iterable[so.InheritingObjectBaseT],
-) -> Tuple[FrozenSet[so.InheritingObjectBaseT], bool]:
+    objects: Iterable[so.InheritingObjectT],
+) -> Tuple[FrozenSet[so.InheritingObjectT], bool]:
 
-    all_objects: Set[so.InheritingObjectBaseT] = set(objects)
+    all_objects: Set[so.InheritingObjectT] = set(objects)
     non_unique_count = 0
     for obj in objects:
         descendants = obj.descendants(schema)

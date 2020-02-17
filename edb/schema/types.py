@@ -35,7 +35,6 @@ from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import delta as sd
-from . import derivable
 from . import expr as s_expr
 from . import name as s_name
 from . import objects as so
@@ -67,7 +66,7 @@ TypeT = typing.TypeVar('TypeT', bound='Type')
 
 class Type(
     so.SubclassableObject,
-    derivable.DerivableObjectBase,
+    so.DerivableObject,
     s_abc.Type,
 ):
     """A schema item that is a valid *type*."""
@@ -346,7 +345,7 @@ class Type(
         return not self.is_view(schema)
 
 
-class InheritingType(Type, so.InheritingObjectBase):
+class InheritingType(Type, so.InheritingObject):
 
     def material_type(
         self, schema: s_schema.Schema

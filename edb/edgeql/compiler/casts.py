@@ -117,7 +117,7 @@ def compile_cast(
 
     else:
         json_t = cast(
-            s_objects.InheritingObjectBase,
+            s_objects.InheritingObject,
             ctx.env.get_track_schema_object('std::json'),
         )
         if (new_stype.issubclass(ctx.env.schema, json_t) and
