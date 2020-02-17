@@ -1540,25 +1540,22 @@ cdef class EdgeConnection:
 
         out_buf.write_int16(<int16_t>argsnum)
 
-        if array_tids:
-            # we have array parameters, ensure all of them
-            # have correct element OIDs as per Postgres' expectations.
-            for i in range(argsnum):
-                in_len = hton.unpack_int32(frb_read(&in_buf, 4))
-                out_buf.write_int32(in_len)
-                if in_len > 0:
-                    data = frb_read(&in_buf, in_len)
-                    array_tid = array_tids.get(i)
-                    if array_tid is not None:
-                        # ndimensions + flags
-                        out_buf.write_cstr(data, 8)
-                        out_buf.write_int32(<int32_t>array_tid)
-                        out_buf.write_cstr(&data[12], in_len - 12)
-                    else:
-                        out_buf.write_cstr(data, in_len)
-        else:
-            in_len = frb_get_len(&in_buf)
-            out_buf.write_cstr(frb_read_all(&in_buf), in_len)
+        for i in range(argsnum):
+            frb_read(&in_buf, 4)  # reserved
+            in_len = hton.unpack_int32(frb_read(&in_buf, 4))
+            out_buf.write_int32(in_len)
+            if in_len > 0:
+                data = frb_read(&in_buf, in_len)
+                array_tid = array_tids and array_tids.get(i)
+                # Ensure all array parameters have correct element OIDs as
+                # per Postgres' expectations.
+                if array_tid is not None:
+                    # ndimensions + flags
+                    out_buf.write_cstr(data, 8)
+                    out_buf.write_int32(<int32_t>array_tid)
+                    out_buf.write_cstr(&data[12], in_len - 12)
+                else:
+                    out_buf.write_cstr(data, in_len)
 
         # All columns are in binary format
         out_buf.write_int32(0x00010001)
