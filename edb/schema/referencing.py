@@ -36,6 +36,8 @@ from . import utils
 
 
 ReferencedT = TypeVar('ReferencedT', bound='ReferencedObject')
+ReferencedInheritingObjectT = TypeVar('ReferencedInheritingObjectT',
+                                      bound='ReferencedInheritingObject')
 
 
 if TYPE_CHECKING:
@@ -184,9 +186,10 @@ class ReferencedObject(so.Object, derivable.DerivableObjectBase):
 
 class ReferencedInheritingObject(inheriting.InheritingObject,
                                  ReferencedObject):
-    def get_implicit_bases(self,
-                           schema: s_schema.Schema
-                           ) -> List[s_inheriting.InheritingObject]:
+    def get_implicit_bases(
+        self: ReferencedInheritingObjectT,
+        schema: s_schema.Schema,
+    ) -> List[ReferencedInheritingObjectT]:
         return [
             b for b in self.get_bases(schema).objects(schema)
             if not b.generic(schema)
