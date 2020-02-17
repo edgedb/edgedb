@@ -363,10 +363,16 @@ mapped to variables in EdgeQL.
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
     |     query ($title: String!) {   |     SELECT                      |
-    |         Book(title: $title) {   |         Book {                  |
-    |             title               |             title,              |
-    |             synopsis            |             synopsis,           |
-    |         }                       |         }                       |
-    |     }                           |     FILTER                      |
-    |                                 |         Book.title = $title;    |
+    |         Book(                   |        Book {                   |
+    |           filter: {             |            title,               |
+    |             title: {            |            synopsis,            |
+    |               eq: $title        |        }                        |
+    |             }                   |     FILTER                      |
+    |           }                     |         .title = $title;        |
+    |         ) {                     |                                 |
+    |             title               |                                 |
+    |             synopsis            |                                 |
+    |         }                       |                                 |
+    |     }                           |                                 |
+    |                                 |                                 |
     +---------------------------------+---------------------------------+
