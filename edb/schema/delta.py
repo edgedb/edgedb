@@ -130,6 +130,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         self.ops = ordered.OrderedSet()
         self.before_ops = ordered.OrderedSet()
         self.qlast: qlast.DDLOperation
+        self.classname: str
 
     def copy(self: Command_T) -> Command_T:
         result = super().copy()
