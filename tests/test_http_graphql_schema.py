@@ -861,7 +861,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 "__typename": "__Type",
                 "kind": "INTERFACE",
                 "name": "NamedObject",
-                "description": None,
+                "description": "An object with a name",
                 "fields": [
                     {
                         "__typename": "__Field",
@@ -2391,10 +2391,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
     def test_graphql_schema_type_14(self):
         self.assert_graphql_query_result(r"""
             query {
-                __type(name:"other__color_enum_t") {
+                __type(name:"other__ColorEnum") {
                     __typename
                     name
                     kind
+                    description
                     enumValues {
                         name
                     }
@@ -2404,8 +2405,9 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
 
             "__type": {
                 "kind": "ENUM",
-                "name": "other__color_enum_t",
+                "name": "other__ColorEnum",
                 "__typename": "__Type",
+                "description": "RGB color enum",
                 "enumValues": [
                     {
                         "name": "RED"
@@ -2417,5 +2419,62 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "name": "BLUE"
                     },
                 ]
+            }
+        })
+
+    def test_graphql_schema_type_15(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                __type(name: "NamedObject") {
+                    __typename
+                    name
+                    kind
+                    description
+                }
+            }
+        """, {
+            "__type": {
+                "kind": "INTERFACE",
+                "name": "NamedObject",
+                "__typename": "__Type",
+                "description": 'An object with a name',
+            }
+        })
+
+    def test_graphql_schema_type_16(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                __type(name: "other__Foo") {
+                    __typename
+                    name
+                    kind
+                    description
+                }
+            }
+        """, {
+            "__type": {
+                "kind": "INTERFACE",
+                "name": "other__Foo",
+                "__typename": "__Type",
+                "description": 'Test type "Foo"',
+            }
+        })
+
+    def test_graphql_schema_type_17(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                __type(name: "other__FooType") {
+                    __typename
+                    name
+                    kind
+                    description
+                }
+            }
+        """, {
+            "__type": {
+                "kind": "OBJECT",
+                "name": "other__FooType",
+                "__typename": "__Type",
+                "description": 'Test type "Foo"',
             }
         })

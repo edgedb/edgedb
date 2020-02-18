@@ -261,6 +261,14 @@ class GQLCoreSchema:
         else:
             return name
 
+    def _get_description(self, edb_type):
+        description_anno = edb_type.get_annotations(self.edb_schema).get(
+            self.edb_schema, 'std::description', None)
+        if description_anno is not None:
+            return description_anno.get_value(self.edb_schema)
+
+        return None
+
     def _convert_edb_type(self, edb_target):
         target = None
 
@@ -727,14 +735,16 @@ class GQLCoreSchema:
             values=OrderedDict(
                 ASC=GraphQLEnumValue(),
                 DESC=GraphQLEnumValue()
-            )
+            ),
+            description='Enum value used to specify ordering direction.',
         )
         self._gql_enums['nullsOrderingEnum'] = GraphQLEnumType(
             'nullsOrderingEnum',
             values=OrderedDict(
                 SMALLEST=GraphQLEnumValue(),
                 BIGGEST=GraphQLEnumValue(),
-            )
+            ),
+            description='Enum value used to specify how nulls are ordered.',
         )
 
         scalar_types = list(
@@ -750,7 +760,8 @@ class GQLCoreSchema:
                     values=OrderedDict(
                         (key, GraphQLEnumValue()) for key in
                         st.get_enum_values(self.edb_schema)
-                    )
+                    ),
+                    description=self._get_description(st),
                 )
 
                 self._gql_enums[gql_name] = enum_type
@@ -862,6 +873,7 @@ class GQLCoreSchema:
                 name=gql_name,
                 fields=partial(self.get_fields, t_name),
                 resolve_type=lambda obj, info: obj,
+                description=self._get_description(t),
             )
             self._gql_interfaces[t_name] = gqltype
 
@@ -913,6 +925,7 @@ class GQLCoreSchema:
                 name=gql_name + 'Type',
                 fields=partial(self.get_fields, t_name),
                 interfaces=interfaces,
+                description=self._get_description(t),
             )
             self._gql_objtypes[t_name] = gqltype
 

@@ -18,6 +18,8 @@
 
 
 abstract type NamedObject {
+    annotation description := 'An object with a name';
+
     required property name -> str;
 }
 
