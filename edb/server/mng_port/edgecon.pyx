@@ -80,6 +80,9 @@ cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
 cdef object CARD_ONE = compiler.ResultCardinality.ONE
 cdef object CARD_MANY = compiler.ResultCardinality.MANY
 
+cdef tuple DUMP_VER_MIN = (0, 7)
+cdef tuple DUMP_VER_MAX = (0, 8)
+
 cdef object logger = logging.getLogger('edb.server')
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
@@ -1679,8 +1682,8 @@ cdef class EdgeConnection:
             msg_buf.write_int16(DUMP_HEADER_SERVER_TIME)
             msg_buf.write_len_prefixed_utf8(str(int(time.time())))
 
-            msg_buf.write_int16(PROTO_VER_MAJOR)
-            msg_buf.write_int16(PROTO_VER_MINOR)
+            msg_buf.write_int16(self.max_protocol[0])
+            msg_buf.write_int16(self.max_protocol[1])
             msg_buf.write_len_prefixed_utf8(schema_ddl)
 
             msg_buf.write_int32(len(schema_ids))
@@ -1776,8 +1779,10 @@ cdef class EdgeConnection:
 
         proto_major = self.buffer.read_int16()
         proto_minor = self.buffer.read_int16()
-        if proto_major != PROTO_VER_MAJOR or proto_minor != PROTO_VER_MINOR:
-            raise errors.ProtocolError('unsupported dump version')
+        proto = (proto_major, proto_minor)
+        if proto > DUMP_VER_MAX or proto < DUMP_VER_MIN:
+            raise errors.ProtocolError(
+                f'unsupported dump version {proto_major}.{proto_minor}')
 
         schema_ddl = self.buffer.read_len_prefixed_bytes()
 
