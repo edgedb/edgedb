@@ -51,9 +51,7 @@ from . import defines
 from . import logsetup
 from . import pgconnparams
 from . import pgcluster
-from . import pgcluster
 from . import mng_port
-from .mng_port import edgecon
 
 
 logger = logging.getLogger('edb.server')
