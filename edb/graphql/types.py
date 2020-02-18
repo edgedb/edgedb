@@ -539,6 +539,10 @@ class GQLCoreSchema:
                     intype = self._gql_inobjtypes.get(
                         f'Insert{target.of_type.of_type.name}')
                     intype = GraphQLList(GraphQLNonNull(intype))
+                elif edb_target.is_enum(self.edb_schema):
+                    typename = edb_target.get_name(self.edb_schema)
+                    intype = self._gql_inobjtypes.get(f'Insert{typename}')
+
                 else:
                     intype = self._gql_inobjtypes.get(f'Insert{target.name}')
 
@@ -739,14 +743,18 @@ class GQLCoreSchema:
         for st in scalar_types:
             if st.is_enum(self.edb_schema):
 
-                name = self.get_gql_name(st.get_name(self.edb_schema))
-                self._gql_enums[name] = GraphQLEnumType(
-                    name,
+                t_name = st.get_name(self.edb_schema)
+                gql_name = self.get_gql_name(t_name)
+                enum_type = GraphQLEnumType(
+                    gql_name,
                     values=OrderedDict(
                         (key, GraphQLEnumValue()) for key in
                         st.get_enum_values(self.edb_schema)
                     )
                 )
+
+                self._gql_enums[gql_name] = enum_type
+                self._gql_inobjtypes[f'Insert{t_name}'] = enum_type
 
     def define_generic_filter_types(self):
         eq = ['eq', 'neq']
@@ -1278,7 +1286,7 @@ class GQLMutation(GQLBaseQuery):
         fkey = (name, self.dummy)
         target = None
 
-        op, name = name.split('_')
+        op, name = name.split('_', 1)
         if op in {'delete', 'insert', 'update'}:
             target = super().get_field_type(name)
 
