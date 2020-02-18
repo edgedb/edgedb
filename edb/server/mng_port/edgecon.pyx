@@ -1525,6 +1525,7 @@ cdef class EdgeConnection:
             ssize_t i
             const char *data
             object array_tid
+            has_reserved = self.protocol_version >= (0, 8)
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -1541,7 +1542,8 @@ cdef class EdgeConnection:
         out_buf.write_int16(<int16_t>argsnum)
 
         for i in range(argsnum):
-            frb_read(&in_buf, 4)  # reserved
+            if has_reserved:
+                frb_read(&in_buf, 4)  # reserved
             in_len = hton.unpack_int32(frb_read(&in_buf, 4))
             out_buf.write_int32(in_len)
             if in_len > 0:
