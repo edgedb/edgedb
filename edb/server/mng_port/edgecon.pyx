@@ -320,8 +320,8 @@ cdef class EdgeConnection:
         if self.protocol_version < MIN_PROTOCOL:
             target_proto = MIN_PROTOCOL
             negotiate = True
-        elif self.protocol_version > CURRENT_PROTOCOL:
-            target_proto = CURRENT_PROTOCOL
+        elif self.protocol_version > self.max_protocol:
+            target_proto = self.max_protocol
             negotiate = True
         else:
             target_proto = self.protocol_version
