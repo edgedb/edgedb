@@ -75,20 +75,20 @@ INSERT Person {
 WITH MODULE other
 INSERT Foo {
     `select` := 'a',
-    color := <color_enum_t>'RED',
+    color := 'RED',
 };
 
 WITH MODULE other
 INSERT Foo {
     `select` := 'b',
     after := 'w',
-    color := <color_enum_t>'GREEN',
+    color := 'GREEN',
 };
 
 WITH MODULE other
 INSERT Foo {
     after := 'q',
-    color := <color_enum_t>'BLUE',
+    color := 'BLUE',
 };
 
 INSERT ScalarTest {
