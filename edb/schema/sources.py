@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 from . import indexes
 from . import name as sn
@@ -46,9 +46,9 @@ class Source(indexes.IndexableSubject):
         ref_cls=pointers.Pointer)
 
     pointers = so.SchemaField(
-        so.ObjectIndexByUnqualifiedName,
+        so.ObjectIndexByUnqualifiedName[pointers.Pointer],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
-        default=so.ObjectIndexByUnqualifiedName)
+        default=so.DEFAULT_CONSTRUCTOR)
 
     def getptr(
         self,

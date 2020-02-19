@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class Annotation(inheriting.InheritingObject,
+class Annotation(so.InheritingObject,
                  qlkind=qltypes.SchemaObjectClass.ANNOTATION):
     # Annotations cannot be renamed, so make sure the name
     # has low compcoef.
@@ -63,9 +63,6 @@ class AnnotationValue(referencing.ReferencedInheritingObject):
 
     value = so.SchemaField(
         str, compcoef=0.909)
-
-    inheritable = so.SchemaField(
-        bool, default=False, compcoef=0.2)
 
     def __str__(self) -> str:
         return '<{}: at 0x{:x}>'.format(self.__class__.__name__, id(self))
@@ -96,9 +93,9 @@ class AnnotationSubject(so.Object):
         ref_cls=AnnotationValue)
 
     annotations = so.SchemaField(
-        so.ObjectIndexByShortname,
+        so.ObjectIndexByShortname[AnnotationValue],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
-        default=so.ObjectIndexByShortname)
+        default=so.DEFAULT_CONSTRUCTOR)
 
     def add_annotation(self,
                        schema: s_schema.Schema,
@@ -132,8 +129,7 @@ class AnnotationSubject(so.Object):
             an = sn.Name(name=ann, module=my_name.module)
             schema, av = AnnotationValue.create_in_schema(
                 schema, name=an, value=value,
-                subject=self, annotation=attr,
-                inheritable=attr.get_inheritable(schema))
+                subject=self, annotation=attr)
             schema = self.add_annotation(schema, av)
         else:
             schema, updated = existing.set_field_value('value', value)
@@ -249,24 +245,20 @@ class CreateAnnotationValue(AnnotationValueCommand,
 
         attr: Annotation = schema.get(propname)
 
-        cmd.update((
-            sd.AlterObjectProperty(
-                property='annotation',
-                new_value=utils.reduce_to_typeref(schema, attr)
-            ),
-            sd.AlterObjectProperty(
-                property='value',
-                new_value=value
-            ),
-            sd.AlterObjectProperty(
-                property='inheritable',
-                new_value=attr.get_inheritable(schema),
-            ),
-            sd.AlterObjectProperty(
-                property='is_final',
-                new_value=not attr.get_inheritable(schema),
-            ),
-        ))
+        cmd.set_attribute_value(
+            'annotation',
+            utils.reduce_to_typeref(schema, attr),
+        )
+
+        cmd.set_attribute_value(
+            'value',
+            value,
+        )
+
+        cmd.set_attribute_value(
+            'is_final',
+            not attr.get_inheritable(schema),
+        )
 
         assert isinstance(cmd, CreateAnnotationValue)
         return cmd
@@ -309,12 +301,10 @@ class AlterAnnotationValue(AnnotationValueCommand,
             raise ValueError(
                 f'unexpected value type in AnnotationValue: {value!r}')
 
-        cmd.update((
-            sd.AlterObjectProperty(
-                property='value',
-                new_value=value
-            ),
-        ))
+        cmd.set_attribute_value(
+            'value',
+            value,
+        )
 
         assert isinstance(cmd, AlterAnnotationValue)
 

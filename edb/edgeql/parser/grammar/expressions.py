@@ -30,7 +30,6 @@ from edb.edgeql import qltypes
 from edb.errors import EdgeQLSyntaxError
 
 from . import keywords
-from . import lexutils
 from . import precedence
 from . import tokens
 
@@ -918,80 +917,16 @@ class BaseNumberConstant(Nonterm):
         self.val = qlast.DecimalConstant(value=kids[0].val)
 
 
-class RawStringConstant(Nonterm):
-
-    def reduce_RSCONST(self, str_tok):
-        match = lexutils.VALID_RAW_STRING_RE.match(str_tok.val)
-        if not match:
-            raise EdgeQLSyntaxError(
-                f"invalid raw string literal", context=str_tok.context)
-
-        quote = match.group('Q')
-        val = match.group('body')
-
-        self.val = qlast.RawStringConstant(value=val, quote=quote)
-
-
-class EscapedStringConstant(Nonterm):
-
-    def reduce_SCONST(self, str_tok):
-        match = lexutils.VALID_STRING_RE.match(str_tok.val)
-
-        if not match:
-            raise EdgeQLSyntaxError(
-                f"invalid string literal", context=str_tok.context)
-        if match.group('err_esc'):
-            raise EdgeQLSyntaxError(
-                f"invalid string literal: invalid escape sequence "
-                f"'{match.group('err_esc')}'",
-                context=str_tok.context)
-        elif match.group('err_cont'):
-            raise EdgeQLSyntaxError(
-                f"invalid string literal: invalid line continuation",
-                hint="newline has to immediately follow '\\'",
-                context=str_tok.context)
-
-        quote = match.group('Q')
-        val = match.group('body')
-
-        # collapse the whitespace after a line continuation
-        val = lexutils.collapse_newline_whitespace(val)
-
-        self.val = qlast.StringConstant(value=val, quote=quote)
-
-
 class BaseStringConstant(Nonterm):
 
-    def reduce_EscapedStringConstant(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_RawStringConstant(self, *kids):
-        self.val = kids[0].val
+    def reduce_SCONST(self, token):
+        self.val = qlast.StringConstant(value=token.clean_value)
 
 
 class BaseBytesConstant(Nonterm):
 
     def reduce_BCONST(self, bytes_tok):
-        val = bytes_tok.val
-        match = lexutils.VALID_BYTES_RE.match(val)
-
-        if not match:
-            raise EdgeQLSyntaxError(
-                f"invalid bytes literal", context=bytes_tok.context)
-        if match.group('err_esc'):
-            raise EdgeQLSyntaxError(
-                f"invalid bytes literal: invalid escape sequence "
-                f"'{match.group('err_esc')}'",
-                context=bytes_tok.context)
-        if match.group('err'):
-            raise EdgeQLSyntaxError(
-                f"invalid bytes literal: character '{match.group('err')}' "
-                f"is outside of the ASCII range",
-                context=bytes_tok.context)
-
-        self.val = qlast.BytesConstant(
-            value=match.group('body'),
-            quote=match.group('BQ'))
+        self.val = qlast.BytesConstant(value=bytes_tok.clean_value)
 
 
 class BaseBooleanConstant(Nonterm):
@@ -1248,7 +1183,7 @@ class OptPosCallArgList(Nonterm):
 
 class Identifier(Nonterm):
     def reduce_IDENT(self, *kids):
-        self.val = kids[0].val
+        self.val = kids[0].clean_value
 
     def reduce_UnreservedKeyword(self, *kids):
         self.val = kids[0].val
@@ -1371,7 +1306,7 @@ class Subtype(Nonterm):
         self.val = kids[2].val
         self.val.name = kids[0].val
 
-    def reduce_EscapedStringConstant(self, *kids):
+    def reduce_BaseStringConstant(self, *kids):
         self.val = qlast.TypeExprLiteral(
             val=kids[0].val,
         )

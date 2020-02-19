@@ -20,7 +20,7 @@
 """IR compiler context."""
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 import collections
 import enum
@@ -273,6 +273,7 @@ class Environment:
     expected_cardinality_one: bool
     ignore_object_shapes: bool
     explicit_top_cast: Optional[irast.TypeRef]
+    singleton_mode: bool
 
     def __init__(
         self,
@@ -281,6 +282,7 @@ class Environment:
         use_named_params: bool,
         expected_cardinality_one: bool,
         ignore_object_shapes: bool,
+        singleton_mode: bool,
         explicit_top_cast: Optional[irast.TypeRef],
     ) -> None:
         self.aliases = aliases.AliasGenerator()
@@ -289,4 +291,5 @@ class Environment:
         self.ptrref_source_visibility = {}
         self.expected_cardinality_one = expected_cardinality_one
         self.ignore_object_shapes = ignore_object_shapes
+        self.singleton_mode = singleton_mode
         self.explicit_top_cast = explicit_top_cast

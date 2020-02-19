@@ -27,7 +27,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import declarative as s_decl
 
 from . import delta as sd
-from . import derivable
 from . import objects as so
 from . import ordering as s_ordering
 from . import schema as s_schema
@@ -71,7 +70,7 @@ def get_global_dep_order() -> Tuple[Type[so.Object], ...]:
         types.TupleExprAlias,
         lproperties.Property,
         links.Link,
-        objtypes.BaseObjectType,
+        objtypes.ObjectType,
     )
 
 
@@ -226,16 +225,21 @@ def delta_schemas(
     objects = sd.DeltaRoot(canonical=True)
 
     for sclass in get_global_dep_order():
-        filters = []
-
-        if issubclass(sclass, derivable.DerivableObject):
-            filters.append(lambda schema, obj: obj.generic(schema))
+        filters: List[Callable[[s_schema.Schema, so.Object], bool]] = []
 
         if issubclass(sclass, so.UnqualifiedObject):
             # UnqualifiedObjects (like anonymous tuples and arrays)
             # should not use an included_modules filter.
             incl_modules = None
         else:
+            if issubclass(sclass, so.DerivableObject):
+                def _only_generic(
+                    schema: s_schema.Schema,
+                    obj: so.Object,
+                ) -> bool:
+                    assert isinstance(obj, so.DerivableObject)
+                    return obj.generic(schema)
+                filters.append(_only_generic)
             incl_modules = included_modules
 
         new = schema_b.get_objects(

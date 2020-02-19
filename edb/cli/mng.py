@@ -288,7 +288,13 @@ _role_options = [
 ]
 
 
-def _process_role_options(ctx, password, password_from_stdin):
+def _process_role_options(
+    ctx,
+    password,
+    password_from_stdin,
+    allow_empty=False
+):
+
     if password is None and password_from_stdin:
         password = True
 
@@ -318,6 +324,9 @@ def _process_role_options(ctx, password, password_from_stdin):
         alters.append(f'SET password := {password_value}')
 
     if not alters:
+        if allow_empty:
+            return alters
+
         raise click.UsageError(
             'please specify an attribute to alter', ctx=ctx,
         )
@@ -333,12 +342,19 @@ def _process_role_options(ctx, password, password_from_stdin):
 def create_role(ctx, role_name, **kwargs):
     utils.connect(ctx)
 
-    attrs = ";\n".join(_process_role_options(ctx, **kwargs))
+    attrs = ";\n".join(_process_role_options(ctx, allow_empty=True, **kwargs))
 
-    qry = f'''
-        CREATE SUPERUSER ROLE {qi(role_name)} {{
+    if attrs:
+        formatted_attrs = f'''
+        {{
             {attrs}
         }}
+        '''
+    else:
+        formatted_attrs = ''
+
+    qry = f'''
+        CREATE SUPERUSER ROLE {qi(role_name)} {formatted_attrs}
     '''
 
     try:

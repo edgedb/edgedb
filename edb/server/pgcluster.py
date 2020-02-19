@@ -17,7 +17,7 @@
 """PostgreSQL cluster management."""
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 import asyncio
 import locale

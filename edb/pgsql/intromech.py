@@ -21,9 +21,6 @@
 from __future__ import annotations
 
 import collections
-import json
-
-import immutables as immu
 
 from edb import errors
 
@@ -519,9 +516,9 @@ class IntrospectionMech:
 
     def _unpack_inherited_fields(self, value):
         if value is None:
-            return immu.Map()
+            return frozenset()
         else:
-            return immu.Map(json.loads(value))
+            return frozenset(value)
 
     def _unpack_typedesc_node(self, typemap, id, schema):
         t = typemap[id]
@@ -589,7 +586,7 @@ class IntrospectionMech:
         if refs is None:
             refs = []
 
-        refs = s_obj.ObjectSet.create(
+        refs = s_obj.ObjectSet[s_obj.Object].create(
             schema, [schema.get_by_id(ref) for ref in refs])
 
         return s_expr.Expression(text=text, origtext=origtext, refs=refs)
@@ -862,7 +859,6 @@ class IntrospectionMech:
                 subject=subject,
                 annotation=anno,
                 value=value,
-                inheritable=r['inheritable'],
                 is_local=r['is_local'],
                 is_final=r['is_final'],
             )
@@ -933,7 +929,7 @@ class IntrospectionMech:
         return schema, exprmap
 
     async def order_objtypes(self, schema, exprmap):
-        for objtype in schema.get_objects(type=s_objtypes.BaseObjectType):
+        for objtype in schema.get_objects(type=s_objtypes.ObjectType):
             try:
                 expr = exprmap[objtype.get_name(schema)]
             except KeyError:

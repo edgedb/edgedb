@@ -85,6 +85,9 @@ cdef class EdgeConnection:
         object server
         bint authed
 
+        tuple protocol_version
+        tuple max_protocol
+
     cdef _parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef char render_cardinality(self, query_unit) except -1

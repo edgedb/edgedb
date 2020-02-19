@@ -24,7 +24,7 @@ import collections.abc
 import functools
 import re
 import sys
-from typing import *  # NoQA
+from typing import *
 
 import typing_inspect
 

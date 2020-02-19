@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import functools
 import re
-from typing import *  # NoQA
+from typing import *
 
 from edb.edgeql import quote as eql_quote
 from edb.edgeql.parser.grammar import lexer
@@ -59,6 +59,10 @@ def split_edgeql(
     buffer = []
     brace_level = 0
     for tok in lex.lex():
+        if tok.type == 'COMMENT':
+            # skip the comments completely
+            continue
+
         buffer.append(tok.text)
 
         if tok.type == '{':

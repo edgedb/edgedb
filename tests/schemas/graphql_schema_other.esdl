@@ -17,10 +17,14 @@
 #
 
 
-scalar type color_enum_t extending enum<'RED', 'GREEN', 'BLUE'>;
+scalar type ColorEnum extending enum<'RED', 'GREEN', 'BLUE'> {
+    annotation description := 'RGB color enum';
+}
 
 type Foo {
+    annotation description := 'Test type "Foo"';
+
     property `select` -> str;
     property after -> str;
-    property color -> color_enum_t;
+    required property color -> ColorEnum;
 }

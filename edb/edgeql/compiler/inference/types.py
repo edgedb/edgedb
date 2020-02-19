@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import functools
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 
@@ -106,7 +106,9 @@ def _infer_common_type(
                 break
     else:
         common_type = s_utils.get_class_nearest_common_ancestor(
-            env.schema, types)
+            env.schema,
+            cast(Sequence[s_types.InheritingType], types),
+        )
 
     if common_type is None:
         return None

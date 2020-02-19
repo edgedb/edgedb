@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 from edb import edgeql
 from edb import errors
@@ -59,15 +59,15 @@ class Index(referencing.ReferencedInheritingObject, s_anno.AnnotationSubject):
         return expr.origtext
 
 
-class IndexableSubject(inheriting.InheritingObject):
+class IndexableSubject(so.InheritingObject):
     indexes_refs = so.RefDict(
         attr='indexes',
         ref_cls=Index)
 
     indexes = so.SchemaField(
-        so.ObjectIndexByUnqualifiedName,
+        so.ObjectIndexByUnqualifiedName[Index],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.909,
-        default=so.ObjectIndexByUnqualifiedName)
+        default=so.DEFAULT_CONSTRUCTOR)
 
     def add_index(self, schema, index):
         return self.add_classref(schema, 'indexes', index)

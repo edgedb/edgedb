@@ -35,7 +35,6 @@ from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import delta as sd
-from . import derivable
 from . import expr as s_expr
 from . import name as s_name
 from . import objects as so
@@ -65,7 +64,11 @@ class ExprType(enum.IntEnum):
 TypeT = typing.TypeVar('TypeT', bound='Type')
 
 
-class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
+class Type(
+    so.SubclassableObject,
+    so.DerivableObject,
+    s_abc.Type,
+):
     """A schema item that is a valid *type*."""
 
     # If this type is an alias, expr will contain an expression that
@@ -319,6 +322,34 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
     def material_type(
         self, schema: s_schema.Schema
     ) -> Type:
+        return self
+
+    def peel_view(self, schema: s_schema.Schema) -> Type:
+        return self
+
+    def get_common_parent_type_distance(self, other: Type, schema) -> int:
+        raise NotImplementedError
+
+    def as_create_delta_for_compound_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[sd.CreateObject]:
+        return None
+
+    def allow_ref_propagation(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> bool:
+        return not self.is_view(schema)
+
+
+class InheritingType(Type, so.InheritingObject):
+
+    def material_type(
+        self, schema: s_schema.Schema
+    ) -> Type:
         return typing.cast(Type, self.get_nearest_non_derived_parent(schema))
 
     def peel_view(self, schema: s_schema.Schema) -> Type:
@@ -349,20 +380,6 @@ class Type(so.InheritingObjectBase, derivable.DerivableObjectBase, s_abc.Type):
         else:
             ancestors = list(self.get_ancestors(schema).objects(schema))
             return ancestors.index(ancestor) + 1
-
-    def as_create_delta_for_compound_type(
-        self,
-        schema: s_schema.Schema,
-    ) -> Optional[sd.CreateObject]:
-        return None
-
-    def allow_ref_propagation(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        refdict: so.RefDict,
-    ) -> bool:
-        return not self.is_view(schema)
 
 
 TypeExprRefT = typing.TypeVar('TypeExprRefT', bound='TypeExprRef')
@@ -526,7 +543,7 @@ class Collection(Type, s_abc.Collection):
         return type_dist
 
     def _issubclass(
-        self, schema: s_schema.Schema, parent: so.InheritingObjectBase
+        self, schema: s_schema.Schema, parent: so.SubclassableObject
     ) -> bool:
         if isinstance(parent, Type) and parent.is_any():
             return True
@@ -549,8 +566,8 @@ class Collection(Type, s_abc.Collection):
         self,
         schema: s_schema.Schema,
         parent: Union[
-            so.InheritingObjectBase,
-            typing.Tuple[so.InheritingObjectBase, ...],
+            so.SubclassableObject,
+            typing.Tuple[so.SubclassableObject, ...],
         ],
     ) -> bool:
         if isinstance(parent, tuple):
@@ -666,6 +683,12 @@ class Collection(Type, s_abc.Collection):
     def as_delete_delta(
         self, schema: s_schema.Schema, *, view_name: str = None
     ) -> sd.Command:
+        raise NotImplementedError
+
+    def as_schema_coll(
+        self,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[s_schema.Schema, SchemaCollection]:
         raise NotImplementedError
 
 
@@ -998,7 +1021,7 @@ class SchemaCollectionMeta(so.ObjectMeta):
         return True
 
 
-class SchemaCollection(so.Object, metaclass=SchemaCollectionMeta):
+class SchemaCollection(Type, metaclass=SchemaCollectionMeta):
     def __repr__(self):
         return (
             f'<{self.__class__.__name__} '
@@ -1764,6 +1787,14 @@ class TypeCommand(sd.ObjectCommand):
 
         derived_delta = sd.DeltaRoot()
 
+        for ref in ir.new_coll_types:
+            ensure_schema_collection(
+                schema,
+                ref,
+                derived_delta,
+                context=context,
+            )
+
         derived_delta.add(so.Object.delta_sets(
             prev_expr_aliases, expr_aliases,
             old_schema=old_schema, new_schema=new_schema))
@@ -1924,29 +1955,31 @@ def ensure_schema_collection(
     *,
     src_context: Optional[parsing.ParserContext] = None,
     context: sd.CommandContext,
-) -> None:
+) -> Optional[sd.Command]:
     if not isinstance(coll_type, Collection):
         raise ValueError(
             f'{coll_type.get_displayname(schema)} is not a collection')
 
-    if coll_type.contains_array_of_tuples(schema):
-        raise errors.UnsupportedFeatureError(
-            'arrays of tuples are not supported at the schema level',
-            context=src_context,
-        )
-
     delta_root = context.top().op
     assert isinstance(delta_root, sd.DeltaRoot)
+    cmd: Optional[sd.Command] = None
 
     if (schema.get_by_id(coll_type.id, None) is None
             and coll_type.id not in delta_root.new_types):
-        parent_cmd.add(coll_type.as_create_delta(schema))
+        cmd = coll_type.as_create_delta(schema)
+        if isinstance(parent_cmd, sd.DeltaRoot):
+            parent_cmd.add(cmd)
+        else:
+            parent_cmd.add_prerequisite(cmd)
+
         delta_root.new_types.add(coll_type.id)
 
     if coll_type.id in delta_root.deleted_types:
         # Revert the deletion decision.
         del_cmd = delta_root.deleted_types.pop(coll_type.id)
         delta_root.discard(del_cmd)
+
+    return cmd
 
 
 def cleanup_schema_collection(

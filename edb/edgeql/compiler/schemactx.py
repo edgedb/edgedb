@@ -22,15 +22,13 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 
 from edb.common import parsing
 
 from edb.schema import abc as s_abc
-from edb.schema import derivable as s_der
-from edb.schema import inheriting as s_inh
 from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
@@ -179,7 +177,7 @@ def derive_view(
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema, name=derived_name)
 
-    elif isinstance(stype, s_inh.InheritingObject):
+    elif isinstance(stype, s_obj.InheritingObject):
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema,
             name=derived_name,
@@ -277,7 +275,7 @@ def derive_ptr(
 
 
 def derive_view_name(
-        stype: Optional[s_der.DerivableObjectBase],
+        stype: Optional[s_obj.DerivableObject],
         derived_name_quals: Optional[Sequence[str]]=(),
         derived_name_base: Optional[str]=None, *,
         ctx: context.ContextLevel) -> sn.Name:
@@ -290,7 +288,7 @@ def derive_view_name(
     else:
         derived_name_module = '__derived__'
 
-    return s_der.derive_name(
+    return s_obj.derive_name(
         ctx.env.schema,
         *derived_name_quals,
         module=derived_name_module,
@@ -358,7 +356,8 @@ def apply_intersection(
     Returns:
         A :class:`~TypeIntersectionResult` named tuple containing the
         result intersection type, whether the type system considers
-        the intersection empty and whether *left* is a subtype of *right*.
+        the intersection empty and whether *left* is related to *right*
+        (i.e either is a subtype of another).
     """
 
     if left.issubclass(ctx.env.schema, right):
@@ -376,11 +375,12 @@ def apply_intersection(
         for component_type in union.objects(ctx.env.schema):
             if component_type.issubclass(ctx.env.schema, right):
                 narrowed_union.append(component_type)
+            elif right.issubclass(ctx.env.schema, component_type):
+                narrowed_union.append(right)
 
         if len(narrowed_union) == 0:
-            # No intersection.
-            empty_intersection = True
             int_type = get_intersection_type((left, right), ctx=ctx)
+            is_subtype = int_type.issubclass(ctx.env.schema, left)
         elif len(narrowed_union) == 1:
             int_type = narrowed_union[0]
             is_subtype = int_type.issubclass(ctx.env.schema, left)
@@ -452,3 +452,28 @@ def get_union_pointer(
     ctx.env.created_schema_objects.add(ptr)
 
     return ptr
+
+
+def is_type_compatible(
+    type_a: s_types.Type,
+    type_b: s_types.Type,
+    *,
+    ctx: context.ContextLevel,
+) -> bool:
+
+    material_type_a = type_a.material_type(ctx.env.schema)
+    material_type_b = type_b.material_type(ctx.env.schema)
+
+    compatible = material_type_b.issubclass(ctx.env.schema, material_type_a)
+    if compatible:
+        if (
+            isinstance(material_type_a, s_types.Tuple)
+            and isinstance(material_type_b, s_types.Tuple)
+        ):
+            # For tuples, we also check that the element names match.
+            compatible = (
+                material_type_a.get_element_names(ctx.env.schema) ==
+                material_type_b.get_element_names(ctx.env.schema)
+            )
+
+    return compatible

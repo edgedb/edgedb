@@ -17,15 +17,31 @@
 #
 
 
+import edgedb
+
 from edb.testbase import server as tb
 
 
 class TestDatabase(tb.ConnectedTestCase):
-    async def test_database_create01(self):
+    async def test_database_create_01(self):
         await self.con.execute('CREATE DATABASE mytestdb;')
 
         try:
             conn = await self.connect(database='mytestdb')
+
+            dbname = await conn.fetchall('SELECT sys::get_current_database();')
+            self.assertEqual(dbname, ['mytestdb'])
+
+            with self.assertRaisesRegex(edgedb.ExecutionError,
+                                        r'cannot drop the currently open '
+                                        r'database'):
+                await conn.execute('DROP DATABASE mytestdb;')
+
+            with self.assertRaisesRegex(edgedb.ExecutionError,
+                                        r'database "mytestdb" is being '
+                                        r'accessed by other users'):
+                await self.con.execute('DROP DATABASE mytestdb;')
+
             await conn.aclose()
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')

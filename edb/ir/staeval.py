@@ -21,7 +21,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 import dataclasses
 import decimal
@@ -33,13 +33,12 @@ from edb.common import uuidgen
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import qltypes
-from edb.edgeql.parser.grammar import lexutils as ql_lexutils
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
-from edb.schema import inheriting as s_inh
+from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import types as s_types
 from edb.schema import scalars as s_scalars
@@ -217,14 +216,6 @@ def str_const_to_python(
         ir: irast.StringConstant,
         schema: s_schema.Schema) -> Any:
 
-    return ql_lexutils.unescape_string(ir.value)
-
-
-@const_to_python.register(irast.RawStringConstant)
-def raw_str_const_to_python(
-        ir: irast.RawStringConstant,
-        schema: s_schema.Schema) -> Any:
-
     return ir.value
 
 
@@ -275,7 +266,7 @@ def scalar_type_to_python_type(
     }
 
     for basetype_name, python_type in typemap.items():
-        basetype: s_inh.InheritingObject = schema.get(basetype_name)
+        basetype: s_obj.InheritingObject = schema.get(basetype_name)
         if stype.issubclass(schema, basetype):
             return python_type
 

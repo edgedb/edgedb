@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 
@@ -545,7 +545,7 @@ def compile_DescribeStmt(
         )
 
         stmt.result = setgen.ensure_set(
-            irast.RawStringConstant(value=text, typeref=ct),
+            irast.StringConstant(value=text, typeref=ct),
             ctx=ictx,
         )
 

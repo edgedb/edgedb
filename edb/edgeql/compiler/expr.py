@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import ast
 import typing
 
 from edb import errors
@@ -176,9 +175,6 @@ def compile_BaseConstant(
     if isinstance(expr, qlast.StringConstant):
         std_type = 'std::str'
         node_cls = irast.StringConstant
-    elif isinstance(expr, qlast.RawStringConstant):
-        std_type = 'std::str'
-        node_cls = irast.RawStringConstant
     elif isinstance(expr, qlast.IntegerConstant):
         int_value = int(expr.value)
         if expr.is_negative:
@@ -212,7 +208,6 @@ def compile_BaseConstant(
     elif isinstance(expr, qlast.BytesConstant):
         std_type = 'std::bytes'
         node_cls = irast.BytesConstant
-        value = ast.literal_eval(f'b{expr.quote}{expr.value}{expr.quote}')
     else:
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
 

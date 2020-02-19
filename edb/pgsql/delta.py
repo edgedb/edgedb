@@ -23,7 +23,7 @@ import collections.abc
 import itertools
 import json
 import textwrap
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 
@@ -218,21 +218,13 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
 
         return result, recvalue
 
-    def get_fields(self, schema, context):
-        if isinstance(self, sd.CreateObject):
-            schema, fields = self._get_create_fields(schema, context)
-        else:
-            schema, fields = self._get_field_updates(schema, context)
-
-        return schema, fields
-
     def fill_record(self, schema, context, *, use_defaults=False):
         updates = {}
 
         rec = None
         table = self.get_table(schema)
 
-        schema, fields = self.get_fields(schema, context)
+        fields = self.get_resolved_attributes(schema, context)
 
         for name, value in fields.items():
             col = table.get_column(name)
@@ -1913,11 +1905,7 @@ class RebaseIndex(
 class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,
                             CompositeObjectMetaCommand):
     def get_table(self, schema):
-        if self.scls.is_compound_type(schema):
-            mcls = s_objtypes.CompoundObjectType
-        else:
-            mcls = s_objtypes.ObjectType
-
+        mcls = s_objtypes.ObjectType
         return metaschema.get_metaclass_table(mcls)
 
     @classmethod

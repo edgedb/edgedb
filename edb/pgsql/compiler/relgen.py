@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import contextlib
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 
@@ -556,8 +556,14 @@ def finalize_optional_rel(
                     tvarels.append(pgast.TupleElementBase(
                         path_id=element.path_id))
                 pathctx.put_path_value_var(
-                    optrel.emptyrel, path_id,
-                    pgast.TupleVarBase(elements=tvarels), env=subctx.env)
+                    optrel.emptyrel,
+                    path_id,
+                    pgast.TupleVarBase(
+                        elements=tvarels,
+                        typeref=tvar.typeref,
+                    ),
+                    env=subctx.env,
+                )
                 pathctx.put_path_source_rvar(
                     optrel.emptyrel, path_id, null_rvar, env=subctx.env)
 
@@ -785,6 +791,23 @@ def process_set_as_path(
             assert prefix_path_id is not None, 'expected a path'
             pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
             relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
+            int_rvar = pgast.IntersectionRangeVar(
+                component_rvars=[
+                    source_rvar,
+                    poly_rvar,
+                ]
+            )
+
+            stmt.view_path_id_map[ir_set.path_id] = ir_source.path_id
+
+            for aspect in ('source', 'value'):
+                pathctx.put_path_rvar(
+                    stmt,
+                    ir_source.path_id,
+                    int_rvar,
+                    aspect=aspect,
+                    env=ctx.env,
+                )
 
         sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
         return new_simple_set_rvar(ir_set, sub_rvar, ['value', 'source'])
@@ -1159,7 +1182,8 @@ def process_set_as_setop(
         union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
         relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
 
-    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
+    rvar = relctx.rvar_for_rel(
+        stmt, typeref=ir_set.typeref, lateral=True, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 
@@ -1174,7 +1198,8 @@ def process_set_as_distinct(
         arg = expr.args[0].expr
         subqry.view_path_id_map[ir_set.path_id] = arg.path_id
         dispatch.visit(arg, ctx=subctx)
-        subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
+        subrvar = relctx.rvar_for_rel(
+            subqry, typeref=arg.typeref, lateral=True, ctx=subctx)
 
     relctx.include_rvar(stmt, subrvar, ir_set.path_id, ctx=ctx)
 
@@ -1184,7 +1209,8 @@ def process_set_as_distinct(
     stmt.distinct_clause = pathctx.get_rvar_output_var_as_col_list(
         subrvar, value_var, aspect='value', env=ctx.env)
 
-    rvar = relctx.rvar_for_rel(stmt, lateral=True, ctx=ctx)
+    rvar = relctx.rvar_for_rel(
+        stmt, typeref=ir_set.typeref, lateral=True, ctx=ctx)
     return new_simple_set_rvar(ir_set, rvar)
 
 
@@ -1424,7 +1450,11 @@ def process_set_as_tuple(
                 pathctx.put_path_var(stmt, path_id, var,
                                      aspect='serialized', env=subctx.env)
 
-        set_expr = pgast.TupleVarBase(elements=elements, named=expr.named)
+        set_expr = pgast.TupleVarBase(
+            elements=elements,
+            named=expr.named,
+            typeref=ir_set.typeref,
+        )
 
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
@@ -1725,7 +1755,8 @@ def _process_set_func_with_ordinality(
                 )
                 for i, n in enumerate(colnames[:-1])
             ],
-            named=inner_named_tuple
+            named=inner_named_tuple,
+            typeref=inner_rtype,
         )
     else:
         inner_expr = astutils.get_column(
@@ -1832,7 +1863,8 @@ def _process_set_func(
                 )
                 for i, n in enumerate(colnames)
             ],
-            named=named_tuple
+            named=named_tuple,
+            typeref=rtype,
         )
 
         for element in set_expr.elements:

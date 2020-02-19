@@ -18,7 +18,7 @@
 
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 import collections
 import dataclasses
@@ -480,7 +480,7 @@ class Compiler(BaseCompiler):
             elif isinstance(cmd, s_migrations.GetMigration):
                 ddl_text = s_ddl.ddl_text_from_migration(schema, migration)
                 query_ql = qlast.SelectQuery(
-                    result=qlast.RawStringConstant.from_python(ddl_text))
+                    result=qlast.StringConstant.from_python(ddl_text))
                 return self._compile_ql_query(ctx, query_ql)
 
             elif isinstance(cmd, s_migrations.CreateMigration):

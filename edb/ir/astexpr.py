@@ -21,7 +21,7 @@
 # mypy does not understand.
 
 from __future__ import annotations
-from typing import *  # NoQA
+from typing import *
 
 from edb.common.ast import match as astmatch
 

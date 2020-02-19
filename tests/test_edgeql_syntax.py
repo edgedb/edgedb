@@ -123,11 +123,11 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
 % OK %
 
         SELECT 'a1';
-        SELECT "a1";
-        SELECT r'a1';
-        SELECT r"a1";
-        SELECT $$a1$$;
-        SELECT $qwe$a1$qwe$;
+        SELECT 'a1';
+        SELECT 'a1';
+        SELECT 'a1';
+        SELECT 'a1';
+        SELECT 'a1';
         """
 
     def test_edgeql_syntax_constants_03(self):
@@ -173,14 +173,14 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT (($SELECT + $TRUE) + $WITH);
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '0'", line=2, col=16)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "leading zeros are not allowed in numbers",
+                  line=2, col=16)
     def test_edgeql_syntax_constants_07(self):
         """
         SELECT 02;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected ';'",
-                  line=2, col=18)
     def test_edgeql_syntax_constants_08(self):
         """
         SELECT 1.;
@@ -199,7 +199,7 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         r"""
         SELECT b'1\t\n1' + b"2\x00";
 % OK %
-        SELECT (b'1\t\n1' + b"2\x00");
+        SELECT (b'1\t\n1' + b'2\x00');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -231,8 +231,7 @@ class TestEdgeQLParser(EdgeQLSyntaxTest):
         SELECT b'aa
 aa';
 % OK %
-        SELECT b'aa
-aa';
+        SELECT b'aa\naa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -260,9 +259,6 @@ aa';
         r"""
         SELECT 'aa
         aa';
-% OK %
-        SELECT 'aa
-        aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -284,39 +280,50 @@ aa';
     def test_edgeql_syntax_constants_21(self):
         r"""
         SELECT '\'"\\\'\""\\x\\u';
+% OK %
+        SELECT $$'"\'""\x\u$$;
         """
 
     def test_edgeql_syntax_constants_22(self):
         r"""
         SELECT to_json('{"defaultValue": "\\"SMALLEST\\""}');
+% OK %
+        SELECT to_json(r'{"defaultValue": "\"SMALLEST\""}');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unterminated string ';", line=2, col=20)
+                  r"unterminated string, quoted by `'`", line=2, col=20)
     def test_edgeql_syntax_constants_23(self):
         r"""
         SELECT '\\'';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Unterminated string ";', line=2, col=20)
+                  r'unterminated string, quoted by `"`', line=2, col=20)
     def test_edgeql_syntax_constants_24(self):
         r"""
         SELECT "\\"";
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unterminated string ';", line=2, col=21)
+                  r"unterminated string, quoted by `'`", line=2, col=21)
     def test_edgeql_syntax_constants_25(self):
         r"""
         SELECT b'\\'';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected", line=2, col=21)
+                  r"unexpected character '☎'", line=2, col=21)
     def test_edgeql_syntax_constants_26(self):
         r"""
         SELECT b"\\"☎️";
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"invalid bytes literal: character '☎'", line=2, col=16)
+    def test_edgeql_syntax_constants_26_1(self):
+        r"""
+        SELECT b"xyz☎️";
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -360,15 +367,13 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"invalid string literal",
+                  r"unterminated string, quoted by `'`",
                   line=2, col=16)
     def test_edgeql_syntax_constants_32(self):
         r"""
         SELECT 'aa\
                 bb \
                 aa\';
-% OK %
-        SELECT 'aabb aa';
         """
 
     def test_edgeql_syntax_constants_33(self):
@@ -384,11 +389,15 @@ aa';
     def test_edgeql_syntax_constants_35(self):
         r"""
         SELECT r"\n\w\d";
+% OK %
+        SELECT r'\n\w\d';
         """
 
     def test_edgeql_syntax_constants_36(self):
         r"""
         SELECT $aa$\n\w\d$aa$;
+% OK %
+        SELECT r'\n\w\d';
         """
 
     def test_edgeql_syntax_constants_37(self):
@@ -399,15 +408,20 @@ aa';
     def test_edgeql_syntax_constants_38(self):
         r"""
         SELECT "\n";
+% OK %
+        SELECT '
+';
         """
 
     def test_edgeql_syntax_constants_39(self):
         r"""
-        SELECT "\x1F\x01\x00\x6e";
+        SELECT '\x1F\x01\x00\x6e';
+% OK %
+        SELECT '\x1f\x01\x00n';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"invalid escape sequence '\\x8F'",
+                  r"invalid escape sequence '\\x8f'",
                   line=2, col=16)
     def test_edgeql_syntax_constants_40(self):
         r"""
@@ -684,7 +698,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected '~'", line=2, col=16)
+                  "unexpected character '~'", line=2, col=16)
     def test_edgeql_syntax_ops_21(self):
         """
         SELECT ~1;
@@ -948,28 +962,28 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Identifiers cannot contain "::"', line=2, col=16)
+                  'backtick-quoted name cannot contain `::`', line=2, col=16)
     def test_edgeql_syntax_name_23(self):
         """
         SELECT `foo::bar`;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Identifiers cannot be empty', line=2, col=16)
+                  'backtick quotes cannot be empty', line=2, col=16)
     def test_edgeql_syntax_name_24(self):
         """
         SELECT ``;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Identifiers cannot be empty', line=2, col=21)
+                  'backtick quotes cannot be empty', line=2, col=21)
     def test_edgeql_syntax_name_25(self):
         """
         SELECT foo::``;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Identifiers cannot be empty', line=2, col=16)
+                  'backtick quotes cannot be empty', line=2, col=16)
     def test_edgeql_syntax_name_26(self):
         """
         SELECT ``::Bar;
@@ -1705,8 +1719,9 @@ aa';
         SELECT Foo.TUP.0.1.name;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '0.2e2'",
-                  line=2, col=20)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "unexpected char 'e', only integers are allowed after dot",
+                  line=2, col=22)
     def test_edgeql_syntax_path_22(self):
         """
         SELECT TUP.0.2e2;
@@ -1744,8 +1759,9 @@ aa';
         SELECT Foo.TUP.0.name;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '0.1n'",
-                  line=2, col=20)
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  "unexpected char 'n', only integers are allowed after dot",
+                  line=2, col=22)
     def test_edgeql_syntax_path_27(self):
         """
         SELECT TUP.0.1n.2;
@@ -1776,7 +1792,7 @@ aa';
         SELECT $a.1.1;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected '\$'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"bare \$ is not allowed",
                   line=2, col=16)
     def test_edgeql_syntax_path_31(self):
         """

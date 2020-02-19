@@ -186,6 +186,9 @@ class CommonTableExpr(Base):
 
 class PathRangeVar(BaseRangeVar):
 
+    #: The IR TypeRef this rvar represents (if any).
+    typeref: typing.Optional[irast.TypeRef]
+
     @property
     def query(self) -> BaseRelation:
         raise NotImplementedError
@@ -203,6 +206,11 @@ class RelRangeVar(PathRangeVar):
             return self.relation.query
         else:
             return self.relation
+
+
+class IntersectionRangeVar(PathRangeVar):
+
+    component_rvars: typing.List[PathRangeVar]
 
 
 class TypeName(ImmutableBase):
@@ -266,12 +274,15 @@ class TupleVarBase(OutputVar):
     elements: typing.Sequence[TupleElementBase]
     named: bool
     nullable: bool
+    typeref: typing.Optional[irast.TypeRef]
 
     def __init__(self, elements: typing.List[TupleElementBase], *,
-                 named: bool=False, nullable: bool=False):
+                 named: bool=False, nullable: bool=False,
+                 typeref: typing.Optional[irast.TypeRef]=None):
         self.elements = elements
         self.named = named
         self.nullable = nullable
+        self.typeref = typeref
 
     def __repr__(self):
         return f'<{self.__class__.__name__} [{self.elements!r}]'
@@ -282,10 +293,12 @@ class TupleVar(TupleVarBase):
     elements: typing.Sequence[TupleElement]
 
     def __init__(self, elements: typing.List[TupleElement], *,
-                 named: bool=False, nullable: bool=False):
+                 named: bool=False, nullable: bool=False,
+                 typeref: typing.Optional[irast.TypeRef]=None):
         self.elements = elements
         self.named = named
         self.nullable = nullable
+        self.typeref = typeref
 
 
 class BaseParamRef(ImmutableBaseExpr):
@@ -488,12 +501,6 @@ class NullConstant(BaseConstant):
     """A NULL constant."""
 
     nullable: bool = True
-
-
-class EscapedStringConstant(BaseConstant):
-    """An "E"-prefixed string."""
-
-    val: str
 
 
 class ByteaConstant(BaseConstant):

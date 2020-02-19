@@ -38,11 +38,14 @@ class TestIntrospection(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH MODULE schema
-                SELECT `ObjectType` {
+                SELECT ObjectType {
                     name
                 }
-                FILTER `ObjectType`.name LIKE 'test::%'
-                ORDER BY `ObjectType`.name;
+                FILTER
+                    .name LIKE 'test::%'
+                    AND NOT .is_compound_type
+                ORDER BY
+                    .name;
             """,
             [
                 {'name': 'test::Comment'},
@@ -373,14 +376,20 @@ class TestIntrospection(tb.QueryTestCase):
                 }, {
                     "name": "id",
                     "inherited_fields": {
-                        "default", "readonly",
-                        "required", "cardinality"
+                        "cardinality",
+                        "default",
+                        "readonly",
+                        "required",
+                        "target",
                     },
                     "@is_local": False
                 }, {
                     "name": "name",
                     "inherited_fields": {
-                        "readonly", "required", "cardinality"
+                        "cardinality",
+                        "readonly",
+                        "required",
+                        "target",
                     },
                     "@is_local": False
                 }]
@@ -1282,8 +1291,11 @@ class TestIntrospection(tb.QueryTestCase):
                         SELECT std::count(ObjectType.<__type__)
                     )
                 }
-                FILTER ObjectType.name LIKE 'test::%'
-                ORDER BY ObjectType.name;
+                FILTER
+                    .name LIKE 'test::%'
+                    AND NOT .is_compound_type
+                ORDER BY
+                    .name;
             """,
             [
                 {'name': 'test::Comment', 'count': 0},

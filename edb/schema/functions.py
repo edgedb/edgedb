@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import abc
 import types
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 
@@ -177,7 +177,7 @@ class ParameterDesc(ParameterLike):
 
     @classmethod
     def from_create_delta(cls, schema: s_schema.Schema, context, cmd):
-        props = cmd.get_struct_properties(schema)
+        props = cmd.get_resolved_attributes(schema, context)
         props['name'] = Parameter.paramname_from_fullname(props['name'])
         return schema, cls(
             num=props['num'],
@@ -206,25 +206,19 @@ class ParameterDesc(ParameterLike):
 
         cmd = CreateParameter(classname=param_name)
 
-        cmd.add(sd.AlterObjectProperty(
-            property='name',
-            new_value=param_name,
-        ))
+        cmd.set_attribute_value('name', param_name)
 
-        cmd.add(sd.AlterObjectProperty(
-            property='type',
-            new_value=utils.reduce_to_typeref(schema, self.type),
-        ))
+        cmd.set_attribute_value(
+            'type',
+            utils.reduce_to_typeref(schema, self.type),
+        )
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
             s_types.ensure_schema_collection(
                 schema, self.type, cmd, context=context)
 
         for attr in ('num', 'typemod', 'kind', 'default'):
-            cmd.add(sd.AlterObjectProperty(
-                property=attr,
-                new_value=getattr(self, attr),
-            ))
+            cmd.set_attribute_value(attr, getattr(self, attr))
 
         return cmd
 
@@ -444,7 +438,7 @@ class ParameterLikeList(abc.ABC):
         raise NotImplementedError
 
 
-class FuncParameterList(so.ObjectList, ParameterLikeList, type=Parameter):
+class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
 
     def get_by_name(self, schema: s_schema.Schema, name) -> Parameter:
         for param in self.objects(schema):
@@ -552,7 +546,7 @@ class CallableObject(s_anno.AnnotationSubject, CallableLike):
 
     params = so.SchemaField(
         FuncParameterList,
-        coerce=True, compcoef=0.4, default=FuncParameterList,
+        coerce=True, compcoef=0.4, default=so.DEFAULT_CONSTRUCTOR,
         inheritable=False, simpledelta=False)
 
     return_type = so.SchemaField(
@@ -662,16 +656,6 @@ class CallableObject(s_anno.AnnotationSubject, CallableLike):
 
 class CallableCommand(sd.ObjectCommand):
 
-    def _prepare_create_fields(self, schema: s_schema.Schema, context):
-        params = self.get_attribute_value('params')
-
-        if params is None:
-            params = self._get_params(schema, context)
-
-        schema, props = super()._prepare_create_fields(schema, context)
-        props['params'] = params
-        return schema, props
-
     def _get_params(self, schema: s_schema.Schema, context):
         params = []
         for cr_param in self.get_subcommands(type=ParameterCommand):
@@ -755,17 +739,22 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
                     context=context,
                 )
 
-            cmd.add(sd.AlterObjectProperty(
-                property='return_type',
-                new_value=return_type_ref,
-            ))
-
-            cmd.add(sd.AlterObjectProperty(
-                property='return_typemod',
-                new_value=astnode.returning_typemod
-            ))
+            cmd.set_attribute_value(
+                'return_type', return_type_ref)
+            cmd.set_attribute_value(
+                'return_typemod', astnode.returning_typemod)
 
         return cmd
+
+    def get_resolved_attributes(self, schema: s_schema.Schema, context):
+        params = self.get_attribute_value('params')
+
+        if params is None:
+            params = self._get_params(schema, context)
+
+        props = super().get_resolved_attributes(schema, context)
+        props['params'] = params
+        return props
 
 
 class DeleteCallableObject(CallableCommand, sd.DeleteObject):
@@ -1049,20 +1038,20 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if astnode.code is not None:
-            cmd.add(sd.AlterObjectProperty(
-                property='language',
-                new_value=astnode.code.language
-            ))
+            cmd.set_attribute_value(
+                'language',
+                astnode.code.language,
+            )
             if astnode.code.from_function is not None:
-                cmd.add(sd.AlterObjectProperty(
-                    property='from_function',
-                    new_value=astnode.code.from_function
-                ))
+                cmd.set_attribute_value(
+                    'from_function',
+                    astnode.code.from_function
+                )
             else:
-                cmd.add(sd.AlterObjectProperty(
-                    property='code',
-                    new_value=astnode.code.code
-                ))
+                cmd.set_attribute_value(
+                    'code',
+                    astnode.code.code,
+                )
 
         return cmd
 
@@ -1071,7 +1060,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
 
         params = []
         for op in self.get_subcommands(type=ParameterCommand):
-            props = op.get_struct_properties(schema)
+            props = op.get_resolved_attributes(schema, context)
             num = props['num']
             default = props.get('default')
             param = qlast.FuncParam(

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import collections
 import functools
-from typing import *  # NoQA
+from typing import *
 
 from edb.common import uuidgen
 from edb.edgeql import qltypes
@@ -205,7 +205,7 @@ def pg_type_from_ir_typeref(
         return ('record',)
 
     elif irtyputils.is_tuple(ir_typeref):
-        if persistent_tuples:
+        if persistent_tuples or ir_typeref.in_schema:
             return common.get_tuple_backend_name(ir_typeref.id, catenate=False)
         else:
             return ('record',)

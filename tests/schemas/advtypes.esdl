@@ -47,11 +47,40 @@ type W {
     link w -> W;
 }
 
+type X extending W, U;
+
 type Z {
     required property name -> str {
         constraint exclusive;
     };
 
     # have 'name' in common
-    link stw0 -> S | T | W;
+    multi link stw0 -> S | T | W;
 }
+
+# 3 abstract base types and their concrete permutations
+abstract type Ba {
+    required property ba -> str;
+}
+
+abstract type Bb {
+    required property bb -> int64;
+}
+
+abstract type Bc {
+    required property bc -> float64;
+}
+
+type CBa extending Ba;
+
+type CBb extending Bb;
+
+type CBc extending Bc;
+
+type CBaBb extending Ba, Bb;
+
+type CBaBc extending Ba, Bc;
+
+type CBbBc extending Bb, Bc;
+
+type CBaBbBc extending Ba, Bb, Bc;

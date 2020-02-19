@@ -381,6 +381,28 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                 };
             };
         };
+
+% OK %
+
+        module test {
+            type Foo {
+                property foo -> str {
+                    # if it's defined on the same line as :=
+                    # the definition must be a one-liner
+                    default := some_func(1, 2, 3);
+                };
+                property bar -> str {
+                    # multi-line definition with correct indentation
+                    default := some_func('
+                        1, 2, 3');
+                };
+                property baz -> str {
+                    # multi-line definition with correct indentation
+                    default := 'some_func(
+                        1, 2, 3)';
+                };
+            };
+        };
         """
 
     def test_eschema_syntax_type_23(self):
@@ -1122,6 +1144,16 @@ abstract property test::foo {
                };
             };
         };
+
+% OK %
+
+        module test {
+            abstract link time_estimate {
+               property unit -> str{
+                   constraint my_constraint(')', `)`(')'));
+               };
+            };
+        };
         """
 
     def test_eschema_syntax_link_10(self):
@@ -1244,6 +1276,13 @@ abstract property test::foo {
             function some_func(foo: str = $$)$$) -> std::str
                 using sql function 'some_other_func';
         };
+
+% OK %
+
+        module test {
+            function some_func(foo: str = ')') -> std::str
+                using sql function 'some_other_func';
+        };
         """
 
     def test_eschema_syntax_function_10(self):
@@ -1252,6 +1291,14 @@ abstract property test::foo {
             function some_func(foo: str = $a1$)$a1$) -> std::str
                 using sql function 'some_other_func';
         };
+
+% OK %
+
+        module test {
+            function some_func(foo: str = ')') -> std::str
+                using sql function 'some_other_func';
+        };
+
         """
 
     def test_eschema_syntax_function_11(self):

@@ -26,7 +26,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import sys
-from typing import *  # NoQA
+from typing import *
 
 from black import lib2to3_parse, Visitor, Leaf, Node, LN, syms
 from blib2to3.pgen2 import token

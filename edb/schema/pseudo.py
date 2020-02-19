@@ -21,17 +21,15 @@ from __future__ import annotations
 
 import typing
 
-from . import inheriting
 from . import name as sn
 from . import objects as so
 from . import types as s_types
-
 
 if typing.TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class PseudoType(inheriting.InheritingObject, s_types.Type):
+class PseudoType(so.InheritingObject, s_types.Type):
 
     name = so.Field(sn.UnqualifiedName)
 

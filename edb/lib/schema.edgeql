@@ -233,22 +233,19 @@ CREATE TYPE schema::ScalarType
 };
 
 
-CREATE TYPE schema::BaseObjectType
+CREATE TYPE schema::ObjectType
     EXTENDING
         schema::InheritingObject, schema::ConsistencySubject,
         schema::AnnotationSubject, schema::Type, schema::Source;
 
 
-ALTER TYPE schema::BaseObjectType {
-    CREATE MULTI LINK union_of -> schema::BaseObjectType;
-    CREATE MULTI LINK intersection_of -> schema::BaseObjectType;
+ALTER TYPE schema::ObjectType {
+    CREATE MULTI LINK union_of -> schema::ObjectType;
+    CREATE MULTI LINK intersection_of -> schema::ObjectType;
+    CREATE PROPERTY is_compound_type := (
+        EXISTS .union_of OR EXISTS .intersection_of
+    );
 };
-
-
-CREATE TYPE schema::ObjectType EXTENDING schema::BaseObjectType;
-
-
-CREATE TYPE schema::CompoundObjectType EXTENDING schema::BaseObjectType;
 
 
 CREATE TYPE schema::Link EXTENDING schema::Pointer, schema::Source;

@@ -22,7 +22,7 @@ from __future__ import annotations
 import enum
 import json
 import re
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 from edb.common import uuidgen
@@ -59,6 +59,8 @@ class PGErrorCode(enum.Enum):
     TransactionDeadlockDetected = '40P01'
 
     InvalidCatalogNameError = '3D000'
+
+    ObjectInUse = '55006'
 
 
 class SchemaRequired:
@@ -312,6 +314,9 @@ def static_interpret_backend_error(fields):
 
     elif err_details.code == PGErrorCode.InvalidCatalogNameError:
         return errors.AuthenticationError(err_details.message)
+
+    elif err_details.code == PGErrorCode.ObjectInUse:
+        return errors.ExecutionError(err_details.message)
 
     return errors.InternalServerError(err_details.message)
 

@@ -342,7 +342,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_12(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError,
-                r"Unexpected '`__subject__`'"):
+                r"backtick-quoted names surrounded by double underscores "
+                r"are forbidden"):
             await self.con.execute(r"""
                 CREATE TYPE test::TestBadContainerLinkObjectType {
                     CREATE PROPERTY foo -> std::str {
@@ -733,6 +734,86 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+    async def test_edgeql_ddl_link_target_bad_01(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> A;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> B;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine link 'foo' of object type 'test::Derived' "
+                "as object type 'test::B'"):
+            await self.con.execute('''
+                CREATE TYPE Derived EXTENDING Base0, Base1;
+            ''')
+
+    async def test_edgeql_ddl_link_target_bad_02(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B;
+            CREATE TYPE C;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> A | B;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> C;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                "cannot redefine link 'foo' of object type 'test::Derived' "
+                "as object type 'test::C'"):
+            await self.con.execute('''
+                CREATE TYPE Derived EXTENDING Base0, Base1;
+            ''')
+
+    async def test_edgeql_ddl_link_target_merge_01(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B EXTENDING A;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> B;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> A;
+            };
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+        ''')
+
+    async def test_edgeql_ddl_link_target_merge_02(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B;
+            CREATE TYPE C;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> A;
+            };
+            CREATE TYPE Base1 {
+                CREATE LINK foo -> A | B;
+            };
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+        ''')
+
     async def test_edgeql_ddl_link_target_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE test::GrandParent01 {
@@ -812,6 +893,40 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
                 ALTER TYPE test::Foo ALTER PROPERTY bar SET TYPE int32;
             """)
+
+    async def test_edgeql_ddl_link_target_alter_04(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> A | B;
+            };
+
+            CREATE TYPE Derived EXTENDING Base0 {
+                ALTER LINK foo SET TYPE B;
+            }
+        ''')
+
+    async def test_edgeql_ddl_link_target_alter_05(self):
+        await self.con.execute('''
+            SET MODULE test;
+
+            CREATE TYPE A;
+            CREATE TYPE B EXTENDING A;
+
+            CREATE TYPE Base0 {
+                CREATE LINK foo -> B;
+            };
+
+            CREATE TYPE Base1;
+
+            CREATE TYPE Derived EXTENDING Base0, Base1;
+
+            ALTER TYPE Base1 CREATE LINK foo -> A;
+        ''')
 
     async def test_edgeql_ddl_link_property_01(self):
         with self.assertRaisesRegex(
@@ -3551,6 +3666,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
     @test.xfail('''
+        See test_edgeql_ddl_alias_08 first.
+
         Fails to create "BT06Alias3":
 
         edgedb.errors.SchemaError: ObjectType
@@ -3591,6 +3708,47 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 WITH MODULE test
                 CREATE ALIAS IllegalAlias07 := Object {a := IllegalAlias07};
             """)
+
+    @test.xfail('''
+        Fails to create "BT06Alias3":
+
+        edgedb.errors.SchemaError: ObjectType
+        'test::test|BT06Alias1@@w~1' is already present in the
+        schema <Schema gen:3431 at 0x7fe1a7b69880>
+
+        This is actually causing the same issue as test_edgeql_ddl_alias_06,
+        but it means that the implicit aliases don't get cleaned up.
+
+        This means that this should be fixed first before it gets
+        masked by the fix to the other bug.
+    ''')
+    async def test_edgeql_ddl_alias_08(self):
+        # Issue #1184
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            CREATE TYPE BaseType06 {
+                CREATE PROPERTY name -> str;
+            };
+
+            CREATE ALIAS BT06Alias1 := BaseType06 {
+                a := .name ++ '_a'
+            };
+
+            CREATE ALIAS BT06Alias2 := BT06Alias1 {
+                b := .a ++ '_b'
+            };
+
+            # drop the freshly created alias
+            DROP ALIAS BT06Alias2;
+
+            # re-create the alias that was just dropped
+            CREATE ALIAS BT06Alias2 := BT06Alias1 {
+                b := .a ++ '_b'
+            };
+        """)
+
+        # TODO: Add an actual INSERT/SELECT test.
 
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
@@ -4216,6 +4374,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+        await self.con.execute(r"""
+            ALTER TYPE test::TupProp02 {
+                CREATE PROPERTY p5 -> array<tuple<int64>>;
+            };
+        """)
+
         await self.con.execute('DECLARE SAVEPOINT t0;')
 
         with self.assertRaisesRegex(
@@ -4224,22 +4388,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             await self.con.execute(r"""
                 ALTER TYPE test::TupProp02 {
-                    CREATE PROPERTY p5 -> tuple<test::TupProp02>;
+                    CREATE PROPERTY p6 -> tuple<test::TupProp02>;
                 };
             """)
 
         # Recover.
         await self.con.execute('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                'arrays of tuples are not supported'):
-
-            await self.con.execute(r"""
-                ALTER TYPE test::TupProp02 {
-                    CREATE PROPERTY p5 -> array<tuple<int64>>;
-                };
-            """)
 
     async def test_edgeql_ddl_enum_01(self):
         await self.con.execute('''

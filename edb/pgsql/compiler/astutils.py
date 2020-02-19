@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
@@ -319,7 +319,11 @@ def get_rvar_var(
                 pgast.TupleElement(
                     path_id=el.path_id, name=el.name, val=val))
 
-        fieldref = pgast.TupleVar(elements, named=var.named)
+        fieldref = pgast.TupleVar(
+            elements,
+            named=var.named,
+            typeref=var.typeref,
+        )
 
     elif isinstance(var, pgast.ColumnRef):
         fieldref = get_column(rvar, var)
@@ -356,7 +360,11 @@ def strip_output_var(
                 pgast.TupleElement(
                     path_id=el.path_id, name=el_name, val=val))
 
-        result = pgast.TupleVar(elements, named=var.named)
+        result = pgast.TupleVar(
+            elements,
+            named=var.named,
+            typeref=var.typeref,
+        )
 
     elif isinstance(var, pgast.ColumnRef):
         result = pgast.ColumnRef(

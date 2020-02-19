@@ -538,9 +538,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_StringConstant(self, node):
         self.write(common.quote_literal(node.val))
 
-    def visit_EscapedStringConstant(self, node):
-        self.write(common.quote_e_literal(node.val))
-
     def visit_ByteaConstant(self, node):
         self.write(common.quote_bytea_literal(node.val))
 

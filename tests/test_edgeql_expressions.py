@@ -374,10 +374,10 @@ class TestExpressions(tb.QueryTestCase):
                 )
 
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
-                                    'std::int64 out of range'):
+                                    'is out of range for type std::int64'):
             async with self.con.transaction():
                 await self.con.fetchone(
-                    r'''SELECT <int64>3689348814741900000000000''',
+                    r'''SELECT <int64>'3689348814741900000000000' ''',
                 )
 
     async def test_edgeql_expr_op_02(self):
@@ -3070,8 +3070,8 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_string_10(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'invalid string literal: invalid line continuation',
-                _hint="newline has to immediately follow '\\'"):
+                r"invalid string literal: invalid escape sequence '\\ '",
+                _hint="consider removing trailing whitespace"):
             await self.con.execute(
                 r"SELECT 'bb\   "
                 "\naa';"

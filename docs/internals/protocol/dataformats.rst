@@ -264,7 +264,7 @@ For example, the decimal value ``-15000.6250000`` is represented as:
 std::bool
 =========
 
-The :eql:type:`std::bool` values are represented as an int64 with
+The :eql:type:`std::bool` values are represented as an int8 with
 only two valid values: ``0x01`` for ``true`` and ``0x00`` for ``false``.
 
 

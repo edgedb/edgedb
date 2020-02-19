@@ -21,7 +21,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb import errors
 
@@ -140,26 +140,13 @@ def compile_Parameter(
     )
 
 
-@dispatch.compile.register(irast.RawStringConstant)
-def compile_RawStringConstant(
-        expr: irast.RawStringConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-
-    return pgast.TypeCast(
-        arg=pgast.StringConstant(val=expr.value),
-        type_name=pgast.TypeName(
-            name=pg_types.pg_type_from_ir_typeref(expr.typeref)
-        )
-    )
-
-
 @dispatch.compile.register(irast.StringConstant)
 def compile_StringConstant(
         expr: irast.StringConstant, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     return pgast.TypeCast(
-        arg=pgast.EscapedStringConstant(val=expr.value),
+        arg=pgast.StringConstant(val=expr.value),
         type_name=pgast.TypeName(
             name=pg_types.pg_type_from_ir_typeref(expr.typeref)
         )
@@ -498,7 +485,7 @@ def compile_Tuple(
         val = dispatch.compile(e.val, ctx=ctx)
         elements.append(pgast.TupleElement(path_id=e.path_id, val=val))
 
-    result = pgast.TupleVar(elements=elements)
+    result = pgast.TupleVar(elements=elements, typeref=ttype)
 
     return output.output_as_value(result, env=ctx.env)
 

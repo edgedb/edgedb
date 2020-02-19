@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import asyncpg
-from typing import *  # NoQA
+from typing import *
 
 
 async def fetch(
@@ -63,7 +63,6 @@ async def fetch_values(
                 edgedb._resolve_type_name(a.annotation)
                                             AS annotation_name,
                 a.value                     AS value,
-                a.inheritable               AS inheritable,
                 a.inherited_fields          AS inherited_fields,
                 a.is_local                  AS is_local,
                 a.is_final                  AS is_final

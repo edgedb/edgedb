@@ -22,7 +22,7 @@ from __future__ import annotations
 import collections
 import numbers
 import textwrap
-from typing import *  # NoQA
+from typing import *
 
 from edb.common import markup
 from edb.common import struct

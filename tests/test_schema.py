@@ -1552,6 +1552,28 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_get_migration_32(self):
+        # Test migration of index dependent on two links.
+        # Issue #1181
+        schema = r'''
+        type Author {
+            required property name -> str;
+        }
+
+        type Comment {
+            required property body -> str;
+        }
+
+        type CommentRating {
+            required link author -> Author;
+            required link comment -> Comment;
+
+            index on ((__subject__.author, __subject__.comment));
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
@@ -3840,7 +3862,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             CREATE MODULE test IF NOT EXISTS;
 
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
-                SET orig_expr := r'contains(one_of, __subject__)';
+                SET orig_expr := 'contains(one_of, __subject__)';
                 USING (WITH
                     MODULE test
                 SELECT
@@ -4026,7 +4048,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 SELECT
                     __subject__.image
                 ) {
-                    orig_expr := r'__subject__.image';
+                    orig_expr := '__subject__.image';
                 };
                 required single property image -> std::str;
             };
@@ -4042,7 +4064,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 SELECT
                     __subject__.image
                 ) {
-                    SET orig_expr := r'__subject__.image';
+                    SET orig_expr := '__subject__.image';
                 };
             };
             '''
@@ -4096,7 +4118,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
             CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>)
             {
-                SET orig_expr := r'contains(one_of, __subject__)';
+                SET orig_expr := 'contains(one_of, __subject__)';
                 USING (WITH
                     MODULE test
                 SELECT
@@ -4116,7 +4138,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     SELECT
                         __subject__@prop1
                     ) {
-                        orig_subjectexpr := r'__subject__@prop1';
+                        orig_subjectexpr := '__subject__@prop1';
                     };
                     constraint std::exclusive on (WITH
                         MODULE test
@@ -4124,7 +4146,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                         (__subject__@source, __subject__@lang)
                     ) {
                         orig_subjectexpr :=
-                            r'(__subject__@source, __subject__@lang)';
+                            '(__subject__@source, __subject__@lang)';
                     };
                 };
             };
@@ -4189,7 +4211,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             abstract constraint std::len_value on (len(<std::str>__subject__))
             {
                 errmessage := 'invalid {__subject__}';
-                orig_subjectexpr := r'len(<std::str>__subject__)';
+                orig_subjectexpr := 'len(<std::str>__subject__)';
             };
             ''',
 
@@ -4451,20 +4473,43 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             # the links order is non-deterministic
             """
             CREATE TYPE schema::ObjectType
-            EXTENDING schema::BaseObjectType {
-                CREATE MULTI LINK links :=
-                    (.pointers[IS schema::Link]);
-                CREATE MULTI LINK properties :=
-                    (.pointers[IS schema::Property]);
+            EXTENDING schema::InheritingObject,
+                      schema::ConsistencySubject,
+                      schema::AnnotationSubject,
+                      schema::Type,
+                      schema::Source
+            {
+                CREATE MULTI LINK intersection_of -> schema::ObjectType;
+                CREATE MULTI LINK union_of -> schema::ObjectType;
+                CREATE SINGLE PROPERTY is_compound_type := (
+                    (EXISTS (.union_of) OR EXISTS (.intersection_of))
+                );
+                CREATE MULTI LINK links := (
+                    .pointers[IS schema::Link]
+                );
+                CREATE MULTI LINK properties := (
+                    .pointers[IS schema::Property]
+                );
             };
             """,
 
             'DESCRIBE TYPE schema::ObjectType AS SDL',
 
             """
-            type schema::ObjectType extending schema::BaseObjectType {
+            type schema::ObjectType extending
+                    schema::InheritingObject,
+                    schema::ConsistencySubject,
+                    schema::AnnotationSubject,
+                    schema::Type,
+                    schema::Source
+            {
+                multi link intersection_of -> schema::ObjectType;
                 multi link links := (.pointers[IS schema::Link]);
                 multi link properties := (.pointers[IS schema::Property]);
+                multi link union_of -> schema::ObjectType;
+                single property is_compound_type := (
+                    (EXISTS (.union_of) OR EXISTS (.intersection_of))
+                );
             };
             """,
         )

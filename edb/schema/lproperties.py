@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import *  # NoQA
+from typing import *
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -223,14 +223,6 @@ class PropertyCommand(pointers.PointerCommand,
                 f'or a scalar collection, got '
                 f'{target_type.get_verbosename(schema)}',
                 context=srcctx,
-            )
-
-        if target_type.is_collection():
-            srcctx = self.get_attribute_source_context('target')
-            s_types.ensure_schema_collection(
-                schema, target_type, self,
-                src_context=srcctx,
-                context=context,
             )
 
 

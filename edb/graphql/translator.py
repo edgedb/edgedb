@@ -23,7 +23,7 @@ import contextlib
 import decimal
 import json
 import re
-from typing import *  # NoQA
+from typing import *
 
 import graphql
 from graphql.language import ast as gql_ast
