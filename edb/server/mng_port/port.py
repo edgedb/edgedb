@@ -60,8 +60,8 @@ class ManagementPort(baseport.Port):
 
     _servers: List[asyncio.AbstractServer]
 
-    def __init__(self, nethost: str, netport: int,
-                 auto_shutdown: bool, **kwargs):
+    def __init__(self, nethost: str, netport: int, auto_shutdown: bool,
+                 max_protocol: Tuple[int, int], **kwargs):
         super().__init__(**kwargs)
 
         self._nethost = nethost
@@ -75,6 +75,7 @@ class ManagementPort(baseport.Port):
 
         self._auto_shutdown = auto_shutdown
         self._accepting = False
+        self._max_protocol = max_protocol
 
     def new_view(self, *, dbname, user, query_cache):
         return self._dbindex.new_view(

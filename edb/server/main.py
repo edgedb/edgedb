@@ -51,6 +51,7 @@ from . import defines
 from . import logsetup
 from . import pgconnparams
 from . import pgcluster
+from . import mng_port
 
 
 logger = logging.getLogger('edb.server')
@@ -194,6 +195,7 @@ def _run_server(cluster, args: ServerConfig,
         netport=args.port,
         auto_shutdown=args.auto_shutdown,
         echo_runtime_info=args.echo_runtime_info,
+        max_protocol=args.max_protocol,
     )
 
     loop.run_until_complete(ss.init())
@@ -398,6 +400,7 @@ class ServerConfig(typing.NamedTuple):
     echo_runtime_info: bool
     temp_dir: bool
     auto_shutdown: bool
+    max_protocol: Tuple[int, int]
 
 
 def bump_rlimit_nofile() -> None:
@@ -421,6 +424,23 @@ def _get_runstate_dir_default() -> str:
         return buildmeta.get_build_metadata_value("RUNSTATE_DIR")
     except buildmeta.MetadataError:
         return '<data-dir>'
+
+
+def _protocol_version(
+        ctx: click.Context, param: click.Param, value: str
+) -> str:
+    try:
+        minor, major = map(int, value.split('.'))
+        ver = minor, major
+        if ver < mng_port.MIN_PROTOCOL or ver > mng_port.CURRENT_PROTOCOL:
+            raise ValueError()
+    except ValueError:
+        raise click.UsageError(
+            f"protocol version must be in the form "
+            f"MAJOR.MINOR, in the range of "
+            f"{mng_port.MIN_PROTOCOL[0]}.{mng_port.MIN_PROTOCOL[1]} - "
+            f"{mng_port.CURRENT_PROTOCOL[0]}.{mng_port.CURRENT_PROTOCOL[1]}")
+    return ver
 
 
 _server_options = [
@@ -491,6 +511,10 @@ _server_options = [
         '--auto-shutdown', type=bool, default=False, is_flag=True,
         help='shutdown the server after the last management ' +
              'connection is closed'),
+    click.option(
+        '--max-protocol', type=str, callback=_protocol_version,
+        default='.'.join(map(str, mng_port.CURRENT_PROTOCOL)),
+        help='maximum supported and advertized client protocol version'),
 ]
 
 

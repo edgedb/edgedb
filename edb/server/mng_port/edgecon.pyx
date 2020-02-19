@@ -52,8 +52,8 @@ from edb.server.dbview cimport dbview
 
 from edb.server import config
 
-from edb.server import compiler
 from edb.server import buildmeta
+from edb.server import compiler
 from edb.server.compiler import errormech
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
@@ -80,14 +80,19 @@ cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
 cdef object CARD_ONE = compiler.ResultCardinality.ONE
 cdef object CARD_MANY = compiler.ResultCardinality.MANY
 
+cdef tuple DUMP_VER_MIN = (0, 7)
+cdef tuple DUMP_VER_MAX = (0, 8)
+
 cdef object logger = logging.getLogger('edb.server')
 
 DEF QUERY_OPT_IMPLICIT_LIMIT = 0xFF01
 
+
 @cython.final
 cdef class EdgeConnection:
 
-    def __init__(self, server, external_auth: bool = False):
+    def __init__(self, server, external_auth: bool = False,
+            max_protocol: tuple = CURRENT_PROTOCOL):
         self._con_status = EDGECON_NEW
         self._id = server.on_client_connected()
         self.port = server
@@ -117,6 +122,9 @@ cdef class EdgeConnection:
 
         self.server = server
         self.authed = False
+
+        self.protocol_version = max_protocol
+        self.max_protocol = max_protocol
 
     cdef get_backend(self):
         if self._con_status is EDGECON_BAD:
@@ -310,13 +318,24 @@ cdef class EdgeConnection:
 
         self.buffer.finish_message()
 
-        if major != PROTO_VER_MAJOR or minor != PROTO_VER_MINOR or nexts > 0:
+        self.protocol_version = major, minor
+        negotiate = nexts > 0
+        if self.protocol_version < MIN_PROTOCOL:
+            target_proto = MIN_PROTOCOL
+            negotiate = True
+        elif self.protocol_version > self.max_protocol:
+            target_proto = self.max_protocol
+            negotiate = True
+        else:
+            target_proto = self.protocol_version
+
+        if negotiate:
             # NegotiateProtocolVersion
             buf = WriteBuffer.new_message(b'v')
             # Highest supported major version of the protocol.
-            buf.write_int16(PROTO_VER_MAJOR)
+            buf.write_int16(target_proto[0])
             # Highest supported minor version of the protocol.
-            buf.write_int16(PROTO_VER_MINOR)
+            buf.write_int16(target_proto[1])
             # No extensions are currently supported.
             buf.write_int16(0)
             buf.end_message()
@@ -1509,6 +1528,7 @@ cdef class EdgeConnection:
             ssize_t i
             const char *data
             object array_tid
+            has_reserved = self.protocol_version >= (0, 8)
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -1524,25 +1544,23 @@ cdef class EdgeConnection:
 
         out_buf.write_int16(<int16_t>argsnum)
 
-        if array_tids:
-            # we have array parameters, ensure all of them
-            # have correct element OIDs as per Postgres' expectations.
-            for i in range(argsnum):
-                in_len = hton.unpack_int32(frb_read(&in_buf, 4))
-                out_buf.write_int32(in_len)
-                if in_len > 0:
-                    data = frb_read(&in_buf, in_len)
-                    array_tid = array_tids.get(i)
-                    if array_tid is not None:
-                        # ndimensions + flags
-                        out_buf.write_cstr(data, 8)
-                        out_buf.write_int32(<int32_t>array_tid)
-                        out_buf.write_cstr(&data[12], in_len - 12)
-                    else:
-                        out_buf.write_cstr(data, in_len)
-        else:
-            in_len = frb_get_len(&in_buf)
-            out_buf.write_cstr(frb_read_all(&in_buf), in_len)
+        for i in range(argsnum):
+            if has_reserved:
+                frb_read(&in_buf, 4)  # reserved
+            in_len = hton.unpack_int32(frb_read(&in_buf, 4))
+            out_buf.write_int32(in_len)
+            if in_len > 0:
+                data = frb_read(&in_buf, in_len)
+                array_tid = array_tids and array_tids.get(i)
+                # Ensure all array parameters have correct element OIDs as
+                # per Postgres' expectations.
+                if array_tid is not None:
+                    # ndimensions + flags
+                    out_buf.write_cstr(data, 8)
+                    out_buf.write_int32(<int32_t>array_tid)
+                    out_buf.write_cstr(&data[12], in_len - 12)
+                else:
+                    out_buf.write_cstr(data, in_len)
 
         # All columns are in binary format
         out_buf.write_int32(0x00010001)
@@ -1664,8 +1682,8 @@ cdef class EdgeConnection:
             msg_buf.write_int16(DUMP_HEADER_SERVER_TIME)
             msg_buf.write_len_prefixed_utf8(str(int(time.time())))
 
-            msg_buf.write_int16(PROTO_VER_MAJOR)
-            msg_buf.write_int16(PROTO_VER_MINOR)
+            msg_buf.write_int16(self.max_protocol[0])
+            msg_buf.write_int16(self.max_protocol[1])
             msg_buf.write_len_prefixed_utf8(schema_ddl)
 
             msg_buf.write_int32(len(schema_ids))
@@ -1761,8 +1779,10 @@ cdef class EdgeConnection:
 
         proto_major = self.buffer.read_int16()
         proto_minor = self.buffer.read_int16()
-        if proto_major != PROTO_VER_MAJOR or proto_minor != PROTO_VER_MINOR:
-            raise errors.ProtocolError('unsupported dump version')
+        proto = (proto_major, proto_minor)
+        if proto > DUMP_VER_MAX or proto < DUMP_VER_MIN:
+            raise errors.ProtocolError(
+                f'unsupported dump version {proto_major}.{proto_minor}')
 
         schema_ddl = self.buffer.read_len_prefixed_bytes()
 
