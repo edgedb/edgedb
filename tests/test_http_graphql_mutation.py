@@ -1111,6 +1111,114 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "delete_UserGroup": data['groups']
         })
 
+    def test_graphql_mutation_insert_nested_08(self):
+        # Issue #1243
+        # Test nested insert.
+        data = {
+            'name': 'Strategy01',
+            'games': [{
+                'name': 'SomeGame01',
+                'players': [{
+                    'name': 'Alice'
+                }]
+            }],
+        }
+
+        validation_query = r"""
+            query {
+                Genre(filter: {name: {eq: "Strategy01"}}) {
+                    name
+                    games {
+                        name
+                        players {
+                            name
+                        }
+                    }
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_genre {
+                insert_Genre(data: [
+                    {
+                        name: "Strategy01",
+                        games: [{
+                            data: {
+                                name: "SomeGame01",
+                                players: [{
+                                    filter: {name: {eq: "Alice"}}
+                                }]
+                            }
+                        }]
+                    }
+                ]) {
+                    name
+                    games {
+                        name
+                        players {
+                            name
+                        }
+                    }
+                }
+            }
+
+        """, {
+            "insert_Genre": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Genre": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_Genre {
+                delete_Genre(filter: {name: {eq: "Strategy01"}}) {
+                    name
+                    games {
+                        name
+                        players {
+                            name
+                        }
+                    }
+                }
+            }
+        """, {
+            "delete_Genre": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "Genre": []
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_Game {
+                delete_Game(filter: {name: {eq: "SomeGame01"}}) {
+                    name
+                    players {
+                        name
+                    }
+                }
+            }
+        """, {
+            "delete_Game": data['games']
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(r'''
+            query {
+                Game(filter: {name: {eq: "SomeGame01"}}) {
+                    name
+                    players {
+                        name
+                    }
+                }
+            }
+        ''', {
+            "Game": []
+        })
+
     def test_graphql_mutation_insert_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
