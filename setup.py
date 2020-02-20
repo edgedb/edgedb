@@ -58,7 +58,7 @@ RUNTIME_DEPS = [
     'graphql-core~=2.2.1',
     'promise~=2.2.0',
 
-    'edgedb>=0.7.2a1',
+    'edgedb>=0.8.0a1',
 ]
 
 CYTHON_DEPENDENCY = 'Cython==0.29.14'
@@ -87,7 +87,7 @@ EXTRA_DEPS = {
         'black~=19.3b0',
         'flake8~=3.7.9',
         'flake8-bugbear~=19.8.0',
-        'mypy==0.750',
+        'mypy==0.761',
         'coverage~=4.5.2',
         'requests-xml~=0.2.3',
         'lxml',

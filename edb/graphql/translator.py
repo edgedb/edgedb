@@ -576,6 +576,7 @@ class GraphQLTranslator:
                 # selection set now
                 with self._update_path_for_eql_alias(
                         delete_mode or update_mode):
+                    # set up a unique alias for the deleted object
                     alias = self._context.path[-1][-1].eql_alias
                     self._context.fields.append({})
                     vals = self.visit(node.selection_set)
@@ -584,7 +585,6 @@ class GraphQLTranslator:
                 if shape:
                     shape.elements = vals
                 if filterable:
-                    # set up a unique alias for the deleted object
                     where, orderby, offset, limit = \
                         self._visit_query_arguments(node.arguments)
 
@@ -1170,13 +1170,14 @@ class GraphQLTranslator:
         # find the first shadowed root
         prev_step = None
         base_step = None
+        partial = False
         base_i = 0
         for i, step in enumerate(path):
             cur = step.type
 
             # if the field is specifically shadowed, then this is
             # appropriate shadow base
-            if base_step is None:
+            if base_step is None and not partial:
                 if (prev_step is not None and
                         prev_step.type.is_field_shadowed(step.name)):
                     base_step = prev_step
@@ -1191,8 +1192,12 @@ class GraphQLTranslator:
             # we have a base, but we might find out that we need to
             # override it with a partial path
             elif step.name is None and isinstance(cur, gt.GQLShadowType):
+                partial = True
                 base_step = None
                 base_i = i
+
+            # this is where the actual partial path steps start
+            elif partial and step.name is not None:
                 break
 
             prev_step = step

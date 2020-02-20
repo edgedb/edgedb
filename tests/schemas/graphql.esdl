@@ -114,3 +114,11 @@ type Rab {
 type Rab2 extending Rab {
     overloaded link blah -> Bar2;
 }
+
+type Genre extending NamedObject {
+    multi link games -> Game;
+}
+
+type Game extending NamedObject {
+    multi link players -> User
+}
