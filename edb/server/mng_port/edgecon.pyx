@@ -126,6 +126,11 @@ cdef class EdgeConnection:
         self.protocol_version = max_protocol
         self.max_protocol = max_protocol
 
+    def on_remote_ddl(self, dbver):
+        if not self.dbview:
+            return
+        self.dbview.on_remote_ddl(dbver)
+
     cdef get_backend(self):
         if self._con_status is EDGECON_BAD:
             # `self.sync()` is called from `recover_from_error`;
@@ -238,6 +243,7 @@ cdef class EdgeConnection:
 
         self._backend = await self.port.new_backend(
             dbname=database, dbver=self.dbview.dbver)
+        self._backend.pgcon.set_edgecon(self)
         self._con_status = EDGECON_STARTED
 
         # The user has already been authenticated by other means
@@ -351,7 +357,7 @@ cdef class EdgeConnection:
         role_query = await server.get_sys_query(conn, 'role')
         json_data = await conn.parse_execute_json(
             role_query, b'__sys_role',
-            dbver=0, use_prep_stmt=True, args=(user,),
+            dbver=b'', use_prep_stmt=True, args=(user,),
         )
 
         if json_data is not None:
@@ -703,7 +709,10 @@ cdef class EdgeConnection:
                     await self.recover_current_tx_info()
                 raise
             else:
-                self.dbview.on_success(query_unit)
+                if self.dbview.on_success(query_unit):
+                    await self.get_backend().pgcon.signal_ddl(
+                        self.dbview.dbver
+                    )
                 if query_unit.new_types and self.dbview.in_tx():
                     await self._update_type_ids(query_unit)
 
@@ -1052,7 +1061,10 @@ cdef class EdgeConnection:
                     await self.recover_current_tx_info()
                 raise
             else:
-                self.dbview.on_success(query_unit)
+                if self.dbview.on_success(query_unit):
+                    await self.get_backend().pgcon.signal_ddl(
+                        self.dbview.dbver
+                    )
 
             self.write(self.make_command_complete_msg(query_unit))
 

@@ -24,7 +24,6 @@ cdef class DatabaseIndex:
         object _server
 
         object _sys_config
-        object _sys_config_ver
         object _sys_queries
         object _instance_data
 
@@ -37,7 +36,7 @@ cdef class Database:
         object _eql_to_compiled
         DatabaseIndex _index
 
-    cdef _signal_ddl(self)
+    cdef _signal_ddl(self, new_dbver)
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)
     cdef _new_view(self, user, query_cache)
@@ -64,6 +63,8 @@ cdef class DatabaseConnectionView:
 
     cdef _invalidate_local_cache(self)
     cdef _reset_tx_state(self)
+
+    cdef on_remote_ddl(self, bytes new_dbver)
 
     cdef rollback_tx_to_savepoint(self, spid, modaliases, config)
     cdef recover_aliases_and_config(self, modaliases, config)
