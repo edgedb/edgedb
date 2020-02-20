@@ -17,7 +17,7 @@ Create a new module.
 
 .. eql:synopsis::
 
-    CREATE MODULE <name> ;
+    CREATE MODULE <name> [ IF NOT EXISTS ];
 
 There's a :ref:`corresponding SDL declaration <ref_eql_sdl_modules>`
 for a module, although in SDL a module declaration is likely to also
@@ -29,6 +29,15 @@ Description
 ``CREATE MODULE`` defines a new module for the current database.
 The name of the new module must be distinct from any existing module
 in the current database.
+
+Parameters
+----------
+
+:eql:synopsis:`IF NOT EXISTS`
+    Normally creating a module that already exists is an error, but
+    with this flag the command will succeed. It is useful for scripts
+    that add something to a module or if the module is missing the
+    module is created as well.
 
 Examples
 --------
