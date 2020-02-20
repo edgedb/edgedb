@@ -29,6 +29,17 @@ Enum
         db> SELECT <Color>'red' IS Color;
         {true}
 
+    .. note::
+
+        The enum values in EdgeQL are string-like in the fact that
+        they can contain any characters that the strings can. This is
+        different from some other languages where enum values are
+        identifier-like and thus cannot contain some characters. For
+        example, when working with GraphQL enum values that contain
+        characters that aren't allowed in identifiers cannot be
+        properly reflected. To address this, consider using only
+        identifier-like enum values in cases where such compatibility
+        is needed.
 
 See Also
 --------
