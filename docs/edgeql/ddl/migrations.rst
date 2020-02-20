@@ -34,6 +34,15 @@ commands behind the scenes based on the current and the target state.
 **Important:** ``CREATE MIGRATION`` and the follow-up
 :eql:stmt:`COMMIT MIGRATION` must be executed in a transaction block.
 
+.. note::
+
+    The SDL declaration of the migration target describes the entire
+    schema. This is important to remember when creating a migration to
+    add a few more things to an existing schema as all the existing
+    schema objects and the new ones must be included in the ``CREATE
+    MIGRATION`` command. Objects that aren't included in the command
+    will be removed from the new schema (which may result in data
+    loss).
 
 Parameters
 ----------
