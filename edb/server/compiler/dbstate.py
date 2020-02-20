@@ -118,7 +118,7 @@ class TxControlQuery(BaseQuery):
 @dataclasses.dataclass
 class QueryUnit:
 
-    dbver: int
+    dbver: bytes
 
     sql: Tuple[bytes, ...]
 
@@ -353,7 +353,7 @@ class CompilerConnectionState:
 
     __slots__ = ('_savepoints_log', '_dbver', '_current_tx', '_capability')
 
-    def __init__(self, dbver: int,
+    def __init__(self, dbver: bytes,
                  schema: s_schema.Schema,
                  modaliases: immutables.Map,
                  config: immutables.Map,

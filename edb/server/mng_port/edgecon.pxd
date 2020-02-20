@@ -88,6 +88,8 @@ cdef class EdgeConnection:
         tuple protocol_version
         tuple max_protocol
 
+        object __weakref__
+
     cdef parse_json_mode(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef char render_cardinality(self, query_unit) except -1

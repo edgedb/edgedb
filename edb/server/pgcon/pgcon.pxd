@@ -82,6 +82,12 @@ cdef class PGProto:
         bint debug
 
         object pgaddr
+        object edgecon_ref
+
+        bint idle
+
+    cdef before_command(self)
+    cdef after_command(self)
 
     cdef write(self, buf)
 
@@ -90,6 +96,7 @@ cdef class PGProto:
 
     cdef parse_notification(self)
     cdef fallthrough(self)
+    cdef fallthrough_idle(self)
 
     cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf)
 
