@@ -866,7 +866,7 @@ class GQLCoreSchema:
             self.edb_schema.get_objects(included_modules=self.modules,
                                         type=s_objtypes.ObjectType))
 
-        # concrete types are also reflected as Type (with a 'Type' postfix)
+        # concrete types are also reflected as Type (with a '_Type' postfix)
         obj_types += [t for t in interface_types
                       if not t.get_is_abstract(self.edb_schema)]
 
@@ -927,7 +927,7 @@ class GQLCoreSchema:
 
             gql_name = self.get_gql_name(t_name)
             gqltype = GraphQLObjectType(
-                name=gql_name + 'Type',
+                name=gql_name + '_Type',
                 fields=partial(self.get_fields, t_name),
                 interfaces=interfaces,
                 description=self._get_description(t),
@@ -1107,9 +1107,9 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         name = self.name
         module, shortname = name.split('::', 1)
         if module in {'default', 'std'}:
-            return f'{shortname}Type'
+            return f'{shortname}_Type'
         else:
-            return f'{module}__{shortname}Type'
+            return f'{module}__{shortname}_Type'
 
     @property
     def schema(self):

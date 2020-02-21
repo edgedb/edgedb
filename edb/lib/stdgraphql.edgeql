@@ -42,6 +42,6 @@ CREATE FUNCTION stdgraphql::short_name(name: str) -> str {
             name[5:] IF name LIKE 'std::%' ELSE
             name[9:] IF name LIKE 'default::%' ELSE
             re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
-        ) ++ 'Type'
+        ) ++ '_Type'
     );
 };
