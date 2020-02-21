@@ -36,6 +36,19 @@ Pointing your browser to ``http://127.0.0.1:8888/explore``
 will bring up a `GraphiQL`_ interface to EdgeDB. This interface can be
 used to try out queries and explore the GraphQL capabilities.
 
+
+Known Limitations
+=================
+
+- Due to the differences between EdgeQL and GraphQL syntax
+  :eql:type:`enum <std::enum>` types which have values that cannot be
+  represented as GraphQL identifiers (e.g. ``'N/A'`` or ``'NOT
+  APPLICABLE'``) cannot be properly reflected into GraphQL enums.
+
+- EdgeDB :eql:type:`tuples <std::tuple>` are not supported in GraphQL
+  reflection currently.
+
+
 .. __: http://graphql.org/docs/queries/
 
 .. _`GraphiQL`: https://github.com/graphql/graphiql

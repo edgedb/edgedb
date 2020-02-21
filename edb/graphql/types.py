@@ -299,6 +299,11 @@ class GQLCoreSchema:
             if name in self._gql_enums:
                 target = self._gql_enums.get(name)
 
+        elif edb_target.is_tuple():
+            edb_typename = edb_target.get_verbosename(self.edb_schema)
+            raise g_errors.GraphQLCoreError(
+                f"Could not convert {edb_typename} to a GraphQL type.")
+
         else:
             base_target = edb_target.get_topmost_concrete_base(self.edb_schema)
             bt_name = base_target.get_name(self.edb_schema)
