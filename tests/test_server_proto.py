@@ -22,9 +22,11 @@ import uuid
 import subprocess
 import sys
 import tempfile
+import unittest
 
 import edgedb
 
+from edb.common import devmode
 from edb.common import taskgroup as tg
 from edb.server import main as server_main
 from edb.testbase import server as tb
@@ -1931,6 +1933,8 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
     ISOLATED_METHODS = False
 
+    @unittest.skipUnless(devmode.is_in_dev_mode(),
+                         'the test requires devmode')
     async def test_server_proto_ddlprop_01(self):
         conargs = self.get_connect_args()
 
