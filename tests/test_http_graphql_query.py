@@ -564,24 +564,24 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             {
                 "SettingAlias": [
                     {
-                        "__typename": "SettingAliasType",
+                        "__typename": "SettingAlias_Type",
                         "name": "perks",
                         "value": "full",
                     },
                     {
-                        "__typename": "SettingAliasType",
+                        "__typename": "SettingAlias_Type",
                         "name": "template",
                         "value": "blue",
                     },
                 ],
                 "Setting": [
                     {
-                        "__typename": "SettingType",
+                        "__typename": "Setting_Type",
                         "name": "perks",
                         "value": "full",
                     },
                     {
-                        "__typename": "SettingType",
+                        "__typename": "Setting_Type",
                         "name": "template",
                         "value": "blue",
                     },
@@ -608,20 +608,20 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             {
                 "SettingAlias": [
                     {
-                        "__typename": "SettingAliasType",
+                        "__typename": "SettingAlias_Type",
                         "name": "perks",
                         "value": "full",
                         "of_group": {
-                            "__typename": "UserGroupType",
+                            "__typename": "UserGroup_Type",
                             "name": "upgraded",
                         }
                     },
                     {
-                        "__typename": "SettingAliasType",
+                        "__typename": "SettingAlias_Type",
                         "name": "template",
                         "value": "blue",
                         "of_group": {
-                            "__typename": "UserGroupType",
+                            "__typename": "UserGroup_Type",
                             "name": "upgraded",
                         }
                     },
@@ -649,23 +649,23 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             {
                 "SettingAliasAugmented": [
                     {
-                        "__typename": "SettingAliasAugmentedType",
+                        "__typename": "SettingAliasAugmented_Type",
                         "name": "perks",
                         "value": "full",
                         "of_group": {
                             "__typename":
-                                "__SettingAliasAugmented__of_groupType",
+                                "__SettingAliasAugmented__of_group_Type",
                             "name": "upgraded",
                             "name_upper": "UPGRADED",
                         }
                     },
                     {
-                        "__typename": "SettingAliasAugmentedType",
+                        "__typename": "SettingAliasAugmented_Type",
                         "name": "template",
                         "value": "blue",
                         "of_group": {
                             "__typename":
-                                "__SettingAliasAugmented__of_groupType",
+                                "__SettingAliasAugmented__of_group_Type",
                             "name": "upgraded",
                             "name_upper": "UPGRADED",
                         }
@@ -693,12 +693,12 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             {
                 "ProfileAlias": [
                     {
-                        "__typename": "ProfileAliasType",
+                        "__typename": "ProfileAlias_Type",
                         "name": "Alice profile",
                         "value": "special",
                         "owner": [
                             {
-                                "__typename": "UserType",
+                                "__typename": "User_Type",
                                 "id": uuid.UUID,
                             }
                         ]
@@ -1854,27 +1854,27 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             'User': [{
                 'name': 'Alice',
-                '__typename': 'UserType',
+                '__typename': 'User_Type',
                 'groups': []
             }, {
                 'name': 'Bob',
-                '__typename': 'PersonType',
+                '__typename': 'Person_Type',
                 'groups': []
             }, {
                 'name': 'Jane',
-                '__typename': 'UserType',
+                '__typename': 'User_Type',
                 'groups': [{
                     'id': uuid.UUID,
                     'name': 'upgraded',
-                    '__typename': 'UserGroupType',
+                    '__typename': 'UserGroup_Type',
                 }]
             }, {
                 'name': 'John',
-                '__typename': 'UserType',
+                '__typename': 'User_Type',
                 'groups': [{
                     'id': uuid.UUID,
                     'name': 'basic',
-                    '__typename': 'UserGroupType',
+                    '__typename': 'UserGroup_Type',
                 }]
             }],
         }, sort=lambda x: x['name'])
@@ -1906,10 +1906,10 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "foo": "Query",
             "User": [
-                {"bar": "UserType", "name": "Alice"},
-                {"bar": "PersonType", "name": "Bob"},
-                {"bar": "UserType", "name": "Jane"},
-                {"bar": "UserType", "name": "John"},
+                {"bar": "User_Type", "name": "Alice"},
+                {"bar": "Person_Type", "name": "Bob"},
+                {"bar": "User_Type", "name": "Jane"},
+                {"bar": "User_Type", "name": "John"},
             ]
         })
 
@@ -2833,10 +2833,10 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             'Bar': [{
-                '__typename': 'BarType',
+                '__typename': 'Bar_Type',
                 'q': 'bar',
             }, {
-                '__typename': 'Bar2Type',
+                '__typename': 'Bar2_Type',
                 'q': 'bar2',
             }],
         }, sort=lambda x: x['q'])
@@ -2857,15 +2857,15 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             'Rab': [{
-                '__typename': 'RabType',
+                '__typename': 'Rab_Type',
                 'blah': {
-                    '__typename': 'BarType',
+                    '__typename': 'Bar_Type',
                     'q': 'bar',
                 }
             }, {
-                '__typename': 'Rab2Type',
+                '__typename': 'Rab2_Type',
                 'blah': {
-                    '__typename': 'Bar2Type',
+                    '__typename': 'Bar2_Type',
                     'q': 'bar2',
                 }
             }],
@@ -2895,7 +2895,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             'Rab2': [{
                 'blah': {
-                    '__typename': 'Bar2Type',
+                    '__typename': 'Bar2_Type',
                     'q': 'bar2',
                     'w': 'special'
                 }

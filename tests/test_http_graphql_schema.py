@@ -253,7 +253,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             ('INPUT_OBJECT', 'other__FilterFoo'),
             ('INPUT_OBJECT', 'other__OrderFoo'),
             ('INTERFACE', 'other__Foo'),
-            ('OBJECT', 'other__FooType'),
+            ('OBJECT', 'other__Foo_Type'),
             ('SCALAR', 'ID'),
             ('ENUM', 'directionEnum'),
             ('OBJECT', '__Schema'),
@@ -280,7 +280,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             ('INPUT_OBJECT', 'other__FilterFoo'),
             ('INPUT_OBJECT', 'other__OrderFoo'),
             ('INTERFACE', 'other__Foo'),
-            ('OBJECT', 'other__FooType'),
+            ('OBJECT', 'other__Foo_Type'),
             ('SCALAR', 'ID'),
             ('ENUM', 'directionEnum'),
             ('OBJECT', '__Schema'),
@@ -309,7 +309,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
     def test_graphql_schema_type_02(self):
         self.assert_graphql_query_result(r"""
             query {
-                __type(name: "UserType") {
+                __type(name: "User_Type") {
                     __typename
                     kind
                     name
@@ -335,7 +335,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             "__type": {
                 "__typename": "__Type",
                 "kind": "OBJECT",
-                "name": "UserType",
+                "name": "User_Type",
                 "description": None,
                 "interfaces": [
                     {"name": "NamedObject"},
@@ -384,8 +384,8 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 "description": None,
                 "interfaces": None,
                 "possibleTypes": [
-                    {"name": "PersonType"},
-                    {"name": "UserType"}
+                    {"name": "Person_Type"},
+                    {"name": "User_Type"}
                 ],
                 "enumValues": None,
                 "inputFields": None,
@@ -519,7 +519,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             }
 
             query {
-                __type(name: "UserGroupType") {
+                __type(name: "UserGroup_Type") {
                     ..._t
                     fields {
                         __typename
@@ -551,7 +551,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
         """, {
             "__type": {
                 "__typename": "__Type",
-                "name": "UserGroupType",
+                "name": "UserGroup_Type",
                 "kind": "OBJECT",
                 "fields": [
                     {
@@ -622,7 +622,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
     def test_graphql_schema_type_06(self):
         self.assert_graphql_query_result(r"""
             query {
-                __type(name: "ProfileType") {
+                __type(name: "Profile_Type") {
                     __typename
                     name
                     kind
@@ -666,7 +666,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
         """, {
             "__type": {
                 "__typename": "__Type",
-                "name": "ProfileType",
+                "name": "Profile_Type",
                 "kind": "OBJECT",
                 "fields": [
                     {
@@ -903,7 +903,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "PersonType",
+                        "name": "Person_Type",
                         "description": None,
                         "fields": [
                             {
@@ -1052,7 +1052,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "ProfileType",
+                        "name": "Profile_Type",
                         "description": None,
                         "fields": [
                             {
@@ -1166,7 +1166,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "SettingAliasAugmentedType",
+                        "name": "SettingAliasAugmented_Type",
                         "description": None,
                         "fields": [
                             {
@@ -1265,7 +1265,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "SettingAliasType",
+                        "name": "SettingAlias_Type",
                         "description": None,
                         "fields": [
                             {
@@ -1363,7 +1363,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "SettingType",
+                        "name": "Setting_Type",
                         "description": None,
                         "fields": [
                             {
@@ -1443,7 +1443,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "UserGroupType",
+                        "name": "UserGroup_Type",
                         "description": None,
                         "fields": [
                             {
@@ -1523,7 +1523,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "UserType",
+                        "name": "User_Type",
                         "description": None,
                         "fields": [
                             {
@@ -1667,7 +1667,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "__typename": "__Type",
                         "kind": "OBJECT",
-                        "name": "__SettingAliasAugmented__of_groupType",
+                        "name": "__SettingAliasAugmented__of_group_Type",
                         "description": None,
                         "fields": [
                             {
@@ -1778,7 +1778,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
     def test_graphql_schema_type_08(self):
         self.assert_graphql_query_result(r"""
         query {
-            __type(name: "UserGroupType") {
+            __type(name: "UserGroup_Type") {
                 __typename
                 name
                 kind
@@ -1820,7 +1820,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
         """, {
             "__type": {
                 "__typename": "__Type",
-                "name": "UserGroupType",
+                "name": "UserGroup_Type",
                 "kind": "OBJECT",
                 "fields": [
                     {
@@ -2379,7 +2379,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             ('INPUT_OBJECT', 'other__FilterFoo'),
             ('INPUT_OBJECT', 'other__OrderFoo'),
             ('INTERFACE', 'other__Foo'),
-            ('OBJECT', 'other__FooType'),
+            ('OBJECT', 'other__Foo_Type'),
             ('SCALAR', 'ID'),
             ('ENUM', 'directionEnum'),
             ('OBJECT', '__Schema'),
@@ -2463,7 +2463,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
     def test_graphql_schema_type_17(self):
         self.assert_graphql_query_result(r"""
             query {
-                __type(name: "other__FooType") {
+                __type(name: "other__Foo_Type") {
                     __typename
                     name
                     kind
@@ -2473,7 +2473,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
         """, {
             "__type": {
                 "kind": "OBJECT",
-                "name": "other__FooType",
+                "name": "other__Foo_Type",
                 "__typename": "__Type",
                 "description": 'Test type "Foo"',
             }
