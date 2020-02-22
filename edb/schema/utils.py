@@ -561,7 +561,7 @@ def ensure_union_type(
 
 def get_union_type(
     schema: s_schema.Schema,
-    types: Iterable[s_types.Type],
+    types: Iterable[s_types.InheritinType],
     *,
     opaque: bool = False,
     module: Optional[str] = None,

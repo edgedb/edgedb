@@ -1278,10 +1278,10 @@ class Compiler(BaseCompiler):
         all_objects = schema.get_objects(excluded_modules=s_schema.STD_MODULES)
         ids = []
         for obj in all_objects:
-            if isinstance(obj, s_obj.UnqualifiedObject):
-                ql_class = str(type(obj).get_ql_class_or_die())
-            else:
+            if isinstance(obj, s_obj.QualifiedObject):
                 ql_class = ''
+            else:
+                ql_class = str(type(obj).get_ql_class_or_die())
 
             ids.append((
                 str(obj.get_name(schema)),

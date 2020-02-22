@@ -86,10 +86,12 @@ class IndexCommandContext(sd.ObjectCommandContext,
     pass
 
 
-class IndexCommand(referencing.ReferencedInheritingObjectCommand,
-                   schema_metaclass=Index,
-                   context_class=IndexCommandContext,
-                   referrer_context_class=IndexSourceCommandContext):
+class IndexCommand(
+    referencing.ReferencedInheritingObjectCommand,
+    schema_metaclass=Index,
+    context_class=IndexCommandContext,
+    referrer_context_class=IndexSourceCommandContext,
+):
 
     @classmethod
     def _classname_from_ast(cls, schema, astnode, context):

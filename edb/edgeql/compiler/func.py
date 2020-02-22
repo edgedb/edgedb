@@ -463,6 +463,8 @@ def compile_operator(
         elif right_type.issubclass(env.schema, left_type):
             rtype = left_type
         else:
+            assert isinstance(left_type, s_types.InheritingType)
+            assert isinstance(right_type, s_types.InheritingType)
             rtype = schemactx.get_union_type([left_type, right_type], ctx=ctx)
 
     from_op = oper.get_from_operator(env.schema)

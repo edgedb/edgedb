@@ -81,7 +81,7 @@ class ReferencedObject(so.DerivableObject):
     def derive_ref(
         self: ReferencedT,
         schema: s_schema.Schema,
-        referrer: so.Object,
+        referrer: so.QualifiedObject,
         *qualifiers: str,
         mark_derived: bool = False,
         attrs: Optional[Dict[str, Any]] = None,
@@ -187,7 +187,10 @@ class ReferencedObject(so.DerivableObject):
         return schema, derived
 
 
-class ReferencedInheritingObject(so.InheritingObject, ReferencedObject):
+class ReferencedInheritingObject(
+    so.DerivableInheritingObject,
+    ReferencedObject,
+):
 
     # Indicates that the object has been declared as
     # explicitly inherited.
@@ -233,7 +236,7 @@ class ReferencedObjectCommandMeta(sd.ObjectCommandMeta):
         return cls
 
 
-class ReferencedObjectCommandBase(sd.ObjectCommand[ReferencedObject],
+class ReferencedObjectCommandBase(sd.QualifiedObjectCommand[ReferencedObject],
                                   metaclass=ReferencedObjectCommandMeta):
 
     @classmethod
@@ -274,8 +277,9 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
 
         parent_ctx = cls.get_referrer_context(context)
         if parent_ctx is not None:
-            assert isinstance(parent_ctx.op, sd.ObjectCommand)
+            assert isinstance(parent_ctx.op, sd.QualifiedObjectCommand)
             referrer_name = parent_ctx.op.classname
+            base_name: str
 
             try:
                 base_ref = utils.ast_to_typeref(
@@ -310,7 +314,7 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         cls,
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
-        base_name: sn.SchemaName,
+        base_name: str,
         referrer_name: str,
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
@@ -945,7 +949,7 @@ class CreateReferencedObject(ReferencedObjectCommand,
                              schema: s_schema.Schema,
                              context: sd.CommandContext,
                              name: str,
-                             parent: so.Object) -> qlast.ObjectDDL:
+                             parent: ReferencedObject) -> qlast.ObjectDDL:
         nref = cls.get_inherited_ref_name(schema, context, parent, name)
         astnode_cls = cls.referenced_astnode
         astnode = astnode_cls(name=nref)
@@ -956,7 +960,7 @@ class CreateReferencedObject(ReferencedObjectCommand,
     def get_inherited_ref_name(cls,
                                schema: s_schema.Schema,
                                context: sd.CommandContext,
-                               parent: so.Object,
+                               parent: ReferencedObject,
                                name: str
                                ) -> qlast.ObjectRef:
         # reduce name to shortname

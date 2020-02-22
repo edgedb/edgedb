@@ -51,8 +51,8 @@ def linearize_delta(
         _break_down(opmap, strongrefs, [delta, op])
 
     depgraph: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    renames: Dict[sn.Name, sn.Name] = {}
-    renames_r: Dict[sn.Name, sn.Name] = {}
+    renames: Dict[str, str] = {}
+    renames_r: Dict[str, str] = {}
 
     for op in opmap:
         if isinstance(op, sd.RenameObject):
@@ -69,7 +69,7 @@ def linearize_delta(
     ordered = list(topological.sort(depgraph, allow_unresolved=True,
                                     return_record=True))
 
-    parents: Dict[Tuple[Type[sd.ObjectCommand], sn.Name], sd.ObjectCommand]
+    parents: Dict[Tuple[Type[sd.ObjectCommand], str], sd.ObjectCommand]
     dependencies: Dict[sd.Command, Set[sd.Command]]
     parents = {}
     dependencies = collections.defaultdict(set)
@@ -113,7 +113,7 @@ def linearize_delta(
             # Try attaching to a "Create" op, if that doesn't work
             # attach to whatever the ancestor is right now.
             for ancestor_cls in [create_cmd_cls, type(ancestor_op)]:
-                ancestor_key: Tuple[Type[sd.ObjectCommand], sn.Name] = (
+                ancestor_key: Tuple[Type[sd.ObjectCommand], str] = (
                     ancestor_cls, ancestor_op.classname)
                 # The root operation is the top-level operation in the delta.
                 attached_root = parents.get(ancestor_key)
@@ -190,13 +190,13 @@ def _trace_op(
     op: sd.Command,
     opstack: List[sd.Command],
     depgraph: Dict[Tuple[str, str], Dict[str, Any]],
-    renames: Dict[sn.Name, sn.Name],
-    renames_r: Dict[sn.Name, sn.Name],
+    renames: Dict[str, str],
+    renames_r: Dict[str, str],
     strongrefs: Dict[str, str],
     old_schema: Optional[s_schema.Schema],
     new_schema: s_schema.Schema,
 ) -> None:
-    deps: Set[Tuple[str, sn.Name]] = set()
+    deps: Set[Tuple[str, str]] = set()
     graph_key: str
 
     if isinstance(op, sd.CreateObject):
@@ -245,7 +245,8 @@ def _trace_op(
         if isinstance(obj, referencing.ReferencedObject):
             referrer = obj.get_referrer(old_schema)
             if referrer is not None:
-                referrer_name = referrer.get_name(old_schema)
+                assert isinstance(referrer, so.QualifiedObject)
+                referrer_name: str = referrer.get_name(old_schema)
                 if referrer_name in renames_r:
                     referrer_name = renames_r[referrer_name]
                 deps.add(('rebase', referrer_name))
@@ -332,6 +333,7 @@ def _trace_op(
         if isinstance(obj, referencing.ReferencedObject):
             referrer = obj.get_referrer(new_schema)
             if referrer is not None:
+                assert isinstance(referrer, so.QualifiedObject)
                 referrer_name = referrer.get_name(new_schema)
                 if referrer_name in renames_r:
                     referrer_name = renames_r[referrer_name]
@@ -366,7 +368,7 @@ def get_object(
             return schema.get(name)
         else:
             return schema.get_by_id(uuid.UUID(name))
-    elif issubclass(metaclass, so.UnqualifiedObject):
+    elif not issubclass(metaclass, so.QualifiedObject):
         return schema.get_global(metaclass, name)
     else:
         return schema.get(name)
@@ -386,9 +388,11 @@ def _get_referrers(
 
         parent_ref = strongrefs.get(ref.get_name(schema))
         if parent_ref is not None:
-            result.add(schema.get(parent_ref))
+            referrer: so.Object = schema.get(parent_ref)
         else:
-            result.add(ref)
+            referrer = ref
+
+        result.add(referrer)
 
     return result
 

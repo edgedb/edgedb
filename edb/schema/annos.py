@@ -35,12 +35,16 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class Annotation(so.InheritingObject,
+class Annotation(so.QualifiedObject,
+                 so.InheritingObject,
                  qlkind=qltypes.SchemaObjectClass.ANNOTATION):
     # Annotations cannot be renamed, so make sure the name
     # has low compcoef.
     name = so.SchemaField(
-        sn.Name, inheritable=False, compcoef=0.2)
+        sn.Name,  # type: ignore
+        inheritable=False,
+        compcoef=0.2,
+    )
 
     inheritable = so.SchemaField(
         bool, default=False, compcoef=0.2)
@@ -88,6 +92,7 @@ class AnnotationValue(referencing.ReferencedInheritingObject):
 
 
 class AnnotationSubject(so.Object):
+
     annotations_refs = so.RefDict(
         attr='annotations',
         ref_cls=AnnotationValue)
@@ -117,32 +122,12 @@ class AnnotationSubject(so.Object):
         attrval = self.get_annotations(schema).get(schema, name, None)
         return attrval.get_value(schema) if attrval is not None else None
 
-    def set_annotation(self,
-                       schema: s_schema.Schema,
-                       attr: Annotation,
-                       value: str) -> s_schema.Schema:
-        attrname = attr.get_name(schema)
-        existing = self.get_annotations(schema).get(schema, attrname, None)
-        if existing is None:
-            my_name = self.get_name(schema)
-            ann = sn.get_specialized_name(attrname, my_name)
-            an = sn.Name(name=ann, module=my_name.module)
-            schema, av = AnnotationValue.create_in_schema(
-                schema, name=an, value=value,
-                subject=self, annotation=attr)
-            schema = self.add_annotation(schema, av)
-        else:
-            schema, updated = existing.set_field_value('value', value)
-            schema = self.add_annotation(schema, updated, replace=True)
-
-        return schema
-
 
 class AnnotationCommandContext(sd.ObjectCommandContext[Annotation]):
     pass
 
 
-class AnnotationCommand(sd.ObjectCommand[Annotation],
+class AnnotationCommand(sd.QualifiedObjectCommand[Annotation],
                         schema_metaclass=Annotation,
                         context_class=AnnotationCommandContext):
     pass
@@ -200,10 +185,11 @@ class AnnotationValueCommandContext(sd.ObjectCommandContext[AnnotationValue]):
 
 
 class AnnotationValueCommand(
-        referencing.ReferencedInheritingObjectCommand,
-        schema_metaclass=AnnotationValue,
-        context_class=AnnotationValueCommandContext,
-        referrer_context_class=AnnotationSubjectCommandContext):
+    referencing.ReferencedInheritingObjectCommand,
+    schema_metaclass=AnnotationValue,
+    context_class=AnnotationValueCommandContext,
+    referrer_context_class=AnnotationSubjectCommandContext,
+):
 
     def add_annotation(self,
                        schema: s_schema.Schema,

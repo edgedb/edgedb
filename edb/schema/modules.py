@@ -27,7 +27,7 @@ from . import delta as sd
 from . import objects as so
 
 
-class Module(so.UnqualifiedObject, s_anno.AnnotationSubject,
+class Module(s_anno.AnnotationSubject,
              qlkind=qltypes.SchemaObjectClass.MODULE):
 
     builtin = so.SchemaField(
@@ -38,7 +38,7 @@ class ModuleCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class ModuleCommand(sd.UnqualifiedObjectCommand, schema_metaclass=Module,
+class ModuleCommand(sd.ObjectCommand, schema_metaclass=Module,
                     context_class=ModuleCommandContext):
     pass
 

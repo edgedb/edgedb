@@ -928,7 +928,7 @@ class ObjectCommand(
     metaclass=ObjectCommandMeta,
 ):
     """Base class for all Object-related commands."""
-    classname = struct.Field(sn.Name)
+    classname = struct.Field(str)
 
     scls: so.Object_T
     _delta_action: ClassVar[str]
@@ -943,15 +943,7 @@ class ObjectCommand(
         astnode: qlast.NamedDDL,
         context: CommandContext,
     ) -> str:
-        objref = astnode.name
-        module = context.modaliases.get(objref.module, objref.module)
-        if module is None:
-            raise errors.SchemaDefinitionError(
-                f'unqualified name and no default module set',
-                context=objref.context,
-            )
-
-        return sn.Name(module=module, name=objref.name)
+        return astnode.name.name
 
     @classmethod
     def _cmd_from_ast(
@@ -1114,6 +1106,8 @@ class ObjectCommand(
         if (not context.stdmode and not context.testmode and
                 not isinstance(self, s_functions.ParameterCommand)):
 
+            shortname: str
+            modname: Optional[str]
             if isinstance(self.classname, sn.Name):
                 shortname = sn.shortname_from_fullname(self.classname)
                 modname = self.classname.module
@@ -1148,7 +1142,7 @@ class ObjectCommand(
         *,
         name: Optional[str] = None,
         default: None = None,
-    ) -> Optional[so.Object_T]:
+    ) -> Optional[so.Object]:
         ...
 
     def get_object(  # NoQA: F811
@@ -1158,14 +1152,14 @@ class ObjectCommand(
         *,
         name: Optional[str] = None,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
-    ) -> Optional[so.Object_T]:
+    ) -> Optional[so.Object]:
+        metaclass = self.get_schema_metaclass()
         if name is None:
             name = self.classname
             rename = context.renames.get(name)
             if rename is not None:
                 name = rename
-        metaclass = self.get_schema_metaclass()
-        return schema.get(name, type=metaclass, default=default)
+        return schema.get_global(metaclass, name, default=default)
 
     def compute_inherited_fields(
         self,
@@ -1283,9 +1277,9 @@ class ObjectCommandContext(CommandContextToken[ObjectCommand[so.Object_T]]):
         self.scls = scls
 
 
-class UnqualifiedObjectCommand(ObjectCommand[so.UnqualifiedObject]):
+class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
 
-    classname = struct.Field(str)  # type: ignore
+    classname = struct.Field(sn.Name)
 
     @classmethod
     def _classname_from_ast(
@@ -1293,8 +1287,16 @@ class UnqualifiedObjectCommand(ObjectCommand[so.UnqualifiedObject]):
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
         context: CommandContext,
-    ) -> str:
-        return astnode.name.name
+    ) -> sn.Name:
+        objref = astnode.name
+        module = context.modaliases.get(objref.module, objref.module)
+        if module is None:
+            raise errors.SchemaDefinitionError(
+                f'unqualified name and no default module set',
+                context=objref.context,
+            )
+
+        return sn.Name(module=module, name=objref.name)
 
     @overload
     def get_object(
@@ -1303,8 +1305,8 @@ class UnqualifiedObjectCommand(ObjectCommand[so.UnqualifiedObject]):
         context: CommandContext,
         *,
         name: Optional[str] = None,
-        default: Union[so.UnqualifiedObject, so.NoDefaultT] = so.NoDefault,
-    ) -> so.UnqualifiedObject:
+        default: Union[so.QualifiedObject_T, so.NoDefaultT] = so.NoDefault,
+    ) -> so.QualifiedObject_T:
         ...
 
     @overload
@@ -1315,7 +1317,7 @@ class UnqualifiedObjectCommand(ObjectCommand[so.UnqualifiedObject]):
         *,
         name: Optional[str] = None,
         default: None = None,
-    ) -> Optional[so.UnqualifiedObject]:
+    ) -> Optional[so.QualifiedObject_T]:
         ...
 
     def get_object(  # NoQA: F811
@@ -1325,18 +1327,21 @@ class UnqualifiedObjectCommand(ObjectCommand[so.UnqualifiedObject]):
         *,
         name: Optional[str] = None,
         default: Union[
-            so.UnqualifiedObject, so.NoDefaultT, None] = so.NoDefault,
-    ) -> Optional[so.UnqualifiedObject]:
-        metaclass = self.get_schema_metaclass()
+            so.QualifiedObject_T, so.NoDefaultT, None] = so.NoDefault,
+    ) -> Optional[so.QualifiedObject_T]:
         if name is None:
             name = self.classname
             rename = context.renames.get(name)
             if rename is not None:
                 name = rename
-        return schema.get_global(metaclass, name, default=default)
+        metaclass = self.get_schema_metaclass()
+        return cast(
+            Optional[so.QualifiedObject_T],
+            schema.get(name, type=metaclass, default=default),
+        )
 
 
-class GlobalObjectCommand(UnqualifiedObjectCommand):
+class GlobalObjectCommand(ObjectCommand[so.GlobalObject]):
     pass
 
 
@@ -1405,10 +1410,10 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         if context.schema_object_ids is not None:
             mcls = self.get_schema_metaclass()
             qlclass: Optional[qltypes.SchemaObjectClass]
-            if issubclass(mcls, so.UnqualifiedObject):
-                qlclass = mcls.get_ql_class_or_die()
-            else:
+            if issubclass(mcls, so.QualifiedObject):
                 qlclass = None
+            else:
+                qlclass = mcls.get_ql_class_or_die()
             key = (self.classname, qlclass)
             specified_id = context.schema_object_ids.get(key)
             if specified_id is not None:
@@ -1535,7 +1540,7 @@ class RenameObject(AlterObjectFragment):
 
     astnode = qlast.Rename
 
-    new_name = struct.Field(sn.Name)
+    new_name = struct.Field(str)
 
     def __repr__(self) -> str:
         return '<%s.%s "%s" to "%s">' % (self.__class__.__module__,
@@ -1602,10 +1607,7 @@ class RenameObject(AlterObjectFragment):
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
         astnode = self._get_ast_node(schema, context)
-        new_name = self.new_name
-
-        ref = qlast.ObjectRef(
-            name=new_name.name, module=new_name.module)
+        ref = qlast.ObjectRef(name=self.new_name)
         return astnode(new_name=ref)
 
     @classmethod
@@ -1640,16 +1642,28 @@ class RenameObject(AlterObjectFragment):
             RenameObject, parent_class)
 
         new_name = cls._classname_from_ast(schema, astnode, context)
-        assert isinstance(new_name, sn.Name)
-
         return rename_class(
             metaclass=parent_class,
             classname=parent_op.classname,
-            new_name=sn.Name(
-                module=new_name.module,
-                name=new_name.name
-            )
+            new_name=new_name,
         )
+
+
+class RenameQualifiedObject(AlterObjectFragment, Generic[so.Object_T]):
+
+    new_name = struct.Field(sn.Name)
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        astnode = self._get_ast_node(schema, context)
+        new_name = self.new_name
+        ref = qlast.ObjectRef(name=new_name.name, module=new_name.module)
+        return astnode(new_name=ref)
 
 
 class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):

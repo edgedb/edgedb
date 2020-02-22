@@ -82,6 +82,7 @@ class Field(NamedTuple):
 
     name: str
     is_optional: bool
+    has_explicit_accessor: bool
     line: int
     column: int
 
@@ -89,6 +90,7 @@ class Field(NamedTuple):
         return {
             'name': self.name,
             'is_optional': self.is_optional,
+            'has_explicit_accessor': self.has_explicit_accessor,
             'line': self.line,
             'column': self.column,
         }
@@ -102,6 +104,7 @@ class Field(NamedTuple):
         return cls(
             name=data['name'],
             is_optional=data['is_optional'],
+            has_explicit_accessor=data['has_explicit_accessor'],
             line=data['line'],
             column=data['column'],
         )
@@ -177,6 +180,9 @@ class BaseStructTransformer:
 
             for name, data in metadata['fields'].items():
                 if name not in known_fields:
+                    if self._has_explicit_field_accessor(name):
+                        data = dict(data)
+                        data['has_explicit_accessor'] = True
                     field = Field.deserialize(ctx.api, data)
 
                     known_fields.add(name)
@@ -211,9 +217,15 @@ class BaseStructTransformer:
         return Field(
             name=lhs.name,
             is_optional=is_optional,
+            has_explicit_accessor=self._has_explicit_field_accessor(lhs.name),
             line=stmt.line,
             column=stmt.column,
         )
+
+    def _has_explicit_field_accessor(self, fieldname: str) -> bool:
+        cls = self._ctx.cls
+        accessor = cls.info.names.get(f'get_{fieldname}')
+        return accessor is not None and not accessor.plugin_generated
 
     def _is_optional(self, call) -> bool:
         for (n, v) in zip(call.arg_names, call.args):
@@ -300,9 +312,9 @@ class SchemaClassTransformer(BaseStructTransformer):
 
         for f in fields:
             ftype = cls_info.get(f.name).type
-            if ftype is None or cls_info.get(f'get_{f.name}') is not None:
-                # The class is already doing something funny with the
-                # field or the accessor, so ignore it.
+            # If the class is already doing something funny with the
+            # field or its accessor, skip the field.
+            if ftype is None or f.has_explicit_accessor:
                 continue
 
             if f.is_optional:

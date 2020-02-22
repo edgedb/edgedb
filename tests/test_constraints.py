@@ -1063,7 +1063,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "constraint expression expected to return a bool value, "
-                "got 'int64'"):
+                "got scalar type 'std::int64'"):
             async with self.con.transaction():
                 await self.con.execute(qry)
 
@@ -1078,7 +1078,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "constraint expression expected to return a bool value, "
-                "got 'int64'"):
+                "got scalar type 'std::int64'"):
             await self.con.execute(qry)
 
         qry = """
@@ -1096,7 +1096,7 @@ class TestConstraintsDDL(tb.NonIsolatedDDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "constraint expression expected to return a bool value, "
-                "got 'str'"):
+                "got scalar type 'std::str'"):
             await self.con.execute(qry)
 
     async def test_constraints_ddl_error_06(self):

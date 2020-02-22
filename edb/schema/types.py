@@ -66,7 +66,6 @@ TypeT = typing.TypeVar('TypeT', bound='Type')
 
 class Type(
     so.SubclassableObject,
-    so.DerivableObject,
     s_abc.Type,
 ):
     """A schema item that is a valid *type*."""
@@ -345,7 +344,7 @@ class Type(
         return not self.is_view(schema)
 
 
-class InheritingType(Type, so.InheritingObject):
+class InheritingType(so.DerivableInheritingObject, Type):
 
     def material_type(
         self, schema: s_schema.Schema
@@ -397,9 +396,9 @@ class TypeExprRef(so.Object, so.BaseObjectRef):
         self.__dict__['_components'] = tuple(components)
         self.__dict__['module'] = module
 
-    def resolve_components(self, schema) -> typing.Tuple[Type, ...]:
+    def resolve_components(self, schema) -> typing.Tuple[InheritingType, ...]:
         return tuple(
-            typing.cast(Type, c._resolve_ref(schema))
+            typing.cast(InheritingType, c._resolve_ref(schema))
             for c in self._components
         )
 
@@ -1022,6 +1021,7 @@ class SchemaCollectionMeta(so.ObjectMeta):
 
 
 class SchemaCollection(Type, metaclass=SchemaCollectionMeta):
+
     def __repr__(self):
         return (
             f'<{self.__class__.__name__} '
@@ -1030,14 +1030,14 @@ class SchemaCollection(Type, metaclass=SchemaCollectionMeta):
         )
 
 
-class CollectionExprAlias(SchemaCollection):
+class CollectionExprAlias(so.QualifiedObject, SchemaCollection):
 
     @classmethod
     def get_schema_class_displayname(cls):
         return 'view'
 
 
-class SchemaAnonymousCollection(so.UnqualifiedObject, SchemaCollection):
+class SchemaAnonymousCollection(SchemaCollection):
     name = so.SchemaField(
         str,  # type: ignore
         inheritable=False,
@@ -1725,7 +1725,7 @@ class TypeCommand(sd.ObjectCommand):
     def _handle_view_op(
         cls,
         schema: s_schema.Schema,
-        cmd: sd.ObjectCommand,
+        cmd: sd.QualifiedObjectCommand,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> sd.Command:
@@ -1741,7 +1741,7 @@ class TypeCommand(sd.ObjectCommand):
             # because they use the type id in the general case,
             # but in the case of an explicit named view, we
             # still want a properly qualified name.
-            fq_classname = sd.ObjectCommand._classname_from_ast(
+            fq_classname = sd.QualifiedObjectCommand._classname_from_ast(
                 schema, astnode, context)
             assert isinstance(fq_classname, s_name.Name)
             cmd.classname = fq_classname
@@ -1850,12 +1850,15 @@ class TypeCommand(sd.ObjectCommand):
         return schema
 
 
+class InheritingTypeCommand(sd.QualifiedObjectCommand, TypeCommand):
+    pass
+
+
 class CollectionTypeCommandContext(sd.ObjectCommandContext):
     pass
 
 
-class CollectionTypeCommand(sd.UnqualifiedObjectCommand,
-                            TypeCommand,
+class CollectionTypeCommand(TypeCommand,
                             context_class=CollectionTypeCommandContext):
 
     def get_ast(
@@ -1870,7 +1873,8 @@ class CollectionTypeCommand(sd.UnqualifiedObjectCommand,
         return None
 
 
-class CollectionExprAliasCommand(TypeCommand,
+class CollectionExprAliasCommand(sd.QualifiedObjectCommand,
+                                 TypeCommand,
                                  context_class=CollectionTypeCommandContext):
     @classmethod
     def _cmd_tree_from_ast(
@@ -1881,7 +1885,7 @@ class CollectionExprAliasCommand(TypeCommand,
     ) -> sd.Command:
         assert isinstance(astnode, qlast.ObjectDDL)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, sd.ObjectCommand)
+        assert isinstance(cmd, sd.QualifiedObjectCommand)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 

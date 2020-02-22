@@ -464,9 +464,8 @@ class ObjectMeta(type):
             if v.is_schema_field:
                 getter_name = f'get_{v.name}'
                 if getter_name in clsdict:
-                    raise TypeError(
-                        f'cannot create {name} class: schema field getter '
-                        f'{getter_name}() is already defined')
+                    # The getter was defined explicitly, move on.
+                    continue
                 clsdict[getter_name] = (
                     lambda self, schema, *, _fn=v.name:
                         self._get_schema_field_value(schema, _fn)
@@ -643,8 +642,10 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         ephemeral=True)
 
     name = SchemaField(
-        sn.Name,
-        inheritable=False, compcoef=0.670)
+        str,
+        inheritable=False,
+        compcoef=0.670,
+    )
 
     # The path_id_name field is solely for the purposes of the compiler
     # so that this item can act as a transparent proxy for the item
@@ -656,7 +657,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     _fields: Dict[str, SchemaField]
 
-    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
+    def get_shortname(self, schema: s_schema.Schema) -> str:
         return sn.shortname_from_fullname(self.get_name(schema))
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
@@ -1285,7 +1286,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     def delta_rename(
         cls,
         obj: Object,
-        new_name: sn.Name,
+        new_name: str,
         *,
         old_schema: s_schema.Schema,
         new_schema: s_schema.Schema,
@@ -1407,15 +1408,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
                 altered_idx = {p.classname: p for p in altered}
                 for p in altered:
-                    for op in p.get_subcommands(
-                            type=sd.RenameObject):
+                    for op in p.get_subcommands(type=sd.RenameObject):
                         altered_idx[op.new_name] = p
 
                 for p in altered:
                     old_class: Object = old_schema.get(p.classname)
 
-                    for op in p.get_subcommands(
-                            type=sd.RenameObject):
+                    for op in p.get_subcommands(type=sd.RenameObject):
                         new_name = op.new_name
                         break
                     else:
@@ -1466,37 +1465,39 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         return f'<{type(self).__name__} {self.id} at 0x{id(self):#x}>'
 
 
-class ObjectFragment(Object):
-    """A part of another object that cannot exist independently."""
-
-
-class UnqualifiedObject(Object):
+class QualifiedObject(Object):
 
     name = SchemaField(
         # ignore below because Mypy doesn't understand fields which are not
         # inheritable.
-        str,  # type: ignore
+        sn.Name,  # type: ignore
         inheritable=False,
         compcoef=0.670,
     )
 
-    def get_displayname(self, schema: s_schema.Schema) -> str:
-        return self.get_name(schema)
+    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
+        shortname = super().get_shortname(schema)
+        assert isinstance(shortname, sn.Name)
+        return shortname
 
-    def get_shortname(self, schema: s_schema.Schema) -> str:  # type: ignore
-        return self.get_name(schema)
+
+QualifiedObject_T = TypeVar('QualifiedObject_T', bound='QualifiedObject')
 
 
-class GlobalObject(UnqualifiedObject):
+class ObjectFragment(QualifiedObject):
+    """A part of another object that cannot exist independently."""
+
+
+class GlobalObject(Object):
     pass
 
 
-class DerivableObject(Object):
+class DerivableObject(QualifiedObject):
 
     def derive_name(
         self,
         schema: s_schema.Schema,
-        source: Object,
+        source: QualifiedObject,
         *qualifiers: str,
         derived_name_base: Optional[str] = None,
         module: Optional[str] = None,
@@ -1523,7 +1524,7 @@ class DerivableObject(Object):
     def get_derived_name(
         self,
         schema: s_schema.Schema,
-        source: Object,
+        source: QualifiedObject,
         *qualifiers: str,
         mark_derived: bool = False,
         derived_name_base: Optional[str] = None,
@@ -1966,10 +1967,19 @@ class ObjectIndexByShortname(
         return sn.shortname_from_fullname(name)
 
 
+def _unqualified_object_key(
+    schema: s_schema.Schema,
+    o: Object,
+) -> str:
+    assert isinstance(o, QualifiedObject)
+    return o.get_shortname(schema).name
+
+
 class ObjectIndexByUnqualifiedName(
-        ObjectIndexBase,
-        Generic[Object_T],
-        key=lambda schema, o: o.get_shortname(schema).name):
+    ObjectIndexBase,
+    Generic[QualifiedObject_T],
+    key=_unqualified_object_key,
+):
 
     @classmethod
     def get_key_for_name(cls, schema: s_schema.Schema, name: str) -> str:
@@ -2117,7 +2127,7 @@ class SubclassableObject(Object):
 InheritingObjectT = TypeVar('InheritingObjectT', bound='InheritingObject')
 
 
-class InheritingObject(SubclassableObject, DerivableObject):
+class InheritingObject(SubclassableObject):
 
     bases = SchemaField(
         ObjectList['InheritingObject'],
@@ -2215,16 +2225,6 @@ class InheritingObject(SubclassableObject, DerivableObject):
     def children(self, schema: s_schema.Schema) -> frozenset:
         return schema.get_children(self)
 
-    def get_nearest_non_derived_parent(
-        self, schema: s_schema.Schema
-    ) -> Object:
-        obj = self
-        while obj.get_is_derived(schema):
-            obj = cast(
-                InheritingObject, obj.get_bases(schema).first(schema)
-            )
-        return obj
-
     def get_explicit_local_field_value(
         self,
         schema: s_schema.Schema,
@@ -2259,7 +2259,7 @@ class InheritingObject(SubclassableObject, DerivableObject):
         context: Optional[ComparisonContext] = None,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
-    ) -> sd.ObjectCommand[InheritingObject]:
+    ) -> sd.ObjectCommand[Object]:
         from . import delta as sd
         from . import inheriting as s_inh
 
@@ -2326,6 +2326,27 @@ class InheritingObject(SubclassableObject, DerivableObject):
             value,
             inherited=fname in inherited_fields,
         )
+
+
+DerivableInheritingObjectT = TypeVar(
+    'DerivableInheritingObjectT',
+    bound='DerivableInheritingObject',
+)
+
+
+class DerivableInheritingObject(DerivableObject, InheritingObject):
+
+    def get_nearest_non_derived_parent(
+        self: DerivableInheritingObjectT,
+        schema: s_schema.Schema,
+    ) -> DerivableInheritingObjectT:
+        obj = self
+        while obj.get_is_derived(schema):
+            obj = cast(
+                DerivableInheritingObjectT,
+                obj.get_bases(schema).first(schema),
+            )
+        return obj
 
 
 @markup.serializer.serializer.register(Object)

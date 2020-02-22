@@ -663,10 +663,12 @@ class PointerCommandOrFragment:
         return target, base
 
 
-class PointerCommand(constraints.ConsistencySubjectCommand,
-                     s_anno.AnnotationSubjectCommand,
-                     referencing.ReferencedInheritingObjectCommand,
-                     PointerCommandOrFragment):
+class PointerCommand(
+    referencing.ReferencedInheritingObjectCommand,
+    constraints.ConsistencySubjectCommand,
+    s_anno.AnnotationSubjectCommand,
+    PointerCommandOrFragment,
+):
 
     def _create_begin(self, schema, context):
         if not context.canonical:

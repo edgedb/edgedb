@@ -144,8 +144,13 @@ def get_cast_fullname(
         name=sn.get_specialized_name(shortname, *quals))
 
 
-class Cast(s_anno.AnnotationSubject, s_func.VolatilitySubject, s_abc.Cast,
-           qlkind=qltypes.SchemaObjectClass.CAST):
+class Cast(
+    so.QualifiedObject,
+    s_anno.AnnotationSubject,
+    s_func.VolatilitySubject,
+    s_abc.Cast,
+    qlkind=qltypes.SchemaObjectClass.CAST,
+):
 
     from_type = so.SchemaField(
         s_types.Type, compcoef=0.5)
@@ -180,7 +185,7 @@ class CastCommandContext(sd.ObjectCommandContext,
     pass
 
 
-class CastCommand(sd.ObjectCommand,
+class CastCommand(sd.QualifiedObjectCommand,
                   schema_metaclass=Cast,
                   context_class=CastCommandContext):
 

@@ -153,6 +153,7 @@ def derive_view(
         ctx: context.ContextLevel) -> s_types.Type:
 
     if derived_name is None:
+        assert isinstance(stype, s_obj.DerivableObject)
         derived_name = derive_view_name(
             stype=stype, derived_name_quals=derived_name_quals,
             derived_name_base=derived_name_base, ctx=ctx)
@@ -309,8 +310,13 @@ def get_union_type(
 
     if created:
         ctx.env.created_schema_objects.add(union)
-    elif (union not in ctx.env.created_schema_objects
-            and union.get_name(ctx.env.schema).module != '__derived__'):
+    elif (
+        union not in ctx.env.created_schema_objects
+        and (
+            not isinstance(union, s_obj.QualifiedObject)
+            or union.get_name(ctx.env.schema).module != '__derived__'
+        )
+    ):
         ctx.env.schema_refs.add(union)
 
     return union
@@ -327,8 +333,13 @@ def get_intersection_type(
 
     if created:
         ctx.env.created_schema_objects.add(intersection)
-    elif (intersection not in ctx.env.created_schema_objects
-            and intersection.get_name(ctx.env.schema).module != '__derived__'):
+    elif (
+        intersection not in ctx.env.created_schema_objects
+        and (
+            not isinstance(intersection, s_obj.QualifiedObject)
+            or intersection.get_name(ctx.env.schema).module != '__derived__'
+        )
+    ):
         ctx.env.schema_refs.add(intersection)
 
     return intersection

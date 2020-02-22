@@ -466,7 +466,7 @@ def compile_DescribeStmt(
                     f'cannot describe full schema as {ql.language}')
         else:
             modules = []
-            items = []
+            items: List[str] = []
             referenced_classes: List[s_obj.ObjectMeta] = []
 
             objref = ql.object

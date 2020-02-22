@@ -147,7 +147,7 @@ class Schema(s_abc.Schema):
         shortname_to_id = self._shortname_to_id
         globalname_to_id = self._globalname_to_id
         stype = type(scls)
-        is_global = issubclass(stype, so.UnqualifiedObject)
+        is_global = not issubclass(stype, so.QualifiedObject)
 
         has_sn_cache = issubclass(stype, (s_func.Function, s_oper.Operator))
 
@@ -459,7 +459,7 @@ class Schema(s_abc.Schema):
             refs_to=self._update_refs_to(scls, None, data),
         )
 
-        if (not isinstance(scls, so.UnqualifiedObject)
+        if (isinstance(scls, so.QualifiedObject)
                 and not self.has_module(name.module)):
             raise errors.UnknownModuleError(
                 f'module {name.module!r} is not in this schema')
@@ -907,14 +907,14 @@ class SchemaIterator(Generic[so.Object_T]):
             modules = frozenset(included_modules)
             filters.append(
                 lambda schema, obj:
-                    not isinstance(obj, so.UnqualifiedObject) and
+                    isinstance(obj, so.QualifiedObject) and
                     obj.get_name(schema).module in modules)
 
         if excluded_modules:
             excmod = frozenset(excluded_modules)
             filters.append(
                 lambda schema, obj: (
-                    isinstance(obj, so.UnqualifiedObject)
+                    not isinstance(obj, so.QualifiedObject)
                     or obj.get_name(schema).module not in excmod
                 )
             )

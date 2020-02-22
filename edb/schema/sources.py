@@ -38,7 +38,7 @@ class SourceCommand(indexes.IndexSourceCommand):
     pass
 
 
-class Source(indexes.IndexableSubject):
+class Source(so.QualifiedObject, indexes.IndexableSubject):
     pointers_refs = so.RefDict(
         attr='pointers',
         requires_explicit_overloaded=True,

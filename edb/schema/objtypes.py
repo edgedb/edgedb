@@ -45,8 +45,8 @@ if TYPE_CHECKING:
 
 
 class ObjectType(
-    sources.Source,
     s_types.InheritingType,
+    sources.Source,
     constraints.ConsistencySubject,
     s_anno.AnnotationSubject,
     s_abc.ObjectType,
@@ -368,9 +368,9 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext,
     pass
 
 
-class ObjectTypeCommand(constraints.ConsistencySubjectCommand,
+class ObjectTypeCommand(s_types.InheritingTypeCommand,
+                        constraints.ConsistencySubjectCommand,
                         sources.SourceCommand, links.LinkSourceCommand,
-                        s_types.TypeCommand,
                         schema_metaclass=ObjectType,
                         context_class=ObjectTypeCommandContext):
     pass

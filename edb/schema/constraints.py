@@ -122,6 +122,12 @@ class Constraint(referencing.ReferencedInheritingObject,
     def generic(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
 
+    def get_subject(self, schema: s_schema.Schema) -> ConsistencySubject:
+        return cast(
+            ConsistencySubject,
+            self.get_field_value(schema, 'subject'),
+        )
+
     @classmethod
     def _dummy_subject(
         cls,
@@ -244,7 +250,7 @@ class Constraint(referencing.ReferencedInheritingObject,
             raise errors.InvalidConstraintDefinitionError(
                 f'{name} constraint expression expected '
                 f'to return a bool value, got '
-                f'{expr_type.get_name(schema).name!r}',
+                f'{expr_type.get_verbosename(schema)}',
                 context=expr_context
             )
 
@@ -252,6 +258,7 @@ class Constraint(referencing.ReferencedInheritingObject,
         attrs['return_typemod'] = constr_base.get_return_typemod(schema)
         attrs['finalexpr'] = final_expr
         attrs['params'] = constr_base.get_params(schema)
+        attrs['is_abstract'] = False
 
         return constr_base, attrs, inherited
 
@@ -261,7 +268,6 @@ class Constraint(referencing.ReferencedInheritingObject,
     ) -> str:
         errmsg = self.get_errmessage(schema)
         subject = self.get_subject(schema)
-        assert isinstance(subject, s_anno.AnnotationSubject)
         titleattr = subject.get_annotation(schema, 'std::title')
 
         if not titleattr:
@@ -351,7 +357,11 @@ class Constraint(referencing.ReferencedInheritingObject,
         return sn.Name('std::constraint')
 
 
-class ConsistencySubject(so.InheritingObject):
+class ConsistencySubject(
+    so.QualifiedObject,
+    so.InheritingObject,
+    s_anno.AnnotationSubject,
+):
     constraints_refs = so.RefDict(
         attr='constraints',
         ref_cls=Constraint)
@@ -415,7 +425,7 @@ class ConstraintCommand(
         cls,
         schema: s_schema.Schema,
         astnode: qlast.NamedDDL,
-        base_name: sn.SchemaName,
+        base_name: str,
         referrer_name: str,
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:

@@ -34,7 +34,11 @@ class AliasCommandContext(sd.ObjectCommandContext,
     pass
 
 
-class AliasCommand(s_types.TypeCommand, context_class=AliasCommandContext):
+class AliasCommand(
+    sd.QualifiedObjectCommand[s_types.Type],
+    s_types.TypeCommand,
+    context_class=AliasCommandContext,
+):
 
     _scalar_cmd_map = {
         qlast.CreateAlias: s_scalars.CreateScalarType,

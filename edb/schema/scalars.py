@@ -184,11 +184,13 @@ class ScalarTypeCommandContext(sd.ObjectCommandContext[ScalarType],
     pass
 
 
-class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
-                        s_anno.AnnotationSubjectCommand,
-                        s_types.TypeCommand,
-                        schema_metaclass=ScalarType,
-                        context_class=ScalarTypeCommandContext):
+class ScalarTypeCommand(
+    s_types.InheritingTypeCommand,
+    constraints.ConsistencySubjectCommand,
+    s_anno.AnnotationSubjectCommand,
+    schema_metaclass=ScalarType,
+    context_class=ScalarTypeCommandContext,
+):
     @classmethod
     def _cmd_tree_from_ast(
         cls,
@@ -198,7 +200,7 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        assert isinstance(cmd, sd.ObjectCommand)
+        assert isinstance(cmd, sd.QualifiedObjectCommand)
         assert isinstance(astnode, qlast.ObjectDDL)
         return cls._handle_view_op(schema, cmd, astnode, context)
 

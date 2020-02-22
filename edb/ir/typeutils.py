@@ -154,6 +154,7 @@ def type_to_typeref(
             name_hint=typename or t.get_name(schema),
         )
     elif not isinstance(t, s_abc.Collection):
+        assert isinstance(t, s_types.InheritingType)
         union_of = t.get_union_of(schema)
         if union_of:
             non_overlapping, union_is_concrete = (

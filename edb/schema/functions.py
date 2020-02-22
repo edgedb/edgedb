@@ -542,7 +542,11 @@ class CallableLike:
         raise NotImplementedError
 
 
-class CallableObject(s_anno.AnnotationSubject, CallableLike):
+class CallableObject(
+    so.QualifiedObject,
+    s_anno.AnnotationSubject,
+    CallableLike,
+):
 
     params = so.SchemaField(
         FuncParameterList,
@@ -561,13 +565,13 @@ class CallableObject(s_anno.AnnotationSubject, CallableLike):
     @classmethod
     def delta(
         cls,
-        old,
-        new,
+        old: Optional[so.Object],
+        new: Optional[so.Object],
         *,
-        context=None,
-        old_schema: s_schema.Schema,
+        context: Optional[so.ComparisonContext] = None,
+        old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
-    ):
+    ) -> sd.ObjectCommand[so.Object]:
         context = context or so.ComparisonContext()
 
         def param_is_inherited(schema: s_schema.Schema, func, param):
@@ -654,7 +658,7 @@ class CallableObject(s_anno.AnnotationSubject, CallableLike):
         return not isinstance(reference, Parameter)
 
 
-class CallableCommand(sd.ObjectCommand):
+class CallableCommand(sd.QualifiedObjectCommand):
 
     def _get_params(self, schema: s_schema.Schema, context):
         params = []

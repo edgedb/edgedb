@@ -353,7 +353,7 @@ class ContextLevel(compiler.ContextLevel):
     ]
     """A mapping of computable pointers to QL source AST and context."""
 
-    view_nodes: Dict[s_name.SchemaName, s_types.Type]
+    view_nodes: Dict[str, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
     view_sets: Dict[s_types.Type, irast.Set]

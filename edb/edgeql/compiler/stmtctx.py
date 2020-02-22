@@ -385,7 +385,8 @@ def declare_view(
 
         if cached_view_set is not None:
             subctx.view_scls = setgen.get_set_type(cached_view_set, ctx=ctx)
-            view_name = subctx.view_scls.get_name(ctx.env.schema)
+            view_name = s_name.SchemaName(
+                subctx.view_scls.get_name(ctx.env.schema))
         else:
             if isinstance(alias, s_name.SchemaName):
                 basename = alias

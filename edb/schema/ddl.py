@@ -161,7 +161,7 @@ def delta_schemas(
 
             def _filter(schema: s_schema.Schema, obj: so.Object) -> bool:
                 return (
-                    (not isinstance(obj, so.UnqualifiedObject)
+                    (isinstance(obj, so.QualifiedObject)
                         and (obj.get_name(schema).module
                              in s_schema.STD_MODULES))
                     or (isinstance(obj, modules.Module)
@@ -227,7 +227,7 @@ def delta_schemas(
     for sclass in get_global_dep_order():
         filters: List[Callable[[s_schema.Schema, so.Object], bool]] = []
 
-        if issubclass(sclass, so.UnqualifiedObject):
+        if not issubclass(sclass, so.QualifiedObject):
             # UnqualifiedObjects (like anonymous tuples and arrays)
             # should not use an included_modules filter.
             incl_modules = None
