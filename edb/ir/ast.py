@@ -357,6 +357,11 @@ class TypeIntersectionPointer(Pointer):
     ptrref: TypeIntersectionPointerRef
 
 
+class TupleIndirectionPointer(Pointer):
+
+    ptrref: TupleIndirectionPointerRef
+
+
 class Expr(Base):
     __abstract_node__ = True
 
@@ -609,13 +614,6 @@ class OperatorCall(Call):
 
     # The module id of the origin operator if this is a derivative operator.
     origin_module_id: uuid.UUID
-
-
-class TupleIndirection(ImmutableExpr):
-
-    expr: Set
-    name: str
-    path_id: PathId
 
 
 class IndexIndirection(ImmutableExpr):

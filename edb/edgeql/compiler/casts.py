@@ -42,7 +42,6 @@ from edb.edgeql import qltypes as ft
 
 from . import context
 from . import dispatch
-from . import inference
 from . import pathctx
 from . import polyres
 from . import setgen
@@ -340,19 +339,14 @@ def _cast_tuple(
         # This is to trigger the downstream logic of casting
         # objects (in elements of the tuple).
         elements = []
-        for n, st in orig_subtypes.items():
-            path_id = pathctx.get_tuple_indirection_path_id(
-                ir_set.path_id, n, st, ctx=ctx)
-
-            val = setgen.ensure_set(
-                irast.TupleIndirection(
-                    expr=ir_set,
-                    name=n
-                ),
-                path_id=path_id,
-                ctx=ctx
+        for n in orig_subtypes:
+            val = setgen.tuple_indirection_set(
+                ir_set,
+                source=orig_stype,
+                ptr_name=n,
+                ctx=ctx,
             )
-            val_type = inference.infer_type(val, ctx.env)
+            val_type = setgen.get_set_type(val, ctx=ctx)
             # Element cast
             val = compile_cast(val, new_stype, ctx=ctx, srcctx=srcctx)
 
@@ -382,19 +376,14 @@ def _cast_tuple(
     # For tuple-to-tuple casts we generate a new tuple
     # to simplify things on sqlgen side.
     elements = []
-    for i, (n, orig_st) in enumerate(orig_subtypes.items()):
-        path_id = pathctx.get_tuple_indirection_path_id(
-            ir_set.path_id, n, orig_st, ctx=ctx)
-
-        val = setgen.ensure_set(
-            irast.TupleIndirection(
-                expr=ir_set,
-                name=n
-            ),
-            path_id=path_id,
-            ctx=ctx
+    for i, n in enumerate(orig_subtypes):
+        val = setgen.tuple_indirection_set(
+            ir_set,
+            source=orig_stype,
+            ptr_name=n,
+            ctx=ctx,
         )
-        val_type = inference.infer_type(val, ctx.env)
+        val_type = setgen.get_set_type(val, ctx=ctx)
         new_el_name, new_st = new_subtypes[i]
         if val_type != new_st:
             # Element cast

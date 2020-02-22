@@ -669,7 +669,7 @@ def tuple_indirection_set(
         path_tip: irast.Set, *,
         source: s_types.Type,
         ptr_name: str,
-        source_context: parsing.ParserContext,
+        source_context: Optional[parsing.ParserContext] = None,
         ctx: context.ContextLevel) -> irast.Set:
 
     assert isinstance(source, s_types.Tuple)
@@ -680,11 +680,19 @@ def tuple_indirection_set(
 
     path_id = pathctx.get_tuple_indirection_path_id(
         path_tip.path_id, el_norm_name, el_type, ctx=ctx)
-    expr = irast.TupleIndirection(
-        expr=path_tip, name=el_norm_name, path_id=path_id,
-        context=source_context)
 
-    return expression_set(expr, ctx=ctx)
+    ti_set = new_set(stype=el_type, path_id=path_id, ctx=ctx)
+
+    ptr = irast.TupleIndirectionPointer(
+        source=path_tip,
+        target=ti_set,
+        ptrref=path_id.rptr(),
+        direction=path_id.rptr_dir(),
+    )
+
+    ti_set.rptr = ptr
+
+    return ti_set
 
 
 def type_intersection_set(

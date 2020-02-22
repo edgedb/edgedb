@@ -451,19 +451,6 @@ def compile_Array(
     return relgen.build_array_expr(expr, elements, ctx=ctx)
 
 
-@dispatch.compile.register(irast.TupleIndirection)
-def compile_TupleIndirection(
-        expr: irast.TupleIndirection, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-    tuple_expr = expr.expr.expr
-    assert isinstance(tuple_expr, irast.Tuple)
-    for se in tuple_expr.elements:
-        if se.name == expr.name:
-            return dispatch.compile(se.val, ctx=ctx)
-
-    raise ValueError(f'no tuple element with name {expr.name}')
-
-
 @dispatch.compile.register(irast.Tuple)
 def compile_Tuple(
         expr: irast.Tuple, *,
