@@ -420,9 +420,6 @@ class ConstraintCommand(
     ) -> Tuple[str, ...]:
         if isinstance(astnode, qlast.CreateConstraint):
             return ()
-
-        # assert isinstance(astnode, qlast.ConstraintOp) # THIS BREAKS!
-
         exprs = []
         args = cls._constraint_args_from_ast(schema, astnode, context)
         for arg in args:
@@ -615,8 +612,8 @@ class CreateConstraint(ConstraintCommand,
         if referrer_ctx is None:
             return super()._create_begin(schema, context)
 
-        # the reason for the following type ignore is explained
-        # in a comment in referencing.py
+        # type ignore below because mypy doesn't believe
+        # referrer_ctx is sd.ObjectCommandContext[so.Object]
         subject = referrer_ctx.scls  # type: ignore
         if subject.is_scalar() and subject.is_enum(schema):
             raise errors.UnsupportedFeatureError(
