@@ -618,7 +618,7 @@ def maybe_get_path_rvar(
         return None
 
 
-def list_path_rvar_aspects(
+def list_path_aspects(
         stmt: pgast.Query, path_id: irast.PathId, *,
         env: context.Environment) -> Set[str]:
 
@@ -626,6 +626,14 @@ def list_path_rvar_aspects(
 
     for rvar_path_id, aspect in stmt.path_rvar_map:
         if path_id == rvar_path_id:
+            aspects.add(aspect)
+
+    for ns_path_id, aspect in stmt.path_namespace:
+        if path_id == ns_path_id:
+            aspects.add(aspect)
+
+    for ns_path_id, aspect in stmt.path_outputs:
+        if path_id == ns_path_id:
             aspects.add(aspect)
 
     return aspects

@@ -1074,13 +1074,11 @@ def process_set_as_subquery(
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, cond_expr)
 
+    aspects = pathctx.list_path_aspects(stmt, inner_id, env=ctx.env)
     if inner_id.is_tuple_path():
         # If we are wrapping a tuple expression, make sure not to
         # over-represent it in terms of the exposed aspects.
-        aspects = pathctx.list_path_rvar_aspects(stmt, inner_id, env=ctx.env)
         aspects -= {'serialized'}
-    else:
-        aspects = {'value', 'source'}
 
     sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
     return new_simple_set_rvar(ir_set, sub_rvar, aspects)

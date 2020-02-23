@@ -1365,6 +1365,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
         await self.assert_query_result(
             r"""
+                SELECT (SELECT test::my_edgeql_func2('schema::Object')).name;
+            """,
+            ['schema::Object'],
+        )
+        await self.assert_query_result(
+            r"""
                 SELECT test::my_edgeql_func3(1);
             """,
             [11],
