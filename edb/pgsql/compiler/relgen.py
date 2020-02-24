@@ -248,7 +248,7 @@ def _get_set_rvar(
         # Named tuple
         rvars = process_set_as_tuple(ir_set, stmt, ctx=ctx)
 
-    elif isinstance(ir_set.expr, irast.TupleIndirection):
+    elif ir_set.path_id.is_tuple_indirection_path():
         # Named tuple indirection.
         rvars = process_set_as_tuple_indirection(ir_set, stmt, ctx=ctx)
 
@@ -1074,13 +1074,11 @@ def process_set_as_subquery(
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, cond_expr)
 
+    aspects = pathctx.list_path_aspects(stmt, inner_id, env=ctx.env)
     if inner_id.is_tuple_path():
         # If we are wrapping a tuple expression, make sure not to
         # over-represent it in terms of the exposed aspects.
-        aspects = pathctx.list_path_rvar_aspects(stmt, inner_id, env=ctx.env)
         aspects -= {'serialized'}
-    else:
-        aspects = {'value', 'source'}
 
     sub_rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=ctx)
     return new_simple_set_rvar(ir_set, sub_rvar, aspects)
@@ -1466,20 +1464,12 @@ def process_set_as_tuple(
 def process_set_as_tuple_indirection(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
-    expr = ir_set.expr
-    assert isinstance(expr, irast.TupleIndirection)
-    tuple_set = expr.expr
+    rptr = ir_set.rptr
+    tuple_set = rptr.source
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False
         rvar = get_set_rvar(tuple_set, ctx=subctx)
-
-        if not ir_set.path_id.startswith(tuple_set.path_id):
-            # Tuple indirection set is fenced, so we need to
-            # wrap the reference in a subquery to ensure path_id
-            # remapping.
-            stmt.view_path_id_map[ir_set.path_id] = expr.path_id
-            rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
 
         source_rvar = relctx.maybe_get_path_rvar(
             stmt, tuple_set.path_id, aspect='source', ctx=subctx)
@@ -1493,7 +1483,10 @@ def process_set_as_tuple_indirection(
                 stmt, path_id=tuple_set.path_id, env=subctx.env)
 
             set_expr = astutils.tuple_getattr(
-                tuple_val, tuple_set.typeref, expr.name)
+                tuple_val,
+                tuple_set.typeref,
+                rptr.ptrref.shortname.name,
+            )
 
             pathctx.put_path_var_if_not_exists(
                 stmt, ir_set.path_id, set_expr, aspect='value', env=subctx.env)

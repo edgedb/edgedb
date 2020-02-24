@@ -76,7 +76,7 @@ from . import status
 @dataclasses.dataclass(frozen=True)
 class CompilerDatabaseState:
 
-    dbver: int
+    dbver: bytes
     schema: s_schema.Schema
 
 
@@ -237,7 +237,7 @@ class BaseCompiler:
 
         return schema
 
-    async def _get_database(self, dbver: int) -> CompilerDatabaseState:
+    async def _get_database(self, dbver: bytes) -> CompilerDatabaseState:
         if self._cached_db is not None and self._cached_db.dbver == dbver:
             return self._cached_db
 
@@ -262,7 +262,11 @@ class BaseCompiler:
 
     # API
 
-    async def connect(self, dbname: str, dbver: int) -> CompilerDatabaseState:
+    async def connect(
+        self,
+        dbname: str,
+        dbver: bytes
+    ) -> CompilerDatabaseState:
         self._dbname = dbname
         self._cached_db = None
         await self._get_database(dbver)
@@ -1073,7 +1077,7 @@ class Compiler(BaseCompiler):
         return units
 
     async def _ctx_new_con_state(
-        self, *, dbver: int, io_format: enums.IoFormat, expect_one: bool,
+        self, *, dbver: bytes, io_format: enums.IoFormat, expect_one: bool,
         modaliases,
         session_config: Optional[immutables.Map],
         stmt_mode: Optional[enums.CompileStatementMode],
@@ -1155,7 +1159,7 @@ class Compiler(BaseCompiler):
 
     # API
 
-    async def try_compile_rollback(self, dbver: int, eql: bytes):
+    async def try_compile_rollback(self, dbver: bytes, eql: bytes):
         statements = edgeql.parse_block(eql.decode())
 
         stmt = statements[0]
@@ -1187,7 +1191,7 @@ class Compiler(BaseCompiler):
 
     async def compile_eql(
             self,
-            dbver: int,
+            dbver: bytes,
             eql: bytes,
             sess_modaliases: Optional[immutables.Map],
             sess_config: Optional[immutables.Map],
@@ -1444,7 +1448,7 @@ class Compiler(BaseCompiler):
 
         schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
         ctx = await self._ctx_new_con_state(
-            dbver=-1,
+            dbver=b'',
             io_format=enums.IoFormat.BINARY,
             expect_one=False,
             modaliases=DEFAULT_MODULE_ALIASES_MAP,

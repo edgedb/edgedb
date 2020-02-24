@@ -225,7 +225,7 @@ def _parse_hostlist(
 def parse_dsn(
     dsn: str,
 ) -> Tuple[
-    Tuple[Union[str, Tuple[str, int]], ...],
+    Tuple[Tuple[str, int], ...],
     ConnectionParameters,
 ]:
     # `auth_hosts` is the version of host information for the purposes
@@ -400,16 +400,9 @@ def parse_dsn(
                 database=database, user=user,
                 passfile=passfile_path)
 
-    addrs: List[Union[str, Tuple[str, int]]] = []
+    addrs: List[Tuple[str, int]] = []
     for h, p in zip(host, port):
-        if h.startswith('/'):
-            # UNIX socket name
-            if '.s.PGSQL.' not in h:
-                h = os.path.join(h, '.s.PGSQL.{}'.format(p))
-            addrs.append(h)
-        else:
-            # TCP host/port
-            addrs.append((h, p))
+        addrs.append((h, p))
 
     if not addrs:
         raise ValueError(

@@ -22,6 +22,7 @@ import codecs
 import hashlib
 import json
 import os.path
+import weakref
 
 cimport cython
 cimport cpython
@@ -91,6 +92,7 @@ def _build_init_con_script() -> bytes:
             ('', {pg_ql(defines.DEFAULT_MODULE_ALIAS)}, 'A'),
             ('server_version', {pg_ql(buildmeta.get_version_json())}, 'R');
 
+        LISTEN __edgedb_ddl__;
     ''').encode('utf-8')
 
 
@@ -170,12 +172,18 @@ cdef class PGProto:
         self.debug = debug.flags.server_proto
 
         self.pgaddr = addr
+        self.edgecon_ref = None
+
+        self.idle = True
 
     def debug_print(self, *args):
         print(
             '::PGPROTO::',
             *args,
         )
+
+    def set_edgecon(self, edgecon.EdgeConnection edgecon):
+        self.edgecon_ref = weakref.ref(edgecon)
 
     def get_pgaddr(self):
         return self.pgaddr
@@ -208,23 +216,33 @@ cdef class PGProto:
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
 
+    async def signal_ddl(self, dbver):
+        query = f"""
+            SELECT pg_notify('__edgedb_ddl__', {pg_ql(dbver.hex())})
+        """.encode()
+        await self.simple_query(query, True)
+
     async def sync(self):
         if self.waiting_for_sync:
             raise RuntimeError('a "sync" has already been requested')
 
-        self.waiting_for_sync = True
-        self.write(SYNC_MESSAGE)
+        self.before_command()
+        try:
+            self.waiting_for_sync = True
+            self.write(SYNC_MESSAGE)
 
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
+            while True:
+                if not self.buffer.take_message():
+                    await self.wait_for_message()
+                mtype = self.buffer.get_message_type()
 
-            if mtype == b'Z':
-                self.parse_sync_message()
-                return
-            else:
-                self.fallthrough()
+                if mtype == b'Z':
+                    self.parse_sync_message()
+                    return
+                else:
+                    self.fallthrough()
+        finally:
+            self.after_command()
 
     async def wait_for_sync(self):
         while True:
@@ -262,8 +280,14 @@ cdef class PGProto:
 
         return parse, store_stmt
 
-    async def parse_execute_json(self, sql, sql_hash, dbver,
-                                 use_prep_stmt, args):
+    async def _parse_execute_json(
+        self,
+        sql,
+        sql_hash,
+        dbver,
+        use_prep_stmt,
+        args,
+    ):
         cdef:
             WriteBuffer parse_buf
             WriteBuffer bind_buf
@@ -273,8 +297,6 @@ cdef class PGProto:
             ssize_t size
             bint parse = 1
             bint store_stmt = 0
-
-        self.before_command()
 
         buf = WriteBuffer.new()
 
@@ -387,15 +409,36 @@ cdef class PGProto:
 
         return data
 
-    async def parse_execute(self,
-                            bint parse,
-                            bint execute,
-                            object query,
-                            edgecon.EdgeConnection edgecon,
-                            WriteBuffer bind_data,
-                            bint send_sync,
-                            bint use_prep_stmt):
+    async def parse_execute_json(
+        self,
+        sql,
+        sql_hash,
+        dbver,
+        use_prep_stmt,
+        args,
+    ):
+        self.before_command()
+        try:
+            return await self._parse_execute_json(
+                sql,
+                sql_hash,
+                dbver,
+                use_prep_stmt,
+                args,
+            )
+        finally:
+            self.after_command()
 
+    async def _parse_execute(
+        self,
+        bint parse,
+        bint execute,
+        object query,
+        edgecon.EdgeConnection edgecon,
+        WriteBuffer bind_data,
+        bint send_sync,
+        bint use_prep_stmt,
+    ):
         cdef:
             WriteBuffer packet
             WriteBuffer buf
@@ -408,8 +451,6 @@ cdef class PGProto:
             uint64_t msgs_parsed = 0
             uint64_t msgs_executed = 0
             uint64_t i
-
-        self.before_command()
 
         if not parse and not execute:
             raise RuntimeError('invalid parse/execute call')
@@ -568,12 +609,34 @@ cdef class PGProto:
             if send_sync:
                 await self.wait_for_sync()
 
-    async def simple_query(self, bytes sql, bint ignore_data):
+    async def parse_execute(
+        self,
+        bint parse,
+        bint execute,
+        object query,
+        edgecon.EdgeConnection edgecon,
+        WriteBuffer bind_data,
+        bint send_sync,
+        bint use_prep_stmt,
+    ):
+        self.before_command()
+        try:
+            return await self._parse_execute(
+                parse,
+                execute,
+                query,
+                edgecon,
+                bind_data,
+                send_sync,
+                use_prep_stmt,
+            )
+        finally:
+            self.after_command()
+
+    async def _simple_query(self, bytes sql, bint ignore_data):
         cdef:
             WriteBuffer packet
             WriteBuffer buf
-
-        self.before_command()
 
         buf = WriteBuffer.new_message(b'Q')
         buf.write_bytestring(sql)
@@ -635,6 +698,13 @@ cdef class PGProto:
         if exc:
             raise pgerror.BackendError(fields=exc)
         return result
+
+    async def simple_query(self, bytes sql, bint ignore_data):
+        self.before_command()
+        try:
+            return await self._simple_query(sql, ignore_data)
+        finally:
+            self.after_command()
 
     async def _dump(self, block, output_queue, fragment_suggested_size):
         cdef:
@@ -719,16 +789,20 @@ cdef class PGProto:
             raise pgerror.BackendError(fields=er)
 
     async def dump(self, input_queue, output_queue, fragment_suggested_size):
-        while True:
-            try:
-                block = input_queue.pop()
-            except IndexError:
-                await output_queue.put(None)
-                return
+        self.before_command()
+        try:
+            while True:
+                try:
+                    block = input_queue.pop()
+                except IndexError:
+                    await output_queue.put(None)
+                    return
 
-            await self._dump(block, output_queue, fragment_suggested_size)
+                await self._dump(block, output_queue, fragment_suggested_size)
+        finally:
+            self.after_command()
 
-    async def restore(self, sql, bytes data):
+    async def _restore(self, sql, bytes data):
         cdef:
             WriteBuffer buf
             WriteBuffer qbuf
@@ -806,6 +880,13 @@ cdef class PGProto:
 
         if er:
             raise pgerror.BackendError(fields=er)
+
+    async def restore(self, sql, bytes data):
+        self.before_command()
+        try:
+            await self._restore(sql, data)
+        finally:
+            self.after_command()
 
     async def connect(self):
         cdef:
@@ -898,12 +979,19 @@ cdef class PGProto:
             finally:
                 self.buffer.finish_message()
 
-    def before_command(self):
+    cdef before_command(self):
         if not self.connected:
             raise RuntimeError('not connected')
 
         if self.waiting_for_sync:
             raise RuntimeError('cannot issue new command')
+
+        assert self.idle
+        self.idle = False
+
+    cdef after_command(self):
+        assert not self.idle
+        self.idle = True
 
     cdef write(self, buf):
         self.transport.write(buf)
@@ -914,9 +1002,17 @@ cdef class PGProto:
 
         cdef:
             char mtype = self.buffer.get_message_type()
-
         raise RuntimeError(
             f'unexpected message type {chr(mtype)!r}')
+
+    cdef fallthrough_idle(self):
+        cdef char mtype
+
+        while self.buffer.take_message():
+            if not self.parse_notification():
+                mtype = self.buffer.get_message_type()
+                raise RuntimeError(
+                    f'unexpected message type {chr(mtype)!r} in IDLE state')
 
     cdef parse_notification(self):
         cdef:
@@ -929,7 +1025,18 @@ cdef class PGProto:
 
         elif mtype == b'A':
             # NotificationResponse
-            self.buffer.discard_message()
+            self.buffer.read_int32()  # discard pid
+            channel = self.buffer.read_null_str().decode()
+            payload = self.buffer.read_null_str().decode()
+            self.buffer.finish_message()
+
+            if channel == '__edgedb_ddl__':
+                dbver = bytes.fromhex(payload)
+                if self.edgecon_ref is not None:
+                    edgecon = self.edgecon_ref()
+                    if edgecon is not None:
+                        edgecon.on_remote_ddl(dbver)
+
             return True
 
         elif mtype == b'N':
@@ -1041,7 +1148,11 @@ cdef class PGProto:
     def data_received(self, data):
         self.buffer.feed_data(data)
 
-        if (self.msg_waiter is not None and
+        if self.connected and self.idle:
+            assert self.msg_waiter is None
+            self.fallthrough_idle()
+
+        elif (self.msg_waiter is not None and
                 self.buffer.take_message() and
                 not self.msg_waiter.cancelled()):
             self.msg_waiter.set_result(True)

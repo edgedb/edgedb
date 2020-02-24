@@ -87,6 +87,8 @@ cdef class EdgeConnection:
 
         tuple protocol_version
         tuple max_protocol
+        
+        object __weakref__
 
     cdef _parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)

@@ -1021,6 +1021,25 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             }
         )
 
+    async def test_edgeql_links_derived_tuple_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT Item {
+                    n1 := (Item.name, 'foo'),
+                }
+                FILTER
+                    .n1.0 = 'chair'
+                ORDER BY
+                    .name;
+            ''',
+            [
+                {
+                    'n1': ['chair', 'foo'],
+                },
+            ],
+        )
+
     async def test_edgeql_links_derived_array_01(self):
         await self.assert_query_result(
             r'''

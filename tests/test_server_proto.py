@@ -19,10 +19,16 @@
 import asyncio
 import json
 import uuid
+import subprocess
+import sys
+import tempfile
+import unittest
 
 import edgedb
 
+from edb.common import devmode
 from edb.common import taskgroup as tg
+from edb.server import main as server_main
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -1886,6 +1892,140 @@ class TestServerProto(tb.QueryTestCase):
             ''')
             self.assertEqual(
                 result, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+
+class TestServerProtoMigration(tb.QueryTestCase):
+
+    ISOLATED_METHODS = False
+
+    async def test_server_proto_mig_01(self):
+        # Replicating the "test_edgeql_tutorial" test that might
+        # disappear at some point. That test was the only one that
+        # uncovered a regression in how server schema state is
+        # handled, so we need to keep some form of it.
+
+        typename = f'test_{uuid.uuid4().hex}'
+
+        await self.con.execute(f'''
+            START TRANSACTION;
+            CREATE MIGRATION def TO {{
+                module default {{
+                    type {typename} {{
+                        required property foo -> str;
+                    }}
+                }}
+            }};
+            COMMIT MIGRATION def;
+            COMMIT;
+
+            INSERT {typename} {{
+                foo := '123'
+            }};
+        ''')
+
+        await self.assert_query_result(
+            f'SELECT {typename}.foo',
+            ['123']
+        )
+
+
+class TestServerProtoDdlPropagation(tb.QueryTestCase):
+
+    ISOLATED_METHODS = False
+
+    @unittest.skipUnless(devmode.is_in_dev_mode(),
+                         'the test requires devmode')
+    async def test_server_proto_ddlprop_01(self):
+        conargs = self.get_connect_args()
+
+        settings = self.con.get_settings()
+        pgaddr = settings.get('pgaddr')
+        if pgaddr is None:
+            raise RuntimeError('test requires devmode')
+        pgaddr = json.loads(pgaddr)
+        pgdsn = (
+            f'postgres:///?user={pgaddr["user"]}&port={pgaddr["port"]}'
+            f'&host={pgaddr["host"]}'
+        )
+
+        await self.con.execute('''
+            CREATE TYPE Test {
+                CREATE PROPERTY foo -> int16;
+            };
+
+            INSERT Test { foo := 123 };
+        ''')
+
+        self.assertEqual(
+            await self.con.fetchone('SELECT Test.foo LIMIT 1'),
+            123
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            other_port = server_main.PortType.find_available_port()
+            cmd = [
+                sys.executable, '-m', 'edb.server.main',
+                '--postgres-dsn', pgdsn,
+                '--runstate-dir', tmp,
+                '--port', str(other_port),
+            ]
+
+            # Note: for debug comment "stderr=subprocess.PIPE".
+            proc: asyncio.Process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+
+            try:
+                attempt = 0
+                while True:
+                    attempt += 1
+                    try:
+                        con2 = await edgedb.async_connect(
+                            host=tmp,
+                            port=other_port,
+                            user=conargs.get('user'),
+                            password=conargs.get('password'),
+                            database=self.get_database_name(),
+                            admin=True,
+                        )
+                    except (ConnectionError, edgedb.ClientConnectionError):
+                        if attempt >= 100:
+                            raise
+                        await asyncio.sleep(0.1)
+                        continue
+                    else:
+                        break
+
+                self.assertEqual(
+                    await con2.fetchone('SELECT Test.foo LIMIT 1'),
+                    123
+                )
+
+                await self.con.execute('''
+                    CREATE TYPE Test2 {
+                        CREATE PROPERTY foo -> str;
+                    };
+
+                    INSERT Test2 { foo := 'text' };
+                ''')
+
+                self.assertEqual(
+                    await self.con.fetchone('SELECT Test2.foo LIMIT 1'),
+                    'text'
+                )
+
+                self.assertEqual(
+                    await con2.fetchone('SELECT Test2.foo LIMIT 1'),
+                    'text'
+                )
+
+                await con2.aclose()
+            finally:
+                if proc.returncode is None:
+                    proc.terminate()
+                    await proc.wait()
 
 
 class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):

@@ -487,21 +487,6 @@ def __infer_tuple(
         env.schema, element_types=element_types, named=ir.named)
 
 
-@_infer_type.register
-def __infer_tuple_indirection(
-    ir: irast.TupleIndirection,
-    env: context.Environment,
-) -> s_types.Type:
-    tuple_type = infer_type(ir.expr, env)
-    assert isinstance(tuple_type, s_types.Tuple)
-    result = tuple_type.get_subtype(env.schema, ir.name)
-    if result is None:
-        raise errors.QueryError('could not determine struct element type',
-                                context=ir.context)
-
-    return result
-
-
 def infer_type(ir: irast.Base, env: context.Environment) -> s_types.Type:
     result = env.inferred_types.get(ir)
     if result is not None:

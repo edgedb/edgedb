@@ -793,9 +793,9 @@ def compile_query_subject(
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
         # its properties.
         base_ptrcls = typegen.ptrcls_from_ptrref(expr_rptr.ptrref, ctx=ctx)
-        assert isinstance(base_ptrcls, s_pointers.Pointer)
-        view_rptr.base_ptrcls = base_ptrcls
-        view_rptr.ptrcls_is_alias = True
+        if isinstance(base_ptrcls, s_pointers.Pointer):
+            view_rptr.base_ptrcls = base_ptrcls
+            view_rptr.ptrcls_is_alias = True
 
     if (ctx.expr_exposed
             and viewgen.has_implicit_tid(

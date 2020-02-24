@@ -581,17 +581,6 @@ def __infer_tuple(
         [el.val for el in ir.elements], scope_tree, env)
 
 
-@_infer_cardinality.register
-def __infer_tuple_indirection(
-    ir: irast.TupleIndirection,
-    scope_tree: irast.ScopeTreeNode,
-    env: context.Environment,
-) -> qltypes.Cardinality:
-    # the cardinality of the tuple indirection is the same as the
-    # cardinality of the underlying tuple
-    return infer_cardinality(ir.expr, scope_tree, env)
-
-
 def infer_cardinality(
     ir: irast.Base,
     scope_tree: irast.ScopeTreeNode,
