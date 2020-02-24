@@ -109,7 +109,7 @@ def _convert_format(inp: enums.IoFormat) -> pg_compiler.OutputFormat:
     try:
         return _IO_FORMAT_MAP[inp]
     except KeyError:
-        raise RuntimeError(f"unimplemented io format {inp!r}")
+        raise RuntimeError(f"IO format {inp!r} is not supported")
 
 
 def compile_bootstrap_script(
