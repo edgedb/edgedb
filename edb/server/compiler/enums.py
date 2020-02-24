@@ -54,3 +54,9 @@ class Capability(enum.Flag):
     QUERY = enum.auto()
 
     ALL = DDL | TRANSACTION | SESSION | QUERY
+
+
+class IoFormat(strenum.StrEnum):
+    BINARY = 'BINARY'
+    JSON = 'JSON'
+    JSON_ELEMENTS = 'JSON_ELEMENTS'

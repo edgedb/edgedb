@@ -32,9 +32,12 @@ from edb.pgsql import types as pgtypes
 from . import context
 
 
+_JSON_FORMATS = {context.OutputFormat.JSON, context.OutputFormat.JSON_ELEMENTS}
+
+
 def _get_json_func(name: str, *,
                    env: context.Environment) -> Tuple[str, ...]:
-    if env.output_format is context.OutputFormat.JSON:
+    if env.output_format in _JSON_FORMATS:
         prefix_suffix = 'json'
     else:
         prefix_suffix = 'jsonb'
@@ -428,6 +431,7 @@ def serialize_expr(
         env: context.Environment) -> pgast.BaseExpr:
 
     if env.output_format in (context.OutputFormat.JSON,
+                             context.OutputFormat.JSON_ELEMENTS,
                              context.OutputFormat.JSONB):
         val = serialize_expr_to_json(
             expr, path_id=path_id, nested=nested, env=env)
@@ -448,7 +452,7 @@ def get_pg_type(
     if in_serialization_ctx(ctx):
         if ctx.env.output_format is context.OutputFormat.JSONB:
             return ('jsonb',)
-        elif ctx.env.output_format is context.OutputFormat.JSON:
+        elif ctx.env.output_format in _JSON_FORMATS:
             return ('json',)
         elif irtyputils.is_object(typeref):
             return ('record',)
@@ -541,4 +545,5 @@ def top_output_as_value(
         return stmt
 
     else:
+        # JSON_ELEMENTS and BINARY don't require any wrapping
         return stmt

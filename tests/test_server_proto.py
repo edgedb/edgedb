@@ -2631,3 +2631,9 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 'SELECT {1, 2, 3}',
                 __limit__=-2,
             )
+
+    async def test_fetch_elements(self):
+        result = await self.con._fetchall_json_elements('''
+            SELECT {"test1", "test2"}
+        ''')
+        self.assertEqual(result, ['"test1"', '"test2"'])

@@ -95,9 +95,21 @@ class CompileContext:
 EMPTY_MAP = immutables.Map()
 DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
     {None: defines.DEFAULT_MODULE_ALIAS})
+_IO_FORMAT_MAP = {
+    enums.IoFormat.BINARY: pg_compiler.OutputFormat.NATIVE,
+    enums.IoFormat.JSON: pg_compiler.OutputFormat.JSON,
+    enums.IoFormat.JSON_ELEMENTS: pg_compiler.OutputFormat.JSON_ELEMENTS,
+}
 
 
 pg_ql = lambda o: pg_common.quote_literal(str(o))
+
+
+def _convert_format(inp: enums.IoFormat) -> pg_compiler.OutputFormat:
+    try:
+        return _IO_FORMAT_MAP[inp]
+    except KeyError:
+        raise RuntimeError(f"IO format {inp!r} is not supported")
 
 
 def compile_bootstrap_script(
@@ -1065,7 +1077,7 @@ class Compiler(BaseCompiler):
         return units
 
     async def _ctx_new_con_state(
-        self, *, dbver: bytes, json_mode: bool, expect_one: bool,
+        self, *, dbver: bytes, io_format: enums.IoFormat, expect_one: bool,
         modaliases,
         session_config: Optional[immutables.Map],
         stmt_mode: Optional[enums.CompileStatementMode],
@@ -1097,10 +1109,7 @@ class Compiler(BaseCompiler):
 
         state = self._current_db_state
 
-        if json_mode:
-            of = pg_compiler.OutputFormat.JSON
-        else:
-            of = pg_compiler.OutputFormat.NATIVE
+        of = _convert_format(io_format)
 
         ctx = CompileContext(
             state=state,
@@ -1114,16 +1123,14 @@ class Compiler(BaseCompiler):
 
         return ctx
 
-    async def _ctx_from_con_state(self, *, txid: int, json_mode: bool,
+    async def _ctx_from_con_state(self, *, txid: int,
+                                  io_format: enums.IoFormat,
                                   expect_one: bool,
                                   implicit_limit: int,
                                   stmt_mode: enums.CompileStatementMode):
         state = self._load_state(txid)
 
-        if json_mode:
-            of = pg_compiler.OutputFormat.JSON
-        else:
-            of = pg_compiler.OutputFormat.NATIVE
+        of = _convert_format(io_format)
 
         ctx = CompileContext(
             state=state,
@@ -1188,7 +1195,7 @@ class Compiler(BaseCompiler):
             eql: bytes,
             sess_modaliases: Optional[immutables.Map],
             sess_config: Optional[immutables.Map],
-            json_mode: bool,
+            io_format: enums.IoFormat,
             expect_one: bool,
             implicit_limit: int,
             stmt_mode: enums.CompileStatementMode,
@@ -1197,7 +1204,7 @@ class Compiler(BaseCompiler):
 
         ctx = await self._ctx_new_con_state(
             dbver=dbver,
-            json_mode=json_mode,
+            io_format=io_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
             modaliases=sess_modaliases,
@@ -1212,7 +1219,7 @@ class Compiler(BaseCompiler):
             self,
             txid: int,
             eql: bytes,
-            json_mode: bool,
+            io_format: enums.IoFormat,
             expect_one: bool,
             implicit_limit: int,
             stmt_mode: enums.CompileStatementMode
@@ -1220,7 +1227,7 @@ class Compiler(BaseCompiler):
 
         ctx = await self._ctx_from_con_state(
             txid=txid,
-            json_mode=json_mode,
+            io_format=io_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
             stmt_mode=enums.CompileStatementMode(stmt_mode))
@@ -1442,7 +1449,7 @@ class Compiler(BaseCompiler):
         schema = await self._introspect_schema_in_snapshot(tx_snapshot_id)
         ctx = await self._ctx_new_con_state(
             dbver=b'',
-            json_mode=False,
+            io_format=enums.IoFormat.BINARY,
             expect_one=False,
             modaliases=DEFAULT_MODULE_ALIASES_MAP,
             session_config=EMPTY_MAP,

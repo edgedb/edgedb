@@ -168,12 +168,12 @@ cdef class DatabaseConnectionView:
     cdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(self, bytes eql, bint json_mode, bint expect_one,
-                              int implicit_limit, query_unit):
+    cdef cache_compiled_query(self, bytes eql, object io_format,
+                              bint expect_one, int implicit_limit, query_unit):
 
         assert query_unit.cacheable
 
-        key = (eql, json_mode, expect_one, implicit_limit,
+        key = (eql, io_format, expect_one, implicit_limit,
                self._modaliases, self._config)
 
         if self._in_tx_with_ddl:
@@ -181,14 +181,14 @@ cdef class DatabaseConnectionView:
         else:
             self._db._cache_compiled_query(key, query_unit)
 
-    cdef lookup_compiled_query(self, bytes eql, bint json_mode,
+    cdef lookup_compiled_query(self, bytes eql, object io_format,
                                bint expect_one, int implicit_limit):
         if (self._tx_error or
                 not self._query_cache_enabled or
                 self._in_tx_with_ddl):
             return None
 
-        key = (eql, json_mode, expect_one, implicit_limit,
+        key = (eql, io_format, expect_one, implicit_limit,
                self._modaliases, self._config)
 
         if self._in_tx_with_ddl or self._in_tx_with_set:
