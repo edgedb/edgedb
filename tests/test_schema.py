@@ -3983,13 +3983,19 @@ class TestDescribe(tb.BaseSchemaLoadTest):
     )
     maxDiff = 10000
 
-    def _assert_describe(
+    def _assert_sdl_describe(
         self,
         schema_text,
         *tests
     ):
         schema = self.load_schema(schema_text)
+        self._assert_describe(schema, *tests)
 
+    def _assert_describe(
+        self,
+        schema,
+        *tests
+    ):
         tests = [iter(tests)] * 2
 
         for stmt_text, expected_output in zip(*tests):
@@ -4024,7 +4030,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 message=f'query: {stmt_text!r}')
 
     def test_describe_01(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo;
             abstract annotation anno;
@@ -4080,7 +4086,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
-                index on (.foo);
+                index on (WITH
+                    MODULE test
+                SELECT
+                    .foo
+                );
                 required single link __type__ -> schema::Type {
                     readonly := true;
                 };
@@ -4160,7 +4170,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_02(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo;
             type Bar;
@@ -4188,7 +4198,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_03(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             scalar type custom_str_t extending str {
                 constraint regexp('[A-Z]+');
@@ -4205,7 +4215,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_04(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             abstract constraint my_one_of(one_of: array<anytype>) {
                 using (contains(one_of, __subject__));
@@ -4227,7 +4237,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_05(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo {
                 required single property middle_name -> std::str {
@@ -4309,7 +4319,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_06(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             abstract type HasImage {
                 # just a URL to the image
@@ -4327,7 +4337,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::User extending test::HasImage {
-                index on (__subject__.image);
+                index on (WITH
+                    MODULE test
+                SELECT
+                    __subject__.image
+                );
                 required single link __type__ -> schema::Type {
                     readonly := true;
                 };
@@ -4367,7 +4381,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             abstract type test::HasImage {
-                index on (__subject__.image);
+                index on (WITH
+                    MODULE test
+                SELECT
+                    __subject__.image
+                );
                 required single link __type__ -> schema::Type {
                     readonly := true;
                 };
@@ -4425,7 +4443,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_07(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             scalar type constraint_enum extending str {
                 constraint one_of('foo', 'bar');
@@ -4470,8 +4488,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE OBJECT my_one_of AS DDL',
 
             '''
-            CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>)
-            {
+            CREATE ABSTRACT CONSTRAINT test::my_one_of(one_of: array<anytype>){
                 SET orig_expr := 'contains(one_of, __subject__)';
                 USING (WITH
                     MODULE test
@@ -4486,8 +4503,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
             type test::UniqueName {
                 optional single link translated_label
-                extending test::translated_label
-                        -> test::Label {
+                extending test::translated_label -> test::Label {
                     constraint std::exclusive on (WITH
                         MODULE test
                     SELECT
@@ -4535,12 +4551,17 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     readonly := true;
                 };
                 optional single link translated_label
-                extending test::translated_label
-                    -> test::Label
-                {
-                    constraint std::exclusive on (__subject__@prop1);
-                    constraint std::exclusive on (
-                        (__subject__@source, __subject__@lang));
+                extending test::translated_label -> test::Label {
+                    constraint std::exclusive on (WITH
+                        MODULE test
+                    SELECT
+                        __subject__@prop1
+                    );
+                    constraint std::exclusive on (WITH
+                        MODULE test
+                    SELECT
+                        (__subject__@source, __subject__@lang)
+                    );
                     optional single property lang -> std::str;
                     optional single property prop1 -> std::str;
                 };
@@ -4592,7 +4613,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_08(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo {
                 property bar -> str {
@@ -4621,8 +4642,55 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """,
         )
 
+    def test_describe_09(self):
+        self._assert_sdl_describe(
+            """
+            # testing a user-defined constraint
+            abstract constraint my_len_value ON (
+                len(<std::str>__subject__)
+            ) {
+                errmessage := 'invalid {__subject__}';
+            };
+            """,
+
+            'DESCRIBE OBJECT my_len_value AS DDL',
+
+            '''
+            CREATE ABSTRACT CONSTRAINT test::my_len_value ON (WITH
+                MODULE test
+            SELECT
+                len(<std::str>__subject__)
+            ) {
+                SET errmessage := 'invalid {__subject__}';
+                SET orig_subjectexpr := 'len(<std::str>__subject__)';
+            };
+            ''',
+
+            'DESCRIBE OBJECT my_len_value AS SDL',
+
+            '''
+            abstract constraint test::my_len_value on (WITH
+                MODULE test
+            SELECT
+                len(<std::str>__subject__)
+            ) {
+                errmessage := 'invalid {__subject__}';
+                orig_subjectexpr := 'len(<std::str>__subject__)';
+            };
+            ''',
+
+            'DESCRIBE OBJECT my_len_value AS TEXT',
+
+            '''
+            abstract constraint test::my_len_value
+                    on (len(<std::str>__subject__)) {
+                errmessage := 'invalid {__subject__}';
+            };
+            ''',
+        )
+
     def test_describe_alias_01(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo {
                 property name -> str;
@@ -4650,7 +4718,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_alias_02(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo {
                 property name -> str;
@@ -4683,7 +4751,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_alias_03(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             alias scalar_alias := {1, 2, 3};
             """,
@@ -4701,7 +4769,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_alias_04(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             alias tuple_alias := (1, 2, 3);
             alias array_alias := [1, 2, 3];
@@ -4722,7 +4790,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_computable_01(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo {
                 property compprop := 'foo';
@@ -4769,7 +4837,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_computable_02(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo {
                 property compprop := 'foo';
@@ -4816,7 +4884,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_builtins_01(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             """,
 
@@ -4874,7 +4942,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             errors.InvalidReferenceError,
             "schema item 'std::Tuple' does not exist",
         ):
-            self._assert_describe(
+            self._assert_sdl_describe(
                 """
                 """,
 
@@ -4885,7 +4953,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
     def test_describe_on_target_delete_01(self):
         # Test "on target delete".
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             type Foo {
                 link bar -> Object {
@@ -4932,7 +5000,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         )
 
     def test_describe_escape(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             r"""
             function foo() -> str using ( SELECT r'\1' );
             """,
@@ -4940,11 +5008,72 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE OBJECT foo AS TEXT',
 
             r"function test::foo() ->  std::str "
-            r"using (SELECT r'\1');"
+            r"using (SELECT r'\1');",
+        )
+
+    def test_describe_from_dll_01(self):
+        schema = tb._load_std_schema()
+
+        # Create a couple types that use defaults in such a way that
+        # the short orig_expr is always misleading.
+        schema = self.run_ddl(schema, r'''
+            CREATE MODULE default IF NOT EXISTS;
+            CREATE MODULE other IF NOT EXISTS;
+            CREATE FUNCTION default::myfunc() -> int64
+                USING EdgeQL 'SELECT 42';
+            CREATE FUNCTION other::myfunc() -> str
+                USING EdgeQL 'SELECT "myfunc other"';
+
+            CREATE TYPE other::Foo {
+                CREATE PROPERTY a -> int64 {
+                    # function from module "default"
+                    SET default := myfunc()
+                }
+            };
+        ''', default_module='default')
+
+        schema = self.run_ddl(schema, r'''
+            CREATE TYPE default::Bar {
+                CREATE PROPERTY b -> str {
+                    # function from module "other"
+                    SET default := myfunc()
+                }
+            };
+        ''', default_module='other')
+
+        self._assert_describe(
+            schema,
+            'DESCRIBE TYPE other::Foo AS SDL',
+
+            """
+            type other::Foo {
+                optional single property a -> std::int64 {
+                    default := (WITH
+                        MODULE default
+                    SELECT
+                        myfunc()
+                    );
+                };
+            };
+            """,
+
+            'DESCRIBE TYPE default::Bar AS SDL',
+
+            """
+            type default::Bar {
+                optional single property b -> std::str {
+                    default := (WITH
+                        MODULE other
+                    SELECT
+                        myfunc()
+                    );
+                };
+            };
+            """,
         )
 
     def test_describe_poly_01(self):
-        self._assert_describe(
+        self._assert_sdl_describe(
             """
             scalar type all extending str;
 

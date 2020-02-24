@@ -790,11 +790,12 @@ class CommandContext:
         *,
         schema: Optional[s_schema.Schema] = None,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
-        declarative: bool = False,
+        declarative: bool = False,  # SDL
+        descriptive_mode: bool = False,  # TEXT
+        verbose_mode: bool = False,  # VERBOSE
         stdmode: bool = False,
         testmode: bool = False,
         disable_dep_verification: bool = False,
-        descriptive_mode: bool = False,
         schema_object_ids: Optional[
             Mapping[Tuple[str, Optional[str]], uuid.UUID]
         ] = None,
@@ -804,11 +805,12 @@ class CommandContext:
         self._cache: Dict[Hashable, Any] = {}
         self._values: Dict[Hashable, Any] = {}
         self.declarative = declarative
+        self.descriptive_mode = descriptive_mode
+        self.verbose_mode = verbose_mode
         self.schema = schema
         self._modaliases = modaliases if modaliases is not None else {}
         self.stdmode = stdmode
         self.testmode = testmode
-        self.descriptive_mode = descriptive_mode
         self.disable_dep_verification = disable_dep_verification
         self.renames: Dict[str, str] = {}
         self.renamed_objs: Set[so.Object] = set()
@@ -2664,12 +2666,15 @@ class AlterObjectProperty(Command):
         parent_cls = parent_op.get_schema_metaclass()
         has_shadow = parent_cls.has_field(f'orig_{field.name}')
 
-        if context.descriptive_mode:
-            # When generating AST for DESCRIBE AS TEXT, we want
-            # to use the original user-specified and unmangled
-            # expression to render the object definition.
-            expr_ql = edgeql.parse_fragment(self.new_value.origtext)
-        else:
+        expr_ql = None
+        origtext = self.new_value.origtext
+
+        # For TEXT always output the original expression.
+        # For DDL, SDL, TEXT VERBOSE always output the normalized expression.
+        if context.descriptive_mode and not context.verbose_mode:
+            expr_ql = edgeql.parse_fragment(origtext)
+
+        if expr_ql is None:
             # In all other DESCRIBE modes we want the original expression
             # to be there as a 'SET orig_<expr> := ...' command.
             # The mangled expression should be the main expression that

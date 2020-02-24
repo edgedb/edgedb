@@ -490,10 +490,12 @@ def ddlast_from_delta(
     *,
     sdlmode: bool = False,
     descriptive_mode: bool = False,
+    verbose_mode: bool = False,
 ) -> Tuple[qlast.DDLOperation, ...]:
 
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
+        verbose_mode=verbose_mode,
         declarative=sdlmode,
     )
 
@@ -516,11 +518,15 @@ def statements_from_delta(
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
 ) -> Tuple[str, ...]:
 
+    # If we're not limiting the ref_classes we're in verbose mode
+    verbose_mode = not limit_ref_classes
+
     stmts = ddlast_from_delta(
         schema,
         delta,
         sdlmode=sdlmode,
         descriptive_mode=descriptive_mode,
+        verbose_mode=verbose_mode,
     )
 
     ql_classes_src = {
