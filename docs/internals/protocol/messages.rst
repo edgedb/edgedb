@@ -510,7 +510,7 @@ Format:
         Headers             headers;
 
         // Data I/O format.
-        byte<IOFormat>      io_format;
+        int8<IOFormat>      io_format;
 
         // Expected result cardinality
         byte<Cardinality>   expected_cardinality;
