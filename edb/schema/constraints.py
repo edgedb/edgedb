@@ -49,7 +49,8 @@ T = TypeVar('T')
 
 
 def _assert_not_none(value: Optional[T]) -> T:
-    assert value is not None
+    if value is None:
+        raise TypeError("A value is expected")
     return value
 
 
@@ -475,16 +476,11 @@ class ConstraintCommand(
         from edb.edgeql import compiler as qlcompiler
 
         if field.name in ('expr', 'subjectexpr'):
-            if isinstance(self, CreateConstraint):
-                params = self._get_params(schema, context)
-            else:
-                # TODO: this line is not hit in any test, is the assertion
-                # correct?
-                assert isinstance(
-                    self.scls,
-                    referencing.ReferencedInheritingObjectCommand
-                )
-                params = self.scls.get_params(schema)
+            if not isinstance(self, CreateConstraint):
+                raise TypeError("ALTER-ing constraint expressions "
+                                "is not supported")
+            params = self._get_params(schema, context)
+
             anchors, _ = (
                 qlcompiler.get_param_anchors_for_callable(
                     params, schema, inlined_defaults=False)
