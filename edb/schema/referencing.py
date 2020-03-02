@@ -306,19 +306,21 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase):
         return sn.Name(name=pnn, module=referrer_name.module)
 
     @classmethod
-    def _classname_quals_from_ast(cls,
-                                  schema: s_schema.Schema,
-                                  astnode: qlast.NamedDDL,
-                                  base_name: sn.SchemaName,
-                                  referrer_name: str,
-                                  context: sd.CommandContext
-                                  ) -> Tuple[str, ...]:
+    def _classname_quals_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        base_name: sn.SchemaName,
+        referrer_name: str,
+        context: sd.CommandContext,
+    ) -> Tuple[str, ...]:
         return ()
 
     @classmethod
-    def _classname_quals_from_name(cls,
-                                   name: sn.SchemaName
-                                   ) -> Tuple[str, ...]:
+    def _classname_quals_from_name(
+        cls,
+        name: sn.SchemaName,
+    ) -> Tuple[str, ...]:
         return ()
 
     @classmethod

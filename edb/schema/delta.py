@@ -933,7 +933,8 @@ class ObjectCommand(
     scls: so.Object_T
     _delta_action: ClassVar[str]
     _schema_metaclass: ClassVar[Optional[Type[so.Object_T]]]
-    astnode: ClassVar[Type[qlast.DDLOperation]]
+    astnode: ClassVar[Union[Type[qlast.DDLOperation],
+                            List[Type[qlast.DDLOperation]]]]
 
     @classmethod
     def _classname_from_ast(
@@ -1021,7 +1022,11 @@ class ObjectCommand(
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> Type[qlast.DDLOperation]:
-        return type(self).astnode
+        # TODO: how to handle the following type: ignore?
+        # in this class, astnode is always a Type[DDLOperation],
+        # but the current design of constraints handles it as
+        # a List[Type[DDLOperation]]
+        return type(self).astnode  # type: ignore
 
     def _get_ast(
         self,

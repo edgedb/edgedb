@@ -39,6 +39,21 @@ from . import referencing
 from . import utils
 
 
+if TYPE_CHECKING:
+    from edb.common import parsing as c_parsing
+    from edb.schema import scalars as s_scalars
+    from edb.schema import schema as s_schema
+
+
+T = TypeVar('T')
+
+
+def _assert_not_none(value: Optional[T]) -> T:
+    if value is None:
+        raise TypeError("A value is expected")
+    return value
+
+
 class Constraint(referencing.ReferencedInheritingObject,
                  s_func.CallableObject, s_abc.Constraint,
                  qlkind=ft.SchemaObjectClass.CONSTRAINT):
@@ -84,37 +99,59 @@ class Constraint(referencing.ReferencedInheritingObject,
     errmessage = so.SchemaField(
         str, default=None, compcoef=0.971, allow_ddl_set=True)
 
-    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+    def get_verbosename(
+        self,
+        schema: s_schema.Schema,
+        *,
+        with_parent: bool=False
+    ) -> str:
         is_abstract = self.generic(schema)
         vn = super().get_verbosename(schema)
         if is_abstract:
             return f'abstract {vn}'
         else:
             if with_parent:
-                pvn = self.get_subject(schema).get_verbosename(
+                subject = self.get_subject(schema)
+                assert subject is not None
+                pvn = subject.get_verbosename(
                     schema, with_parent=True)
                 return f'{vn} of {pvn}'
             else:
                 return vn
 
-    def generic(self, schema):
+    def generic(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
 
     @classmethod
-    def _dummy_subject(cls, schema):
+    def _dummy_subject(
+        cls,
+        schema: s_schema.Schema,
+    ) -> Optional[s_pseudo.Any]:
         # Point subject placeholder to a dummy pointer to make EdgeQL
         # pipeline happy.
         return s_pseudo.Any.instance()
 
     @classmethod
     def get_concrete_constraint_attrs(
-            cls, schema, subject, *, name, subjectexpr=None,
-            sourcectx=None, args=None, modaliases=None, **kwargs):
+        cls,
+        schema: s_schema.Schema,
+        subject: Optional[so.Object],
+        *,
+        name: str,
+        subjectexpr: Optional[s_expr.Expression] = None,
+        sourcectx: Optional[c_parsing.ParserContext] = None,
+        args: Any = None,
+        modaliases: Optional[Mapping[Optional[str], str]] = None,
+        **kwargs: Any
+    ) -> Tuple[Any, Dict[str, Any], Dict[str, bool]]:
+        # constr_base, attrs, inherited
         from edb.edgeql import parser as qlparser
         from edb.edgeql import utils as qlutils
+        from edb.ir import ast as ir_ast
 
-        constr_base = schema.get(name, module_aliases=modaliases)
-        module_aliases = {}
+        constr_base: Constraint = schema.get(name, module_aliases=modaliases)
+
+        module_aliases: Mapping[Optional[str], str] = {}
 
         orig_subjectexpr = subjectexpr
         orig_subject = subject
@@ -163,12 +200,13 @@ class Constraint(referencing.ReferencedInheritingObject,
 
         if subject is not orig_subject:
             # subject has been redefined
+            assert isinstance(subject, qlast.Base)
             qlutils.inline_anchors(expr_ql, anchors={qlast.Subject: subject})
             subject = orig_subject
 
         if args:
             args_map = None
-            args_ql = [
+            args_ql: List[qlast.Base] = [
                 qlast.Path(steps=[qlast.Subject()]),
             ]
 
@@ -190,6 +228,7 @@ class Constraint(referencing.ReferencedInheritingObject,
         else:
             expr_context = None
 
+        assert subject is not None
         final_expr = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr_ql, schema, module_aliases),
             schema=schema,
@@ -197,7 +236,9 @@ class Constraint(referencing.ReferencedInheritingObject,
             anchors={qlast.Subject: subject},
         )
 
-        bool_t = schema.get('std::bool')
+        bool_t: s_scalars.ScalarType = schema.get('std::bool')
+        assert isinstance(final_expr.irast, ir_ast.Statement)
+
         expr_type = final_expr.irast.stype
         if not expr_type.issubclass(schema, bool_t):
             raise errors.InvalidConstraintDefinitionError(
@@ -214,9 +255,13 @@ class Constraint(referencing.ReferencedInheritingObject,
 
         return constr_base, attrs, inherited
 
-    def format_error_message(self, schema):
+    def format_error_message(
+        self,
+        schema: s_schema.Schema,
+    ) -> str:
         errmsg = self.get_errmessage(schema)
         subject = self.get_subject(schema)
+        assert isinstance(subject, s_anno.AnnotationSubject)
         titleattr = subject.get_annotation(schema, 'std::title')
 
         if not titleattr:
@@ -230,7 +275,7 @@ class Constraint(referencing.ReferencedInheritingObject,
             from edb.edgeql import parser as qlparser
             from edb.edgeql import utils as qlutils
 
-            args_ql = [
+            args_ql: List[qlast.Base] = [
                 qlast.Path(steps=[qlast.ObjectRef(name=subjtitle)]),
             ]
 
@@ -238,51 +283,71 @@ class Constraint(referencing.ReferencedInheritingObject,
                 qlparser.parse(arg.text) for arg in args
             )
 
-            constr_base = schema.get(self.get_name(schema))
+            constr_base: Constraint = schema.get(self.get_name(schema))
 
-            args_map = qlutils.index_parameters(
+            index_parameters = qlutils.index_parameters(
                 args_ql,
                 parameters=constr_base.get_params(schema),
-                schema=schema)
+                schema=schema,
+            )
 
             expr = constr_base.get_field_value(schema, 'expr')
             expr_ql = qlparser.parse(expr.text)
 
-            qlutils.inline_parameters(expr_ql, args_map)
+            qlutils.inline_parameters(expr_ql, index_parameters)
 
             args_map = {name: edgeql.generate_source(val, pretty=False)
-                        for name, val in args_map.items()}
+                        for name, val in index_parameters.items()}
         else:
             args_map = {'__subject__': subjtitle}
 
+        assert errmsg is not None
         formatted = errmsg.format(**args_map)
 
         return formatted
 
     @classmethod
-    def delta_properties(cls, delta, old, new, *, context=None,
-                         old_schema, new_schema):
+    def delta_properties(
+        cls,
+        delta: sd.ObjectCommand[Constraint],
+        old: Optional[so.Object],
+        new: so.Object,
+        *,
+        context: so.ComparisonContext = None,
+        old_schema: Optional[s_schema.Schema],
+        new_schema: s_schema.Schema,
+    ) -> None:
         super().delta_properties(
             delta, old, new, context=context,
             old_schema=old_schema, new_schema=new_schema)
 
-        if new is not None and new.get_subject(new_schema) is not None:
-            new_params = new.get_params(new_schema)
-            if old is None or new_params != old.get_params(old_schema):
-                delta.set_attribute_value(
-                    'params',
-                    new_params,
-                    inherited=True,
-                )
+        if new is not None:
+            assert isinstance(new, Constraint)
+
+            if new.get_subject(new_schema) is not None:
+                new_params = new.get_params(new_schema)
+
+                if old is not None:
+                    assert isinstance(old, Constraint)
+                    assert old_schema is not None
+
+                if old is None or new_params != old.get_params(
+                    _assert_not_none(old_schema)
+                ):
+                    delta.set_attribute_value(
+                        'params',
+                        new_params,
+                        inherited=True,
+                    )
 
     @classmethod
-    def get_root_classes(cls):
+    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
         return (
             sn.Name(module='std', name='constraint'),
         )
 
     @classmethod
-    def get_default_base_name(self):
+    def get_default_base_name(self) -> sn.Name:
         return sn.Name('std::constraint')
 
 
@@ -292,13 +357,23 @@ class ConsistencySubject(so.InheritingObject):
         ref_cls=Constraint)
 
     constraints = so.SchemaField(
-        so.ObjectIndexByFullname[Constraint],
+        so.ObjectIndexByFullname,
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.887,
-        default=so.DEFAULT_CONSTRUCTOR)
+        default=so.DEFAULT_CONSTRUCTOR
+    )
 
-    def add_constraint(self, schema, constraint, replace=False):
+    def add_constraint(
+        self,
+        schema: s_schema.Schema,
+        constraint: Constraint,
+        replace: bool = False,
+    ) -> s_schema.Schema:
         return self.add_classref(
-            schema, 'constraints', constraint, replace=replace)
+            schema,
+            'constraints',
+            constraint,
+            replace=replace,
+        )
 
 
 class ConsistencySubjectCommandContext:
@@ -310,7 +385,7 @@ class ConsistencySubjectCommand(inheriting.InheritingObjectCommand):
     pass
 
 
-class ConstraintCommandContext(sd.ObjectCommandContext,
+class ConstraintCommandContext(sd.ObjectCommandContext[Constraint],
                                s_anno.AnnotationSubjectCommandContext):
     pass
 
@@ -322,9 +397,13 @@ class ConstraintCommand(
         referrer_context_class=ConsistencySubjectCommandContext):
 
     @classmethod
-    def _validate_subcommands(cls, astnode):
+    def _validate_subcommands(
+        cls,
+        astnode: qlast.DDLOperation,
+    ) -> None:
         # check that 'subject' and 'subjectexpr' are not set as annotations
         for command in astnode.commands:
+            assert isinstance(command, (qlast.NamedDDL, qlast.BaseSetField))
             cname = command.name
             if cname in {'subject', 'subjectexpr'}:
                 raise errors.InvalidConstraintDefinitionError(
@@ -332,11 +411,16 @@ class ConstraintCommand(
                     context=command.context)
 
     @classmethod
-    def _classname_quals_from_ast(cls, schema, astnode, base_name,
-                                  referrer_name, context):
+    def _classname_quals_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        base_name: sn.SchemaName,
+        referrer_name: str,
+        context: sd.CommandContext,
+    ) -> Tuple[str, ...]:
         if isinstance(astnode, qlast.CreateConstraint):
             return ()
-
         exprs = []
         args = cls._constraint_args_from_ast(schema, astnode, context)
         for arg in args:
@@ -344,6 +428,7 @@ class ConstraintCommand(
 
         subjexpr_text = cls.get_orig_expr_text(schema, astnode, 'subjectexpr')
 
+        assert isinstance(astnode, qlast.ConstraintOp)
         if subjexpr_text is None and astnode.subjectexpr:
             # if not, then use the origtext directly from the expression
             expr = s_expr.Expression.from_ast(
@@ -356,13 +441,22 @@ class ConstraintCommand(
         return (cls._name_qual_from_exprs(schema, exprs),)
 
     @classmethod
-    def _classname_quals_from_name(cls, name: sn.SchemaName) -> Tuple[str]:
+    def _classname_quals_from_name(
+        cls,
+        name: sn.SchemaName
+    ) -> Tuple[str]:
         quals = sn.quals_from_fullname(name)
         return (quals[-1],)
 
     @classmethod
-    def _constraint_args_from_ast(cls, schema, astnode, context):
+    def _constraint_args_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> List[s_expr.Expression]:
         args = []
+        assert isinstance(astnode, qlast.ConstraintOp)
 
         if astnode.args:
             for arg in astnode.args:
@@ -372,27 +466,38 @@ class ConstraintCommand(
 
         return args
 
-    def compile_expr_field(self, schema, context, field, value):
+    def compile_expr_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: s_expr.Expression,
+    ) -> s_expr.Expression:
         from edb.edgeql import compiler as qlcompiler
 
         if field.name in ('expr', 'subjectexpr'):
-            if isinstance(self, CreateConstraint):
-                params = self._get_params(schema, context)
-            else:
-                params = self.scls.get_params(schema)
+            if not isinstance(self, CreateConstraint):
+                raise TypeError("ALTER-ing constraint expressions "
+                                "is not supported")
+            params = self._get_params(schema, context)
+
             anchors, _ = (
                 qlcompiler.get_param_anchors_for_callable(
                     params, schema, inlined_defaults=False)
             )
             referrer_ctx = self.get_referrer_context(context)
+
             if referrer_ctx is not None:
+                assert isinstance(referrer_ctx.op, sd.ObjectCommand)
                 anchors['__subject__'] = referrer_ctx.op.scls
 
+            # TODO: it is true, the Parameter does not inherit Object,
+            # how to resolve the type: ignore below?
             return s_expr.Expression.compiled(
                 value,
                 schema=schema,
                 modaliases=context.modaliases,
-                anchors=anchors,
+                anchors=anchors,  # type: ignore
                 func_params=params,
                 allow_generic_type_output=True,
                 parent_object_type=self.get_schema_metaclass(),
@@ -401,14 +506,22 @@ class ConstraintCommand(
             return super().compile_expr_field(schema, context, field, value)
 
     @classmethod
-    def get_inherited_ref_name(cls, schema, context, parent, name):
+    def get_inherited_ref_name(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        parent: so.Object,
+        name: str,
+    ) -> qlast.ObjectRef:
         refctx = cls.get_referrer_context(context)
+        assert refctx is not None
         # reduce name to shortname
         if sn.Name.is_qualified(name):
-            shortname = sn.shortname_from_fullname(sn.Name(name))
+            shortname: str = sn.shortname_from_fullname(sn.Name(name))
         else:
             shortname = name
 
+        assert isinstance(refctx.op.classname, sn.SchemaName)
         nref = qlast.ObjectRef(
             name=shortname,
             module=refctx.op.classname.module,
@@ -416,7 +529,13 @@ class ConstraintCommand(
 
         return nref
 
-    def _get_ref_rebase(self, schema, context, refcls, implicit_bases):
+    def _get_ref_rebase(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        refcls: so.InheritingObject,
+        implicit_bases: List[so.InheritingObject]
+    ) -> sd.Command:
         mcls = type(self.scls)
         ref_rebase_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
             inheriting.RebaseInheritingObject, mcls)
@@ -454,9 +573,14 @@ class CreateConstraint(ConstraintCommand,
     referenced_astnode = qlast.CreateConcreteConstraint
 
     @classmethod
-    def _get_param_desc_from_ast(cls, schema, modaliases, astnode, *,
-                                 param_offset: int=0):
-
+    def _get_param_desc_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        modaliases: Mapping[Optional[str], str],
+        astnode: qlast.ObjectDDL,
+        *,
+        param_offset: int=0
+    ) -> List[s_func.ParameterDesc]:
         if not hasattr(astnode, 'params'):
             # Concrete constraint.
             return []
@@ -475,12 +599,18 @@ class CreateConstraint(ConstraintCommand,
 
         return params
 
-    def _create_begin(self, schema, context):
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
             return super()._create_begin(schema, context)
 
-        subject = referrer_ctx.scls
+        # type ignore below because mypy doesn't believe
+        # referrer_ctx is sd.ObjectCommandContext[so.Object]
+        subject = referrer_ctx.scls  # type: ignore
         if subject.is_scalar() and subject.is_enum(schema):
             raise errors.UnsupportedFeatureError(
                 f'constraints cannot be defined on an enumerated type',
@@ -502,14 +632,20 @@ class CreateConstraint(ConstraintCommand,
 
             for k, v in attrs.items():
                 inherited = inh.get(k)
-                self.set_attribute_value(k, v, inherited=inherited)
+                self.set_attribute_value(k, v, inherited=bool(inherited))
 
             self.set_attribute_value('subject', subject)
 
         return super()._create_begin(schema, context)
 
     @classmethod
-    def as_inherited_ref_cmd(cls, schema, context, astnode, parents):
+    def as_inherited_ref_cmd(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        astnode: qlast.ObjectDDL,
+        parents: Any,
+    ) -> sd.Command:
         cmd = super().as_inherited_ref_cmd(schema, context, astnode, parents)
 
         args = cls._constraint_args_from_ast(schema, astnode, context)
@@ -526,14 +662,23 @@ class CreateConstraint(ConstraintCommand,
         return cmd
 
     @classmethod
-    def as_inherited_ref_ast(cls, schema, context, name, parent):
+    def as_inherited_ref_ast(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        name: str,
+        parent: so.Object,
+    ) -> qlast.ObjectDDL:
+        assert isinstance(parent, Constraint)
         astnode_cls = cls.referenced_astnode
         nref = cls.get_inherited_ref_name(schema, context, parent, name)
         args = []
 
         parent_args = parent.get_args(schema)
         if parent_args:
-            for arg_expr in parent.get_args(schema):
+            parent_args = parent.get_args(schema)
+            assert parent_args is not None
+            for arg_expr in parent_args:
                 arg = edgeql.parse_fragment(arg_expr.text)
                 args.append(arg)
 
@@ -548,7 +693,12 @@ class CreateConstraint(ConstraintCommand,
         return astnode
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> CreateConstraint:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(astnode, qlast.CreateConcreteConstraint):
@@ -588,6 +738,8 @@ class CreateConstraint(ConstraintCommand,
                 ft.TypeModifier.SINGLETON,
             )
 
+        assert isinstance(astnode, (qlast.CreateConstraint,
+                                    qlast.CreateConcreteConstraint))
         # 'subjectexpr' can be present in either astnode type
         if astnode.subjectexpr:
             orig_text = cls.get_orig_expr_text(schema, astnode, 'subjectexpr')
@@ -605,10 +757,15 @@ class CreateConstraint(ConstraintCommand,
             )
 
         cls._validate_subcommands(astnode)
-
+        assert isinstance(cmd, CreateConstraint)
         return cmd
 
-    def _apply_fields_ast(self, schema, context, node):
+    def _apply_fields_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+    ) -> None:
         super()._apply_fields_ast(schema, context, node)
 
         if isinstance(node, qlast.CreateConstraint):
@@ -633,15 +790,25 @@ class CreateConstraint(ConstraintCommand,
 
             node.params = [p[1] for p in params]
 
-    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
+    def get_ast_attr_for_field(
+        self,
+        field: so.Field[str],
+    ) -> Optional[str]:
         if field == 'subjectexpr':
             return 'subjectexpr'
         else:
             return None
 
-    def _apply_field_ast(self, schema, context, node, op):
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
         if op.property == 'delegated':
             if isinstance(node, qlast.CreateConcreteConstraint):
+                assert isinstance(op.new_value, bool)
                 node.delegated = op.new_value
             else:
                 node.commands.append(
@@ -652,17 +819,23 @@ class CreateConstraint(ConstraintCommand,
                 )
             return
         elif op.property == 'args':
+            assert isinstance(op.new_value, s_expr.ExpressionList)
             node.args = [arg.qlast for arg in op.new_value]
             return
 
         super()._apply_field_ast(schema, context, node, op)
 
     @classmethod
-    def _classbases_from_ast(cls, schema, astnode, context):
+    def _classbases_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.ObjectDDL,
+        context: sd.CommandContext,
+    ) -> so.ObjectList[so.InheritingObject]:
         if isinstance(astnode, qlast.CreateConcreteConstraint):
             classname = cls._classname_from_ast(schema, astnode, context)
             base_name = sn.shortname_from_fullname(classname)
-            base = schema.get(base_name)
+            base: so.Object = schema.get(base_name)
             return so.ObjectList.create(
                 schema, [utils.reduce_to_typeref(schema, base)])
         else:
@@ -679,15 +852,28 @@ class AlterConstraint(ConstraintCommand,
     referenced_astnode = qlast.AlterConcreteConstraint
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> AlterConstraint:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, AlterConstraint)
 
         if isinstance(astnode, (qlast.CreateConcreteConstraint,
                                 qlast.AlterConcreteConstraint)):
-            subject_ctx = context.get(ConsistencySubjectCommandContext)
+            # TODO: how to make the following in a more "type-compliant" way?
+            # ConsistencySubjectCommandContext is an empty mixin used to
+            # group some classes of ObjectCommand
+            subject_ctx = context \
+                .get(ConsistencySubjectCommandContext)  # type: ignore
+            assert isinstance(subject_ctx, sd.ObjectCommandContext)
+
             new_subject_name = None
 
             if getattr(astnode, 'delegated', False):
+                assert isinstance(astnode, qlast.CreateConcreteConstraint)
                 cmd.set_attribute_value('delegated', astnode.delegated)
 
             for op in subject_ctx.op.get_subcommands(
@@ -709,12 +895,16 @@ class AlterConstraint(ConstraintCommand,
                     'name',
                     new_name,
                 )
-
         cls._validate_subcommands(astnode)
-
         return cmd
 
-    def _apply_field_ast(self, schema, context, node, op):
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
         if op.property == 'delegated':
             node.delegated = op.new_value
         else:

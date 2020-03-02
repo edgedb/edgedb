@@ -64,7 +64,7 @@ def inline_parameters(
 def index_parameters(
     ql_args: List[qlast.Base],
     *,
-    parameters: Sequence[s_func.Parameter],
+    parameters: Union[Sequence[s_func.Parameter], s_func.ParameterLikeList],
     schema: s_schema.Schema
 ) -> Dict[str, qlast.Base]:
 
