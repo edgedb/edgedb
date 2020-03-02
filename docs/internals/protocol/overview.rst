@@ -34,6 +34,9 @@ The following data types are used in the descriptions:
       - 64-bit integer, most significant byte first
     * - ``byte``
       - 8-bit unsigned integer
+    * - ``byte<T>``
+      - 8-bit unsigned integer enumeration, where *T* denotes the name of
+        the enumeration
     * - ``string``
       - a UTF-8 encoded text string prefixed with its byte length as ``int32``
     * - ``bytes``
