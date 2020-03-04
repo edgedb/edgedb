@@ -62,12 +62,8 @@ def init_context(
         func_params: Optional[s_func.ParameterLikeList]=None,
         parent_object_type: Optional[s_obj.ObjectMeta]=None,
         modaliases: Optional[Mapping[Optional[str], str]]=None,
-        anchors: Optional[
-            Mapping[
-                Union[str, qlast.SpecialAnchorT],
-                Union[s_obj.Object, irast.Base],
-            ],
-        ]=None,
+        anchors: Optional[Mapping[irast.AnchorsKeyType,
+                                  irast.AnchorsValueType]]=None,
         singletons: Optional[Iterable[s_types.Type]]=None,
         security_context: Optional[str]=None,
         derived_target_module: Optional[str]=None,
@@ -351,10 +347,7 @@ def compile_anchor(
 
 
 def populate_anchors(
-    anchors: Mapping[
-        Union[str, qlast.SpecialAnchorT],
-        Union[s_obj.Object, irast.Base],
-    ],
+    anchors: Mapping[irast.AnchorsKeyType, irast.AnchorsValueType],
     *,
     ctx: context.ContextLevel,
 ) -> None:

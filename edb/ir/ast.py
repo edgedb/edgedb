@@ -720,3 +720,7 @@ class ConfigReset(ConfigCommand):
 class ConfigInsert(ConfigCommand, Expr):
 
     expr: Set
+
+
+AnchorsKeyType = typing.TypeVar("AnchorsKeyType", str, qlast.SpecialAnchorT)
+AnchorsValueType = typing.TypeVar("AnchorsValueType", so.Object, Base)

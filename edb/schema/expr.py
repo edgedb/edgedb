@@ -134,7 +134,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         modaliases: Optional[Mapping[Optional[str], str]] = None,
         parent_object_type: Optional[so.ObjectMeta] = None,
         anchors: Optional[
-            Mapping[Union[str, qlast_.SpecialAnchorT], so.Object]
+            Mapping[irast_.AnchorsKeyType, irast_.AnchorsValueType]
         ] = None,
         path_prefix_anchor: Optional[qlast_.SpecialAnchorT] = None,
         allow_generic_type_output: bool = False,
