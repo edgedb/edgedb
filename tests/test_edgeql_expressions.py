@@ -3057,7 +3057,7 @@ class TestExpressions(tb.QueryTestCase):
 
             bb';
             ''',
-            ['bbaa bb'],
+            ['bbaa \n\n            bb'],
         )
 
         await self.assert_query_result(
@@ -3085,7 +3085,6 @@ class TestExpressions(tb.QueryTestCase):
                 r"SELECT 'bb\   aa';"
             )
 
-    @test.xfail('The string literal is missing some content')
     async def test_edgeql_expr_string_12(self):
         # Issue #1269
         await self.assert_query_result(
@@ -3096,7 +3095,6 @@ aa \
             ['bbaa bb'],
         )
 
-    @test.xfail('alternative newline is not accepted after line continuation')
     async def test_edgeql_expr_string_13(self):
         # Issue #1269
         #
@@ -3108,6 +3106,11 @@ aa \
 
         await self.assert_query_result(
             "SELECT 'bb\\\r   aa';",
+            ['bbaa'],
+        )
+
+        await self.assert_query_result(
+            "SELECT 'bb\\\r\n   aa';",
             ['bbaa'],
         )
 
