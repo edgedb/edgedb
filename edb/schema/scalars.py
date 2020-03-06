@@ -58,25 +58,34 @@ class ScalarType(
     )
 
     @classmethod
-    def get_schema_class_displayname(cls):
+    def get_schema_class_displayname(cls) -> str:
         return 'scalar type'
 
-    def is_scalar(self):
+    def is_scalar(self) -> bool:
         return True
 
-    def is_enum(self, schema) -> bool:
+    def is_enum(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_enum_values(schema))
 
-    def is_polymorphic(self, schema):
+    def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return self.get_is_abstract(schema)
 
-    def _resolve_polymorphic(self, schema, concrete_type: s_types.Type):
+    def _resolve_polymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: s_types.Type,
+    ) -> Optional[s_types.Type]:
         if (self.is_polymorphic(schema) and
                 concrete_type.is_scalar() and
                 not concrete_type.is_polymorphic(schema)):
             return concrete_type
+        return None
 
-    def _to_nonpolymorphic(self, schema, concrete_type: s_types.Type):
+    def _to_nonpolymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: s_types.Type,
+    ) -> s_types.Type:
         if (not concrete_type.is_polymorphic(schema) and
                 concrete_type.issubclass(schema, self)):
             return concrete_type
@@ -84,18 +93,31 @@ class ScalarType(
             f'cannot interpret {concrete_type.get_name(schema)} '
             f'as {self.get_name(schema)}')
 
-    def _test_polymorphic(self, schema, other: s_types.Type):
+    def _test_polymorphic(
+        self,
+        schema: s_schema.Schema,
+        other: s_types.Type,
+    ) -> bool:
         if other.is_any():
             return True
         else:
             return self.issubclass(schema, other)
 
-    def assignment_castable_to(self, other: s_types.Type, schema) -> bool:
+    def assignment_castable_to(
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema,
+    ) -> bool:
+        assert isinstance(other, ScalarType)
         left = self.get_base_for_cast(schema)
         right = other.get_base_for_cast(schema)
         return s_casts.is_assignment_castable(schema, left, right)
 
-    def implicitly_castable_to(self, other: s_types.Type, schema) -> bool:
+    def implicitly_castable_to(
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema,
+    ) -> bool:
         if not isinstance(other, ScalarType):
             return False
         if self.is_polymorphic(schema) or other.is_polymorphic(schema):
@@ -104,7 +126,11 @@ class ScalarType(
         right = other.get_topmost_concrete_base(schema)
         return s_casts.is_implicitly_castable(schema, left, right)
 
-    def get_implicit_cast_distance(self, other: s_types.Type, schema) -> int:
+    def get_implicit_cast_distance(
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema,
+    ) -> int:
         if not isinstance(other, ScalarType):
             return -1
         if self.is_polymorphic(schema) or other.is_polymorphic(schema):
@@ -114,11 +140,13 @@ class ScalarType(
         return s_casts.get_implicit_cast_distance(schema, left, right)
 
     def find_common_implicitly_castable_type(
-            self, other: s_types.Type,
-            schema) -> Optional[s_types.Type]:
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema,
+    ) -> Optional[s_types.Type]:
 
         if not isinstance(other, ScalarType):
-            return
+            return None
 
         if self.is_polymorphic(schema) and other.is_polymorphic(schema):
             return self
@@ -146,7 +174,7 @@ class AnonymousEnumTypeRef(so.ObjectRef):
         self.__dict__['elements'] = elements
 
 
-class ScalarTypeCommandContext(sd.ObjectCommandContext,
+class ScalarTypeCommandContext(sd.ObjectCommandContext[ScalarType],
                                s_anno.AnnotationSubjectCommandContext,
                                constraints.ConsistencySubjectCommandContext):
     pass
@@ -158,13 +186,27 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
                         schema_metaclass=ScalarType,
                         context_class=ScalarTypeCommandContext):
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.ObjectDDL,
+        context: sd.CommandContext,
+    ) -> ScalarTypeCommand:
+        # TODO: maybe s_types.TypeCommand should be made generic
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, sd.ObjectCommand)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
         return cmd
 
     @classmethod
-    def _validate_base_refs(cls, schema, base_refs, astnode, context):
+    def _validate_base_refs(
+        cls,
+        schema: s_schema.Schema,
+        base_refs: List[so.Object],
+        astnode: qlast.ObjectDDL,
+        context: sd.CommandContext,
+    ) -> so.ObjectList[so.InheritingObject]:
+        assert isinstance(astnode, qlast.BasesMixin)
         has_enums = any(isinstance(br, AnonymousEnumTypeRef)
                         for br in base_refs)
 
@@ -183,7 +225,12 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
     astnode = qlast.CreateScalarType
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> CreateScalarType:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(cmd, sd.CommandGroup):
@@ -217,13 +264,23 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
 
         return cmd
 
-    def _get_ast_node(self, schema, context):
+    def _get_ast_node(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Type[qlast.DDLOperation]:
         if self.get_attribute_value('expr'):
             return qlast.CreateAlias
         else:
             return super()._get_ast_node(schema, context)
 
-    def _apply_field_ast(self, schema, context, node, op):
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
         if op.property == 'default':
             if op.new_value:
                 op.new_value = op.new_value[0]
@@ -263,6 +320,8 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
         scls = self.get_object(schema, context)
         self.scls = scls
 
+        assert isinstance(scls, ScalarType)  # TODO: verify this
+
         enum_values = scls.get_enum_values(schema)
         if enum_values:
             raise errors.UnsupportedFeatureError(
@@ -296,8 +355,14 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
         else:
             return super().apply(self, schema, context)
 
-    def _validate_enum_change(self, stype, cur_labels, new_labels,
-                              schema, context):
+    def _validate_enum_change(
+        self,
+        stype: s_types.Type,
+        cur_labels: Sequence[str],
+        new_labels: Sequence[str],
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         if len(set(new_labels)) != len(new_labels):
             raise errors.SchemaError(
                 f'enum labels are not unique')
