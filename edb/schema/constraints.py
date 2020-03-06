@@ -491,13 +491,11 @@ class ConstraintCommand(
                 assert isinstance(referrer_ctx.op, sd.ObjectCommand)
                 anchors['__subject__'] = referrer_ctx.op.scls
 
-            # TODO: it is true, the Parameter does not inherit Object,
-            # how to resolve the type: ignore below?
             return s_expr.Expression.compiled(
                 value,
                 schema=schema,
                 modaliases=context.modaliases,
-                anchors=anchors,  # type: ignore
+                anchors=anchors,
                 func_params=params,
                 allow_generic_type_output=True,
                 parent_object_type=self.get_schema_metaclass(),
@@ -863,9 +861,9 @@ class AlterConstraint(ConstraintCommand,
 
         if isinstance(astnode, (qlast.CreateConcreteConstraint,
                                 qlast.AlterConcreteConstraint)):
-            # TODO: how to make the following in a more "type-compliant" way?
-            # ConsistencySubjectCommandContext is an empty mixin used to
-            # group some classes of ObjectCommand
+            # type ignore below, because mypy doesn't trust the
+            # ConsistencySubjectCommandContext to be a CommandContextToken_T
+            # even when it is sd.ObjectCommandContext[ConsistencySubject]
             subject_ctx = context \
                 .get(ConsistencySubjectCommandContext)  # type: ignore
             assert isinstance(subject_ctx, sd.ObjectCommandContext)

@@ -169,11 +169,11 @@ def compile_ast_to_ir(
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     anchors: Optional[
         Mapping[
-            Union[str, qlast.SpecialAnchorT],
-            Union[irast.Base, s_obj.Object],
+            irast.AnchorsKeyType,
+            irast.AnchorsValueType
         ]
     ] = None,
-    path_prefix_anchor: Optional[qlast.SpecialAnchorT] = None,
+    path_prefix_anchor: Optional[irast.AnchorsKeyType] = None,
     singletons: Sequence[s_types.Type] = (),
     func_params: Optional[s_func.ParameterLikeList] = None,
     result_view_name: Optional[s_name.SchemaName] = None,
@@ -340,9 +340,9 @@ def compile_ast_fragment_to_ir(
     *,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     anchors: Optional[
-        Mapping[Union[str, qlast.SpecialAnchorT], s_obj.Object]
+        Mapping[irast.AnchorsKeyType, irast.AnchorsValueType]
     ] = None,
-    path_prefix_anchor: Optional[qlast.SpecialAnchorT] = None,
+    path_prefix_anchor: Optional[irast.AnchorsKeyType] = None,
 ) -> irast.Statement:
     """Compile given EdgeQL AST fragment into EdgeDB IR.
 
@@ -504,8 +504,7 @@ def compile_func_to_ir(
 
     ir = compile_ast_to_ir(
         tree, schema,
-        anchors=param_anchors,  # type: ignore
-                                # (typing#273)
+        anchors=param_anchors,
         func_params=func.get_params(schema),
         # the body of a session_only function can contain calls to
         # other session_only functions
