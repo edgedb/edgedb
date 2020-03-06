@@ -3057,7 +3057,7 @@ class TestExpressions(tb.QueryTestCase):
 
             bb';
             ''',
-            ['bbaa \n\n            bb'],
+            ['bbaa bb'],
         )
 
         await self.assert_query_result(
