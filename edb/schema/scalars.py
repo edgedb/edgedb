@@ -196,13 +196,10 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> Union[ScalarTypeCommand, sd.CommandGroup]:
-        # TODO: maybe s_types.TypeCommand should be made generic
-        # assert isinstance(astnode, qlast.ObjectDDL)
-
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        # assert isinstance(cmd, ScalarTypeCommand)
 
         assert isinstance(cmd, sd.ObjectCommand)
+        assert isinstance(astnode, qlast.ObjectDDL)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
 
         assert isinstance(cmd, (ScalarTypeCommand, sd.CommandGroup))
@@ -216,7 +213,6 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> so.ObjectList[so.InheritingObject]:
-        # assert isinstance(astnode, qlast.BasesMixin)
         has_enums = any(isinstance(br, AnonymousEnumTypeRef)
                         for br in base_refs)
 
@@ -274,10 +270,6 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
                     )
                 else:
                     sub.new_value = [sub.new_value]
-        # 004
-        with open('__004.txt', mode='a+') as f:
-            f.write(f'{cmd} {type(cmd)}\n')
-        # TODO: cmd is CreateScalarType or CommandGroup
         assert isinstance(cmd, (CreateScalarType, sd.CommandGroup))
         return cmd
 
