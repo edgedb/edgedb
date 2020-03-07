@@ -393,7 +393,8 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
         return schema
 
 
-class AlterScalarType(ScalarTypeCommand, inheriting.AlterInheritingObject):
+class AlterScalarType(ScalarTypeCommand,  # type: ignore
+                      inheriting.AlterInheritingObject):
     astnode = qlast.AlterScalarType
 
 
