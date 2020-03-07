@@ -124,6 +124,8 @@ class ScalarType(
             return False
         left = self.get_topmost_concrete_base(schema)
         right = other.get_topmost_concrete_base(schema)
+        assert isinstance(left, s_types.Type)
+        assert isinstance(right, s_types.Type)
         return s_casts.is_implicitly_castable(schema, left, right)
 
     def get_implicit_cast_distance(
@@ -153,6 +155,8 @@ class ScalarType(
 
         left = self.get_topmost_concrete_base(schema)
         right = other.get_topmost_concrete_base(schema)
+        assert isinstance(left, ScalarType)
+        assert isinstance(right, ScalarType)
 
         if left == right:
             return left
@@ -189,13 +193,19 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
     def _cmd_tree_from_ast(
         cls,
         schema: s_schema.Schema,
-        astnode: qlast.ObjectDDL,
+        astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> ScalarTypeCommand:
+    ) -> Union[ScalarTypeCommand, sd.CommandGroup]:
         # TODO: maybe s_types.TypeCommand should be made generic
+        # assert isinstance(astnode, qlast.ObjectDDL)
+
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        # assert isinstance(cmd, ScalarTypeCommand)
+
         assert isinstance(cmd, sd.ObjectCommand)
         cmd = cls._handle_view_op(schema, cmd, astnode, context)
+
+        assert isinstance(cmd, (ScalarTypeCommand, sd.CommandGroup))
         return cmd
 
     @classmethod
@@ -206,12 +216,13 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> so.ObjectList[so.InheritingObject]:
-        assert isinstance(astnode, qlast.BasesMixin)
+        # assert isinstance(astnode, qlast.BasesMixin)
         has_enums = any(isinstance(br, AnonymousEnumTypeRef)
                         for br in base_refs)
 
         if has_enums:
             if len(base_refs) > 1:
+                assert isinstance(astnode, qlast.BasesMixin)
                 raise errors.SchemaError(
                     f'invalid scalar type definition, enumeration must be the '
                     f'only supertype specified',
@@ -230,13 +241,13 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> CreateScalarType:
+    ) -> Union[CreateScalarType, sd.CommandGroup]:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(cmd, sd.CommandGroup):
             for subcmd in cmd.get_subcommands():
                 if isinstance(subcmd, cls):
-                    create_cmd = subcmd
+                    create_cmd: ScalarTypeCommand = subcmd
                     break
             else:
                 raise errors.InternalServerError(
@@ -248,7 +259,9 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
         bases = create_cmd.get_attribute_value('bases')
         is_enum = False
         if len(bases) == 1 and isinstance(bases._ids[0], AnonymousEnumTypeRef):
-            elements = bases._ids[0].elements
+            # type ignore below because this class elements is set
+            # directly on __dict__
+            elements = bases._ids[0].elements  # type: ignore
             create_cmd.set_attribute_value('enum_values', elements)
             create_cmd.set_attribute_value('is_final', True)
             is_enum = True
@@ -261,7 +274,11 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
                     )
                 else:
                     sub.new_value = [sub.new_value]
-
+        # 004
+        with open('__004.txt', mode='a+') as f:
+            f.write(f'{cmd} {type(cmd)}\n')
+        # TODO: cmd is CreateScalarType or CommandGroup
+        assert isinstance(cmd, (CreateScalarType, sd.CommandGroup))
         return cmd
 
     def _get_ast_node(
@@ -283,6 +300,7 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
     ) -> None:
         if op.property == 'default':
             if op.new_value:
+                assert isinstance(op.new_value, list)
                 op.new_value = op.new_value[0]
                 super()._apply_field_ast(schema, context, node, op)
 
@@ -319,8 +337,7 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
     ) -> s_schema.Schema:
         scls = self.get_object(schema, context)
         self.scls = scls
-
-        assert isinstance(scls, ScalarType)  # TODO: verify this
+        assert isinstance(scls, ScalarType)
 
         enum_values = scls.get_enum_values(schema)
         if enum_values:
@@ -353,7 +370,7 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
 
             return schema
         else:
-            return super().apply(self, schema, context)
+            return super().apply(schema, context)
 
     def _validate_enum_change(
         self,
