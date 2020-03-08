@@ -706,7 +706,7 @@ class AlterInheritingObject(InheritingObjectCommand,
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> AlterInheritingObject:
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, AlterInheritingObject)
         assert isinstance(astnode, qlast.ObjectDDL)
