@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 from edgedb import scram
 
 from edb import errors
@@ -29,6 +31,9 @@ from . import annos as s_anno
 from . import delta as sd
 from . import inheriting
 from . import objects as so
+
+if TYPE_CHECKING:
+    from edb.schema import schema as s_schema
 
 
 class Role(so.GlobalObject, so.InheritingObject,
@@ -47,7 +52,7 @@ class Role(so.GlobalObject, so.InheritingObject,
 
 
 class RoleCommandContext(
-        sd.ObjectCommandContext,
+        sd.ObjectCommandContext[Role],
         s_anno.AnnotationSubjectCommandContext):
     pass
 
@@ -59,14 +64,25 @@ class RoleCommand(sd.GlobalObjectCommand,
                   context_class=RoleCommandContext):
 
     @classmethod
-    def _process_role_body(cls, cmd, schema, astnode, context):
+    def _process_role_body(
+        cls,
+        cmd: sd.Command,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> None:
         password = cmd.get_attribute_value('password')
         if password is not None:
             salted_password = scram.build_verifier(password)
             cmd.set_attribute_value('password', salted_password)
 
     @classmethod
-    def _classbases_from_ast(cls, schema, astnode, context):
+    def _classbases_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.ObjectDDL,
+        context: sd.CommandContext,
+    ) -> so.ObjectList[so.InheritingObject]:
         result = []
         for b in getattr(astnode, 'bases', None) or []:
             result.append(
@@ -80,7 +96,13 @@ class CreateRole(RoleCommand, inheriting.CreateInheritingObject):
     astnode = qlast.CreateRole
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.CreateRole)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if not astnode.superuser and not context.testmode:
@@ -93,7 +115,13 @@ class CreateRole(RoleCommand, inheriting.CreateInheritingObject):
         cls._process_role_body(cmd, schema, astnode, context)
         return cmd
 
-    def _apply_field_ast(self, schema, context, node, op):
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
         if op.property == 'is_superuser':
             node.superuser = op.new_value
             return
@@ -113,7 +141,12 @@ class AlterRole(RoleCommand, inheriting.AlterInheritingObject):
     astnode = qlast.AlterRole
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         cls._process_role_body(cmd, schema, astnode, context)
         return cmd
