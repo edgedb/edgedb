@@ -703,7 +703,7 @@ class CallableCommand(sd.QualifiedObjectCommand):
         schema: s_schema.Schema,
         context,
         cmd
-    ) -> List[ParameterDesc]:
+    ) -> Tuple[s_schema.Schema, List[ParameterDesc]]:
         params = []
         for subcmd in cmd.get_subcommands(type=CreateParameter):
             schema, param = ParameterDesc.from_create_delta(
@@ -716,7 +716,12 @@ class CallableCommand(sd.QualifiedObjectCommand):
 class CreateCallableObject(CallableCommand, sd.CreateObject):
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema: s_schema.Schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         params = cls._get_param_desc_from_ast(
