@@ -195,15 +195,12 @@ class ScalarTypeCommand(constraints.ConsistencySubjectCommand,
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> Union[ScalarTypeCommand, sd.CommandGroup]:
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         assert isinstance(cmd, sd.ObjectCommand)
         assert isinstance(astnode, qlast.ObjectDDL)
-        cmd = cls._handle_view_op(schema, cmd, astnode, context)
-
-        assert isinstance(cmd, (ScalarTypeCommand, sd.CommandGroup))
-        return cmd
+        return cls._handle_view_op(schema, cmd, astnode, context)
 
     @classmethod
     def _validate_base_refs(
@@ -237,13 +234,13 @@ class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> Union[CreateScalarType, sd.CommandGroup]:
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         if isinstance(cmd, sd.CommandGroup):
             for subcmd in cmd.get_subcommands():
                 if isinstance(subcmd, cls):
-                    create_cmd: ScalarTypeCommand = subcmd
+                    create_cmd: sd.Command = subcmd
                     break
             else:
                 raise errors.InternalServerError(
@@ -393,7 +390,7 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
         return schema
 
 
-class AlterScalarType(ScalarTypeCommand,  # type: ignore
+class AlterScalarType(ScalarTypeCommand,
                       inheriting.AlterInheritingObject):
     astnode = qlast.AlterScalarType
 
