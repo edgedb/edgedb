@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "edgeql-parser",
+    "edgeql-python",
+]
+
+[profile.release]
+debug = true
+lto = true
