@@ -134,7 +134,7 @@ class OperatorCommand(s_func.CallableCommand,
         astnode: qlast.NamedDDL,
         context: sd.CommandContext,
     ) -> sn.Name:
-        assert isinstance(astnode, qlast.CreateOperator)
+        assert isinstance(astnode, qlast.OperatorCommand)
         name = super()._classname_from_ast(schema, astnode, context)
 
         params = cls._get_param_desc_from_ast(
