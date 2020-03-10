@@ -119,13 +119,13 @@ Strings
 Production rules for :eql:type:`str` literal:
 
 .. productionlist:: edgeql
-    string: <str> | <raw_str>
+    string: `str` | `raw_str`
     str: "'" `str_content`* "'" | '"' `str_content`* '"'
     raw_str: "r'" `raw_content`* "'" |
            : 'r"' `raw_content`* '"' |
            : `dollar_quote` `raw_content`* `dollar_quote`
     raw_content: <any character different from delimiting quote>
-    dollar_quote: "$" `q_char0` ? `q_char`* "$"
+    dollar_quote: "$" `q_char0`? `q_char`* "$"
     q_char0: "A"..."Z" | "a"..."z" | "_"
     q_char: "A"..."Z" | "a"..."z" | "_" | "0"..."9"
     str_content: <newline> | `unicode` | `str_escapes`
@@ -294,6 +294,106 @@ Here's a list of valid :token:`bytes_escapes`:
 +--------------------+---------------------------------------------+
 | ``\xhh``           | Character with hex value hh                 |
 +--------------------+---------------------------------------------+
+
+
+Integers
+^^^^^^^^
+
+There are two kinds of integer constants: limited size
+(:eql:type:`int64`) and unlimited size (:eql:type:`bigint`). Unlimited
+size integers :eql:type:`bigint` literal is similar to a regular
+integer literal with an ``n`` suffix. The production rules are as
+follows:
+
+.. productionlist:: edgeql
+    bigint: `integer` "n"
+    integer: "0" | `non_zero` `digit`*
+    non_zero: "1"..."9"
+    digit: "0"..."9"
+
+By default all integer literals are interpreted as :eql:type:`int64`,
+an explicit cast can be used to convert them to :eql:type:`int16` or
+:eql:type:`int32`:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT 0;
+    {0}
+
+    db> SELECT 123;
+    {123}
+
+    db> SELECT <int16>456;
+    {456}
+
+    db> SELECT <int32>789;
+    {789}
+
+Examples of :eql:type:`bigint` literals:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT 123n;
+    {123n}
+
+    db> SELECT 12345678901234567890n;
+    {12345678901234567890n}
+
+
+Real Numbers
+^^^^^^^^^^^^
+
+Just as for integers, there are two kinds of real number constants:
+limited precision (:eql:type:`float64`) and unlimited precision
+(:eql:type:`decimal`). The :eql:type:`decimal` constants have the same
+lexical structure as :eql:type:`float64`, but with an ``n`` suffix:
+
+.. productionlist:: edgeql
+    decimal: `float` "n"
+    float: `float_wo_dec` | `float_w_dec`
+    float_wo_dec: `integer_part` `exp`
+    float_w_dec: `integer_part` "." `decimal_part`? `exp`?
+    integer_part: "0" | `non_zero` `digit`*
+    decimal_part: `digit`+
+    exp: "e" ("+" | "-")? `digit`+
+    non_zero: "1"..."9"
+    digit: "0"..."9"
+
+By default all float literals are interpreted as :eql:type:`float64`,
+an explicit cast can be used to convert them to :eql:type:`float32`:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT 0.1;
+    {0.1}
+
+    db> SELECT 12.;
+    {12.0}
+
+    db> SELECT 12.3;
+    {12.3}
+
+    db> SELECT 1e3;
+    {1000.0}
+
+    db> SELECT 1.2e-3;
+    {0.0012}
+
+    db> SELECT <float32>12.3;
+    {12.3}
+
+Examples of :eql:type:`decimal` literals:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT 12.3n;
+    {12.3n}
+
+    db> SELECT 12345678901234567890.12345678901234567890n;
+    {12345678901234567890.12345678901234567890n}
+
+    db> SELECT 12345678901234567890.12345678901234567890e-3n;
+    {12345678901234567.89012345678901234567890n}
 
 
 Punctuation
