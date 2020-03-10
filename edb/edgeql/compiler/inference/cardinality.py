@@ -67,16 +67,25 @@ def _max_cardinality(
 def _common_cardinality(
     args: Iterable[irast.Base],
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     return _max_cardinality(
-        infer_cardinality(a, scope_tree, env) for a in args)
+        infer_cardinality(
+            a,
+            scope_tree=scope_tree,
+            singletons=singletons,
+            env=env
+        ) for a in args
+    )
 
 
 @functools.singledispatch
 def _infer_cardinality(
     ir: irast.Expr,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     raise ValueError(f'infer_cardinality: cannot handle {ir!r}')
@@ -85,7 +94,9 @@ def _infer_cardinality(
 @_infer_cardinality.register
 def __infer_none(
     ir: None,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     # Here for debugging purposes.
@@ -95,25 +106,33 @@ def __infer_none(
 @_infer_cardinality.register
 def __infer_statement(
     ir: irast.Statement,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    return infer_cardinality(ir.expr, scope_tree, env)
+    return infer_cardinality(
+        ir.expr, scope_tree=scope_tree, singletons=singletons, env=env)
 
 
 @_infer_cardinality.register
 def __infer_config_insert(
     ir: irast.ConfigInsert,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    return infer_cardinality(ir.expr, scope_tree, env)
+    return infer_cardinality(
+        ir.expr, scope_tree=scope_tree, singletons=singletons, env=env)
 
 
 @_infer_cardinality.register
 def __infer_emptyset(
     ir: irast.EmptySet,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     return ONE
@@ -122,7 +141,9 @@ def __infer_emptyset(
 @_infer_cardinality.register
 def __infer_typeref(
     ir: irast.TypeRef,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     return ONE
@@ -131,7 +152,9 @@ def __infer_typeref(
 @_infer_cardinality.register
 def __infer_type_introspection(
     ir: irast.TypeIntrospection,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     return ONE
@@ -157,10 +180,12 @@ def _is_visible(
 @_infer_cardinality.register
 def __infer_set(
     ir: irast.Set,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    if _is_visible(ir, scope_tree, env):
+    if _is_visible(ir, scope_tree, env) or ir.path_id in singletons:
         return ONE
 
     rptr = ir.rptr
@@ -171,7 +196,12 @@ def __infer_set(
             ind_prefix, ind_ptrs = irutils.collapse_type_intersection(ir)
             new_scope = _get_set_scope(ir, scope_tree)
             if ind_prefix.rptr is None:
-                return infer_cardinality(ind_prefix, new_scope, env)
+                return infer_cardinality(
+                    ind_prefix,
+                    scope_tree=new_scope,
+                    singletons=singletons,
+                    env=env,
+                )
             else:
                 # Expression before type intersection is a path,
                 # i.e Foo.<bar[IS Type].  In this case we must
@@ -193,7 +223,11 @@ def __infer_set(
                         # intersection.
                         if rptrref.dir_cardinality is qltypes.Cardinality.ONE:
                             return infer_cardinality(
-                                rptr.source, new_scope, env)
+                                rptr.source,
+                                scope_tree=new_scope,
+                                singletons=singletons,
+                                env=env,
+                            )
                         else:
                             return MANY
                     else:
@@ -203,16 +237,30 @@ def __infer_set(
                         else:
                             new_scope = _get_set_scope(ind_prefix, scope_tree)
                             return infer_cardinality(
-                                ind_prefix.rptr.source, new_scope, env)
+                                ind_prefix.rptr.source,
+                                scope_tree=new_scope,
+                                singletons=singletons,
+                                env=env,
+                            )
 
         elif rptrref.dir_cardinality is qltypes.Cardinality.ONE:
             new_scope = _get_set_scope(ir, scope_tree)
-            return infer_cardinality(rptr.source, new_scope, env)
+            return infer_cardinality(
+                rptr.source,
+                scope_tree=new_scope,
+                singletons=singletons,
+                env=env,
+            )
         else:
             return MANY
     elif ir.expr is not None:
         new_scope = _get_set_scope(ir, scope_tree)
-        return infer_cardinality(ir.expr, new_scope, env)
+        return infer_cardinality(
+            ir.expr,
+            scope_tree=new_scope,
+            singletons=singletons,
+            env=env,
+        )
     else:
         return MANY
 
@@ -220,7 +268,9 @@ def __infer_set(
 @_infer_cardinality.register
 def __infer_func_call(
     ir: irast.FunctionCall,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     # the cardinality of the function call depends on the cardinality
@@ -237,7 +287,12 @@ def __infer_func_call(
                 args.append(arg.expr)
 
         if args:
-            return _common_cardinality(args, scope_tree, env)
+            return _common_cardinality(
+                args,
+                scope_tree=scope_tree,
+                singletons=singletons,
+                env=env,
+            )
         else:
             return ONE
 
@@ -245,7 +300,9 @@ def __infer_func_call(
 @_infer_cardinality.register
 def __infer_oper_call(
     ir: irast.OperatorCall,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     if ir.func_shortname == 'std::UNION':
@@ -261,7 +318,12 @@ def __infer_oper_call(
                     args.append(arg.expr)
 
         if args:
-            return _common_cardinality(args, scope_tree, env)
+            return _common_cardinality(
+                args,
+                scope_tree=scope_tree,
+                singletons=singletons,
+                env=env,
+            )
         else:
             return ONE
 
@@ -269,7 +331,9 @@ def __infer_oper_call(
 @_infer_cardinality.register
 def __infer_const(
     ir: irast.BaseConstant,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     return ONE
@@ -278,7 +342,9 @@ def __infer_const(
 @_infer_cardinality.register
 def __infer_param(
     ir: irast.Parameter,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     return ONE
@@ -287,7 +353,9 @@ def __infer_param(
 @_infer_cardinality.register
 def __infer_const_set(
     ir: irast.ConstantSet,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     return ONE if len(ir.elements) == 1 else MANY
@@ -296,19 +364,33 @@ def __infer_const_set(
 @_infer_cardinality.register
 def __infer_typecheckop(
     ir: irast.TypeCheckOp,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    return infer_cardinality(ir.left, scope_tree, env)
+    return infer_cardinality(
+        ir.left,
+        scope_tree=scope_tree,
+        singletons=singletons,
+        env=env,
+    )
 
 
 @_infer_cardinality.register
 def __infer_typecast(
     ir: irast.TypeCast,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    return infer_cardinality(ir.expr, scope_tree, env)
+    return infer_cardinality(
+        ir.expr,
+        scope_tree=scope_tree,
+        singletons=singletons,
+        env=env,
+    )
 
 
 def _is_ptr_or_self_ref(
@@ -338,6 +420,7 @@ def extract_filters(
     result_set: irast.Set,
     filter_set: irast.Set,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> Sequence[Tuple[s_pointers.Pointer, irast.Set]]:
 
@@ -353,14 +436,23 @@ def extract_filters(
             left, right = (a.expr for a in expr.args)
 
             op_card = _common_cardinality(
-                [left, right], scope_tree, env)
+                [left, right],
+                scope_tree=scope_tree,
+                singletons=singletons,
+                env=env,
+            )
             result_stype = env.set_types[result_set]
 
             if op_card == MANY:
                 pass
 
             elif _is_ptr_or_self_ref(left, result_set, env):
-                if infer_cardinality(right, scope_tree, env) == ONE:
+                if infer_cardinality(
+                    right,
+                    scope_tree=scope_tree,
+                    singletons=singletons,
+                    env=env,
+                ) == ONE:
                     left_stype = env.set_types[left]
                     if left_stype == result_stype:
                         assert isinstance(left_stype, s_objtypes.ObjectType)
@@ -374,7 +466,12 @@ def extract_filters(
                     ptr_filters.append((ptr, right))
 
             elif _is_ptr_or_self_ref(right, result_set, env):
-                if infer_cardinality(left, scope_tree, env) == ONE:
+                if infer_cardinality(
+                    left,
+                    scope_tree=scope_tree,
+                    singletons=singletons,
+                    env=env,
+                ) == ONE:
                     right_stype = env.set_types[right]
                     if right_stype == result_stype:
                         assert isinstance(right_stype, s_objtypes.ObjectType)
@@ -391,9 +488,15 @@ def extract_filters(
             left, right = (a.expr for a in expr.args)
 
             ptr_filters.extend(
-                extract_filters(result_set, left, scope_tree, env))
+                extract_filters(
+                    result_set, left, scope_tree, singletons, env
+                )
+            )
             ptr_filters.extend(
-                extract_filters(result_set, right, scope_tree, env))
+                extract_filters(
+                    result_set, right, scope_tree, singletons, env
+                )
+            )
 
     return ptr_filters
 
@@ -402,11 +505,13 @@ def _analyse_filter_clause(
     result_set: irast.Set,
     filter_clause: irast.Set,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
 
     schema = env.schema
-    filtered_ptrs = extract_filters(result_set, filter_clause, scope_tree, env)
+    filtered_ptrs = extract_filters(
+        result_set, filter_clause, scope_tree, singletons, env)
 
     if filtered_ptrs:
         exclusive_constr: s_constr.Constraint = schema.get('std::exclusive')
@@ -430,20 +535,28 @@ def _infer_stmt_cardinality(
     result_set: irast.Set,
     filter_clause: Optional[irast.Set],
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    result_card = infer_cardinality(result_set, scope_tree, env)
+    result_card = infer_cardinality(
+        result_set,
+        scope_tree=scope_tree,
+        singletons=singletons,
+        env=env,
+    )
     if result_card == ONE or filter_clause is None:
         return result_card
 
     return _analyse_filter_clause(
-        result_set, filter_clause, scope_tree, env)
+        result_set, filter_clause, scope_tree, singletons, env)
 
 
 @_infer_cardinality.register
 def __infer_select_stmt(
     ir: irast.SelectStmt,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     if ir.cardinality:
@@ -456,10 +569,20 @@ def __infer_select_stmt(
             stmt_card = ONE
         else:
             stmt_card = _infer_stmt_cardinality(
-                ir.result, ir.where, scope_tree, env)
+                ir.result,
+                ir.where,
+                scope_tree=scope_tree,
+                singletons=singletons,
+                env=env,
+            )
 
         if ir.iterator_stmt:
-            iter_card = infer_cardinality(ir.iterator_stmt, scope_tree, env)
+            iter_card = infer_cardinality(
+                ir.iterator_stmt,
+                scope_tree=scope_tree,
+                singletons=singletons,
+                env=env,
+            )
             stmt_card = _max_cardinality((stmt_card, iter_card))
 
         return stmt_card
@@ -468,14 +591,21 @@ def __infer_select_stmt(
 @_infer_cardinality.register
 def __infer_insert_stmt(
     ir: irast.InsertStmt,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     if ir.cardinality:
         return ir.cardinality
     else:
         if ir.iterator_stmt:
-            return infer_cardinality(ir.iterator_stmt, scope_tree, env)
+            return infer_cardinality(
+                ir.iterator_stmt,
+                scope_tree=scope_tree,
+                singletons=singletons,
+                env=env,
+            )
         else:
             # INSERT without a FOR is always a singleton.
             return ONE
@@ -484,17 +614,29 @@ def __infer_insert_stmt(
 @_infer_cardinality.register
 def __infer_update_stmt(
     ir: irast.UpdateStmt,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     if ir.cardinality:
         return ir.cardinality
     else:
         stmt_card = _infer_stmt_cardinality(
-            ir.subject, ir.where, scope_tree, env)
+            ir.subject,
+            ir.where,
+            scope_tree=scope_tree,
+            singletons=singletons,
+            env=env,
+        )
 
         if ir.iterator_stmt:
-            iter_card = infer_cardinality(ir.iterator_stmt, scope_tree, env)
+            iter_card = infer_cardinality(
+                ir.iterator_stmt,
+                scope_tree=scope_tree,
+                singletons=singletons,
+                env=env,
+            )
             stmt_card = _max_cardinality((stmt_card, iter_card))
 
         return stmt_card
@@ -503,17 +645,29 @@ def __infer_update_stmt(
 @_infer_cardinality.register
 def __infer_delete_stmt(
     ir: irast.DeleteStmt,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     if ir.cardinality:
         return ir.cardinality
     else:
         stmt_card = _infer_stmt_cardinality(
-            ir.subject, None, scope_tree, env)
+            ir.subject,
+            None,
+            singletons=singletons,
+            scope_tree=scope_tree,
+            env=env,
+        )
 
         if ir.iterator_stmt:
-            iter_card = infer_cardinality(ir.iterator_stmt, scope_tree, env)
+            iter_card = infer_cardinality(
+                ir.iterator_stmt,
+                scope_tree=scope_tree,
+                singletons=singletons,
+                env=env,
+            )
             stmt_card = _max_cardinality((stmt_card, iter_card))
 
         return stmt_card
@@ -522,19 +676,28 @@ def __infer_delete_stmt(
 @_infer_cardinality.register
 def __infer_stmt(
     ir: irast.Stmt,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     if ir.cardinality:
         return ir.cardinality
     else:
-        return infer_cardinality(ir.result, scope_tree, env)
+        return infer_cardinality(
+            ir.result,
+            scope_tree=scope_tree,
+            singletons=singletons,
+            env=env,
+        )
 
 
 @_infer_cardinality.register
 def __infer_slice(
     ir: irast.SliceIndirection,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     # slice indirection cardinality depends on the cardinality of
@@ -545,49 +708,81 @@ def __infer_slice(
     if ir.stop is not None:
         args.append(ir.stop)
 
-    return _common_cardinality(args, scope_tree, env)
+    return _common_cardinality(
+        args,
+        scope_tree=scope_tree,
+        singletons=singletons,
+        env=env,
+    )
 
 
 @_infer_cardinality.register
 def __infer_index(
     ir: irast.IndexIndirection,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     # index indirection cardinality depends on both the cardinality of
     # the base expression and the index expression
-    return _common_cardinality([ir.expr, ir.index], scope_tree, env)
+    return _common_cardinality(
+        [ir.expr, ir.index],
+        scope_tree=scope_tree,
+        singletons=singletons,
+        env=env,
+    )
 
 
 @_infer_cardinality.register
 def __infer_array(
     ir: irast.Array,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
-    return _common_cardinality(ir.elements, scope_tree, env)
+    return _common_cardinality(
+        ir.elements,
+        scope_tree=scope_tree,
+        singletons=singletons,
+        env=env,
+    )
 
 
 @_infer_cardinality.register
 def __infer_tuple(
     ir: irast.Tuple,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId],
     env: context.Environment,
 ) -> qltypes.Cardinality:
     return _common_cardinality(
-        [el.val for el in ir.elements], scope_tree, env)
+        [el.val for el in ir.elements],
+        scope_tree=scope_tree,
+        singletons=singletons,
+        env=env,
+    )
 
 
 def infer_cardinality(
     ir: irast.Base,
+    *,
     scope_tree: irast.ScopeTreeNode,
+    singletons: Collection[irast.PathId] = (),
     env: context.Environment,
 ) -> qltypes.Cardinality:
     result = env.inferred_cardinality.get((ir, scope_tree))
     if result is not None:
         return result
 
-    result = _infer_cardinality(ir, scope_tree, env)
+    result = _infer_cardinality(
+        ir,
+        scope_tree=scope_tree,
+        singletons=singletons,
+        env=env,
+    )
 
     if result not in {ONE, MANY}:
         raise errors.QueryError(
