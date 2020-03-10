@@ -2583,6 +2583,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                         a ORDER BY .n LIMIT 3,
                         a_arr := array_agg((SELECT .a LIMIT 3)),
                         a_count := count(.a),
+                        a_comp := (SELECT .a LIMIT 3),
                     }
                     ORDER BY .n
                     LIMIT 3
@@ -2593,6 +2594,7 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
             self.assertEqual(len(result), 3)
             self.assertEqual(len(result[0].a), 3)
             self.assertEqual(len(result[0].a_arr), 3)
+            self.assertEqual(len(result[0].a_comp), 3)
             self.assertEqual(result[0].a_count, 5)
 
             # Check that implicit limit does not break inline aliases.

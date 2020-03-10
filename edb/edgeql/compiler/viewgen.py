@@ -446,7 +446,9 @@ def _normalize_view_ptr_expr(
         qlexpr = astutils.ensure_qlstmt(compexpr)
 
         if ((ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
-                and ctx.implicit_limit):
+                and ctx.implicit_limit
+                and isinstance(qlexpr, qlast.OffsetLimitMixin)
+                and not qlexpr.limit):
             qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
 
         with ctx.newscope(fenced=True) as shape_expr_ctx:
