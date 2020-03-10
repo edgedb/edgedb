@@ -620,13 +620,20 @@ def ensure_ptrref_cardinality(
 
 
 def enforce_singleton_now(
-        irexpr: irast.Set, *,
-        ctx: context.ContextLevel) -> None:
+    irexpr: irast.Set,
+    *,
+    singletons: Collection[irast.PathId] = (),
+    ctx: context.ContextLevel,
+) -> None:
     scope = pathctx.get_set_scope(ir_set=irexpr, ctx=ctx)
     if scope is None:
         scope = ctx.path_scope
     cardinality = inference.infer_cardinality(
-        irexpr, scope_tree=scope, env=ctx.env)
+        irexpr,
+        scope_tree=scope,
+        singletons=singletons,
+        env=ctx.env,
+    )
 
     if cardinality != qltypes.Cardinality.ONE:
         raise errors.QueryError(
@@ -654,14 +661,16 @@ def enforce_singleton(
 
 def enforce_pointer_cardinality(
     ptrcls: s_pointers.Pointer,
-    irexpr: irast.Set, *,
+    irexpr: irast.Set,
+    *,
+    singletons: Collection[irast.PathId] = (),
     ctx: context.ContextLevel,
 ) -> None:
 
     if not ctx.defining_view:
         def _enforce_singleton(ctx: context.ContextLevel) -> None:
             if ptrcls.singular(ctx.env.schema):
-                enforce_singleton_now(irexpr, ctx=ctx)
+                enforce_singleton_now(irexpr, singletons=singletons, ctx=ctx)
 
         at_stmt_fini(_enforce_singleton, ctx=ctx)
 

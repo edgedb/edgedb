@@ -1012,7 +1012,12 @@ def computable_ptr_set(
             source_ctx=pending_cardinality.source_ctx,
             ctx=ctx)
 
-    stmtctx.enforce_pointer_cardinality(ptrcls, comp_ir_set_copy, ctx=ctx)
+    stmtctx.enforce_pointer_cardinality(
+        ptrcls,
+        comp_ir_set_copy,
+        singletons={source_path_id},
+        ctx=ctx,
+    )
 
     comp_ir_set = new_set_from_set(
         comp_ir_set, path_id=result_path_id, rptr=rptr, ctx=ctx)

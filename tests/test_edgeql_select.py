@@ -1305,6 +1305,22 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True]
         )
 
+    async def test_edgeql_select_polymorphic_11(self):
+        await self.assert_query_result(
+            r'''
+            WITH
+                MODULE test,
+                Texts := Text {
+                    [IS LogEntry].spent_time
+                }
+            SELECT
+                _ := Texts.spent_time
+            ORDER BY
+                _
+            ''',
+            [50000]
+        )
+
     async def test_edgeql_select_reverse_link_01(self):
         await self.assert_query_result(
             r'''
