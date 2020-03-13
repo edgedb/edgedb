@@ -193,7 +193,7 @@ pub fn definition<'a, S>(input: &mut TokenStream<'a>)
 }
 
 /// Parses a piece of query language and returns an AST
-pub fn parse_query<'a, S>(s: &'a str) -> Result<Document<'a, S>, ParseError> 
+pub fn parse_query<'a, S>(s: &'a str) -> Result<Document<'a, S>, ParseError>
     where S: Text<'a>,
 {
     let mut tokens = TokenStream::new(s);
@@ -222,18 +222,21 @@ mod test {
             definitions: vec![
                 Definition::Operation(OperationDefinition::SelectionSet(
                     SelectionSet {
-                        span: (Pos { line: 1, column: 1 },
-                               Pos { line: 1, column: 5 }),
+                        span: (Pos { line: 1, column: 1, byte: 0, token: 0 },
+                               Pos { line: 1, column: 5, byte: 4, token: 2 }),
                         items: vec![
                             Selection::Field(Field {
-                                position: Pos { line: 1, column: 3 },
+                                position: Pos { line: 1, column: 3,
+                                                byte: 2, token: 1},
                                 alias: None,
                                 name: "a".into(),
                                 arguments: Vec::new(),
                                 directives: Vec::new(),
                                 selection_set: SelectionSet {
-                                    span: (Pos { line: 1, column: 3 },
-                                           Pos { line: 1, column: 3 }),
+                                    span: (Pos { line: 1, column: 3,
+                                                 byte: 2, token: 1},
+                                           Pos { line: 1, column: 3,
+                                                 byte: 2, token: 1}),
                                     items: Vec::new()
                                 },
                             }),
@@ -251,11 +254,14 @@ mod test {
                 definitions: vec![
                     Definition::Operation(OperationDefinition::SelectionSet(
                         SelectionSet {
-                            span: (Pos { line: 1, column: 1 },
-                                   Pos { line: 1, column: 33 }),
+                            span: (Pos { line: 1, column: 1,
+                                         byte: 0, token: 0},
+                                   Pos { line: 1, column: 33,
+                                         byte: 32, token: 13}),
                             items: vec![
                                 Selection::Field(Field {
-                                    position: Pos { line: 1, column: 3 },
+                                    position: Pos { line: 1, column: 3,
+                                                    byte: 2, token: 1},
                                     alias: None,
                                     name: "a".into(),
                                     arguments: vec![
@@ -268,8 +274,10 @@ mod test {
                                     ],
                                     directives: Vec::new(),
                                     selection_set: SelectionSet {
-                                        span: (Pos { line: 1, column: 3 },
-                                               Pos { line: 1, column: 3 }),
+                                        span: (Pos { line: 1, column: 3,
+                                                     byte: 2, token: 1},
+                                               Pos { line: 1, column: 3,
+                                                     byte: 2, token: 1}),
                                         items: Vec::new()
                                     },
                                 }),
