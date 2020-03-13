@@ -1,0 +1,6 @@
+query {
+  node {
+    id
+    ...something
+  }
+}

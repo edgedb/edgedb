@@ -1,0 +1,7 @@
+querry MyQuery {
+  field1
+}
+---
+query parse error: Parse error at 1:1
+Unexpected `querry[Name]`
+Expected `{`, `query`, `mutation`, `subscription` or `fragment`

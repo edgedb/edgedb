@@ -1,0 +1,6 @@
+query {
+  node(id: """
+    Hello,
+      world!
+  """)
+}

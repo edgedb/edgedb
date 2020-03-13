@@ -468,6 +468,10 @@ if setuptools_rust is not None:
             "edb._edgeql_rust",
             path="edgedb-rust/edgeql-python/Cargo.toml",
             binding=setuptools_rust.Binding.RustCPython),
+        setuptools_rust.RustExtension(
+            "edb._graphql_rewrite",
+            path="graphql-rewrite/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython),
     ]
 else:
     rust_extensions = []

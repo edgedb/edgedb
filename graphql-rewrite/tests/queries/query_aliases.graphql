@@ -1,0 +1,3 @@
+query {
+  an_alias: node
+}

@@ -1,0 +1,3 @@
+query Foo($site: String = "string") {
+  field
+}

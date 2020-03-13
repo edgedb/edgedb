@@ -1,0 +1,2 @@
+type Type1 implements & IOne & ITwo
+type Type2 implements & IOne

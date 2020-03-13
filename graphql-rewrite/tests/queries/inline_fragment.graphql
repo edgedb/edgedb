@@ -1,0 +1,8 @@
+query {
+  node {
+    id
+    ... on User {
+      name
+    }
+  }
+}

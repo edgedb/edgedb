@@ -1,0 +1,24 @@
+[package]
+name = "graphql-rewrite"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+authors = ["MagicStack Inc. <hello@magic.io>"]
+edition = "2018"
+
+[dependencies]
+graphql-parser = { git="https://github.com/graphql-rust/graphql-parser.git", rev="03eed30"}
+combine = "3.2.0"
+thiserror = "1.0.11"
+
+[dependencies.cpython]
+git = "git://github.com/dgrunwald/rust-cpython"
+rev = "dabc06c"
+features = ["extension-module"]
+
+[dev-dependencies]
+pretty_assertions = "0.6.1"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+name = "graphql_rewrite"
+path = "src/lib.rs"
