@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
-use graphql_parser::query::{Document, parse_query, ParseError};
-use graphql_parser::query::Definition::Operation;
-use graphql_parser::query::VariableDefinition;
-use graphql_parser::query::OperationDefinition::{self, Query, Mutation};
-use graphql_parser::Pos;
+use combine::stream::{Positioned, StreamOnce};
 
+use crate::query::{Document, parse_query, ParseError};
+use crate::query::VariableDefinition;
+use crate::query::Operation;
+use crate::position::Pos;
 use crate::tokenizer::{self, TokenStream, Token};
 use crate::tokenizer::Kind::{StringValue, BlockString, Name, Punctuator};
 
@@ -72,6 +72,20 @@ impl<'a> From<combine::easy::Error<Token<'a>,Token<'a>>> for Error {
 
 
 pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
+    let document: Document<'_, &str> = parse_query(s).map_err(Error::Syntax)?;
+    let mut lexer = TokenStream::new(s);
+    let mut src_tokens = Vec::new();
+    let mut pos = lexer.position();
+    loop {
+        match lexer.uncons() {
+            Ok(token) => {
+                src_tokens.push((token, pos));
+                pos = lexer.position();
+            }
+            Err(ref e) if e == &combine::easy::Error::end_of_input() => break,
+            Err(e) => panic!("Parse error at {}: {}", lexer.position(), e),
+        }
+    }
     todo!();
 }
 

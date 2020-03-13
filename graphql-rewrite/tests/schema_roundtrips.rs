@@ -1,10 +1,9 @@
-extern crate graphql_parser;
 #[cfg(test)] #[macro_use] extern crate pretty_assertions;
 
 use std::io::Read;
 use std::fs::File;
 
-use graphql_parser::parse_schema;
+use graphql_rewrite::schema::parse_schema;
 
 fn roundtrip(filename: &str) {
     let mut buf = String::with_capacity(1024);

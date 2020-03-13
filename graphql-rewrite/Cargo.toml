@@ -6,7 +6,6 @@ authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2018"
 
 [dependencies]
-graphql-parser = { git="https://github.com/graphql-rust/graphql-parser.git", rev="03eed30"}
 combine = "3.2.0"
 thiserror = "1.0.11"
 

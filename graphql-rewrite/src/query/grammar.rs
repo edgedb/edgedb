@@ -151,7 +151,7 @@ pub fn mutation<'a, T: Text<'a>>(input: &mut TokenStream<'a>)
     .and(parser(operation_common))
     .map(|(position, (name, (vdefs, ins_point), directives, selection_set))|
         Operation {
-            kind: OperationKind::Query,
+            kind: OperationKind::Mutation,
             variable_definitions: vdefs,
             insert_variables: ins_point,
             position, name, selection_set, directives,
@@ -168,7 +168,7 @@ pub fn subscription<'a, T: Text<'a>>(input: &mut TokenStream<'a>)
     .and(parser(operation_common))
     .map(|(position, (name, (vdefs, ins_point), directives, selection_set))|
         Operation {
-            kind: OperationKind::Query,
+            kind: OperationKind::Subscription,
             variable_definitions: vdefs,
             insert_variables: ins_point,
             position, name, selection_set, directives,
