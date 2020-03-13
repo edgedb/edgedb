@@ -514,10 +514,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if node.required:
             quals.append('required')
 
-        if node.cardinality is qltypes.Cardinality.MANY:
-            quals.append('multi')
-        elif node.cardinality is qltypes.Cardinality.ONE:
-            quals.append('single')
+        if node.cardinality:
+            quals.append(node.cardinality.as_ptr_qual())
 
         if quals:
             self.write(*quals, delimiter=' ')
@@ -929,10 +927,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         elif fname == 'required':
             keywords.append('REQUIRED')
         elif fname == 'cardinality':
-            if node.value is qltypes.Cardinality.ONE:
-                keywords.append('SINGLE')
-            else:
-                keywords.append('MULTI')
+            if node.value:
+                keywords.append(node.value.as_ptr_qual().upper())
         else:
             raise EdgeQLSourceGeneratorError(
                 'unknown special field: {!r}'.format(fname))
@@ -1216,10 +1212,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             keywords.append('OVERLOADED')
         if node.is_required:
             keywords.append('REQUIRED')
-        if node.cardinality is qltypes.Cardinality.ONE:
-            keywords.append('SINGLE')
-        elif node.cardinality is qltypes.Cardinality.MANY:
-            keywords.append('MULTI')
+        if node.cardinality:
+            keywords.append(node.cardinality.as_ptr_qual().upper())
         keywords.append('PROPERTY')
 
         pure_computable = (
@@ -1326,10 +1320,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             keywords.append('OVERLOADED')
         if node.is_required:
             keywords.append('REQUIRED')
-        if node.cardinality is qltypes.Cardinality.ONE:
-            keywords.append('SINGLE')
-        elif node.cardinality is qltypes.Cardinality.MANY:
-            keywords.append('MULTI')
+        if node.cardinality:
+            keywords.append(node.cardinality.as_ptr_qual().upper())
         keywords.append('LINK')
 
         def after_name() -> None:

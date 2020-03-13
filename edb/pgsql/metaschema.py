@@ -2741,7 +2741,7 @@ def _build_key_expr(key_components):
 def _build_data_source(schema, rptr, source_idx, *, alias=None):
 
     rptr_name = rptr.get_shortname(schema).name
-    rptr_multi = rptr.get_cardinality(schema) is qltypes.Cardinality.MANY
+    rptr_multi = rptr.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
 
     if alias is None:
         alias = f'q{source_idx + 1}'
@@ -2789,7 +2789,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
                 FROM edgedb._read_sys_config() cfg) AS q0''')
         else:
             rptr_multi = (
-                rptr.get_cardinality(schema) is qltypes.Cardinality.MANY)
+                rptr.get_cardinality(schema) is qltypes.SchemaCardinality.MANY)
 
             rptr_name = rptr.get_shortname(schema).name
 
@@ -2814,7 +2814,8 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
         key_start = 0
 
         for i, (l, exc_props) in enumerate(path):
-            l_multi = l.get_cardinality(schema) is qltypes.Cardinality.MANY
+            l_multi = (l.get_cardinality(schema) is
+                       qltypes.SchemaCardinality.MANY)
             l_name = l.get_shortname(schema).name
 
             if i == 0:
@@ -2872,7 +2873,7 @@ def _generate_config_type_view(schema, stype, *, path, rptr, _memo=None):
 
         pp_type = pp.get_target(schema)
         pp_multi = (
-            pp.get_cardinality(schema) is qltypes.Cardinality.MANY
+            pp.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
         )
 
         if pp_type.is_object_type():

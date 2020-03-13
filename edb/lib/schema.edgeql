@@ -264,7 +264,7 @@ ALTER TYPE schema::Pointer {
 
 
 ALTER TYPE schema::Link {
-    CREATE LINK properties := .pointers;
+    CREATE MULTI LINK properties := .pointers;
     CREATE PROPERTY on_target_delete -> schema::TargetDeleteAction;
 };
 

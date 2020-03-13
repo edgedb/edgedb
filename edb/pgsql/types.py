@@ -24,7 +24,6 @@ import functools
 from typing import *
 
 from edb.common import uuidgen
-from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -459,7 +458,7 @@ def get_ptrref_storage_info(
 
 
 def _storable_in_source(ptrref: irast.PointerRef) -> bool:
-    return ptrref.out_cardinality is qltypes.Cardinality.ONE
+    return ptrref.out_cardinality.is_single()
 
 
 def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
@@ -467,7 +466,7 @@ def _storable_in_pointer(ptrref: irast.PointerRef) -> bool:
         return all(_storable_in_pointer(c) for c in ptrref.union_components)
     else:
         return (
-            ptrref.out_cardinality is qltypes.Cardinality.MANY
+            ptrref.out_cardinality.is_multi()
             or ptrref.has_properties
         )
 

@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 class SettingInfo(NamedTuple):
     param_name: str
     param_type: s_types.Type
-    cardinality: qltypes.Cardinality
+    cardinality: qltypes.SchemaCardinality
     requires_restart: bool
     backend_setting: str
 

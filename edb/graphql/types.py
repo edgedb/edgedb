@@ -1239,7 +1239,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         ptr = self.edb_base.getptr(self.edb_schema, name)
         if not ptr.singular(self.edb_schema):
-            return qltypes.Cardinality.MANY
+            return qltypes.SchemaCardinality.MANY
 
         return None
 

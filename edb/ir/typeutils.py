@@ -450,14 +450,8 @@ def ptrref_from_ptrcls(
         out_source = source_ref
         out_target = target_ref
 
-    out_cardinality = ptrcls.get_cardinality(schema)
-    if out_cardinality is None:
-        # The cardinality is not yet known.
-        dir_cardinality = None
-    elif ptrcls.singular(schema, direction):
-        dir_cardinality = qltypes.Cardinality.ONE
-    else:
-        dir_cardinality = qltypes.Cardinality.MANY
+    out_cardinality, dir_cardinality = cardinality_from_ptrcls(
+        schema, ptrcls, direction=direction)
 
     material_ptrcls = ptrcls.material_type(schema)
     material_ptr: Optional[irast.BasePointerRef]
@@ -534,7 +528,6 @@ def ptrref_from_ptrcls(
         union_components=union_components,
         union_is_concrete=union_is_concrete,
         has_properties=ptrcls.has_user_defined_properties(schema),
-        required=ptrcls.get_required(schema),
         dir_cardinality=dir_cardinality,
         out_cardinality=out_cardinality,
     ))
@@ -587,7 +580,7 @@ def ptrcls_from_ptrref(
             optional=ptrref.optional,
             is_empty=ptrref.is_empty,
             is_subtype=ptrref.is_subtype,
-            cardinality=ptrref.out_cardinality,
+            cardinality=ptrref.out_cardinality.to_schema_value()[1],
         )
     elif isinstance(ptrref, irast.PointerRef):
         ptr = schema.get_by_id(ptrref.id)
@@ -597,6 +590,37 @@ def ptrcls_from_ptrref(
         raise TypeError(f'unexpected pointer ref type: {ptrref!r}')
 
     return schema, ptrcls
+
+
+def cardinality_from_ptrcls(
+    schema: s_schema.Schema,
+    ptrcls: s_pointers.PointerLike,
+    *,
+    direction: s_pointers.PointerDirection = (
+        s_pointers.PointerDirection.Outbound),
+) -> Tuple[Optional[qltypes.Cardinality], Optional[qltypes.Cardinality]]:
+
+    out_card = ptrcls.get_cardinality(schema)
+    required = ptrcls.get_required(schema)
+    if out_card is None:
+        # The cardinality is not yet known.
+        out_cardinality = None
+        dir_cardinality = None
+    else:
+        out_cardinality = qltypes.Cardinality.from_schema_value(
+            required, out_card)
+        # Determine the cardinality of a given endpoint set.
+        if direction == s_pointers.PointerDirection.Outbound:
+            dir_cardinality = out_cardinality
+        else:
+            # Backward link cannot be required, but exclusivity
+            # controls upper bound on cardinality.
+            if ptrcls.is_exclusive(schema):
+                dir_cardinality = qltypes.Cardinality.AT_MOST_ONE
+            else:
+                dir_cardinality = qltypes.Cardinality.MANY
+
+    return out_cardinality, dir_cardinality
 
 
 def is_id_ptrref(ptrref: irast.BasePointerRef) -> bool:

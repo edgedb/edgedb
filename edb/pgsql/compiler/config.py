@@ -44,7 +44,7 @@ def compile_ConfigSet(
         assert isinstance(val, pgast.SelectStmt), "expected ast.SelectStmt"
         pathctx.get_path_serialized_output(
             val, op.expr.path_id, env=ctx.env)
-        if op.cardinality is qltypes.Cardinality.MANY:
+        if op.cardinality is qltypes.SchemaCardinality.MANY:
             val = output.aggregate_json_output(val, op.expr, env=ctx.env)
 
     result_row = pgast.RowExpr(

@@ -1046,13 +1046,13 @@ class SetCardinalityStmt(Nonterm):
     def reduce_SET_SINGLE(self, *kids):
         self.val = qlast.SetSpecialField(
             name='cardinality',
-            value=qltypes.Cardinality.ONE,
+            value=qltypes.SchemaCardinality.ONE,
         )
 
     def reduce_SET_MULTI(self, *kids):
         self.val = qlast.SetSpecialField(
             name='cardinality',
-            value=qltypes.Cardinality.MANY,
+            value=qltypes.SchemaCardinality.MANY,
         )
 
 

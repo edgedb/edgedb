@@ -2265,7 +2265,10 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             dbops.Column(
                 name=ptr_stor_info.column_name,
                 type=col_type,
-                required=pointer.get_required(schema),
+                required=(
+                    pointer.get_required(schema)
+                    and not pointer.is_pure_computable(schema)
+                ),
                 default=default,
                 comment=pointer.get_shortname(schema))
         ]
@@ -3039,7 +3042,8 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                     cond = dbops.ColumnExists(
                         table_name=alter_table.name, column_name=col.name)
 
-                    if prop.get_required(schema):
+                    if (prop.get_required(schema)
+                            and not prop.is_pure_computable(schema)):
                         # For some reason, Postgres allows dropping NOT NULL
                         # constraints from inherited columns, but we really
                         # should only always increase constraints down the

@@ -180,7 +180,6 @@ class BasePointerRef(ImmutableBase):
     union_components: typing.Set[BasePointerRef]
     union_is_concrete: bool
     has_properties: bool
-    required: bool
     is_derived: bool
     is_computable: bool
     # Relation cardinality in the direction specified
@@ -195,6 +194,10 @@ class BasePointerRef(ImmutableBase):
             return self.out_target
         else:
             return self.out_source
+
+    @property
+    def required(self) -> bool:
+        return self.out_cardinality.to_schema_value()[0]
 
 
 class PointerRef(BasePointerRef):
@@ -229,8 +232,11 @@ class TupleIndirectionLink(s_pointers.PseudoPointer):
     def get_name(self, schema: s_schema.Schema) -> str:
         return self._name
 
-    def get_cardinality(self, schema: s_schema.Schema) -> qltypes.Cardinality:
-        return qltypes.Cardinality.ONE
+    def get_cardinality(
+        self,
+        schema: s_schema.Schema
+    ) -> qltypes.SchemaCardinality:
+        return qltypes.SchemaCardinality.ONE
 
     def singular(
         self,
@@ -272,7 +278,7 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
         is_empty: bool,
         is_subtype: bool,
         rptr_specialization: typing.Iterable[PointerRef] = (),
-        cardinality: qltypes.Cardinality,
+        cardinality: qltypes.SchemaCardinality,
     ) -> None:
         name = 'optindirection' if optional else 'indirection'
         self._name = sn.Name(module='__type__', name=name)
@@ -287,7 +293,10 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
     def get_name(self, schema: s_schema.Schema) -> sn.Name:
         return self._name
 
-    def get_cardinality(self, schema: s_schema.Schema) -> qltypes.Cardinality:
+    def get_cardinality(
+        self,
+        schema: s_schema.Schema
+    ) -> qltypes.SchemaCardinality:
         return self._cardinality
 
     def get_computable(self, schema: s_schema.Schema) -> bool:
@@ -321,7 +330,8 @@ class TypeIntersectionLink(s_pointers.PseudoPointer):
             s_pointers.PointerDirection.Outbound
     ) -> bool:
         if direction is s_pointers.PointerDirection.Outbound:
-            return self.get_cardinality(schema) is qltypes.Cardinality.ONE
+            return (self.get_cardinality(schema) is
+                    qltypes.SchemaCardinality.ONE)
         else:
             return True
 
@@ -656,7 +666,7 @@ class Stmt(Expr):
 class FilteredStmt(Stmt):
     __abstract_node__ = True
     where: Set
-    where_card: qltypes.Cardinality
+    where_card: qltypes.SchemaCardinality
 
 
 class SelectStmt(FilteredStmt):
@@ -701,7 +711,7 @@ class ConfigCommand(Command):
     __abstract_node__ = True
     name: str
     system: bool
-    cardinality: qltypes.Cardinality
+    cardinality: qltypes.SchemaCardinality
     requires_restart: bool
     backend_setting: str
     scope_tree: ScopeTreeNode

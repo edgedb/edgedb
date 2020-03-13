@@ -694,7 +694,7 @@ class IntrospectionMech:
             required = r['required']
 
             if r['cardinality']:
-                cardinality = qltypes.Cardinality(r['cardinality'])
+                cardinality = qltypes.SchemaCardinality(r['cardinality'])
             else:
                 cardinality = None
 
@@ -773,7 +773,7 @@ class IntrospectionMech:
             schema, target = self.unpack_typeref(r['target'], schema)
 
             if r['cardinality']:
-                cardinality = qltypes.Cardinality(r['cardinality'])
+                cardinality = qltypes.SchemaCardinality(r['cardinality'])
             else:
                 cardinality = None
 

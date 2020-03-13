@@ -1658,13 +1658,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             "possibly more than one element returned by an expression for a "
-            "computable link 'owner' declared as 'single'",
+            "computable link 'priority' declared as 'single'",
             _position=85,
         ):
             await self.con.execute("""
                 WITH MODULE test
                 SELECT Issue {
-                    owner := User
+                    priority := Priority
                 }
             """)
 
@@ -1693,6 +1693,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH MODULE test
                 SELECT Issue {
                     single related_to := (SELECT Issue LIMIT 1)
+                }
+            """)
+
+    async def test_edgeql_select_tvariant_bad_08(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "possibly an empty set returned by an expression for a "
+            "computable link 'owner' declared as 'required'",
+            _position=85,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT Issue {
+                    owner := User
                 }
             """)
 
@@ -3419,19 +3433,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_empty_04(self):
         await self.assert_query_result(
             r"""
-            # Perfectly legal way to mask 'name' with empty set of
-            # some arbitrary type.
+            # Perfectly legal way to mask 'time_estimate' with empty set.
             WITH MODULE test
             SELECT Issue {
                 number,
-                name := <str>{}
+                time_estimate := <int64>{}
             } ORDER BY .number;
             """,
             [
-                {'number': '1', 'name': None},
-                {'number': '2', 'name': None},
-                {'number': '3', 'name': None},
-                {'number': '4', 'name': None},
+                {'number': '1', 'time_estimate': None},
+                {'number': '2', 'time_estimate': None},
+                {'number': '3', 'time_estimate': None},
+                {'number': '4', 'time_estimate': None},
             ],
         )
 
@@ -3444,7 +3457,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT Issue {
                     number,
                     # the empty set is of an unspecified type
-                    name := {}
+                    time_estimate := {}
                 } ORDER BY .number;
                 """)
 

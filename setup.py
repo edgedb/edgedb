@@ -289,6 +289,7 @@ class develop(setuptools_develop.develop):
         subprocess.run(
             [
                 'cargo', 'install',
+                '--verbose', '--verbose',
                 '--git', EDGEDBCLI_REPO,
                 '--bin', 'edgedb',
                 '--root', rust_root,
