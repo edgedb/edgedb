@@ -3085,6 +3085,35 @@ class TestExpressions(tb.QueryTestCase):
                 r"SELECT 'bb\   aa';"
             )
 
+    async def test_edgeql_expr_string_12(self):
+        # Issue #1269
+        await self.assert_query_result(
+            r'''SELECT 'bb\
+aa \
+            bb';
+            ''',
+            ['bbaa bb'],
+        )
+
+    async def test_edgeql_expr_string_13(self):
+        # Issue #1269
+        #
+        # \r or \n should both be allowed after line continuation symbol
+        await self.assert_query_result(
+            "SELECT 'bb\\\n   aa';",
+            ['bbaa'],
+        )
+
+        await self.assert_query_result(
+            "SELECT 'bb\\\r   aa';",
+            ['bbaa'],
+        )
+
+        await self.assert_query_result(
+            "SELECT 'bb\\\r\n   aa';",
+            ['bbaa'],
+        )
+
     async def test_edgeql_expr_tuple_01(self):
         await self.assert_query_result(
             r"""
