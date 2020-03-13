@@ -27,6 +27,9 @@ from typing import *
 
 import graphql
 from graphql.language import ast as gql_ast
+from graphql.language import lexer as gql_lexer
+from graphql import error as gql_error
+from graphql import language as gql_lang
 
 from edb import errors
 
@@ -41,13 +44,21 @@ from edb.schema import utils as s_utils
 
 from . import types as gt
 from . import errors as g_errors
-from . import codegen as gqlcodegen
 
 
 ARG_TYPES = {
     'Int': gql_ast.IntValueNode,
     'String': gql_ast.StringValueNode,
 }
+
+REWRITE_TYPE_ERROR = re.compile(
+    r"Variable '\$(?P<var_name>_edb_arg__\d+)' of type 'String!'"
+    r" used in position expecting type '(?P<type>[^']+)'"
+)
+INT_FLOAT_ERROR = re.compile(
+    r"Variable '\$[^']+' of type 'Int!?'"
+    r" used in position expecting type 'Float!?'"
+)
 
 
 class GraphQLTranslatorContext:
@@ -65,6 +76,10 @@ class GraphQLTranslatorContext:
         self.query = query
         self.document_ast = document_ast
         self.operation_name = operation_name
+
+        # only used inside ObjectFieldNode
+        self.base_expr = None
+        self.right_cast = None
 
         # auto-incrementing counter
         self._counter = 0
@@ -108,6 +123,23 @@ class TranspiledOperation(NamedTuple):
     variables_desc: dict
 
 
+class BookkeepDict(dict):
+
+    def __init__(self, values):
+        self.update(values)
+        self.touched = set()
+
+    def __getitem__(self, key):
+        self.touched.add(key)
+        return super().__getitem__(key)
+
+    def values(self):
+        raise NotImplementedError()
+
+    def items(self):
+        raise NotImplementedError()
+
+
 class GraphQLTranslator:
 
     def __init__(self, *, context=None):
@@ -132,15 +164,8 @@ class GraphQLTranslator:
 
     def get_loc(self, node):
         if node.loc:
-            position = node.loc.start
-            lines = self._context.query[:position].splitlines()
-            if lines:
-                line = len(lines)
-                column = len(lines[-1]) + 1
-            else:
-                line = 1
-                column = 1
-            return (line, column)
+            token = node.loc.start_token
+            return token.line, token.column
         else:
             return None
 
@@ -204,18 +229,23 @@ class GraphQLTranslator:
                 raise errors.QueryError(
                     f'unknown operation named "{operation_name}"')
 
-        stmt = translated[operation_name].stmt
-        for el in stmt.result.elements:
+        operation = translated[operation_name]
+        for el in operation.stmt.result.elements:
             # swap in the json bits
             if (isinstance(el.compexpr, qlast.FunctionCall) and
                     el.compexpr.func == 'to_json'):
 
                 # An introspection query; let graphql evaluate it for us.
+
+                vars = BookkeepDict(self._context.variables)
                 result = graphql.execute(
                     self._context.gqlcore.graphql_schema,
                     self._context.document_ast,
                     operation_name=operation_name,
-                    variable_values=self._context.variables)
+                    variable_values=vars)
+                for var_name in vars.touched:
+                    var = self._context.vars.get(var_name)
+                    self._context.vars[var_name] = var._replace(critical=True)
 
                 if result.errors:
                     err = result.errors[0]
@@ -231,6 +261,8 @@ class GraphQLTranslator:
                 name = el.expr.steps[0].ptr.name
                 el.compexpr.args[0] = qlast.StringConstant.from_python(
                     json.dumps(result.data[name]))
+                for var in vars.touched:
+                    operation.critvars[var] = self._context.vars[var].val
 
         return translated
 
@@ -375,8 +407,7 @@ class GraphQLTranslator:
                 variables[varname] = Var(
                     val=None, defn=node, critical=False)
             else:
-                val = json.loads(
-                    gqlcodegen.generate_source(node.default_value))
+                val = convert_default(node.default_value, varname)
                 variables[varname] = Var(val=val, defn=node, critical=False)
         else:
             # we have the variable, but we still need to update the defn field
@@ -833,7 +864,7 @@ class GraphQLTranslator:
                 limit = qlast.BinOp(
                     left=before,
                     op='-',
-                    right=after
+                    right=offset,
                 )
             else:
                 limit = before
@@ -1292,20 +1323,24 @@ class GraphQLTranslator:
                     type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
                 )
 
+        # ### Set up context for the nested visitor ###
         self._context.base_expr = name
         # potentially the right-hand-side needs to be cast into a float
         if ftype.is_float:
             self._context.right_cast = qlast.TypeName(
                 maintype=ftype.edb_base_name_ast)
-        else:
-            self._context.right_cast = None
+        elif typename == 'std::uuid':
+            self._context.right_cast = qlast.TypeName(
+                maintype=qlast.ObjectRef(name='uuid'))
 
-        # insert current field in path
         path = self._context.path[-1]
         path.append(Step(name=fname, type=ftype, eql_alias=None))
-        value = self.visit(node.value)
-        # pop the path
-        path.pop()
+        try:
+            value = self.visit(node.value)
+        finally:
+            path.pop()
+            self._context.right_cast = None
+            self._context.base_expr = None
 
         # we need to cast a target string into <uuid> or enum
         if typename == 'std::uuid' and not isinstance(
@@ -1510,24 +1545,100 @@ def value_node_from_pyvalue(val: Any):
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 
 
-def translate(gqlcore: gt.GQLCoreSchema, query, *,
-              operation_name=None, variables=None):
+def parse_text(query: str) -> graphql.Document:
     try:
-        document_ast = graphql.parse(query)
+        return graphql.parse(query)
     except graphql.GraphQLError as err:
         err_loc = (err.locations[0].line,
                    err.locations[0].column)
         raise g_errors.GraphQLCoreError(err.message, loc=err_loc) from None
 
+
+class TokenLexer(graphql.language.lexer.Lexer):
+
+    def __init__(self, source, tokens, eof_pos):
+        self.__tokens = tokens
+        self.__index = 0
+        self.__eof_pos = eof_pos
+        self.source = source
+        kind, start, end, line, col, body = self.__tokens[0]
+        self.token = gql_lexer.Token(kind, start, end, line, col, None, body)
+
+    def advance(self) -> gql_lexer.Token:
+        self.last_token = self.token
+        token = self.token = self.lookahead()
+        self.__index += 1
+        return token
+
+    def lookahead(self) -> gql_lexer.Token:
+        token = self.token
+        if token.kind != gql_lexer.TokenKind.EOF:
+            if token.next:
+                return self.token.next
+            kind, start, end, line, col, body = self.__tokens[self.__index + 1]
+            token.next = gql_lexer.Token(
+                kind, start, end, line, col, token, body)
+            return token.next
+        else:
+            return token
+
+
+def parse_tokens(
+    text: str,
+    tokens: List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]
+) -> graphql.Document:
+    try:
+        src = graphql.Source(text)
+        parser = graphql.language.parser.Parser(src)
+        parser._lexer = TokenLexer(src, tokens, len(text))
+        return parser.parse_document()
+    except graphql.GraphQLError as err:
+        err_loc = (err.locations[0].line,
+                   err.locations[0].column)
+        raise g_errors.GraphQLCoreError(err.message, loc=err_loc) from None
+
+
+def convert_errors(
+    errs: List[gql_error.GraphQLError], *,
+    substitutions: Optional[Dict[str, Tuple[str, int, int]]],
+) -> List[gql_error.GraphQLErrors]:
+    result = []
+    for err in errs:
+        m = REWRITE_TYPE_ERROR.match(err.message)
+        if not m:
+            # we allow convefsion from Int to Float, and that is allowed by
+            # graphql spec. It's unclear why graphql-core chokes on this
+            if INT_FLOAT_ERROR.match(err.message):
+                continue
+
+            result.append(err)
+            continue
+        if m.group("type") in ("ID", "ID!"):
+            # skip the error, we avoid it in the execution code
+            continue
+        value, line, col = substitutions[m.group("var_name")]
+        err = gql_error.GraphQLError(
+            f"Expected type {m.group('type')}, found {value}.")
+        err.locations = [gql_lang.SourceLocation(line, col)]
+        result.append(err)
+    return result
+
+
+def translate_ast(
+    gqlcore: gt.GQLCoreSchema,
+    document_ast: graphql.Document,
+    *,
+    operation_name: Optional[str]=None,
+    variables: Dict[str, Any]=None,
+    substitutions: Optional[Dict[str, Tuple[str, int, int]]],
+) -> TranspiledOperation:
+
     if variables is None:
         variables = {}
 
-    if debug.flags.graphql_compile:
-        debug.header('GraphQL compiler')
-        print(query)
-        print(f'variables: {variables}')
-
-    validation_errors = graphql.validate(gqlcore.graphql_schema, document_ast)
+    validation_errors = convert_errors(
+        graphql.validate(gqlcore.graphql_schema, document_ast),
+        substitutions=substitutions)
     if validation_errors:
         err = validation_errors[0]
         if isinstance(err, graphql.GraphQLError):
@@ -1542,7 +1653,7 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *,
             raise err
 
     context = GraphQLTranslatorContext(
-        gqlcore=gqlcore, query=query,
+        gqlcore=gqlcore, query=None,
         variables=variables, document_ast=document_ast,
         operation_name=operation_name)
 
@@ -1580,3 +1691,19 @@ def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
         )
 
     return message
+
+
+def convert_default(
+    node: gql_ast.ValueNode,
+    varname: str
+) -> Union[str, float, int, bool]:
+    if isinstance(node, (gql_ast.StringValueNode, gql_ast.BooleanValueNode)):
+        return node.value
+    elif isinstance(node, gql_ast.IntValueNode):
+        return int(node.value)
+    elif isinstance(node, gql_ast.FloatValueNode):
+        return float(node.value)
+    else:
+        raise errors.QueryError(
+            f"Only scalar defaults are allowed. "
+            f"Variable {varname!r} has non-scalar default value.")

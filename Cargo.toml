@@ -2,6 +2,7 @@
 members = [
     "edb/edgeql-parser",
     "edb/edgeql-rust",
+    "edb/graphql-rewrite",
 ]
 
 [profile.release]

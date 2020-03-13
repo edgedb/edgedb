@@ -60,18 +60,26 @@ class Compiler(compiler.BaseCompiler):
             gqlcore=gqlcore)
 
     async def compile_graphql(
-            self,
-            dbver: int,
-            gql: str,
-            operation_name: str=None,
-            variables: Optional[Mapping[str, object]]=None):
+        self,
+        dbver: int,
+        gql: str,
+        tokens: Optional[List[Tuple[int, int, int, str]]],
+        substitutions: Optional[Dict[str, Tuple[str, int, int]]],
+        operation_name: str=None,
+        variables: Optional[Mapping[str, object]]=None,
+    ) -> CompiledOperation:
 
         db = await self._get_database(dbver)
 
-        op = graphql.translate(
+        if tokens is None:
+            ast = graphql.parse_text(gql)
+        else:
+            ast = graphql.parse_tokens(gql, tokens)
+        op = graphql.translate_ast(
             db.gqlcore,
-            gql,
+            ast,
             variables=variables,
+            substitutions=substitutions,
             operation_name=operation_name)
 
         ir = ql_compiler.compile_ast_to_ir(
