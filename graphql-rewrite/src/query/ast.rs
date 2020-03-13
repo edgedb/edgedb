@@ -17,7 +17,7 @@ pub struct Document<'a, T: Text<'a>> {
 impl<'a> Document<'a, String> {
     pub fn into_static(self) -> Document<'static, String> {
         // To support both reference and owned values in the AST,
-        // all string data is represented with the ::common::Str<'a, T: Text<'a>> 
+        // all string data is represented with the ::common::Str<'a, T: Text<'a>>
         // wrapper type.
         // This type must carry the liftetime of the query string,
         // and is stored in a PhantomData value on the Str type.
@@ -35,7 +35,7 @@ impl<'a> Document<'a, String> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Definition<'a, T: Text<'a>> {
-    Operation(OperationDefinition<'a, T>),
+    Operation(Operation<'a, T>),
     Fragment(FragmentDefinition<'a, T>),
 }
 
@@ -49,36 +49,27 @@ pub struct FragmentDefinition<'a, T: Text<'a>> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum OperationDefinition<'a, T: Text<'a>> {
-    SelectionSet(SelectionSet<'a, T>),
-    Query(Query<'a, T>),
-    Mutation(Mutation<'a, T>),
-    Subscription(Subscription<'a, T>),
+pub enum OperationKind {
+    ImplicitQuery,
+    Query,
+    Mutation,
+    Subscription,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Query<'a, T: Text<'a>> {
-    pub position: Pos,
-    pub name: Option<T::Value>,
-    pub variable_definitions: Vec<VariableDefinition<'a, T>>,
-    pub directives: Vec<Directive<'a, T>>,
-    pub selection_set: SelectionSet<'a, T>,
+pub enum InsertVars {
+    Query(Pos),
+    Parens(Pos),
+    Normal(Pos),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Mutation<'a, T: Text<'a>> {
+pub struct Operation<'a, T: Text<'a>> {
+    pub kind: OperationKind,
     pub position: Pos,
     pub name: Option<T::Value>,
     pub variable_definitions: Vec<VariableDefinition<'a, T>>,
-    pub directives: Vec<Directive<'a, T>>,
-    pub selection_set: SelectionSet<'a, T>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Subscription<'a, T: Text<'a>> {
-    pub position: Pos,
-    pub name: Option<T::Value>,
-    pub variable_definitions: Vec<VariableDefinition<'a, T>>,
+    pub insert_variables: InsertVars,
     pub directives: Vec<Directive<'a, T>>,
     pub selection_set: SelectionSet<'a, T>,
 }
@@ -90,11 +81,18 @@ pub struct SelectionSet<'a, T: Text<'a>> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct DefaultValue<'a, T: Text<'a>> {
+    pub span: (Pos, Pos),
+    pub value: Value<'a, T>,
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct VariableDefinition<'a, T: Text<'a>> {
     pub position: Pos,
     pub name: T::Value,
     pub var_type: Type<'a, T>,
-    pub default_value: Option<Value<'a, T>>,
+    pub default_value: Option<DefaultValue<'a, T>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

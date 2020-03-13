@@ -5,7 +5,7 @@ use crate::format::{Displayable, Formatter, Style, format_directives};
 use crate::query::ast::*;
 
 
-impl<'a, T: Text<'a>> Document<'a, T> 
+impl<'a, T: Text<'a>> Document<'a, T>
     where T: Text<'a>,
 {
     /// Format a document according to style
@@ -23,7 +23,7 @@ fn to_string<T: Displayable>(v: &T) -> String {
     formatter.into_string()
 }
 
-impl<'a, T: Text<'a>> Displayable for Document<'a, T> 
+impl<'a, T: Text<'a>> Displayable for Document<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -33,7 +33,7 @@ impl<'a, T: Text<'a>> Displayable for Document<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for Definition<'a, T> 
+impl<'a, T: Text<'a>> Displayable for Definition<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -44,20 +44,46 @@ impl<'a, T: Text<'a>> Displayable for Definition<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for OperationDefinition<'a, T> 
+impl<'a, T: Text<'a>> Displayable for Operation<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
-        match *self {
-            OperationDefinition::SelectionSet(ref set) => set.display(f),
-            OperationDefinition::Query(ref q) => q.display(f),
-            OperationDefinition::Mutation(ref m) => m.display(f),
-            OperationDefinition::Subscription(ref s) => s.display(f),
+        use crate::query::OperationKind::*;
+        f.margin();
+        f.indent();
+        f.write(match self.kind {
+            ImplicitQuery => "",
+            Query => "query",
+            Mutation => "mutation",
+            Subscription => "subscription",
+        });
+        if let Some(ref name) = self.name {
+            assert!(self.kind != ImplicitQuery);
+            f.write(" ");
+            f.write(name.as_ref());
+            if !self.variable_definitions.is_empty() {
+                f.write("(");
+                self.variable_definitions[0].display(f);
+                for var in &self.variable_definitions[1..] {
+                    f.write(", ");
+                    var.display(f);
+                }
+                f.write(")");
+            }
         }
+        if self.kind != ImplicitQuery {
+            format_directives(&self.directives, f);
+            f.write(" ");
+        }
+        f.start_block();
+        for item in &self.selection_set.items {
+            item.display(f);
+        }
+        f.end_block();
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for FragmentDefinition<'a, T> 
+impl<'a, T: Text<'a>> Displayable for FragmentDefinition<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -77,7 +103,7 @@ impl<'a, T: Text<'a>> Displayable for FragmentDefinition<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for SelectionSet<'a, T> 
+impl<'a, T: Text<'a>> Displayable for SelectionSet<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -91,7 +117,7 @@ impl<'a, T: Text<'a>> Displayable for SelectionSet<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for Selection<'a, T> 
+impl<'a, T: Text<'a>> Displayable for Selection<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -103,7 +129,7 @@ impl<'a, T: Text<'a>> Displayable for Selection<'a, T>
     }
 }
 
-fn format_arguments<'a, T: Text<'a>>(arguments: &[(T::Value, Value<'a, T>)], f: &mut Formatter) 
+fn format_arguments<'a, T: Text<'a>>(arguments: &[(T::Value, Value<'a, T>)], f: &mut Formatter)
     where T: Text<'a>,
 {
     if !arguments.is_empty() {
@@ -121,7 +147,7 @@ fn format_arguments<'a, T: Text<'a>>(arguments: &[(T::Value, Value<'a, T>)], f: 
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for Field<'a, T> 
+impl<'a, T: Text<'a>> Displayable for Field<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -146,93 +172,7 @@ impl<'a, T: Text<'a>> Displayable for Field<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for Query<'a, T> 
-    where T: Text<'a>,
-{
-    fn display(&self, f: &mut Formatter) {
-        f.margin();
-        f.indent();
-        f.write("query");
-        if let Some(ref name) = self.name {
-            f.write(" ");
-            f.write(name.as_ref());
-            if !self.variable_definitions.is_empty() {
-                f.write("(");
-                self.variable_definitions[0].display(f);
-                for var in &self.variable_definitions[1..] {
-                    f.write(", ");
-                    var.display(f);
-                }
-                f.write(")");
-            }
-        }
-        format_directives(&self.directives, f);
-        f.write(" ");
-        f.start_block();
-        for item in &self.selection_set.items {
-            item.display(f);
-        }
-        f.end_block();
-    }
-}
-
-impl<'a, T: Text<'a>> Displayable for Mutation<'a, T> 
-    where T: Text<'a>,
-{
-    fn display(&self, f: &mut Formatter) {
-        f.margin();
-        f.indent();
-        f.write("mutation");
-        if let Some(ref name) = self.name {
-            f.write(" ");
-            f.write(name.as_ref());
-            if !self.variable_definitions.is_empty() {
-                f.write("(");
-                for var in &self.variable_definitions {
-                    var.display(f);
-                }
-                f.write(")");
-            }
-        }
-        format_directives(&self.directives, f);
-        f.write(" ");
-        f.start_block();
-        for item in &self.selection_set.items {
-            item.display(f);
-        }
-        f.end_block();
-    }
-}
-
-impl<'a, T: Text<'a>> Displayable for Subscription<'a, T> 
-    where T: Text<'a>,
-{
-    fn display(&self, f: &mut Formatter) {
-        f.margin();
-        f.indent();
-        f.write("subscription");
-        if let Some(ref name) = self.name {
-            f.write(" ");
-            f.write(name.as_ref());
-            if !self.variable_definitions.is_empty() {
-                f.write("(");
-                for var in &self.variable_definitions {
-                    var.display(f);
-                }
-                f.write(")");
-            }
-        }
-        format_directives(&self.directives, f);
-        f.write(" ");
-        f.start_block();
-        for item in &self.selection_set.items {
-            item.display(f);
-        }
-        f.end_block();
-    }
-}
-
-impl<'a, T: Text<'a>> Displayable for VariableDefinition<'a, T> 
+impl<'a, T: Text<'a>> Displayable for VariableDefinition<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -242,12 +182,12 @@ impl<'a, T: Text<'a>> Displayable for VariableDefinition<'a, T>
         self.var_type.display(f);
         if let Some(ref default) = self.default_value {
             f.write(" = ");
-            default.display(f);
+            default.value.display(f);
         }
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for Type<'a, T> 
+impl<'a, T: Text<'a>> Displayable for Type<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -266,7 +206,7 @@ impl<'a, T: Text<'a>> Displayable for Type<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for Value<'a, T> 
+impl<'a, T: Text<'a>> Displayable for Value<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -309,7 +249,7 @@ impl<'a, T: Text<'a>> Displayable for Value<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for InlineFragment<'a, T> 
+impl<'a, T: Text<'a>> Displayable for InlineFragment<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -329,7 +269,7 @@ impl<'a, T: Text<'a>> Displayable for InlineFragment<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for TypeCondition<'a, T> 
+impl<'a, T: Text<'a>> Displayable for TypeCondition<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -342,7 +282,7 @@ impl<'a, T: Text<'a>> Displayable for TypeCondition<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for FragmentSpread<'a, T> 
+impl<'a, T: Text<'a>> Displayable for FragmentSpread<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -354,7 +294,7 @@ impl<'a, T: Text<'a>> Displayable for FragmentSpread<'a, T>
     }
 }
 
-impl<'a, T: Text<'a>> Displayable for Directive<'a, T> 
+impl<'a, T: Text<'a>> Displayable for Directive<'a, T>
     where T: Text<'a>,
 {
     fn display(&self, f: &mut Formatter) {
@@ -366,16 +306,13 @@ impl<'a, T: Text<'a>> Displayable for Directive<'a, T>
 
 
 impl_display!(
-    'a 
+    'a
     Document,
     Definition,
-    OperationDefinition,
+    Operation,
     FragmentDefinition,
     SelectionSet,
     Field,
-    Query,
-    Mutation,
-    Subscription,
     VariableDefinition,
     Type,
     Value,
