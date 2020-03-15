@@ -46,8 +46,13 @@ if TYPE_CHECKING:
 LinkTargetDeleteAction = qltypes.LinkTargetDeleteAction
 
 
-def merge_actions(target: so.Object, sources: List[so.Object],
-                  field_name: str, *, schema) -> object:
+def merge_actions(
+    target: so.InheritingObject,
+    sources: List[so.Object],
+    field_name: str,
+    *,
+    schema: s_schema.Schema,
+) -> object:
     ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is None:
         current = None
@@ -100,20 +105,27 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         compcoef=0.9,
         merge_fn=merge_actions)
 
-    def is_link_property(self, schema):
+    def is_link_property(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def is_property(self, schema):
+    def is_property(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def scalar(self):
+    def scalar(self) -> bool:
         return False
 
-    def has_user_defined_properties(self, schema):
+    def has_user_defined_properties(self, schema: s_schema.Schema) -> bool:
         return bool([p for p in self.get_pointers(schema).objects(schema)
                      if not p.is_special_pointer(schema)])
 
-    def compare(self, other, *, our_schema, their_schema, context=None):
+    def compare(
+        self,
+        other: so.Object,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: Optional[so.ComparisonContext] = None
+    ) -> Union[float, NotImplemented]:
         if not isinstance(other, Link):
             if isinstance(other, pointers.Pointer):
                 return 0.0
@@ -124,21 +136,26 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
             other, our_schema=our_schema,
             their_schema=their_schema, context=context)
 
-    def set_target(self, schema, target):
+    def set_target(
+        self,
+        schema: s_schema.Schema,
+        target: Any
+    ) -> s_schema.Schema:
         schema = super().set_target(schema, target)
         tgt_prop = self.getptr(schema, 'target')
+        assert tgt_prop is not None
         schema = tgt_prop.set_target(schema, target)
         return schema
 
     @classmethod
-    def get_root_classes(cls):
+    def get_root_classes(cls) -> Tuple[sn.Name, ...]:
         return (
             sn.Name(module='std', name='link'),
             sn.Name(module='schema', name='__type__'),
         )
 
     @classmethod
-    def get_default_base_name(self):
+    def get_default_base_name(self) -> sn.Name:
         return sn.Name('std::link')
 
 
@@ -166,13 +183,26 @@ class LinkCommand(lproperties.PropertySourceCommand,
                   schema_metaclass=Link, context_class=LinkCommandContext,
                   referrer_context_class=LinkSourceCommandContext):
 
-    def _set_pointer_type(self, schema, astnode, context, target_ref):
+    def _set_pointer_type(
+        self,
+        schema: s_schema.Schema,
+        astnode: qlast.CreateConcreteLink,
+        context: sd.CommandContext,
+        target_ref: Any
+    ) -> None:
+        assert astnode.target is not None
         slt = SetLinkType(classname=self.classname, type=target_ref)
         slt.set_attribute_value(
             'target', target_ref, source_context=astnode.target.context)
         self.add(slt)
 
-    def _apply_refs_fields_ast(self, schema, context, node, refdict):
+    def _apply_refs_fields_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        refdict: so.RefDict,
+    ) -> None:
         if issubclass(refdict.ref_cls, pointers.Pointer):
             for op in self.get_subcommands(metaclass=refdict.ref_cls):
                 pname = sn.shortname_from_fullname(op.classname)
@@ -181,15 +211,22 @@ class LinkCommand(lproperties.PropertySourceCommand,
         else:
             super()._apply_refs_fields_ast(schema, context, node, refdict)
 
-    def _validate_pointer_def(self, schema, context):
+    def _validate_pointer_def(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext
+    ) -> None:
         """Check that link definition is sound."""
         super()._validate_pointer_def(schema, context)
 
         scls = self.scls
+        assert isinstance(scls, Link)
+
         if not scls.get_is_local(schema):
             return
 
         target = scls.get_target(schema)
+        assert target is not None
 
         if not target.is_object_type():
             srcctx = self.get_attribute_source_context('target')
@@ -208,7 +245,7 @@ class LinkCommand(lproperties.PropertySourceCommand,
     ) -> Optional[qlast.DDLOperation]:
         node = super()._get_ast(schema, context, parent_node=parent_node)
         # __type__ link is special, and while it exists on every object
-        # it doesn not have a defined default in the schema (and therefore
+        # it does not have a defined default in the schema (and therefore
         # it isn't marked as required.)  We intervene here to mark all
         # __type__ links required when rendering for SDL/TEXT.
         if (context.declarative and
@@ -226,7 +263,12 @@ class CreateLink(
     referenced_astnode = qlast.CreateConcreteLink
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.CreateConcreteLink):
             cmd._process_create_or_alter_ast(schema, astnode, context)
@@ -238,7 +280,13 @@ class CreateLink(
                     context=astnode.context)
         return cmd
 
-    def _apply_field_ast(self, schema, context, node, op):
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
         objtype = context.get(LinkSourceCommandContext)
 
         if op.property == 'required':
@@ -277,7 +325,12 @@ class CreateLink(
         else:
             super()._apply_field_ast(schema, context, node, op)
 
-    def inherit_classref_dict(self, schema, context, refdict):
+    def inherit_classref_dict(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        refdict: so.RefDict,
+    ) -> sd.CommandGroup:
         cmd = super().inherit_classref_dict(schema, context, refdict)
 
         if refdict.attr != 'pointers':
@@ -374,11 +427,24 @@ class SetTargetDeletePolicy(sd.Command):
     astnode = qlast.OnTargetDelete
 
     @classmethod
-    def _cmd_from_ast(cls, schema, astnode, context):
-        return sd.AlterObjectProperty(property='on_target_delete')
+    def _cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> SetTargetDeletePolicy:
+        return sd.AlterObjectProperty(  # type: ignore
+            property='on_target_delete'
+        )
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.OnTargetDelete)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         cmd.new_value = astnode.cascade
         return cmd
@@ -392,7 +458,12 @@ class AlterLink(
     referenced_astnode = qlast.AlterConcreteLink
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.CreateConcreteLink):
             cmd._process_create_or_alter_ast(schema, astnode, context)
@@ -407,9 +478,14 @@ class DeleteLink(
     astnode = [qlast.DropLink, qlast.DropConcreteLink]
     referenced_astnode = qlast.DropConcreteLink
 
-    def _canonicalize(self, schema, context, scls):
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: Any
+    ) -> List[sd.Command]:
         commands = super()._canonicalize(schema, context, scls)
-
+        assert isinstance(commands, list)  # TODO: change annotation in delta
         target = scls.get_target(schema)
 
         # A link may only target an alias only inside another alias,
