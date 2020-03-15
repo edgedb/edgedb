@@ -248,10 +248,11 @@ class LinkCommand(lproperties.PropertySourceCommand,
         # it does not have a defined default in the schema (and therefore
         # it isn't marked as required.)  We intervene here to mark all
         # __type__ links required when rendering for SDL/TEXT.
-        if (context.declarative and
-                node is not None and
-                node.name.name == '__type__'):
-            node.is_required = True
+        if context.declarative and node is not None:
+            assert isinstance(node, (qlast.CreateConcreteLink,
+                                     qlast.CreateLink))
+            if node.name.name == '__type__':
+                node.is_required = True
         return node
 
 
@@ -278,6 +279,7 @@ class CreateLink(
                 raise errors.SchemaDefinitionError(
                     f"'default' is not a valid field for an abstract link",
                     context=astnode.context)
+        assert isinstance(cmd, sd.Command)
         return cmd
 
     def _apply_field_ast(
@@ -287,12 +289,13 @@ class CreateLink(
         node: qlast.DDLOperation,
         op: sd.AlterObjectProperty,
     ) -> None:
-        objtype = context.get(LinkSourceCommandContext)
+        objtype = context.get(LinkSourceCommandContext)  # type: ignore
 
         if op.property == 'required':
             # Due to how SDL is processed the underlying AST may be an
             # AlterConcreteLink, which requires different handling.
             if isinstance(node, qlast.CreateConcreteLink):
+                assert isinstance(op.new_value, bool)
                 node.is_required = op.new_value
             else:
                 node.commands.append(
@@ -313,8 +316,10 @@ class CreateLink(
                         node.target = expr.qlast
                     else:
                         t = op.new_value
+                        assert isinstance(t, so.Object)
                         node.target = utils.typeref_to_ast(schema, t)
             else:
+                assert isinstance(op.new_value, so.Object)
                 node.commands.append(
                     qlast.SetLinkType(
                         type=utils.typeref_to_ast(schema, op.new_value)
@@ -331,15 +336,17 @@ class CreateLink(
         context: sd.CommandContext,
         refdict: so.RefDict,
     ) -> sd.CommandGroup:
+        from edb.schema import objtypes as s_objtypes
+
         cmd = super().inherit_classref_dict(schema, context, refdict)
 
         if refdict.attr != 'pointers':
             return cmd
 
-        parent_ctx = context.get(LinkSourceCommandContext)
+        parent_ctx = context.get(LinkSourceCommandContext)  # type: ignore
         if parent_ctx is None:
             return cmd
-
+        assert isinstance(parent_ctx, s_objtypes.ObjectTypeCommandContext)
         source_name = parent_ctx.op.classname
 
         base_prop_name = sn.Name('std::source')
@@ -467,7 +474,7 @@ class AlterLink(
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.CreateConcreteLink):
             cmd._process_create_or_alter_ast(schema, astnode, context)
-
+        assert isinstance(cmd, sd.Command)
         return cmd
 
 
