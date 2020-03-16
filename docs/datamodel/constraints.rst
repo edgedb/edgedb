@@ -164,6 +164,12 @@ The standard library defines the following constraints:
             }
         }
 
+    .. note::
+
+        This constraint also has an additional effect of creating an
+        implicit :ref:`index <ref_datamodel_indexes>` on the link or
+        property. This means that in the above example there's no need to
+        add explicit indexes for the ``name`` property.
 
 
 See Also
