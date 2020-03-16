@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 def ast_objref_to_objref(
         node: qlast.ObjectRef, *,
         metaclass: Optional[so.ObjectMeta] = None,
-        modaliases: Dict[Optional[str], str],
+        modaliases: Mapping[Optional[str], str],
         schema: s_schema.Schema) -> so.Object:
 
     if metaclass is not None and issubclass(metaclass, so.GlobalObject):

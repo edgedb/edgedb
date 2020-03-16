@@ -24,7 +24,6 @@ from typing import *
 
 from edb.edgeql import qltypes
 
-from edb.schema import abc as s_abc
 from edb.schema import links as s_links
 from edb.schema import lproperties as s_props
 from edb.schema import modules as s_mod
@@ -153,7 +152,7 @@ def type_to_typeref(
             id=t.id,
             name_hint=typename or t.get_name(schema),
         )
-    elif not isinstance(t, s_abc.Collection):
+    elif not isinstance(t, s_types.Collection):
         assert isinstance(t, s_types.InheritingType)
         union_of = t.get_union_of(schema)
         if union_of:
@@ -236,7 +235,7 @@ def type_to_typeref(
             is_view=t.is_view(schema),
             is_opaque_union=t.get_is_opaque_union(schema),
         )
-    elif isinstance(t, s_abc.Tuple) and t.named:
+    elif isinstance(t, s_types.Tuple) and t.named:
         result = irast.TypeRef(
             id=t.id,
             name_hint=typename or t.get_name(schema),

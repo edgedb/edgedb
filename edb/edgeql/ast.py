@@ -130,9 +130,8 @@ class Expr(Base):
 class SubExpr(Base):
     """A subexpression (used for anchors)."""
 
-    expr: typing.Union[Expr, object]
-    anchors: typing.Dict[typing.Union[str, ast.MetaAST],
-                         typing.Union[Expr, object]]
+    expr: Expr
+    anchors: typing.Dict[str, typing.Any]
 
 
 class Clause(Base):
@@ -215,19 +214,21 @@ class AnyTuple(PseudoObjectRef):
     pass
 
 
-class SpecialAnchor(Expr):
+class Anchor(Expr):
+    __abstract_node__ = True
+    name: str
+
+
+class SpecialAnchor(Anchor):
     __abstract_node__ = True
 
 
-SpecialAnchorT = typing.Type[SpecialAnchor]
-
-
 class Source(SpecialAnchor):  # __source__
-    pass
+    name: str = '__source__'
 
 
 class Subject(SpecialAnchor):  # __subject__
-    pass
+    name: str = '__subject__'
 
 
 class DetachedExpr(Expr):  # DETACHED Expr

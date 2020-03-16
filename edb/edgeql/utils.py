@@ -94,7 +94,7 @@ def index_parameters(
 
 class AnchorInliner(ast.NodeTransformer):
 
-    def __init__(self, anchors: Mapping[Any, qlast.Base]) -> None:
+    def __init__(self, anchors: Mapping[str, qlast.Base]) -> None:
         super().__init__()
         self.anchors = anchors
 
@@ -104,8 +104,8 @@ class AnchorInliner(ast.NodeTransformer):
 
         step0 = node.steps[0]
 
-        if isinstance(step0, (qlast.Subject, qlast.Source)):
-            node.steps[0] = self.anchors[step0.__class__]
+        if isinstance(step0, qlast.Anchor):
+            node.steps[0] = self.anchors[step0.name]
         elif isinstance(step0, qlast.ObjectRef) and step0.name in self.anchors:
             node.steps[0] = self.anchors[step0.name]
 

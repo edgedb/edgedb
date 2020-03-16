@@ -167,13 +167,8 @@ def compile_ast_to_ir(
     schema: s_schema.Schema,
     *,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
-    anchors: Optional[
-        Mapping[
-            irast.AnchorsKeyType,
-            irast.AnchorsValueType
-        ]
-    ] = None,
-    path_prefix_anchor: Optional[irast.AnchorsKeyType] = None,
+    anchors: Optional[Mapping[str, Any]] = None,
+    path_prefix_anchor: Optional[str] = None,
     singletons: Sequence[s_types.Type] = (),
     func_params: Optional[s_func.ParameterLikeList] = None,
     result_view_name: Optional[s_name.SchemaName] = None,
@@ -339,10 +334,8 @@ def compile_ast_fragment_to_ir(
     schema: s_schema.Schema,
     *,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
-    anchors: Optional[
-        Mapping[irast.AnchorsKeyType, irast.AnchorsValueType]
-    ] = None,
-    path_prefix_anchor: Optional[irast.AnchorsKeyType] = None,
+    anchors: Optional[Mapping[str, Any]] = None,
+    path_prefix_anchor: Optional[str] = None,
 ) -> irast.Statement:
     """Compile given EdgeQL AST fragment into EdgeDB IR.
 

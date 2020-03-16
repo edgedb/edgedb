@@ -535,6 +535,15 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             cls._context_class,
         )
 
+    @classmethod
+    def get_context_class_or_die(
+        cls: Type[Command_T],
+    ) -> Type[CommandContextToken[Command_T]]:
+        ctxcls = cls.get_context_class()
+        if ctxcls is None:
+            raise RuntimeError(f'context class not defined for {cls}')
+        return ctxcls
+
     def __str__(self) -> str:
         return struct.MixedStruct.__str__(self)
 
@@ -562,12 +571,6 @@ class CommandGroup(Command):
         for op in self.get_subcommands():
             schema = op.apply(schema, context)
         return schema
-
-
-CommandContextToken_T = TypeVar(
-    "CommandContextToken_T",
-    bound="CommandContextToken[Command]",
-)
 
 
 class CommandContextToken(Generic[Command_T]):
@@ -728,13 +731,16 @@ class CommandContext:
 
     def get(
         self,
-        cls: Type[CommandContextToken_T],
-    ) -> Optional[CommandContextToken_T]:
+        cls: Union[Type[Command], Type[CommandContextToken[Command]]],
+    ) -> Optional[CommandContextToken[Command]]:
         if issubclass(cls, Command):
-            cls = cls.get_context_class()
+            ctxcls = cls.get_context_class()
+            assert ctxcls is not None
+        else:
+            ctxcls = cls
 
         for item in reversed(self.stack):
-            if isinstance(item, cls):
+            if isinstance(item, ctxcls):
                 return item
 
         return None
@@ -1269,7 +1275,7 @@ class ObjectCommandContext(CommandContextToken[ObjectCommand[so.Object_T]]):
         self,
         schema: s_schema.Schema,
         op: ObjectCommand[so.Object_T],
-        scls: Optional[so.Object_T] = None,
+        scls: so.Object_T,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
     ) -> None:
@@ -1363,9 +1369,17 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         if astnode.sdl_alter_if_exists:
             modaliases = cls._modaliases_from_ast(schema, astnode, context)
             dummy_op = cls(classname=sn.Name('placeholder::placeholder'))
-            ctxcls = cls.get_context_class()
-            assert ctxcls is not None
-            with context(ctxcls(schema, op=dummy_op, modaliases=modaliases)):
+            ctxcls = cast(
+                Type[ObjectCommandContext[so.Object_T]],
+                cls.get_context_class_or_die(),
+            )
+            ctx = ctxcls(
+                schema,
+                op=dummy_op,
+                scls=cast(so.Object_T, _dummy_object),
+                modaliases=modaliases,
+            )
+            with context(ctx):
                 classname = cls._classname_from_ast(schema, astnode, context)
             mcls = cls.get_schema_metaclass()
             if schema.get(classname, default=None) is not None:
@@ -2250,7 +2264,16 @@ def compile_ddl(
     context_class = cmdcls.get_context_class()
     if context_class is not None:
         modaliases = cmdcls._modaliases_from_ast(schema, astnode, context)
-        ctx = context_class(schema, op=_dummy_command, modaliases=modaliases)
+        ctxcls = cast(
+            Type[ObjectCommandContext[so.Object]],
+            context_class,
+        )
+        ctx = ctxcls(
+            schema,
+            op=cast(ObjectCommand[so.Object], _dummy_command),
+            scls=_dummy_object,
+            modaliases=modaliases,
+        )
         with context(ctx):
             cmd = cmdcls._cmd_tree_from_ast(schema, astnode, context)
     else:

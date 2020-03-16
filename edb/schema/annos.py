@@ -25,7 +25,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from . import delta as sd
-from . import inheriting
 from . import name as sn
 from . import referencing
 from . import objects as so
@@ -185,7 +184,7 @@ class AnnotationValueCommandContext(sd.ObjectCommandContext[AnnotationValue]):
 
 
 class AnnotationValueCommand(
-    referencing.ReferencedInheritingObjectCommand,
+    referencing.ReferencedInheritingObjectCommand[AnnotationValue],
     schema_metaclass=AnnotationValue,
     context_class=AnnotationValueCommandContext,
     referrer_context_class=AnnotationSubjectCommandContext,
@@ -204,8 +203,10 @@ class AnnotationValueCommand(
         return parent.del_annotation(schema, annotation_name)
 
 
-class CreateAnnotationValue(AnnotationValueCommand,
-                            referencing.CreateReferencedInheritingObject):
+class CreateAnnotationValue(
+    AnnotationValueCommand,
+    referencing.CreateReferencedInheritingObject[AnnotationValue],
+):
     astnode = qlast.CreateAnnotationValue
     referenced_astnode = qlast.CreateAnnotationValue
 
@@ -261,8 +262,10 @@ class CreateAnnotationValue(AnnotationValueCommand,
             super()._apply_field_ast(schema, context, node, op)
 
 
-class AlterAnnotationValue(AnnotationValueCommand,
-                           referencing.AlterReferencedInheritingObject):
+class AlterAnnotationValue(
+    AnnotationValueCommand,
+    referencing.AlterReferencedInheritingObject[AnnotationValue],
+):
 
     astnode = qlast.AlterAnnotationValue
     referenced_astnode = qlast.AlterAnnotationValue
@@ -312,7 +315,9 @@ class AlterAnnotationValue(AnnotationValueCommand,
             super()._apply_field_ast(schema, context, node, op)
 
 
-class DeleteAnnotationValue(AnnotationValueCommand,
-                            inheriting.DeleteInheritingObject):
+class DeleteAnnotationValue(
+    AnnotationValueCommand,
+    referencing.DeleteReferencedInheritingObject[AnnotationValue],
+):
 
     astnode = qlast.DropAnnotationValue

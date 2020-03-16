@@ -65,10 +65,14 @@ class AliasCommand(
     @classmethod
     def command_for_ast_node(cls, astnode, schema, context):
         modaliases = cls._modaliases_from_ast(schema, astnode, context)
+        ctx = AliasCommandContext(
+            schema,
+            op=sd._dummy_object,
+            scls=sd._dummy_object,
+            modaliases=modaliases,
+        )
 
-        with context(AliasCommandContext(
-                schema, op=None, modaliases=modaliases)):
-
+        with context(ctx):
             classname = cls._classname_from_ast(schema, astnode, context)
 
             if isinstance(astnode, qlast.CreateAlias):

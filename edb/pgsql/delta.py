@@ -1775,7 +1775,7 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
         subject = schema.get(subject_name, default=None)
         if not isinstance(subject, s_pointers.Pointer):
             singletons = [subject]
-            path_prefix_anchor = ql_ast.Subject
+            path_prefix_anchor = ql_ast.Subject().name
         else:
             singletons = []
             path_prefix_anchor = None
@@ -1788,7 +1788,7 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
                 schema=schema,
                 modaliases=context.modaliases,
                 parent_object_type=self.get_schema_metaclass(),
-                anchors={ql_ast.Subject: subject},
+                anchors={ql_ast.Subject().name: subject},
                 path_prefix_anchor=path_prefix_anchor,
                 singletons=singletons,
             )

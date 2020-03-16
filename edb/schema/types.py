@@ -491,6 +491,8 @@ class ExistingIntersectionTypeRef(  # type: ignore
 
 class Collection(Type, s_abc.Collection):
 
+    schema_name: typing.ClassVar[str]
+
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return any(st.is_polymorphic(schema)
                    for st in self.get_subtypes(schema))

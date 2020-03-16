@@ -32,7 +32,6 @@ from edb.common import parsing
 
 from edb.ir import ast as irast
 
-from edb.schema import abc as s_abc
 from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
@@ -62,8 +61,7 @@ def init_context(
         func_params: Optional[s_func.ParameterLikeList]=None,
         parent_object_type: Optional[s_obj.ObjectMeta]=None,
         modaliases: Optional[Mapping[Optional[str], str]]=None,
-        anchors: Optional[Mapping[irast.AnchorsKeyType,
-                                  irast.AnchorsValueType]]=None,
+        anchors: Optional[Mapping[str, Any]]=None,
         singletons: Optional[Iterable[s_types.Type]]=None,
         security_context: Optional[str]=None,
         derived_target_module: Optional[str]=None,
@@ -253,7 +251,7 @@ def _elide_derived_ancestors(
 
 
 def compile_anchor(
-    name: Union[str, qlast.SpecialAnchorT],
+    name: str,
     anchor: Union[qlast.Expr, irast.Base, s_obj.Object],
     *,
     ctx: context.ContextLevel,
@@ -261,7 +259,7 @@ def compile_anchor(
 
     show_as_anchor = True
 
-    if isinstance(anchor, s_abc.Type):
+    if isinstance(anchor, s_types.Type):
         step = setgen.class_set(anchor, ctx=ctx)
 
     elif (isinstance(anchor, s_pointers.Pointer) and
@@ -347,7 +345,7 @@ def compile_anchor(
 
 
 def populate_anchors(
-    anchors: Mapping[irast.AnchorsKeyType, irast.AnchorsValueType],
+    anchors: Mapping[str, Any],
     *,
     ctx: context.ContextLevel,
 ) -> None:

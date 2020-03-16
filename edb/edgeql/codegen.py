@@ -461,8 +461,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if i == 0:
                 if isinstance(e, qlast.ObjectRef):
                     self.visit(e)
-                elif isinstance(e, (qlast.Source,
-                                    qlast.Subject)):
+                elif isinstance(e, qlast.Anchor):
                     self.visit(e)
                 elif not isinstance(e, (qlast.Ptr,
                                         qlast.Set,
@@ -684,11 +683,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write('::')
         self.write(ident_to_str(node.name))
 
-    def visit_Source(self, node: qlast.Source) -> None:
-        self.write('__source__')
+    def visit_Anchor(self, node: qlast.Anchor) -> None:
+        self.write(node.name)
 
     def visit_Subject(self, node: qlast.Subject) -> None:
-        self.write('__subject__')
+        self.write(node.name)
+
+    def visit_Source(self, node: qlast.Source) -> None:
+        self.write(node.name)
 
     def visit_TypeExprLiteral(self, node: qlast.TypeExprLiteral) -> None:
         self.visit(node.val)

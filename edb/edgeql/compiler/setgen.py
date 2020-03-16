@@ -33,7 +33,6 @@ from edb.common import parsing
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
-from edb.schema import abc as s_abc
 from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
@@ -298,7 +297,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 source = get_set_type(path_tip, ctx=ctx)
 
             with ctx.newscope(fenced=True, temporary=True) as subctx:
-                if isinstance(source, s_abc.Tuple):
+                if isinstance(source, s_types.Tuple):
                     path_tip = tuple_indirection_set(
                         path_tip, source=source, ptr_name=ptr_name,
                         source_context=step.context, ctx=subctx)
@@ -466,19 +465,15 @@ def resolve_special_anchor(
     # starting path label syntactically and must be pre-populated
     # by the compile() caller.
 
-    if isinstance(anchor, qlast.Source):
-        token = '__source__'
-    elif isinstance(anchor, qlast.Subject):
-        token = '__subject__'
+    if isinstance(anchor, qlast.SpecialAnchor):
+        token = anchor.name
     else:
         raise errors.InternalServerError(
             f'unexpected special anchor kind: {anchor!r}'
         )
 
     anchors = ctx.anchors
-    path_tip = anchors.get(anchor.__class__)
-    if path_tip is None:
-        path_tip = anchors.get(token)
+    path_tip = anchors.get(token)
 
     if path_tip is None:
         raise errors.InvalidReferenceError(
@@ -990,7 +985,7 @@ def computable_ptr_set(
         assert isinstance(source_scls, s_sources.Source)
         subctx.view_rptr = context.ViewRPtr(
             source_scls, ptrcls=ptrcls, rptr=rptr)
-        subctx.anchors[qlast.Source] = source_set
+        subctx.anchors[qlast.Source().name] = source_set
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
 

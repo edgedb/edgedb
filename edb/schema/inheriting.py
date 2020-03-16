@@ -128,7 +128,11 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObject]):
     ) -> Dict[
         sn.Name,
         Tuple[
-            Type[s_referencing.CreateReferencedObject],
+            Type[
+                s_referencing.CreateReferencedObject[
+                    s_referencing.ReferencedObject
+                ]
+            ],
             qlast.ObjectDDL,
             List[so.InheritingObject],
         ],
@@ -140,7 +144,11 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObject]):
         refs: Dict[
             sn.Name,
             Tuple[
-                Type[s_referencing.CreateReferencedObject],
+                Type[
+                    s_referencing.CreateReferencedObject[
+                        s_referencing.ReferencedObject
+                    ]
+                ],
                 qlast.ObjectDDL,
                 List[so.InheritingObject],
             ],
@@ -181,7 +189,11 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObject]):
         present_refs: Dict[
             sn.Name,
             Tuple[
-                Type[s_referencing.CreateReferencedObject],
+                Type[
+                    s_referencing.CreateReferencedObject[
+                        s_referencing.ReferencedObject
+                    ]
+                ],
                 qlast.ObjectDDL,
                 List[so.InheritingObject],
             ],

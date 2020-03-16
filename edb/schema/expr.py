@@ -133,10 +133,8 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         as_fragment: bool = False,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
         parent_object_type: Optional[so.ObjectMeta] = None,
-        anchors: Optional[
-            Mapping[irast_.AnchorsKeyType, irast_.AnchorsValueType]
-        ] = None,
-        path_prefix_anchor: Optional[irast_.AnchorsKeyType] = None,
+        anchors: Optional[Mapping[str, Any]] = None,
+        path_prefix_anchor: Optional[str] = None,
         allow_generic_type_output: bool = False,
         func_params: Optional[s_func.ParameterLikeList] = None,
         singletons: Sequence[s_types.Type] = (),

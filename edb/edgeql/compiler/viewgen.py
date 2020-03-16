@@ -943,7 +943,7 @@ def _get_shape_configuration(
         )
         with ctx.newscope(fenced=True) as scopectx:
             scopectx.anchors = scopectx.anchors.copy()
-            scopectx.anchors[qlast.Source] = ir_set
+            scopectx.anchors[qlast.Source().name] = ir_set
             ptr = _normalize_view_ptr_expr(
                 ql, stype, path_id=ir_set.path_id, ctx=scopectx)
             view_shape = ctx.env.view_shapes[stype]

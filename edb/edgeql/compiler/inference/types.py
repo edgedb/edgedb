@@ -432,7 +432,7 @@ def __infer_index(
 
         result = json_t
 
-    elif isinstance(node_type, s_abc.Array):
+    elif isinstance(node_type, s_types.Array):
 
         if not index_type.implicitly_castable_to(int_t, env.schema):
             raise errors.QueryError(

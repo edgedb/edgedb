@@ -85,6 +85,7 @@ class Field(NamedTuple):
     has_explicit_accessor: bool
     line: int
     column: int
+    type: types.Type
 
     def serialize(self) -> nodes.JsonDict:
         return {
@@ -93,12 +94,13 @@ class Field(NamedTuple):
             'has_explicit_accessor': self.has_explicit_accessor,
             'line': self.line,
             'column': self.column,
+            'type': self.type.serialize(),
         }
 
     @classmethod
     def deserialize(
         cls,
-        semanal,
+        api,
         data: nodes.JsonDict,
     ) -> Field:
         return cls(
@@ -107,6 +109,7 @@ class Field(NamedTuple):
             has_explicit_accessor=data['has_explicit_accessor'],
             line=data['line'],
             column=data['column'],
+            type=mypy_helpers.deserialize_and_fixup_type(data['type'], api),
         )
 
 
@@ -220,6 +223,7 @@ class BaseStructTransformer:
             has_explicit_accessor=self._has_explicit_field_accessor(lhs.name),
             line=stmt.line,
             column=stmt.column,
+            type=ftype,
         )
 
     def _has_explicit_field_accessor(self, fieldname: str) -> bool:
@@ -308,14 +312,11 @@ class SchemaClassTransformer(BaseStructTransformer):
             ctx.api.defer()
             return None
 
-        cls_info = ctx.cls.info
-
         for f in fields:
-            ftype = cls_info.get(f.name).type
-            # If the class is already doing something funny with the
-            # field or its accessor, skip the field.
-            if ftype is None or f.has_explicit_accessor:
+            if f.has_explicit_accessor:
                 continue
+
+            ftype = f.type
 
             if f.is_optional:
                 ftype = types.UnionType.make_union(

@@ -212,7 +212,7 @@ class ConstraintMech:
         ir = ql_compiler.compile_ast_to_ir(
             constraint.get_finalexpr(schema).qlast,
             schema,
-            anchors={qlast.Subject: subject},
+            anchors={qlast.Subject().name: subject},
         )
 
         terminal_refs = ir_utils.get_longest_paths(ir.expr.expr.result)

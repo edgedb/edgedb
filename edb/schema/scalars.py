@@ -70,6 +70,9 @@ class ScalarType(
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return self.get_is_abstract(schema)
 
+    def can_accept_constraints(self, schema: s_schema.Schema) -> bool:
+        return not self.is_enum(schema)
+
     def _resolve_polymorphic(
         self,
         schema: s_schema.Schema,
@@ -169,6 +172,16 @@ class ScalarType(
             return schema.get('std::anyenum')
         else:
             return super().get_base_for_cast(schema)
+
+    def get_verbosename(
+        self, schema: s_schema.Schema, *, with_parent: bool = False
+    ) -> str:
+        if self.is_enum(schema):
+            clsname = 'enumerated type'
+        else:
+            clsname = self.get_schema_class_displayname()
+        dname = self.get_displayname(schema)
+        return f"{clsname} '{dname}'"
 
 
 class AnonymousEnumTypeRef(so.ObjectRef):

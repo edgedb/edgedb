@@ -178,7 +178,7 @@ def derive_view(
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema, name=derived_name)
 
-    elif isinstance(stype, s_obj.InheritingObject):
+    elif isinstance(stype, s_obj.DerivableInheritingObject):
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema,
             name=derived_name,

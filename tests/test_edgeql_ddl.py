@@ -4459,7 +4459,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
-                'constraints cannot be defined on an enumerated type'):
+                'constraints cannot be defined on enumerated type.*'):
             await self.con.execute('''
                 CREATE SCALAR TYPE test::my_enum_3
                     EXTENDING enum<'foo', 'bar', 'baz'> {

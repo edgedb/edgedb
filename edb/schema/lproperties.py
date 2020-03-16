@@ -226,8 +226,10 @@ class PropertyCommand(pointers.PointerCommand,
             )
 
 
-class CreateProperty(PropertyCommand,
-                     referencing.CreateReferencedInheritingObject):
+class CreateProperty(
+    PropertyCommand,
+    referencing.CreateReferencedInheritingObject[Property],
+):
     astnode = [qlast.CreateConcreteProperty,
                qlast.CreateProperty]
 
@@ -281,8 +283,10 @@ class CreateProperty(PropertyCommand,
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameProperty(PropertyCommand,
-                     referencing.RenameReferencedInheritingObject):
+class RenameProperty(
+    PropertyCommand,
+    referencing.RenameReferencedInheritingObject[Property],
+):
     pass
 
 
@@ -297,8 +301,10 @@ class SetPropertyType(pointers.SetPointerType,
     astnode = qlast.SetPropertyType
 
 
-class AlterProperty(PropertyCommand,
-                    referencing.AlterReferencedInheritingObject):
+class AlterProperty(
+    PropertyCommand,
+    referencing.AlterReferencedInheritingObject[Property],
+):
     astnode = [qlast.AlterConcreteProperty,
                qlast.AlterProperty]
 
@@ -326,7 +332,10 @@ class AlterProperty(PropertyCommand,
             super()._apply_field_ast(schema, context, node, op)
 
 
-class DeleteProperty(PropertyCommand, inheriting.DeleteInheritingObject):
+class DeleteProperty(
+    PropertyCommand,
+    referencing.DeleteReferencedInheritingObject[Property],
+):
     astnode = [qlast.DropConcreteProperty,
                qlast.DropProperty]
 

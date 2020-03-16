@@ -207,7 +207,8 @@ class Constraint(referencing.ReferencedInheritingObject,
         if subject is not orig_subject:
             # subject has been redefined
             assert isinstance(subject, qlast.Base)
-            qlutils.inline_anchors(expr_ql, anchors={qlast.Subject: subject})
+            qlutils.inline_anchors(
+                expr_ql, anchors={qlast.Subject().name: subject})
             subject = orig_subject
 
         if args:
@@ -239,7 +240,7 @@ class Constraint(referencing.ReferencedInheritingObject,
             s_expr.Expression.from_ast(expr_ql, schema, module_aliases),
             schema=schema,
             modaliases=module_aliases,
-            anchors={qlast.Subject: subject},
+            anchors={qlast.Subject().name: subject},
         )
 
         bool_t: s_scalars.ScalarType = schema.get('std::bool')
@@ -385,6 +386,9 @@ class ConsistencySubject(
             replace=replace,
         )
 
+    def can_accept_constraints(self, schema: s_schema.Schema) -> bool:
+        return True
+
 
 class ConsistencySubjectCommandContext:
     # context mixin
@@ -401,10 +405,12 @@ class ConstraintCommandContext(sd.ObjectCommandContext[Constraint],
 
 
 class ConstraintCommand(
-        referencing.ReferencedInheritingObjectCommand,
-        s_func.CallableCommand,
-        schema_metaclass=Constraint, context_class=ConstraintCommandContext,
-        referrer_context_class=ConsistencySubjectCommandContext):
+    referencing.ReferencedInheritingObjectCommand[Constraint],
+    s_func.CallableCommand,
+    schema_metaclass=Constraint,
+    context_class=ConstraintCommandContext,
+    referrer_context_class=ConsistencySubjectCommandContext,
+):
 
     @classmethod
     def _validate_subcommands(
@@ -491,10 +497,12 @@ class ConstraintCommand(
                                 "is not supported")
             params = self._get_params(schema, context)
 
-            anchors, _ = (
+            anchors: Dict[str, Any] = {}
+            param_anchors, _ = (
                 qlcompiler.get_param_anchors_for_callable(
                     params, schema, inlined_defaults=False)
             )
+            anchors.update(param_anchors)
             referrer_ctx = self.get_referrer_context(context)
 
             if referrer_ctx is not None:
@@ -573,9 +581,11 @@ class ConstraintCommand(
         return rebase_cmd
 
 
-class CreateConstraint(ConstraintCommand,
-                       s_func.CreateCallableObject,
-                       referencing.CreateReferencedInheritingObject):
+class CreateConstraint(
+    ConstraintCommand,
+    s_func.CreateCallableObject,
+    referencing.CreateReferencedInheritingObject[Constraint],
+):
 
     astnode = [qlast.CreateConcreteConstraint, qlast.CreateConstraint]
     referenced_astnode = qlast.CreateConcreteConstraint
@@ -616,12 +626,12 @@ class CreateConstraint(ConstraintCommand,
         if referrer_ctx is None:
             return super()._create_begin(schema, context)
 
-        # type ignore below because mypy doesn't believe
-        # referrer_ctx is sd.ObjectCommandContext[so.Object]
-        subject = referrer_ctx.scls  # type: ignore
-        if subject.is_scalar() and subject.is_enum(schema):
+        subject = referrer_ctx.scls
+        assert isinstance(subject, ConsistencySubject)
+        if not subject.can_accept_constraints(schema):
             raise errors.UnsupportedFeatureError(
-                f'constraints cannot be defined on an enumerated type',
+                f'constraints cannot be defined on '
+                f'{subject.get_verbosename(schema)}',
                 context=self.source_context,
             )
 
@@ -854,8 +864,10 @@ class RenameConstraint(ConstraintCommand, sd.RenameObject):
     pass
 
 
-class AlterConstraint(ConstraintCommand,
-                      referencing.AlterReferencedInheritingObject):
+class AlterConstraint(
+    ConstraintCommand,
+    referencing.AlterReferencedInheritingObject[Constraint],
+):
     astnode = [qlast.AlterConcreteConstraint, qlast.AlterConstraint]
     referenced_astnode = qlast.AlterConcreteConstraint
 
@@ -871,38 +883,17 @@ class AlterConstraint(ConstraintCommand,
 
         if isinstance(astnode, (qlast.CreateConcreteConstraint,
                                 qlast.AlterConcreteConstraint)):
-            # type ignore below, because mypy doesn't trust the
-            # ConsistencySubjectCommandContext to be a CommandContextToken_T
-            # even when it is sd.ObjectCommandContext[ConsistencySubject]
-            subject_ctx = context \
-                .get(ConsistencySubjectCommandContext)  # type: ignore
-            assert isinstance(subject_ctx, sd.ObjectCommandContext)
-
-            new_subject_name = None
-
             if getattr(astnode, 'delegated', False):
                 assert isinstance(astnode, qlast.CreateConcreteConstraint)
                 cmd.set_attribute_value('delegated', astnode.delegated)
-
-            for op in subject_ctx.op.get_subcommands(
-                    type=sd.RenameObject):
-                new_subject_name = op.new_name
-
-            if new_subject_name is not None:
-                cmd.set_attribute_value(
-                    'subject',
-                    so.ObjectRef(classname=new_subject_name),
-                )
 
             new_name = None
             for op in cmd.get_subcommands(type=RenameConstraint):
                 new_name = op.new_name
 
             if new_name is not None:
-                cmd.set_attribute_value(
-                    'name',
-                    new_name,
-                )
+                cmd.set_attribute_value('name', new_name)
+
         cls._validate_subcommands(astnode)
         return cmd
 
@@ -919,7 +910,11 @@ class AlterConstraint(ConstraintCommand,
             super()._apply_field_ast(schema, context, node, op)
 
 
-class DeleteConstraint(ConstraintCommand, s_func.DeleteCallableObject):
+class DeleteConstraint(
+    ConstraintCommand,
+    referencing.DeleteReferencedInheritingObject[Constraint],
+    s_func.DeleteCallableObject,
+):
     astnode = [qlast.DropConcreteConstraint, qlast.DropConstraint]
     referenced_astnode = qlast.DropConcreteConstraint
 

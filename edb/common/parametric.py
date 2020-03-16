@@ -68,7 +68,10 @@ class ParametricType:
         params_str = ", ".join(_type_repr(a) for a in params)
         name = f"{cls.__name__}[{params_str}]"
         bases = (cls,)
-        type_dict = {"types": params, "__module__": cls.__module__}
+        type_dict: Dict[str, Any] = {
+            "types": params,
+            "__module__": cls.__module__,
+        }
         forward_refs: Dict[str, Tuple[int, str]] = {}
         tuple_to_attr: Dict[int, str] = {}
         if issubclass(cls, SingleParameter):

@@ -631,8 +631,8 @@ class PointerCommandOrFragment:
             s_expr.Expression.from_ast(expr, schema, context.modaliases),
             schema=schema,
             modaliases=context.modaliases,
-            anchors={qlast.Source: source},
-            path_prefix_anchor=qlast.Source,
+            anchors={qlast.Source().name: source},
+            path_prefix_anchor=qlast.Source().name,
             singletons=[source],
         )
 
@@ -848,10 +848,10 @@ class PointerCommand(
                     s_sources.SourceCommandContext, self)
                 source_name = parent_ctx.op.classname
                 source = schema.get(source_name, default=None)
-                anchors[qlast.Source] = source
+                anchors[qlast.Source().name] = source
                 if not isinstance(source, Pointer):
                     singletons = [source]
-                    path_prefix_anchor = qlast.Source
+                    path_prefix_anchor = qlast.Source().name
 
             return type(value).compiled(
                 value,

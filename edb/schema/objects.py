@@ -1612,6 +1612,7 @@ class ObjectCollection(
 ):
     type: ClassVar[Type[Object]] = Object
     _container: ClassVar[Type[CollectionFactory]]
+    _ids: Collection[Union[uuid.UUID, ObjectRef]]
 
     def __init_subclass__(
         cls,
@@ -1623,7 +1624,7 @@ class ObjectCollection(
 
     def __init__(
         self,
-        ids: Union[Collection[uuid.UUID], Collection[ObjectRef]],
+        ids: Collection[Union[uuid.UUID, ObjectRef]],
         *,
         _private_init: bool,
     ) -> None:
@@ -1692,10 +1693,10 @@ class ObjectCollection(
         schema: s_schema.Schema,
         data: Iterable[Object_T],
     ) -> ObjectCollection_T:
-        ids = []
+        ids: List[Union[uuid.UUID, ObjectRef]] = []
 
         if isinstance(data, ObjectCollection):
-            ids = data._ids
+            ids.extend(data._ids)
         elif data:
             for v in data:
                 ids.append(cls._validate_value(schema, v))

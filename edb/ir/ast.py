@@ -379,8 +379,8 @@ class Set(Base):
     typeref: TypeRef
     expr: Expr
     rptr: Pointer
-    anchor: typing.Union[str, ast.MetaAST]
-    show_as_anchor: typing.Union[str, ast.MetaAST]
+    anchor: typing.Optional[str]
+    show_as_anchor: typing.Optional[str]
     shape: typing.List[Set]
 
     def __repr__(self) -> str:
@@ -720,7 +720,3 @@ class ConfigReset(ConfigCommand):
 class ConfigInsert(ConfigCommand, Expr):
 
     expr: Set
-
-
-AnchorsKeyType = typing.TypeVar("AnchorsKeyType", str, qlast.SpecialAnchorT)
-AnchorsValueType = typing.TypeVar("AnchorsValueType", so.Object, Base)

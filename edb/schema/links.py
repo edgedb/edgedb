@@ -218,7 +218,10 @@ class LinkCommand(lproperties.PropertySourceCommand,
         return node
 
 
-class CreateLink(LinkCommand, referencing.CreateReferencedInheritingObject):
+class CreateLink(
+    LinkCommand,
+    referencing.CreateReferencedInheritingObject[Link],
+):
     astnode = [qlast.CreateConcreteLink, qlast.CreateLink]
     referenced_astnode = qlast.CreateConcreteLink
 
@@ -381,7 +384,10 @@ class SetTargetDeletePolicy(sd.Command):
         return cmd
 
 
-class AlterLink(LinkCommand, referencing.AlterReferencedInheritingObject):
+class AlterLink(
+    LinkCommand,
+    referencing.AlterReferencedInheritingObject[Link],
+):
     astnode = [qlast.AlterLink, qlast.AlterConcreteLink]
     referenced_astnode = qlast.AlterConcreteLink
 
@@ -394,7 +400,10 @@ class AlterLink(LinkCommand, referencing.AlterReferencedInheritingObject):
         return cmd
 
 
-class DeleteLink(LinkCommand, inheriting.DeleteInheritingObject):
+class DeleteLink(
+    LinkCommand,
+    referencing.DeleteReferencedInheritingObject[Link],
+):
     astnode = [qlast.DropLink, qlast.DropConcreteLink]
     referenced_astnode = qlast.DropConcreteLink
 

@@ -148,7 +148,10 @@ class IndexCommand(
             ) from None
 
 
-class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
+class CreateIndex(
+    IndexCommand,
+    referencing.CreateReferencedInheritingObject[Index],
+):
     astnode = qlast.CreateIndex
     referenced_astnode = qlast.CreateIndex
 
@@ -197,7 +200,7 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
             subject = schema.get(subject_name, default=None)
             if not isinstance(subject, s_abc.Pointer):
                 singletons = [subject]
-                path_prefix_anchor = qlast.Subject
+                path_prefix_anchor = qlast.Subject().name
             else:
                 singletons = []
                 path_prefix_anchor = None
@@ -207,7 +210,7 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
                 schema=schema,
                 modaliases=context.modaliases,
                 parent_object_type=self.get_schema_metaclass(),
-                anchors={qlast.Subject: subject},
+                anchors={qlast.Subject().name: subject},
                 path_prefix_anchor=path_prefix_anchor,
                 singletons=singletons,
             )
@@ -215,15 +218,24 @@ class CreateIndex(IndexCommand, referencing.CreateReferencedInheritingObject):
             return super().compile_expr_field(schema, context, field, value)
 
 
-class RenameIndex(IndexCommand, referencing.RenameReferencedInheritingObject):
+class RenameIndex(
+    IndexCommand,
+    referencing.RenameReferencedInheritingObject[Index],
+):
     pass
 
 
-class AlterIndex(IndexCommand, referencing.AlterReferencedInheritingObject):
+class AlterIndex(
+    IndexCommand,
+    referencing.AlterReferencedInheritingObject[Index],
+):
     astnode = qlast.AlterIndex
 
 
-class DeleteIndex(IndexCommand, inheriting.DeleteInheritingObject):
+class DeleteIndex(
+    IndexCommand,
+    referencing.DeleteReferencedInheritingObject[Index],
+):
     astnode = qlast.DropIndex
 
     @classmethod
