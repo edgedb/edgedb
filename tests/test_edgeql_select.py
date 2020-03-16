@@ -1654,6 +1654,48 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    async def test_edgeql_select_tvariant_bad_05(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "possibly more than one element returned by an expression for a "
+            "computable link 'owner' declared as 'single'",
+            _position=85,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT Issue {
+                    owner := User
+                }
+            """)
+
+    async def test_edgeql_select_tvariant_bad_06(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot redefine the cardinality of link 'owner': it is defined "
+            "as 'single' in the base object type 'test::Issue'",
+            _position=100,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT Issue {
+                    multi owner := User
+                }
+            """)
+
+    async def test_edgeql_select_tvariant_bad_07(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot redefine the cardinality of link 'related_to': it is "
+            "defined as 'multi' in the base object type 'test::Issue'",
+            _position=106,
+        ):
+            await self.con.execute("""
+                WITH MODULE test
+                SELECT Issue {
+                    single related_to := (SELECT Issue LIMIT 1)
+                }
+            """)
+
     async def test_edgeql_select_instance_01(self):
         await self.assert_query_result(
             r'''

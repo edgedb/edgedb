@@ -287,18 +287,18 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             r'''
                 WITH MODULE test
                 SELECT Issue {
-                    time_estimate := Issue.time_estimate ?? {-1, -2}
+                    comp_time_estimate := Issue.time_estimate ?? {-1, -2}
                 };
             ''',
             [
-                {'time_estimate': [-1, -2]},
-                {'time_estimate': [-1, -2]},
-                {'time_estimate': [-1, -2]},
-                {'time_estimate': [60]},
-                {'time_estimate': [90]},
-                {'time_estimate': [90]},
+                {'comp_time_estimate': [-1, -2]},
+                {'comp_time_estimate': [-1, -2]},
+                {'comp_time_estimate': [-1, -2]},
+                {'comp_time_estimate': [60]},
+                {'comp_time_estimate': [90]},
+                {'comp_time_estimate': [90]},
             ],
-            sort=lambda x: x['time_estimate']
+            sort=lambda x: x['comp_time_estimate']
         )
 
     async def test_edgeql_coalesce_set_02(self):
