@@ -1,3 +1,5 @@
+#[macro_use] extern crate cpython;
+
 // graphql-parser modules
 mod common;
 #[macro_use]
@@ -10,6 +12,8 @@ pub mod schema;
 
 // rewriter modules
 mod pytoken;
+mod pyentry;
+mod pyerrors;
 mod entry_point;
 mod token_vec;
 
