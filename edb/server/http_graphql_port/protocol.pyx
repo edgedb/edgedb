@@ -20,6 +20,7 @@
 import json
 import urllib.parse
 
+from edb import _graphql_rewrite
 from edb import errors
 from edb.graphql import errors as gql_errors
 from edb.server.pgcon import errors as pgerrors
@@ -160,7 +161,18 @@ cdef class Protocol(http.HttpProtocol):
 
     async def execute(self, query, operation_name, variables):
         dbver = self.server.get_dbver()
-        cache_key = (query, operation_name, dbver)
+
+        rewritten = _graphql_rewrite.rewrite(operation_name, query)
+        vars = rewritten.variables().copy()
+        if variables:
+            vars.update(variables)
+
+        if debug.flags.graphql_compile:
+            debug.header('GraphQL optimized query')
+            print(rewritten.key())
+            print(f'variables: {vars}')
+
+        cache_key = (rewritten.key(), operation_name, dbver)
         use_prep_stmt = False
 
         op: compiler.CompiledOperation = self.query_cache.get(
@@ -168,12 +180,12 @@ cdef class Protocol(http.HttpProtocol):
 
         if op is None:
             op = await self.compile(
-                dbver, query, operation_name, variables)
+                dbver, rewritten.key(), operation_name, vars)
             self.query_cache[cache_key] = op
         else:
             if op.cache_deps_vars:
                 op = await self.compile(
-                    dbver, query, operation_name, variables)
+                    dbver, rewritten.key(), operation_name, vars)
             else:
                 # This is at least the second time this query is used
                 # and it's safe to cache.
@@ -182,14 +194,14 @@ cdef class Protocol(http.HttpProtocol):
         args = []
         if op.sql_args:
             for name in op.sql_args:
-                if variables is None or name not in variables:
+                if name not in vars:
                     default = op.variables.get(name)
                     if default is None:
                         raise errors.QueryError(
                             f'no value for the {name!r} variable')
                     args.append(default)
                 else:
-                    args.append(variables[name])
+                    args.append(vars[name])
 
         pgcon = await self.server.pgcons.get()
         try:

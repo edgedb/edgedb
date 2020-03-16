@@ -1,6 +1,4 @@
-use std::collections::BTreeMap;
-
-use cpython::{Python, PyString, PyResult, PyClone};
+use cpython::{Python, PyString, PyResult, PyClone, PyDict, ToPyObject};
 
 use crate::pyerrors::{LexingError, SyntaxError, NotFoundError, AssertionError};
 use crate::entry_point::{Variable, Error};
@@ -10,11 +8,13 @@ use crate::entry_point;
 
 py_class!(pub class Entry |py| {
     data _key: PyString;
-    data _variables: Vec<Variable>;
-    data _defaults: BTreeMap<String, Variable>;
+    data _variables: PyDict;
     data _tokens: Vec<PyToken>;
     def key(&self) -> PyResult<PyString> {
         Ok(self._key(py).clone_ref(py))
+    }
+    def variables(&self) -> PyResult<PyDict> {
+        Ok(self._variables(py).clone_ref(py))
     }
 });
 
@@ -28,10 +28,19 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
     let text = text.to_string(py)?;
     match entry_point::rewrite(oper.as_ref().map(|x| &x[..]), &text) {
         Ok(entry) => {
+            let vars = PyDict::new(py);
+            for (idx, var) in entry.variables.iter().enumerate() {
+                vars.set_item(py,
+                    format!("_edb_arg__{}", idx).to_py_object(py),
+                    match var {
+                        Variable::Str(s) => PyString::new(py, s),
+                        _ => todo!(),
+                    })?;
+            }
+            // TODO(tailhook) insert defaults
             Entry::create_instance(py,
                 PyString::new(py, &entry.key),
-                entry.variables,
-                entry.defaults,
+                vars,
                 entry.tokens,
             )
         }

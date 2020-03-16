@@ -180,7 +180,6 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
         }
         tmp.push(PyToken::new((token, pos))?);
     }
-    println!("Tokens {:#?}, tmp {:#?}", tokens, tmp);
     insert_args(&mut tokens, &oper.insert_variables, args);
     tokens.extend(tmp);
 
