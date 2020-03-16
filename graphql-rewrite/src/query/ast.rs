@@ -57,10 +57,16 @@ pub enum OperationKind {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum InsertVars {
-    Query(Pos),
-    Parens(Pos),
-    Normal(Pos),
+pub enum InsertVarsKind {
+    Query,
+    Parens,
+    Normal,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct InsertVars {
+    pub kind: InsertVarsKind,
+    pub position: Pos,
 }
 
 #[derive(Debug, Clone, PartialEq)]

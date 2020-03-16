@@ -12,7 +12,7 @@ use crate::position::Pos;
 /// Text abstracts over types that hold a string value.
 /// It is used to make the AST generic over the string type.
 pub trait Text<'a>: 'a {
-    type Value: 'a + From<&'a str> + AsRef<str> + std::borrow::Borrow<str> + PartialEq + Eq + PartialOrd + Ord + fmt::Debug + Clone; 
+    type Value: 'a + From<&'a str> + AsRef<str> + std::borrow::Borrow<str> + PartialEq + Eq + PartialOrd + Ord + fmt::Debug + Clone;
 }
 
 impl<'a> Text<'a> for &'a str {
@@ -80,7 +80,7 @@ impl From<i32> for Number {
 
 pub fn directives<'a, T>(input: &mut TokenStream<'a>)
     -> ParseResult<Vec<Directive<'a, T>>, TokenStream<'a>>
-    where T: Text<'a>, 
+    where T: Text<'a>,
 {
     many(position()
         .skip(punct("@"))
@@ -126,7 +126,9 @@ pub fn float_value<'a, S>(input: &mut TokenStream<'a>)
     .parse_stream(input)
 }
 
-fn unquote_block_string<'a>(src: &'a str) -> Result<String, Error<Token<'a>, Token<'a>>> {
+pub fn unquote_block_string<'a>(src: &'a str)
+    -> Result<String, Error<Token<'a>, Token<'a>>>
+{
     debug_assert!(src.starts_with("\"\"\"") && src.ends_with("\"\"\""));
     let indent = src[3..src.len()-3].lines().skip(1)
         .filter_map(|line| {
@@ -162,7 +164,7 @@ fn unquote_block_string<'a>(src: &'a str) -> Result<String, Error<Token<'a>, Tok
     Ok(result)
 }
 
-fn unquote_string<'a>(s: &'a str) -> Result<String, Error<Token, Token>> 
+pub fn unquote_string<'a>(s: &'a str) -> Result<String, Error<Token, Token>>
 {
     let mut res = String::with_capacity(s.len());
     debug_assert!(s.starts_with('"') && s.ends_with('"'));

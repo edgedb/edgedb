@@ -2,38 +2,15 @@ use std::collections::BTreeMap;
 
 use combine::stream::{Positioned, StreamOnce};
 
-use crate::query::{Document, parse_query, ParseError};
-use crate::query::VariableDefinition;
-use crate::query::Operation;
 use crate::position::Pos;
-use crate::tokenizer::{self, TokenStream, Token};
-use crate::tokenizer::Kind::{StringValue, BlockString, Name, Punctuator};
-
-const ARGUMENT_NAMES: [&str; 21] = [
-    "_edb_arg__0",
-    "_edb_arg__1",
-    "_edb_arg__2",
-    "_edb_arg__3",
-    "_edb_arg__4",
-    "_edb_arg__5",
-    "_edb_arg__6",
-    "_edb_arg__7",
-    "_edb_arg__8",
-    "_edb_arg__9",
-    "_edb_arg__10",
-    "_edb_arg__11",
-    "_edb_arg__12",
-    "_edb_arg__13",
-    "_edb_arg__14",
-    "_edb_arg__15",
-    "_edb_arg__16",
-    "_edb_arg__17",
-    "_edb_arg__18",
-    "_edb_arg__19",
-    "_edb_arg__20",
-];
-
-const MAX_ARGUMENTS: usize = ARGUMENT_NAMES.len();
+use crate::pytoken::{PyToken, PyTokenKind};
+use crate::query::Definition;
+use crate::query::{Operation, InsertVars, InsertVarsKind};
+use crate::query::{Document, parse_query, ParseError};
+use crate::token_vec::TokenVec;
+use crate::tokenizer::Kind::{StringValue, BlockString};
+use crate::tokenizer::{TokenStream, Token};
+use crate::common::unquote_string;
 
 
 #[derive(Debug, PartialEq)]
@@ -47,6 +24,7 @@ pub enum Variable {
 pub enum Error {
     Lexing(String),
     Syntax(ParseError),
+    NotFound(String),
     Assertion(String),
 }
 
@@ -56,6 +34,7 @@ pub struct Entry {
     pub key: String,
     pub variables: Vec<Variable>,
     pub defaults: BTreeMap<String, Variable>,
+    pub tokens: Vec<PyToken>,
 }
 
 impl From<ParseError> for Error {
@@ -70,36 +49,196 @@ impl<'a> From<combine::easy::Error<Token<'a>,Token<'a>>> for Error {
     }
 }
 
-
-pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
-    let document: Document<'_, &str> = parse_query(s).map_err(Error::Syntax)?;
+fn token_array<'a>(s: &'a str) -> Result<Vec<(Token<'a>, Pos)>, Error> {
     let mut lexer = TokenStream::new(s);
-    let mut src_tokens = Vec::new();
+    let mut tokens = Vec::new();
     let mut pos = lexer.position();
     loop {
         match lexer.uncons() {
             Ok(token) => {
-                src_tokens.push((token, pos));
+                tokens.push((token, pos));
                 pos = lexer.position();
             }
             Err(ref e) if e == &combine::easy::Error::end_of_input() => break,
             Err(e) => panic!("Parse error at {}: {}", lexer.position(), e),
         }
     }
-    todo!();
+    return Ok(tokens);
 }
 
-fn join_tokens<'a, I: IntoIterator<Item=&'a Token<'a>>>(tokens: I) -> String {
+fn find_operation<'a>(document: &'a Document<'a, &'a str>,
+    operation: Option<&str>)
+    -> Option<&'a Operation<'a, &'a str>>
+{
+    for def in &document.definitions {
+        let res = match def {
+            Definition::Operation(ref op) if op.name == operation => op,
+            _ => continue,
+        };
+        return Some(res);
+    }
+    return None;
+}
+
+fn insert_args(dest: &mut Vec<PyToken>, ins: &InsertVars, args: Vec<PyToken>) {
+    use crate::pytoken::PyTokenKind as P;
+
+    if args.is_empty() {
+        return;
+    }
+    if ins.kind == InsertVarsKind::Query {
+        dest.push(PyToken {
+            kind: P::Name,
+            value: "query".into(),
+            position: None,
+        });
+    }
+    if ins.kind != InsertVarsKind::Normal {
+        dest.push(PyToken {
+            kind: P::ParenL,
+            value: "(".into(),
+            position: None,
+        });
+    }
+    dest.extend(args);
+    if ins.kind != InsertVarsKind::Normal {
+        dest.push(PyToken {
+            kind: P::ParenR,
+            value: ")".into(),
+            position: None,
+        });
+    }
+}
+
+pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
+    use Variable::*;
+    use crate::pytoken::PyTokenKind as P;
+
+    let document: Document<'_, &str> = parse_query(s).map_err(Error::Syntax)?;
+    let oper = find_operation(&document, operation)
+        .ok_or_else(|| Error::NotFound(
+            format!("no operation {:?} found", operation)))?;
+    let mut src_tokens = TokenVec::new(token_array(s)?);
+    let mut tokens = Vec::with_capacity(src_tokens.len());
+
+    let mut variables = Vec::new();
+    //let mut var_decl = Vec::new();
+
+    for tok in src_tokens.drain_to(oper.insert_variables.position.token) {
+        tokens.push(PyToken::new(tok)?);
+    }
+    let mut args = Vec::new();
+    let mut tmp = Vec::with_capacity(
+        oper.selection_set.span.1.token - tokens.len());
+    for tok in src_tokens.drain_to(oper.selection_set.span.0.token) {
+        tmp.push(PyToken::new(tok)?);
+    }
+    for (token, pos) in src_tokens.drain_to(oper.selection_set.span.1.token) {
+        match token.kind {
+            StringValue | BlockString => {
+                let varname = format!("_edb_arg__{}", variables.len());
+                tmp.push(PyToken {
+                    kind: P::Dollar,
+                    value: "$".into(),
+                    position: None,
+                });
+                tmp.push(PyToken {
+                    kind: P::Name,
+                    value: varname.clone().into(),
+                    position: None,
+                });
+                variables.push(
+                    Str(unquote_string(token.value)?));
+                args.push(PyToken {
+                    kind: P::Dollar,
+                    value: "$".into(),
+                    position: None,
+                });
+                args.push(PyToken {
+                    kind: P::Name,
+                    value: varname.into(),
+                    position: None,
+                });
+                args.push(PyToken {
+                    kind: P::Colon,
+                    value: ":".into(),
+                    position: None,
+                });
+                args.push(PyToken {
+                    kind: P::Name,
+                    value: "String".into(),
+                    position: None,
+                });
+                args.push(PyToken {
+                    kind: P::Bang,
+                    value: "!".into(),
+                    position: None,
+                });
+                continue;
+            }
+            _ => {}
+        }
+        tmp.push(PyToken::new((token, pos))?);
+    }
+    println!("Tokens {:#?}, tmp {:#?}", tokens, tmp);
+    insert_args(&mut tokens, &oper.insert_variables, args);
+    tokens.extend(tmp);
+
+    for tok in src_tokens.drain(src_tokens.len()) {
+        tokens.push(PyToken::new(tok)?);
+    }
+
+    return Ok(Entry {
+        key: join_tokens(&tokens),
+        variables,
+        defaults: BTreeMap::new(),
+        tokens,
+    })
+}
+
+fn join_tokens<'a, I: IntoIterator<Item=&'a PyToken>>(tokens: I) -> String {
     let mut buf = String::new();
     let mut needs_whitespace = false;
     for token in tokens {
         match (token.kind, needs_whitespace) {
-            (Punctuator, true) if token.value != "$" => {},
+            // space before puncutators is optional
+            (PyTokenKind::ParenL, true) => {},
+            (PyTokenKind::ParenR, true) => {},
+            (PyTokenKind::Spread, true) => {},
+            (PyTokenKind::Colon, true) => {},
+            (PyTokenKind::Equals, true) => {},
+            (PyTokenKind::At, true) => {},
+            (PyTokenKind::BracketL, true) => {},
+            (PyTokenKind::BracketR, true) => {},
+            (PyTokenKind::BraceL, true) => {},
+            (PyTokenKind::BraceR, true) => {},
+            (PyTokenKind::Pipe, true) => {},
+            (PyTokenKind::Bang, true) => {},
             (_, true) => buf.push(' '),
             (_, false) => {},
         }
-        buf.push_str(token.value);
-        needs_whitespace = token.kind != Punctuator;
+        buf.push_str(&token.value);
+        needs_whitespace = match token.kind {
+            PyTokenKind::Dollar => false,
+            PyTokenKind::Bang => false,
+            PyTokenKind::ParenL => false,
+            PyTokenKind::ParenR => false,
+            PyTokenKind::Spread => false,
+            PyTokenKind::Colon => false,
+            PyTokenKind::Equals => false,
+            PyTokenKind::At => false,
+            PyTokenKind::BracketL => false,
+            PyTokenKind::BracketR => false,
+            PyTokenKind::BraceL => false,
+            PyTokenKind::BraceR => false,
+            PyTokenKind::Pipe => false,
+            PyTokenKind::Variable => true,
+            PyTokenKind::Int => true,
+            PyTokenKind::Float => true,
+            PyTokenKind::String => true,
+            PyTokenKind::Name => true,
+            PyTokenKind::Eof => unreachable!(),
+        };
     }
     return buf;
 }

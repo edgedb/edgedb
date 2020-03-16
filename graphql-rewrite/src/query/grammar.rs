@@ -131,10 +131,20 @@ pub fn operation_common<'a, T: Text<'a>>(input: &mut TokenStream<'a>)
                 })))
             .and(position())
             .skip(punct(")"))
-        )).map(|(pos, vars)| {
+        )).map(|(position, vars)| {
             vars
-            .map(|(v, p)| (v, InsertVars::Normal(p)))
-            .unwrap_or_else(|| (Vec::new(), InsertVars::Parens(pos)))
+            .map(|(v, position)| {
+                (v, InsertVars {
+                    kind: InsertVarsKind::Normal,
+                    position,
+                })
+            })
+            .unwrap_or_else(|| {
+                (Vec::new(), InsertVars {
+                    kind: InsertVarsKind::Parens,
+                    position,
+                })
+            })
         }))
     .and(parser(directives))
     .and(parser(selection_set))
@@ -181,12 +191,15 @@ pub fn operation_definition<'a, S>(input: &mut TokenStream<'a>)
     where S: Text<'a>,
 {
     position().and(parser(selection_set))
-        .map(|(pos, selection_set)| Operation {
+        .map(|(position, selection_set)| Operation {
             kind: OperationKind::ImplicitQuery,
             position: selection_set.span.0,
             name: None,
             variable_definitions: Vec::new(),
-            insert_variables: InsertVars::Query(pos),
+            insert_variables: InsertVars {
+                kind: InsertVarsKind::Query,
+                position,
+            },
             directives: Vec::new(),
             selection_set,
         })
@@ -256,8 +269,10 @@ mod test {
                     position: Pos { line: 1, column: 1, byte: 0, token: 0 },
                     name: None,
                     variable_definitions: Vec::new(),
-                    insert_variables: InsertVars::Query(
-                        Pos { line: 1, column: 1, byte: 0, token: 0}),
+                    insert_variables: InsertVars {
+                        kind: InsertVarsKind::Query,
+                        position: Pos { line: 1, column: 1, byte: 0, token: 0},
+                    },
                     directives: Vec::new(),
                     selection_set: SelectionSet {
                         span: (Pos { line: 1, column: 1, byte: 0, token: 0 },
@@ -296,8 +311,11 @@ mod test {
                                          byte: 0, token: 0},
                         name: None,
                         variable_definitions: Vec::new(),
-                        insert_variables: InsertVars::Query(
-                            Pos { line: 1, column: 1, byte: 0, token: 0}),
+                        insert_variables: InsertVars {
+                            kind: InsertVarsKind::Query,
+                            position: Pos { line: 1, column: 1,
+                                            byte: 0, token: 0},
+                        },
                         directives: Vec::new(),
                         selection_set: SelectionSet {
                             span: (Pos { line: 1, column: 1,
