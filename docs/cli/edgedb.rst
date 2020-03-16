@@ -6,11 +6,20 @@ edgedb
 
 :edgedb-alt-title: edgedb -- Interactive Shell
 
-EdgeDB interactive shell.
+EdgeDB interactive shell:
 
 .. cli:synopsis::
 
     edgedb [<connection-option>...]
+
+It's also possible to run an EdgeQL script by piping it into the
+EdgeDB shell. The shell will then run in non-interactive mode and
+print all the responses into the standard output:
+
+.. cli:synopsis::
+
+    cat myscript.edgeql | edgedb [<connection-option>...]
+
 
 
 Description

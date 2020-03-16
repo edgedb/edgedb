@@ -87,3 +87,9 @@ Configure a port for accessing ``my_new_project`` database using GraphQL:
     ...     concurrency := 4,
     ... };
     CONFIGURE SYSTEM
+
+Run a script from command line:
+
+.. cli:synopsis::
+
+    cat myscript.edgeql | edgedb [<connection-option>...]
