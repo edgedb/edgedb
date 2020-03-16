@@ -40,6 +40,7 @@ from . import sources
 from . import utils
 
 if TYPE_CHECKING:
+    from . import objtypes as s_objtypes
     from . import schema as s_schema
 
 
@@ -124,7 +125,7 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         *,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
-        context: Optional[so.ComparisonContext] = None
+        context: Optional[so.ComparisonContext] = None,
     ) -> Union[float, NotImplemented]:
         if not isinstance(other, Link):
             if isinstance(other, pointers.Pointer):
@@ -139,7 +140,7 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
     def set_target(
         self,
         schema: s_schema.Schema,
-        target: Any
+        target: s_objtypes.ObjectType,
     ) -> s_schema.Schema:
         schema = super().set_target(schema, target)
         tgt_prop = self.getptr(schema, 'target')
@@ -188,7 +189,7 @@ class LinkCommand(lproperties.PropertySourceCommand,
         schema: s_schema.Schema,
         astnode: qlast.CreateConcreteLink,
         context: sd.CommandContext,
-        target_ref: Any
+        target_ref: so.ObjectRef,
     ) -> None:
         assert astnode.target is not None
         slt = SetLinkType(classname=self.classname, type=target_ref)
@@ -214,7 +215,7 @@ class LinkCommand(lproperties.PropertySourceCommand,
     def _validate_pointer_def(
         self,
         schema: s_schema.Schema,
-        context: sd.CommandContext
+        context: sd.CommandContext,
     ) -> None:
         """Check that link definition is sound."""
         super()._validate_pointer_def(schema, context)
@@ -489,10 +490,10 @@ class DeleteLink(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: Any
+        scls: so.Object,
     ) -> List[sd.Command]:
-        commands = super()._canonicalize(schema, context, scls)
-        assert isinstance(commands, list)  # TODO: change annotation in delta
+        assert isinstance(scls, Link)
+        commands = list(super()._canonicalize(schema, context, scls))
         target = scls.get_target(schema)
 
         # A link may only target an alias only inside another alias,
