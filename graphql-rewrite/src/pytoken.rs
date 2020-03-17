@@ -51,7 +51,7 @@ impl PyToken {
             (Punctuator, "$") => (T::Dollar, "$".into()),
             (Punctuator, "(") => (T::ParenL, "(".into()),
             (Punctuator, ")") => (T::ParenR, ")".into()),
-            (Punctuator, "..") => (T::Spread, "..".into()),
+            (Punctuator, "...") => (T::Spread, "...".into()),
             (Punctuator, ":") => (T::Colon, ":".into()),
             (Punctuator, "=") => (T::Equals, "=".into()),
             (Punctuator, "@") => (T::At, "@".into()),
