@@ -587,7 +587,7 @@ mod test {
                 Definition::SchemaDefinition(
                     SchemaDefinition {
                         position: Pos { line: 1, column: 1,
-                                        byte: 0, token: 0},
+                                        character: 0, token: 0},
                         directives: vec![],
                         query: Some("Query".into()),
                         mutation: None,

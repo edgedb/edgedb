@@ -266,30 +266,34 @@ mod test {
             definitions: vec![
                 Definition::Operation(Operation {
                     kind: OperationKind::ImplicitQuery,
-                    position: Pos { line: 1, column: 1, byte: 0, token: 0 },
+                    position: Pos { line: 1, column: 1,
+                                    character: 0, token: 0 },
                     name: None,
                     variable_definitions: Vec::new(),
                     insert_variables: InsertVars {
                         kind: InsertVarsKind::Query,
-                        position: Pos { line: 1, column: 1, byte: 0, token: 0},
+                        position: Pos { line: 1, column: 1,
+                                        character: 0, token: 0},
                     },
                     directives: Vec::new(),
                     selection_set: SelectionSet {
-                        span: (Pos { line: 1, column: 1, byte: 0, token: 0 },
-                               Pos { line: 1, column: 5, byte: 4, token: 2 }),
+                        span: (Pos { line: 1, column: 1,
+                                     character: 0, token: 0 },
+                               Pos { line: 1, column: 5,
+                                     character: 4, token: 2 }),
                         items: vec![
                             Selection::Field(Field {
                                 position: Pos { line: 1, column: 3,
-                                                byte: 2, token: 1},
+                                                character: 2, token: 1},
                                 alias: None,
                                 name: "a".into(),
                                 arguments: Vec::new(),
                                 directives: Vec::new(),
                                 selection_set: SelectionSet {
                                     span: (Pos { line: 1, column: 3,
-                                                 byte: 2, token: 1},
+                                                 character: 2, token: 1},
                                            Pos { line: 1, column: 3,
-                                                 byte: 2, token: 1}),
+                                                 character: 2, token: 1}),
                                     items: Vec::new()
                                 },
                             }),
@@ -308,24 +312,24 @@ mod test {
                     Definition::Operation(Operation {
                         kind: OperationKind::ImplicitQuery,
                         position: Pos { line: 1, column: 1,
-                                         byte: 0, token: 0},
+                                        character: 0, token: 0},
                         name: None,
                         variable_definitions: Vec::new(),
                         insert_variables: InsertVars {
                             kind: InsertVarsKind::Query,
                             position: Pos { line: 1, column: 1,
-                                            byte: 0, token: 0},
+                                            character: 0, token: 0},
                         },
                         directives: Vec::new(),
                         selection_set: SelectionSet {
                             span: (Pos { line: 1, column: 1,
-                                         byte: 0, token: 0},
+                                         character: 0, token: 0},
                                    Pos { line: 1, column: 33,
-                                         byte: 32, token: 13}),
+                                         character: 32, token: 13}),
                             items: vec![
                                 Selection::Field(Field {
                                     position: Pos { line: 1, column: 3,
-                                                    byte: 2, token: 1},
+                                                    character: 2, token: 1},
                                     alias: None,
                                     name: "a".into(),
                                     arguments: vec![
@@ -339,9 +343,9 @@ mod test {
                                     directives: Vec::new(),
                                     selection_set: SelectionSet {
                                         span: (Pos { line: 1, column: 3,
-                                                     byte: 2, token: 1},
+                                                     character: 2, token: 1},
                                                Pos { line: 1, column: 3,
-                                                     byte: 2, token: 1}),
+                                                     character: 2, token: 1}),
                                         items: Vec::new()
                                     },
                                 }),

@@ -57,6 +57,8 @@ impl<'a> StreamOnce for TokenStream<'a> {
         let value = &self.buf[self.off-len..self.off];
         self.skip_whitespace();
         let token = Token { kind, value };
+        // TODO(tailhook) optimize this better
+        self.position.character += value.chars().count();
         self.position.token += 1;
         self.next_state = Some((old_pos, token, self.off, self.position));
         Ok(token)
@@ -128,7 +130,7 @@ impl<'a> TokenStream<'a> {
     pub fn new(s: &str) -> TokenStream {
         let mut me = TokenStream {
             buf: s,
-            position: Pos { line: 1, column: 1, byte: 0, token: 0 },
+            position: Pos { line: 1, column: 1, character: 0, token: 0 },
             off: 0,
             next_state: None,
         };
@@ -326,8 +328,9 @@ impl<'a> TokenStream<'a> {
                 _ => break idx,
             }
         };
+        // TODO(tailhook) optimize this better
+        self.position.character += self.buf[self.off..][..idx].chars().count();
         self.off += idx;
-        self.position.byte = self.off;
     }
 
     fn update_position(&mut self, len: usize) {
