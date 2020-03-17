@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 
 
-class Role(so.GlobalObject, so.InheritingObject,  # type: ignore
+class Role(so.GlobalObject, so.InheritingObject,
            s_anno.AnnotationSubject, qlkind=qltypes.SchemaObjectClass.ROLE):
 
     is_superuser = so.SchemaField(
