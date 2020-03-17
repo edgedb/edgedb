@@ -20,6 +20,7 @@
 import json
 import logging
 import urllib.parse
+from typing import Any, Dict, Tuple, List, Optional
 
 from edb import _graphql_rewrite
 from edb import errors
@@ -151,13 +152,20 @@ cdef class Protocol(http.HttpProtocol):
         else:
             response.body = b'{"data":' + result + b'}'
 
-    async def compile(self, dbver, query, operation_name, variables):
+    async def compile(self,
+            dbver: int,
+            query: str,
+            tokens: Optional[List[Tuple[int, int, int, str]]],
+            operation_name: Optional[str],
+            variables: Dict[str, Any],
+        ):
         compiler = await self.server.compilers.get()
         try:
             return await compiler.call(
                 'compile_graphql',
                 dbver,
                 query,
+                tokens,
                 operation_name,
                 variables)
         finally:
@@ -175,11 +183,11 @@ cdef class Protocol(http.HttpProtocol):
             rewritten = _graphql_rewrite.rewrite(operation_name, query)
         except Exception as e:
             logger.warning("Error rewriting graphql query", e)
+            rewritten = None
             rewrite_error = e
             prepared_query = query
             vars = variables.copy()
         else:
-            rewrite_error = None
             prepared_query = rewritten.key()
             vars = rewritten.variables().copy()
             if variables:
@@ -197,11 +205,14 @@ cdef class Protocol(http.HttpProtocol):
             cache_key, None)
 
         if op is None:
-            op = await self.compile(
-                dbver, prepared_query, operation_name, vars)
+            if rewritten is not None:
+                op = await self.compile(
+                    dbver, query, rewritten.tokens(), operation_name, vars)
+            else:
+                op = await self.compile(
+                    dbver, query, None, operation_name, vars)
             self.query_cache[cache_key] = op
         else:
-            raise NotImplementedError("no cache deps vars")
             if op.cache_deps_vars:
                 op = await self.compile(
                     dbver, prepared_query, operation_name, vars)

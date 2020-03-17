@@ -27,6 +27,7 @@ from typing import *
 
 import graphql
 from graphql.language import ast as gql_ast
+from graphql.language import lexer as gql_lexer
 
 from edb import errors
 
@@ -1521,26 +1522,36 @@ def parse_text(query: str) -> graphql.Document:
 
 class TokenLexer(graphql.language.lexer.Lexer):
 
-    def __init__(self, tokens):
+    def __init__(self, tokens, eof_pos):
         self.__tokens = tokens
         self.__index = 0
+        self.__eof_pos = eof_pos
 
     def next_token(self, reset_position=None):
         # type: (Optional[int]) -> graphql.language.lexer.Token
         if reset_position is not None:
-            self.__index = reset_position
+            print(f"BEFORE RESET {reset_position=} {self.__index=} {self.__tokens[self.__index]=}")
+            while reset_position < (self.__tokens[self.__index-1][2] or ):
+                self.__index -= 1
+            print(f"RESET {reset_position=} {self.__index=} {self.__tokens[self.__index]=}")
+        if self.__index >= len(self.__tokens):
+            return gql_lexer.Token(gql_lexer.TokenKind.EOF,
+                self.__eof_pos, self.__eof_pos, None)
         tup = self.__tokens[self.__index]
-        token = graphql.language.lexer.Token(*tup)
+        token = gql_lexer.Token(*tup)
         self.__index += 1
-        self.prev_position = self.__index
+        print(f"TOKEN {tup=} {self.__index=}")
         return token
 
 
-def parse_tokens(tokens: List[Tuple[int, int, int, str]]) -> graphql.Document:
+def parse_tokens(
+    text: str,
+    tokens: List[Tuple[int, int, int, str]]
+) -> graphql.Document:
     options = {"no_location": False, "no_source": False}
     try:
-        parser = graphql.Parser(None, options)
-        parser.lexer = TokenLexer(tokens)
+        parser = graphql.language.parser.Parser(graphql.Source(text), options)
+        parser.lexer = TokenLexer(tokens, len(text))
         return graphql.language.parser.parse_document(parser)
     except graphql.GraphQLError as err:
         err_loc = (err.locations[0].line,
