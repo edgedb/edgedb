@@ -1510,14 +1510,51 @@ def value_node_from_pyvalue(val: Any):
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 
 
-def translate(gqlcore: gt.GQLCoreSchema, query, *,
-              operation_name=None, variables=None):
+def parse_text(query: str) -> graphql.Document:
     try:
-        document_ast = graphql.parse(query)
+        return graphql.parse(query)
     except graphql.GraphQLError as err:
         err_loc = (err.locations[0].line,
                    err.locations[0].column)
         raise g_errors.GraphQLCoreError(err.message, loc=err_loc) from None
+
+
+class TokenLexer(graphql.language.lexer.Lexer):
+
+    def __init__(self, tokens):
+        self.__tokens = tokens
+        self.__index = 0
+
+    def next_token(self, reset_position=None):
+        # type: (Optional[int]) -> graphql.language.lexer.Token
+        if reset_position is not None:
+            self.__index = reset_position
+        tup = self.__tokens[self.__index]
+        token = graphql.language.lexer.Token(*tup)
+        self.__index += 1
+        self.prev_position = self.__index
+        return token
+
+
+def parse_tokens(tokens: List[Tuple[int, int, int, str]]) -> graphql.Document:
+    options = {"no_location": False, "no_source": False}
+    try:
+        parser = graphql.Parser(None, options)
+        parser.lexer = TokenLexer(tokens)
+        return graphql.language.parser.parse_document(parser)
+    except graphql.GraphQLError as err:
+        err_loc = (err.locations[0].line,
+                   err.locations[0].column)
+        raise g_errors.GraphQLCoreError(err.message, loc=err_loc) from None
+
+
+def translate_ast(
+    gqlcore: gt.GQLCoreSchema,
+    document_ast: graphql.Document,
+    *,
+    operation_name: Optional[str]=None,
+    variables: Dict[str, Any]=None
+) -> TranspiledOperation:
 
     if variables is None:
         variables = {}
@@ -1542,7 +1579,7 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *,
             raise err
 
     context = GraphQLTranslatorContext(
-        gqlcore=gqlcore, query=query,
+        gqlcore=gqlcore, query=None,
         variables=variables, document_ast=document_ast,
         operation_name=operation_name)
 

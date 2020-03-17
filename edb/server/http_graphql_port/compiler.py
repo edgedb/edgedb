@@ -60,19 +60,49 @@ class Compiler(compiler.BaseCompiler):
             gqlcore=gqlcore)
 
     async def compile_graphql(
-            self,
-            dbver: int,
-            gql: str,
-            operation_name: str=None,
-            variables: Optional[Mapping[str, object]]=None):
+        self,
+        dbver: int,
+        gql: str,
+        operation_name: str=None,
+        variables: Optional[Mapping[str, object]]=None,
+    ) -> CompiledOperation:
 
         db = await self._get_database(dbver)
 
-        op = graphql.translate(
+        ast = graphql.parse_text(gql)
+        op = graphql.translate_ast(
             db.gqlcore,
-            gql,
+            ast,
             variables=variables,
             operation_name=operation_name)
+
+        return await self._compile_ast(db, dbver, op)
+
+    async def compile_graphql_tokens(
+        self,
+        dbver: int,
+        tokens: List[Tuple[int, int, int, str]],
+        operation_name: str=None,
+        variables: Optional[Mapping[str, object]]=None,
+    ) -> CompiledOperation:
+
+        db = await self._get_database(dbver)
+
+        ast = graphql.parse_tokens(tokens)
+        op = graphql.translate_ast(
+            db.gqlcore,
+            ast,
+            variables=variables,
+            operation_name=operation_name)
+
+        return await self._compile(db, dbver, op)
+
+    async def _compile_ast(
+        self,
+        db: CompilerDatabaseState,
+        dbver: int,
+        op: graphql.compiler.TranspiledOperation,
+    ):
 
         ir = ql_compiler.compile_ast_to_ir(
             op.edgeql_ast,

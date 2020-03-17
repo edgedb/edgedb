@@ -18,6 +18,7 @@
 
 
 import json
+import logging
 import urllib.parse
 
 from edb import _graphql_rewrite
@@ -33,6 +34,9 @@ from edb.server.http cimport http
 
 from . import explore
 from . import compiler
+
+
+logger = logging.getLogger(__name__)
 
 
 cdef class Protocol(http.HttpProtocol):
@@ -162,17 +166,31 @@ cdef class Protocol(http.HttpProtocol):
     async def execute(self, query, operation_name, variables):
         dbver = self.server.get_dbver()
 
-        rewritten = _graphql_rewrite.rewrite(operation_name, query)
-        vars = rewritten.variables().copy()
-        if variables:
-            vars.update(variables)
-
         if debug.flags.graphql_compile:
-            debug.header('GraphQL optimized query')
-            print(rewritten.key())
-            print(f'variables: {vars}')
+            debug.header('Input graphql')
+            print(query)
+            print(f'variables: {variables}')
 
-        cache_key = (rewritten.key(), operation_name, dbver)
+        try:
+            rewritten = _graphql_rewrite.rewrite(operation_name, query)
+        except Exception as e:
+            logger.warning("Error rewriting graphql query", e)
+            rewrite_error = e
+            prepared_query = query
+            vars = variables.copy()
+        else:
+            rewrite_error = None
+            prepared_query = rewritten.key()
+            vars = rewritten.variables().copy()
+            if variables:
+                vars.update(variables)
+
+            if debug.flags.graphql_compile:
+                debug.header('GraphQL optimized query')
+                print(rewritten.key())
+                print(f'variables: {vars}')
+
+        cache_key = (prepared_query, operation_name, dbver)
         use_prep_stmt = False
 
         op: compiler.CompiledOperation = self.query_cache.get(
@@ -180,12 +198,13 @@ cdef class Protocol(http.HttpProtocol):
 
         if op is None:
             op = await self.compile(
-                dbver, rewritten.key(), operation_name, vars)
+                dbver, prepared_query, operation_name, vars)
             self.query_cache[cache_key] = op
         else:
+            raise NotImplementedError("no cache deps vars")
             if op.cache_deps_vars:
                 op = await self.compile(
-                    dbver, rewritten.key(), operation_name, vars)
+                    dbver, prepared_query, operation_name, vars)
             else:
                 # This is at least the second time this query is used
                 # and it's safe to cache.

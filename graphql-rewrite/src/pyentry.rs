@@ -1,4 +1,5 @@
-use cpython::{Python, PyString, PyResult, PyClone, PyDict, ToPyObject};
+use cpython::{Python, PyClone, ToPyObject, PythonObject};
+use cpython::{PyString, PyResult, PyTuple, PyDict, PyList};
 
 use crate::pyerrors::{LexingError, SyntaxError, NotFoundError, AssertionError};
 use crate::entry_point::{Variable, Error};
@@ -15,6 +16,21 @@ py_class!(pub class Entry |py| {
     }
     def variables(&self) -> PyResult<PyDict> {
         Ok(self._variables(py).clone_ref(py))
+    }
+    def tokens(&self) -> PyResult<PyList> {
+        let tokens = self._tokens(py);
+        let mut elems = Vec::with_capacity(tokens.len());
+        for el in tokens {
+            elems.push(PyTuple::new(py, &[
+                (el.kind as u32).to_py_object(py).into_object(),
+                el.position.map(|x| x.character)
+                    .to_py_object(py).into_object(),
+                el.position.map(|x| x.character + el.value.chars().count())
+                    .to_py_object(py).into_object(),
+                el.value.to_py_object(py).into_object(),
+            ]).into_object());
+        }
+        Ok(PyList::new(py, &elems[..]))
     }
 });
 
