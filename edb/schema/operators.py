@@ -23,7 +23,6 @@ from typing import *
 
 from edb import errors
 from edb.common import checked
-
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
@@ -32,6 +31,9 @@ from . import delta as sd
 from . import functions as s_func
 from . import name as sn
 from . import objects as so
+
+if TYPE_CHECKING:
+    from edb.schema import schema as s_schema
 
 
 class Operator(s_func.CallableObject, s_func.VolatilitySubject,
@@ -75,7 +77,7 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
     recursive = so.SchemaField(
         bool, default=False, compcoef=0.4, introspectable=False)
 
-    def get_display_signature(self, schema):
+    def get_display_signature(self, schema: s_schema.Schema) -> str:
         params = [
             p.get_type(schema).get_displayname(schema)
             for p in self.get_params(schema).objects(schema)
@@ -93,7 +95,12 @@ class Operator(s_func.CallableObject, s_func.VolatilitySubject,
         else:
             raise ValueError('unexpected operator kind')
 
-    def get_verbosename(self, schema, *, with_parent: bool=False) -> str:
+    def get_verbosename(
+        self,
+        schema: s_schema.Schema,
+        *,
+        with_parent: bool=False
+    ) -> str:
         return f'operator "{self.get_display_signature(schema)}"'
 
 
@@ -106,7 +113,12 @@ class OperatorCommand(s_func.CallableCommand,
                       context_class=OperatorCommandContext):
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined operators are not supported',
@@ -116,22 +128,29 @@ class OperatorCommand(s_func.CallableCommand,
         return super()._cmd_tree_from_ast(schema, astnode, context)
 
     @classmethod
-    def _classname_from_ast(cls, schema, astnode: qlast.OperatorCommand,
-                            context) -> sn.Name:
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.Name:
+        assert isinstance(astnode, qlast.OperatorCommand)
         name = super()._classname_from_ast(schema, astnode, context)
 
         params = cls._get_param_desc_from_ast(
             schema, context.modaliases, astnode)
-
-        return cls.get_schema_metaclass().get_fqname(
+        return cls.get_schema_metaclass().get_fqname(  # type: ignore
             schema, name, params, astnode.kind)
 
 
 class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
     astnode = qlast.CreateOperator
 
-    def _create_begin(self, schema, context):
-
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         fullname = self.classname
         shortname = sn.shortname_from_fullname(fullname)
         schema, cp = self._get_param_desc_from_delta(schema, context, self)
@@ -232,7 +251,13 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         return schema
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.CreateOperator)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         cmd.set_attribute_value(
@@ -273,7 +298,7 @@ class RenameOperator(sd.RenameObject, OperatorCommand):
     pass
 
 
-class AlterOperator(sd.AlterObject, OperatorCommand):
+class AlterOperator(sd.AlterObject[Operator], OperatorCommand):
     astnode = qlast.AlterOperator
 
 

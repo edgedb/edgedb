@@ -34,22 +34,22 @@ class Module(s_anno.AnnotationSubject,
         bool, default=False, compcoef=0.4, introspectable=True)
 
 
-class ModuleCommandContext(sd.ObjectCommandContext):
+class ModuleCommandContext(sd.ObjectCommandContext[Module]):
     pass
 
 
-class ModuleCommand(sd.ObjectCommand, schema_metaclass=Module,
+class ModuleCommand(sd.ObjectCommand[Module], schema_metaclass=Module,
                     context_class=ModuleCommandContext):
     pass
 
 
-class CreateModule(ModuleCommand, sd.CreateObject):
+class CreateModule(ModuleCommand, sd.CreateObject[Module]):
     astnode = qlast.CreateModule
 
 
-class AlterModule(ModuleCommand, sd.AlterObject):
+class AlterModule(ModuleCommand, sd.AlterObject[Module]):
     astnode = qlast.AlterModule
 
 
-class DeleteModule(ModuleCommand, sd.DeleteObject):
+class DeleteModule(ModuleCommand, sd.DeleteObject[Module]):
     astnode = qlast.DropModule

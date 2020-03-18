@@ -36,12 +36,20 @@ from . import objects as so
 from . import types as s_types
 from . import utils
 
+if TYPE_CHECKING:
+    from edb.schema import schema as s_schema
+
 
 _NOT_REACHABLE = 10000000
 
 
-def _is_reachable(schema, cast_kwargs, source: s_types.Type,
-                  target: s_types.Type, distance: int) -> int:
+def _is_reachable(
+    schema: s_schema.Schema,
+    cast_kwargs: Mapping[str, bool],
+    source: s_types.Type,
+    target: s_types.Type,
+    distance: int,
+) -> int:
 
     if source == target:
         return distance
@@ -64,7 +72,10 @@ def _is_reachable(schema, cast_kwargs, source: s_types.Type,
 
 @functools.lru_cache()
 def get_implicit_cast_distance(
-        schema, source: s_types.Type, target: s_types.Type) -> int:
+    schema: s_schema.Schema,
+    source: s_types.Type,
+    target: s_types.Type,
+) -> int:
     dist = _is_reachable(schema, {'implicit': True}, source, target, 0)
     if dist == _NOT_REACHABLE:
         return -1
@@ -73,14 +84,19 @@ def get_implicit_cast_distance(
 
 
 def is_implicitly_castable(
-        schema, source: s_types.Type, target: s_types.Type) -> bool:
+    schema: s_schema.Schema,
+    source: s_types.Type,
+    target: s_types.Type,
+) -> bool:
     return get_implicit_cast_distance(schema, source, target) >= 0
 
 
 @functools.lru_cache()
 def find_common_castable_type(
-        schema, source: s_types.Type,
-        target: s_types.Type) -> Optional[s_types.Type]:
+    schema: s_schema.Schema,
+    source: s_types.Type,
+    target: s_types.Type,
+) -> Optional[s_types.Type]:
 
     if get_implicit_cast_distance(schema, target, source) >= 0:
         return source
@@ -111,7 +127,10 @@ def find_common_castable_type(
 
 @functools.lru_cache()
 def is_assignment_castable(
-        schema, source: s_types.Type, target: s_types.Type) -> bool:
+    schema: s_schema.Schema,
+    source: s_types.Type,
+    target: s_types.Type,
+) -> bool:
 
     # Implicitly castable implies assignment castable.
     if is_implicitly_castable(schema, source, target):
@@ -129,14 +148,20 @@ def is_assignment_castable(
 
 
 def get_cast_shortname(
-        schema, module: str,
-        from_type: s_types.Type, to_type: s_types.Type) -> sn.Name:
+    schema: s_schema.Schema,
+    module: str,
+    from_type: s_types.Type,
+    to_type: s_types.Type,
+) -> sn.Name:
     return sn.Name(f'{module}::cast')
 
 
 def get_cast_fullname(
-        schema, module: str, from_type: s_types.Type,
-        to_type: s_types.Type) -> sn.Name:
+    schema: s_schema.Schema,
+    module: str,
+    from_type: s_types.Type,
+    to_type: s_types.Type,
+) -> sn.Name:
     quals = [from_type.get_name(schema), to_type.get_name(schema)]
     shortname = get_cast_shortname(schema, module, from_type, to_type)
     return sn.Name(
@@ -180,17 +205,22 @@ class Cast(
         str, default=None, compcoef=0.4, introspectable=False)
 
 
-class CastCommandContext(sd.ObjectCommandContext,
+class CastCommandContext(sd.ObjectCommandContext[Cast],
                          s_anno.AnnotationSubjectCommandContext):
     pass
 
 
-class CastCommand(sd.QualifiedObjectCommand,
+class CastCommand(sd.QualifiedObjectCommand[Cast],
                   schema_metaclass=Cast,
                   context_class=CastCommandContext):
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
         if not context.stdmode and not context.testmode:
             raise errors.UnsupportedFeatureError(
                 'user-defined casts are not supported',
@@ -200,8 +230,13 @@ class CastCommand(sd.QualifiedObjectCommand,
         return super()._cmd_tree_from_ast(schema, astnode, context)
 
     @classmethod
-    def _classname_from_ast(cls, schema, astnode: qlast.CastCommand,
-                            context) -> sn.Name:
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.Name:
+        assert isinstance(astnode, qlast.CastCommand)
         modaliases = context.modaliases
 
         from_type = utils.resolve_typeref(
@@ -215,15 +250,19 @@ class CastCommand(sd.QualifiedObjectCommand,
                                  schema=schema),
             schema=schema
         )
-
+        assert isinstance(from_type, s_types.Type)
+        assert isinstance(to_type, s_types.Type)
         return get_cast_fullname(schema, 'std', from_type, to_type)
 
 
-class CreateCast(CastCommand, sd.CreateObject):
+class CreateCast(CastCommand, sd.CreateObject[Cast]):
     astnode = qlast.CreateCast
 
-    def _create_begin(self, schema, context):
-
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
         fullname = self.classname
         cast = schema.get(fullname, None)
         if cast:
@@ -238,7 +277,13 @@ class CreateCast(CastCommand, sd.CreateObject):
         return super()._create_begin(schema, context)
 
     @classmethod
-    def _cmd_tree_from_ast(cls, schema, astnode, context):
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.CreateCast)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         modaliases = context.modaliases
@@ -304,9 +349,9 @@ class RenameCast(CastCommand, sd.RenameObject):
     pass
 
 
-class AlterCast(CastCommand, sd.AlterObject):
+class AlterCast(CastCommand, sd.AlterObject[Cast]):
     astnode = qlast.AlterCast
 
 
-class DeleteCast(CastCommand, sd.DeleteObject):
+class DeleteCast(CastCommand, sd.DeleteObject[Cast]):
     astnode = qlast.DropCast
