@@ -203,7 +203,8 @@ class GraphQLTestCase(BaseHttpTest, server.QueryTestCase):
             ex_type = getattr(edgedb, typename)
         except AttributeError:
             raise AssertionError(
-                f'server returned an invalid exception typename: {typename!r}')
+                f'server returned an invalid exception typename: {typename!r}'
+                f'\n  Message: {msg}')
 
         ex = ex_type(msg)
 

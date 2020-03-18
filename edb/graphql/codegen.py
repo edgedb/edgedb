@@ -132,28 +132,28 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.name)
         self._visit_arguments(node)
 
-    def visit_StringValue(self, node):
+    def visit_StringValueNode(self, node):
         # the GQL string works same as JSON string
         self.write(json.dumps(node.value))
 
-    def visit_IntValue(self, node):
+    def visit_IntValueNode(self, node):
         self.write(node.value)
 
-    def visit_FloatValue(self, node):
+    def visit_FloatValueNode(self, node):
         self.write(node.value)
 
-    def visit_BooleanValue(self, node):
+    def visit_BooleanValueNode(self, node):
         if node.value:
             self.write('true')
         else:
             self.write('false')
 
-    def visit_ListValue(self, node):
+    def visit_ListValueNode(self, node):
         self.write('[')
         self._visit_list(node.values, separator=', ')
         self.write(']')
 
-    def visit_ObjectValue(self, node):
+    def visit_ObjectValueNode(self, node):
         if node.fields:
             self.write('{')
             self.new_lines = 1
@@ -164,25 +164,25 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write('{}')
 
-    def visit_EnumValue(self, node):
+    def visit_EnumValueNode(self, node):
         self.write(node.value)
 
-    def visit_NullValue(self, node):
+    def visit_NullValueNode(self, node):
         self.write('null')
 
-    def visit_Variable(self, node):
+    def visit_VariableNode(self, node):
         self.write('$')
         self.visit(node.name)
 
-    def visit_NamedType(self, node):
+    def visit_NamedTypeNode(self, node):
         self.visit(node.name)
 
-    def visit_ListType(self, node):
+    def visit_ListTypeNode(self, node):
         self.write('[')
         self.visit(node.type)
         self.write(']')
 
-    def visit_NonNullType(self, node):
+    def visit_NonNullTypeNode(self, node):
         self.visit(node.type)
         self.write('!')
 

@@ -1222,7 +1222,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
     def test_graphql_mutation_insert_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Cannot query field "insert_SettingAlias"'):
+                r"Cannot query field 'insert_SettingAlias'"):
             self.graphql_query(r"""
                 mutation insert_SettingAlias {
                     insert_SettingAlias(
@@ -1239,9 +1239,9 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
 
     def test_graphql_mutation_insert_bad_02(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'Argument "data" has invalid value(.|\n)*'
-                r'In field "favorites": .*In field "data": Unknown field'):
+            edgedb.QueryError,
+            r"Field 'data' is not defined by type NestedInsertNamedObject"
+        ):
             self.graphql_query(r"""
                 mutation insert_User {
                     insert_User(
@@ -2375,7 +2375,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
     def test_graphql_mutation_update_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Cannot query field "update_SettingAlias"'):
+                r"Cannot query field 'update_SettingAlias'"):
             self.graphql_query(r"""
                 mutation update_SettingAlias {
                     update_SettingAlias(
