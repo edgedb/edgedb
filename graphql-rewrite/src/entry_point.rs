@@ -35,6 +35,7 @@ pub struct Entry {
     pub variables: Vec<Variable>,
     pub defaults: BTreeMap<String, Variable>,
     pub tokens: Vec<PyToken>,
+    pub end_pos: Pos,
 }
 
 impl From<ParseError> for Error {
@@ -49,7 +50,8 @@ impl<'a> From<combine::easy::Error<Token<'a>,Token<'a>>> for Error {
     }
 }
 
-fn token_array<'a>(s: &'a str) -> Result<Vec<(Token<'a>, Pos)>, Error> {
+fn token_array<'a>(s: &'a str)
+    -> Result<(Vec<(Token<'a>, Pos)>, Pos), Error> {
     let mut lexer = TokenStream::new(s);
     let mut tokens = Vec::new();
     let mut pos = lexer.position();
@@ -63,7 +65,7 @@ fn token_array<'a>(s: &'a str) -> Result<Vec<(Token<'a>, Pos)>, Error> {
             Err(e) => panic!("Parse error at {}: {}", lexer.position(), e),
         }
     }
-    return Ok(tokens);
+    return Ok((tokens, lexer.position()));
 }
 
 fn find_operation<'a>(document: &'a Document<'a, &'a str>,
@@ -118,7 +120,8 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     let oper = find_operation(&document, operation)
         .ok_or_else(|| Error::NotFound(
             format!("no operation {:?} found", operation)))?;
-    let mut src_tokens = TokenVec::new(token_array(s)?);
+    let (tokens, end_pos) = token_array(s)?;
+    let mut src_tokens = TokenVec::new(tokens);
     let mut tokens = Vec::with_capacity(src_tokens.len());
 
     let mut variables = Vec::new();
@@ -192,6 +195,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
         variables,
         defaults: BTreeMap::new(),
         tokens,
+        end_pos,
     })
 }
 
@@ -231,12 +235,13 @@ fn join_tokens<'a, I: IntoIterator<Item=&'a PyToken>>(tokens: I) -> String {
             PyTokenKind::BraceL => false,
             PyTokenKind::BraceR => false,
             PyTokenKind::Pipe => false,
-            PyTokenKind::Variable => true,
             PyTokenKind::Int => true,
             PyTokenKind::Float => true,
             PyTokenKind::String => true,
+            PyTokenKind::BlockString => true,
             PyTokenKind::Name => true,
             PyTokenKind::Eof => unreachable!(),
+            PyTokenKind::Sof => unreachable!(),
         };
     }
     return buf;

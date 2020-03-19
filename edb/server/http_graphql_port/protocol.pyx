@@ -22,6 +22,8 @@ import logging
 import urllib.parse
 from typing import Any, Dict, Tuple, List, Optional
 
+from graphql.language import lexer as gql_lexer
+
 from edb import _graphql_rewrite
 from edb import errors
 from edb.graphql import errors as gql_errors
@@ -207,7 +209,8 @@ cdef class Protocol(http.HttpProtocol):
         if op is None:
             if rewritten is not None:
                 op = await self.compile(
-                    dbver, query, rewritten.tokens(), operation_name, vars)
+                    dbver, query,rewritten.tokens(gql_lexer.TokenKind),
+                    operation_name, vars)
             else:
                 op = await self.compile(
                     dbver, query, None, operation_name, vars)

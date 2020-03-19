@@ -1522,37 +1522,43 @@ def parse_text(query: str) -> graphql.Document:
 
 class TokenLexer(graphql.language.lexer.Lexer):
 
-    def __init__(self, tokens, eof_pos):
+    def __init__(self, source, tokens, eof_pos):
         self.__tokens = tokens
         self.__index = 0
         self.__eof_pos = eof_pos
+        self.source = source
+        kind, start, end, line, col, body = self.__tokens[0]
+        self.token = gql_lexer.Token(kind, start, end, line, col, None, body)
 
-    def next_token(self, reset_position=None):
-        # type: (Optional[int]) -> graphql.language.lexer.Token
-        if reset_position is not None:
-            print(f"BEFORE RESET {reset_position=} {self.__index=} {self.__tokens[self.__index]=}")
-            while reset_position < (self.__tokens[self.__index-1][2] or ):
-                self.__index -= 1
-            print(f"RESET {reset_position=} {self.__index=} {self.__tokens[self.__index]=}")
-        if self.__index >= len(self.__tokens):
-            return gql_lexer.Token(gql_lexer.TokenKind.EOF,
-                self.__eof_pos, self.__eof_pos, None)
-        tup = self.__tokens[self.__index]
-        token = gql_lexer.Token(*tup)
+    def advance(self) -> Token:
+        self.last_token = self.token
+        token = self.token = self.lookahead()
         self.__index += 1
-        print(f"TOKEN {tup=} {self.__index=}")
         return token
+
+    def lookahead(self) -> Token:
+        token = self.token
+        if token.kind != gql_lexer.TokenKind.EOF:
+            if token.next:
+                return self.token.next
+            kind, start, end, line, col, body = self.__tokens[self.__index+1]
+            token.next = gql_lexer.Token(kind,
+                start, end, line, col, token, body)
+            return token.next
+        else:
+            return token
 
 
 def parse_tokens(
     text: str,
-    tokens: List[Tuple[int, int, int, str]]
+    tokens: List[Tuple[TokenKind, int, int, int, int, str]]
 ) -> graphql.Document:
     options = {"no_location": False, "no_source": False}
     try:
-        parser = graphql.language.parser.Parser(graphql.Source(text), options)
-        parser.lexer = TokenLexer(tokens, len(text))
-        return graphql.language.parser.parse_document(parser)
+        src = graphql.Source(text)
+        parser = graphql.language.parser.Parser(src)
+        parser._lexer = TokenLexer(src, tokens, len(text))
+        return parser.parse_document()
     except graphql.GraphQLError as err:
         err_loc = (err.locations[0].line,
                    err.locations[0].column)
