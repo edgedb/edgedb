@@ -344,22 +344,24 @@ class GraphQLTranslator:
                     var = self._context.vars[varname]
                     # mark the variable as critical
                     self._context.vars[varname] = var._replace(critical=True)
-                    cond = var.val
+                    value = var.val
 
-                    if cond is None:
+                    if value is None:
                         raise g_errors.GraphQLValidationError(
                             f"no value for the {varname!r} variable",
                             loc=self.get_loc(directive.name))
+                elif isinstance(cond, gql_ast.BooleanValueNode):
+                    value = cond.value
 
-                if not isinstance(cond, gql_ast.BooleanValueNode):
+                if not isinstance(value, bool):
                     raise g_errors.GraphQLValidationError(
                         f"'if' argument of {directive.name.value} " +
                         "directive must be a Boolean",
                         loc=self.get_loc(directive.name))
 
-                if directive.name.value == 'include' and cond.value == 'false':
+                if directive.name.value == 'include' and not value:
                     return False
-                elif directive.name.value == 'skip' and cond.value == 'true':
+                elif directive.name.value == 'skip' and value:
                     return False
 
         return True
@@ -373,8 +375,9 @@ class GraphQLTranslator:
                 variables[varname] = Var(
                     val=None, defn=node, critical=False)
             else:
-                variables[varname] = Var(
-                    val=node.default_value, defn=node, critical=False)
+                val = json.loads(
+                    gqlcodegen.generate_source(node.default_value))
+                variables[varname] = Var(val=val, defn=node, critical=False)
         else:
             # we have the variable, but we still need to update the defn field
             variables[varname] = Var(
