@@ -96,8 +96,8 @@ class Var(NamedTuple):
 class Operation(NamedTuple):
     name: Any
     stmt: Any
-    critvars: Any
-    vars: Any
+    critvars: Dict[str, Any]
+    vars: Dict[str, Any]
 
 
 class TranspiledOperation(NamedTuple):
@@ -1524,10 +1524,6 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *,
         print(query)
         print(f'variables: {variables}')
 
-    gql_vars = {}
-    for n, v in variables.items():
-        gql_vars[n] = value_node_from_pyvalue(v)
-
     validation_errors = graphql.validate(gqlcore.graphql_schema, document_ast)
     if validation_errors:
         err = validation_errors[0]
@@ -1544,7 +1540,7 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *,
 
     context = GraphQLTranslatorContext(
         gqlcore=gqlcore, query=query,
-        variables=gql_vars, document_ast=document_ast,
+        variables=variables, document_ast=document_ast,
         operation_name=operation_name)
 
     edge_forest_map = GraphQLTranslator(context=context).visit(document_ast)
@@ -1556,23 +1552,12 @@ def translate(gqlcore: gt.GQLCoreSchema, query, *,
 
     op = next(iter(edge_forest_map.values()))
 
-    # convert critvars and vars to JSON-like format
-    critvars = {}
-    for name, val in op.critvars.items():
-        if val is not None:
-            critvars[name] = json.loads(gqlcodegen.generate_source(val))
-
-    defvars = {}
-    for name, val in op.vars.items():
-        if val is not None:
-            defvars[name] = json.loads(gqlcodegen.generate_source(val))
-
     # generate the specific result
     return TranspiledOperation(
         edgeql_ast=op.stmt,
         cacheable=True,
-        cache_deps_vars=dict(critvars) if critvars else None,
-        variables_desc=defvars,
+        cache_deps_vars=dict(op.critvars) if op.critvars else None,
+        variables_desc=op.vars,
     )
 
 
