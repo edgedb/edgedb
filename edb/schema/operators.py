@@ -139,8 +139,10 @@ class OperatorCommand(s_func.CallableCommand,
 
         params = cls._get_param_desc_from_ast(
             schema, context.modaliases, astnode)
-        return cls.get_schema_metaclass().get_fqname(  # type: ignore
+        fqname = cls.get_schema_metaclass().get_fqname(
             schema, name, params, astnode.kind)
+        assert isinstance(fqname, sn.Name)
+        return fqname
 
 
 class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
