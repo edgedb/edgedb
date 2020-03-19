@@ -1576,11 +1576,6 @@ def translate_ast(
     if variables is None:
         variables = {}
 
-    if debug.flags.graphql_compile:
-        debug.header('GraphQL compiler')
-        print(query)
-        print(f'variables: {variables}')
-
     validation_errors = graphql.validate(gqlcore.graphql_schema, document_ast)
     if validation_errors:
         err = validation_errors[0]
