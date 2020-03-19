@@ -126,12 +126,12 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
         context: Optional[so.ComparisonContext] = None,
-    ) -> Union[float, NotImplemented]:
+    ) -> float:
         if not isinstance(other, Link):
             if isinstance(other, pointers.Pointer):
                 return 0.0
             else:
-                return NotImplemented
+                raise NotImplementedError()
 
         return super().compare(
             other, our_schema=our_schema,
@@ -290,7 +290,7 @@ class CreateLink(
         node: qlast.DDLOperation,
         op: sd.AlterObjectProperty,
     ) -> None:
-        objtype = context.get(LinkSourceCommandContext)  # type: ignore
+        objtype = self.get_referrer_context(context)
 
         if op.property == 'required':
             # Due to how SDL is processed the underlying AST may be an
@@ -342,12 +342,7 @@ class CreateLink(
         if refdict.attr != 'pointers':
             return cmd
 
-        # type ignore below, because LinkSourceCommandContext is used
-        # as mixin in ObjectTypeCommandContext; asserting that parent_ctx
-        # is an instance of ObjectTypeCommandContext confuses mypy that
-        # considers it as "<nothing>"; fixing requires changing how
-        # this context is obtained
-        parent_ctx = context.get(LinkSourceCommandContext)  # type: ignore
+        parent_ctx = self.get_referrer_context(context)
         if parent_ctx is None:
             return cmd
         source_name = parent_ctx.op.classname
@@ -431,33 +426,6 @@ class SetLinkType(pointers.SetPointerType,
                   referrer_context_class=LinkSourceCommandContext):
 
     astnode = qlast.SetLinkType
-
-
-class SetTargetDeletePolicy(sd.Command):
-    astnode = qlast.OnTargetDelete
-
-    @classmethod
-    def _cmd_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> SetTargetDeletePolicy:
-        return sd.AlterObjectProperty(  # type: ignore
-            property='on_target_delete'
-        )
-
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> sd.Command:
-        assert isinstance(astnode, qlast.OnTargetDelete)
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        cmd.new_value = astnode.cascade
-        return cmd
 
 
 class AlterLink(
