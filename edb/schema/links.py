@@ -337,17 +337,19 @@ class CreateLink(
         context: sd.CommandContext,
         refdict: so.RefDict,
     ) -> sd.CommandGroup:
-        from edb.schema import objtypes as s_objtypes
-
         cmd = super().inherit_classref_dict(schema, context, refdict)
 
         if refdict.attr != 'pointers':
             return cmd
 
+        # type ignore below, because LinkSourceCommandContext is used
+        # as mixin in ObjectTypeCommandContext; asserting that parent_ctx
+        # is an instance of ObjectTypeCommandContext confuses mypy that
+        # considers it as "<nothing>"; fixing requires changing how
+        # this context is obtained
         parent_ctx = context.get(LinkSourceCommandContext)  # type: ignore
         if parent_ctx is None:
             return cmd
-        assert isinstance(parent_ctx, s_objtypes.ObjectTypeCommandContext)
         source_name = parent_ctx.op.classname
 
         base_prop_name = sn.Name('std::source')
@@ -471,11 +473,11 @@ class AlterLink(
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> sd.Command:
+    ) -> referencing.AlterReferencedInheritingObject[Link]:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.CreateConcreteLink):
             cmd._process_create_or_alter_ast(schema, astnode, context)
-        assert isinstance(cmd, sd.Command)
+        assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
         return cmd
 
 
