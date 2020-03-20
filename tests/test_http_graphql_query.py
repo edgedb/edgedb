@@ -2794,6 +2794,19 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 variables={'limit': '1'},
             )
 
+    def test_graphql_functional_variables_40(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Only scalar defaults are allowed\. "
+                f"Variable 'val' has non-scalar default value\."):
+            self.graphql_query(r"""
+                query($val: FilterFloat = {eq: 3.0}) {
+                    User(filter: {score: $val}) {
+                        id,
+                    }
+                }
+            """)
+
     def test_graphql_functional_enum_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,

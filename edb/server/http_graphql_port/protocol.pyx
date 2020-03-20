@@ -188,7 +188,7 @@ cdef class Protocol(http.HttpProtocol):
             rewritten = None
             rewrite_error = e
             prepared_query = query
-            vars = variables.copy()
+            vars = variables.copy() if variables else {}
         else:
             prepared_query = rewritten.key()
             vars = rewritten.variables().copy()

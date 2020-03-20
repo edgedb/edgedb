@@ -369,8 +369,7 @@ class GraphQLTranslator:
                 variables[varname] = Var(
                     val=None, defn=node, critical=False)
             else:
-                val = json.loads(
-                    gqlcodegen.generate_source(node.default_value))
+                val = convert_default(node.default_value, varname)
                 variables[varname] = Var(val=val, defn=node, critical=False)
         else:
             # we have the variable, but we still need to update the defn field
@@ -1622,3 +1621,19 @@ def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
         )
 
     return message
+
+
+def convert_default(node: gql_ast.ValueNode, varname: str
+        ) -> Union[str, float, int, bool]:
+    if isinstance(node, (
+        gql_ast.StringValueNode,
+        gql_ast.IntValueNode,
+        gql_ast.FloatValueNode,
+    )):
+        return json.loads(node.value)
+    elif isinstance(node, gql_ast.BooleanValueNode):
+        return node.value
+    else:
+        raise errors.QueryError(
+            f"Only scalar defaults are allowed. "
+            f"Variable {varname!r} has non-scalar default value.")
