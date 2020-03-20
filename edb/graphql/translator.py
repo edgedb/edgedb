@@ -1643,14 +1643,12 @@ def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
 
 def convert_default(node: gql_ast.ValueNode, varname: str
         ) -> Union[str, float, int, bool]:
-    if isinstance(node, (
-        gql_ast.StringValueNode,
-        gql_ast.IntValueNode,
-        gql_ast.FloatValueNode,
-    )):
-        return json.loads(node.value)
-    elif isinstance(node, gql_ast.BooleanValueNode):
+    if isinstance(node, (gql_ast.StringValueNode, gql_ast.BooleanValueNode)):
         return node.value
+    elif isinstance(node, gql_ast.IntValueNode):
+        return int(node.value)
+    elif isinstance(node, gql_ast.FloatValueNode):
+        return float(node.value)
     else:
         raise errors.QueryError(
             f"Only scalar defaults are allowed. "
