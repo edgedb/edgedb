@@ -1190,7 +1190,10 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_arguments_22(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"invalid value for 'after'",
+                # this error message is subpar, but this is what we get
+                # from postgres, because we transfer bigint values to postgres
+                # as strings
+                r'invalid input syntax for type bigint: "aaaaa"',
                 _line=5, _col=32):
             self.graphql_query(r"""
                 query {

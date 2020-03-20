@@ -209,7 +209,7 @@ cdef class Protocol(http.HttpProtocol):
         if op is None:
             if rewritten is not None:
                 op = await self.compile(
-                    dbver, query,rewritten.tokens(gql_lexer.TokenKind),
+                    dbver, query, rewritten.tokens(gql_lexer.TokenKind),
                     operation_name, vars)
             else:
                 op = await self.compile(

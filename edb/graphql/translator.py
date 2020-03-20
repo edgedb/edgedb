@@ -50,6 +50,9 @@ ARG_TYPES = {
     'String': gql_ast.StringValueNode,
 }
 
+REWRITE_TYPE_ERROR = re.compile(r"Variable '\$_edb_arg__\d+' of type 'String!'"
+                                r" used in position expecting type 'ID!?'")
+
 
 class GraphQLTranslatorContext:
     def __init__(self, *, gqlcore: gt.GQLCoreSchema,
@@ -66,6 +69,10 @@ class GraphQLTranslatorContext:
         self.query = query
         self.document_ast = document_ast
         self.operation_name = operation_name
+
+        # only used inside ObjectFieldNode
+        self.base_expr = None
+        self.right_cast = None
 
         # auto-incrementing counter
         self._counter = 0
@@ -1285,20 +1292,24 @@ class GraphQLTranslator:
                     type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
                 )
 
+        ### Set up context for the nested visitor ###
         self._context.base_expr = name
         # potentially the right-hand-side needs to be cast into a float
         if ftype.is_float:
             self._context.right_cast = qlast.TypeName(
                 maintype=ftype.edb_base_name_ast)
-        else:
-            self._context.right_cast = None
+        elif typename == 'std::uuid':
+            self._context.right_cast = qlast.TypeName(
+                maintype=qlast.ObjectRef(name='uuid'))
 
-        # insert current field in path
         path = self._context.path[-1]
         path.append(Step(name=fname, type=ftype, eql_alias=None))
-        value = self.visit(node.value)
-        # pop the path
-        path.pop()
+        try:
+            value = self.visit(node.value)
+        finally:
+            path.pop()
+            self._context.right_cast = None
+            self._context.base_expr = None
 
         # we need to cast a target string into <uuid> or enum
         if typename == 'std::uuid' and not isinstance(
@@ -1557,6 +1568,12 @@ def parse_tokens(
         raise g_errors.GraphQLCoreError(err.message, loc=err_loc) from None
 
 
+def skip_rewrite_types(err):
+    if REWRITE_TYPE_ERROR.match(err.message):
+        return False
+    return True
+
+
 def translate_ast(
     gqlcore: gt.GQLCoreSchema,
     document_ast: graphql.Document,
@@ -1569,6 +1586,7 @@ def translate_ast(
         variables = {}
 
     validation_errors = graphql.validate(gqlcore.graphql_schema, document_ast)
+    validation_errors = list(filter(skip_rewrite_types, validation_errors))
     if validation_errors:
         err = validation_errors[0]
         if isinstance(err, graphql.GraphQLError):
