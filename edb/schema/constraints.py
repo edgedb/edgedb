@@ -749,7 +749,7 @@ class CreateConstraint(
         if cmd.get_attribute_value('return_type') is None:
             cmd.set_attribute_value(
                 'return_type',
-                utils.reduce_to_typeref(schema, schema.get('std::bool')),
+                schema.get('std::bool'),
             )
 
         if cmd.get_attribute_value('return_typemod') is None:

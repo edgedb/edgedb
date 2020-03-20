@@ -599,7 +599,7 @@ class PointerCommandOrFragment:
                             'declared_overloaded', True
                         )
 
-                target = utils.reduce_to_typeref(schema, target_t)
+                target = target_t
 
             elif isinstance(target_ref, s_types.Collection):
                 srcctx = self.get_attribute_source_context('target')

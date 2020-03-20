@@ -137,10 +137,11 @@ class ParameterDesc(ParameterLike):
             paramd = expr.Expression.compiled(
                 defexpr, schema, modaliases=modaliases, as_fragment=True)
 
-        paramt = utils.resolve_typeref(
-            utils.ast_to_typeref(
-                astnode.type, modaliases=modaliases, schema=schema),
-            schema)
+        paramt = utils.ast_to_type(
+            astnode.type,
+            modaliases=modaliases,
+            schema=schema,
+        )
 
         if astnode.kind is ft.ParameterKind.VARIADIC:
             paramt = s_types.Array.from_subtypes(schema, (paramt,))
@@ -205,13 +206,8 @@ class ParameterDesc(ParameterLike):
         )
 
         cmd = CreateParameter(classname=param_name)
-
         cmd.set_attribute_value('name', param_name)
-
-        cmd.set_attribute_value(
-            'type',
-            utils.reduce_to_typeref(schema, self.type),
-        )
+        cmd.set_attribute_value('type', self.type)
 
         if self.type.is_collection() and not self.type.is_polymorphic(schema):
             s_types.ensure_schema_collection(
@@ -734,11 +730,11 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
         if hasattr(astnode, 'returning'):
             modaliases = context.modaliases
 
-            return_type_ref = utils.ast_to_typeref(
-                astnode.returning, modaliases=modaliases, schema=schema)
-
-            return_type = utils.resolve_typeref(
-                return_type_ref, schema=schema)
+            return_type = utils.ast_to_type(
+                astnode.returning,
+                modaliases=modaliases,
+                schema=schema,
+            )
 
             if (return_type.is_collection()
                     and not return_type.is_polymorphic(schema)):
@@ -749,7 +745,7 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
                 )
 
             cmd.set_attribute_value(
-                'return_type', return_type_ref)
+                'return_type', return_type)
             cmd.set_attribute_value(
                 'return_typemod', astnode.returning_typemod)
 

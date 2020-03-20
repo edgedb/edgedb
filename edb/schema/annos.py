@@ -28,7 +28,6 @@ from . import delta as sd
 from . import name as sn
 from . import referencing
 from . import objects as so
-from . import utils
 
 if TYPE_CHECKING:
     from . import schema as s_schema
@@ -232,20 +231,9 @@ class CreateAnnotationValue(
 
         attr: Annotation = schema.get(propname)
 
-        cmd.set_attribute_value(
-            'annotation',
-            utils.reduce_to_typeref(schema, attr),
-        )
-
-        cmd.set_attribute_value(
-            'value',
-            value,
-        )
-
-        cmd.set_attribute_value(
-            'is_final',
-            not attr.get_inheritable(schema),
-        )
+        cmd.set_attribute_value('annotation', attr)
+        cmd.set_attribute_value('value', value)
+        cmd.set_attribute_value('is_final', not attr.get_inheritable(schema))
 
         assert isinstance(cmd, CreateAnnotationValue)
         return cmd

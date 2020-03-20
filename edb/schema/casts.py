@@ -239,19 +239,18 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
         assert isinstance(astnode, qlast.CastCommand)
         modaliases = context.modaliases
 
-        from_type = utils.resolve_typeref(
-            utils.ast_to_typeref(astnode.from_type, modaliases=modaliases,
-                                 schema=schema),
-            schema=schema
+        from_type = utils.ast_to_type(
+            astnode.from_type,
+            modaliases=modaliases,
+            schema=schema,
         )
 
-        to_type = utils.resolve_typeref(
-            utils.ast_to_typeref(astnode.to_type, modaliases=modaliases,
-                                 schema=schema),
-            schema=schema
+        to_type = utils.ast_to_type(
+            astnode.to_type,
+            modaliases=modaliases,
+            schema=schema,
         )
-        assert isinstance(from_type, s_types.Type)
-        assert isinstance(to_type, s_types.Type)
+
         return get_cast_fullname(schema, 'std', from_type, to_type)
 
 
@@ -290,7 +289,7 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
 
         cmd.set_attribute_value(
             'from_type',
-            utils.ast_to_typeref(
+            utils.ast_to_type(
                 astnode.from_type,
                 modaliases=modaliases,
                 schema=schema,
@@ -299,7 +298,7 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
 
         cmd.set_attribute_value(
             'to_type',
-            utils.ast_to_typeref(
+            utils.ast_to_type(
                 astnode.to_type,
                 modaliases=modaliases,
                 schema=schema,

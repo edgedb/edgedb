@@ -242,13 +242,60 @@ def typeref_to_ast(schema: s_schema.Schema,
     return result
 
 
-def reduce_to_typeref(schema: s_schema.Schema, t: so.Object) -> so.Object:
-    ref, _ = t._reduce_to_ref(schema)
-    return ref
-
-
 def resolve_typeref(ref: so.Object, schema: s_schema.Schema) -> so.Object:
     return ref._resolve_ref(schema)
+
+
+def ast_to_object(
+    node: qlast.TypeName, *,
+    metaclass: Optional[so.ObjectMeta] = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> so.Object:
+
+    ref = ast_to_typeref(
+        node,
+        metaclass=metaclass,
+        modaliases=modaliases,
+        schema=schema,
+    )
+
+    return resolve_typeref(ref, schema)
+
+
+@overload
+def ast_to_type(  # NoQA: F811
+    node: qlast.TypeName, *,
+    metaclass: Type[s_types.TypeT],
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> s_types.TypeT:
+    ...
+
+
+@overload
+def ast_to_type(  # NoQA: F811
+    node: qlast.TypeName, *,
+    metaclass: None = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> s_types.Type:
+    ...
+
+
+def ast_to_type(  # NoQA: F811
+    node: qlast.TypeName, *,
+    metaclass: Optional[Type[s_types.TypeT]] = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> s_types.TypeT:
+
+    return ast_to_object(
+        node,
+        metaclass=metaclass,
+        modaliases=modaliases,
+        schema=schema,
+    )
 
 
 def is_nontrivial_container(value: Any) -> Optional[collections.abc.Iterable]:
