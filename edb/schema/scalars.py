@@ -198,8 +198,8 @@ class ScalarTypeCommandContext(sd.ObjectCommandContext[ScalarType],
 
 
 class ScalarTypeCommand(
-    s_types.InheritingTypeCommand,
-    constraints.ConsistencySubjectCommand,
+    s_types.InheritingTypeCommand[ScalarType],
+    constraints.ConsistencySubjectCommand[ScalarType],
     s_anno.AnnotationSubjectCommand,
     schema_metaclass=ScalarType,
     context_class=ScalarTypeCommandContext,
@@ -221,15 +221,15 @@ class ScalarTypeCommand(
     def _validate_base_refs(
         cls,
         schema: s_schema.Schema,
-        base_refs: List[so.Object],
+        base_refs: Iterable[ScalarType],
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> so.ObjectList[so.InheritingObject]:
+    ) -> so.ObjectList[ScalarType]:
         has_enums = any(isinstance(br, AnonymousEnumTypeRef)
                         for br in base_refs)
 
         if has_enums:
-            if len(base_refs) > 1:
+            if len(tuple(base_refs)) > 1:
                 assert isinstance(astnode, qlast.BasesMixin)
                 raise errors.SchemaError(
                     f'invalid scalar type definition, enumeration must be the '
@@ -240,7 +240,10 @@ class ScalarTypeCommand(
         return super()._validate_base_refs(schema, base_refs, astnode, context)
 
 
-class CreateScalarType(ScalarTypeCommand, inheriting.CreateInheritingObject):
+class CreateScalarType(
+    ScalarTypeCommand,
+    inheriting.CreateInheritingObject[ScalarType],
+):
     astnode = qlast.CreateScalarType
 
     @classmethod
@@ -332,7 +335,10 @@ class RenameScalarType(ScalarTypeCommand, sd.RenameObject):
     pass
 
 
-class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
+class RebaseScalarType(
+    ScalarTypeCommand,
+    inheriting.RebaseInheritingObject[ScalarType],
+):
 
     def apply(
         self,
@@ -405,10 +411,15 @@ class RebaseScalarType(ScalarTypeCommand, inheriting.RebaseInheritingObject):
         return schema
 
 
-class AlterScalarType(ScalarTypeCommand,
-                      inheriting.AlterInheritingObject):
+class AlterScalarType(
+    ScalarTypeCommand,
+    inheriting.AlterInheritingObject[ScalarType],
+):
     astnode = qlast.AlterScalarType
 
 
-class DeleteScalarType(ScalarTypeCommand, inheriting.DeleteInheritingObject):
+class DeleteScalarType(
+    ScalarTypeCommand,
+    inheriting.DeleteInheritingObject[ScalarType],
+):
     astnode = qlast.DropScalarType

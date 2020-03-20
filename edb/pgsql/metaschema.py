@@ -3120,22 +3120,23 @@ async def generate_views(conn, schema):
             if ptr.is_pure_computable(schema):
                 continue
 
-            field = mcls.get_field(pn)
-            if field is not None and (field.ephemeral or
-                                      not field.introspectable):
+            if mcls.has_field(pn):
+                field = mcls.get_field(pn)
+                if field.ephemeral or not field.introspectable:
+                    field = None
+            else:
                 field = None
 
             refdict = None
             if field is None:
                 fn = classref_attr_aliases.get(pn, pn)
-                refdict = mcls.get_refdict(fn)
-                if refdict is not None and ptr.singular(schema):
-                    # This is nether a field, nor a refdict, that's
-                    # not expected.
-                    raise RuntimeError(
-                        'introspection schema error: {!r} must not be '
-                        'singular'.format(
-                            '(' + schema_cls.name + ')' + '.' + pn))
+                if mcls.has_refdict(fn):
+                    refdict = mcls.get_refdict(fn)
+                    if ptr.singular(schema):
+                        raise RuntimeError(
+                            'introspection schema error: {!r} must not be '
+                            'singular'.format(
+                                '(' + schema_cls.name + ')' + '.' + pn))
 
             if field is None and refdict is None:
                 if pn == 'id':

@@ -263,6 +263,9 @@ def derive_ptr(
                 # This is a view of a view.  Make sure query-level
                 # computable expressions for pointers are carried over.
                 src_ptr = scls_pointers.get(ctx.env.schema, pn)
+                # mypy somehow loses the type argument in the
+                # "pointers" ObjectIndex.
+                assert isinstance(src_ptr, s_pointers.Pointer)
                 computable_data = ctx.source_map.get(src_ptr)
                 if computable_data is not None:
                     ctx.source_map[ptr] = computable_data

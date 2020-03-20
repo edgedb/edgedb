@@ -1148,7 +1148,7 @@ class ObjectCommand(
         *,
         name: Optional[str] = None,
         default: None = None,
-    ) -> Optional[so.Object]:
+    ) -> Optional[so.Object_T]:
         ...
 
     def get_object(  # NoQA: F811
@@ -1158,7 +1158,7 @@ class ObjectCommand(
         *,
         name: Optional[str] = None,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
-    ) -> Optional[so.Object]:
+    ) -> Optional[so.Object_T]:
         metaclass = self.get_schema_metaclass()
         if name is None:
             name = self.classname
@@ -1963,8 +1963,7 @@ class AlterSpecialObjectProperty(Command):
         new_value: Any = astnode.value
 
         if field.type is s_expr.Expression:
-            orig_expr_field = parent_cls.get_field(f'orig_{field.name}')
-            if orig_expr_field:
+            if parent_cls.has_field(f'orig_{field.name}'):
                 orig_text = cls.get_orig_expr_text(
                     schema, parent_op.qlast, field.name)
             else:
@@ -2058,8 +2057,7 @@ class AlterObjectProperty(Command):
         new_value: Any
 
         if field.type is s_expr.Expression:
-            orig_expr_field = parent_cls.get_field(f'orig_{field.name}')
-            if orig_expr_field:
+            if parent_cls.has_field(f'orig_{field.name}'):
                 orig_text = cls.get_orig_expr_text(
                     schema, parent_op.qlast, field.name)
             else:
@@ -2207,7 +2205,7 @@ class AlterObjectProperty(Command):
             astcls = qlast.SetField
 
         parent_cls = parent_op.get_schema_metaclass()
-        has_shadow = parent_cls.get_field(f'orig_{field.name}') is not None
+        has_shadow = parent_cls.has_field(f'orig_{field.name}')
 
         if context.descriptive_mode:
             # When generating AST for DESCRIBE AS TEXT, we want

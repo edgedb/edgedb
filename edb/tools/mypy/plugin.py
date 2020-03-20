@@ -34,13 +34,11 @@ METADATA_KEY = 'edbplugin'
 STRUCT_BASE_METACLASSES = {
     'edb.common.struct.StructMeta',
 }
-STRUCT_FIELD_MAKERS = {'edb.common.struct.Field'}
 
 SCHEMA_BASE_METACLASSES = {
     'edb.schema.objects.ObjectMeta',
     'edb.schema.types.SchemaCollectionMeta',
 }
-SCHEMA_FIELD_MAKERS = {'edb.schema.objects.SchemaField'}
 
 
 def plugin(version: str):
@@ -58,20 +56,32 @@ class EDBPlugin(mypy_plugin.Plugin):
         if not mcls:
             return
 
-        if any(c.fullname in SCHEMA_BASE_METACLASSES for c in mcls.type.mro):
-            transformer = SchemaClassTransformer(
-                ctx,
-                field_makers=SCHEMA_FIELD_MAKERS,
-            )
-        elif any(c.fullname in STRUCT_BASE_METACLASSES for c in mcls.type.mro):
-            transformer = StructTransformer(
-                ctx,
-                field_makers=STRUCT_FIELD_MAKERS,
-            )
-        else:
-            return
+        transformers = []
 
-        transformer.transform()
+        if any(c.fullname in SCHEMA_BASE_METACLASSES for c in mcls.type.mro):
+            transformers.append(
+                SchemaClassTransformer(
+                    ctx,
+                    field_makers={'edb.schema.objects.SchemaField'},
+                )
+            )
+            transformers.append(
+                StructTransformer(
+                    ctx,
+                    field_makers={'edb.schema.objects.Field'},
+                )
+            )
+
+        elif any(c.fullname in STRUCT_BASE_METACLASSES for c in mcls.type.mro):
+            transformers.append(
+                StructTransformer(
+                    ctx,
+                    field_makers={'edb.common.struct.Field'},
+                )
+            )
+
+        for transformer in transformers:
+            transformer.transform()
 
 
 class DeferException(Exception):
@@ -81,7 +91,6 @@ class DeferException(Exception):
 class Field(NamedTuple):
 
     name: str
-    is_optional: bool
     has_explicit_accessor: bool
     line: int
     column: int
@@ -90,7 +99,6 @@ class Field(NamedTuple):
     def serialize(self) -> nodes.JsonDict:
         return {
             'name': self.name,
-            'is_optional': self.is_optional,
             'has_explicit_accessor': self.has_explicit_accessor,
             'line': self.line,
             'column': self.column,
@@ -105,7 +113,6 @@ class Field(NamedTuple):
     ) -> Field:
         return cls(
             name=data['name'],
-            is_optional=data['is_optional'],
             has_explicit_accessor=data['has_explicit_accessor'],
             line=data['line'],
             column=data['column'],
@@ -163,9 +170,22 @@ class BaseStructTransformer:
             if not isinstance(rhs, nodes.CallExpr):
                 continue
 
-            if (isinstance(rhs.callee, nodes.RefExpr)
-                    and rhs.callee.fullname in self._field_makers):
-                field = self._field_from_field_def(stmt, lhs, rhs)
+            fdef = rhs.callee
+
+            if (isinstance(fdef, nodes.IndexExpr)
+                    and isinstance(fdef.analyzed, nodes.TypeApplication)):
+                # Explicitly typed Field declaration
+                ctor = fdef.analyzed.expr
+                if len(fdef.analyzed.types) > 1:
+                    ctx.api.fail('too many type arguments to Field')
+                ftype = fdef.analyzed.types[0]
+            else:
+                ctor = fdef
+                ftype = None
+
+            if (isinstance(ctor, nodes.RefExpr)
+                    and ctor.fullname in self._field_makers):
+                field = self._field_from_field_def(stmt, lhs, rhs, ftype=ftype)
                 fields.append(field)
 
         all_fields = fields.copy()
@@ -194,32 +214,38 @@ class BaseStructTransformer:
 
         return all_fields
 
-    def _field_from_field_def(self, stmt, lhs, call) -> Field:
+    def _field_from_field_def(
+        self,
+        stmt,
+        lhs,
+        call,
+        *,
+        ftype: Optional[types.Type] = None,
+    ) -> Field:
         ctx = self._ctx
         type_arg = call.args[0]
 
-        try:
-            un_type = exprtotype.expr_to_unanalyzed_type(type_arg)
-        except exprtotype.TypeTranslationError:
-            ctx.api.fail('Cannot resolve schema field type', type_arg)
-        else:
-            ftype = ctx.api.anal_type(un_type)
-            if ftype is None:
-                raise DeferException
+        if ftype is None:
+            try:
+                un_type = exprtotype.expr_to_unanalyzed_type(type_arg)
+            except exprtotype.TypeTranslationError:
+                ctx.api.fail('Cannot resolve schema field type', type_arg)
+            else:
+                ftype = ctx.api.anal_type(un_type)
+                if ftype is None:
+                    raise DeferException
 
-        is_optional = self._is_optional(call)
-        if is_optional:
-            ftype = types.UnionType.make_union(
-                [ftype, types.NoneType()],
-                line=ftype.line,
-                column=ftype.column,
-            )
+            if self._is_optional(call):
+                ftype = types.UnionType.make_union(
+                    [ftype, types.NoneType()],
+                    line=ftype.line,
+                    column=ftype.column,
+                )
 
         lhs.node.type = ftype
 
         return Field(
             name=lhs.name,
-            is_optional=is_optional,
             has_explicit_accessor=self._has_explicit_field_accessor(lhs.name),
             line=stmt.line,
             column=stmt.column,
@@ -277,8 +303,8 @@ class StructTransformer(BaseStructTransformer):
         metadata['fields'] = {f.name: f.serialize() for f in fields}
         metadata['processed'] = True
 
-    def _field_from_field_def(self, stmt, lhs, rhs):
-        field = super()._field_from_field_def(stmt, lhs, rhs)
+    def _field_from_field_def(self, stmt, lhs, rhs, *, ftype=None):
+        field = super()._field_from_field_def(stmt, lhs, rhs, ftype=ftype)
 
         lhs.is_inferred_def = False
         stmt.rvalue = nodes.CastExpr(
@@ -316,14 +342,6 @@ class SchemaClassTransformer(BaseStructTransformer):
             if f.has_explicit_accessor:
                 continue
 
-            ftype = f.type
-
-            if f.is_optional:
-                ftype = types.UnionType.make_union(
-                    [ftype, types.NoneType()],
-                    line=ftype.line, column=ftype.column,
-                )
-
             mypy_helpers.add_method(
                 ctx,
                 name=f'get_{f.name}',
@@ -338,7 +356,7 @@ class SchemaClassTransformer(BaseStructTransformer):
                         kind=nodes.ARG_POS,
                     ),
                 ],
-                return_type=ftype,
+                return_type=f.type,
             )
 
         metadata['fields'] = {f.name: f.serialize() for f in fields}

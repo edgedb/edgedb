@@ -36,6 +36,7 @@ from edb.edgeql import qltypes
 from . import abc as s_abc
 from . import delta as sd
 from . import expr as s_expr
+from . import inheriting
 from . import name as s_name
 from . import objects as so
 from . import schema as s_schema
@@ -62,6 +63,7 @@ class ExprType(enum.IntEnum):
 
 
 TypeT = typing.TypeVar('TypeT', bound='Type')
+InheritingTypeT = typing.TypeVar('InheritingTypeT', bound='InheritingType')
 
 
 class Type(
@@ -304,9 +306,9 @@ class Type(
         return False
 
     def get_union_of(
-        self,
+        self: TypeT,
         schema: s_schema.Schema,
-    ) -> Optional[so.ObjectSet[Type]]:
+    ) -> Optional[so.ObjectSet[TypeT]]:
         return None
 
     def get_is_opaque_union(self, schema: s_schema.Schema) -> bool:
@@ -374,7 +376,9 @@ class InheritingType(so.DerivableInheritingObject, Type):
         ancestor = utils.get_class_nearest_common_ancestor(
             schema, [self, other])
 
-        if ancestor is self:
+        if ancestor is None:
+            return -1
+        elif ancestor is self:
             return 0
         else:
             ancestors = list(self.get_ancestors(schema).objects(schema))
@@ -646,7 +650,7 @@ class Collection(Type, s_abc.Collection):
         return (
             self.__class__.from_subtypes(
                 schema, strefs, typemods=self.get_typemods(schema)),
-            (self.__class__, tuple(r.name for r in strefs))
+            (self.__class__, tuple(r.get_name(schema) for r in strefs))
         )
 
     def _resolve_ref(self, schema: s_schema.Schema) -> Collection:
@@ -1077,7 +1081,7 @@ class BaseSchemaArray(SchemaCollection, BaseArray):
         # Since this is already a schema object, we should just create
         # a reference by "name".
         sa_ref = SchemaArrayRef(name=self.get_name(schema))
-        return (sa_ref, (self.__class__, sa_ref.name))
+        return (sa_ref, (self.__class__, sa_ref.get_name(schema)))
 
 
 class SchemaArray(SchemaAnonymousCollection, BaseSchemaArray,
@@ -1400,7 +1404,10 @@ class BaseTuple(Collection, s_abc.Tuple):
         return (
             self.__class__.from_subtypes(
                 schema, strefs, typemods=self.get_typemods(schema)),
-            (self.__class__, tuple(r.name for r in strefs.values()))
+            (
+                self.__class__,
+                tuple(r.get_name(schema) for r in strefs.values()),
+            )
         )
 
     def _resolve_ref(
@@ -1502,9 +1509,6 @@ class BaseTuple(Collection, s_abc.Tuple):
 
 
 class Tuple(EphemeralCollection, BaseTuple):
-
-    named = so.Field(bool)
-    element_types = so.Field(dict, coerce=True)
 
     def is_named(self, schema: s_schema.Schema) -> bool:
         return self.named
@@ -1852,8 +1856,31 @@ class TypeCommand(sd.ObjectCommand):
         return schema
 
 
-class InheritingTypeCommand(sd.QualifiedObjectCommand, TypeCommand):
-    pass
+class InheritingTypeCommand(
+    sd.QualifiedObjectCommand,
+    TypeCommand,
+    inheriting.InheritingObjectCommand[InheritingTypeT],
+):
+
+    @classmethod
+    def _validate_base_refs(
+        cls,
+        schema: s_schema.Schema,
+        base_refs: Iterable[InheritingTypeT],
+        astnode: qlast.ObjectDDL,
+        context: sd.CommandContext,
+    ) -> so.ObjectList[InheritingTypeT]:
+
+        bases = super()._validate_base_refs(
+            schema, base_refs, astnode, context)
+
+        for base in bases.objects(schema):
+            if base.contains_any(schema):
+                base_type_name = base.get_displayname(schema)
+                raise errors.SchemaError(
+                    f"{base_type_name!r} cannot be a parent type")
+
+        return bases
 
 
 class CollectionTypeCommandContext(sd.ObjectCommandContext):

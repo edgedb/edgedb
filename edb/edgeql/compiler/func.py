@@ -52,6 +52,9 @@ from . import setgen
 from . import stmtctx
 from . import typegen
 
+if TYPE_CHECKING:
+    import uuid
+
 
 @dispatch.compile.register(qlast.FunctionCall)
 def compile_FunctionCall(
@@ -475,6 +478,7 @@ def compile_operator(
         sql_operator = tuple(from_op)
 
     origin_name: Optional[sn.SchemaName]
+    origin_module_id: Optional[uuid.UUID]
     if derivative_op is not None:
         origin_name = oper_name
         origin_module_id = env.schema.get_global(

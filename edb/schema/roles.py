@@ -18,7 +18,6 @@
 
 
 from __future__ import annotations
-
 from typing import *
 
 from edgedb import scram
@@ -58,7 +57,7 @@ class RoleCommandContext(
 
 
 class RoleCommand(sd.GlobalObjectCommand,
-                  inheriting.InheritingObjectCommand,
+                  inheriting.InheritingObjectCommand[Role],
                   s_anno.AnnotationSubjectCommand,
                   schema_metaclass=Role,
                   context_class=RoleCommandContext):
@@ -82,17 +81,15 @@ class RoleCommand(sd.GlobalObjectCommand,
         schema: s_schema.Schema,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> so.ObjectList[so.InheritingObject]:
+    ) -> so.ObjectList[Role]:
         result = []
         for b in getattr(astnode, 'bases', None) or []:
-            result.append(
-                schema.get_global(cls.get_schema_metaclass(), b.maintype.name)
-            )
+            result.append(schema.get_global(Role, b.maintype.name))
 
         return so.ObjectList.create(schema, result)
 
 
-class CreateRole(RoleCommand, inheriting.CreateInheritingObject):
+class CreateRole(RoleCommand, inheriting.CreateInheritingObject[Role]):
     astnode = qlast.CreateRole
 
     @classmethod
@@ -129,7 +126,7 @@ class CreateRole(RoleCommand, inheriting.CreateInheritingObject):
         super()._apply_field_ast(schema, context, node, op)
 
 
-class RebaseRole(RoleCommand, inheriting.RebaseInheritingObject):
+class RebaseRole(RoleCommand, inheriting.RebaseInheritingObject[Role]):
     pass
 
 
@@ -137,7 +134,7 @@ class RenameRole(RoleCommand, sd.RenameObject):
     pass
 
 
-class AlterRole(RoleCommand, inheriting.AlterInheritingObject):
+class AlterRole(RoleCommand, inheriting.AlterInheritingObject[Role]):
     astnode = qlast.AlterRole
 
     @classmethod
@@ -152,5 +149,5 @@ class AlterRole(RoleCommand, inheriting.AlterInheritingObject):
         return cmd
 
 
-class DeleteRole(RoleCommand, inheriting.DeleteInheritingObject):
+class DeleteRole(RoleCommand, inheriting.DeleteInheritingObject[Role]):
     astnode = qlast.DropRole
