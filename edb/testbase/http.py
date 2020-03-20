@@ -234,5 +234,6 @@ class GraphQLTestCase(BaseHttpTest, server.QueryTestCase):
             for r in res.values():
                 self._sort_results(r, sort)
 
+        print(f"REAL RESULT {res=}")
         self._assert_data_shape(res, result, message=msg)
         return res

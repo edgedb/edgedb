@@ -4,6 +4,8 @@ use combine::{parser, ParseResult, Parser};
 use combine::easy::Error;
 use combine::error::StreamError;
 use combine::combinator::{many, many1, optional, position, choice};
+use num_bigint::BigInt;
+use num_traits::cast::ToPrimitive;
 
 use crate::tokenizer::{Kind as T, Token, TokenStream};
 use crate::helpers::{punct, ident, kind, name};
@@ -43,7 +45,7 @@ pub struct Directive<'a, T: Text<'a>> {
 #[derive(Debug, Clone, PartialEq)]
 // we use i64 as a reference implementation: graphql-js thinks even 32bit
 // integers is enough. We might consider lift this limit later though
-pub struct Number(pub(crate) i64);
+pub struct Number(pub(crate) BigInt);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value<'a, T: Text<'a>> {
@@ -68,13 +70,13 @@ pub enum Type<'a, T: Text<'a>> {
 impl Number {
     /// Returns a number as i64 if it fits the type
     pub fn as_i64(&self) -> Option<i64> {
-        Some(self.0)
+        self.0.to_i64()
     }
 }
 
 impl From<i32> for Number {
     fn from(i: i32) -> Self {
-        Number(i as i64)
+        Number(BigInt::from(i))
     }
 }
 

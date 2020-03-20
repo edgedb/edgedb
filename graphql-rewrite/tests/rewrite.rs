@@ -107,6 +107,27 @@ fn test_name() {
 }
 
 #[test]
+fn test_default_name() {
+    let entry = rewrite(None, r###"
+        query Hello {
+            object(filter: {field: {eq: "test"}}) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query Hello($_edb_arg__0:String!){\
+            object(filter:{field:{eq:$_edb_arg__0}}){\
+                field\
+            }\
+        }\
+    ");
+    assert_eq!(entry.variables, vec![
+        Variable::Str("test".into()),
+    ]);
+}
+
+#[test]
 fn test_other() {
     let entry = rewrite(Some("Hello"), r###"
         query Other {

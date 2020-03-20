@@ -69,12 +69,12 @@ fn token_array<'a>(s: &'a str)
 }
 
 fn find_operation<'a>(document: &'a Document<'a, &'a str>,
-    operation: Option<&str>)
+    operation: &str)
     -> Option<&'a Operation<'a, &'a str>>
 {
     for def in &document.definitions {
         let res = match def {
-            Definition::Operation(ref op) if op.name == operation => op,
+            Definition::Operation(ref op) if op.name == Some(operation) => op,
             _ => continue,
         };
         return Some(res);
@@ -117,9 +117,27 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     use crate::pytoken::PyTokenKind as P;
 
     let document: Document<'_, &str> = parse_query(s).map_err(Error::Syntax)?;
-    let oper = find_operation(&document, operation)
-        .ok_or_else(|| Error::NotFound(
-            format!("no operation {:?} found", operation)))?;
+    let oper = if let Some(oper_name) = operation {
+        find_operation(&document, oper_name)
+            .ok_or_else(|| Error::NotFound(
+                format!("no operation {:?} found", operation)))?
+    } else {
+        let mut oper = None;
+        for def in &document.definitions {
+            match def {
+                Definition::Operation(ref op) => {
+                    if oper.is_some() {
+                        return Err(Error::NotFound("Multiple operations \
+                            found. Please specify operation name".into()))?;
+                    } else {
+                        oper = Some(op);
+                    }
+                }
+                _ => continue,
+            };
+        }
+        oper.ok_or_else(|| Error::NotFound("no operation found".into()))?
+    };
     let (tokens, end_pos) = token_array(s)?;
     let mut src_tokens = TokenVec::new(tokens);
     let mut tokens = Vec::with_capacity(src_tokens.len());

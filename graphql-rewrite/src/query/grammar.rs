@@ -362,8 +362,8 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected="number too large")]
     fn large_integer() {
-        ast("{ a(x: 10000000000000000000000000000 }");
+        assert_eq!(ast("{ a(x: 10000000000000000000000000000) }").to_string(),
+            "{\n  a(x: 10000000000000000000000000000)\n}\n");
     }
 }

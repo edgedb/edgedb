@@ -133,15 +133,8 @@ class GraphQLTranslator:
 
     def get_loc(self, node):
         if node.loc:
-            position = node.loc.start
-            lines = self._context.query[:position].splitlines()
-            if lines:
-                line = len(lines)
-                column = len(lines[-1]) + 1
-            else:
-                line = 1
-                column = 1
-            return (line, column)
+            token = node.loc.start_token
+            return token.line, token.column
         else:
             return None
 

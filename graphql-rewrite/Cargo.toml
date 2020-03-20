@@ -8,6 +8,8 @@ edition = "2018"
 [dependencies]
 combine = "3.2.0"
 thiserror = "1.0.11"
+num-bigint = "0.2.6"
+num-traits = "0.2.11"
 
 [dependencies.cpython]
 git = "git://github.com/dgrunwald/rust-cpython"

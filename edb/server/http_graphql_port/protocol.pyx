@@ -217,8 +217,9 @@ cdef class Protocol(http.HttpProtocol):
             self.query_cache[cache_key] = op
         else:
             if op.cache_deps_vars:
-                op = await self.compile(
-                    dbver, prepared_query, operation_name, vars)
+                op = await self.compile(dbver,
+                    query, rewritten.tokens(gql_lexer.TokenKind),
+                    operation_name, vars)
             else:
                 # This is at least the second time this query is used
                 # and it's safe to cache.
