@@ -685,6 +685,8 @@ class Schema(s_abc.Schema):
         self,
         obj_id: uuid.UUID,
         default: Union[so.Object, so.NoDefaultT] = so.NoDefault,
+        *,
+        type: None = None,
     ) -> so.Object:
         ...
 
@@ -692,17 +694,41 @@ class Schema(s_abc.Schema):
     def get_by_id(  # NoQA: F811
         self,
         obj_id: uuid.UUID,
+        default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
+        *,
+        type: Type[so.Object_T] = None,
+    ) -> so.Object_T:
+        ...
+
+    @overload
+    def get_by_id(  # NoQA: F811
+        self,
+        obj_id: uuid.UUID,
         default: None = None,
+        *,
+        type: None = None,
     ) -> Optional[so.Object]:
+        ...
+
+    @overload
+    def get_by_id(  # NoQA: F811
+        self,
+        obj_id: uuid.UUID,
+        default: None = None,
+        *,
+        type: Type[so.Object_T],
+    ) -> Optional[so.Object_T]:
         ...
 
     def get_by_id(  # NoQA: F811
         self,
         obj_id: uuid.UUID,
-        default: Union[so.Object, so.NoDefaultT, None] = so.NoDefault,
-    ) -> Optional[so.Object]:
+        default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+        *,
+        type: Optional[Type[so.Object_T]] = None,
+    ) -> Optional[so.Object_T]:
         try:
-            return self._id_to_type[obj_id]
+            obj = self._id_to_type[obj_id]
         except KeyError:
             if default is so.NoDefault:
                 raise errors.InvalidReferenceError(
@@ -711,6 +737,14 @@ class Schema(s_abc.Schema):
                 ) from None
             else:
                 return default
+        else:
+            if type is not None and not isinstance(obj, type):
+                raise errors.InvalidReferenceError(
+                    f'schema object {obj_id!r} exists, but is not '
+                    f'{type.get_schema_class_displayname()}'
+                )
+
+            return cast(so.Object_T, obj)
 
     def _get_by_name(
         self,
@@ -877,7 +911,7 @@ class Schema(s_abc.Schema):
     def get_modules(self) -> Iterator[s_mod.Module]:
         for (objtype, _), objid in self._globalname_to_id.items():
             if objtype is s_mod.Module:
-                yield self.get_by_id(objid)  # type: ignore
+                yield self.get_by_id(objid, type=s_mod.Module)
 
     def __repr__(self) -> str:
         return (

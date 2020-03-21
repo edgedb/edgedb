@@ -1011,7 +1011,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         *,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
-        context: Optional[ComparisonContext],
+        context: ComparisonContext,
     ) -> float:
         comparator = getattr(field.type, 'compare_values', None)
         if callable(comparator):
@@ -1034,13 +1034,13 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     @classmethod
     def compare_values(
-        cls,
-        ours: Optional[Object],
-        theirs: Optional[Object],
+        cls: Type[Object_T],
+        ours: Optional[Object_T],
+        theirs: Optional[Object_T],
         *,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
-        context: Optional[ComparisonContext],
+        context: ComparisonContext,
         compcoef: float,
     ) -> float:
         """Compare two values and return a coefficient of similarity.
@@ -1074,7 +1074,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         old: Optional[Object],
         new: Optional[Object],
         *,
-        context: ComparisonContext = None,
+        context: Optional[ComparisonContext] = None,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
     ) -> sd.ObjectCommand[Object]:
@@ -1273,7 +1273,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         old: Optional[Object],
         new: Object,
         *,
-        context: ComparisonContext = None,
+        context: ComparisonContext,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
     ) -> None:
@@ -2291,8 +2291,9 @@ class InheritingObject(SubclassableObject):
         return self.get_bases(schema).names(schema)
 
     def get_topmost_concrete_base(
-        self, schema: s_schema.Schema
-    ) -> InheritingObject:
+        self: InheritingObjectT,
+        schema: s_schema.Schema
+    ) -> InheritingObjectT:
         """Get the topmost non-abstract base."""
         lineage = [self]
         lineage.extend(self.get_ancestors(schema).objects(schema))

@@ -87,8 +87,8 @@ class ScalarType(
     def _to_nonpolymorphic(
         self,
         schema: s_schema.Schema,
-        concrete_type: s_types.Type,
-    ) -> s_types.Type:
+        concrete_type: ScalarType,
+    ) -> ScalarType:
         if (not concrete_type.is_polymorphic(schema) and
                 concrete_type.issubclass(schema, self)):
             return concrete_type
@@ -148,7 +148,7 @@ class ScalarType(
         self,
         other: s_types.Type,
         schema: s_schema.Schema,
-    ) -> Optional[s_types.Type]:
+    ) -> Optional[ScalarType]:
 
         if not isinstance(other, ScalarType):
             return None
@@ -158,13 +158,14 @@ class ScalarType(
 
         left = self.get_topmost_concrete_base(schema)
         right = other.get_topmost_concrete_base(schema)
-        assert isinstance(left, ScalarType)
-        assert isinstance(right, ScalarType)
 
         if left == right:
             return left
         else:
-            return s_casts.find_common_castable_type(schema, left, right)
+            return cast(
+                Optional[ScalarType],
+                s_casts.find_common_castable_type(schema, left, right),
+            )
 
     def get_base_for_cast(self, schema: s_schema.Schema) -> so.Object:
         if self.is_enum(schema):

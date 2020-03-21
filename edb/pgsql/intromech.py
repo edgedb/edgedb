@@ -958,7 +958,7 @@ class IntrospectionMech:
                 expr_type=s_types.ExprType(r['expr_type']),
                 alias_is_persistent=r['alias_is_persistent'],
                 named=r['named'],
-                element_types=s_obj.ObjectDict.create(
+                element_types=s_obj.ObjectDict[s_types.Type].create(
                     schema, dict(eltypes.iter_subtypes(schema))),
             )
 

@@ -320,7 +320,7 @@ class Constraint(referencing.ReferencedInheritingObject,
         old: Optional[so.Object],
         new: so.Object,
         *,
-        context: so.ComparisonContext = None,
+        context: so.ComparisonContext,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
     ) -> None:
