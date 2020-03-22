@@ -428,6 +428,33 @@ class SetLinkType(pointers.SetPointerType,
     astnode = qlast.SetLinkType
 
 
+class SetTargetDeletePolicy(sd.Command):
+    astnode = qlast.OnTargetDelete
+
+    @classmethod
+    def _cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.AlterObjectProperty:
+        return sd.AlterObjectProperty(
+            property='on_target_delete'
+        )
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.OnTargetDelete)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        cmd.new_value = astnode.cascade
+        return cmd
+
+
 class AlterLink(
     LinkCommand,
     referencing.AlterReferencedInheritingObject[Link],
