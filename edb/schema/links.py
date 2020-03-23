@@ -168,7 +168,7 @@ class LinkSourceCommandContext(sources.SourceCommandContext):
     pass
 
 
-class LinkSourceCommand(inheriting.InheritingObjectCommand):
+class LinkSourceCommand(inheriting.InheritingObjectCommand[Link]):
     pass
 
 
@@ -417,7 +417,7 @@ class RenameLink(LinkCommand, sd.RenameObject):
     pass
 
 
-class RebaseLink(LinkCommand, inheriting.RebaseInheritingObject):
+class RebaseLink(LinkCommand, inheriting.RebaseInheritingObject[Link]):
     pass
 
 
