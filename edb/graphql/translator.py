@@ -23,6 +23,7 @@ import contextlib
 import decimal
 import json
 import re
+from collections import abc as col_abc
 from typing import *
 
 import graphql
@@ -120,6 +121,23 @@ class TranspiledOperation(NamedTuple):
     variables_desc: dict
 
 
+class BookkeepDict(dict):
+
+    def __init__(self, values):
+        self.update(values)
+        self.touched = set()
+
+    def __getitem__(self, key):
+        self.touched.add(key)
+        return super().__getitem__(key)
+
+    def values(self):
+        raise NotImplementedError()
+
+    def items(self):
+        raise NotImplementedError()
+
+
 class GraphQLTranslator:
 
     def __init__(self, *, context=None):
@@ -209,18 +227,25 @@ class GraphQLTranslator:
                 raise errors.QueryError(
                     f'unknown operation named "{operation_name}"')
 
-        stmt = translated[operation_name].stmt
-        for el in stmt.result.elements:
+        operation = translated[operation_name]
+        for el in operation.stmt.result.elements:
             # swap in the json bits
             if (isinstance(el.compexpr, qlast.FunctionCall) and
                     el.compexpr.func == 'to_json'):
 
                 # An introspection query; let graphql evaluate it for us.
+
+                vars = BookkeepDict(self._context.variables)
                 result = graphql.execute(
                     self._context.gqlcore.graphql_schema,
                     self._context.document_ast,
                     operation_name=operation_name,
-                    variable_values=self._context.variables)
+                    variable_values=vars)
+                for var in vars.touched:
+                    self._context.vars[var] = (
+                        self._context.vars.get(var)
+                        ._replace(critical=True)
+                    )
 
                 if result.errors:
                     err = result.errors[0]
@@ -236,6 +261,8 @@ class GraphQLTranslator:
                 name = el.expr.steps[0].ptr.name
                 el.compexpr.args[0] = qlast.StringConstant.from_python(
                     json.dumps(result.data[name]))
+                for var in vars.touched:
+                    operation.critvars[var] = self._context.vars[var].val
 
         return translated
 
