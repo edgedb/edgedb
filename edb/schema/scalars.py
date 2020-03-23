@@ -186,13 +186,23 @@ class ScalarType(
         return f"{clsname} '{dname}'"
 
 
-class AnonymousEnumTypeShell(ScalarType):
+class AnonymousEnumTypeShell(s_types.TypeShell):
 
     elements: Sequence[str]
 
-    def __init__(self, *, elements: Iterable[str]):
-        super().__init__(_private_init=True)
-        self.__dict__['elements'] = list(elements)
+    def __init__(
+        self,
+        *,
+        name: str = 'std::anyenum',
+        elements: Iterable[str],
+    ) -> None:
+        super().__init__(name=name)
+        self.elements = list(elements)
+
+    def resolve(self, schema: s_schema.Schema) -> s_types.Type:
+        raise NotImplementedError(
+            f'cannot resolve {self.__class__.__name__!r}'
+        )
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext[ScalarType],
@@ -220,30 +230,6 @@ class ScalarTypeCommand(
         assert isinstance(cmd, sd.QualifiedObjectCommand)
         assert isinstance(astnode, qlast.ObjectDDL)
         return cls._handle_view_op(schema, cmd, astnode, context)
-
-    @classmethod
-    def _validate_base_refs(
-        cls,
-        schema: s_schema.Schema,
-        base_refs: Iterable[ScalarType],
-        astnode: qlast.ObjectDDL,
-        context: sd.CommandContext,
-    ) -> so.ObjectList[ScalarType]:
-        has_enums = any(isinstance(br, AnonymousEnumTypeShell)
-                        for br in base_refs)
-
-        if has_enums:
-            if len(tuple(base_refs)) > 1:
-                assert isinstance(astnode, qlast.BasesMixin)
-                raise errors.SchemaError(
-                    f'invalid scalar type definition, enumeration must be the '
-                    f'only supertype specified',
-                    context=astnode.bases[0].context,
-                )
-
-            base_refs = [schema.get('std::anyenum', type=ScalarType)]
-
-        return super()._validate_base_refs(schema, base_refs, astnode, context)
 
 
 class CreateScalarType(
@@ -273,34 +259,66 @@ class CreateScalarType(
         else:
             create_cmd = cmd
 
-        bases = create_cmd.get_attribute_value('bases')
-        is_enum = (
-            len(bases) == 1
-            and bases.first(schema).get_name(schema) == 'std::anyenum'
-        )
-        if is_enum:
-            assert isinstance(astnode, qlast.CreateScalarType)
-            shell = s_utils.ast_to_type(
-                astnode.bases[0],
-                modaliases=context.modaliases,
-                schema=schema
-            )
-            assert isinstance(shell, AnonymousEnumTypeShell)
-            elements = shell.elements
-            create_cmd.set_attribute_value('enum_values', elements)
-            create_cmd.set_attribute_value('is_final', True)
+        if isinstance(astnode, qlast.CreateScalarType):
+            bases = [
+                s_utils.ast_to_type_shell(
+                    b,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
+                for b in astnode.bases
+            ]
 
-        for sub in create_cmd.get_subcommands(type=sd.AlterObjectProperty):
-            if sub.property == 'default':
-                if is_enum:
+            if any(isinstance(br, AnonymousEnumTypeShell) for br in bases):
+                # This is an enumerated type.
+                if len(bases) > 1:
+                    assert isinstance(astnode, qlast.BasesMixin)
+                    raise errors.SchemaError(
+                        f'invalid scalar type definition, enumeration must be'
+                        f' the only supertype specified',
+                        context=astnode.bases[0].context,
+                    )
+                deflt = create_cmd.get_attribute_set_cmd('default')
+                if deflt is not None:
                     raise errors.UnsupportedFeatureError(
                         f'enumerated types do not support defaults',
-                        context=sub.source_context,
+                        context=deflt.source_context,
                     )
-                else:
-                    sub.new_value = [sub.new_value]
-        assert isinstance(cmd, (CreateScalarType, sd.CommandGroup))
+
+                shell = bases[0]
+                assert isinstance(shell, AnonymousEnumTypeShell)
+                create_cmd.set_attribute_value('enum_values', shell.elements)
+                create_cmd.set_attribute_value('is_final', True)
+
         return cmd
+
+    @classmethod
+    def _classbases_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.ObjectDDL,
+        context: sd.CommandContext,
+    ) -> so.ObjectList[ScalarType]:
+
+        modaliases = context.modaliases
+
+        base_refs: List[ScalarType] = []
+        for b in getattr(astnode, 'bases', []):
+            shell = s_utils.ast_to_object_shell(
+                b,
+                modaliases=modaliases,
+                schema=schema,
+                metaclass=cls.get_schema_metaclass(),
+            )
+            if isinstance(shell, AnonymousEnumTypeShell):
+                obj = schema.get('std::anyenum', type=ScalarType)
+            else:
+                resolved = shell.resolve(schema)
+                assert isinstance(resolved, ScalarType)
+                obj = resolved
+            base_refs.append(obj)
+
+        return cls._validate_base_refs(schema, base_refs, astnode, context)
 
     def _get_ast_node(
         self,

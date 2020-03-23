@@ -299,8 +299,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
             base_name: str
 
             try:
-                base_ref = utils.ast_to_type(
-                    qlast.TypeName(maintype=astnode.name),
+                base_ref = utils.ast_to_object(
+                    astnode.name,
                     modaliases=context.modaliases,
                     schema=schema,
                 )
@@ -438,7 +438,7 @@ class CreateReferencedObject(
 
             cmd.set_attribute_value(
                 refdict.backref_attr,
-                so.ObjectRef(name=referrer_name),
+                so.ObjectShell(name=referrer_name),
             )
 
             cmd.set_attribute_value('is_local', True)
@@ -447,61 +447,6 @@ class CreateReferencedObject(
                 cmd.set_attribute_value('is_abstract', True)
 
         return cmd
-
-    def _get_ast(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        *,
-        parent_node: Optional[qlast.DDLOperation] = None,
-    ) -> Optional[qlast.DDLOperation]:
-        refctx = type(self).get_referrer_context(context)
-        if refctx is not None:
-            if not self.get_attribute_value('is_local'):
-                if context.descriptive_mode:
-                    astnode = super()._get_ast(
-                        schema, context, parent_node=parent_node)
-
-                    bases = self.get_attribute_value('bases')
-                    bases_names = [
-                        b.get_name(schema)
-                        for b in bases.objects(schema)
-                    ]
-                    inherited_from = []
-                    for bname in bases_names:
-                        if sn.shortname_from_fullname(bname) == bname:
-                            # Not an implicit base
-                            continue
-                        quals = sn.quals_from_fullname(bname)
-                        inherited_from.append(quals[0])
-
-                    assert astnode is not None
-
-                    astnode.system_comment = (
-                        f'inherited from {", ".join(inherited_from)}'
-                    )
-                    return astnode
-                else:
-                    return None
-
-            else:
-                astnode = super()._get_ast(
-                    schema, context, parent_node=parent_node)
-
-                if context.declarative:
-                    scls = self.get_object(schema, context)
-                    assert isinstance(scls, ReferencedInheritingObject)
-                    implicit_bases = scls.get_implicit_bases(schema)
-                    objcls = self.get_schema_metaclass()
-                    referrer_class = refctx.op.get_schema_metaclass()
-                    refdict = referrer_class.get_refdict_for_class(objcls)
-                    if refdict.requires_explicit_overloaded and implicit_bases:
-                        assert astnode is not None
-                        astnode.declared_overloaded = True
-
-                return astnode
-        else:
-            return super()._get_ast(schema, context, parent_node=parent_node)
 
     def _get_ast_node(self,
                       schema: s_schema.Schema,
@@ -783,6 +728,60 @@ class CreateReferencedInheritingObject(
     ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
 ):
 
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        refctx = type(self).get_referrer_context(context)
+        if refctx is not None:
+            if not self.get_attribute_value('is_local'):
+                if context.descriptive_mode:
+                    astnode = super()._get_ast(
+                        schema,
+                        context,
+                        parent_node=parent_node,
+                    )
+                    assert astnode is not None
+
+                    inherited_from = [
+                        sn.quals_from_fullname(b)[0]
+                        for b in self.get_implicit_bases(
+                            schema,
+                            context,
+                            self.get_attribute_value('bases'),
+                        )
+                    ]
+
+                    astnode.system_comment = (
+                        f'inherited from {", ".join(inherited_from)}'
+                    )
+
+                    return astnode
+                else:
+                    return None
+
+            else:
+                astnode = super()._get_ast(
+                    schema, context, parent_node=parent_node)
+
+                if context.declarative:
+                    scls = self.get_object(schema, context)
+                    assert isinstance(scls, ReferencedInheritingObject)
+                    implicit_bases = scls.get_implicit_bases(schema)
+                    objcls = self.get_schema_metaclass()
+                    referrer_class = refctx.op.get_schema_metaclass()
+                    refdict = referrer_class.get_refdict_for_class(objcls)
+                    if refdict.requires_explicit_overloaded and implicit_bases:
+                        assert astnode is not None
+                        astnode.declared_overloaded = True
+
+                return astnode
+        else:
+            return super()._get_ast(schema, context, parent_node=parent_node)
+
     def _create_begin(
         self,
         schema: s_schema.Schema,
@@ -889,10 +888,7 @@ class CreateReferencedInheritingObject(
                     cmd = ref_create_cmd.as_inherited_ref_cmd(
                         schema, context, astnode, [self.scls])
 
-                    cmd.set_attribute_value(
-                        refdict.backref_attr,
-                        so.ObjectRef(name=child.get_name(schema)),
-                    )
+                    cmd.set_attribute_value(refdict.backref_attr, child)
 
                     if child.get_is_derived(schema):
                         # All references in a derived object must
@@ -928,6 +924,37 @@ class CreateReferencedInheritingObject(
         cmd.add(rebase_cmd)
 
         return cmd
+
+    def get_implicit_bases(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        bases: Any,
+    ) -> Sequence[str]:
+
+        mcls = self.get_schema_metaclass()
+        default_base = mcls.get_default_base_name()
+
+        if isinstance(bases, so.ObjectCollectionShell):
+            base_names = [
+                b.name for b in bases.items if b.name is not None
+            ]
+        else:
+            assert isinstance(bases, so.ObjectList)
+            base_names = list(bases.names(schema, allow_unresolved=True))
+
+        # Filter out explicit bases
+        implicit_bases = [
+            b
+            for b in base_names
+            if (
+                b != default_base
+                and isinstance(b, sn.SchemaName)
+                and sn.shortname_from_fullname(b) != b
+            )
+        ]
+
+        return implicit_bases
 
 
 class AlterReferencedInheritingObject(

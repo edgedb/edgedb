@@ -168,44 +168,31 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
     ) -> Any:
         ftype = field.type
 
-        if isinstance(ftype, so.ObjectMeta):
-            value = self._resolve_type_ref(value, schema)
-
-        elif issubclass(ftype, checked.CheckedDict):
-            if issubclass(ftype.valuetype, so.Object):
-                dct = {}
-
-                for k, val in value.items():
-                    dct[k] = self._resolve_type_ref(val, schema)
-
-                value = ftype(dct)
-            else:
-                value = field.coerce_value(schema, value)
-
-        elif issubclass(ftype, (checked.AbstractCheckedList,
-                                checked.AbstractCheckedSet)):
-            if issubclass(ftype.type, so.Object):
-                lst = []
-
-                for val in value:
-                    lst.append(self._resolve_type_ref(val, schema))
-
-                value = ftype(lst)
-            else:
-                value = field.coerce_value(schema, value)
-
-        elif issubclass(ftype, so.ObjectDict):
-            value = ftype.create(schema, dict(value.items(schema)))
-
-        elif issubclass(ftype, so.ObjectCollection):
-            value = ftype.create(schema, value.objects(schema))
-
-        elif issubclass(ftype, s_expr.Expression):
-            if value is not None:
-                value = ftype.from_expr(value, schema)
-
+        if isinstance(value, so.Shell):
+            value = value.resolve(schema)
         else:
-            value = field.coerce_value(schema, value)
+            if isinstance(ftype, so.ObjectMeta):
+                value = self._resolve_type_ref(value, schema)
+
+            elif issubclass(ftype, checked.CheckedDict):
+                value = field.coerce_value(schema, value)
+
+            elif issubclass(ftype, (checked.AbstractCheckedList,
+                                    checked.AbstractCheckedSet)):
+                value = field.coerce_value(schema, value)
+
+            elif issubclass(ftype, so.ObjectDict):
+                value = ftype.create(schema, dict(value.items(schema)))
+
+            elif issubclass(ftype, so.ObjectCollection):
+                value = ftype.create(schema, value.objects(schema))
+
+            elif issubclass(ftype, s_expr.Expression):
+                if value is not None:
+                    value = ftype.from_expr(value, schema)
+
+            else:
+                value = field.coerce_value(schema, value)
 
         return value
 
@@ -1697,13 +1684,13 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             cmd.set_attribute_value('is_abstract', True)
 
         added_bases = []
-        dropped_bases: List[so.Object] = []
+        dropped_bases: List[so.ObjectShell] = []
 
         if getattr(astnode, 'commands', None):
             for astcmd in astnode.commands:
                 if isinstance(astcmd, qlast.AlterDropInherit):
                     dropped_bases.extend(
-                        utils.ast_to_object(
+                        utils.ast_to_object_shell(
                             b,
                             metaclass=cls.get_schema_metaclass(),
                             modaliases=context.modaliases,
@@ -1714,7 +1701,7 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
                 elif isinstance(astcmd, qlast.AlterAddInherit):
                     bases = [
-                        utils.ast_to_object(
+                        utils.ast_to_object_shell(
                             b,
                             metaclass=cls.get_schema_metaclass(),
                             modaliases=context.modaliases,
@@ -2199,7 +2186,10 @@ class AlterObjectProperty(Command):
 
         astcls: Type[qlast.BaseSetField]
 
-        assert isinstance(self.new_value, s_expr.Expression)
+        assert isinstance(
+            self.new_value,
+            (s_expr.Expression, s_expr.ExpressionShell),
+        )
 
         if self.property == 'expr':
             astcls = qlast.SetSpecialField

@@ -317,10 +317,10 @@ class CreateLink(
                         node.target = expr.qlast
                     else:
                         t = op.new_value
-                        assert isinstance(t, so.Object)
+                        assert isinstance(t, (so.Object, so.ObjectShell))
                         node.target = utils.typeref_to_ast(schema, t)
             else:
-                assert isinstance(op.new_value, so.Object)
+                assert isinstance(op.new_value, (so.Object, so.ObjectShell))
                 node.commands.append(
                     qlast.SetLinkType(
                         type=utils.typeref_to_ast(schema, op.new_value)
@@ -345,7 +345,6 @@ class CreateLink(
         parent_ctx = self.get_referrer_context(context)
         if parent_ctx is None:
             return cmd
-        source_name = parent_ctx.op.classname
 
         base_prop_name = sn.Name('std::source')
         s_name = sn.get_specialized_name(
@@ -360,15 +359,15 @@ class CreateLink(
         src_prop.set_attribute_value('name', src_prop_name)
         src_prop.set_attribute_value(
             'bases',
-            so.ObjectList.create(schema, [so.ObjectRef(name=base_prop_name)]),
+            so.ObjectList.create(schema, [schema.get(base_prop_name)]),
         )
         src_prop.set_attribute_value(
             'source',
-            so.ObjectRef(name=self.classname),
+            self.scls,
         )
         src_prop.set_attribute_value(
             'target',
-            so.ObjectRef(name=source_name),
+            parent_ctx.op.scls,
         )
         src_prop.set_attribute_value('required', True)
         src_prop.set_attribute_value('readonly', True)
@@ -392,11 +391,11 @@ class CreateLink(
         tgt_prop.set_attribute_value('name', tgt_prop_name)
         tgt_prop.set_attribute_value(
             'bases',
-            so.ObjectList.create(schema, [so.ObjectRef(name=base_prop_name)]),
+            so.ObjectList.create(schema, [schema.get(base_prop_name)]),
         )
         tgt_prop.set_attribute_value(
             'source',
-            so.ObjectRef(name=self.classname),
+            self.scls,
         )
         tgt_prop.set_attribute_value(
             'target',

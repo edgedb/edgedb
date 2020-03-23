@@ -258,6 +258,11 @@ def _trace_op(
             new_value_name = op.new_value.get_name(new_schema)
             deps.add(('create', new_value_name))
             deps.add(('alter', new_value_name))
+        elif isinstance(op.new_value, so.ObjectShell):
+            nvn = op.new_value.name
+            if nvn is not None:
+                deps.add(('create', nvn))
+                deps.add(('alter', nvn))
 
         parent_op = opstack[-2]
         assert isinstance(parent_op, sd.ObjectCommand)

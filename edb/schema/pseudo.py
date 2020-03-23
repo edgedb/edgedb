@@ -123,6 +123,9 @@ class Any(PseudoType):
     def _reduce_to_ref(self, schema):
         return AnyObjectRef(), sn.UnqualifiedName('anytype')
 
+    def as_shell(self, schema):
+        return AnyTypeShell()
+
 
 class AnyObjectRef(so.ObjectRef):
 
@@ -130,6 +133,15 @@ class AnyObjectRef(so.ObjectRef):
         super().__init__(name=name)
 
     def _resolve_ref(self, schema: s_schema.Schema) -> Any:
+        return Any.get(schema)
+
+
+class AnyTypeShell(s_types.TypeShell):
+
+    def __init__(self, *, name=sn.UnqualifiedName('anytype')):
+        super().__init__(name=name)
+
+    def resolve(self, schema: s_schema.Schema) -> Any:
         return Any.get(schema)
 
 
@@ -176,6 +188,9 @@ class AnyTuple(PseudoType):
     ) -> s_types.Type:
         return concrete_type
 
+    def as_shell(self, schema):
+        return AnyTupleShell()
+
 
 class AnyTupleRef(so.ObjectRef):
 
@@ -183,6 +198,15 @@ class AnyTupleRef(so.ObjectRef):
         super().__init__(name=name)
 
     def _resolve_ref(self, schema: s_schema.Schema) -> AnyTuple:
+        return AnyTuple.get(schema)
+
+
+class AnyTupleShell(s_types.TypeShell):
+
+    def __init__(self, *, name=sn.UnqualifiedName('anytuple')):
+        super().__init__(name=name)
+
+    def resolve(self, schema: s_schema.Schema) -> AnyTuple:
         return AnyTuple.get(schema)
 
 

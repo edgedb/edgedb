@@ -142,8 +142,12 @@ def get_known_type_id(
 
 class ComparisonContext:
 
-    def __init__(self) -> None:
-        pass
+    def __init__(
+        self,
+        *,
+        related_schemas: bool = False,
+    ) -> None:
+        self.related_schemas = related_schemas
 
 
 # derived from ProtoField for validation
@@ -1182,6 +1186,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     def _reduce_to_ref(self, schema: s_schema.Schema) -> Tuple[Object, Any]:
         return ObjectRef(name=self.get_name(schema)), self.get_name(schema)
 
+    def as_shell(self, schema: s_schema.Schema) -> ObjectShell:
+        return ObjectShell(
+            name=self.get_name(schema),
+            schemaclass=type(self),
+        )
+
     def _resolve_ref(self, schema: s_schema.Schema) -> Object:
         return self
 
@@ -1255,8 +1265,22 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 oldattr_v = old.get_explicit_field_value(old_schema, fn, None)
                 newattr_v = new.get_explicit_field_value(new_schema, fn, None)
 
-                oldattr_v, oldattr_v1 = old._reduce_refs(old_schema, oldattr_v)
-                newattr_v, newattr_v1 = new._reduce_refs(new_schema, newattr_v)
+                old_v: Any
+                new_v: Any
+
+                if (issubclass(f.type, s_abc.ObjectContainer)
+                        and not context.related_schemas):
+                    if oldattr_v is not None:
+                        old_v = oldattr_v.as_shell(old_schema)
+                    else:
+                        old_v = None
+                    if newattr_v is not None:
+                        new_v = newattr_v.as_shell(new_schema)
+                    else:
+                        new_v = None
+                else:
+                    old_v = oldattr_v
+                    new_v = newattr_v
 
                 if f.compcoef is not None:
                     fcoef = cls.compare_field_value(
@@ -1269,18 +1293,26 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
                     if fcoef != 1.0:
                         delta.set_attribute_value(
-                            fn, newattr_v, orig_value=oldattr_v)
+                            fn,
+                            new_v,
+                            orig_value=old_v,
+                        )
         elif new:
             # IDs are assigned once when the object is created and
             # never changed.
             id_value = new.get_explicit_field_value(new_schema, 'id')
             delta.set_attribute_value('id', id_value)
 
-            for fn in fields:
+            for fn, f in fields.items():
                 value = new.get_explicit_field_value(new_schema, fn, None)
                 if value is not None:
-                    value, _ = new._reduce_refs(new_schema, value)
-                    cls.delta_property(new_schema, new, delta, fn, value)
+                    v: Any
+                    if (issubclass(f.type, s_abc.ObjectContainer)
+                            and not context.related_schemas):
+                        v = value.as_shell(new_schema)
+                    else:
+                        v = value
+                    cls.delta_property(new_schema, new, delta, fn, v)
 
     @classmethod
     def delta_property(
@@ -1553,6 +1585,54 @@ class DerivableObject(QualifiedObject):
             module=module)
 
 
+class Shell:
+
+    def resolve(self, schema: s_schema.Schema) -> Any:
+        raise NotImplementedError
+
+
+class ObjectShell(Shell):
+
+    def __init__(
+        self,
+        *,
+        name: Optional[str],
+        origname: Optional[str] = None,
+        schemaclass: Optional[Type[Object]] = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
+    ) -> None:
+        self.name = name
+        self.origname = origname
+        self.schemaclass = schemaclass
+        self.sourcectx = sourcectx
+
+    def resolve(self, schema: s_schema.Schema) -> Object:
+        if self.name is None:
+            raise TypeError(
+                'cannot resolve anonymous ObjectShell'
+            )
+
+        return schema.get(
+            self.name,
+            type=self.schemaclass,
+            refname=self.origname,
+            sourcectx=self.sourcectx,
+        )
+
+    def get_refname(self, schema: s_schema.Schema) -> Optional[str]:
+        return self.origname if self.origname is not None else self.name
+
+    def __repr__(self) -> str:
+        if self.schemaclass is not None:
+            dn = self.schemaclass.__name__
+        else:
+            dn = 'Object'
+
+        n = self.name or '<anonymous>'
+
+        return f'<{type(self).__name__} {dn}({n!r}) at 0x{id(self):x}>'
+
+
 class BaseObjectRef:
     # Object ref marker
     def _resolve_ref(self, schema: s_schema.Schema) -> Object:
@@ -1820,6 +1900,38 @@ class ObjectCollection(
         self: T, schema: s_schema.Schema, v: ObjectCollection[Object_T]
     ) -> Tuple[T, Any]:
         raise NotImplementedError
+
+    def as_shell(
+        self,
+        schema: s_schema.Schema,
+    ) -> ObjectCollectionShell[Object_T]:
+        return ObjectCollectionShell[Object_T](
+            items=[o.as_shell(schema) for o in self.objects(schema)],
+            collection_type=type(self),
+        )
+
+
+class ObjectCollectionShell(Shell, Generic[Object_T]):
+
+    def __init__(
+        self,
+        items: Iterable[ObjectShell],
+        collection_type: Type[ObjectCollection[Object_T]],
+    ) -> None:
+        self.items = items
+        self.collection_type = collection_type
+
+    def resolve(self, schema: s_schema.Schema) -> ObjectCollection[Object_T]:
+        return self.collection_type.create(
+            schema,
+            [cast(Object_T, s.resolve(schema)) for s in self.items],
+        )
+
+    def __repr__(self) -> str:
+        tn = self.__class__.__name__
+        cn = self.collection_type.__name__
+        items = ', '.join(e.name or '<anonymous>' for e in self.items)
+        return f'<{tn} {cn}({items}) at 0x{id(self):x}>'
 
 
 OIBT = TypeVar("OIBT", bound="ObjectIndexBase[Object]")
@@ -2097,6 +2209,38 @@ class ObjectDict(
             comparison_v.append((key, comp))
 
         return type(v).create(schema, result), frozenset(comparison_v)
+
+    def as_shell(
+        self,
+        schema: s_schema.Schema,
+    ) -> ObjectDictShell[Object_T]:
+        return ObjectDictShell(
+            items={k: o.as_shell(schema) for k, o in self.items(schema)},
+            collection_type=type(self),
+        )
+
+
+class ObjectDictShell(ObjectCollectionShell[Object_T]):
+
+    items: Mapping[Any, ObjectShell]
+    collection_type: Type[ObjectDict[Object_T]]
+
+    def __init__(
+        self,
+        items: Mapping[Any, ObjectShell],
+        collection_type: Type[ObjectDict[Object_T]],
+    ) -> None:
+        self.items = items
+        self.collection_type = collection_type
+
+    def resolve(self, schema: s_schema.Schema) -> ObjectDict[Object_T]:
+        return self.collection_type.create(
+            schema,
+            {
+                k: cast(Object_T, s.resolve(schema))
+                for k, s in self.items.items()
+            },
+        )
 
 
 class ObjectSet(
@@ -2386,14 +2530,12 @@ class InheritingObject(SubclassableObject):
 
                 rebase_cmd.set_attribute_value(
                     'bases',
-                    new._reduce_refs(
-                        new_schema, new.get_bases(new_schema))[0],
+                    new.get_bases(new_schema).as_shell(new_schema),
                 )
 
                 rebase_cmd.set_attribute_value(
                     'ancestors',
-                    new._reduce_refs(
-                        new_schema, new.get_ancestors(new_schema))[0],
+                    new.get_ancestors(new_schema).as_shell(new_schema),
                 )
 
                 delta.add(rebase_cmd)

@@ -1681,7 +1681,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_19(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                r"schema item 'std::anytype' does not exist"):
+                r"type 'std::anytype' does not exist"):
 
             await self.con.execute(r'''
                 CREATE FUNCTION test::ddlf_19(f: std::anytype) -> int64

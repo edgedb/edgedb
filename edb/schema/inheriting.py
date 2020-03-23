@@ -272,11 +272,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
             obj = schema.get(cmd.classname, default=None)
             if obj is None:
-                cmd.set_attribute_value(
-                    refdict.backref_attr,
-                    so.ObjectRef(name=scls.get_name(schema)),
-                )
-
+                cmd.set_attribute_value(refdict.backref_attr, scls)
                 group.add(cmd)
                 schema = cmd.apply(schema, context)
             else:
@@ -373,7 +369,12 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         base_refs: List[so.InheritingObjectT] = []
         for b in getattr(astnode, 'bases', None) or []:
-            obj = utils.ast_to_type(b, modaliases=modaliases, schema=schema)
+            obj = utils.ast_to_object(
+                b,
+                modaliases=modaliases,
+                schema=schema,
+                metaclass=cls.get_schema_metaclass(),
+            )
             base_refs.append(cast(so.InheritingObjectT, obj))
 
         return cls._validate_base_refs(schema, base_refs, astnode, context)
@@ -473,30 +474,30 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 def delta_bases(
     old_bases: Iterable[str], new_bases: Iterable[str]
 ) -> Tuple[
-    Tuple[so.ObjectRef, ...],
+    Tuple[so.ObjectShell, ...],
     Tuple[
         Tuple[
-            List[so.ObjectRef],
-            Union[str, so.ObjectRef, Tuple[str, so.ObjectRef]],
+            List[so.ObjectShell],
+            Union[str, so.ObjectShell, Tuple[str, so.ObjectShell]],
         ],
         ...,
     ],
 ]:
     dropped = frozenset(old_bases) - frozenset(new_bases)
-    removed_bases = [so.ObjectRef(name=b) for b in dropped]
+    removed_bases = [so.ObjectShell(name=b) for b in dropped]
     common_bases = [b for b in old_bases if b not in dropped]
 
     added_bases: List[
         Tuple[
-            List[so.ObjectRef],
-            Union[str, so.ObjectRef, Tuple[str, so.ObjectRef]],
+            List[so.ObjectShell],
+            Union[str, so.ObjectShell, Tuple[str, so.ObjectShell]],
         ]
     ] = []
 
     j = 0
 
     added_set = set()
-    added_base_refs: List[so.ObjectRef] = []
+    added_base_refs: List[so.ObjectShell] = []
 
     if common_bases:
         for base in new_bases:
@@ -504,7 +505,7 @@ def delta_bases(
                 # Found common base, insert the accumulated
                 # list of new bases and continue
                 if added_base_refs:
-                    ref = so.ObjectRef(name=common_bases[j])
+                    ref = so.ObjectShell(name=common_bases[j])
                     added_bases.append((added_base_refs, ('BEFORE', ref)))
                     added_base_refs = []
                 j += 1
@@ -514,12 +515,12 @@ def delta_bases(
                     continue
 
             # Base has been inserted at position j
-            added_base_refs.append(so.ObjectRef(name=base))
+            added_base_refs.append(so.ObjectShell(name=base))
             added_set.add(base)
 
     # Finally, add all remaining bases to the end of the list
     tail_bases = added_base_refs + [
-        so.ObjectRef(name=b) for b in new_bases
+        so.ObjectShell(name=b) for b in new_bases
         if b not in added_set and b not in common_bases
     ]
 
@@ -636,48 +637,65 @@ class CreateInheritingObject(
         op: sd.AlterObjectProperty,
     ) -> None:
         if op.property == 'bases':
-            mcls = self.get_schema_metaclass()
-            default_base = mcls.get_default_base_name()
+            explicit_bases = self.get_explicit_bases(
+                schema, context, op.new_value)
 
-            bases = op.new_value
-            assert isinstance(bases, so.ObjectList)
-
-            base_names: List[sn.SchemaName] = [
-                b for b in bases.names(schema, allow_unresolved=True)
-                if isinstance(b, sn.SchemaName)
-                if b != default_base and sn.shortname_from_fullname(b) == b
-            ]
-
-            if base_names:
+            if explicit_bases:
                 if isinstance(node, qlast.CreateObject):
                     node.bases = [
-                        qlast.TypeName(
-                            maintype=qlast.ObjectRef(
-                                name=b.name,
-                                module=b.module
-                            )
-                        )
-                        for b in base_names
+                        qlast.TypeName(maintype=utils.name_to_ast_ref(b))
+                        for b in explicit_bases
                     ]
                 else:
                     node.commands.append(
                         qlast.AlterAddInherit(
                             bases=[
-                                qlast.ObjectRef(
-                                    module=b.module,
-                                    name=b.name
-                                )
-                                for b in base_names
+                                utils.name_to_ast_ref(b)
+                                for b in explicit_bases
                             ],
                         )
                     )
-
         elif op.property == 'is_abstract':
             node.is_abstract = op.new_value
         elif op.property == 'is_final':
             node.is_final = op.new_value
         else:
             super()._apply_field_ast(schema, context, node, op)
+
+    def get_explicit_bases(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        bases: Any,
+    ) -> List[str]:
+
+        mcls = self.get_schema_metaclass()
+        default_base = mcls.get_default_base_name()
+        base_names: List[str]
+
+        if isinstance(bases, so.ObjectCollectionShell):
+            base_names = []
+            for b in bases.items:
+                assert b.name is not None
+                base_names.append(b.name)
+        else:
+            assert isinstance(bases, so.ObjectList)
+            base_names = list(bases.names(schema, allow_unresolved=True))
+
+        # Filter out implicit bases
+        explicit_bases = [
+            b
+            for b in base_names
+            if (
+                b != default_base
+                and (
+                    not isinstance(b, sn.SchemaName)
+                    or sn.shortname_from_fullname(b) == b
+                )
+            )
+        ]
+
+        return explicit_bases
 
     def inherit_classref_dict(
         self,
@@ -693,10 +711,7 @@ class CreateInheritingObject(
             cmd = create_cmd.as_inherited_ref_cmd(
                 schema, context, astnode, parents)
 
-            cmd.set_attribute_value(
-                refdict.backref_attr,
-                so.ObjectRef(name=scls.get_name(schema)),
-            )
+            cmd.set_attribute_value(refdict.backref_attr, scls)
 
             group.add(cmd)
 
@@ -869,7 +884,7 @@ class RebaseInheritingObject(
         else:
             default_base = None
 
-        removed_bases = {b.get_name(schema) for b in self.removed_bases}
+        removed_bases = {b.name for b in self.removed_bases}
         existing_bases = set()
 
         for b in bases:
@@ -889,11 +904,11 @@ class RebaseInheritingObject(
             elif pos == 'FIRST':
                 idx = 0
             else:
-                idx = index[ref.get_name(schema)]
+                idx = index[ref.name]
 
             bases[idx:idx] = [
-                self.get_object(schema, context, name=b.get_name(schema))
-                for b in new_bases if b.get_name(schema) not in existing_bases
+                self.get_object(schema, context, name=b.name)
+                for b in new_bases if b.name not in existing_bases
             ]
             index = {b.get_name(schema): i for i, b in enumerate(bases)}
 

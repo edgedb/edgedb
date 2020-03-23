@@ -68,6 +68,77 @@ def ast_objref_to_objref(
                         sourcectx=node.context)
 
 
+def ast_objref_to_object_shell(
+    node: qlast.ObjectRef, *,
+    metaclass: Optional[Type[so.Object]] = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> so.ObjectShell:
+
+    nqname = node.name
+    module = node.module
+    if module is not None:
+        lname = sn.Name(module=module, name=nqname)
+    else:
+        lname = nqname
+    obj = schema.get(lname, module_aliases=modaliases, default=None)
+
+    if metaclass is not None and not issubclass(metaclass, so.QualifiedObject):
+        name = nqname
+    else:
+        if obj is not None:
+            actual_name = obj.get_name(schema)
+            module = actual_name.module
+        else:
+            aliased_module = modaliases.get(module)
+            if aliased_module is not None:
+                module = aliased_module
+
+        name = sn.Name(module=module, name=nqname)
+
+    return so.ObjectShell(
+        name=name,
+        origname=lname,
+        schemaclass=metaclass,
+        sourcectx=node.context,
+    )
+
+
+def ast_objref_to_type_shell(
+    node: qlast.ObjectRef,
+    *,
+    metaclass: Optional[Type[s_types.Type]] = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> s_types.TypeShell:
+    from . import types as s_types
+
+    if metaclass is None:
+        metaclass = s_types.Type
+
+    nqname = node.name
+    module = node.module
+    if module is not None:
+        lname = sn.Name(module=module, name=nqname)
+    else:
+        lname = nqname
+    obj = schema.get(lname, module_aliases=modaliases, default=None)
+    if obj is not None:
+        actual_name = obj.get_name(schema)
+        module = actual_name.module
+    else:
+        aliased_module = modaliases.get(module)
+        if aliased_module is not None:
+            module = aliased_module
+
+    return s_types.TypeShell(
+        name=sn.Name(module=module, name=nqname),
+        origname=lname,
+        schemaclass=metaclass,
+        sourcectx=node.context,
+    )
+
+
 def ast_to_typeref(
     node: qlast.TypeName,
     *,
@@ -79,14 +150,7 @@ def ast_to_typeref(
     if (node.subtypes is not None
             and isinstance(node.maintype, qlast.ObjectRef)
             and node.maintype.name == 'enum'):
-        from . import scalars as s_scalars
-
-        return s_scalars.AnonymousEnumTypeShell(
-            elements=[
-                st.val.value
-                for st in cast(List[qlast.TypeExprLiteral], node.subtypes)
-            ],
-        )
+        return schema.get('std::anyenum')
 
     elif node.subtypes is not None:
         from . import types as s_types
@@ -168,42 +232,167 @@ def ast_to_typeref(
         metaclass=metaclass, schema=schema)
 
 
-def ast_to_object_ref(
+def ast_to_type_shell(
+    node: qlast.TypeName,
+    *,
+    metaclass: Optional[Type[s_types.Type]] = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> s_types.TypeShell:
+
+    if (node.subtypes is not None
+            and isinstance(node.maintype, qlast.ObjectRef)
+            and node.maintype.name == 'enum'):
+        from . import scalars as s_scalars
+
+        return s_scalars.AnonymousEnumTypeShell(
+            elements=[
+                st.val.value
+                for st in cast(List[qlast.TypeExprLiteral], node.subtypes)
+            ],
+        )
+
+    elif node.subtypes is not None:
+        from . import types as s_types
+
+        assert isinstance(node.maintype, qlast.ObjectRef)
+        coll = s_types.Collection.get_class(node.maintype.name)
+
+        if issubclass(coll, s_types.Tuple):
+            # Note: if we used abc Tuple here, then we would need anyway
+            # to assert it is an instance of s_types.Tuple to make mypy happy
+            # (rightly so, because later we use from_subtypes method)
+
+            subtypes: Dict[str, s_types.TypeShell] = {}
+            # tuple declaration must either be named or unnamed, but not both
+            named = None
+            unnamed = None
+            for si, st in enumerate(node.subtypes):
+                if st.name:
+                    named = True
+                    type_name = st.name
+                else:
+                    unnamed = True
+                    type_name = str(si)
+
+                if named is not None and unnamed is not None:
+                    raise errors.EdgeQLSyntaxError(
+                        f'mixing named and unnamed tuple declaration '
+                        f'is not supported',
+                        context=node.subtypes[0].context,
+                    )
+
+                subtypes[type_name] = ast_to_type_shell(
+                    cast(qlast.TypeName, st),
+                    modaliases=modaliases,
+                    metaclass=metaclass,
+                    schema=schema,
+                )
+
+            try:
+                return coll.create_shell(
+                    schema,
+                    subtypes=subtypes,
+                    typemods={'named': bool(named)},
+                )
+            except errors.SchemaError as e:
+                # all errors raised inside are pertaining to subtypes, so
+                # the context should point to the first subtype
+                e.set_source_context(node.subtypes[0].context)
+                raise e
+
+        elif issubclass(coll, s_types.Array):
+
+            subtypes_list: List[s_types.TypeShell] = []
+            for st in node.subtypes:
+                subtypes_list.append(
+                    ast_to_type_shell(
+                        cast(qlast.TypeName, st),
+                        modaliases=modaliases,
+                        metaclass=metaclass,
+                        schema=schema,
+                    )
+                )
+
+            try:
+                return coll.create_shell(
+                    schema,
+                    subtypes=subtypes_list,
+                )
+            except errors.SchemaError as e:
+                e.set_source_context(node.context)
+                raise e
+
+    elif isinstance(node.maintype, qlast.AnyType):
+        from . import pseudo as s_pseudo
+        return s_pseudo.AnyTypeShell()
+
+    elif isinstance(node.maintype, qlast.AnyTuple):
+        from . import pseudo as s_pseudo
+        return s_pseudo.AnyTupleShell()
+
+    assert isinstance(node.maintype, qlast.ObjectRef)
+
+    return ast_objref_to_type_shell(
+        node.maintype,
+        modaliases=modaliases,
+        metaclass=metaclass,
+        schema=schema,
+    )
+
+
+def ast_to_object_shell(
     node: Union[qlast.ObjectRef, qlast.TypeName],
     *,
     metaclass: Optional[Type[so.Object]] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
-) -> so.Object:
-
-    if isinstance(node, qlast.TypeName):
-        return ast_to_typeref(
-            node,
-            metaclass=metaclass,
-            modaliases=modaliases,
-            schema=schema,
-        )
-    else:
-        return ast_objref_to_objref(
-            node,
-            modaliases=modaliases,
-            metaclass=metaclass,
-            schema=schema,
-        )
-
-
-def typeref_to_ast(schema: s_schema.Schema,
-                   t: so.Object,
-                   *,
-                   _name: Optional[str] = None) -> qlast.TypeExpr:
+) -> so.ObjectShell:
     from . import types as s_types
 
-    if isinstance(t, so.ObjectRef):
-        # We want typenames like 'anytype` that are wrapped in an
-        # ObjectRef to be unwrapped to proper types, so that we
-        # can generate proper AST nodes for them (e.g. for `anytype` it
-        # is `qlast.AnyType()`).
-        t = t._resolve_ref(schema)
+    if isinstance(node, qlast.TypeName):
+        if metaclass is not None and issubclass(metaclass, s_types.Type):
+            return ast_to_type_shell(
+                node,
+                metaclass=metaclass,
+                modaliases=modaliases,
+                schema=schema,
+            )
+        else:
+            objref = node.maintype
+            if node.subtypes:
+                raise AssertionError(
+                    'must pass s_types.Type subclass as type when '
+                    'creating a type shell from type AST'
+                )
+            assert isinstance(objref, qlast.ObjectRef)
+            return ast_objref_to_object_shell(
+                objref,
+                modaliases=modaliases,
+                metaclass=metaclass,
+                schema=schema,
+            )
+    else:
+        return ast_objref_to_object_shell(
+            node,
+            modaliases=modaliases,
+            metaclass=metaclass,
+            schema=schema,
+        )
+
+
+def typeref_to_ast(
+    schema: s_schema.Schema,
+    ref: Union[so.Object, so.ObjectShell],
+    *,
+    _name: Optional[str] = None,
+) -> qlast.TypeExpr:
+    from . import types as s_types
+
+    if isinstance(ref, so.ObjectShell):
+        t = ref.resolve(schema)
+    else:
+        t = ref
 
     result: qlast.TypeExpr
     components: Tuple[so.ObjectRef, ...]
@@ -272,6 +461,18 @@ def typeref_to_ast(schema: s_schema.Schema,
     return result
 
 
+def name_to_ast_ref(name: str) -> qlast.ObjectRef:
+    if isinstance(name, sn.Name):
+        return qlast.ObjectRef(
+            module=name.module,
+            name=name.name,
+        )
+    else:
+        return qlast.ObjectRef(
+            name=name,
+        )
+
+
 def resolve_typeref(ref: so.Object, schema: s_schema.Schema) -> so.Object:
     return ref._resolve_ref(schema)
 
@@ -284,14 +485,14 @@ def ast_to_object(
     schema: s_schema.Schema,
 ) -> so.Object:
 
-    ref = ast_to_object_ref(
+    ref = ast_to_object_shell(
         node,
         metaclass=metaclass,
         modaliases=modaliases,
         schema=schema,
     )
 
-    return resolve_typeref(ref, schema)
+    return ref.resolve(schema)
 
 
 @overload
@@ -316,20 +517,19 @@ def ast_to_type(  # NoQA: F811
 
 def ast_to_type(  # NoQA: F811
     node: qlast.TypeName, *,
-    metaclass: Type[s_types.TypeT] = None,
+    metaclass: Optional[Type[s_types.TypeT]] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> s_types.TypeT:
 
-    ref = ast_to_typeref(
+    ref = ast_to_type_shell(
         node,
         metaclass=metaclass,
         modaliases=modaliases,
         schema=schema,
     )
 
-    # type ignore for now
-    return resolve_typeref(ref, schema)  # type: ignore
+    return ref.resolve(schema)  # type: ignore
 
 
 def is_nontrivial_container(value: Any) -> Optional[Iterable[Any]]:

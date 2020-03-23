@@ -562,23 +562,37 @@ class PointerCommandOrFragment:
         if target_ref is not None:
             srcctx = self.get_attribute_source_context('target')
 
-            if isinstance(target_ref, s_types.TypeExprRef):
+            if isinstance(target_ref, s_types.TypeExprShell):
                 target = s_types.ensure_schema_type_expr_type(
                     schema, target_ref, parent_cmd=self,
                     src_context=srcctx, context=context,
                 )
 
-            elif isinstance(target_ref, so.ObjectRef):
+            elif isinstance(target_ref, s_types.CollectionTypeShell):
+                srcctx = self.get_attribute_source_context('target')
+                target = target_ref.resolve(schema)
+                s_types.ensure_schema_collection(
+                    schema,
+                    target,
+                    parent_cmd=self,
+                    src_context=srcctx,
+                    context=context,
+                )
+
+            elif isinstance(target_ref, s_types.TypeShell):
                 try:
-                    target = target_ref._resolve_ref(schema)
+                    target = target_ref.resolve(schema)
                 except errors.InvalidReferenceError as e:
-                    utils.enrich_schema_lookup_error(
-                        e, target_ref.get_refname(schema),
-                        modaliases=context.modaliases,
-                        schema=schema,
-                        item_type=s_types.Type,
-                        context=srcctx,
-                    )
+                    refname = target_ref.get_refname(schema)
+                    if refname is not None:
+                        utils.enrich_schema_lookup_error(
+                            e,
+                            refname,
+                            modaliases=context.modaliases,
+                            schema=schema,
+                            item_type=s_types.Type,
+                            context=srcctx,
+                        )
                     raise
 
             elif isinstance(target_ref, ComputableRef):
@@ -601,16 +615,6 @@ class PointerCommandOrFragment:
 
                 target = target_t
 
-            elif isinstance(target_ref, s_types.Collection):
-                srcctx = self.get_attribute_source_context('target')
-                target = utils.resolve_typeref(target_ref, schema)
-                s_types.ensure_schema_collection(
-                    schema,
-                    target,
-                    parent_cmd=self,
-                    src_context=srcctx,
-                    context=context,
-                )
             else:
                 target = target_ref
 
@@ -780,27 +784,33 @@ class PointerCommand(
 
         parent_ctx = self.get_referrer_context(context)
         source_name = parent_ctx.op.classname
-        self.set_attribute_value('source', so.ObjectRef(name=source_name))
+        self.set_attribute_value('source', so.ObjectShell(name=source_name))
 
         # FIXME: this is an approximate solution
         targets = qlast.get_targets(astnode.target)
 
         if len(targets) > 1:
             new_targets = [
-                utils.ast_to_typeref(
-                    t, modaliases=context.modaliases,
-                    schema=schema, metaclass=s_types.Type)
+                utils.ast_to_type_shell(
+                    t,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
                 for t in targets
             ]
 
-            target_ref = s_types.UnionTypeRef(
-                new_targets, module=source_name.module)
+            target_ref = s_types.UnionTypeShell(
+                new_targets,
+                module=source_name.module,
+            )
         elif targets:
             target_expr = targets[0]
             if isinstance(target_expr, qlast.TypeName):
-                target_ref = utils.ast_to_typeref(
-                    target_expr, modaliases=context.modaliases, schema=schema,
-                    metaclass=s_types.Type)
+                target_ref = utils.ast_to_type_shell(
+                    target_expr,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
             else:
                 # computable
                 target_ref = ComputableRef(
@@ -907,7 +917,7 @@ class SetPointerType(
             implicit_bases = scls.get_implicit_bases(schema)
             non_altered_bases = []
 
-            tgt = self.get_attribute_value('target')
+            tgt = scls.get_target(schema)
             if tgt.is_collection():
                 srcctx = self.get_attribute_source_context('target')
                 s_types.ensure_schema_collection(
@@ -971,18 +981,25 @@ class SetPointerType(
 
         if len(targets) > 1:
             new_targets = [
-                utils.ast_to_typeref(
-                    t, modaliases=context.modaliases,
-                    schema=schema)
+                utils.ast_to_type_shell(
+                    t,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
                 for t in targets
             ]
 
-            target_ref = s_types.UnionTypeRef(
-                new_targets, module=cls.classname.module)
+            target_ref = s_types.UnionTypeShell(
+                new_targets,
+                module=cls.classname.module,
+            )
         else:
             target = targets[0]
-            target_ref = utils.ast_to_typeref(
-                target, modaliases=context.modaliases, schema=schema)
+            target_ref = utils.ast_to_type_shell(
+                target,
+                modaliases=context.modaliases,
+                schema=schema,
+            )
 
         cmd.set_attribute_value('target', target_ref)
 
