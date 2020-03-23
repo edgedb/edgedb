@@ -158,6 +158,7 @@ cdef class Protocol(http.HttpProtocol):
             dbver: int,
             query: str,
             tokens: Optional[List[Tuple[int, int, int, str]]],
+            substitutions: Optional[Dict[str, Tuple[str, int, int]]],
             operation_name: Optional[str],
             variables: Dict[str, Any],
         ):
@@ -168,6 +169,7 @@ cdef class Protocol(http.HttpProtocol):
                 dbver,
                 query,
                 tokens,
+                substitutions,
                 operation_name,
                 variables)
         finally:
@@ -209,16 +211,20 @@ cdef class Protocol(http.HttpProtocol):
         if op is None:
             if rewritten is not None:
                 op = await self.compile(
-                    dbver, query, rewritten.tokens(gql_lexer.TokenKind),
+                    dbver, query,
+                    rewritten.tokens(gql_lexer.TokenKind),
+                    rewritten.substitutions(),
                     operation_name, vars)
             else:
                 op = await self.compile(
-                    dbver, query, None, operation_name, vars)
+                    dbver, query, None, None, operation_name, vars)
             self.query_cache[cache_key] = op
         else:
             if op.cache_deps_vars:
                 op = await self.compile(dbver,
-                    query, rewritten.tokens(gql_lexer.TokenKind),
+                    query,
+                    rewritten.tokens(gql_lexer.TokenKind),
+                    rewritten.substitutions(),
                     operation_name, vars)
             else:
                 # This is at least the second time this query is used

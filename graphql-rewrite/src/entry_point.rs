@@ -14,10 +14,16 @@ use crate::common::unquote_string;
 
 
 #[derive(Debug, PartialEq)]
-pub enum Variable {
+pub enum Value {
     Str(String),
     Int(i32),
     Float(f64),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Variable {
+    pub value: Value,
+    pub token: PyToken,
 }
 
 #[derive(Debug)]
@@ -113,7 +119,7 @@ fn insert_args(dest: &mut Vec<PyToken>, ins: &InsertVars, args: Vec<PyToken>) {
 }
 
 pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
-    use Variable::*;
+    use Value::*;
     use crate::pytoken::PyTokenKind as P;
 
     let document: Document<'_, &str> = parse_query(s).map_err(Error::Syntax)?;
@@ -168,8 +174,10 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                     value: varname.clone().into(),
                     position: None,
                 });
-                variables.push(
-                    Str(unquote_string(token.value)?));
+                variables.push(Variable {
+                    token: PyToken::new((token, pos))?,
+                    value: Str(unquote_string(token.value)?),
+                });
                 args.push(PyToken {
                     kind: P::Dollar,
                     value: "$".into(),

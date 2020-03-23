@@ -64,6 +64,7 @@ class Compiler(compiler.BaseCompiler):
         dbver: int,
         gql: str,
         tokens: Optional[List[Tuple[int, int, int, str]]],
+        substitutions: Optional[Dict[str, Tuple[str, int, int]]],
         operation_name: str=None,
         variables: Optional[Mapping[str, object]]=None,
     ) -> CompiledOperation:
@@ -78,6 +79,7 @@ class Compiler(compiler.BaseCompiler):
             db.gqlcore,
             ast,
             variables=variables,
+            substitutions=substitutions,
             operation_name=operation_name)
 
         ir = ql_compiler.compile_ast_to_ir(

@@ -28,6 +28,8 @@ from typing import *
 import graphql
 from graphql.language import ast as gql_ast
 from graphql.language import lexer as gql_lexer
+from graphql import error as gql_error
+from graphql import language as gql_lang
 
 from edb import errors
 
@@ -50,8 +52,10 @@ ARG_TYPES = {
     'String': gql_ast.StringValueNode,
 }
 
-REWRITE_TYPE_ERROR = re.compile(r"Variable '\$_edb_arg__\d+' of type 'String!'"
-                                r" used in position expecting type 'ID!?'")
+REWRITE_TYPE_ERROR = re.compile(
+    r"Variable '\$(?P<var_name>_edb_arg__\d+)' of type 'String!'"
+    r" used in position expecting type '(?P<type>[^']+)'"
+)
 
 
 class GraphQLTranslatorContext:
@@ -1568,10 +1572,26 @@ def parse_tokens(
         raise g_errors.GraphQLCoreError(err.message, loc=err_loc) from None
 
 
-def skip_rewrite_types(err):
-    if REWRITE_TYPE_ERROR.match(err.message):
-        return False
-    return True
+def convert_errors(errs: List[gql_error.GraphQLError], *,
+    substitutions: Optional[Dict[str, Tuple[str, int, int]]],
+) -> List[gql_error.GraphQLErrors]:
+    result = []
+    if not substitutions:
+        return errs
+    for err in errs:
+        m = REWRITE_TYPE_ERROR.match(err.message)
+        if not m:
+            result.append(err)
+            continue
+        if m.group("type") in ("ID", "ID!"):
+            # skip the error, we avoid it in the execution code
+            continue
+        value, line, col = substitutions[m.group("var_name")]
+        err = gql_error.GraphQLError(
+            f"Expected type {m.group('type')}, found {value}.")
+        err.locations = [gql_lang.SourceLocation(line, col)]
+        result.append(err)
+    return result
 
 
 def translate_ast(
@@ -1579,14 +1599,16 @@ def translate_ast(
     document_ast: graphql.Document,
     *,
     operation_name: Optional[str]=None,
-    variables: Dict[str, Any]=None
+    variables: Dict[str, Any]=None,
+    substitutions: Optional[Dict[str, Tuple[str, int, int]]],
 ) -> TranspiledOperation:
 
     if variables is None:
         variables = {}
 
-    validation_errors = graphql.validate(gqlcore.graphql_schema, document_ast)
-    validation_errors = list(filter(skip_rewrite_types, validation_errors))
+    validation_errors = convert_errors(
+        graphql.validate(gqlcore.graphql_schema, document_ast),
+        substitutions=substitutions)
     if validation_errors:
         err = validation_errors[0]
         if isinstance(err, graphql.GraphQLError):

@@ -4,7 +4,7 @@ use cpython::{PyString, PyResult, PyTuple, PyDict, PyList, PyObject};
 use crate::common::{unquote_string, unquote_block_string};
 use crate::position::Pos;
 use crate::pyerrors::{LexingError, SyntaxError, NotFoundError, AssertionError};
-use crate::entry_point::{Variable, Error};
+use crate::entry_point::{Value, Error};
 use crate::pytoken::PyToken;
 use crate::entry_point;
 
@@ -12,6 +12,7 @@ use crate::entry_point;
 py_class!(pub class Entry |py| {
     data _key: PyString;
     data _variables: PyDict;
+    data _substitutions: PyDict;
     data _tokens: Vec<PyToken>;
     data _end_pos: Pos;
     def key(&self) -> PyResult<PyString> {
@@ -19,6 +20,9 @@ py_class!(pub class Entry |py| {
     }
     def variables(&self) -> PyResult<PyDict> {
         Ok(self._variables(py).clone_ref(py))
+    }
+    def substitutions(&self) -> PyResult<PyDict> {
+        Ok(self._substitutions(py).clone_ref(py))
     }
     def tokens(&self, kinds: PyObject) -> PyResult<PyList> {
         use crate::pytoken::PyTokenKind as K;
@@ -145,18 +149,25 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
     match entry_point::rewrite(oper.as_ref().map(|x| &x[..]), &text) {
         Ok(entry) => {
             let vars = PyDict::new(py);
+            let substitutions = PyDict::new(py);
             for (idx, var) in entry.variables.iter().enumerate() {
-                vars.set_item(py,
-                    format!("_edb_arg__{}", idx).to_py_object(py),
-                    match var {
-                        Variable::Str(s) => PyString::new(py, s),
+                let s = format!("_edb_arg__{}", idx).to_py_object(py);
+                vars.set_item(py, s.clone_ref(py),
+                    match var.value {
+                        Value::Str(ref s) => PyString::new(py, s),
                         _ => todo!(),
                     })?;
+                substitutions.set_item(py, s.clone_ref(py), (
+                    &var.token.value,
+                    var.token.position.map(|x| x.line),
+                    var.token.position.map(|x| x.column),
+                ).to_py_object(py).into_object())?;
             }
             // TODO(tailhook) insert defaults
             Entry::create_instance(py,
                 PyString::new(py, &entry.key),
                 vars,
+                substitutions,
                 entry.tokens,
                 entry.end_pos,
             )
