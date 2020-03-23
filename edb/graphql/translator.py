@@ -57,6 +57,10 @@ REWRITE_TYPE_ERROR = re.compile(
     r"Variable '\$(?P<var_name>_edb_arg__\d+)' of type 'String!'"
     r" used in position expecting type '(?P<type>[^']+)'"
 )
+INT_FLOAT_ERROR = re.compile(
+    r"Variable '\$[^']+' of type 'Int!?'"
+    r" used in position expecting type 'Float!?'"
+)
 
 
 class GraphQLTranslatorContext:
@@ -1603,11 +1607,14 @@ def convert_errors(errs: List[gql_error.GraphQLError], *,
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
 ) -> List[gql_error.GraphQLErrors]:
     result = []
-    if not substitutions:
-        return errs
     for err in errs:
         m = REWRITE_TYPE_ERROR.match(err.message)
         if not m:
+            # we allow convefsion from Int to Float, and that is allowed by
+            # graphql spec. It's unclear why graphql-core chokes on this
+            if INT_FLOAT_ERROR.match(err.message):
+                continue
+
             result.append(err)
             continue
         if m.group("type") in ("ID", "ID!"):

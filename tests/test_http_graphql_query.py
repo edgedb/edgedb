@@ -2261,7 +2261,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         )
 
-    @test.xfail('seems graphql-core 3.x disabled Int to Float casting')
     def test_graphql_functional_variables_03(self):
         self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
@@ -2358,7 +2357,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             "User": []
         })
 
-    @test.xfail('seems graphql-core 3.x disabled Int to Float casting')
     def test_graphql_functional_variables_10(self):
         self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
