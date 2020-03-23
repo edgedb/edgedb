@@ -1194,7 +1194,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 # from postgres, because we transfer bigint values to postgres
                 # as strings
                 r'invalid input syntax for type bigint: "aaaaa"',
-                _line=5, _col=32):
+                # _line=5, _col=32,
+                ):
             self.graphql_query(r"""
                 query {
                     u0: User(

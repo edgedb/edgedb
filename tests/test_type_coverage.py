@@ -221,7 +221,7 @@ class TypeCoverageTests(unittest.TestCase):
         self.assertFunctionCoverage(EDB_DIR / "errors", 0)
 
     def test_cqa_type_coverage_graphql(self) -> None:
-        self.assertFunctionCoverage(EDB_DIR / "graphql", 3.77)
+        self.assertFunctionCoverage(EDB_DIR / "graphql", 4.40)
 
     def test_cqa_type_coverage_graphql_pygments(self) -> None:
         self.assertFunctionCoverage(EDB_DIR / "graphql" / "pygments", 0)
