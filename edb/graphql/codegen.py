@@ -50,13 +50,13 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
             self.write(' on ')
             self.visit(node.type_condition)
 
-    def visit_Name(self, node):
+    def visit_NameNode(self, node):
         self.write(node.value)
 
-    def visit_Document(self, node):
+    def visit_DocumentNode(self, node):
         self._visit_list(node.definitions)
 
-    def visit_OperationDefinition(self, node):
+    def visit_OperationDefinitionNode(self, node):
         if node.operation:
             self.write(node.operation)
             if node.name:
@@ -70,14 +70,14 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
 
         self.visit(node.selection_set)
 
-    def visit_FragmentDefinition(self, node):
+    def visit_FragmentDefinitionNode(self, node):
         self.write('fragment ')
         self.visit(node.name)
         self._visit_type_condition(node)
         self._visit_directives(node)
         self.visit(node.selection_set)
 
-    def visit_SelectionSet(self, node):
+    def visit_SelectionSetNode(self, node):
         self.write('{')
         self.new_lines = 1
         self.indentation += 1
@@ -86,7 +86,7 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         self.write('}')
         self.new_lines = 2
 
-    def visit_Field(self, node):
+    def visit_FieldNode(self, node):
         if node.alias:
             self.visit(node.alias)
             self.write(': ')
@@ -98,28 +98,28 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.new_lines = 1
 
-    def visit_FragmentSpread(self, node):
+    def visit_FragmentSpreadNode(self, node):
         self.write('...')
         self.visit(node.name)
         self._visit_directives(node)
         self.new_lines = 1
 
-    def visit_InlineFragment(self, node):
+    def visit_InlineFragmentNode(self, node):
         self.write('...')
         self._visit_type_condition(node)
         self._visit_directives(node)
         self.visit(node.selection_set)
 
-    def visit_Argument(self, node):
+    def visit_ArgumentNode(self, node):
         self.visit(node.name)
         self.write(': ')
         self.visit(node.value)
 
-    def visit_ObjectField(self, node):
+    def visit_ObjectFieldNode(self, node):
         self.visit_Argument(node)
         self.new_lines = 1
 
-    def visit_VariableDefinition(self, node):
+    def visit_VariableDefinitionNode(self, node):
         self.visit(node.variable)
         self.write(': ')
         self.visit(node.type)
@@ -127,7 +127,7 @@ class GraphQLSourceGenerator(codegen.SourceGenerator):
             self.write(' = ')
             self.visit(node.default_value)
 
-    def visit_Directive(self, node):
+    def visit_DirectiveNode(self, node):
         self.write('@')
         self.visit(node.name)
         self._visit_arguments(node)
