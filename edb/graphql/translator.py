@@ -864,7 +864,7 @@ class GraphQLTranslator:
                 limit = qlast.BinOp(
                     left=before,
                     op='-',
-                    right=after
+                    right=offset,
                 )
             else:
                 limit = before
