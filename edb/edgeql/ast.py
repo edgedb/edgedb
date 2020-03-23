@@ -279,7 +279,7 @@ class BaseConstant(Expr):
 class StringConstant(BaseConstant):
 
     @classmethod
-    def from_python(cls, s: str):
+    def from_python(cls, s: str) -> StringConstant:
         return cls(value=s)
 
 
@@ -312,7 +312,7 @@ class BytesConstant(BaseConstant):
     value: bytes
 
     @classmethod
-    def from_python(cls, s: bytes):
+    def from_python(cls, s: bytes) -> BytesConstant:
         return cls(value=s)
 
 

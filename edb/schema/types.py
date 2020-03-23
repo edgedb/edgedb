@@ -334,9 +334,9 @@ class Type(
         return False
 
     def get_intersection_of(
-        self,
+        self: TypeT,
         schema: s_schema.Schema,
-    ) -> Optional[so.ObjectSet[Type]]:
+    ) -> Optional[so.ObjectSet[TypeT]]:
         return None
 
     def material_type(

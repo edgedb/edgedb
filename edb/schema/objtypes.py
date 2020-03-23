@@ -54,12 +54,12 @@ class ObjectType(
 ):
 
     union_of = so.SchemaField(
-        so.ObjectSet,
+        so.ObjectSet["ObjectType"],
         default=so.DEFAULT_CONSTRUCTOR,
         coerce=True)
 
     intersection_of = so.SchemaField(
-        so.ObjectSet,
+        so.ObjectSet["ObjectType"],
         default=so.DEFAULT_CONSTRUCTOR,
         coerce=True)
 
@@ -266,7 +266,7 @@ def get_or_create_union_type(
     *,
     opaque: bool = False,
     module: Optional[str] = None,
-) -> ObjectType:
+) -> Tuple[s_schema.Schema, ObjectType, bool]:
 
     type_id, name = s_types.get_union_type_id(
         schema,
@@ -307,7 +307,7 @@ def get_or_create_intersection_type(
     components: Iterable[ObjectType],
     *,
     module: Optional[str] = None,
-) -> ObjectType:
+) -> Tuple[s_schema.Schema, ObjectType, bool]:
 
     type_id, name = s_types.get_intersection_type_id(
         schema,
