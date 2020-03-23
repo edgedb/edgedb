@@ -135,7 +135,7 @@ class Constraint(referencing.ReferencedInheritingObject,
     ) -> Optional[s_pseudo.Any]:
         # Point subject placeholder to a dummy pointer to make EdgeQL
         # pipeline happy.
-        return s_pseudo.Any.instance()
+        return s_pseudo.Any.get(schema)
 
     @classmethod
     def get_concrete_constraint_attrs(
@@ -612,7 +612,7 @@ class CreateConstraint(
             num=param_offset,
             name='__subject__',
             default=None,
-            type=s_pseudo.Any.instance(),
+            type=s_pseudo.Any.get(schema),
             typemod=ft.TypeModifier.SINGLETON,
             kind=ft.ParameterKind.POSITIONAL,
         ))

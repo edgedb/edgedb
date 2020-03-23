@@ -38,6 +38,7 @@ from edb.server import defines
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
 from edb.schema import migrations as s_migrations  # noqa
+from edb.schema import pseudo as s_pseudo
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
@@ -231,6 +232,7 @@ def _load_std_schema():
 
         if schema is None:
             schema = s_schema.Schema()
+            schema = s_pseudo.populate_types(schema)
             for modname in s_schema.STD_LIB + ('stdgraphql',):
                 schema = s_std.load_std_module(schema, modname)
 

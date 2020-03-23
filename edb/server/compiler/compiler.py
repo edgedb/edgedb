@@ -1275,7 +1275,7 @@ class Compiler(BaseCompiler):
 
         schema_ddl = s_ddl.ddl_text_from_schema(schema)
 
-        all_objects = schema.get_objects(excluded_modules=s_schema.STD_MODULES)
+        all_objects = schema.get_objects(exclude_stdlib=True)
         ids = []
         for obj in all_objects:
             if isinstance(obj, s_obj.QualifiedObject):
@@ -1291,7 +1291,7 @@ class Compiler(BaseCompiler):
 
         objtypes = schema.get_objects(
             type=s_objtypes.ObjectType,
-            excluded_modules=s_schema.STD_MODULES,
+            exclude_stdlib=True,
         )
         descriptors = []
 

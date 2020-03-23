@@ -36,6 +36,7 @@ from . import modules as s_mod
 from . import name as sn
 from . import objects as so
 from . import operators as s_oper
+from . import pseudo as s_pseudo
 from . import types as s_types
 
 if TYPE_CHECKING:
@@ -891,6 +892,7 @@ class Schema(s_abc.Schema):
     def get_objects(
         self,
         *,
+        exclude_stdlib: bool = False,
         included_modules: Optional[Iterable[str]] = None,
         excluded_modules: Optional[Iterable[str]] = None,
         included_items: Optional[Iterable[str]] = None,
@@ -900,6 +902,7 @@ class Schema(s_abc.Schema):
     ) -> SchemaIterator[so.Object_T]:
         return SchemaIterator[so.Object_T](
             self,
+            exclude_stdlib=exclude_stdlib,
             included_modules=included_modules,
             excluded_modules=excluded_modules,
             included_items=included_items,
@@ -923,6 +926,7 @@ class SchemaIterator(Generic[so.Object_T]):
         self,
         schema: Schema,
         *,
+        exclude_stdlib: bool = False,
         included_modules: Optional[Iterable[str]],
         excluded_modules: Optional[Iterable[str]],
         included_items: Optional[Iterable[str]] = None,
@@ -944,8 +948,12 @@ class SchemaIterator(Generic[so.Object_T]):
                     isinstance(obj, so.QualifiedObject) and
                     obj.get_name(schema).module in modules)
 
-        if excluded_modules:
-            excmod = frozenset(excluded_modules)
+        if excluded_modules or exclude_stdlib:
+            excmod: Set[str] = set()
+            if excluded_modules:
+                excmod.update(excluded_modules)
+            if exclude_stdlib:
+                excmod.update(STD_MODULES)
             filters.append(
                 lambda schema, obj: (
                     not isinstance(obj, so.QualifiedObject)
@@ -962,6 +970,11 @@ class SchemaIterator(Generic[so.Object_T]):
             objs = frozenset(excluded_items)
             filters.append(
                 lambda schema, obj: obj.get_name(schema) not in objs)
+
+        if exclude_stdlib:
+            filters.append(
+                lambda schema, obj: not isinstance(obj, s_pseudo.PseudoType)
+            )
 
         # Extra filters are last, because they might depend on type.
         filters.extend(extra_filters)

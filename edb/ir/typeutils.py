@@ -291,10 +291,10 @@ def ir_typeref_to_type(
         given *typeref*.
     """
     if is_anytuple(typeref):
-        return s_pseudo.AnyTuple.instance()
+        return s_pseudo.AnyTuple.get(schema)
 
     elif is_any(typeref):
-        return s_pseudo.Any.instance()
+        return s_pseudo.Any.get(schema)
 
     elif is_tuple(typeref):
         named = False

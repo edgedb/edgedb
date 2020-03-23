@@ -18,29 +18,28 @@
 
 
 from __future__ import annotations
-
-import typing
+# Cannot import * from typing because of name conflicts in this file.
+from typing import Optional, TypeVar, Tuple, TYPE_CHECKING
 
 from . import name as sn
 from . import objects as so
 from . import types as s_types
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from . import schema as s_schema
+
+
+PseudoType_T = TypeVar("PseudoType_T", bound="PseudoType")
 
 
 class PseudoType(so.InheritingObject, s_types.Type):
 
-    name = so.Field(sn.UnqualifiedName)
-
-    def get_name(self, schema: s_schema.Schema) -> sn.Name:
-        return self.name
+    @classmethod
+    def get(cls: PseudoType_T, schema: s_schema.Schema) -> PseudoType_T:
+        raise NotImplementedError
 
     def get_shortname(self, schema: s_schema.Schema) -> str:
-        return self.name
-
-    def get_displayname(self, schema: s_schema.Schema) -> str:
-        return self.name
+        return self.get_name(schema)
 
     def get_bases(self, schema: s_schema.Schema) -> so.ObjectList:
         return so.ObjectList.create_empty()
@@ -57,24 +56,12 @@ class PseudoType(so.InheritingObject, s_types.Type):
     def material_type(self, schema: s_schema.Schema) -> s_types.Type:
         return self
 
-    def __hash__(self) -> int:
-        return hash((
-            type(self),
-            self.name,
-        ))
-
-    def __eq__(self, other: s_types.Type) -> bool:
-        return (type(self) is type(other) and
-                self.name == other.name)
-
 
 class Any(PseudoType):
 
-    _instance: typing.Optional[Any] = None
-
     @classmethod
-    def create(cls) -> Any:
-        return cls._create(None, name=sn.UnqualifiedName('anytype'))
+    def get(cls, schema: s_schema.Schema) -> Any:
+        return schema.get_global(Any, "anytype")
 
     @classmethod
     def instance(cls) -> Any:
@@ -119,7 +106,7 @@ class Any(PseudoType):
         self,
         other: s_types.Type,
         schema: s_schema.Schema
-    ) -> typing.Optional[s_types.Type]:
+    ) -> Optional[s_types.Type]:
         if self == other:
             return self
 
@@ -143,22 +130,14 @@ class AnyObjectRef(so.ObjectRef):
         super().__init__(name=name)
 
     def _resolve_ref(self, schema: s_schema.Schema) -> Any:
-        return Any.instance()
+        return Any.get(schema)
 
 
 class AnyTuple(PseudoType):
 
-    _instance: typing.Optional[AnyTuple] = None
-
     @classmethod
-    def create(cls) -> AnyTuple:
-        return cls._create(None, name=sn.UnqualifiedName('anytuple'))
-
-    @classmethod
-    def instance(cls) -> AnyTuple:
-        if cls._instance is None:
-            cls._instance = cls.create()
-        return cls._instance
+    def get(cls, schema: s_schema.Schema) -> Any:
+        return schema.get_global(AnyTuple, "anytuple")
 
     def is_anytuple(self) -> bool:
         return True
@@ -176,14 +155,14 @@ class AnyTuple(PseudoType):
     def _reduce_to_ref(
         self,
         schema: s_schema.Schema
-    ) -> typing.Tuple[AnyTupleRef, sn.UnqualifiedName]:
+    ) -> Tuple[AnyTupleRef, sn.UnqualifiedName]:
         return AnyTupleRef(), sn.UnqualifiedName('anytuple')
 
     def _resolve_polymorphic(
         self,
         schema: s_schema.Schema,
         concrete_type: s_types.Type
-    ) -> typing.Optional[s_types.Type]:
+    ) -> Optional[s_types.Type]:
         if (not concrete_type.is_tuple() or
                 concrete_type.is_polymorphic(schema)):
             return None
@@ -204,4 +183,12 @@ class AnyTupleRef(so.ObjectRef):
         super().__init__(name=name)
 
     def _resolve_ref(self, schema: s_schema.Schema) -> AnyTuple:
-        return AnyTuple.instance()
+        return AnyTuple.get(schema)
+
+
+def populate_types(schema: s_schema.Schema) -> s_schema.Schema:
+
+    schema, _ = Any.create_in_schema(schema, name='anytype')
+    schema, _ = AnyTuple.create_in_schema(schema, name='anytuple')
+
+    return schema
