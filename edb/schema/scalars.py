@@ -37,6 +37,7 @@ from . import inheriting
 from . import objects as so
 from . import schema as s_schema
 from . import types as s_types
+from . import utils as s_utils
 
 
 class ScalarType(
@@ -185,11 +186,13 @@ class ScalarType(
         return f"{clsname} '{dname}'"
 
 
-class AnonymousEnumTypeRef(so.ObjectRef):
+class AnonymousEnumTypeShell(ScalarType):
 
-    def __init__(self, *, name: str, elements: List[str]):
-        super().__init__(name=name)
-        self.__dict__['elements'] = elements
+    elements: Sequence[str]
+
+    def __init__(self, *, elements: Iterable[str]):
+        super().__init__(_private_init=True)
+        self.__dict__['elements'] = list(elements)
 
 
 class ScalarTypeCommandContext(sd.ObjectCommandContext[ScalarType],
@@ -226,7 +229,7 @@ class ScalarTypeCommand(
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
     ) -> so.ObjectList[ScalarType]:
-        has_enums = any(isinstance(br, AnonymousEnumTypeRef)
+        has_enums = any(isinstance(br, AnonymousEnumTypeShell)
                         for br in base_refs)
 
         if has_enums:
@@ -237,6 +240,8 @@ class ScalarTypeCommand(
                     f'only supertype specified',
                     context=astnode.bases[0].context,
                 )
+
+            base_refs = [schema.get('std::anyenum', type=ScalarType)]
 
         return super()._validate_base_refs(schema, base_refs, astnode, context)
 
@@ -269,20 +274,28 @@ class CreateScalarType(
             create_cmd = cmd
 
         bases = create_cmd.get_attribute_value('bases')
-        is_enum = False
-        if len(bases) == 1 and isinstance(bases._ids[0], AnonymousEnumTypeRef):
-            # type ignore below because this class elements is set
-            # directly on __dict__
-            elements = bases._ids[0].elements  # type: ignore
+        is_enum = (
+            len(bases) == 1
+            and bases.first(schema).get_name(schema) == 'std::anyenum'
+        )
+        if is_enum:
+            assert isinstance(astnode, qlast.CreateScalarType)
+            shell = s_utils.ast_to_type(
+                astnode.bases[0],
+                modaliases=context.modaliases,
+                schema=schema
+            )
+            assert isinstance(shell, AnonymousEnumTypeShell)
+            elements = shell.elements
             create_cmd.set_attribute_value('enum_values', elements)
             create_cmd.set_attribute_value('is_final', True)
-            is_enum = True
 
         for sub in create_cmd.get_subcommands(type=sd.AlterObjectProperty):
             if sub.property == 'default':
                 if is_enum:
                     raise errors.UnsupportedFeatureError(
-                        f'enumerated types do not support defaults'
+                        f'enumerated types do not support defaults',
+                        context=sub.source_context,
                     )
                 else:
                     sub.new_value = [sub.new_value]

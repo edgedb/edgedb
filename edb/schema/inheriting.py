@@ -373,8 +373,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         base_refs: List[so.InheritingObjectT] = []
         for b in getattr(astnode, 'bases', None) or []:
-            obj = utils.ast_to_typeref(b, modaliases=modaliases, schema=schema)
-            # assert isinstance(obj, so.InheritingObject)
+            obj = utils.ast_to_type(b, modaliases=modaliases, schema=schema)
             base_refs.append(cast(so.InheritingObjectT, obj))
 
         return cls._validate_base_refs(schema, base_refs, astnode, context)

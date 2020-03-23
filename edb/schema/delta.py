@@ -2078,9 +2078,11 @@ class AlterObjectProperty(Command):
 
             elif isinstance(astnode.value, qlast.ObjectRef):
 
-                new_value = utils.ast_objref_to_objref(
-                    astnode.value, modaliases=context.modaliases,
-                    schema=schema)
+                new_value = utils.ast_to_object(
+                    astnode.value,
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
 
             elif (isinstance(astnode.value, qlast.Set)
                     and not astnode.value.elements):

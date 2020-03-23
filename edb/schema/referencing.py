@@ -299,9 +299,11 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
             base_name: str
 
             try:
-                base_ref = utils.ast_to_typeref(
+                base_ref = utils.ast_to_type(
                     qlast.TypeName(maintype=astnode.name),
-                    modaliases=context.modaliases, schema=schema)
+                    modaliases=context.modaliases,
+                    schema=schema,
+                )
             except errors.InvalidReferenceError:
                 base_name = sn.Name(name)
             else:

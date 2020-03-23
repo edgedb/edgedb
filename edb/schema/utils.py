@@ -81,10 +81,11 @@ def ast_to_typeref(
             and node.maintype.name == 'enum'):
         from . import scalars as s_scalars
 
-        return s_scalars.AnonymousEnumTypeRef(
-            name='std::anyenum',
-            elements=[st.val.value for st in cast(List[qlast.TypeExprLiteral],
-                                                  node.subtypes)],
+        return s_scalars.AnonymousEnumTypeShell(
+            elements=[
+                st.val.value
+                for st in cast(List[qlast.TypeExprLiteral], node.subtypes)
+            ],
         )
 
     elif node.subtypes is not None:
@@ -165,6 +166,30 @@ def ast_to_typeref(
     return ast_objref_to_objref(
         node.maintype, modaliases=modaliases,
         metaclass=metaclass, schema=schema)
+
+
+def ast_to_object_ref(
+    node: Union[qlast.ObjectRef, qlast.TypeName],
+    *,
+    metaclass: Optional[Type[so.Object]] = None,
+    modaliases: Mapping[Optional[str], str],
+    schema: s_schema.Schema,
+) -> so.Object:
+
+    if isinstance(node, qlast.TypeName):
+        return ast_to_typeref(
+            node,
+            metaclass=metaclass,
+            modaliases=modaliases,
+            schema=schema,
+        )
+    else:
+        return ast_objref_to_objref(
+            node,
+            modaliases=modaliases,
+            metaclass=metaclass,
+            schema=schema,
+        )
 
 
 def typeref_to_ast(schema: s_schema.Schema,
@@ -252,13 +277,14 @@ def resolve_typeref(ref: so.Object, schema: s_schema.Schema) -> so.Object:
 
 
 def ast_to_object(
-    node: qlast.TypeName, *,
+    node: Union[qlast.TypeName, qlast.ObjectRef],
+    *,
     metaclass: Optional[Type[so.Object]] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> so.Object:
 
-    ref = ast_to_typeref(
+    ref = ast_to_object_ref(
         node,
         metaclass=metaclass,
         modaliases=modaliases,
@@ -295,13 +321,15 @@ def ast_to_type(  # NoQA: F811
     schema: s_schema.Schema,
 ) -> s_types.TypeT:
 
-    # type ignore for now
-    return ast_to_object(  # type: ignore
+    ref = ast_to_typeref(
         node,
         metaclass=metaclass,
         modaliases=modaliases,
         schema=schema,
     )
+
+    # type ignore for now
+    return resolve_typeref(ref, schema)  # type: ignore
 
 
 def is_nontrivial_container(value: Any) -> Optional[Iterable[Any]]:
