@@ -242,7 +242,10 @@ class GQLCoreSchema:
     def get_gql_name(self, name):
         module, shortname = name.split('::', 1)
         if module in {'default', 'std'}:
-            return shortname.lstrip('_')  # TODO(tailhook) not sure
+            if shortname.startswith('__'):
+                return '_edb' + shortname
+            else:
+                return shortname
         else:
             assert module != '', f'get_gl_name {name=}'
             return f'{module}__{shortname}'
