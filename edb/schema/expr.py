@@ -91,7 +91,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
                        *,
                        our_schema: s_schema.Schema,
                        their_schema: s_schema.Schema,
-                       context: Any,
+                       context: so.ComparisonContext,
                        compcoef: float) -> float:
         if not ours and not theirs:
             return 1.0

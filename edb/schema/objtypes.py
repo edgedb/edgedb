@@ -248,7 +248,11 @@ class ObjectType(
             return None
         else:
             return type(self).delta(
-                None, self, old_schema=schema, new_schema=schema,
+                None,
+                self,
+                old_schema=schema,
+                new_schema=schema,
+                context=so.ComparisonContext(),
             )
 
     def allow_ref_propagation(

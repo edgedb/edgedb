@@ -564,38 +564,51 @@ class CallableObject(
         old: Optional[so.Object],
         new: Optional[so.Object],
         *,
-        context: Optional[so.ComparisonContext] = None,
+        context: so.ComparisonContext,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
     ) -> sd.ObjectCommand[so.Object]:
-        context = context or so.ComparisonContext()
 
         def param_is_inherited(schema: s_schema.Schema, func, param):
             qualname = sn.get_specialized_name(
                 param.get_shortname(schema), func.get_name(schema))
             return qualname != param.get_name(schema).name
 
-        with context(old, new):
-            delta = super().delta(old, new, context=context,
-                                  old_schema=old_schema, new_schema=new_schema)
+        delta = super().delta(
+            old,
+            new,
+            context=context,
+            old_schema=old_schema,
+            new_schema=new_schema,
+        )
 
-            if old:
-                old_params = old.get_params(old_schema).objects(old_schema)
-                oldcoll = [p for p in old_params
-                           if not param_is_inherited(old_schema, old, p)]
-            else:
-                oldcoll = []
+        if old:
+            old_params = old.get_params(old_schema).objects(old_schema)
+            oldcoll = [
+                p for p in old_params
+                if not param_is_inherited(old_schema, old, p)
+            ]
+        else:
+            oldcoll = []
 
-            if new:
-                new_params = new.get_params(new_schema).objects(new_schema)
-                newcoll = [p for p in new_params
-                           if not param_is_inherited(new_schema, new, p)]
-            else:
-                newcoll = []
+        if new:
+            new_params = new.get_params(new_schema).objects(new_schema)
+            newcoll = [
+                p for p in new_params
+                if not param_is_inherited(new_schema, new, p)
+            ]
+        else:
+            newcoll = []
 
-            delta.add(cls.delta_sets(
-                oldcoll, newcoll, context,
-                old_schema=old_schema, new_schema=new_schema))
+        delta.add(
+            cls.delta_sets(
+                oldcoll,
+                newcoll,
+                context=context,
+                old_schema=old_schema,
+                new_schema=new_schema,
+            )
+        )
 
         return delta
 

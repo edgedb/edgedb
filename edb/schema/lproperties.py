@@ -71,7 +71,7 @@ class Property(pointers.Pointer, s_abc.Property,
 
         return schema, ptr
 
-    def compare(self, other, *, our_schema, their_schema, context=None):
+    def compare(self, other, *, our_schema, their_schema, context):
         if not isinstance(other, Property):
             if isinstance(other, pointers.Pointer):
                 return 0.0

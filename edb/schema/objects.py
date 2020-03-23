@@ -27,7 +27,6 @@ import collections.abc
 import enum
 import itertools
 import sys
-import types
 import uuid
 
 from edb import errors
@@ -100,7 +99,6 @@ ObjectCollection_T = TypeVar(
     "ObjectCollection_T",
     bound="ObjectCollection[Object]",
 )
-Pair = Tuple[Optional["Object"], Optional["Object"]]
 HashCriterion = Union[Type["Object"], Tuple[str, Any]]
 ObjectRef_T = Union[uuid.UUID, "ObjectRef"]
 
@@ -142,56 +140,10 @@ def get_known_type_id(
     return default
 
 
-class ComparisonContextWrapper:
-    def __init__(self, context: ComparisonContext, pair: Pair) -> None:
-        self.context = context
-        self.pair = pair
-
-    def __enter__(self) -> None:
-        self.context.push(self.pair)
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[Exception]],
-        exc_value: Exception,
-        traceback: Optional[types.TracebackType],
-    ) -> None:
-        self.context.pop()
-
-
 class ComparisonContext:
-    stacks: Dict[Type[Object], List[Pair]]
-    ptrs: List[Type[Object]]
 
     def __init__(self) -> None:
-        self.stacks = collections.defaultdict(list)
-        self.ptrs = []
-
-    def push(self, pair: Pair) -> None:
-        obj = pair[1] if pair[0] is None else pair[0]
-        cls = type(obj)
-
-        if not issubclass(cls, Object):
-            raise ValueError(
-                f'invalid argument type {cls!r} for comparison context')
-
-        self.stacks[cls].append(pair)
-        self.ptrs.append(cls)
-
-    def pop(self, cls: Optional[Type[Object]] = None) -> Pair:
-        cls = cls or self.ptrs.pop()
-        return self.stacks[cls].pop()
-
-    def get(self, cls: Type[Object]) -> Optional[Pair]:
-        stack = self.stacks[cls]
-        if stack:
-            return stack[-1]
-        return None
-
-    def __call__(
-        self, left: Optional[Object], right: Optional[Object]
-    ) -> ComparisonContextWrapper:
-        return ComparisonContextWrapper(self, (left, right))
+        pass
 
 
 # derived from ProtoField for validation
@@ -960,7 +912,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         *,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
-        context: Optional[ComparisonContext] = None,
+        context: ComparisonContext,
     ) -> float:
         if (not isinstance(other, self.__class__) and
                 not isinstance(self, other.__class__)):
@@ -969,31 +921,29 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 f'class {other.__class__.__name__!r} are not comparable'
             )
 
-        context = context or ComparisonContext()
         cls = type(self)
 
-        with context(self, other):
-            similarity = 1.0
+        similarity = 1.0
 
-            fields = cls.get_fields(sorted=True)
+        fields = cls.get_fields(sorted=True)
 
-            for field_name, field in fields.items():
-                if field.compcoef is None:
-                    continue
+        for field_name, field in fields.items():
+            if field.compcoef is None:
+                continue
 
-                our_value = self.get_field_value(our_schema, field_name)
-                their_value = other.get_field_value(their_schema, field_name)
+            our_value = self.get_field_value(our_schema, field_name)
+            their_value = other.get_field_value(their_schema, field_name)
 
-                fcoef = cls.compare_field_value(
-                    field,
-                    our_value,
-                    their_value,
-                    our_schema=our_schema,
-                    their_schema=their_schema,
-                    context=context,
-                )
+            fcoef = cls.compare_field_value(
+                field,
+                our_value,
+                their_value,
+                our_schema=our_schema,
+                their_schema=their_schema,
+                context=context,
+            )
 
-                similarity *= fcoef
+            similarity *= fcoef
 
         return similarity
 
@@ -1074,67 +1024,73 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         old: Optional[Object],
         new: Optional[Object],
         *,
-        context: Optional[ComparisonContext] = None,
+        context: ComparisonContext,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
     ) -> sd.ObjectCommand[Object]:
         from . import delta as sd
 
-        if context is None:
-            context = ComparisonContext()
+        command_args: Dict[str, Any] = {'canonical': True}
 
-        with context(old, new):
-            command_args: Dict[str, Any] = {'canonical': True}
+        delta: sd.ObjectCommand[Object]
 
-            delta: sd.ObjectCommand[Object]
+        if old and new:
+            try:
+                name = old.get_name(old_schema)  # type: ignore
+            except AttributeError:
+                pass
+            else:
+                command_args['classname'] = name
 
-            if old and new:
-                try:
-                    name = old.get_name(old_schema)  # type: ignore
-                except AttributeError:
-                    pass
-                else:
-                    command_args['classname'] = name
+            alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.AlterObject, type(old))
+            delta = alter_class(**command_args)
+            cls.delta_properties(
+                delta,
+                old,
+                new,
+                context=context,
+                old_schema=old_schema,
+                new_schema=new_schema,
+            )
 
-                alter_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                    sd.AlterObject, type(old))
-                delta = alter_class(**command_args)
-                cls.delta_properties(delta, old, new, context=context,
-                                     old_schema=old_schema,
-                                     new_schema=new_schema)
+        elif new:
+            try:
+                name = new.get_name(new_schema)
+            except AttributeError:
+                pass
+            else:
+                command_args['classname'] = name
 
-            elif new:
-                try:
-                    name = new.get_name(new_schema)
-                except AttributeError:
-                    pass
-                else:
-                    command_args['classname'] = name
+            create_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.CreateObject, type(new))
+            delta = create_class(**command_args)
+            cls.delta_properties(
+                delta,
+                old,
+                new,
+                context=context,
+                old_schema=old_schema,
+                new_schema=new_schema,
+            )
 
-                create_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                    sd.CreateObject, type(new))
-                delta = create_class(**command_args)
-                cls.delta_properties(delta, old, new, context=context,
-                                     old_schema=old_schema,
-                                     new_schema=new_schema)
+        elif old:
+            try:
+                name = old.get_name(old_schema)  # type: ignore
+            except AttributeError:
+                pass
+            else:
+                command_args['classname'] = name
 
-            elif old:
-                try:
-                    name = old.get_name(old_schema)  # type: ignore
-                except AttributeError:
-                    pass
-                else:
-                    command_args['classname'] = name
+            delete_class = sd.ObjectCommandMeta.get_command_class_or_die(
+                sd.DeleteObject, type(old))
+            delta = delete_class(**command_args)
 
-                delete_class = sd.ObjectCommandMeta.get_command_class_or_die(
-                    sd.DeleteObject, type(old))
-                delta = delete_class(**command_args)
-
-            for refdict in cls.get_refdicts():
-                cls._delta_refdict(
-                    old, new, delta=delta,
-                    refdict=refdict, context=context,
-                    old_schema=old_schema, new_schema=new_schema)
+        for refdict in cls.get_refdicts():
+            cls._delta_refdict(
+                old, new, delta=delta,
+                refdict=refdict, context=context,
+                old_schema=old_schema, new_schema=new_schema)
 
         return delta
 
@@ -1172,9 +1128,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
             else:
                 newcoll_idx = []
 
-            delta.add(cls.delta_sets(
-                oldcoll_idx, newcoll_idx, context,
-                old_schema=old_schema, new_schema=new_schema))
+            delta.add(
+                cls.delta_sets(
+                    oldcoll_idx,
+                    newcoll_idx,
+                    context=context,
+                    old_schema=old_schema,
+                    new_schema=new_schema,
+                )
+            )
 
         _delta_subdict(refdict.attr)
 
@@ -1354,7 +1316,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         cls,
         old: Optional[Iterable[Object]],
         new: Optional[Iterable[Object]],
-        context: Optional[ComparisonContext] = None,
+        context: ComparisonContext,
         *,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
@@ -1405,8 +1367,12 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         for x, y in itertools.product(new, old):
             # type ignore below, because mypy does not correlate `old`
             # and `old_schema`.
-            comp = x.compare(y, our_schema=new_schema,
-                             their_schema=old_schema)  # type: ignore
+            comp = x.compare(
+                y,
+                our_schema=new_schema,
+                their_schema=old_schema,  # type: ignore
+                context=context,
+            )
             comparison.append((comp, x, y))
 
         used_x: Set[Object] = set()
@@ -1831,7 +1797,7 @@ class ObjectCollection(
         *,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
-        context: Optional[ComparisonContext],
+        context: ComparisonContext,
         compcoef: float,
     ) -> float:
         if ours is not None:
@@ -1913,7 +1879,7 @@ class ObjectIndexBase(
         *,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
-        context: Optional[ComparisonContext],
+        context: ComparisonContext,
         compcoef: float,
     ) -> float:
 
@@ -2380,57 +2346,57 @@ class InheritingObject(SubclassableObject):
         old: Optional[Object],
         new: Optional[Object],
         *,
-        context: Optional[ComparisonContext] = None,
+        context: ComparisonContext,
         old_schema: Optional[s_schema.Schema],
         new_schema: s_schema.Schema,
     ) -> sd.ObjectCommand[Object]:
         from . import delta as sd
         from . import inheriting as s_inh
 
-        if context is None:
-            context = ComparisonContext()
+        delta = super().delta(
+            old,
+            new,
+            context=context,
+            old_schema=old_schema,
+            new_schema=new_schema,
+        )
 
-        with context(old, new):
-            delta = super().delta(old, new, context=context,
-                                  old_schema=old_schema,
-                                  new_schema=new_schema)
+        if old and new:
+            assert isinstance(old, InheritingObject)
+            assert isinstance(new, InheritingObject)
 
-            if old and new:
-                assert isinstance(old, InheritingObject)
-                assert isinstance(new, InheritingObject)
+            rebase = sd.ObjectCommandMeta.get_command_class(
+                s_inh.RebaseInheritingObject, type(new))
 
-                rebase = sd.ObjectCommandMeta.get_command_class(
-                    s_inh.RebaseInheritingObject, type(new))
+            assert old_schema is not None
 
-                assert old_schema is not None
+            old_base_names = old.get_base_names(old_schema)
+            new_base_names = new.get_base_names(new_schema)
 
-                old_base_names = old.get_base_names(old_schema)
-                new_base_names = new.get_base_names(new_schema)
+            if old_base_names != new_base_names and rebase is not None:
+                removed, added = s_inh.delta_bases(
+                    old_base_names, new_base_names)
 
-                if old_base_names != new_base_names and rebase is not None:
-                    removed, added = s_inh.delta_bases(
-                        old_base_names, new_base_names)
+                rebase_cmd = rebase(
+                    classname=new.get_name(new_schema),
+                    metaclass=type(new),
+                    removed_bases=removed,
+                    added_bases=added,
+                )
 
-                    rebase_cmd = rebase(
-                        classname=new.get_name(new_schema),
-                        metaclass=type(new),
-                        removed_bases=removed,
-                        added_bases=added,
-                    )
+                rebase_cmd.set_attribute_value(
+                    'bases',
+                    new._reduce_refs(
+                        new_schema, new.get_bases(new_schema))[0],
+                )
 
-                    rebase_cmd.set_attribute_value(
-                        'bases',
-                        new._reduce_refs(
-                            new_schema, new.get_bases(new_schema))[0],
-                    )
+                rebase_cmd.set_attribute_value(
+                    'ancestors',
+                    new._reduce_refs(
+                        new_schema, new.get_ancestors(new_schema))[0],
+                )
 
-                    rebase_cmd.set_attribute_value(
-                        'ancestors',
-                        new._reduce_refs(
-                            new_schema, new.get_ancestors(new_schema))[0],
-                    )
-
-                    delta.add(rebase_cmd)
+                delta.add(rebase_cmd)
 
         return delta
 

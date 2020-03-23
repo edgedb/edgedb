@@ -223,6 +223,7 @@ def delta_schemas(
             result.add(create)
 
     objects = sd.DeltaRoot(canonical=True)
+    context = so.ComparisonContext()
 
     for sclass in get_global_dep_order():
         filters: List[Callable[[s_schema.Schema, so.Object], bool]] = []
@@ -259,8 +260,15 @@ def delta_schemas(
             extra_filters=filters + schema_a_filters,
         )
 
-        objects.add(so.Object.delta_sets(
-            old, new, old_schema=schema_a, new_schema=schema_b))
+        objects.add(
+            so.Object.delta_sets(
+                old,
+                new,
+                old_schema=schema_a,
+                new_schema=schema_b,
+                context=context,
+            )
+        )
 
     if linearize_delta:
         objects = s_ordering.linearize_delta(

@@ -626,7 +626,7 @@ class Collection(Type, s_abc.Collection):
         *,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
-        context: Optional[so.ComparisonContext],
+        context: so.ComparisonContext,
         compcoef: float,
     ) -> float:
         if ours is None and theirs is None:
@@ -1889,9 +1889,15 @@ class TypeCommand(sd.ObjectCommand[Type]):
                 context=context,
             )
 
-        derived_delta.add(so.Object.delta_sets(
-            prev_expr_aliases, expr_aliases,
-            old_schema=old_schema, new_schema=new_schema))
+        derived_delta.add(
+            so.Object.delta_sets(
+                prev_expr_aliases,
+                expr_aliases,
+                old_schema=old_schema,
+                new_schema=new_schema,
+                context=so.ComparisonContext(),
+            )
+        )
 
         if prev_ir is not None:
             for vt in prev_coll_expr_aliases:

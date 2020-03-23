@@ -125,7 +125,7 @@ class Link(sources.Source, pointers.Pointer, s_abc.Link,
         *,
         our_schema: s_schema.Schema,
         their_schema: s_schema.Schema,
-        context: Optional[so.ComparisonContext] = None,
+        context: so.ComparisonContext,
     ) -> float:
         if not isinstance(other, Link):
             if isinstance(other, pointers.Pointer):
