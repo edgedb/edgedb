@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "edgeql-parser",
-    "edgeql-python",
+    "edb/edgeql-parser",
+    "edb/edgeql-rust",
 ]
 
 [profile.release]

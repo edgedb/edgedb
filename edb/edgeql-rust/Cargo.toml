@@ -1,5 +1,5 @@
 [package]
-name = "edgeql-python"
+name = "edgeql-rust"
 license = "MIT/Apache-2.0"
 version = "0.1.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
@@ -16,5 +16,5 @@ features = ["extension-module"]
 
 [lib]
 crate-type = ["cdylib"]
-name = "edgeql_python"
+name = "edgeql_rust"
 path = "src/lib.rs"

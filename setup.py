@@ -466,7 +466,7 @@ if setuptools_rust is not None:
     rust_extensions = [
         setuptools_rust.RustExtension(
             "edb._edgeql_rust",
-            path="edgedb-rust/edgeql-python/Cargo.toml",
+            path="edb/edgeql-rust/Cargo.toml",
             binding=setuptools_rust.Binding.RustCPython),
     ]
 else:
