@@ -1195,7 +1195,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 # as strings
                 r'invalid input syntax for type bigint: "aaaaa"',
                 # _line=5, _col=32,
-                ):
+        ):
             self.graphql_query(r"""
                 query {
                     u0: User(
@@ -2800,7 +2800,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"Only scalar defaults are allowed\. "
-                f"Variable 'val' has non-scalar default value\."):
+                r"Variable 'val' has non-scalar default value\."):
             self.graphql_query(r"""
                 query($val: FilterFloat = {eq: 3.0}) {
                     User(filter: {score: $val}) {

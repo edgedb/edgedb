@@ -23,7 +23,6 @@ import contextlib
 import decimal
 import json
 import re
-from collections import abc as col_abc
 from typing import *
 
 import graphql
@@ -45,7 +44,6 @@ from edb.schema import utils as s_utils
 
 from . import types as gt
 from . import errors as g_errors
-from . import codegen as gqlcodegen
 
 
 ARG_TYPES = {
@@ -1327,7 +1325,7 @@ class GraphQLTranslator:
                     type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
                 )
 
-        ### Set up context for the nested visitor ###
+        # ### Set up context for the nested visitor ###
         self._context.base_expr = name
         # potentially the right-hand-side needs to be cast into a float
         if ftype.is_float:
@@ -1568,20 +1566,20 @@ class TokenLexer(graphql.language.lexer.Lexer):
         kind, start, end, line, col, body = self.__tokens[0]
         self.token = gql_lexer.Token(kind, start, end, line, col, None, body)
 
-    def advance(self) -> Token:
+    def advance(self) -> gql_lexer.Token:
         self.last_token = self.token
         token = self.token = self.lookahead()
         self.__index += 1
         return token
 
-    def lookahead(self) -> Token:
+    def lookahead(self) -> gql_lexer.Token:
         token = self.token
         if token.kind != gql_lexer.TokenKind.EOF:
             if token.next:
                 return self.token.next
-            kind, start, end, line, col, body = self.__tokens[self.__index+1]
-            token.next = gql_lexer.Token(kind,
-                start, end, line, col, token, body)
+            kind, start, end, line, col, body = self.__tokens[self.__index + 1]
+            token.next = gql_lexer.Token(
+                kind, start, end, line, col, token, body)
             return token.next
         else:
             return token
@@ -1589,9 +1587,8 @@ class TokenLexer(graphql.language.lexer.Lexer):
 
 def parse_tokens(
     text: str,
-    tokens: List[Tuple[TokenKind, int, int, int, int, str]]
+    tokens: List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]
 ) -> graphql.Document:
-    options = {"no_location": False, "no_source": False}
     try:
         src = graphql.Source(text)
         parser = graphql.language.parser.Parser(src)
@@ -1603,7 +1600,8 @@ def parse_tokens(
         raise g_errors.GraphQLCoreError(err.message, loc=err_loc) from None
 
 
-def convert_errors(errs: List[gql_error.GraphQLError], *,
+def convert_errors(
+    errs: List[gql_error.GraphQLError], *,
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
 ) -> List[gql_error.GraphQLErrors]:
     result = []
@@ -1697,8 +1695,10 @@ def augment_error_message(gqlcore: gt.GQLCoreSchema, message: str):
     return message
 
 
-def convert_default(node: gql_ast.ValueNode, varname: str
-        ) -> Union[str, float, int, bool]:
+def convert_default(
+    node: gql_ast.ValueNode,
+    varname: str
+) -> Union[str, float, int, bool]:
     if isinstance(node, (gql_ast.StringValueNode, gql_ast.BooleanValueNode)):
         return node.value
     elif isinstance(node, gql_ast.IntValueNode):
