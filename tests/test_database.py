@@ -45,3 +45,20 @@ class TestDatabase(tb.ConnectedTestCase):
             await conn.aclose()
         finally:
             await self.con.execute('DROP DATABASE mytestdb;')
+
+    async def test_database_connection_reset_after_configure(self):
+        conn = await self.connect(database="edgedb")
+        try:
+            await conn.execute(
+                "CONFIGURE SYSTEM SET listen_addresses := {'0.0.0.0', '::'}"
+            )
+            await conn.execute(
+                """
+                    CONFIGURE SYSTEM INSERT Auth {
+                        priority := 1,
+                        method := (INSERT Trust),
+                    };
+                """,
+            )
+        finally:
+            await conn.aclose()
