@@ -505,7 +505,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: CommandContext,
-    ) -> Command_T:
+    ) -> Command:
         return cls()
 
     @classmethod
