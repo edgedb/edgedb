@@ -9,6 +9,8 @@ clients and servers.  The protocol is supported over TCP/IP and also over
 Unix-domain sockets.
 
 
+.. _ref_protocol_conventions:
+
 Conventions and Data Types
 ==========================
 
