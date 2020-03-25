@@ -8,3 +8,4 @@ Internals
 
     protocol/__toc__
     dev
+    dump_format
