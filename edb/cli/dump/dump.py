@@ -60,7 +60,7 @@ class DumpImpl:
         with open(outfn, 'wb+') as outf:
             buf = binwrapper.BinWrapper(outf)
             buf.write_bytes(consts.HEADER_TITLE)
-            buf.write_ui64(consts.DUMP_PROTO_VER)
+            buf.write_ui64(consts.DUMP_FORMAT_VER)
 
             self.conn._dump(
                 on_header=functools.partial(self._header_callback, buf),
