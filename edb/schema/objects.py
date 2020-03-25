@@ -100,7 +100,6 @@ ObjectCollection_T = TypeVar(
     bound="ObjectCollection[Object]",
 )
 HashCriterion = Union[Type["Object"], Tuple[str, Any]]
-ObjectRef_T = Union[uuid.UUID, "ObjectRef"]
 
 _EMPTY_FIELD_FROZENSET: FrozenSet[Field[Any]] = frozenset()
 
@@ -1183,60 +1182,11 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
         return schema
 
-    def _reduce_to_ref(self, schema: s_schema.Schema) -> Tuple[Object, Any]:
-        return ObjectRef(name=self.get_name(schema)), self.get_name(schema)
-
     def as_shell(self, schema: s_schema.Schema) -> ObjectShell:
         return ObjectShell(
             name=self.get_name(schema),
             schemaclass=type(self),
         )
-
-    def _resolve_ref(self, schema: s_schema.Schema) -> Object:
-        return self
-
-    def _reduce_obj_coll(
-        self,
-        schema: s_schema.Schema,
-        v: ObjectCollection_T,
-    ) -> Tuple[ObjectCollection[Object], Tuple[str, ...]]:
-        result = []
-        comparison_v = []
-
-        for scls in v.objects(schema):
-            ref, comp = scls._reduce_to_ref(schema)
-            result.append(ref)
-            comparison_v.append(comp)
-
-        return type(v).create(schema, result), tuple(comparison_v)
-
-    _reduce_obj_list = _reduce_obj_coll
-
-    def _reduce_obj_set(
-        self, schema: s_schema.Schema, v: ObjectSet[Object]
-    ) -> Tuple[ObjectCollection[Object], FrozenSet[str]]:
-        result, comparison_v = self._reduce_obj_coll(schema, v)
-        return result, frozenset(comparison_v)
-
-    def _reduce_refs(
-        self, schema: s_schema.Schema, value: Any
-    ) -> Tuple[Any, Any]:
-        if isinstance(value, ObjectList):
-            return self._reduce_obj_list(schema, value)
-
-        elif isinstance(value, ObjectSet):
-            return self._reduce_obj_set(schema, value)
-
-        elif isinstance(value, Object):
-            return value._reduce_to_ref(schema)
-
-        elif isinstance(value, ObjectCollection):
-            return value._reduce_to_ref(schema, value)
-
-        elif isinstance(value, s_abc.ObjectContainer):
-            return value._reduce_to_ref(schema)
-
-        return value, value
 
     @classmethod
     def delta_properties(
@@ -1633,70 +1583,6 @@ class ObjectShell(Shell):
         return f'<{type(self).__name__} {dn}({n!r}) at 0x{id(self):x}>'
 
 
-class BaseObjectRef:
-    # Object ref marker
-    def _resolve_ref(self, schema: s_schema.Schema) -> Object:
-        raise NotImplementedError
-
-
-class ObjectRef(Object, BaseObjectRef):
-    _name: str
-    _origname: Optional[str]
-    _schemaclass: Optional[Type[Object]]
-    _sourcectx: Optional[parsing.ParserContext]
-
-    def __init__(
-        self,
-        *,
-        name: str,
-        origname: Optional[str] = None,
-        schemaclass: Optional[Type[Object]] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> None:
-        self.__dict__['_name'] = name
-        self.__dict__['_origname'] = origname
-        self.__dict__['_sourcectx'] = sourcectx
-        self.__dict__['_schemaclass'] = schemaclass
-
-    # `name` and `get_name` are deliberately incompatible with the base
-    # `Object` equivalents so we type-ignore them
-
-    @property
-    def name(self) -> str:  # type: ignore
-        raise NotImplementedError
-
-    def get_name(self, schema: s_schema.Schema) -> str:
-        return self._name
-
-    def get_refname(self, schema: s_schema.Schema) -> str:
-        return self._origname if self._origname is not None else self._name
-
-    def get_sourcectx(self, schema: s_schema.Schema) -> Any:
-        return self._sourcectx
-
-    def __repr__(self) -> str:
-        return '<ObjectRef "{}" at 0x{:x}>'.format(self._name, id(self))
-
-    def __eq__(self, other: Any) -> bool:
-        if type(self) is not type(other):
-            return NotImplemented
-        return self._name == other._name  # type: ignore
-
-    def __hash__(self) -> int:
-        return hash((self._name, type(self)))
-
-    def _reduce_to_ref(self, schema: s_schema.Schema) -> Tuple[ObjectRef, Any]:
-        return self, self.get_name(schema)
-
-    def _resolve_ref(self, schema: s_schema.Schema) -> Object:
-        return schema.get(
-            self.get_name(schema),
-            type=self._schemaclass,
-            refname=self._origname,
-            sourcectx=self.get_sourcectx(schema),
-        )
-
-
 class ObjectCollectionDuplicateNameError(Exception):
     pass
 
@@ -1709,7 +1595,7 @@ class ObjectCollection(
 ):
     type: ClassVar[Type[Object]] = Object
     _container: ClassVar[Type[CollectionFactory[Any]]]
-    _ids: Collection[ObjectRef_T]
+    _ids: Collection[uuid.UUID]
 
     def __init_subclass__(
         cls,
@@ -1721,7 +1607,7 @@ class ObjectCollection(
 
     def __init__(
         self,
-        ids: Collection[ObjectRef_T],
+        ids: Collection[uuid.UUID],
         *,
         _private_init: bool,
     ) -> None:
@@ -1790,14 +1676,14 @@ class ObjectCollection(
         schema: s_schema.Schema,
         data: Iterable[Object_T],
     ) -> ObjectCollection[Object_T]:
-        ids: List[ObjectRef_T] = []
+        ids: List[uuid.UUID] = []
 
         if isinstance(data, ObjectCollection):
             ids.extend(data._ids)
         elif data:
             for v in data:
                 ids.append(cls._validate_value(schema, v))
-        container: Collection[ObjectRef_T] = cls._container(ids)
+        container: Collection[uuid.UUID] = cls._container(ids)
         return cls(container, _private_init=True)
 
     @classmethod
@@ -1807,67 +1693,35 @@ class ObjectCollection(
     @classmethod
     def _validate_value(
         cls, schema: s_schema.Schema, v: Object
-    ) -> Union[ObjectRef, uuid.UUID]:
-        if not isinstance(v, cls.type) and not isinstance(v, ObjectRef):
+    ) -> uuid.UUID:
+        if not isinstance(v, cls.type):
             raise TypeError(
                 f'invalid input data for ObjectIndexByShortname: '
                 f'expected {cls.type} values, got {type(v)}')
 
         if v.id is not None:
             return v.id
-        elif isinstance(v, ObjectRef):
-            return v
         else:
             raise TypeError(f'object {v!r} has no ID!')
 
         return v
 
     def ids(self, schema: s_schema.Schema) -> Tuple[uuid.UUID, ...]:
-        result: List[uuid.UUID] = []
+        return tuple(self._ids)
 
-        for item_id in self._ids:
-            if isinstance(item_id, ObjectRef):
-                resolved = item_id._resolve_ref(schema)
-                result.append(resolved.id)
-            else:
-                result.append(item_id)
-
-        return tuple(result)
-
-    def names(
-        self, schema: s_schema.Schema, *, allow_unresolved: bool = False
-    ) -> Collection[str]:
+    def names(self, schema: s_schema.Schema) -> Collection[str]:
         result = []
 
         for item_id in self._ids:
-            if isinstance(item_id, ObjectRef):
-                try:
-                    obj = item_id._resolve_ref(schema)
-                except errors.InvalidReferenceError:
-                    if allow_unresolved:
-                        result.append(item_id.get_name(schema))
-                    else:
-                        raise
-                else:
-                    result.append(obj.get_name(schema))
-            else:
-                obj = schema.get_by_id(item_id)
-                result.append(obj.get_name(schema))
+            obj = schema.get_by_id(item_id)
+            result.append(obj.get_name(schema))
 
         return type(self)._container(result)
 
     def objects(self, schema: s_schema.Schema) -> Tuple[Object_T, ...]:
-        result = []
-
-        for item_id in self._ids:
-            if isinstance(item_id, ObjectRef):
-                obj = item_id._resolve_ref(schema)
-            else:
-                obj = schema.get_by_id(item_id)
-
-            result.append(obj)
-
-        return tuple(result)  # type: ignore
+        return tuple(
+            schema.get_by_id(iid) for iid in self._ids  # type: ignore
+        )
 
     @classmethod
     def compare_values(
@@ -1881,12 +1735,12 @@ class ObjectCollection(
         compcoef: float,
     ) -> float:
         if ours is not None:
-            our_names = ours.names(our_schema, allow_unresolved=True)
+            our_names = ours.names(our_schema)
         else:
             our_names = cls._container()
 
         if theirs is not None:
-            their_names = theirs.names(their_schema, allow_unresolved=True)
+            their_names = theirs.names(their_schema)
         else:
             their_names = cls._container()
 
@@ -1894,12 +1748,6 @@ class ObjectCollection(
             return compcoef
         else:
             return 1.0
-
-    # Breaking Liskov Substitution Principle below (by adding `v`).
-    def _reduce_to_ref(  # type: ignore
-        self: T, schema: s_schema.Schema, v: ObjectCollection[Object_T]
-    ) -> Tuple[T, Any]:
-        raise NotImplementedError
 
     def as_shell(
         self,
@@ -2193,22 +2041,6 @@ class ObjectDict(
 
     def items(self, schema: s_schema.Schema) -> Tuple[Tuple[Any, Object], ...]:
         return tuple(zip(self._keys, self.objects(schema)))
-
-    # Breaking Liskov Substitution Principle below (by adding `v`).
-    def _reduce_to_ref(  # type: ignore
-        self: ObjectDict[Object_T],
-        schema: s_schema.Schema,
-        v: ObjectDict[Object],
-    ) -> Tuple[ObjectDict[Object], Any]:
-        result = {}
-        comparison_v = []
-
-        for key, scls in v.items(schema):
-            ref, comp = scls._reduce_to_ref(schema)
-            result[key] = ref
-            comparison_v.append((key, comp))
-
-        return type(v).create(schema, result), frozenset(comparison_v)
 
     def as_shell(
         self,

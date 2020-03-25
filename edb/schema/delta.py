@@ -152,13 +152,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
             result.add(mcls.adapt(op))
         return result
 
-    def _resolve_type_ref(
-        self,
-        ref: so.Object,
-        schema: s_schema.Schema,
-    ) -> so.Object:
-        return utils.resolve_typeref(ref, schema)
-
     def _resolve_attr_value(
         self,
         value: Any,
@@ -171,7 +164,7 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         if isinstance(value, so.Shell):
             value = value.resolve(schema)
         else:
-            if isinstance(ftype, so.ObjectMeta):
+            if isinstance(ftype, so.ObjectMeta) and False:
                 value = self._resolve_type_ref(value, schema)
 
             elif issubclass(ftype, checked.CheckedDict):

@@ -2033,7 +2033,7 @@ def get_interesting_metaclasses():
     metaclasses = []
 
     for mcls in s_obj.ObjectMeta.get_schema_metaclasses():
-        if issubclass(mcls, (s_obj.ObjectRef, s_db.Database)):
+        if issubclass(mcls, s_db.Database):
             continue
 
         if isinstance(mcls, adapter.Adapter):

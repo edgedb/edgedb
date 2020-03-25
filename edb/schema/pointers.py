@@ -622,7 +622,12 @@ class PointerCommandOrFragment:
 
         return schema
 
-    def _parse_computable(self, expr, schema, context) -> so.ObjectRef:
+    def _parse_computable(
+        self,
+        expr: qlast.Base,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Tuple[s_types.Type, Optional[Pointer]]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
 

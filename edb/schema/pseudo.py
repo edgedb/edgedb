@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 # Cannot import * from typing because of name conflicts in this file.
-from typing import Optional, TypeVar, Tuple, TYPE_CHECKING
+from typing import Optional, TypeVar, TYPE_CHECKING
 
 from . import name as sn
 from . import objects as so
@@ -120,20 +120,8 @@ class Any(PseudoType):
         else:
             return s_types.MAX_TYPE_DISTANCE
 
-    def _reduce_to_ref(self, schema):
-        return AnyObjectRef(), sn.UnqualifiedName('anytype')
-
     def as_shell(self, schema):
         return AnyTypeShell()
-
-
-class AnyObjectRef(so.ObjectRef):
-
-    def __init__(self, *, name=sn.UnqualifiedName('anytype')):
-        super().__init__(name=name)
-
-    def _resolve_ref(self, schema: s_schema.Schema) -> Any:
-        return Any.get(schema)
 
 
 class AnyTypeShell(s_types.TypeShell):
@@ -164,12 +152,6 @@ class AnyTuple(PseudoType):
     ) -> bool:
         return other.is_anytuple()
 
-    def _reduce_to_ref(
-        self,
-        schema: s_schema.Schema
-    ) -> Tuple[AnyTupleRef, sn.UnqualifiedName]:
-        return AnyTupleRef(), sn.UnqualifiedName('anytuple')
-
     def _resolve_polymorphic(
         self,
         schema: s_schema.Schema,
@@ -190,15 +172,6 @@ class AnyTuple(PseudoType):
 
     def as_shell(self, schema):
         return AnyTupleShell()
-
-
-class AnyTupleRef(so.ObjectRef):
-
-    def __init__(self, *, name=sn.UnqualifiedName('anytuple')) -> None:
-        super().__init__(name=name)
-
-    def _resolve_ref(self, schema: s_schema.Schema) -> AnyTuple:
-        return AnyTuple.get(schema)
 
 
 class AnyTupleShell(s_types.TypeShell):

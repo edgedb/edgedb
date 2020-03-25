@@ -23,8 +23,6 @@ import typing
 
 
 if typing.TYPE_CHECKING:
-    from . import schema as s_schema
-
     ObjectContainer_T = typing.TypeVar(
         'ObjectContainer_T', bound='ObjectContainer'
     )
@@ -39,10 +37,7 @@ class Object:
 
 
 class ObjectContainer:
-    def _reduce_to_ref(
-        self: ObjectContainer_T, schema: s_schema.Schema
-    ) -> typing.Tuple[ObjectContainer_T, typing.Any]:
-        raise NotImplementedError
+    pass
 
 
 class Database(Object):

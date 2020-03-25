@@ -202,19 +202,6 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
             _irast=expr._irast,
         )
 
-    def _reduce_to_ref(self,
-                       schema: s_schema.Schema) -> Tuple[Expression,
-                                                         Expression]:
-        return type(self)(
-            text=self.text,
-            origtext=self.origtext,
-            refs=so.ObjectSet.create(
-                schema,
-                (scls._reduce_to_ref(schema)[0]
-                 for scls in self.refs.objects(schema))
-            ) if self.refs is not None else None
-        ), self
-
     def as_shell(self, schema: s_schema.Schema) -> ExpressionShell:
         return ExpressionShell(
             text=self.text,

@@ -207,37 +207,6 @@ class ObjectType(
 
         return False
 
-    def _reduce_to_ref(self, schema):
-        union_of = self.get_union_of(schema)
-        if union_of:
-            my_name = self.get_name(schema)
-            return (
-                s_types.ExistingUnionTypeRef(
-                    components=[
-                        c._reduce_to_ref(schema)[0]
-                        for c in union_of.objects(schema)
-                    ],
-                    name=my_name,
-                ),
-                my_name,
-            )
-
-        intersection_of = self.get_intersection_of(schema)
-        if intersection_of:
-            my_name = self.get_name(schema)
-            return (
-                s_types.ExistingIntersectionTypeRef(
-                    components=[
-                        c._reduce_to_ref(schema)[0]
-                        for c in intersection_of.objects(schema)
-                    ],
-                    name=my_name,
-                ),
-                my_name,
-            )
-
-        return super()._reduce_to_ref(schema)
-
     def as_create_delta_for_compound_type(
         self,
         schema: s_schema.Schema,

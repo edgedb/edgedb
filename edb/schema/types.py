@@ -493,123 +493,6 @@ class IntersectionTypeShell(TypeExprShell):
         return schema.get_by_id(type_id, type=Type)
 
 
-TypeExprRefT = typing.TypeVar('TypeExprRefT', bound='TypeExprRef')
-
-
-class TypeExprRef(so.Object, so.BaseObjectRef):
-    _components: typing.Tuple[so.ObjectRef, ...]
-    module: str
-
-    def __init__(
-        self,
-        components: Iterable[so.ObjectRef], *,
-        module: str,
-    ) -> None:
-        self.__dict__['_components'] = tuple(components)
-        self.__dict__['module'] = module
-
-    def resolve_components(
-        self,
-        schema: s_schema.Schema,
-    ) -> typing.Tuple[InheritingType, ...]:
-        return tuple(
-            typing.cast(InheritingType, c._resolve_ref(schema))
-            for c in self._components
-        )
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        else:
-            return self._components == other._components
-
-    def __hash__(self) -> int:
-        return hash((type(self), self._components))
-
-    def _reduce_to_ref(
-        self: TypeExprRefT, schema: s_schema.Schema
-    ) -> typing.Tuple[TypeExprRefT, Any]:
-        return self, self._components
-
-
-class UnionTypeRef(TypeExprRef):
-
-    def _resolve_ref(self, schema: s_schema.Schema) -> Type:
-        components = self.resolve_components(schema)
-        type_id, _ = get_union_type_id(schema, components, module=self.module)
-        return typing.cast(Type, schema.get_by_id(type_id))
-
-    def get_union_of(
-        self,
-        schema: s_schema.Schema,
-    ) -> typing.Tuple[so.ObjectRef, ...]:
-        return self._components
-
-    def __repr__(self) -> str:
-        return f'<UnionTypeRef {self._components!r} at 0x{id(self):x}>'
-
-
-# Breaking Liskov Substitution Principle
-class ExistingUnionTypeRef(UnionTypeRef, so.ObjectRef):  # type: ignore
-
-    def __init__(
-        self,
-        *,
-        name: s_name.Name,
-        components: Iterable[so.ObjectRef],
-        origname: Optional[str] = None,
-        schemaclass: Optional[typing.Type[so.Object]] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> None:
-
-        so.ObjectRef.__init__(
-            self, name=name, origname=origname,
-            schemaclass=schemaclass, sourcectx=sourcectx)
-
-        UnionTypeRef.__init__(
-            self, components=components, module=name.module)
-
-
-class IntersectionTypeRef(TypeExprRef):
-
-    def _resolve_ref(self, schema: s_schema.Schema) -> Type:
-        components = self.resolve_components(schema)
-        type_id, _ = get_intersection_type_id(
-            schema, components, module=self.module)
-        return typing.cast(Type, schema.get_by_id(type_id))
-
-    def get_intersection_of(
-        self,
-        schema: s_schema.Schema,
-    ) -> typing.Tuple[so.ObjectRef, ...]:
-        return self._components
-
-    def __repr__(self) -> str:
-        return f'<IntersectionTypeRef {self._components!r} at 0x{id(self):x}>'
-
-
-# Breaking Liskov Substitution Principle
-class ExistingIntersectionTypeRef(  # type: ignore
-        IntersectionTypeRef, so.ObjectRef):
-
-    def __init__(
-        self,
-        *,
-        name: s_name.Name,
-        components: Iterable[so.ObjectRef],
-        origname: Optional[str] = None,
-        schemaclass: Optional[typing.Type[so.Object]] = None,
-        sourcectx: Optional[parsing.ParserContext] = None,
-    ) -> None:
-
-        so.ObjectRef.__init__(
-            self, name=name, origname=origname,
-            schemaclass=schemaclass, sourcectx=sourcectx)
-
-        IntersectionTypeRef.__init__(
-            self, components=components, module=name.module)
-
-
 class Collection(Type, s_abc.Collection):
 
     schema_name: typing.ClassVar[str]
@@ -759,34 +642,6 @@ class Collection(Type, s_abc.Collection):
         typemods: Any = None,
     ) -> Collection:
         raise NotImplementedError
-
-    def _reduce_to_ref(
-        self, schema: s_schema.Schema
-    ) -> typing.Tuple[Collection, Any]:
-        strefs = []
-
-        for st in self.get_subtypes(schema):
-            st_ref, _ = st._reduce_to_ref(schema)
-            strefs.append(st_ref)
-
-        return (
-            self.__class__.from_subtypes(
-                schema, strefs, typemods=self.get_typemods(schema)),
-            (self.__class__, tuple(r.get_name(schema) for r in strefs))
-        )
-
-    def _resolve_ref(self, schema: s_schema.Schema) -> Collection:
-        if any(hasattr(st, '_resolve_ref')
-               for st in self.get_subtypes(schema)):
-
-            subtypes = []
-            for st in self.get_subtypes(schema):
-                subtypes.append(st._resolve_ref(schema))
-
-            return self.__class__.from_subtypes(
-                schema, subtypes, typemods=self.get_typemods(schema))
-        else:
-            return self
 
     def __repr__(self) -> str:
         return (
@@ -1233,12 +1088,6 @@ class SchemaAnonymousCollection(SchemaCollection):
     )
 
 
-# Breaking Liskov Substitution Principle on _reduce_to_ref
-class SchemaArrayRef(BaseArray, so.ObjectRef):  # type: ignore
-    def _resolve_ref(self, schema: s_schema.Schema) -> SchemaArray:
-        return schema.get_global(SchemaArray, self.get_name(schema))
-
-
 class BaseSchemaArray(SchemaCollection, BaseArray):
 
     element_type = so.SchemaField(
@@ -1256,15 +1105,6 @@ class BaseSchemaArray(SchemaCollection, BaseArray):
 
     def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
         return (self.get_element_type(schema),)
-
-    # Breaking Liskov Substitution Principle
-    def _reduce_to_ref(  # type: ignore
-        self: BaseArray_T, schema: s_schema.Schema
-    ) -> typing.Tuple[SchemaArrayRef, Any]:
-        # Since this is already a schema object, we should just create
-        # a reference by "name".
-        sa_ref = SchemaArrayRef(name=self.get_name(schema))
-        return (sa_ref, (self.__class__, sa_ref.get_name(schema)))
 
 
 class SchemaArray(SchemaAnonymousCollection, BaseSchemaArray,
@@ -1623,38 +1463,6 @@ class BaseTuple(Collection, s_abc.Tuple):
         return all(st.test_polymorphic(schema, ot)
                    for st, ot in zip(self_subtypes, other_subtypes))
 
-    def _reduce_to_ref(
-        self, schema: s_schema.Schema
-    ) -> typing.Tuple[BaseTuple, Any]:
-        strefs: Dict[str, Type] = {}
-
-        for n, st in self.iter_subtypes(schema):
-            st_ref, _ = st._reduce_to_ref(schema)
-            strefs[n] = typing.cast(Type, st_ref)
-
-        return (
-            self.__class__.from_subtypes(
-                schema, strefs, typemods=self.get_typemods(schema)),
-            (
-                self.__class__,
-                tuple(r.get_name(schema) for r in strefs.values()),
-            )
-        )
-
-    def _resolve_ref(
-        self: BaseTuple_T, schema: s_schema.Schema
-    ) -> BaseTuple_T:
-        if any(hasattr(st, '_resolve_ref')
-               for st in self.get_subtypes(schema)):
-            subtypes: Dict[str, Type] = {}
-            for st_name, st in self.iter_subtypes(schema):
-                subtypes[st_name] = typing.cast(Type, st._resolve_ref(schema))
-
-            return self.__class__.from_subtypes(
-                schema, subtypes, typemods=self.get_typemods(schema))
-        else:
-            return self
-
     def material_type(
         self: BaseTuple_T, schema: s_schema.Schema
     ) -> BaseTuple_T:
@@ -1815,16 +1623,6 @@ class Tuple(EphemeralCollection, BaseTuple):
         self.__dict__.update(state)
 
 
-# Breaking Liskov Substitution Principle
-class SchemaTupleRef(BaseTuple, so.ObjectRef):  # type: ignore
-
-    def _resolve_ref(  # type: ignore
-        self,
-        schema: s_schema.Schema,
-    ) -> SchemaTuple:
-        return schema.get_global(SchemaTuple, self.get_name(schema))
-
-
 class BaseSchemaTuple(SchemaCollection, BaseTuple):
 
     named = so.SchemaField(  # type: ignore
@@ -1860,15 +1658,6 @@ class BaseSchemaTuple(SchemaCollection, BaseTuple):
             return self.element_types.objects(schema)
         else:
             return []
-
-    # Breaking Liskov Substitution Principle
-    def _reduce_to_ref(  # type: ignore
-        self, schema: s_schema.Schema
-    ) -> typing.Tuple[SchemaTupleRef, Any]:
-        # Since this is already a schema object, we should just create
-        # a reference by "name".
-        sa_ref = SchemaTupleRef(name=self.get_name(schema))
-        return (sa_ref, (self.__class__, sa_ref.name))
 
 
 class SchemaTuple(SchemaAnonymousCollection, BaseSchemaTuple,

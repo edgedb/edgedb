@@ -941,7 +941,7 @@ class CreateReferencedInheritingObject(
             ]
         else:
             assert isinstance(bases, so.ObjectList)
-            base_names = list(bases.names(schema, allow_unresolved=True))
+            base_names = list(bases.names(schema))
 
         # Filter out explicit bases
         implicit_bases = [

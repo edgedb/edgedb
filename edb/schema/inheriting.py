@@ -680,7 +680,7 @@ class CreateInheritingObject(
                 base_names.append(b.name)
         else:
             assert isinstance(bases, so.ObjectList)
-            base_names = list(bases.names(schema, allow_unresolved=True))
+            base_names = list(bases.names(schema))
 
         # Filter out implicit bases
         explicit_bases = [
