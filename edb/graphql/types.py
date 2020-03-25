@@ -27,7 +27,7 @@ from graphql import (
     GraphQLInterfaceType,
     GraphQLInputObjectType,
     GraphQLField,
-    GraphQLInputObjectField,
+    GraphQLInputField as GraphQLInputObjectField,
     GraphQLArgument,
     GraphQLList,
     GraphQLNonNull,
@@ -78,7 +78,7 @@ def coerce_bigint(value):
 
 
 def parse_int_literal(ast):
-    if isinstance(ast, gql_ast.IntValue):
+    if isinstance(ast, gql_ast.IntValueNode):
         return int(ast.value)
     return None
 
@@ -105,7 +105,7 @@ GraphQLBigint = GraphQLScalarType(
 
 
 def parse_decimal_literal(ast):
-    if isinstance(ast, (gql_ast.FloatValue, gql_ast.IntValue)):
+    if isinstance(ast, (gql_ast.FloatValueNode, gql_ast.IntValueNode)):
         return float(ast.value)
     return None
 
@@ -242,13 +242,18 @@ class GQLCoreSchema:
     def get_gql_name(self, name):
         module, shortname = name.split('::', 1)
         if module in {'default', 'std'}:
-            return shortname
+            if shortname.startswith('__'):
+                return '_edb' + shortname
+            else:
+                return shortname
         else:
+            assert module != '', f'get_gl_name {name=}'
             return f'{module}__{shortname}'
 
     def get_input_name(self, inputtype, name):
         if '__' in name:
             module, shortname = name.split('__', 1)
+            assert module != '', f'get_input_name {name=}'
             return f'{module}__{inputtype}{shortname}'
         else:
             return f'{inputtype}{name}'
@@ -1109,6 +1114,7 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         if module in {'default', 'std'}:
             return f'{shortname}_Type'
         else:
+            assert module != '', 'gql_typename ' + module
             return f'{module}__{shortname}_Type'
 
     @property

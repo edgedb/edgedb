@@ -55,7 +55,7 @@ RUNTIME_DEPS = [
     'typing_inspect~=0.5.0',
     'uvloop~=0.14.0',
 
-    'graphql-core~=2.2.1',
+    'graphql-core~=3.0.3',
     'promise~=2.2.0',
 
     'edgedb>=0.8.0a1',

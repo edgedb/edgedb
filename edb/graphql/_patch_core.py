@@ -22,7 +22,7 @@ from __future__ import annotations
 
 def patch_graphql_core():
     import graphql
-    import graphql.utils.type_comparators as type_comparators
+    import graphql.utilities.type_comparators as type_comparators
 
     old_is_type_sub_type_of = type_comparators.is_type_sub_type_of
 

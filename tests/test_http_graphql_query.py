@@ -239,7 +239,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_query_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Cannot query field "Bogus" on type "Query"',
+                r"Cannot query field 'Bogus' on type 'Query'",
                 _line=3, _col=21):
             self.graphql_query(r"""
                 query {
@@ -256,7 +256,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_query_06(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Cannot query field "bogus" on type "User"',
+                r"Cannot query field 'bogus' on type 'User'",
                 _line=5, _col=25):
             self.graphql_query(r"""
                 query {
@@ -274,7 +274,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_query_07(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Cannot query field "age" on type "NamedObject"',
+                r"Cannot query field 'age' on type 'NamedObject'",
                 _line=5, _col=25):
             self.graphql_query(r"""
                 query {
@@ -423,7 +423,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         # Test special case errors.
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"Cannot query field \"gibberish\" on type \"Query\"\. "
+                r"Cannot query field 'gibberish' on type 'Query'\. "
                 r"There's no corresponding type or alias \"gibberish\" "
                 r"exposed in EdgeDB\. Please check the configuration settings "
                 r"for this port to make sure that you're connecting to the "
@@ -439,7 +439,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         # Test special case errors.
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"Cannot query field \"more__gibberish\" on type \"Query\"\. "
+                r"Cannot query field 'more__gibberish' on type 'Query'\. "
                 r"There's no corresponding type or alias \"more::gibberish\" "
                 r"exposed in EdgeDB\. Please check the configuration settings "
                 r"for this port to make sure that you're connecting to the "
@@ -455,8 +455,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         # Test special case errors.
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"Cannot query field \"Uxer\" on type \"Query\"\. "
-                r"Did you mean \"User\"\?",
+                r"Cannot query field 'Uxer' on type 'Query'\. "
+                r"Did you mean 'User'\?",
                 _line=3, _col=21):
             self.graphql_query(r"""
                 query {
@@ -1138,8 +1138,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_arguments_18(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type "String", found 42',
-                _line=3, _col=34):
+                r'Expected type String, found 42',
+                _line=3, _col=46):
             self.graphql_query(r"""
                 query {
                     User(filter: {name: {eq: 42}}) {
@@ -1151,8 +1151,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_arguments_19(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type "String", found 20\.5',
-                _line=3, _col=34):
+                r'Expected type String, found 20\.5',
+                _line=3, _col=46):
             self.graphql_query(r"""
                 query {
                     User(filter: {name: {eq: 20.5}}) {
@@ -1164,8 +1164,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_arguments_20(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type "Float", found "3\.5"',
-                _line=3, _col=34):
+                r'Expected type Float, found "3\.5"',
+                _line=3, _col=47):
             self.graphql_query(r"""
                 query {
                     User(filter: {score: {eq: "3.5"}}) {
@@ -1177,8 +1177,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_arguments_21(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type "Boolean", found 0',
-                _line=3, _col=34):
+                r'Expected type Boolean, found 0\.',
+                _line=3, _col=48):
             self.graphql_query(r"""
                 query {
                     User(filter: {active: {eq: 0}}) {
@@ -1462,8 +1462,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_fragment_type_04(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'userFrag cannot be spread.*?'
-                r'UserGroup can never be of type User',
+                r"Fragment 'userFrag' cannot be spread here "
+                r"as objects of type 'UserGroup' can never be of type 'User'.",
                 _line=9, _col=25):
             self.graphql_query(r"""
                 fragment userFrag on User {
@@ -1481,8 +1481,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_fragment_type_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'userFrag cannot be spread.*?'
-                r'UserGroup can never be of type User',
+                r"Fragment 'userFrag' cannot be spread here "
+                r"as objects of type 'UserGroup' can never be of type 'User'.",
                 _line=8, _col=21):
             self.graphql_query(r"""
                 fragment userFrag on User {
@@ -1560,7 +1560,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_fragment_type_08(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                'Cannot query field "age" on type "NamedObject"',
+                "Cannot query field 'age' on type 'NamedObject'",
                 _line=5, _col=21):
             self.graphql_query(r"""
                 fragment frag on NamedObject {
@@ -1579,7 +1579,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_fragment_type_09(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                'Cannot query field "age" on type "NamedObject"',
+                "Cannot query field 'age' on type 'NamedObject'",
                 _line=7, _col=29):
             self.graphql_query(r"""
                 query {
@@ -1827,7 +1827,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_directives_07(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                'invalid value "true"',
+                'Expected type Boolean!, found "true".',
                 _line=4, _col=43):
             self.graphql_query(r"""
                 query {
@@ -1971,7 +1971,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_scalars_03(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Cannot query field "p_bytes" on type "ScalarTest"',
+                r"Cannot query field 'p_bytes' on type 'ScalarTest'",
                 _line=4, _col=25):
             self.graphql_query(r"""
                 query {
@@ -1984,7 +1984,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_scalars_04(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Cannot query field "p_array_json" on type "ScalarTest"',
+                r"Cannot query field 'p_array_json' on type 'ScalarTest'",
                 _line=4, _col=25):
             self.graphql_query(r"""
                 query {
@@ -1997,7 +1997,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_scalars_05(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Cannot query field "p_array_bytes" on type "ScalarTest"',
+                r"Cannot query field 'p_array_bytes' on type 'ScalarTest'",
                 _line=4, _col=25):
             self.graphql_query(r"""
                 query {
@@ -2139,7 +2139,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
-    @test.xfail('graphql parser has an issue here')
     def test_graphql_functional_duplicates_06(self):
         self.assert_graphql_query_result(r"""
             query {
@@ -2258,6 +2257,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         )
 
+    @test.xfail('seems graphql-core 3.x disabled Int to Float casting')
     def test_graphql_functional_variables_03(self):
         self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
@@ -2289,19 +2289,21 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     def test_graphql_functional_variables_05(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'val. of type "Boolean!" is required and '
-                r'will not use the default value',
-                _line=2, _col=40):
-            self.graphql_query(r"""
-                query($val: Boolean! = true) {
-                    User {
-                        name @include(if: $val),
-                        id
-                    }
+        self.assert_graphql_query_result(r"""
+            query($val: Boolean! = true) {
+                User(order: {name: {dir: ASC}}) {
+                    name @include(if: $val),
+                    id
                 }
-            """)
+            }
+        """, {
+            "User": [
+                {"name": "Alice"},
+                {"name": "Bob"},
+                {"name": "Jane"},
+                {"name": "John"},
+            ]
+        })
 
     def test_graphql_functional_variables_06(self):
         with self.assertRaisesRegex(
@@ -2352,6 +2354,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             "User": []
         })
 
+    @test.xfail('seems graphql-core 3.x disabled Int to Float casting')
     def test_graphql_functional_variables_10(self):
         self.assert_graphql_query_result(r"""
             query($val: Int = 3) {
@@ -2377,8 +2380,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_12(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "Boolean" '
-                r'has invalid default value: 1',
+                r'Expected type Boolean, found 1\.',
                 _line=2, _col=39):
             self.graphql_query(r"""
                 query($val: Boolean = 1) {
@@ -2392,8 +2394,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_13(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "Boolean" '
-                r'has invalid default value: "1"',
+                r'Expected type Boolean, found "1"\.',
                 _line=2, _col=39):
             self.graphql_query(r"""
                 query($val: Boolean = "1") {
@@ -2407,8 +2408,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_14(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "Boolean" '
-                r'has invalid default value: 1\.3',
+                r'Expected type Boolean, found 1\.3\.',
                 _line=2, _col=39):
             self.graphql_query(r"""
                 query($val: Boolean = 1.3) {
@@ -2422,8 +2422,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_15(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "String" '
-                r'has invalid default value: 1',
+                r'Expected type String, found 1\.',
                 _line=2, _col=38):
             self.graphql_query(r"""
                 query($val: String = 1) {
@@ -2436,8 +2435,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_16(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "String" '
-                r'has invalid default value: 1\.1',
+                r'Expected type String, found 1\.1\.',
                 _line=2, _col=38):
             self.graphql_query(r"""
                 query($val: String = 1.1) {
@@ -2450,8 +2448,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_17(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "String" '
-                r'has invalid default value: true',
+                r'Expected type String, found true\.',
                 _line=2, _col=38):
             self.graphql_query(r"""
                 query($val: String = true) {
@@ -2464,8 +2461,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_18(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "Int" '
-                r'has invalid default value: 1\.1',
+                r'Expected type Int, found 1\.1\.',
                 _line=2, _col=35):
             self.graphql_query(r"""
                 query($val: Int = 1.1) {
@@ -2478,8 +2474,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_19(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "Int" '
-                r'has invalid default value: "1"',
+                r'Expected type Int, found "1".',
                 _line=2, _col=35):
             self.graphql_query(r"""
                 query($val: Int = "1") {
@@ -2492,8 +2487,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_20(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "Int" '
-                r'has invalid default value: true',
+                r'Expected type Int, found true.',
                 _line=2, _col=35):
             self.graphql_query(r"""
                 query($val: Int = true) {
@@ -2506,8 +2500,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_21(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "Float" '
-                r'has invalid default value: "1"',
+                r'Expected type Float, found "1".',
                 _line=2, _col=37):
             self.graphql_query(r"""
                 query($val: Float = "1") {
@@ -2520,8 +2513,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_22(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "Float" '
-                r'has invalid default value: true',
+                r'Expected type Float, found true.',
                 _line=2, _col=37):
             self.graphql_query(r"""
                 query($val: Float = true) {
@@ -2545,8 +2537,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_25(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "ID" '
-                r'has invalid default value: 1\.1',
+                r'Expected type ID, found 1\.1\.',
                 _line=2, _col=34):
             self.graphql_query(r"""
                 query($val: ID = 1.1) {
@@ -2559,8 +2550,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_26(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "ID" '
-                r'has invalid default value: true',
+                r'Expected type ID, found true\.',
                 _line=2, _col=34):
             self.graphql_query(r"""
                 query($val: ID = true) {
@@ -2573,8 +2563,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_27(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "\[String\]" '
-                r'used in position expecting type "String"'):
+                r"Variable '\$val' of type '\[String\]' used in position "
+                r"expecting type 'String'\."):
             self.graphql_query(r"""
                 query($val: [String] = "Foo") {
                     User(filter: {name: {eq: $val}}) {
@@ -2586,8 +2576,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_28(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "\[String\]" '
-                r'used in position expecting type "String"'):
+                r"Variable '\$val' of type '\[String\]' used in position "
+                r"expecting type 'String'\."):
             self.graphql_query(r"""
                 query($val: [String]) {
                     User(filter: {name: {eq: $val}}) {
@@ -2599,8 +2589,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_29(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "\[String\]!" '
-                r'used in position expecting type "String"'):
+                r"Variable '\$val' of type '\[String\]!' used in position "
+                r"expecting type 'String'."):
             self.graphql_query(r"""
                 query($val: [String]!) {
                     User(filter: {name: {eq: $val}}) {
@@ -2624,9 +2614,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_31(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "\[String\]" '
-                r'has invalid default value: \["Foo", 123\]',
-                _line=2, _col=40):
+                r"Expected type String, found 123\.",
+                _line=2, _col=48):
             self.graphql_query(r"""
                 query($val: [String] = ["Foo", 123]) {
                     User(filter: {name: {eq: $val}}) {
@@ -2638,8 +2627,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_32(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'val. of type "\[String\]" '
-                r'used in position expecting type "String"'):
+                r"Variable '\$val' of type '\[String\]' used in position "
+                r"expecting type 'String'\."):
             self.graphql_query(r"""
                 query($val: [String]) {
                     User(filter: {name: {eq: $val}}) {
@@ -2768,8 +2757,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_38(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Variable "limit" of type "String!" used in '
-                r'position expecting type "Int"'):
+                r"Variable '\$limit' of type 'String!' used in position "
+                r"expecting type 'Int'."):
             self.graphql_query(
                 r"""
                     query($limit: String!) {
@@ -2808,8 +2797,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_enum_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'Expected type "String", found admin',
-                _line=4, _col=39):
+                r'Expected type String, found admin\.',
+                _line=4, _col=51):
             self.graphql_query(r"""
                 query {
                     # enum supplied instead of a string
