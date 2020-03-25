@@ -67,6 +67,9 @@ jobs:
         # and don't want them to be reinstalled in an "isolated env".
         pip install --no-use-pep517 --no-deps -e .[test,docs]
 
+    - name: Cargo test
+      uses: actions-rs/cargo@v1
+
     - name: Test
       run: |
         edb test -j2 -v
