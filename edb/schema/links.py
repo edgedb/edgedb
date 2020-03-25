@@ -53,7 +53,7 @@ def merge_actions(
     field_name: str,
     *,
     schema: s_schema.Schema,
-) -> object:
+) -> Any:
     ours = target.get_explicit_local_field_value(schema, field_name, None)
     if ours is None:
         current = None
