@@ -309,6 +309,22 @@ ends if:
 * a :ref:`ref_protocol_msg_sync` message is received.
 
 
+.. _ref_protocol_dump_flow:
+
+Dump Database Flow
+------------------
+
+Backup flow goes as following:
+
+1. Client sends :ref:`ref_protocol_msg_dump` message
+2. Server sends :ref:`ref_protocol_msg_dump_header` message
+3. Server sends one or more :ref:`ref_protocol_msg_dump_block` messages
+4. Server sends :ref:`ref_protocol_msg_command_complete` message
+
+Usually client should send :ref:`ref_protocol_msg_sync` after ``Dump`` message
+to finish implicit transaction.
+
+
 Termination
 ===========
 
