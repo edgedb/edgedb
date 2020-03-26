@@ -10,8 +10,8 @@ edgeql-parser = {path = "../edgeql-parser"}
 combine = "4.0.0-beta.1"
 
 [dependencies.cpython]
-git = "git://github.com/dgrunwald/rust-cpython"
-rev = "dabc06c"
+name = "cpython"
+version = "0.4.1"
 features = ["extension-module"]
 
 [lib]

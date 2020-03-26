@@ -33,8 +33,9 @@ dependencies = [
 
 [[package]]
 name = "cpython"
-version = "0.3.0"
-source = "git+git://github.com/dgrunwald/rust-cpython?rev=dabc06c#dabc06c035800514b9a4ccf2f8e1726ce3023c17"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfaf3847ab963e40c4f6dd8d6be279bdf74007ae2413786a0dcbb28c52139a95"
 dependencies = [
  "libc",
  "num-traits",
@@ -103,8 +104,9 @@ dependencies = [
 
 [[package]]
 name = "python3-sys"
-version = "0.3.0"
-source = "git+git://github.com/dgrunwald/rust-cpython?rev=dabc06c#dabc06c035800514b9a4ccf2f8e1726ce3023c17"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90af11779515a1e530af60782d273b59ac79d33b0e253c071a728563957c76d4"
 dependencies = [
  "libc",
  "regex",
