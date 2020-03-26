@@ -4,6 +4,3 @@
 [submodule "edb/server/pgproto"]
 	path = edb/server/pgproto
 	url = https://github.com/MagicStack/py-pgproto.git
-[submodule "edgedb-rust"]
-	path = edgedb-rust
-	url = https://github.com/edgedb/edgedb-rust
