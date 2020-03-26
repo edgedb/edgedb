@@ -12,6 +12,8 @@
 /.local
 /perf.data*
 /build
+/target
+/tmp
 __pycache__/
 .d8_history
 /.eggs
@@ -30,4 +32,4 @@ docs/_build
 /.vscode
 /.pytest_cache
 /.mypy_cache
-
+/.vagga
