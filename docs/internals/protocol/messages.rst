@@ -51,6 +51,9 @@ Messages
     * - :ref:`ref_protocol_msg_ready_for_command`
       - Server is ready for a command.
 
+    * - :ref:`ref_protocol_msg_restore_ready`
+      - Successful response to the :ref:`ref_protocol_msg_restore` message
+
     * - :ref:`ref_protocol_msg_server_handshake`
       - Initial server connection handshake.
 
@@ -89,6 +92,15 @@ Messages
 
     * - :ref:`ref_protocol_msg_optimistic_execute`
       - Optimistically prepare and execute a query.
+
+    * - :ref:`ref_protocol_msg_restore`
+      - Initiate database restore
+
+    * - :ref:`ref_protocol_msg_restore_block`
+      - Next block of database dump
+
+    * - :ref:`ref_protocol_msg_restore_eof`
+      - End of database dump
 
     * - :ref:`ref_protocol_msg_sync`
       - Provide an explicit synchronization point.
@@ -219,6 +231,36 @@ Format:
         // (commands will be rejected until the block is ended).
         IN_FAILED_TRANSACTION = 0x45
     };
+
+
+.. _ref_protocol_msg_restore_ready:
+
+RestoreReady
+============
+
+Sent by: server.
+
+Initial :ref:`ref_protocol_msg_restore` message accepted, ready do receive
+data. See :ref:`ref_protocol_restore_flow`.
+
+Format:
+
+.. code-block:: c
+
+    struct RestoreReady {
+        // Message type ('+')
+        int8                mtype = 0x2b;
+
+        // Length of message contents in bytes,
+        // including self.
+        int32               message_length;
+
+        // A set of extension headers.
+        Headers             headers;
+
+        // Number of parallel jobs for restore, currently always "1"
+        int16               jobs;
+    }
 
 
 .. _ref_protocol_msg_command_complete:
@@ -520,6 +562,90 @@ Format:
         // Encoded argument data.
         bytes           arguments;
     };
+
+
+.. _ref_protocol_msg_restore:
+
+Restore
+=======
+
+Sent by: client.
+
+Initiate restore to the current database.
+See :ref:`ref_protocol_restore_flow`.
+
+Format:
+
+.. code-block:: c
+
+    struct Restore {
+        // Message type ('<')
+        int8                mtype = 0x3c;
+
+        // Length of message contents in bytes,
+        // including self.
+        int32               message_length;
+
+        // A set of extension headers.
+        Headers             headers;
+
+        // Number of parallel jobs for restore, only 1 is supported now
+        int16               jobs;
+
+        // Original DumpHeader packet data excluding mtype and message_length
+        bytes               dump_header[];
+    }
+
+
+.. _ref_protocol_msg_restore_block:
+
+RestoreBlock
+============
+
+Sent by: client.
+
+Send dump file data block.
+See :ref:`ref_protocol_restore_flow`.
+
+Format:
+
+.. code-block:: c
+
+    struct RestoreBlock {
+        // Message type ('=')
+        int8                mtype = 0x3d;
+
+        // Length of message contents in bytes,
+        // including self.
+        int32               message_length;
+
+        // Original DumpBlock packet data excluding mtype and message_length
+        bytes               block_data[];
+    }
+
+
+.. _ref_protocol_msg_restore_eof:
+
+RestoreEof
+==========
+
+Sent by: client.
+
+Notify server that dump is fully uploaded.
+See :ref:`ref_protocol_restore_flow`.
+
+Format:
+
+.. code-block:: c
+
+    struct RestoreEof {
+        // Message type ('.')
+        int8                mtype = 0x2e;
+
+        // Length of message contents in bytes,
+        // including self.
+        int32               message_length;
+    }
 
 
 .. _ref_protocol_msg_optimistic_execute:
