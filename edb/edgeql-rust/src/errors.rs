@@ -22,7 +22,10 @@ impl cpython::PythonObjectWithCheckedDowncast for TokenizerError {
         if TokenizerError::type_object(py).is_instance(py, &obj) {
             Ok(unsafe { PythonObject::unchecked_downcast_from(obj) })
         } else {
-            Err(cpython::PythonObjectDowncastError(py))
+            Err(cpython::PythonObjectDowncastError::new(py,
+                "TokenizerError",
+                TokenizerError::type_object(py),
+            ))
         }
     }
 
@@ -33,7 +36,10 @@ impl cpython::PythonObjectWithCheckedDowncast for TokenizerError {
         if TokenizerError::type_object(py).is_instance(py, obj) {
             Ok(unsafe { PythonObject::unchecked_downcast_borrow_from(obj) })
         } else {
-            Err(cpython::PythonObjectDowncastError(py))
+            Err(cpython::PythonObjectDowncastError::new(py,
+                "TokenizerError",
+                TokenizerError::type_object(py),
+            ))
         }
     }
 }
