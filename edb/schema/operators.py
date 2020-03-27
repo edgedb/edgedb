@@ -172,6 +172,7 @@ class CreateOperator(s_func.CreateCallableObject, OperatorCommand):
         fullname = self.scls.get_name(schema)
         shortname = sn.shortname_from_fullname(fullname)
         return_typemod = self.scls.get_return_typemod(schema)
+        assert isinstance(self.scls, Operator)
         recursive = self.scls.get_recursive(schema)
         derivative_of = self.scls.get_derivative_of(schema)
 
