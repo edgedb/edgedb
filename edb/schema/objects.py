@@ -2003,23 +2003,26 @@ class ObjectIndexByUnqualifiedName(
         return sn.shortname_from_fullname(name).name
 
 
+Key_T = TypeVar("Key_T")
+
+
 class ObjectDict(
+    Generic[Key_T, Object_T],
     ObjectCollection[Object_T],
-    Generic[Object_T],
     container=tuple,
 ):
-    _keys: Tuple[Any, ...]
+    _keys: Tuple[Key_T, ...]
 
     # Breaking the Liskov Substitution Principle
     @classmethod
     def create(  # type: ignore
         cls,
         schema: s_schema.Schema,
-        data: Mapping[Any, Object_T],
-    ) -> ObjectDict[Object_T]:
+        data: Mapping[Key_T, Object_T],
+    ) -> ObjectDict[Key_T, Object_T]:
 
         result = cast(
-            ObjectDict[Object_T],
+            ObjectDict[Key_T, Object_T],
             super().create(schema, data.values()),
         )
 
@@ -2043,39 +2046,45 @@ class ObjectDict(
         items = [f"{self._keys[i]}: {id}" for i, id in enumerate(self._ids)]
         return f'{{{", ".join(items)}}}'
 
-    def keys(self, schema: s_schema.Schema) -> Tuple[Any, ...]:
+    def keys(self, schema: s_schema.Schema) -> Tuple[Key_T, ...]:
         return self._keys
 
-    def values(self, schema: s_schema.Schema) -> Tuple[Object, ...]:
+    def values(self, schema: s_schema.Schema) -> Tuple[Object_T, ...]:
         return self.objects(schema)
 
-    def items(self, schema: s_schema.Schema) -> Tuple[Tuple[Any, Object], ...]:
+    def items(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[Tuple[Key_T, Object_T], ...]:
         return tuple(zip(self._keys, self.objects(schema)))
 
     def as_shell(
         self,
         schema: s_schema.Schema,
-    ) -> ObjectDictShell[Object_T]:
+    ) -> ObjectDictShell[Key_T, Object_T]:
         return ObjectDictShell(
             items={k: o.as_shell(schema) for k, o in self.items(schema)},
             collection_type=type(self),
         )
 
 
-class ObjectDictShell(ObjectCollectionShell[Object_T]):
+class ObjectDictShell(
+    ObjectCollectionShell[Object_T],
+    Generic[Key_T, Object_T],
+):
 
     items: Mapping[Any, ObjectShell]
-    collection_type: Type[ObjectDict[Object_T]]
+    collection_type: Type[ObjectDict[Key_T, Object_T]]
 
     def __init__(
         self,
         items: Mapping[Any, ObjectShell],
-        collection_type: Type[ObjectDict[Object_T]],
+        collection_type: Type[ObjectDict[Key_T, Object_T]],
     ) -> None:
         self.items = items
         self.collection_type = collection_type
 
-    def resolve(self, schema: s_schema.Schema) -> ObjectDict[Object_T]:
+    def resolve(self, schema: s_schema.Schema) -> ObjectDict[Key_T, Object_T]:
         return self.collection_type.create(
             schema,
             {
