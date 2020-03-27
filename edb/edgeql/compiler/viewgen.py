@@ -317,7 +317,8 @@ def _normalize_view_ptr_expr(
                 shape_el.offset or shape_el.limit or
                 base_ptr_is_computable or
                 is_polymorphic or
-                target_typexpr is not None):
+                target_typexpr is not None or
+                ctx.implicit_limit):
 
             if target_typexpr is None:
                 qlexpr = qlast.Path(steps=[source, lexpr])
