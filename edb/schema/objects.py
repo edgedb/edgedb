@@ -250,9 +250,12 @@ class Field(struct.ProtoField, Generic[T]):
                               checked.FrozenCheckedList,
                               checked.FrozenCheckedSet)):
             casted_list = []
+            # Mypy complains about ambiguity and generics in class vars here,
+            # although the generic in SingleParameter is clearly a type.
+            valtype = ftype.type  # type: ignore
             for v in value:
-                if v is not None and not isinstance(v, ftype.type):
-                    v = ftype.type(v)
+                if v is not None and not isinstance(v, valtype):
+                    v = valtype(v)
                 casted_list.append(v)
 
             value = casted_list
@@ -1589,11 +1592,18 @@ class ObjectCollectionDuplicateNameError(Exception):
 
 class ObjectCollection(
     s_abc.ObjectContainer,
-    parametric.ParametricType,
-    parametric.SingleParameter,
+    parametric.SingleParametricType[Object_T],
     Generic[Object_T],
 ):
-    type: ClassVar[Type[Object]] = Object
+
+    # Even though Object_T would be a correct annotation below,
+    # we want the type to default to base `Object` for cases
+    # when a TypeVar is passed as Object_T.  This is a hack,
+    # of course, because, ideally we'd want to at least default
+    # to the bounds or constraints of the TypeVar, or, even better,
+    # pass the actual type at the call site, but there seems to be
+    # no easy solution to do that.
+    type: ClassVar[Type[Object]] = Object  # type: ignore
     _container: ClassVar[Type[CollectionFactory[Any]]]
     _ids: Collection[uuid.UUID]
 
@@ -1602,6 +1612,7 @@ class ObjectCollection(
         *,
         container: Optional[Type[CollectionFactory[Any]]] = None,
     ) -> None:
+        super().__init_subclass__()
         if container is not None:
             cls._container = container
 
@@ -1704,8 +1715,6 @@ class ObjectCollection(
         else:
             raise TypeError(f'object {v!r} has no ID!')
 
-        return v
-
     def ids(self, schema: s_schema.Schema) -> Tuple[uuid.UUID, ...]:
         return tuple(self._ids)
 
@@ -1797,6 +1806,7 @@ class ObjectIndexBase(
         *,
         key: Optional[KeyFunction[Object_T]] = None,
     ) -> None:
+        super().__init_subclass__()
         if key is not None:
             cls._key = key
         elif cls._key is None:

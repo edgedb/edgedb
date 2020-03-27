@@ -21,18 +21,151 @@ from typing import *
 
 import functools
 import types
+import sys
+
+import typing_inspect
 
 
 __all__ = [
     "ParametricType",
-    "SingleParameter",
-    "KeyValueParameter",
+    "SingleParametricType",
+    "KeyValueParametricType",
 ]
 
 
+T = TypeVar("T")
+V = TypeVar("V")
+
+
 class ParametricType:
+
     types: ClassVar[Optional[Tuple[type, ...]]] = None
     _forward_refs: ClassVar[Dict[str, Tuple[int, str]]] = {}
+    _type_param_map: ClassVar[Dict[Any, str]] = {}
+
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+
+        if cls.types is not None:
+            return
+        elif ParametricType in cls.__bases__:
+            cls._init_parametric_base()
+        elif any(issubclass(b, ParametricType) for b in cls.__bases__):
+            cls._init_parametric_user()
+
+    @classmethod
+    def _init_parametric_base(cls) -> None:
+        """Initialize a direct subclass of ParametricType"""
+
+        # Direct subclasses of ParametricType must declare
+        # ClassVar attributes corresponding to the Generic type vars.
+        # For example:
+        #     class P(ParametricType, Generic[T, V]):
+        #         t: ClassVar[Type[T]]
+        #         v: ClassVar[Type[V]]
+
+        params = getattr(cls, '__parameters__', None)
+
+        if not params:
+            raise TypeError(
+                f'{cls} must be declared as Generic'
+            )
+
+        mod = sys.modules[cls.__module__]
+        annos = get_type_hints(cls, mod.__dict__)
+        param_map = {}
+
+        for attr, t in annos.items():
+            if not typing_inspect.is_classvar(t):
+                continue
+
+            args = typing_inspect.get_args(t)
+            # ClassVar constructor should have the check, but be extra safe.
+            assert len(args) == 1
+
+            arg = args[0]
+            if typing_inspect.get_origin(arg) != type:
+                continue
+
+            arg_args = typing_inspect.get_args(arg)
+            # Likewise, rely on Type checking its stuff in the constructor
+            assert len(arg_args) == 1
+
+            if not typing_inspect.is_typevar(arg_args[0]):
+                continue
+
+            if arg_args[0] in params:
+                param_map[arg_args[0]] = attr
+
+        for param in params:
+            if param not in param_map:
+                raise TypeError(
+                    f'{cls.__name__}: missing ClassVar for'
+                    f' generic parameter {param}'
+                )
+
+        cls._type_param_map = param_map
+
+    @classmethod
+    def _init_parametric_user(cls) -> None:
+        """Initialize an indirect descendant of ParametricType."""
+
+        # For ParametricType grandchildren we have to deal with possible
+        # TypeVar remapping and generally check for type sanity.
+
+        ob = getattr(cls, '__orig_bases__', ())
+        for b in ob:
+            if (
+                isinstance(b, type)
+                and issubclass(b, ParametricType)
+                and b is not ParametricType
+            ):
+                raise TypeError(
+                    f'{cls.__name__}: missing one or more type arguments for'
+                    f' base {b.__name__!r}'
+                )
+
+            if not typing_inspect.is_generic_type(b):
+                continue
+
+            org = typing_inspect.get_origin(b)
+            if not isinstance(org, type):
+                continue
+            if not issubclass(org, ParametricType):
+                continue
+
+            base_params = getattr(org, '__parameters__', ())
+
+            args = typing_inspect.get_args(b)
+            expected = len(base_params)
+            if len(args) != expected:
+                raise TypeError(
+                    f'{b.__name__} expects {expected} type arguments'
+                    f' got {len(args)}'
+                )
+
+            base_map = dict(cls._type_param_map)
+            subclass_map = {}
+
+            for i, arg in enumerate(args):
+                if not typing_inspect.is_typevar(arg):
+                    raise TypeError(
+                        f'{b.__name__} expects all arguments to be'
+                        f' TypeVars'
+                    )
+
+                base_typevar = base_params[i]
+                attr = base_map.get(base_typevar)
+                if attr is not None:
+                    subclass_map[arg] = attr
+
+            if len(subclass_map) != len(base_map):
+                raise TypeError(
+                    f'{cls.__name__}: missing one or more type arguments for'
+                    f' base {org.__name__!r}'
+                )
+
+            cls._type_param_map = subclass_map
 
     def __init__(self) -> None:
         if self._forward_refs:
@@ -74,18 +207,26 @@ class ParametricType:
         }
         forward_refs: Dict[str, Tuple[int, str]] = {}
         tuple_to_attr: Dict[int, str] = {}
-        if issubclass(cls, SingleParameter):
-            if len(params) != 1:
-                raise TypeError(f"{cls!r} expects one type parameter")
-            type_dict["type"] = params[0]
-            tuple_to_attr[0] = "type"
-        elif issubclass(cls, KeyValueParameter):
-            if len(params) != 2:
-                raise TypeError(f"{cls!r} expects two type parameters")
-            type_dict["keytype"] = params[0]
-            tuple_to_attr[0] = "keytype"
-            type_dict["valuetype"] = params[1]
-            tuple_to_attr[1] = "valuetype"
+
+        if cls._type_param_map:
+            gen_params = getattr(cls, '__parameters__', ())
+            for i, gen_param in enumerate(gen_params):
+                attr = cls._type_param_map.get(gen_param)
+                if attr:
+                    tuple_to_attr[i] = attr
+
+            expected = len(gen_params)
+            actual = len(params)
+            if expected != actual:
+                raise TypeError(
+                    f"type {cls.__name__!r} expects {expected} type"
+                    f" parameter{'s' if expected != 1 else ''},"
+                    f" got {actual}"
+                )
+
+            for i, attr in tuple_to_attr.items():
+                type_dict[attr] = params[i]
+
         if not all(isinstance(param, type) for param in params):
             if all(type(param) == TypeVar for param in params):
                 # All parameters are type variables: return the regular generic
@@ -143,13 +284,15 @@ class ParametricType:
         )
 
 
-class SingleParameter:
-    type: ClassVar[type]
+class SingleParametricType(ParametricType, Generic[T]):
+
+    type: ClassVar[Type[T]]
 
 
-class KeyValueParameter:
-    keytype: ClassVar[type]
-    valuetype: ClassVar[type]
+class KeyValueParametricType(ParametricType, Generic[T, V]):
+
+    keytype: ClassVar[Type[T]]
+    valuetype: ClassVar[Type[V]]
 
 
 def _type_repr(obj: Any) -> str:

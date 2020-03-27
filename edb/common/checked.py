@@ -41,7 +41,9 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class ParametricContainer(parametric.ParametricType):
+class ParametricContainer:
+
+    types: ClassVar[Optional[Tuple[type, ...]]] = None
 
     def __reduce__(self) -> Tuple[Any, ...]:
         assert self.types is not None, f'missing parameters in {type(self)}'
@@ -113,7 +115,7 @@ class AbstractCheckedList(Generic[T]):
 
 class FrozenCheckedList(
     ParametricContainer,
-    parametric.SingleParameter,
+    parametric.SingleParametricType[T],
     AbstractCheckedList[T],
     Sequence[T],
 ):
@@ -166,7 +168,7 @@ class FrozenCheckedList(
 
 class CheckedList(
     ParametricContainer,
-    parametric.SingleParameter,
+    parametric.SingleParametricType[T],
     AbstractCheckedList[T],
     MutableSequence[T],
 ):
@@ -323,7 +325,7 @@ class AbstractCheckedSet(AbstractSet[T]):
 
 class FrozenCheckedSet(
     ParametricContainer,
-    parametric.SingleParameter,
+    parametric.SingleParametricType[T],
     AbstractCheckedSet[T],
 ):
     def __init__(self, iterable: Iterable[T] = ()) -> None:
@@ -397,7 +399,7 @@ class FrozenCheckedSet(
 
 class CheckedSet(
     ParametricContainer,
-    parametric.SingleParameter,
+    parametric.SingleParametricType[T],
     AbstractCheckedSet[T],
     MutableSet[T],
 ):
@@ -554,7 +556,7 @@ class AbstractCheckedDict(Generic[K, V]):
 
 class CheckedDict(
     ParametricContainer,
-    parametric.KeyValueParameter,
+    parametric.KeyValueParametricType[K, V],
     AbstractCheckedDict[K, V],
     MutableMapping[K, V],
 ):
