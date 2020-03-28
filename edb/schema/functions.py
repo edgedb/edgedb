@@ -362,10 +362,10 @@ class ParameterCommandContext(sd.ObjectCommandContext[Parameter]):
     pass
 
 
-# type ignore below, because adding [Parameter] and consequently making
-# Parameter a referencing.ReferencedObject breaks the code
+# type ignore below, because making Parameter
+# a referencing.ReferencedObject breaks the code
 class ParameterCommand(
-    referencing.StronglyReferencedObjectCommand,  # type: ignore
+    referencing.StronglyReferencedObjectCommand[Parameter],  # type: ignore
     schema_metaclass=Parameter,
     context_class=ParameterCommandContext,
     referrer_context_class=CallableCommandContext
@@ -699,7 +699,7 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
     ) -> so.ObjectList[Parameter]:
         params = []
         for cr_param in self.get_subcommands(type=ParameterCommand):
-            param: Parameter = schema.get(cr_param.classname)
+            param = schema.get(cr_param.classname, type=Parameter)
             params.append(param)
         return FuncParameterList.create(schema, params)
 
