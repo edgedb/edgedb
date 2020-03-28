@@ -1084,7 +1084,6 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
                     f'invalid default value {p_default.text!r} of parameter '
                     f'{p.get_displayname(schema)!r}: {ex}',
                     context=self.source_context)
-            # 024
             assert isinstance(ir_default, irast.Statement)
 
             check_default_type = True
@@ -1124,7 +1123,6 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         context: sd.CommandContext
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        # 002
         assert isinstance(astnode, qlast.CreateFunction)
 
         if astnode.code is not None:
