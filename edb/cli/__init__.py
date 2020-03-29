@@ -18,7 +18,10 @@
 
 
 from __future__ import annotations
+from typing import *  # NoQA
 
+import os
+import pathlib
 import sys
 
 import click
@@ -43,6 +46,11 @@ def cli(ctx):
 def cli_dev():
     dm.enable_dev_mode()
     cli()
+
+
+def rustcli() -> NoReturn:
+    thisdir = pathlib.Path(__file__).parent
+    os.execve(str(thisdir / 'edgedb'), sys.argv, os.environ)
 
 
 # Import subcommands to register them
