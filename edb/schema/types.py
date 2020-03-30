@@ -1511,7 +1511,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         ct.set_attribute_value('named', self.is_named(schema))
         ct.set_attribute_value(
             'element_types',
-            so.ObjectDict[Type].create(
+            so.ObjectDict[str, Type].create(
                 schema,
                 dict(self.iter_subtypes(schema)),
             ))
@@ -1610,7 +1610,7 @@ class Tuple(EphemeralCollection, BaseTuple):
             id=self.id,
             name=str(self.id),
             named=self.named,
-            element_types=so.ObjectDict[Type].create(schema, el_types),
+            element_types=so.ObjectDict[str, Type].create(schema, el_types),
         )
 
     def __getstate__(self) -> Dict[str, Any]:
@@ -1632,7 +1632,7 @@ class BaseSchemaTuple(SchemaCollection, BaseTuple):
     )
 
     element_types = so.SchemaField(  # type: ignore
-        so.ObjectDict[Type],
+        so.ObjectDict[str, Type],
         coerce=True,
         # We want a low compcoef so that tuples are *never* altered.
         compcoef=0,
@@ -1647,12 +1647,10 @@ class BaseSchemaTuple(SchemaCollection, BaseTuple):
     def iter_subtypes(
         self, schema: s_schema.Schema
     ) -> Iterator[typing.Tuple[str, Type]]:
-        # TODO: SchemaFields need to be made generic in the Mypy plugin
-        yield from self.get_element_types(schema).items(schema)  # type: ignore
+        yield from self.get_element_types(schema).items(schema)
 
     def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
-        # TODO: SchemaFields need to be made generic in the Mypy plugin
-        return self.get_element_types(schema).values(schema)  # type: ignore
+        return self.get_element_types(schema).values(schema)
 
         if self.element_types:
             return self.element_types.objects(schema)

@@ -2548,6 +2548,19 @@ class TestServerProtoDDL(tb.NonIsolatedDDLTestCase):
                 r"""
                     WITH MODULE test
                     SELECT FL_B {
+                        a,
+                    } ORDER BY .n
+                """,
+                __limit__=2
+            )
+
+            self.assertEqual(len(result), 2)
+            self.assertEqual(len(result[0].a), 2)
+
+            result = await self.con._fetchall(
+                r"""
+                    WITH MODULE test
+                    SELECT FL_B {
                         a ORDER BY .n,
                         a_arr := array_agg(.a)
                     } ORDER BY .n

@@ -33,8 +33,8 @@ to find the matching objects:
 
     SELECT User FILTER User.name = 'Alice';
 
-Indexes may be defined using an arbitrary expression that references properties
-of the host object type:
+Indexes may be defined using an arbitrary expression that references
+properties of the host object type:
 
 .. code-block:: sdl
 
@@ -69,6 +69,10 @@ its *subject*:
         index on (.name);
     }
 
+There's no need to create an index on just the link itself, as indexes
+are already created for links implicitly. Also, as a special case,
+adding the :eql:constraint:`exclusive` constraint to a property
+implicitly creates an index for it as well.
 
 .. note::
 

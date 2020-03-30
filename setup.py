@@ -73,10 +73,12 @@ BUILD_DEPS = [
     CYTHON_DEPENDENCY,
 ]
 
-PYCODESTYLE_REPO = 'http://github.com/PyCQA/pycodestyle'
+EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
+
+PYCODESTYLE_REPO = 'https://github.com/PyCQA/pycodestyle'
 PYCODESTYLE_COMMIT = 'd69c15eb7ecf77e94988fb55207a78936b48079c'
 
-PYFLAKES_REPO = 'http://github.com/PyCQA/pyflakes'
+PYFLAKES_REPO = 'https://github.com/PyCQA/pyflakes'
 PYFLAKES_COMMIT = 'be88036019005b769596ca82fb7b82dfdffdca0f'
 
 EXTRA_DEPS = {
@@ -278,8 +280,34 @@ class build(distutils_build.build):
 class develop(setuptools_develop.develop):
 
     def run(self, *args, **kwargs):
+        build = self.get_finalized_command('build')
+        rust_tmp = pathlib.Path(build.build_temp) / 'rust' / 'cli'
+        rust_root = pathlib.Path(build.build_base) / 'cli'
+        env = dict(os.environ)
+        env['CARGO_TARGET_DIR'] = str(rust_tmp)
+
+        subprocess.run(
+            [
+                'cargo', 'install',
+                '--git', EDGEDBCLI_REPO,
+                '--bin', 'edgedb',
+                '--root', rust_root,
+            ],
+            env=env,
+            check=True,
+        )
+
+        shutil.copy(
+            rust_root / 'bin' / 'edgedb',
+            ROOT_PATH / 'edb' / 'cli' / 'edgedb',
+        )
+
         scripts = self.distribution.entry_points['console_scripts']
-        patched_scripts = [s + '_dev' for s in scripts]
+        patched_scripts = []
+        for s in scripts:
+            if 'rustcli' not in s:
+                s = f'{s}_dev'
+            patched_scripts.append(s)
         patched_scripts.append('edb = edb.tools.edb:edbcommands')
         self.distribution.entry_points['console_scripts'] = patched_scripts
 
@@ -453,7 +481,7 @@ class build_ext(distutils_build_ext.build_ext):
 
             build_rust.debug = self.debug
             os.environ['CARGO_TARGET_DIR'] = (
-                str(pathlib.Path(self.build_temp) / 'rust'))
+                str(pathlib.Path(self.build_temp) / 'rust' / 'extensions'))
             build_rust.run()
 
             for src, dst in copy_list:
@@ -467,11 +495,13 @@ if setuptools_rust is not None:
         setuptools_rust.RustExtension(
             "edb._edgeql_rust",
             path="edb/edgeql-rust/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython),
+            binding=setuptools_rust.Binding.RustCPython,
+        ),
         setuptools_rust.RustExtension(
             "edb._graphql_rewrite",
             path="edb/graphql-rewrite/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython),
+            binding=setuptools_rust.Binding.RustCPython,
+        ),
     ]
 else:
     rust_extensions = []
@@ -495,8 +525,9 @@ setuptools.setup(
     },
     entry_points={
         'console_scripts': [
-            'edgedb = edb.cli:cli',
+            'edgedb-old = edb.cli:cli',
             'edgedb-server = edb.server.main:main',
+            'edgedb = edb.cli:rustcli',
         ]
     },
     ext_modules=[

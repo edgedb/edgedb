@@ -70,7 +70,7 @@ class CheckedDictTests(EnsureTypeChecking, unittest.TestCase):
         with self.assertRaises(ValueError):
             StrDict(**{"foo": "bar"})
 
-        with self.assertRaisesRegex(TypeError, "expects two type parameters"):
+        with self.assertRaisesRegex(TypeError, "expects 2 type parameters"):
             # no value type given
             CheckedDict[int]
 
@@ -203,7 +203,7 @@ class CheckedListTestBase(EnsureTypeChecking):
         with self.assertRaisesRegex(TypeError, "must be parametrized"):
             self.BaseList()
 
-        with self.assertRaisesRegex(TypeError, "expects one type parameter"):
+        with self.assertRaisesRegex(TypeError, "expects 1 type parameter"):
             self.BaseList[int, int]()
 
         with self.assertRaisesRegex(TypeError, "already parametrized"):
