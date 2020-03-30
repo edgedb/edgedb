@@ -811,6 +811,10 @@ class CallableObject(ObjectDDL):
     params: typing.List[FuncParam]
 
 
+class AlterCallableObject(AlterObject, CallableObject):
+    pass
+
+
 class CreateConstraint(CreateExtendingObject, CallableObject):
     subjectexpr: typing.Optional[Expr]
     is_abstract: bool = True

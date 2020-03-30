@@ -703,20 +703,6 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
             params.append(param)
         return FuncParameterList.create(schema, params)
 
-    def _alter_innards(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        # type ignore below, because CallableCommand is used as mixin,
-        # in classes where super()._alter_innards is bound
-        schema = super()._alter_innards(schema, context)  # type: ignore
-
-        for op in self.get_subcommands(metaclass=Parameter):
-            schema = op.apply(schema, context=context)
-
-        return schema
-
     @classmethod
     def _get_param_desc_from_ast(
         cls,
@@ -754,6 +740,23 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
             params.append(param)
 
         return schema, params
+
+
+class AlterCallableObject(CallableCommand,
+                          sd.AlterObject[CallableObject]):
+    astnode = qlast.AlterCallableObject
+
+    def _alter_innards(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_innards(schema, context)
+
+        for op in self.get_subcommands(metaclass=Parameter):
+            schema = op.apply(schema, context=context)
+
+        return schema
 
 
 class CreateCallableObject(CallableCommand, sd.CreateObject[CallableObject]):
