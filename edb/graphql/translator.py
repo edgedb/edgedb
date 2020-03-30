@@ -52,9 +52,13 @@ ARG_TYPES = {
 }
 
 REWRITE_TYPE_ERROR = re.compile(
-    r"Variable '\$(?P<var_name>_edb_arg__\d+)' of type 'String!'"
-    r" used in position expecting type '(?P<type>[^']+)'"
+    r"Variable '\$(?P<var_name>_edb_arg__\d+)' of type"
+    r" '(?P<used>String|Int)!'"
+    r" used in position expecting type '(?P<expected>[^']+)'"
 )
+_STR_TYPES = frozenset(("ID", "ID!"))
+_INT_TYPES = frozenset(("Int64", "Int64!", "Bigint", "Decimal"))
+_INT64_TYPES = frozenset(("Bigint", "Decimal"))
 INT_FLOAT_ERROR = re.compile(
     r"Variable '\$[^']+' of type 'Int!?'"
     r" used in position expecting type 'Float!?'"
@@ -1607,19 +1611,25 @@ def convert_errors(
     for err in errs:
         m = REWRITE_TYPE_ERROR.match(err.message)
         if not m:
-            # we allow convefsion from Int to Float, and that is allowed by
+            # we allow conversion from Int to Float, and that is allowed by
             # graphql spec. It's unclear why graphql-core chokes on this
             if INT_FLOAT_ERROR.match(err.message):
                 continue
 
             result.append(err)
             continue
-        if m.group("type") in ("ID", "ID!"):
+        if m.group("used") == "String" and m.group("expected") in _STR_TYPES:
+            # skip the error, we avoid it in the execution code
+            continue
+        if m.group("used") == "Int" and m.group("expected") in _INT_TYPES:
+            # skip the error, we avoid it in the execution code
+            continue
+        if m.group("used") == "Int64" and m.group("expected") in _INT64_TYPES:
             # skip the error, we avoid it in the execution code
             continue
         value, line, col = substitutions[m.group("var_name")]
         err = gql_error.GraphQLError(
-            f"Expected type {m.group('type')}, found {value}.")
+            f"Expected type {m.group('expected')}, found {value}.")
         err.locations = [gql_lang.SourceLocation(line, col)]
         result.append(err)
     return result

@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use edb_graphql_parser::{Pos};
+use num_bigint::BigInt;
 
 use graphql_rewrite::{rewrite, Variable, Value};
 use graphql_rewrite::{PyToken, PyTokenKind};
@@ -255,4 +256,91 @@ fn test_defaults() {
         }
     });
     assert_eq!(entry.defaults, defaults);
+}
+
+#[test]
+fn test_int32() {
+    let entry = rewrite(None, r###"
+        query {
+            object(filter: {field: {eq: 17}}) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query($_edb_arg__0:Int!){\
+            object(filter:{field:{eq:$_edb_arg__0}}){\
+                field\
+            }\
+        }\
+    ");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            token: PyToken {
+                kind: PyTokenKind::Int,
+                value: r#"17"#.into(),
+                position: Some(Pos { line: 3, column: 41,
+                                     character: 57, token: 12 }),
+            },
+            value: Value::Int32(17),
+        }
+    ]);
+}
+
+#[test]
+fn test_int64() {
+    let entry = rewrite(None, r###"
+        query {
+            object(filter: {field: {eq: 17123456790}}) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query($_edb_arg__0:Int64!){\
+            object(filter:{field:{eq:$_edb_arg__0}}){\
+                field\
+            }\
+        }\
+    ");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            token: PyToken {
+                kind: PyTokenKind::Int,
+                value: r#"17123456790"#.into(),
+                position: Some(Pos { line: 3, column: 41,
+                                     character: 57, token: 12 }),
+            },
+            value: Value::Int64(17123456790),
+        }
+    ]);
+}
+
+#[test]
+fn test_bigint() {
+    let entry = rewrite(None, r###"
+        query {
+            object(filter: {field: {eq: 171234567901234567890}}) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query($_edb_arg__0:Bigint!){\
+            object(filter:{field:{eq:$_edb_arg__0}}){\
+                field\
+            }\
+        }\
+    ");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            token: PyToken {
+                kind: PyTokenKind::Int,
+                value: r#"171234567901234567890"#.into(),
+                position: Some(Pos { line: 3, column: 41,
+                                     character: 57, token: 12 }),
+            },
+            value: Value::BigInt("171234567901234567890".into()),
+        }
+    ]);
 }

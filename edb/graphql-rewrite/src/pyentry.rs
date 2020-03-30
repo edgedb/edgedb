@@ -1,5 +1,5 @@
 use cpython::{Python, PyClone, ToPyObject, PythonObject, ObjectProtocol};
-use cpython::{PyString, PyResult, PyTuple, PyDict, PyList, PyObject};
+use cpython::{PyString, PyResult, PyTuple, PyDict, PyList, PyObject, PyInt};
 
 use edb_graphql_parser::common::{unquote_string, unquote_block_string};
 use edb_graphql_parser::position::Pos;
@@ -155,7 +155,23 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
                 let s = format!("_edb_arg__{}", idx).to_py_object(py);
                 vars.set_item(py, s.clone_ref(py),
                     match var.value {
-                        Value::Str(ref s) => PyString::new(py, s),
+                        Value::Str(ref v) => {
+                            PyString::new(py, v).into_object()
+                        }
+                        Value::Int32(v) => {
+                            v.to_py_object(py).into_object()
+                        }
+                        Value::Int64(v) => {
+                            v.to_py_object(py).into_object()
+                        }
+                        Value::BigInt(ref v) => {
+                            py.get_type::<PyInt>()
+                            .call(py,
+                                PyTuple::new(py, &[
+                                    v.to_py_object(py).into_object(),
+                                ]),
+                                None)?
+                        }
                         _ => todo!(),
                     })?;
                 substitutions.set_item(py, s.clone_ref(py), (

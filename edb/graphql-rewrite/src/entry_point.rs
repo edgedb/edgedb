@@ -7,6 +7,7 @@ use edb_graphql_parser::query::Definition;
 use edb_graphql_parser::query::{Operation, InsertVars, InsertVarsKind};
 use edb_graphql_parser::query::{Document, parse_query, ParseError};
 use edb_graphql_parser::tokenizer::Kind::{StringValue, BlockString};
+use edb_graphql_parser::tokenizer::Kind::{IntValue};
 use edb_graphql_parser::tokenizer::{TokenStream, Token};
 use edb_graphql_parser::common::{unquote_string, Type};
 
@@ -17,7 +18,9 @@ use crate::token_vec::TokenVec;
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Str(String),
-    Int(i32),
+    Int32(i32),
+    Int64(i64),
+    BigInt(String),
     Float(f64),
 }
 
@@ -228,6 +231,61 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 args.push(PyToken {
                     kind: P::Name,
                     value: "String".into(),
+                    position: None,
+                });
+                args.push(PyToken {
+                    kind: P::Bang,
+                    value: "!".into(),
+                    position: None,
+                });
+                continue;
+            }
+            IntValue => {
+                let varname = format!("_edb_arg__{}", variables.len());
+                tmp.push(PyToken {
+                    kind: P::Dollar,
+                    value: "$".into(),
+                    position: None,
+                });
+                tmp.push(PyToken {
+                    kind: P::Name,
+                    value: varname.clone().into(),
+                    position: None,
+                });
+                let (value, typ) = if let Ok(val) = token.value.parse::<i64>()
+                {
+                    if val <= i32::max_value() as i64
+                        && val >= i32::min_value() as i64
+                    {
+                        (Value::Int32(val as i32), "Int")
+                    } else {
+                        (Value::Int64(val), "Int64")
+                    }
+                } else {
+                    (Value::BigInt(token.value.into()), "Bigint")
+                };
+                variables.push(Variable {
+                    token: PyToken::new((token, pos))?,
+                    value,
+                });
+                args.push(PyToken {
+                    kind: P::Dollar,
+                    value: "$".into(),
+                    position: None,
+                });
+                args.push(PyToken {
+                    kind: P::Name,
+                    value: varname.into(),
+                    position: None,
+                });
+                args.push(PyToken {
+                    kind: P::Colon,
+                    value: ":".into(),
+                    position: None,
+                });
+                args.push(PyToken {
+                    kind: P::Name,
+                    value: typ.into(),
                     position: None,
                 });
                 args.push(PyToken {
