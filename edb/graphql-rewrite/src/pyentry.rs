@@ -164,7 +164,13 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
                     var.token.position.map(|x| x.column),
                 ).to_py_object(py).into_object())?;
             }
-            // TODO(tailhook) insert defaults
+            for (name, var) in &entry.defaults {
+                vars.set_item(py, name.to_py_object(py),
+                    match var.value {
+                        Value::Str(ref s) => PyString::new(py, s),
+                        _ => todo!(),
+                    })?;
+            }
             Entry::create_instance(py,
                 PyString::new(py, &entry.key),
                 vars,

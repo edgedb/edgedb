@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use edb_graphql_parser::{Pos};
 
 use graphql_rewrite::{rewrite, Variable, Value};
@@ -215,4 +217,42 @@ fn test_other() {
             value: Value::Str("test2".into()),
         }
     ]);
+}
+
+#[test]
+fn test_defaults() {
+    let entry = rewrite(Some("Hello"), r###"
+        query Hello($x: String = "xxx", $y: String! = "yyy") {
+            object(filter: {field: {eq: "test"}}, x: $x, y: $y) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query Hello($x:String!$y:String!$_edb_arg__0:String!){\
+            object(filter:{field:{eq:$_edb_arg__0}}x:$x y:$y){\
+                field\
+            }\
+        }\
+    ");
+    let mut defaults = BTreeMap::new();
+    defaults.insert("x".to_owned(), Variable {
+        value: Value::Str("xxx".into()),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 32,
+                                 character: 32, token: 7 }),
+        },
+    });
+    defaults.insert("y".to_owned(), Variable {
+        value: Value::Str("yyy".into()),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 53,
+                                 character: 53, token: 14 }),
+        }
+    });
+    assert_eq!(entry.defaults, defaults);
 }

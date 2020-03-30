@@ -8,7 +8,7 @@ use edb_graphql_parser::query::{Operation, InsertVars, InsertVarsKind};
 use edb_graphql_parser::query::{Document, parse_query, ParseError};
 use edb_graphql_parser::tokenizer::Kind::{StringValue, BlockString};
 use edb_graphql_parser::tokenizer::{TokenStream, Token};
-use edb_graphql_parser::common::unquote_string;
+use edb_graphql_parser::common::{unquote_string, Type};
 
 use crate::pytoken::{PyToken, PyTokenKind};
 use crate::token_vec::TokenVec;
@@ -120,6 +120,7 @@ fn insert_args(dest: &mut Vec<PyToken>, ins: &InsertVars, args: Vec<PyToken>) {
 }
 
 pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
+    use edb_graphql_parser::query::Value as G;
     use Value::*;
     use crate::pytoken::PyTokenKind as P;
 
@@ -150,7 +151,38 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     let mut tokens = Vec::with_capacity(src_tokens.len());
 
     let mut variables = Vec::new();
+    let mut defaults = BTreeMap::new();
 
+    for var in &oper.variable_definitions {
+        if let Some(ref dvalue) = var.default_value {
+            let value = match (&dvalue.value, &var.var_type) {
+                | (G::String(ref s), Type::NamedType(t)) if t == &"String"
+                => Str(s.clone()),
+                | (G::String(ref s), Type::NonNullType(t))
+                if matches!(**t, Type::NamedType(it) if it == "String")
+                => Str(s.clone()),
+                // other types are unsupported
+                _ => continue,
+            };
+            for tok in src_tokens.drain_to(dvalue.span.0.token) {
+                tokens.push(PyToken::new(tok)?);
+            }
+            if !matches!(var.var_type, Type::NonNullType(..)) {
+                tokens.push(PyToken {
+                    kind: P::Bang,
+                    value: "!".into(),
+                    position: None,
+                });
+            }
+            // first token is needed for errors, others are discarded
+            let pair = src_tokens.drain_to(dvalue.span.1.token)
+                .next().expect("at least one token of default value");
+            defaults.insert(var.name.to_owned(), Variable {
+                value,
+                token: PyToken::new(pair)?,
+            });
+        }
+    }
     for tok in src_tokens.drain_to(oper.insert_variables.position.token) {
         tokens.push(PyToken::new(tok)?);
     }
@@ -219,7 +251,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     return Ok(Entry {
         key: join_tokens(&tokens),
         variables,
-        defaults: BTreeMap::new(),
+        defaults,
         tokens,
         end_pos,
     })
