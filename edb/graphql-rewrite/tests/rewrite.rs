@@ -410,3 +410,41 @@ fn test_first_2() {
         },
     ]);
 }
+
+#[test]
+fn test_defaults_int() {
+    let entry = rewrite(Some("Hello"), r###"
+        query Hello($x: Int = 123, $y: Int! = 1234) {
+            object(x: $x, y: $y) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query Hello($x:Int!$y:Int!){\
+            object(x:$x y:$y){\
+                field\
+            }\
+        }\
+    ");
+    let mut defaults = BTreeMap::new();
+    defaults.insert("x".to_owned(), Variable {
+        value: Value::Int32(123),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 29,
+                                 character: 29, token: 7 }),
+        },
+    });
+    defaults.insert("y".to_owned(), Variable {
+        value: Value::Int32(1234),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 45,
+                                 character: 45, token: 14 }),
+        }
+    });
+    assert_eq!(entry.defaults, defaults);
+}

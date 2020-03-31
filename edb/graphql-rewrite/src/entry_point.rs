@@ -122,6 +122,14 @@ fn insert_args(dest: &mut Vec<PyToken>, ins: &InsertVars, args: Vec<PyToken>) {
     }
 }
 
+fn type_name<'x>(var_type: &'x Type<'x, &'x str>) -> Option<&'x str> {
+    match var_type {
+        Type::NamedType(t) => Some(t),
+        Type::NonNullType(b) => type_name(b),
+        _ => None,
+    }
+}
+
 pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     use edb_graphql_parser::query::Value as G;
     use Value::*;
@@ -158,12 +166,31 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
 
     for var in &oper.variable_definitions {
         if let Some(ref dvalue) = var.default_value {
-            let value = match (&dvalue.value, &var.var_type) {
-                | (G::String(ref s), Type::NamedType(t)) if t == &"String"
-                => Str(s.clone()),
-                | (G::String(ref s), Type::NonNullType(t))
-                if matches!(**t, Type::NamedType(it) if it == "String")
-                => Str(s.clone()),
+            let value = match (&dvalue.value, type_name(&var.var_type)) {
+                (G::String(ref s), Some("String")) => Str(s.clone()),
+                (G::Int(ref s), Some("Int")) | (G::Int(ref s), Some("Int32"))
+                => {
+                    let value = match s.as_i64() {
+                        Some(v)
+                        if v <= i32::max_value() as i64
+                        && v >= i32::min_value() as i64
+                        => v,
+                        // Ignore bad values. Let graphql solver handle that
+                        _ => continue,
+                    };
+                    Int32(value as i32)
+                }
+                (G::Int(ref s), Some("Int64")) => {
+                    let value = match s.as_i64() {
+                        Some(v) => v,
+                        // Ignore bad values. Let graphql solver handle that
+                        _ => continue,
+                    };
+                    Int64(value)
+                }
+                (G::Int(ref s), Some("Bigint")) => {
+                    BigInt(s.as_bigint().to_string())
+                }
                 // other types are unsupported
                 _ => continue,
             };
