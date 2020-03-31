@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use edb_graphql_parser::{Pos};
-use num_bigint::BigInt;
 
 use graphql_rewrite::{rewrite, Variable, Value};
 use graphql_rewrite::{PyToken, PyTokenKind};
@@ -342,5 +341,72 @@ fn test_bigint() {
             },
             value: Value::BigInt("171234567901234567890".into()),
         }
+    ]);
+}
+
+#[test]
+fn test_first_1() {
+    let entry = rewrite(None, r###"
+        query {
+            object(filter: {field: {eq: 1}}, first: 1) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query($_edb_arg__0:Int!){\
+            object(filter:{field:{eq:$_edb_arg__0}}first:1){\
+                field\
+            }\
+        }\
+    ");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            token: PyToken {
+                kind: PyTokenKind::Int,
+                value: r#"1"#.into(),
+                position: Some(Pos { line: 3, column: 41,
+                                     character: 57, token: 12 }),
+            },
+            value: Value::Int32(1),
+        }
+    ]);
+}
+
+#[test]
+fn test_first_2() {
+    let entry = rewrite(None, r###"
+        query {
+            object(filter: {field: {eq: 1}}, first: 2) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query($_edb_arg__0:Int!$_edb_arg__1:Int!){\
+            object(filter:{field:{eq:$_edb_arg__0}}first:$_edb_arg__1){\
+                field\
+            }\
+        }\
+    ");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            token: PyToken {
+                kind: PyTokenKind::Int,
+                value: r#"1"#.into(),
+                position: Some(Pos { line: 3, column: 41,
+                                     character: 57, token: 12 }),
+            },
+            value: Value::Int32(1),
+        },
+        Variable {
+            token: PyToken {
+                kind: PyTokenKind::Int,
+                value: r#"2"#.into(),
+                position: Some(Pos { line: 3, column: 53,
+                                     character: 69, token: 17 }),
+            },
+            value: Value::Int32(2),
+        },
     ]);
 }

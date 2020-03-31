@@ -7,7 +7,7 @@ use edb_graphql_parser::query::Definition;
 use edb_graphql_parser::query::{Operation, InsertVars, InsertVarsKind};
 use edb_graphql_parser::query::{Document, parse_query, ParseError};
 use edb_graphql_parser::tokenizer::Kind::{StringValue, BlockString};
-use edb_graphql_parser::tokenizer::Kind::{IntValue};
+use edb_graphql_parser::tokenizer::Kind::{IntValue, Punctuator, Name};
 use edb_graphql_parser::tokenizer::{TokenStream, Token};
 use edb_graphql_parser::common::{unquote_string, Type};
 
@@ -149,8 +149,8 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
         }
         oper.ok_or_else(|| Error::NotFound("no operation found".into()))?
     };
-    let (tokens, end_pos) = token_array(s)?;
-    let mut src_tokens = TokenVec::new(tokens);
+    let (all_src_tokens, end_pos) = token_array(s)?;
+    let mut src_tokens = TokenVec::new(&all_src_tokens);
     let mut tokens = Vec::with_capacity(src_tokens.len());
 
     let mut variables = Vec::new();
@@ -210,7 +210,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                     position: None,
                 });
                 variables.push(Variable {
-                    token: PyToken::new((token, pos))?,
+                    token: PyToken::new(&(*token, *pos))?,
                     value: Str(unquote_string(token.value)?),
                 });
                 args.push(PyToken {
@@ -241,6 +241,20 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 continue;
             }
             IntValue => {
+                if token.value == "1" {
+                    if pos.token > 2
+                       && all_src_tokens[pos.token-1].0.kind == Punctuator
+                       && all_src_tokens[pos.token-1].0.value == ":"
+                       && all_src_tokens[pos.token-2].0.kind == Name
+                       && all_src_tokens[pos.token-2].0.value == "first"
+                    {
+                        // skip `first: 1` as this is used to fetch singleton
+                        // properties from queries where literal `LIMIT 1`
+                        // should be present
+                        tmp.push(PyToken::new(&(*token, *pos))?);
+                        continue;
+                    }
+                }
                 let varname = format!("_edb_arg__{}", variables.len());
                 tmp.push(PyToken {
                     kind: P::Dollar,
@@ -265,7 +279,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                     (Value::BigInt(token.value.into()), "Bigint")
                 };
                 variables.push(Variable {
-                    token: PyToken::new((token, pos))?,
+                    token: PyToken::new(&(*token, *pos))?,
                     value,
                 });
                 args.push(PyToken {
@@ -297,7 +311,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
             }
             _ => {}
         }
-        tmp.push(PyToken::new((token, pos))?);
+        tmp.push(PyToken::new(&(*token, *pos))?);
     }
     insert_args(&mut tokens, &oper.insert_variables, args);
     tokens.extend(tmp);
