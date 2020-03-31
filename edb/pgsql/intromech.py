@@ -307,20 +307,18 @@ class IntrospectionMech:
                             param_data['default'], schema)
                     else:
                         default = None
+                    schema, ptype = self.unpack_typeref(
+                        param_data['type'], schema)
                     schema, param = s_funcs.Parameter.create_in_schema(
                         schema,
                         id=param_data['id'],
                         num=param_data['num'],
                         name=sn.Name(param_data['name']),
                         default=default,
-                        type=self.unpack_typeref(param_data['type'], schema),
+                        type=ptype,
                         typemod=param_data['typemod'],
                         kind=param_data['kind'])
                 params.append(param)
-
-                p_type = param.get_type(schema)
-                if p_type.is_collection():
-                    schema, _ = p_type.as_schema_coll(schema)
 
             return schema, params
         else:
@@ -341,9 +339,7 @@ class IntrospectionMech:
 
             schema, params = self._decode_func_params(schema, row, param_map)
 
-            r_type = self.unpack_typeref(row['return_type'], schema)
-            if r_type.is_collection():
-                schema, _ = r_type.as_schema_coll(schema)
+            schema, r_type = self.unpack_typeref(row['return_type'], schema)
 
             oper_data = {
                 'id': row['id'],
@@ -382,11 +378,13 @@ class IntrospectionMech:
         for row in cast_list:
             name = sn.Name(row['name'])
 
+            schema, from_type = self.unpack_typeref(row['from_type'], schema)
+            schema, to_type = self.unpack_typeref(row['to_type'], schema)
             cast_data = {
                 'id': row['id'],
                 'name': name,
-                'from_type': self.unpack_typeref(row['from_type'], schema),
-                'to_type': self.unpack_typeref(row['to_type'], schema),
+                'from_type': from_type,
+                'to_type': to_type,
                 'language': row['language'],
                 'from_cast': row['from_cast'],
                 'from_function': row['from_function'],
@@ -417,9 +415,7 @@ class IntrospectionMech:
 
             schema, params = self._decode_func_params(schema, row, param_map)
 
-            r_type = self.unpack_typeref(row['return_type'], schema)
-            if r_type.is_collection():
-                schema, _ = r_type.as_schema_coll(schema)
+            schema, r_type = self.unpack_typeref(row['return_type'], schema)
 
             if row['initial_value']:
                 initial_value = self.unpack_expr(row['initial_value'], schema)
@@ -466,7 +462,7 @@ class IntrospectionMech:
             subject = schema.get(r['subject']) if r['subject'] else None
 
             schema, params = self._decode_func_params(schema, r, param_map)
-
+            schema, rtype = self.unpack_typeref(r['return_type'], schema)
             schema, constraint = s_constr.Constraint.create_in_schema(
                 schema,
                 id=r['id'],
@@ -482,7 +478,7 @@ class IntrospectionMech:
                 errmessage=r['errmessage'],
                 args=([self.unpack_expr(arg, schema) for arg in r['args']]
                       if r['args'] is not None else None),
-                return_type=self.unpack_typeref(r['return_type'], schema),
+                return_type=rtype,
                 return_typemod=r['return_typemod'],
             )
 
@@ -525,10 +521,10 @@ class IntrospectionMech:
 
         if t['collection'] is not None:
             coll_type = s_types.Collection.get_class(t['collection'])
-            subtypes = [
-                self._unpack_typedesc_node(typemap, stid, schema)
-                for stid in t['subtypes']
-            ]
+            subtypes = []
+            for stid in t['subtypes']:
+                schema, *s = self._unpack_typedesc_node(typemap, stid, schema)
+                subtypes.append(s)
             if t['dimensions']:
                 typemods = (t['dimensions'],)
             else:
@@ -541,7 +537,12 @@ class IntrospectionMech:
             else:
                 st = [st[1] for st in subtypes]
 
-            scls = coll_type.from_subtypes(schema, st, typemods=typemods)
+            schema, scls = coll_type.from_subtypes(
+                schema,
+                st,
+                typemods=typemods,
+                is_persistent=True,
+            )
 
         elif t['maintype'] == 'anytype':
             scls = s_pseudo.Any.get(schema)
@@ -558,7 +559,7 @@ class IntrospectionMech:
             else:
                 scls = schema.get_by_id(t['maintype'])
 
-        return t['name'], scls
+        return schema, t['name'], scls
 
     def unpack_typedesc_nodes(self, types, schema):
         result = []
@@ -569,16 +570,22 @@ class IntrospectionMech:
 
             for t in types:
                 if t['position'] is None:
-                    node = self._unpack_typedesc_node(typemap, t['id'], schema)
+                    schema, *node = self._unpack_typedesc_node(
+                        typemap, t['id'], schema)
                     result.append(node)
 
-        return result
+        return schema, result
 
     def unpack_typeref(self, typedesc, schema):
         if typedesc:
-            result = self.unpack_typedesc_nodes(typedesc['types'], schema)
+            schema, result = self.unpack_typedesc_nodes(
+                typedesc['types'],
+                schema,
+            )
             if result:
-                return result[0][1]
+                return schema, result[0][1]
+
+        return schema, None
 
     def unpack_expr(self, expr, schema):
         text, origtext, refs = expr
@@ -682,7 +689,7 @@ class IntrospectionMech:
                 bases = (sn.Name('std::link'), )
 
             source = schema.get(r['source']) if r['source'] else None
-            target = self.unpack_typeref(r['target'], schema)
+            schema, target = self.unpack_typeref(r['target'], schema)
 
             required = r['required']
 
@@ -763,10 +770,7 @@ class IntrospectionMech:
             source = schema.get(r['source']) if r['source'] else None
 
             required = r['required']
-            target = self.unpack_typeref(r['target'], schema)
-
-            if target is not None and target.is_collection():
-                schema, _ = target.as_schema_coll(schema)
+            schema, target = self.unpack_typeref(r['target'], schema)
 
             if r['cardinality']:
                 cardinality = qltypes.Cardinality(r['cardinality'])
@@ -949,7 +953,7 @@ class IntrospectionMech:
         exprmap = collections.defaultdict(dict)
 
         for r in tuple_views:
-            eltypes = self.unpack_typeref(r['element_types'], schema)
+            schema, eltypes = self.unpack_typeref(r['element_types'], schema)
 
             schema, tview = s_types.TupleExprAlias.create_in_schema(
                 schema,
@@ -969,7 +973,7 @@ class IntrospectionMech:
             exclude_modules=exclude_modules)
 
         for r in array_views:
-            eltype = self.unpack_typeref(r['element_type'], schema)
+            schema, eltype = self.unpack_typeref(r['element_type'], schema)
 
             schema, tview = s_types.ArrayExprAlias.create_in_schema(
                 schema,

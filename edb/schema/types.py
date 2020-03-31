@@ -253,7 +253,7 @@ class Type(
 
     def to_nonpolymorphic(
         self: TypeT, schema: s_schema.Schema, concrete_type: TypeT
-    ) -> TypeT:
+    ) -> typing.Tuple[s_schema.Schema, TypeT]:
         """Produce an non-polymorphic version of self.
 
         Example:
@@ -280,7 +280,7 @@ class Type(
         self: TypeT,
         schema: s_schema.Schema,
         concrete_type: TypeT,
-    ) -> TypeT:
+    ) -> typing.Tuple[s_schema.Schema, TypeT]:
         raise NotImplementedError(
             f'{type(self)} does not support to_nonpolymorphic()')
 
@@ -306,10 +306,10 @@ class Type(
 
     def find_common_implicitly_castable_type(
         self: TypeT,
-        other: TypeT,
+        other: Type,
         schema: s_schema.Schema,
-    ) -> Optional[TypeT]:
-        return None
+    ) -> typing.Tuple[s_schema.Schema, Optional[TypeT]]:
+        return schema, None
 
     def explicitly_castable_to(
         self,
@@ -341,8 +341,8 @@ class Type(
 
     def material_type(
         self: TypeT, schema: s_schema.Schema
-    ) -> TypeT:
-        return self
+    ) -> typing.Tuple[s_schema.Schema, TypeT]:
+        return schema, self
 
     def peel_view(self, schema: s_schema.Schema) -> Type:
         return self
@@ -353,12 +353,6 @@ class Type(
         schema: s_schema.Schema,
     ) -> int:
         raise NotImplementedError
-
-    def as_create_delta_for_compound_type(
-        self: TypeT,
-        schema: s_schema.Schema,
-    ) -> Optional[sd.CreateObject[TypeT]]:
-        return None
 
     def allow_ref_propagation(
         self,
@@ -372,6 +366,7 @@ class Type(
         return TypeShell(
             name=self.get_name(schema),
             schemaclass=type(self),
+            is_abstract=self.get_is_abstract(schema),
         )
 
 
@@ -379,8 +374,8 @@ class InheritingType(so.DerivableInheritingObject, Type):
 
     def material_type(
         self, schema: s_schema.Schema
-    ) -> InheritingType:
-        return self.get_nearest_non_derived_parent(schema)
+    ) -> typing.Tuple[s_schema.Schema, InheritingType]:
+        return schema, self.get_nearest_non_derived_parent(schema)
 
     def peel_view(self, schema: s_schema.Schema) -> Type:
         # When self is a view, this returns the class the view
@@ -424,17 +419,22 @@ class TypeShell(so.ObjectShell):
     def __init__(
         self,
         *,
-        name: Optional[str],
+        name: str,
         origname: Optional[str] = None,
+        displayname: Optional[str] = None,
+        is_abstract: bool = False,
         schemaclass: typing.Type[Type] = Type,
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
             name=name,
             origname=origname,
+            displayname=displayname,
             schemaclass=schemaclass,
             sourcectx=sourcectx,
         )
+
+        self.is_abstract = is_abstract
 
     def resolve(self, schema: s_schema.Schema) -> Type:
         if self.name is None:
@@ -448,6 +448,18 @@ class TypeShell(so.ObjectShell):
             refname=self.origname,
             sourcectx=self.sourcectx,
         )
+
+    def is_polymorphic(self, schema: s_schema.Schema) -> bool:
+        return self.is_abstract
+
+    def as_create_delta(
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: Optional[str] = None,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> sd.Command:
+        raise NotImplementedError
 
 
 class TypeExprShell(TypeShell):
@@ -483,6 +495,73 @@ class UnionTypeShell(TypeExprShell):
         type_id, _ = get_union_type_id(schema, components, module=self.module)
         return schema.get_by_id(type_id, type=Type)
 
+    def as_create_delta(
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: Optional[str] = None,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> sd.Command:
+
+        type_id, name = get_union_type_id(
+            schema,
+            self.components,
+            module=self.module,
+        )
+
+        cmd = CreateUnionType(classname=name)
+        cmd.set_attribute_value('id', type_id)
+        cmd.set_attribute_value('name', name)
+        cmd.set_attribute_value('components', tuple(self.components))
+        return cmd
+
+
+class CompoundTypeCommandContext(sd.ObjectCommandContext[InheritingType]):
+    pass
+
+
+class CompoundTypeCommand(
+    sd.QualifiedObjectCommand[InheritingType],
+    context_class=CompoundTypeCommandContext,
+):
+    pass
+
+
+class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+
+        if not context.canonical:
+            components = [
+                c.resolve(schema)
+                for c in self.get_attribute_value('components')
+            ]
+
+            new_schema, union_type = utils.get_union_type(
+                schema,
+                components,
+                module=self.classname.module,
+            )
+
+            delta = type(union_type).delta(
+                None,
+                union_type,
+                old_schema=schema,
+                new_schema=new_schema,
+                context=so.ComparisonContext(),
+            )
+
+            self.add(delta)
+
+        for cmd in self.get_subcommands():
+            schema = cmd.apply(schema, context)
+
+        return schema
+
 
 class IntersectionTypeShell(TypeExprShell):
 
@@ -496,6 +575,14 @@ class IntersectionTypeShell(TypeExprShell):
 class Collection(Type, s_abc.Collection):
 
     schema_name: typing.ClassVar[str]
+
+    #: True for collection types that are stored in schema persistently,
+    #: by ensure_schema_collection().
+    is_persistent = so.SchemaField(
+        bool,
+        default=False,
+        compcoef=None,
+    )
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return any(st.is_polymorphic(schema)
@@ -640,102 +727,84 @@ class Collection(Type, s_abc.Collection):
         schema: s_schema.Schema,
         subtypes: Any,
         typemods: Any = None,
-    ) -> Collection:
+    ) -> typing.Tuple[s_schema.Schema, Collection]:
         raise NotImplementedError
 
     def __repr__(self) -> str:
         return (
             f'<{self.__class__.__name__} '
-            f'{self.name} {self.id} '
-            f'at 0x{id(self):x}>'
+            f'{self.id} at 0x{id(self):x}>'
         )
 
     def dump(self, schema: s_schema.Schema) -> str:
         return repr(self)
 
-    def as_create_delta(
-        self,
-        schema: s_schema.Schema,
-        *,
-        view_name: Optional[str] = None,
-        attrs: Optional[Dict[str, Any]] = None,
-    ) -> sd.Command:
-        raise NotImplementedError
-
-    def as_delete_delta(
-        self, schema: s_schema.Schema, *, view_name: str = None
-    ) -> sd.Command:
-        raise NotImplementedError
-
-    def as_schema_coll(
-        self,
-        schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, SchemaCollection]:
-        raise NotImplementedError
-
-
-class EphemeralCollection(Collection):
-    # Mypy is unhappy with fields being so.Fields here and not so.SchemaFields.
-    # This forces us to liberally apply type-ignores for now.
-
-    name = so.Field(  # type: ignore
-        s_name.SchemaName,
-        inheritable=False, compcoef=0.670)
-
-    expr_type = so.Field(  # type: ignore
-        ExprType,
-        default=None, ephemeral=True)
-
-    expr = so.Field(  # type: ignore
-        s_expr.Expression,
-        default=None, ephemeral=True)
-
-    rptr = so.Field(  # type: ignore
-        so.Object,
-        default=None, ephemeral=True)
-
-    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
-        return self.name
-
-    def get_shortname(self, schema: s_schema.Schema) -> s_name.Name:
-        return self.name
-
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'collection'
 
-    def get_expr_type(self, schema: s_schema.Schema) -> None:
-        return self.expr_type  # type: ignore
-
-    def get_expr(self, schema: s_schema.Schema) -> s_expr.Expression:
-        return self.expr  # type: ignore
-
-    def get_rptr(self, schema: s_schema.Schema) -> so.Object:
-        return self.rptr  # type: ignore
+    def as_delete_delta(
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: str = None,
+    ) -> sd.Command:
+        raise NotImplementedError
 
 
 Dimensions = checked.FrozenCheckedList[int]
-BaseArray_T = typing.TypeVar("BaseArray_T", bound="BaseArray")
+Array_T = typing.TypeVar("Array_T", bound="Array")
 
 
 class CollectionTypeShell(TypeShell):
-    pass
+
+    def get_subtypes(
+        self,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[TypeShell, ...]:
+        raise NotImplementedError
+
+    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
+        raise NotImplementedError
+
+    def is_polymorphic(self, schema: s_schema.Schema) -> bool:
+        return any(
+            st.is_polymorphic(schema) for st in self.get_subtypes(schema)
+        )
 
 
-class BaseArray(Collection, s_abc.Array):
+class Array(
+    Collection,
+    s_abc.Array,
+    qlkind=qltypes.SchemaObjectClass.ARRAY_TYPE,
+):
+
     schema_name = 'array'
+
+    element_type = so.SchemaField(
+        Type,
+        # We want a low compcoef so that array types are *never* altered.
+        compcoef=0,
+    )
+
+    dimensions = so.SchemaField(
+        Dimensions,
+        coerce=True,
+        # We want a low compcoef so that array types are *never* altered.
+        compcoef=0,
+    )
 
     @classmethod
     def create(
-        cls: typing.Type[BaseArray_T],
+        cls: typing.Type[Array_T],
         schema: s_schema.Schema,
         *,
-        name: Optional[s_name.Name] = None,
+        name: Optional[str] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         dimensions: Sequence[int] = (),
         element_type: Any,
         **kwargs: Any,
-    ) -> BaseArray_T:
+    ) -> typing.Tuple[s_schema.Schema, Array_T]:
         if not dimensions:
             dimensions = [-1]
 
@@ -744,16 +813,23 @@ class BaseArray(Collection, s_abc.Array):
                 f'multi-dimensional arrays are not supported')
 
         if id is so.NoDefault:
-            id = generate_type_id(f'array-{element_type.id}-{dimensions}')
+            id = generate_array_type_id(schema, element_type, dimensions, name)
 
         if name is None:
-            name = s_name.SchemaName(
-                module='std',
-                name=f'array<{element_type.get_name(schema)}>')
+            name = type_name_from_id(id)
 
-        return super()._create(
-            schema, id=id, name=name, element_type=element_type,
-            dimensions=dimensions, **kwargs)
+        result = typing.cast(Array_T, schema.get_by_id(id, default=None))
+        if result is None:
+            schema, result = super().create_in_schema(
+                schema,
+                id=id,
+                name=name,
+                element_type=element_type,
+                dimensions=dimensions,
+                **kwargs,
+            )
+
+        return schema, result
 
     def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
         return self.get_element_type(schema).is_tuple()
@@ -774,21 +850,16 @@ class BaseArray(Collection, s_abc.Array):
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Array]:
         assert not kwargs
-        return schema, Array.from_subtypes(
+        return Array.from_subtypes(
             schema,
             [self.get_element_type(schema)],
             self.get_typemods(schema),
             name=name,
-            **(attrs or {}))
+            **(attrs or {}),
+        )
 
-    def get_element_type(self, schema: s_schema.Schema) -> Type:
-        raise NotImplementedError
-
-    def get_dimensions(
-        self,
-        schema: s_schema.Schema,
-    ) -> Dimensions:
-        raise NotImplementedError
+    def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
+        return (self.get_element_type(schema),)
 
     def get_typemods(self, schema: s_schema.Schema) -> typing.Tuple[Any, ...]:
         return (self.get_dimensions(schema),)
@@ -796,7 +867,7 @@ class BaseArray(Collection, s_abc.Array):
     def implicitly_castable_to(
         self, other: Type, schema: s_schema.Schema
     ) -> bool:
-        if not isinstance(other, BaseArray):
+        if not isinstance(other, Array):
             return False
 
         return self.get_element_type(schema).implicitly_castable_to(
@@ -805,7 +876,7 @@ class BaseArray(Collection, s_abc.Array):
     def get_implicit_cast_distance(
         self, other: Type, schema: s_schema.Schema
     ) -> int:
-        if not isinstance(other, BaseArray):
+        if not isinstance(other, Array):
             return -1
 
         return self.get_element_type(schema).get_implicit_cast_distance(
@@ -816,52 +887,56 @@ class BaseArray(Collection, s_abc.Array):
         other: Type,
         schema: s_schema.Schema,
     ) -> bool:
-        if not isinstance(other, BaseArray):
+        if not isinstance(other, Array):
             return False
 
         return self.get_element_type(schema).assignment_castable_to(
             other.get_element_type(schema), schema)
 
     def find_common_implicitly_castable_type(
-        self: BaseArray_T,
-        other: BaseArray_T,
+        self: Array_T,
+        other: Type,
         schema: s_schema.Schema,
-    ) -> Optional[BaseArray_T]:
+    ) -> typing.Tuple[s_schema.Schema, Optional[Array_T]]:
 
-        if not isinstance(other, BaseArray):
-            return None
+        if not isinstance(other, Array):
+            return schema, None
 
         if self == other:
-            return self
+            return schema, self
 
         my_el = self.get_element_type(schema)
-        subtype = my_el.find_common_implicitly_castable_type(
+        schema, subtype = my_el.find_common_implicitly_castable_type(
             other.get_element_type(schema), schema)
 
         if subtype is None:
-            return None
+            return schema, None
 
         return type(self).from_subtypes(schema, [subtype])
 
     def _resolve_polymorphic(
-        self, schema: s_schema.Schema, concrete_type: Type
+        self,
+        schema: s_schema.Schema,
+        concrete_type: Type,
     ) -> Optional[Type]:
-        if not isinstance(concrete_type, BaseArray):
+        if not isinstance(concrete_type, Array):
             return None
 
         return self.get_element_type(schema).resolve_polymorphic(
             schema, concrete_type.get_element_type(schema))
 
     def _to_nonpolymorphic(
-        self, schema: s_schema.Schema, concrete_type: Type
-    ) -> Array:
+        self,
+        schema: s_schema.Schema,
+        concrete_type: Type,
+    ) -> typing.Tuple[s_schema.Schema, Array]:
         return Array.from_subtypes(schema, (concrete_type,))
 
     def _test_polymorphic(self, schema: s_schema.Schema, other: Type) -> bool:
         if other.is_any():
             return True
 
-        if not isinstance(other, BaseArray):
+        if not isinstance(other, Array):
             return False
 
         return self.get_element_type(schema).test_polymorphic(
@@ -869,14 +944,15 @@ class BaseArray(Collection, s_abc.Array):
 
     @classmethod
     def from_subtypes(
-        cls: typing.Type[BaseArray_T],
+        cls: typing.Type[Array_T],
         schema: s_schema.Schema,
         subtypes: Sequence[Type],
         typemods: Any = None,
         *,
         name: Optional[s_name.Name] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
-    ) -> BaseArray_T:
+        **kwargs: Any,
+    ) -> typing.Tuple[s_schema.Schema, Array_T]:
         if len(subtypes) != 1:
             raise errors.SchemaError(
                 f'unexpected number of subtypes, expecting 1: {subtypes!r}')
@@ -889,9 +965,14 @@ class BaseArray(Collection, s_abc.Array):
         # One-dimensional unbounded array.
         dimensions = [-1]
 
-        return cls.create(schema, element_type=stype,
-                          dimensions=dimensions, name=name,
-                          id=id)
+        return cls.create(
+            schema,
+            element_type=stype,
+            dimensions=dimensions,
+            name=name,
+            id=id,
+            **kwargs,
+        )
 
     @classmethod
     def create_shell(
@@ -902,8 +983,16 @@ class BaseArray(Collection, s_abc.Array):
         typemods: Any = None,
         name: Optional[str] = None,
     ) -> ArrayTypeShell:
+        if not typemods:
+            typemods = ([-1],)
+
+        if name is None:
+            dimensions = typemods[0]
+            tid = generate_array_type_id(schema, subtypes[0], dimensions)
+            name = type_name_from_id(tid)
+
         return ArrayTypeShell(
-            subtypes=subtypes,
+            subtype=next(iter(subtypes)),
             typemods=typemods,
             name=name,
         )
@@ -917,74 +1006,30 @@ class BaseArray(Collection, s_abc.Array):
         )
 
     def material_type(
-        self: BaseArray_T, schema: s_schema.Schema
-    ) -> BaseArray_T:
+        self: Array_T,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[s_schema.Schema, Array_T]:
         # We need to resolve material types based on the subtype recursively.
-        new_material_type = False
 
         st = self.get_element_type(schema)
-        subtypes = [st.material_type(schema)]
-        if subtypes[0] is not st:
-            new_material_type = True
-
-        if new_material_type:
+        schema, stm = st.material_type(schema)
+        if stm is not st:
             return self.__class__.from_subtypes(
-                schema, subtypes, typemods=self.get_typemods(schema))
-        else:
-            return self
-
-    def as_create_delta(
-        self,
-        schema: s_schema.Schema,
-        *,
-        view_name: Optional[str] = None,
-        attrs: Optional[Dict[str, Any]] = None,
-    ) -> sd.CommandGroup:
-        ca: Union[CreateArray, CreateArrayExprAlias]
-        cmd = sd.CommandGroup()
-        if view_name is None:
-            name = str(self.id)
-            ca = CreateArray(
-                classname=name,
+                schema,
+                [stm],
+                typemods=self.get_typemods(schema),
             )
         else:
-            name = view_name
-            ca = CreateArrayExprAlias(
-                classname=name,
-            )
-
-        el = self.get_element_type(schema)
-        if (isinstance(el, Collection)
-                and schema.get_by_id(el.id, None) is None):
-            cmd.add(el.as_create_delta(schema))
-
-        ca.set_attribute_value('id', self.id)
-        ca.set_attribute_value('name', name)
-        ca.set_attribute_value('element_type', el)
-        ca.set_attribute_value('dimensions', self.get_dimensions(schema))
-
-        if attrs:
-            for k, v in attrs.items():
-                ca.set_attribute_value(k, v)
-
-        cmd.add(ca)
-
-        return cmd
+            return (schema, self)
 
     def as_delete_delta(
         self, schema: s_schema.Schema, *, view_name: str = None
     ) -> Union[DeleteArray, DeleteArrayExprAlias]:
         cmd: Union[DeleteArray, DeleteArrayExprAlias]
         if view_name is None:
-            name = str(self.id)
-            cmd = DeleteArray(
-                classname=name,
-            )
+            cmd = DeleteArray(classname=self.get_name(schema))
         else:
-            name = view_name
-            cmd = DeleteArrayExprAlias(
-                classname=name,
-            )
+            cmd = DeleteArrayExprAlias(classname=view_name)
 
         el = self.get_element_type(schema)
         if (isinstance(el, Collection)
@@ -999,164 +1044,142 @@ class ArrayTypeShell(CollectionTypeShell):
     def __init__(
         self,
         *,
-        name: Optional[str] = None,
-        subtypes: Iterable[TypeShell],
+        name: str,
+        subtype: TypeShell,
         typemods: Any = None,
     ) -> None:
-        super().__init__(name=name)
-        self.subtypes = subtypes
+        super().__init__(name=name, schemaclass=Array)
+        self.subtype = subtype
         self.typemods = typemods
 
-    def resolve(self, schema: s_schema.Schema) -> Array:
-        return Array.from_subtypes(
-            schema,
-            subtypes=[s.resolve(schema) for s in self.subtypes],
-            typemods=self.typemods,
-            name=self.name,  # type: ignore
-        )
-
-
-class Array(EphemeralCollection, BaseArray):
-
-    element_type = so.Field(Type)
-    dimensions = so.Field(Dimensions, coerce=True)
-
-    def as_schema_coll(
+    def get_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, SchemaArray]:
+    ) -> typing.Tuple[TypeShell, ...]:
+        return (self.subtype,)
 
-        existing = schema.get_by_id(self.id, default=None, type=SchemaArray)
-        if existing is not None:
-            return schema, existing
+    def get_displayname(self, schema: s_schema.Schema) -> str:
+        return f'array<{self.subtype.get_displayname(schema)}>'
 
-        el_type = self.element_type
-        if isinstance(el_type, Collection):
-            schema, el_type = el_type.as_schema_coll(schema)
-
-        return SchemaArray.create_in_schema(
+    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
+        dimensions = self.typemods[0] if self.typemods is not None else [-1]
+        name = self.name if not type_id_from_name(self.name) else None
+        return generate_array_type_id(
             schema,
-            id=self.id,
-            name=str(self.id),
-            element_type=el_type,
+            self.subtype,
+            dimensions,
+            name,
         )
 
-    def get_element_type(self, schema: s_schema.Schema) -> Type:
-        return self.element_type
+    def resolve(self, schema: s_schema.Schema) -> Array:
+        return schema.get_by_id(self.get_id(schema), type=Array)
 
-    def get_subtypes(
-        self, schema: s_schema.Schema
-    ) -> typing.Tuple[Type]:
-        return (self.element_type,)
+    def as_create_delta(
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: Optional[str] = None,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> sd.CommandGroup:
+        ca: Union[CreateArray, CreateArrayExprAlias]
+        cmd = sd.CommandGroup()
+        type_id = self.get_id(schema)
+        if view_name is None:
+            ca = CreateArray(
+                classname=self.name,
+                if_not_exists=True,
+            )
+        else:
+            ca = CreateArrayExprAlias(
+                classname=view_name,
+            )
 
-    def get_dimensions(
-        self, schema: s_schema.Schema
-    ) -> Dimensions:
-        return self.dimensions
+        el = self.subtype
+        if (isinstance(el, CollectionTypeShell)
+                and schema.get_by_id(el.get_id(schema), None) is None):
+            cmd.add(el.as_create_delta(schema))
+
+        ca.set_attribute_value('id', type_id)
+        ca.set_attribute_value('name', ca.classname)
+        ca.set_attribute_value('element_type', el)
+        ca.set_attribute_value('is_persistent', True)
+        if self.typemods:
+            ca.set_attribute_value('dimensions', self.typemods[0])
+
+        if attrs:
+            for k, v in attrs.items():
+                ca.set_attribute_value(k, v)
+
+        cmd.add(ca)
+
+        return cmd
 
 
-class SchemaCollectionMeta(so.ObjectMeta):
-
-    @property
-    def is_schema_object(cls) -> bool:
-        return True
-
-
-class SchemaCollection(Type, metaclass=SchemaCollectionMeta):
-
-    def __repr__(self) -> str:
-        return (
-            f'<{self.__class__.__name__} '
-            f'{self.id} '
-            f'at 0x{id(self):x}>'
-        )
-
-
-class CollectionExprAlias(so.QualifiedObject, SchemaCollection):
+class CollectionExprAlias(so.QualifiedObject):
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'view'
 
 
-class SchemaAnonymousCollection(SchemaCollection):
-    name = so.SchemaField(
-        str,
-        inheritable=False,
-        # We want a low compcoef so that collections are *never* altered.
-        compcoef=0,
-    )
-
-
-class BaseSchemaArray(SchemaCollection, BaseArray):
-
-    element_type = so.SchemaField(
-        Type,
-        # We want a low compcoef so that tuples are *never* altered.
-        compcoef=0,
-    )
-
-    dimensions = so.SchemaField(
-        Dimensions,
-        coerce=True,
-        # We want a low compcoef so that tuples are *never* altered.
-        compcoef=0,
-    )
-
-    def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
-        return (self.get_element_type(schema),)
-
-
-class SchemaArray(SchemaAnonymousCollection, BaseSchemaArray,
-                  qlkind=qltypes.SchemaObjectClass.ARRAY_TYPE):
+class ArrayExprAlias(CollectionExprAlias, Array):
     pass
 
 
-class ArrayExprAlias(CollectionExprAlias, BaseSchemaArray):
-    pass
+Tuple_T = typing.TypeVar('Tuple_T', bound='Tuple')
 
 
-BaseTuple_T = typing.TypeVar('BaseTuple_T', bound='BaseTuple')
+class Tuple(
+    Collection,
+    s_abc.Tuple,
+    qlkind=qltypes.SchemaObjectClass.TUPLE_TYPE,
+):
 
-
-class BaseTuple(Collection, s_abc.Tuple):
     schema_name = 'tuple'
 
-    named = so.Field(bool)
-    element_types = so.Field[typing.Mapping[str, Type]](dict, coerce=True)
+    named = so.SchemaField(
+        bool,
+        # We want a low compcoef so that tuples are *never* altered.
+        compcoef=0.01,
+    )
+
+    element_types = so.SchemaField(
+        so.ObjectDict[str, Type],
+        coerce=True,
+        # We want a low compcoef so that tuples are *never* altered.
+        compcoef=0.01,
+    )
 
     @classmethod
     def create(
-        cls: typing.Type[BaseTuple_T],
+        cls: typing.Type[Tuple_T],
         schema: s_schema.Schema,
         *,
-        name: Optional[s_name.Name] = None,
+        name: Optional[str] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         element_types: Mapping[str, Type],
         named: bool = False,
         **kwargs: Any,
-    ) -> BaseTuple_T:
+    ) -> typing.Tuple[s_schema.Schema, Tuple_T]:
         element_types = types.MappingProxyType(element_types)
         if id is so.NoDefault:
-            id_str = ','.join(
-                f'{n}:{st.id}' for n, st in element_types.items())
-            id_str = f'tuple-{id_str}'
-            id = generate_type_id(id_str)
+            id = generate_tuple_type_id(schema, element_types, name, named)
 
         if name is None:
-            if named:
-                st_names = ','.join(f'{sn}:={st.get_name(schema)}'
-                                    for sn, st in element_types.items())
-            else:
-                st_names = ','.join(st.get_name(schema)
-                                    for st in element_types.values())
-            name = s_name.SchemaName(
-                module='std',
-                name=f'tuple<{st_names}>')
+            name = type_name_from_id(id)
 
-        return super()._create(
-            schema, id=id, name=name, named=named,
-            element_types=element_types, **kwargs)
+        result = typing.cast(Tuple_T, schema.get_by_id(id, default=None))
+        if result is None:
+            schema, result = super().create_in_schema(
+                schema,
+                id=id,
+                name=name,
+                named=named,
+                element_types=element_types,
+                **kwargs,
+            )
+
+        return schema, result
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
         st_names = ', '.join(st.get_displayname(schema)
@@ -1166,16 +1189,24 @@ class BaseTuple(Collection, s_abc.Tuple):
     def is_tuple(self) -> bool:
         return True
 
+    def is_named(self, schema: s_schema.Schema) -> bool:
+        return self.get_named(schema)
+
     def get_element_names(self, schema: s_schema.Schema) -> Sequence[str]:
-        raise NotImplementedError
+        return tuple(self.get_element_types(schema).keys(schema))
 
     def iter_subtypes(
         self, schema: s_schema.Schema
     ) -> Iterator[typing.Tuple[str, Type]]:
-        raise NotImplementedError
+        yield from self.get_element_types(schema).items(schema)
 
-    def is_named(self, schema: s_schema.Schema) -> bool:
-        raise NotImplementedError
+    def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
+        return self.get_element_types(schema).values(schema)
+
+        if self.element_types:
+            return self.element_types.objects(schema)
+        else:
+            return []
 
     def normalize_index(self, schema: s_schema.Schema, field: str) -> str:
         if self.is_named(schema) and field.isdecimal():
@@ -1225,9 +1256,6 @@ class BaseTuple(Collection, s_abc.Tuple):
         raise errors.InvalidReferenceError(
             f'{field} is not a member of {self.get_displayname(schema)}')
 
-    def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
-        raise NotImplementedError
-
     def derive_subtype(
         self,
         schema: s_schema.Schema,
@@ -1237,16 +1265,17 @@ class BaseTuple(Collection, s_abc.Tuple):
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, Tuple]:
         assert not kwargs
-        return schema, Tuple.from_subtypes(
+        return Tuple.from_subtypes(
             schema,
             dict(self.iter_subtypes(schema)),
             self.get_typemods(schema),
             name=name,
-            **(attrs or {}))
+            **(attrs or {}),
+        )
 
     @classmethod
     def from_subtypes(
-        cls: typing.Type[BaseTuple_T],
+        cls: typing.Type[Tuple_T],
         schema: s_schema.Schema,
         subtypes: Union[Iterable[Type], Mapping[str, Type]],
         typemods: Any = None,
@@ -1254,7 +1283,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         name: Optional[s_name.Name] = None,
         id: Union[uuid.UUID, so.NoDefaultT] = so.NoDefault,
         **kwargs: Any,
-    ) -> BaseTuple_T:
+    ) -> typing.Tuple[s_schema.Schema, Tuple_T]:
         named = False
         if typemods is not None:
             named = typemods.get('named', False)
@@ -1276,6 +1305,11 @@ class BaseTuple(Collection, s_abc.Tuple):
         typemods: Any = None,
         name: Optional[str] = None,
     ) -> TupleTypeShell:
+        named = typemods is not None and typemods.get('named', False)
+        if name is None:
+            tid = generate_tuple_type_id(schema, subtypes, name, named)
+            name = type_name_from_id(tid)
+
         return TupleTypeShell(
             subtypes=subtypes,
             typemods=typemods,
@@ -1300,7 +1334,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         other: Type,
         schema: s_schema.Schema,
     ) -> bool:
-        if not isinstance(other, BaseTuple):
+        if not isinstance(other, Tuple):
             return False
 
         self_subtypes = self.get_subtypes(schema)
@@ -1320,7 +1354,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         other: Type,
         schema: s_schema.Schema,
     ) -> int:
-        if not isinstance(other, BaseTuple):
+        if not isinstance(other, Tuple):
             return -1
 
         self_subtypes = self.get_subtypes(schema)
@@ -1345,7 +1379,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         other: Type,
         schema: s_schema.Schema,
     ) -> bool:
-        if not isinstance(other, BaseTuple):
+        if not isinstance(other, Tuple):
             return False
 
         self_subtypes = self.get_subtypes(schema)
@@ -1361,28 +1395,28 @@ class BaseTuple(Collection, s_abc.Tuple):
         return True
 
     def find_common_implicitly_castable_type(
-        self: BaseTuple_T,
+        self: Tuple_T,
         other: Type,
         schema: s_schema.Schema,
-    ) -> Optional[BaseTuple_T]:
+    ) -> typing.Tuple[s_schema.Schema, Optional[Tuple_T]]:
 
-        if not isinstance(other, BaseTuple):
-            return None
+        if not isinstance(other, Tuple):
+            return schema, None
 
         if self == other:
-            return self
+            return schema, self
 
         subs = self.get_subtypes(schema)
         other_subs = other.get_subtypes(schema)
 
         if len(subs) != len(other_subs):
-            return None
+            return schema, None
 
         new_types: List[Type] = []
         for st, ot in zip(subs, other_subs):
-            nt = st.find_common_implicitly_castable_type(ot, schema)
+            schema, nt = st.find_common_implicitly_castable_type(ot, schema)
             if nt is None:
-                return None
+                return schema, None
 
             new_types.append(nt)
 
@@ -1411,7 +1445,7 @@ class BaseTuple(Collection, s_abc.Tuple):
         schema: s_schema.Schema,
         concrete_type: Type,
     ) -> Optional[Type]:
-        if not isinstance(concrete_type, BaseTuple):
+        if not isinstance(concrete_type, Tuple):
             return None
 
         self_subtypes = self.get_subtypes(schema)
@@ -1427,14 +1461,14 @@ class BaseTuple(Collection, s_abc.Tuple):
         return None
 
     def _to_nonpolymorphic(
-        self: BaseTuple_T,
+        self: Tuple_T,
         schema: s_schema.Schema,
         concrete_type: Type,
-    ) -> BaseTuple_T:
+    ) -> typing.Tuple[s_schema.Schema, Tuple_T]:
         new_types: List[Type] = []
         for st in self.get_subtypes(schema):
             if st.is_polymorphic(schema):
-                nst = st.to_nonpolymorphic(schema, concrete_type)
+                schema, nst = st.to_nonpolymorphic(schema, concrete_type)
             else:
                 nst = st
             new_types.append(nst)
@@ -1451,7 +1485,7 @@ class BaseTuple(Collection, s_abc.Tuple):
     def _test_polymorphic(self, schema: s_schema.Schema, other: Type) -> bool:
         if other.is_any() or other.is_anytuple():
             return True
-        if not isinstance(other, BaseTuple):
+        if not isinstance(other, Tuple):
             return False
 
         self_subtypes = self.get_subtypes(schema)
@@ -1464,79 +1498,36 @@ class BaseTuple(Collection, s_abc.Tuple):
                    for st, ot in zip(self_subtypes, other_subtypes))
 
     def material_type(
-        self: BaseTuple_T, schema: s_schema.Schema
-    ) -> BaseTuple_T:
+        self: Tuple_T,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[s_schema.Schema, Tuple_T]:
         # We need to resolve material types of all the subtypes recursively.
         new_material_type = False
         subtypes = {}
 
         for st_name, st in self.iter_subtypes(schema):
-            subtypes[st_name] = st.material_type(schema)
-            if subtypes[st_name] is not st:
+            schema, stm = st.material_type(schema)
+            if stm is not st:
                 new_material_type = True
+            subtypes[st_name] = stm
 
-        if new_material_type:
+        if new_material_type or self.get_name(schema) != str(self.id):
             return self.__class__.from_subtypes(
                 schema, subtypes, typemods=self.get_typemods(schema))
         else:
-            return self
-
-    def as_create_delta(
-        self,
-        schema: s_schema.Schema,
-        *,
-        view_name: Optional[str] = None,
-        attrs: Optional[Dict[str, Any]] = None,
-    ) -> sd.CommandGroup:
-        ct: Union[CreateTuple, CreateTupleExprAlias]
-        cmd = sd.CommandGroup()
-        if view_name is None:
-            name = str(self.id)
-            ct = CreateTuple(
-                classname=name,
-            )
-        else:
-            name = view_name
-            ct = CreateTupleExprAlias(
-                classname=name,
-            )
-
-        for el in self.get_subtypes(schema):
-            if (isinstance(el, Collection)
-                    and schema.get_by_id(el.id, None) is None):
-                cmd.add(el.as_create_delta(schema))
-
-        ct.set_attribute_value('id', self.id)
-        ct.set_attribute_value('name', name)
-        ct.set_attribute_value('named', self.is_named(schema))
-        ct.set_attribute_value(
-            'element_types',
-            so.ObjectDict[str, Type].create(
-                schema,
-                dict(self.iter_subtypes(schema)),
-            ))
-
-        if attrs:
-            for k, v in attrs.items():
-                ct.set_attribute_value(k, v)
-
-        cmd.add(ct)
-
-        return cmd
+            return schema, self
 
     def as_delete_delta(
         self, schema: s_schema.Schema, *, view_name: str = None
     ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
         cmd: Union[DeleteTuple, DeleteTupleExprAlias]
         if view_name is None:
-            name = str(self.id)
             cmd = DeleteTuple(
-                classname=name,
+                classname=self.get_name(schema),
             )
         else:
-            name = view_name
             cmd = DeleteTupleExprAlias(
-                classname=name,
+                classname=view_name,
             )
 
         for el in self.get_subtypes(schema):
@@ -1553,132 +1544,128 @@ class TupleTypeShell(CollectionTypeShell):
     def __init__(
         self,
         *,
-        name: Optional[str] = None,
+        name: str,
         subtypes: Mapping[str, TypeShell],
         typemods: Any = None,
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(name=name, schemaclass=Tuple)
         self.subtypes = subtypes
         self.typemods = typemods
 
-    def resolve(self, schema: s_schema.Schema) -> Tuple:
-        return Tuple.from_subtypes(
-            schema,
-            subtypes={k: v.resolve(schema) for k, v in self.subtypes.items()},
-            typemods=self.typemods,
-            name=self.name,  # type: ignore
-        )
+    def get_displayname(self, schema: s_schema.Schema) -> str:
+        st_names = ', '.join(st.get_displayname(schema)
+                             for st in self.get_subtypes(schema))
+        return f'tuple<{st_names}>'
 
-
-class Tuple(EphemeralCollection, BaseTuple):
-
-    def is_named(self, schema: s_schema.Schema) -> bool:
-        return self.named
-
-    def get_element_names(self, schema: s_schema.Schema) -> Sequence[str]:
-        return list(self.element_types)
-
-    def iter_subtypes(
-        self, schema: s_schema.Schema
-    ) -> Iterator[typing.Tuple[str, Type]]:
-        yield from self.element_types.items()
-
-    def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
-        if self.element_types:
-            return tuple(self.element_types.values())
-        else:
-            return ()
-
-    def as_schema_coll(
+    def get_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, SchemaTuple]:
+    ) -> typing.Tuple[TypeShell, ...]:
+        return tuple(self.subtypes.values())
 
-        existing = schema.get_by_id(self.id, default=None, type=SchemaTuple)
-        if existing is not None:
-            return schema, existing
+    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
+        named = self.typemods is not None and self.typemods.get('named', False)
+        name = self.name if not type_id_from_name(self.name) else None
+        return generate_tuple_type_id(schema, self.subtypes, name, named)
 
-        el_types = {}
-        for k, v in self.element_types.items():
-            if isinstance(v, Collection):
-                schema, v = v.as_schema_coll(schema)
+    def resolve(self, schema: s_schema.Schema) -> Tuple:
+        return schema.get_by_id(self.get_id(schema), type=Tuple)
 
-            el_types[k] = v
-
-        return SchemaTuple.create_in_schema(
-            schema,
-            id=self.id,
-            name=str(self.id),
-            named=self.named,
-            element_types=so.ObjectDict[str, Type].create(schema, el_types),
-        )
-
-    def __getstate__(self) -> Dict[str, Any]:
-        state = self.__dict__.copy()
-        state['element_types'] = dict(state['element_types'])
-        return state
-
-    def __setstate__(self, state: Dict[str, Any]) -> None:
-        state['element_types'] = types.MappingProxyType(state['element_types'])
-        self.__dict__.update(state)
-
-
-class BaseSchemaTuple(SchemaCollection, BaseTuple):
-
-    named = so.SchemaField(  # type: ignore
-        bool,
-        # We want a low compcoef so that tuples are *never* altered.
-        compcoef=0,
-    )
-
-    element_types = so.SchemaField(  # type: ignore
-        so.ObjectDict[str, Type],
-        coerce=True,
-        # We want a low compcoef so that tuples are *never* altered.
-        compcoef=0,
-    )
-
-    def is_named(self, schema: s_schema.Schema) -> bool:
-        return self.get_named(schema)
-
-    def get_element_names(self, schema: s_schema.Schema) -> Sequence[str]:
-        return tuple(self.get_element_types(schema).keys(schema))
-
-    def iter_subtypes(
-        self, schema: s_schema.Schema
-    ) -> Iterator[typing.Tuple[str, Type]]:
-        yield from self.get_element_types(schema).items(schema)
-
-    def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
-        return self.get_element_types(schema).values(schema)
-
-        if self.element_types:
-            return self.element_types.objects(schema)
+    def as_create_delta(
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: Optional[str] = None,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> sd.CommandGroup:
+        ct: Union[CreateTuple, CreateTupleExprAlias]
+        cmd = sd.CommandGroup()
+        type_id = self.get_id(schema)
+        if view_name is None:
+            ct = CreateTuple(
+                classname=self.name,
+                if_not_exists=True,
+            )
         else:
-            return []
+            ct = CreateTupleExprAlias(
+                classname=view_name,
+            )
+
+        for el in self.subtypes.values():
+            if (isinstance(el, CollectionTypeShell)
+                    and schema.get_by_id(el.get_id(schema), None) is None):
+                cmd.add(el.as_create_delta(schema))
+
+        named = self.typemods is not None and self.typemods.get('named', False)
+        ct.set_attribute_value('id', type_id)
+        ct.set_attribute_value('name', ct.classname)
+        ct.set_attribute_value('named', named)
+        ct.set_attribute_value('is_persistent', True)
+        ct.set_attribute_value('element_types', self.subtypes)
+
+        if attrs:
+            for k, v in attrs.items():
+                ct.set_attribute_value(k, v)
+
+        cmd.add(ct)
+
+        return cmd
 
 
-class SchemaTuple(SchemaAnonymousCollection, BaseSchemaTuple,
-                  qlkind=qltypes.SchemaObjectClass.TUPLE_TYPE):
+class TupleExprAlias(CollectionExprAlias, Tuple):
     pass
 
 
-class TupleExprAlias(CollectionExprAlias, BaseSchemaTuple):
-    pass
+def type_name_from_id(id: uuid.UUID) -> str:
+    return f'__id:{id}'
+
+
+def type_id_from_name(name: str) -> Optional[uuid.UUID]:
+    if name.startswith('__id:'):
+        return uuid.UUID(name[len('__id:'):])
+    else:
+        return None
 
 
 def generate_type_id(id_str: str) -> uuid.UUID:
     return uuidgen.uuid5(TYPE_ID_NAMESPACE, id_str)
 
 
+def generate_tuple_type_id(
+    schema: s_schema.Schema,
+    element_types: Mapping[str, Union[Type, TypeShell]],
+    name: Optional[str] = None,
+    named: bool = False,
+) -> uuid.UUID:
+    id_str = ','.join(
+        f'{n}:{st.get_id(schema)}' for n, st in element_types.items())
+    id_str = f'{"named" if named else ""}tuple-{id_str}'
+    if name is not None:
+        id_str = f'{id_str}_{name}'
+    return generate_type_id(id_str)
+
+
+def generate_array_type_id(
+    schema: s_schema.Schema,
+    element_type: Union[Type, TypeShell],
+    dimensions: Sequence[int] = (),
+    name: Optional[str] = None,
+) -> uuid.UUID:
+    id_basis = f'array-{element_type.get_id(schema)}-{dimensions}'
+    if name is not None:
+        id_basis = f'{id_basis}-{name}'
+    return generate_type_id(id_basis)
+
+
 def get_union_type_id(
     schema: s_schema.Schema,
-    components: typing.Iterable[Type], *,
+    components: typing.Iterable[Union[Type, TypeShell]], *,
     module: typing.Optional[str]=None,
 ) -> typing.Tuple[uuid.UUID, s_name.Name]:
 
+    component_ids = sorted(str(t.get_id(schema)) for t in components)
     name = s_name.Name(
-        name=f"({' | '.join(sorted(str(t.id) for t in components))})",
+        name=f"({' | '.join(component_ids)})",
         module=module or '__derived__',
     )
 
@@ -1687,12 +1674,13 @@ def get_union_type_id(
 
 def get_intersection_type_id(
     schema: s_schema.Schema,
-    components: typing.Iterable[Type], *,
+    components: typing.Iterable[Union[Type, TypeShell]], *,
     module: typing.Optional[str]=None,
 ) -> typing.Tuple[uuid.UUID, s_name.Name]:
 
+    component_ids = sorted(str(t.get_id(schema)) for t in components)
     name = s_name.Name(
-        name=f"({' & '.join(sorted(str(t.id) for t in components))})",
+        name=f"({' & '.join(component_ids)})",
         module=module or '__derived__',
     )
 
@@ -1706,10 +1694,10 @@ def ensure_schema_type_expr_type(
     *,
     src_context: typing.Optional[parsing.ParserContext] = None,
     context: sd.CommandContext,
-) -> Type:
+) -> Optional[sd.Command]:
 
     module = type_shell.module
-    components = type_shell.resolve_components(schema)
+    components = type_shell.components
 
     if isinstance(type_shell, UnionTypeShell):
         type_id, type_name = get_union_type_id(
@@ -1728,19 +1716,13 @@ def ensure_schema_type_expr_type(
 
     texpr_type = schema.get_by_id(type_id, None, type=Type)
 
+    cmd = None
     if texpr_type is None:
-        if isinstance(type_shell, UnionTypeShell):
-            schema, texpr_type = utils.get_union_type(
-                schema, components, module=module)
-        else:
-            schema, texpr_type = utils.get_intersection_type(
-                schema, components, module=module)
-
-        cmd = texpr_type.as_create_delta_for_compound_type(schema)
+        cmd = type_shell.as_create_delta(schema)
         if cmd is not None:
             parent_cmd.add_prerequisite(cmd)
 
-    return texpr_type
+    return cmd
 
 
 class TypeCommand(sd.ObjectCommand[Type]):
@@ -1849,14 +1831,14 @@ class TypeCommand(sd.ObjectCommand[Type]):
         derived_delta = sd.DeltaRoot()
 
         for ref in ir.new_coll_types:
-            coll_cmd = ensure_schema_collection(
+            ensure_schema_collection(
+                # not "new_schema", because that already contains this
+                # collection type.
                 schema,
-                ref,
+                ref.as_shell(new_schema),
                 derived_delta,
                 context=context,
             )
-            if coll_cmd is not None:
-                new_schema = coll_cmd.apply(new_schema, context)
 
         derived_delta.add(
             so.Object.delta_sets(
@@ -1874,14 +1856,18 @@ class TypeCommand(sd.ObjectCommand[Type]):
                 derived_delta.prepend(dt)
 
         for vt in coll_expr_aliases:
-            ct = vt.as_create_delta(
-                new_schema, view_name=classname,
+            ct = vt.as_shell(new_schema).as_create_delta(
+                # not "new_schema", to ensure the nested collection types
+                # are picked up properly.
+                schema,
+                view_name=classname,
                 attrs={
                     'id': uuidgen.uuid1mc(),
                     'expr': expr,
                     'alias_is_persistent': True,
                     'expr_type': ExprType.Select,
-                })
+                },
+            )
             new_schema = ct.apply(new_schema, context)
             derived_delta.add(ct)
 
@@ -1987,14 +1973,14 @@ class CollectionExprAliasCommand(
 
 class CreateCollectionType(
     CollectionTypeCommand,
-    sd.CreateObject[SchemaCollection],
+    sd.CreateObject[Collection],
 ):
     pass
 
 
 class DeleteCollectionType(
     CollectionTypeCommand,
-    sd.DeleteObject[SchemaCollection],
+    sd.DeleteObject[Collection],
 ):
     pass
 
@@ -2013,7 +1999,7 @@ class DeleteCollectionExprAlias(
     pass
 
 
-class CreateTuple(CreateCollectionType, schema_metaclass=SchemaTuple):
+class CreateTuple(CreateCollectionType, schema_metaclass=Tuple):
     pass
 
 
@@ -2027,7 +2013,7 @@ class CreateTupleExprAlias(CreateCollectionExprAlias,
         return qlast.CreateAlias
 
 
-class CreateArray(CreateCollectionType, schema_metaclass=SchemaArray):
+class CreateArray(CreateCollectionType, schema_metaclass=Array):
     pass
 
 
@@ -2041,7 +2027,7 @@ class CreateArrayExprAlias(CreateCollectionExprAlias,
         return qlast.CreateAlias
 
 
-class DeleteTuple(DeleteCollectionType, schema_metaclass=SchemaTuple):
+class DeleteTuple(DeleteCollectionType, schema_metaclass=Tuple):
     pass
 
 
@@ -2050,7 +2036,7 @@ class DeleteTupleExprAlias(DeleteCollectionExprAlias,
     pass
 
 
-class DeleteArray(DeleteCollectionType, schema_metaclass=SchemaArray):
+class DeleteArray(DeleteCollectionType, schema_metaclass=Array):
     pass
 
 
@@ -2061,33 +2047,34 @@ class DeleteArrayExprAlias(DeleteCollectionExprAlias,
 
 def ensure_schema_collection(
     schema: s_schema.Schema,
-    coll_type: Type,
+    coll_type: TypeShell,
     parent_cmd: sd.Command,
     *,
     src_context: Optional[parsing.ParserContext] = None,
     context: sd.CommandContext,
 ) -> Optional[sd.Command]:
-    if not isinstance(coll_type, Collection):
-        raise ValueError(
-            f'{coll_type.get_displayname(schema)} is not a collection')
+    if not isinstance(coll_type, CollectionTypeShell):
+        raise AssertionError(f'{coll_type!r} is not a collection type shell')
 
     delta_root = context.top().op
     assert isinstance(delta_root, sd.DeltaRoot)
     cmd: Optional[sd.Command] = None
 
-    if (schema.get_by_id(coll_type.id, None) is None
-            and coll_type.id not in delta_root.new_types):
+    coll_id = coll_type.get_id(schema)
+
+    if (schema.get_by_id(coll_id, None) is None
+            and coll_id not in delta_root.new_types):
         cmd = coll_type.as_create_delta(schema)
         if isinstance(parent_cmd, sd.DeltaRoot):
             parent_cmd.add(cmd)
         else:
             parent_cmd.add_prerequisite(cmd)
 
-        delta_root.new_types.add(coll_type.id)
+        delta_root.new_types.add(coll_id)
 
-    if coll_type.id in delta_root.deleted_types:
+    if coll_id in delta_root.deleted_types:
         # Revert the deletion decision.
-        del_cmd = delta_root.deleted_types.pop(coll_type.id)
+        del_cmd = delta_root.deleted_types.pop(coll_id)
         delta_root.discard(del_cmd)
 
     return cmd

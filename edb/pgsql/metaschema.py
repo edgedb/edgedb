@@ -34,7 +34,6 @@ from edb.common import uuidgen
 
 from edb.edgeql import qltypes
 
-from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constraints
 from edb.schema import database as s_db
 from edb.schema import expr as s_expr
@@ -43,7 +42,6 @@ from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import pseudo as s_pseudo
-from edb.schema import types as s_types
 
 from edb.server import defines
 
@@ -2039,10 +2037,6 @@ def get_interesting_metaclasses():
         if isinstance(mcls, adapter.Adapter):
             continue
 
-        if (issubclass(mcls, s_abc.Collection)
-                and not issubclass(mcls, s_types.SchemaCollection)):
-            continue
-
         metaclasses.append(mcls)
 
     return metaclasses
@@ -2529,24 +2523,6 @@ def _generate_type_element_view(schema, type_fields):
             types AS q
         WHERE
             q.position IS NOT NULL
-
-        UNION ALL
-
-        SELECT
-            st.id           AS id,
-            (SELECT id FROM edgedb.Object
-                 WHERE name = 'schema::TypeElement')
-                            AS __type__,
-            st.maintype     AS type,
-            st.name         AS name,
-            st.position     AS num
-        FROM
-            edgedb.TupleExprAlias AS q,
-            LATERAL UNNEST ((q.element_types).types) AS st(
-                id, maintype, name, position
-            )
-        WHERE
-            st.position IS NOT NULL
     '''
 
     return dbops.View(name=tabname(schema, TypeElement), query=view_query)

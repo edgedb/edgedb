@@ -165,7 +165,8 @@ def new_array_set(
         stype = inference.infer_type(arr, env=ctx.env)
     else:
         anytype = s_pseudo.Any.get(ctx.env.schema)
-        stype = s_types.Array.from_subtypes(ctx.env.schema, [anytype])
+        ctx.env.schema, stype = s_types.Array.from_subtypes(
+            ctx.env.schema, [anytype])
         if srcctx is not None:
             ctx.env.type_origins[anytype] = srcctx
 
@@ -718,7 +719,7 @@ def type_intersection_set(
         # route link property references accordingly.
         for component in rptr.ptrref.union_components:
             component_endpoint_ref = component.dir_target
-            component_endpoint = irtyputils.ir_typeref_to_type(
+            ctx.env.schema, component_endpoint = irtyputils.ir_typeref_to_type(
                 ctx.env.schema, component_endpoint_ref)
             if component_endpoint.issubclass(ctx.env.schema, stype):
                 assert isinstance(component, irast.PointerRef)

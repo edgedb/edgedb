@@ -147,26 +147,18 @@ def is_assignment_castable(
     return False
 
 
-def get_cast_shortname(
-    schema: s_schema.Schema,
-    module: str,
-    from_type: s_types.Type,
-    to_type: s_types.Type,
-) -> sn.Name:
-    return sn.Name(f'{module}::cast')
-
-
 def get_cast_fullname(
     schema: s_schema.Schema,
     module: str,
-    from_type: s_types.Type,
-    to_type: s_types.Type,
+    from_type: s_types.TypeShell,
+    to_type: s_types.TypeShell,
 ) -> sn.Name:
-    quals = [from_type.get_name(schema), to_type.get_name(schema)]
-    shortname = get_cast_shortname(schema, module, from_type, to_type)
+    quals = [from_type.name, to_type.name]
+    shortname = sn.Name(f'{module}::cast')
     return sn.Name(
         module=shortname.module,
-        name=sn.get_specialized_name(shortname, *quals))
+        name=sn.get_specialized_name(shortname, *quals),
+    )
 
 
 class Cast(
@@ -239,13 +231,13 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
         assert isinstance(astnode, qlast.CastCommand)
         modaliases = context.modaliases
 
-        from_type = utils.ast_to_type(
+        from_type = utils.ast_to_type_shell(
             astnode.from_type,
             modaliases=modaliases,
             schema=schema,
         )
 
-        to_type = utils.ast_to_type(
+        to_type = utils.ast_to_type_shell(
             astnode.to_type,
             modaliases=modaliases,
             schema=schema,
@@ -287,33 +279,42 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
 
         modaliases = context.modaliases
 
-        cmd.set_attribute_value(
-            'from_type',
-            utils.ast_to_type(
-                astnode.from_type,
-                modaliases=modaliases,
-                schema=schema,
-            ),
+        from_type = utils.ast_to_type_shell(
+            astnode.from_type,
+            modaliases=modaliases,
+            schema=schema,
         )
 
-        cmd.set_attribute_value(
-            'to_type',
-            utils.ast_to_type(
-                astnode.to_type,
-                modaliases=modaliases,
-                schema=schema,
-            ),
+        if isinstance(from_type, s_types.CollectionTypeShell):
+            s_types.ensure_schema_collection(
+                schema,
+                from_type,
+                parent_cmd=cmd,
+                src_context=astnode.from_type.context,
+                context=context,
+            )
+
+        cmd.set_attribute_value('from_type', from_type)
+
+        to_type = utils.ast_to_type_shell(
+            astnode.to_type,
+            modaliases=modaliases,
+            schema=schema,
         )
 
-        cmd.set_attribute_value(
-            'allow_implicit',
-            astnode.allow_implicit,
-        )
+        if isinstance(to_type, s_types.CollectionTypeShell):
+            s_types.ensure_schema_collection(
+                schema,
+                to_type,
+                parent_cmd=cmd,
+                src_context=astnode.to_type.context,
+                context=context,
+            )
 
-        cmd.set_attribute_value(
-            'allow_assignment',
-            astnode.allow_assignment,
-        )
+        cmd.set_attribute_value('to_type', to_type)
+
+        cmd.set_attribute_value('allow_implicit', astnode.allow_implicit)
+        cmd.set_attribute_value('allow_assignment', astnode.allow_assignment)
 
         if astnode.code is not None:
             cmd.set_attribute_value(

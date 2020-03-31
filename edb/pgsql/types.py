@@ -126,13 +126,12 @@ def pg_type_from_scalar(
     if scalar.is_polymorphic(schema):
         return ('anynonarray',)
 
-    scalar = scalar.material_type(schema)
     is_enum = scalar.is_enum(schema)
 
     if is_enum:
         base = scalar
     else:
-        base = get_scalar_base(schema, scalar.material_type(schema))
+        base = get_scalar_base(schema, scalar)
 
     column_type = base_type_name_map.get(scalar.id)
     if column_type:
@@ -205,8 +204,13 @@ def pg_type_from_ir_typeref(
         return ('record',)
 
     elif irtyputils.is_tuple(ir_typeref):
-        if persistent_tuples or ir_typeref.in_schema:
-            return common.get_tuple_backend_name(ir_typeref.id, catenate=False)
+        if ir_typeref.material_type:
+            material = ir_typeref.material_type
+        else:
+            material = ir_typeref
+
+        if persistent_tuples or material.in_schema:
+            return common.get_tuple_backend_name(material.id, catenate=False)
         else:
             return ('record',)
 
@@ -534,7 +538,7 @@ class TypeDesc:
     @classmethod
     def from_type(cls, schema, type: s_abc.Type) -> TypeDesc:
         nodes = []
-        cls._get_typedesc(schema, [(None, type)], nodes)
+        cls._get_typedesc(schema, [(type.get_name(schema), type)], nodes)
         return cls(nodes)
 
     @classmethod

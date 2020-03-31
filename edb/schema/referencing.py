@@ -438,7 +438,10 @@ class CreateReferencedObject(
 
             cmd.set_attribute_value(
                 refdict.backref_attr,
-                so.ObjectShell(name=referrer_name),
+                so.ObjectShell(
+                    name=referrer_name,
+                    schemaclass=referrer_class,
+                ),
             )
 
             cmd.set_attribute_value('is_local', True)

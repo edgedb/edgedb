@@ -612,7 +612,7 @@ class CreateConstraint(
             num=param_offset,
             name='__subject__',
             default=None,
-            type=s_pseudo.Any.get(schema),
+            type=s_pseudo.AnyTypeShell(),
             typemod=ft.TypeModifier.SINGLETON,
             kind=ft.ParameterKind.POSITIONAL,
         ))

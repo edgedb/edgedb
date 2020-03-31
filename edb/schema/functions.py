@@ -62,7 +62,14 @@ def param_as_str(
     if typemod is not ft.TypeModifier.SINGLETON:
         ret.append(typemod.to_edgeql())
         ret.append(' ')
-    ret.append(param.get_type(schema).get_name(schema))
+
+    paramt: Union[s_types.Type, s_types.TypeShell]
+    if isinstance(param, ParameterDesc):
+        paramt = param.get_type_shell(schema)
+    else:
+        paramt = param.get_type(schema)
+
+    ret.append(paramt.get_displayname(schema))
 
     if default is not None:
         ret.append(f'={default.origtext}')
@@ -100,7 +107,7 @@ class ParameterDesc(ParameterLike):
     num: int
     name: str
     default: Optional[expr.Expression]
-    type: s_types.Type
+    type: s_types.TypeShell
     typemod: ft.TypeModifier
     kind: ft.ParameterKind
 
@@ -110,7 +117,7 @@ class ParameterDesc(ParameterLike):
         num: int,
         name: str,
         default: Optional[expr.Expression],
-        type: s_types.Type,
+        type: s_types.TypeShell,
         typemod: ft.TypeModifier,
         kind: ft.ParameterKind,
     ) -> None:
@@ -137,14 +144,21 @@ class ParameterDesc(ParameterLike):
             paramd = expr.Expression.compiled(
                 defexpr, schema, modaliases=modaliases, as_fragment=True)
 
-        paramt = utils.ast_to_type(
-            astnode.type,
+        paramt_ast = astnode.type
+
+        if astnode.kind is ft.ParameterKind.VARIADIC:
+            paramt_ast = qlast.TypeName(
+                maintype=qlast.ObjectRef(
+                    name='array',
+                ),
+                subtypes=[paramt_ast],
+            )
+
+        paramt = utils.ast_to_type_shell(
+            paramt_ast,
             modaliases=modaliases,
             schema=schema,
         )
-
-        if astnode.kind is ft.ParameterKind.VARIADIC:
-            paramt = s_types.Array.from_subtypes(schema, (paramt,))
 
         return cls(
             num=num,
@@ -167,7 +181,10 @@ class ParameterDesc(ParameterLike):
     def get_default(self, _: s_schema.Schema) -> Optional[expr.Expression]:
         return self.default
 
-    def get_type(self, _: s_schema.Schema) -> s_types.Type:
+    def get_type(self, schema: s_schema.Schema) -> s_types.Type:
+        return self.type.resolve(schema)
+
+    def get_type_shell(self, schema: s_schema.Schema) -> s_types.TypeShell:
         return self.type
 
     def get_typemod(self, _: s_schema.Schema) -> ft.TypeModifier:
@@ -178,12 +195,16 @@ class ParameterDesc(ParameterLike):
 
     @classmethod
     def from_create_delta(cls, schema: s_schema.Schema, context, cmd):
-        props = cmd.get_resolved_attributes(schema, context)
+        props = cmd.get_attributes(schema, context)
         props['name'] = Parameter.paramname_from_fullname(props['name'])
+        if not isinstance(props['type'], s_types.TypeShell):
+            paramt = props['type'].as_shell(schema)
+        else:
+            paramt = props['type']
         return schema, cls(
             num=props['num'],
             name=props['name'],
-            type=props['type'],
+            type=paramt,
             typemod=props['typemod'],
             kind=props['kind'],
             default=props.get('default'),
@@ -209,7 +230,7 @@ class ParameterDesc(ParameterLike):
         cmd.set_attribute_value('name', param_name)
         cmd.set_attribute_value('type', self.type)
 
-        if self.type.is_collection() and not self.type.is_polymorphic(schema):
+        if isinstance(self.type, s_types.CollectionTypeShell):
             s_types.ensure_schema_collection(
                 schema, self.type, cmd, context=context)
 
@@ -236,10 +257,15 @@ class ParameterDesc(ParameterLike):
 
         cmd = DeleteParameter(classname=param_name)
 
-        if self.type.is_collection() and not self.type.is_polymorphic(schema):
+        if isinstance(self.type, s_types.CollectionTypeShell):
             param = schema.get(param_name)
-            s_types.cleanup_schema_collection(schema, self.type, param, cmd,
-                                              context=context)
+            s_types.cleanup_schema_collection(
+                schema,
+                self.type.resolve(schema),
+                param,
+                cmd,
+                context=context,
+            )
 
         return cmd
 
@@ -622,18 +648,17 @@ class CallableObject(
 
         quals = []
         for param in pgp.params:
-            pt = param.get_type(schema)
-            if isinstance(pt, s_abc.Collection):
-                quals.append(pt.schema_name)
-                for st in pt.get_subtypes(schema):
-                    quals.append(st.get_name(schema))
+            pt = param.get_type_shell(schema)
+            if isinstance(pt, s_types.CollectionTypeShell):
+                quals.append(pt.get_schema_class_displayname())
+                pt_id = str(pt.get_id(schema))
             else:
-                quals.append(pt.get_name(schema))
+                pt_id = pt.name
 
+            quals.append(pt_id)
             pk = param.get_kind(schema)
             if pk is ft.ParameterKind.NAMED_ONLY:
-                quals.append(
-                    f'$NO-{param.get_name(schema)}-{pt.get_name(schema)}$')
+                quals.append(f'$NO-{param.get_name(schema)}-{pt_id}$')
             elif pk is ft.ParameterKind.VARIADIC:
                 quals.append(f'$V$')
 
@@ -743,14 +768,13 @@ class CreateCallableObject(CallableCommand, sd.CreateObject):
         if hasattr(astnode, 'returning'):
             modaliases = context.modaliases
 
-            return_type = utils.ast_to_type(
+            return_type = utils.ast_to_type_shell(
                 astnode.returning,
                 modaliases=modaliases,
                 schema=schema,
             )
 
-            if (return_type.is_collection()
-                    and not return_type.is_polymorphic(schema)):
+            if isinstance(return_type, s_types.CollectionTypeShell):
                 s_types.ensure_schema_collection(
                     schema, return_type, cmd,
                     src_context=astnode.returning.context,
@@ -790,8 +814,7 @@ class DeleteCallableObject(CallableCommand, sd.DeleteObject):
 
         obj = schema.get(cmd.classname)
         return_type = obj.get_return_type(schema)
-        if (return_type.is_collection()
-                and not return_type.is_polymorphic(schema)):
+        if return_type.is_collection():
             s_types.cleanup_schema_collection(
                 schema, return_type, obj, cmd, context=context,
                 src_context=astnode.context)

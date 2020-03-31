@@ -288,15 +288,18 @@ def compile_InsertQuery(
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
 
         result = setgen.class_set(
-            stmt_subject_stype.material_type(ctx.env.schema),
-            path_id=stmt.subject.path_id, ctx=ctx)
+            schemactx.get_material_type(stmt_subject_stype, ctx=ctx),
+            path_id=stmt.subject.path_id,
+            ctx=ctx,
+        )
 
         stmt.result = compile_query_subject(
             result,
             view_scls=ctx.view_scls,
             view_name=ctx.toplevel_result_view_name,
             compile_views=ictx.stmt is ictx.toplevel_stmt,
-            ctx=ictx)
+            ctx=ictx,
+        )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -349,15 +352,18 @@ def compile_UpdateQuery(
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
 
         result = setgen.class_set(
-            stmt_subject_stype.material_type(ctx.env.schema),
-            path_id=stmt.subject.path_id, ctx=ctx)
+            schemactx.get_material_type(stmt_subject_stype, ctx=ctx),
+            path_id=stmt.subject.path_id,
+            ctx=ctx,
+        )
 
         stmt.result = compile_query_subject(
             result,
             view_scls=ctx.view_scls,
             view_name=ctx.toplevel_result_view_name,
             compile_views=ictx.stmt is ictx.toplevel_stmt,
-            ctx=ictx)
+            ctx=ictx,
+        )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -433,15 +439,18 @@ def compile_DeleteQuery(
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
         result = setgen.class_set(
-            stmt_subject_stype.material_type(ctx.env.schema),
-            path_id=stmt.subject.path_id, ctx=ctx)
+            schemactx.get_material_type(stmt_subject_stype, ctx=ctx),
+            path_id=stmt.subject.path_id,
+            ctx=ctx,
+        )
 
         stmt.result = compile_query_subject(
             result,
             view_scls=ctx.view_scls,
             view_name=ctx.toplevel_result_view_name,
             compile_views=ictx.stmt is ictx.toplevel_stmt,
-            ctx=ictx)
+            ctx=ictx,
+        )
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

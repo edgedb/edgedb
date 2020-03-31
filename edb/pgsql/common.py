@@ -353,7 +353,7 @@ def get_backend_name(schema, obj, catenate=True, *, aspect=None):
         return get_constraint_backend_name(
             obj.id, module.id, catenate, aspect=aspect)
 
-    elif isinstance(obj, s_types.BaseTuple):
+    elif isinstance(obj, s_types.Tuple):
         return get_tuple_backend_name(
             obj.id, catenate, aspect=aspect)
 

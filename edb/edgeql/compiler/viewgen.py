@@ -480,12 +480,13 @@ def _normalize_view_ptr_expr(
                 # paths.
                 src_path_id = path_id.src_path()
                 assert src_path_id is not None
+                ctx.env.schema, src_t = irtyputils.ir_typeref_to_type(
+                    shape_expr_ctx.env.schema,
+                    src_path_id.target,
+                )
                 prefix_rptr = irast.Pointer(
                     source=setgen.class_set(
-                        irtyputils.ir_typeref_to_type(
-                            shape_expr_ctx.env.schema,
-                            src_path_id.target,
-                        ),
+                        src_t,
                         path_id=src_path_id,
                         ctx=shape_expr_ctx,
                     ),
@@ -514,8 +515,10 @@ def _normalize_view_ptr_expr(
         ptr_cardinality = None
         ptr_target = inference.infer_type(irexpr, ctx.env)
 
-        if (isinstance(ptr_target, s_types.Collection)
-                and not ctx.env.schema.get_by_id(ptr_target.id, default=None)):
+        if (
+            isinstance(ptr_target, s_types.Collection)
+            and not ctx.env.orig_schema.get_by_id(ptr_target.id, default=None)
+        ):
             # Record references to implicitly defined collection types,
             # so that the alias delta machinery can pick them up.
             ctx.env.created_schema_objects.add(ptr_target)

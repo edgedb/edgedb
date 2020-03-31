@@ -31,6 +31,7 @@ from edb.common import uuidgen
 
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
+from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
 
@@ -133,7 +134,7 @@ class TypeSerializer:
                                             view_shapes_metadata)
                         for st in t.get_subtypes(self.schema)]
 
-            if t.named:
+            if t.is_named(self.schema):
                 element_names = list(t.get_element_names(self.schema))
                 assert len(element_names) == len(subtypes)
 
@@ -194,7 +195,7 @@ class TypeSerializer:
 
         elif view_shapes.get(t):
             # This is a view
-            mt = t.material_type(self.schema)
+            self.schema, mt = t.material_type(self.schema)
             base_type_id = mt.id
 
             subtypes = []
@@ -287,10 +288,10 @@ class TypeSerializer:
             self._register_type_id(type_id)
             return type_id
 
-        elif t.is_scalar():
+        elif isinstance(t, s_scalars.ScalarType):
             # This is a scalar type
 
-            mt = t.material_type(self.schema)
+            self.schema, mt = t.material_type(self.schema)
             type_id = mt.id
             if type_id in self.uuid_to_pos:
                 # already described

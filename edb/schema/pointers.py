@@ -554,32 +554,31 @@ class PointerCommandContext(sd.ObjectCommandContext,
     pass
 
 
-class PointerCommandOrFragment:
+class PointerCommandOrFragment(sd.ObjectCommand[Pointer]):
 
-    def _resolve_refs_in_pointer_def(self, schema, context):
+    def resolve_refs(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().resolve_refs(schema, context)
         target_ref = self.get_local_attribute_value('target')
 
         if target_ref is not None:
             srcctx = self.get_attribute_source_context('target')
 
             if isinstance(target_ref, s_types.TypeExprShell):
-                target = s_types.ensure_schema_type_expr_type(
-                    schema, target_ref, parent_cmd=self,
-                    src_context=srcctx, context=context,
-                )
-
-            elif isinstance(target_ref, s_types.CollectionTypeShell):
-                srcctx = self.get_attribute_source_context('target')
-                target = target_ref.resolve(schema)
-                s_types.ensure_schema_collection(
+                cc_cmd = s_types.ensure_schema_type_expr_type(
                     schema,
-                    target,
+                    target_ref,
                     parent_cmd=self,
                     src_context=srcctx,
                     context=context,
                 )
+                if cc_cmd is not None:
+                    schema = cc_cmd.apply(schema, context)
 
-            elif isinstance(target_ref, s_types.TypeShell):
+            if isinstance(target_ref, s_types.TypeShell):
                 try:
                     target = target_ref.resolve(schema)
                 except errors.InvalidReferenceError as e:
@@ -596,7 +595,7 @@ class PointerCommandOrFragment:
                     raise
 
             elif isinstance(target_ref, ComputableRef):
-                target_t, base = self._parse_computable(
+                schema, target_t, base = self._parse_computable(
                     target_ref.expr, schema, context)
 
                 if base is not None:
@@ -627,7 +626,7 @@ class PointerCommandOrFragment:
         expr: qlast.Base,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> Tuple[s_types.Type, Optional[Pointer]]:
+    ) -> Tuple[s_schema.Schema, s_types.Type, Optional[Pointer]]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
 
@@ -661,7 +660,7 @@ class PointerCommandOrFragment:
             )
 
             if is_ptr_alias:
-                base = irtyputils.ptrcls_from_ptrref(
+                schema, base = irtyputils.ptrcls_from_ptrref(
                     expr_rptr.ptrref, schema=schema
                 )
 
@@ -669,7 +668,7 @@ class PointerCommandOrFragment:
         self.set_attribute_value('cardinality', expr.irast.cardinality)
         self.set_attribute_value('computable', True)
 
-        return target, base
+        return schema, target, base
 
 
 class PointerCommand(
@@ -680,9 +679,6 @@ class PointerCommand(
 ):
 
     def _create_begin(self, schema, context):
-        if not context.canonical:
-            schema = self._resolve_refs_in_pointer_def(schema, context)
-
         schema = super()._create_begin(schema, context)
 
         if not context.canonical:
@@ -690,9 +686,6 @@ class PointerCommand(
         return schema
 
     def _alter_begin(self, schema, context):
-        if not context.canonical:
-            schema = self._resolve_refs_in_pointer_def(schema, context)
-
         schema = super()._alter_begin(schema, context)
         if not context.canonical:
             self._validate_pointer_def(schema, context)
@@ -828,9 +821,21 @@ class PointerCommand(
             # Target is inherited.
             target_ref = None
 
+        if isinstance(target_ref, s_types.CollectionTypeShell):
+            s_types.ensure_schema_collection(
+                schema,
+                target_ref,
+                parent_cmd=self,
+                src_context=astnode.target.context,
+                context=context,
+            )
+
         if isinstance(self, sd.CreateObject):
             self.set_attribute_value(
-                'target', target_ref, source_context=astnode.target.context)
+                'target',
+                target_ref,
+                source_context=astnode.target.context,
+            )
 
             if self.get_attribute_value('cardinality') is None:
                 self.set_attribute_value(
@@ -902,9 +907,6 @@ class SetPointerType(
         PointerCommandOrFragment):
 
     def _alter_begin(self, schema, context):
-        if not context.canonical:
-            schema = self._resolve_refs_in_pointer_def(schema, context)
-
         schema = super()._alter_begin(schema, context)
         scls = self.scls
 
@@ -923,14 +925,6 @@ class SetPointerType(
             non_altered_bases = []
 
             tgt = scls.get_target(schema)
-            if tgt.is_collection():
-                srcctx = self.get_attribute_source_context('target')
-                s_types.ensure_schema_collection(
-                    schema, tgt, self,
-                    src_context=srcctx,
-                    context=context,
-                )
-
             for base in set(implicit_bases) - context.altered_targets:
                 base_tgt = base.get_target(schema)
                 if not tgt.issubclass(schema, base_tgt):

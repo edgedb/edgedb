@@ -646,6 +646,9 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
 
     _fields: Dict[str, SchemaField[Any]]
 
+    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
+        return self.id
+
     def get_shortname(self, schema: s_schema.Schema) -> str:
         return sn.shortname_from_fullname(self.get_name(schema))
 
@@ -970,6 +973,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
         context: ComparisonContext,
     ) -> float:
         comparator = getattr(field.type, 'compare_values', None)
+        assert field.compcoef is not None
         if callable(comparator):
             result = comparator(
                 our_value,
@@ -977,16 +981,15 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
                 context=context,
                 our_schema=our_schema,
                 their_schema=their_schema,
-                compcoef=field.compcoef or 0.5,
+                compcoef=field.compcoef,
             )
-            assert isinstance(result, float)
+            assert isinstance(result, (float, int))
             return result
 
         if our_value != their_value:
-            assert field.compcoef is not None
             return field.compcoef
-
-        return 1.0
+        else:
+            return 1.0
 
     @classmethod
     def compare_values(
@@ -1188,6 +1191,7 @@ class Object(s_abc.Object, s_abc.ObjectContainer, metaclass=ObjectMeta):
     def as_shell(self, schema: s_schema.Schema) -> ObjectShell:
         return ObjectShell(
             name=self.get_name(schema),
+            displayname=self.get_displayname(schema),
             schemaclass=type(self),
         )
 
@@ -1549,15 +1553,20 @@ class ObjectShell(Shell):
     def __init__(
         self,
         *,
-        name: Optional[str],
+        name: str,
+        schemaclass: Type[Object] = Object,
+        displayname: Optional[str] = None,
         origname: Optional[str] = None,
-        schemaclass: Optional[Type[Object]] = None,
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         self.name = name
         self.origname = origname
+        self.displayname = displayname
         self.schemaclass = schemaclass
         self.sourcectx = sourcectx
+
+    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
+        return self.resolve(schema).get_id(schema)
 
     def resolve(self, schema: s_schema.Schema) -> Object:
         if self.name is None:
@@ -1572,8 +1581,17 @@ class ObjectShell(Shell):
             sourcectx=self.sourcectx,
         )
 
-    def get_refname(self, schema: s_schema.Schema) -> Optional[str]:
-        return self.origname if self.origname is not None else self.name
+    def get_refname(self, schema: s_schema.Schema) -> str:
+        if self.origname is not None:
+            return self.origname
+        else:
+            return self.get_displayname(schema)
+
+    def get_displayname(self, schema: s_schema.Schema) -> str:
+        return self.displayname or self.name
+
+    def get_schema_class_displayname(self) -> str:
+        return self.schemaclass.get_schema_class_displayname()
 
     def __repr__(self) -> str:
         if self.schemaclass is not None:
@@ -1753,7 +1771,7 @@ class ObjectCollection(
         else:
             their_names = cls._container()
 
-        if frozenset(our_names) != frozenset(their_names):
+        if our_names != their_names:
             return compcoef
         else:
             return 1.0
@@ -2083,6 +2101,12 @@ class ObjectDictShell(
     ) -> None:
         self.items = items
         self.collection_type = collection_type
+
+    def __repr__(self) -> str:
+        tn = self.__class__.__name__
+        cn = self.collection_type.__name__
+        items = ', '.join(f'{k}: {v.name}' for k, v in self.items.items())
+        return f'<{tn} {cn}({items}) at 0x{id(self):x}>'
 
     def resolve(self, schema: s_schema.Schema) -> ObjectDict[Key_T, Object_T]:
         return self.collection_type.create(

@@ -68,7 +68,7 @@ def ast_objref_to_object_shell(
     return so.ObjectShell(
         name=name,
         origname=lname,
-        schemaclass=metaclass,
+        schemaclass=metaclass or so.Object,
         sourcectx=node.context,
     )
 
@@ -190,6 +190,19 @@ def ast_to_type_shell(
                     )
                 )
 
+            if len(subtypes_list) != 1:
+                raise errors.SchemaError(
+                    f'unexpected number of subtypes,'
+                    f' expecting 1, got {len(subtypes_list)}',
+                    context=node.context,
+                )
+
+            if isinstance(subtypes_list[0], s_types.ArrayTypeShell):
+                raise errors.UnsupportedFeatureError(
+                    'nested arrays are not supported',
+                    context=node.subtypes[0].context,
+                )
+
             try:
                 return coll.create_shell(
                     schema,
@@ -277,7 +290,7 @@ def typeref_to_ast(
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
     elif t.is_type() and cast(s_types.Type, t).is_anytuple():
         result = qlast.TypeName(name=_name, maintype=qlast.AnyTuple())
-    elif isinstance(t, s_types.Tuple) and t.named:
+    elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(
@@ -700,8 +713,9 @@ def ensure_union_type(
         uniontype: s_types.Type = components_list[0]
         for t1 in components_list[1:]:
 
-            common_type = uniontype.find_common_implicitly_castable_type(
-                t1, schema)
+            schema, common_type = (
+                uniontype.find_common_implicitly_castable_type(t1, schema)
+            )
 
             if common_type is None:
                 raise _union_error(schema, components_list)

@@ -180,14 +180,14 @@ class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
             recvalue = dbops.Query(f'ARRAY[{id_array}]::uuid[]')
 
         elif isinstance(value, (s_obj.ObjectIndexBase, s_obj.ObjectDict)):
-            result = s_types.Tuple.from_subtypes(
+            schema, result = s_types.Tuple.from_subtypes(
                 schema,
                 dict(value.items(schema)),
                 {'named': True})
             recvalue = types.TypeDesc.from_type(schema, result)
 
         elif isinstance(value, s_obj.ObjectCollection):
-            result = s_types.Tuple.from_subtypes(schema, value)
+            schema, result = s_types.Tuple.from_subtypes(schema, value)
             recvalue = types.TypeDesc.from_type(schema, result)
 
         elif isinstance(value, s_obj.Object):
@@ -376,6 +376,9 @@ class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
         schema = self.__class__.get_adaptee().apply(self, schema, context)
         schema = TupleCommand.apply(self, schema, context)
 
+        if self.scls.is_polymorphic(schema):
+            return schema
+
         elements = self.scls.get_element_types(schema).items(schema)
 
         ctype = dbops.CompositeType(
@@ -402,12 +405,13 @@ class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        tup = schema.get_global(s_types.SchemaTuple, self.classname)
+        tup = schema.get_global(s_types.Tuple, self.classname)
 
-        self.pgops.add(dbops.DropCompositeType(
-            name=common.get_backend_name(schema, tup, catenate=False),
-            priority=2,
-        ))
+        if not tup.is_polymorphic(schema):
+            self.pgops.add(dbops.DropCompositeType(
+                name=common.get_backend_name(schema, tup, catenate=False),
+                priority=2,
+            ))
 
         schema = self.__class__.get_adaptee().apply(self, schema, context)
         schema = TupleCommand.apply(self, schema, context)
@@ -1898,6 +1902,18 @@ class RebaseIndex(
         IndexCommand, RebaseObject,
         adapts=s_indexes.RebaseIndex):
     pass
+
+
+class CreateUnionType(
+    MetaCommand,
+    adapts=s_types.CreateUnionType,
+    metaclass=ObjectCommandMeta,
+):
+
+    def apply(self, schema, context):
+        schema = self.__class__.get_adaptee().apply(self, schema, context)
+        schema = ObjectMetaCommand.apply(self, schema, context)
+        return schema
 
 
 class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,

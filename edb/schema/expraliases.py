@@ -84,9 +84,9 @@ class AliasCommand(
 
             if isinstance(scls, s_scalars.ScalarType):
                 mapping = cls._scalar_cmd_map
-            elif isinstance(scls, s_types.BaseTuple):
+            elif isinstance(scls, s_types.Tuple):
                 mapping = cls._tuple_cmd_map
-            elif isinstance(scls, s_types.BaseArray):
+            elif isinstance(scls, s_types.Array):
                 mapping = cls._array_cmd_map
             elif isinstance(scls, s_objtypes.ObjectType):
                 mapping = cls._objtype_cmd_map

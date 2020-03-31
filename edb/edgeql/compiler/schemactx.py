@@ -348,6 +348,16 @@ def get_intersection_type(
     return intersection
 
 
+def get_material_type(
+    t: s_types.TypeT,
+    *,
+    ctx: context.ContextLevel,
+) -> s_types.TypeT:
+
+    ctx.env.schema, mtype = t.material_type(ctx.env.schema)
+    return mtype
+
+
 class TypeIntersectionResult(NamedTuple):
 
     stype: s_types.Type
@@ -475,8 +485,8 @@ def is_type_compatible(
     ctx: context.ContextLevel,
 ) -> bool:
 
-    material_type_a = type_a.material_type(ctx.env.schema)
-    material_type_b = type_b.material_type(ctx.env.schema)
+    material_type_a = get_material_type(type_a, ctx=ctx)
+    material_type_b = get_material_type(type_b, ctx=ctx)
 
     compatible = material_type_b.issubclass(ctx.env.schema, material_type_a)
     if compatible:

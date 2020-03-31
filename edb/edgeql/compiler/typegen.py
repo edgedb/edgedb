@@ -108,6 +108,7 @@ def _ql_typename_to_type(
     if ql_t.subtypes:
         assert isinstance(ql_t.maintype, qlast.ObjectRef)
         coll = s_types.Collection.get_class(ql_t.maintype.name)
+        ct: s_types.Type
 
         if issubclass(coll, s_abc.Tuple):
             t_subtypes = {}
@@ -121,14 +122,16 @@ def _ql_typename_to_type(
 
                 t_subtypes[type_name] = ql_typeexpr_to_type(st, ctx=ctx)
 
-            return coll.from_subtypes(
+            ctx.env.schema, ct = coll.from_subtypes(
                 ctx.env.schema, t_subtypes, {'named': named})
+            return ct
         else:
             a_subtypes = []
             for st in ql_t.subtypes:
                 a_subtypes.append(ql_typeexpr_to_type(st, ctx=ctx))
 
-            return coll.from_subtypes(ctx.env.schema, a_subtypes)
+            ctx.env.schema, ct = coll.from_subtypes(ctx.env.schema, a_subtypes)
+            return ct
     else:
         return schemactx.get_schema_type(ql_t.maintype, ctx=ctx)
 
@@ -174,7 +177,10 @@ def ptrcls_from_ptrref(  # NoQA: F811
     if cached is not None:
         return cached
 
-    return irtyputils.ptrcls_from_ptrref(ptrref, schema=ctx.env.schema)
+    ctx.env.schema, ptr = irtyputils.ptrcls_from_ptrref(
+        ptrref, schema=ctx.env.schema)
+
+    return ptr
 
 
 def collapse_type_intersection_rptr(

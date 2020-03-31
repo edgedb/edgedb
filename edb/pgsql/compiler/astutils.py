@@ -24,6 +24,8 @@ from __future__ import annotations
 
 from typing import *
 
+from edb.ir import typeutils as irtyputils
+
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
 
@@ -79,7 +81,7 @@ def tuple_getattr(
 
     set_expr: pgast.BaseExpr
 
-    if tuple_typeref.in_schema:
+    if irtyputils.is_persistent_tuple(tuple_typeref):
         set_expr = pgast.Indirection(
             arg=tuple_val,
             indirection=[

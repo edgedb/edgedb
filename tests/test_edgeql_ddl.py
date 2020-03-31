@@ -1939,7 +1939,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidOperatorDefinitionError,
                 r'cannot create the '
-                r'`test::=\(l: std::array<anytype>, r: std::str\)` operator: '
+                r'`test::=\(l: array<anytype>, r: std::str\)` operator: '
                 r'operands of a recursive operator must either be '
                 r'all arrays or all tuples'):
             await self.con.execute('''
@@ -1954,7 +1954,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidOperatorDefinitionError,
                 r'cannot create the '
-                r'`test::=\(l: std::array<anytype>, r: anytuple\)` operator: '
+                r'`test::=\(l: array<anytype>, r: anytuple\)` operator: '
                 r'operands of a recursive operator must either be '
                 r'all arrays or all tuples'):
             await self.con.execute('''
@@ -1969,8 +1969,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidOperatorDefinitionError,
                 r'cannot create the non-recursive '
-                r'`std::=\(l: std::array<std::int64>, '
-                r'r: std::array<std::int64>\)` operator: '
+                r'`std::=\(l: array<std::int64>, '
+                r'r: array<std::int64>\)` operator: '
                 r'overloading a recursive operator '
                 r'`array<anytype> = array<anytype>` with a non-recursive one '
                 r'is not allowed'):
@@ -1987,8 +1987,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidOperatorDefinitionError,
                 r'cannot create the recursive '
-                r'`test::=\(l: std::array<std::int64>, '
-                r'r: std::array<std::int64>\)` operator: '
+                r'`test::=\(l: array<std::int64>, '
+                r'r: array<std::int64>\)` operator: '
                 r'overloading a non-recursive operator '
                 r'`array<anytype> = array<anytype>` with a recursive one '
                 r'is not allowed'):

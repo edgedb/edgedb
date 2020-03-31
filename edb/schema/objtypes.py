@@ -86,7 +86,7 @@ class ObjectType(
 
     def get_displayname(self, schema):
         if self.is_view(schema) and not self.get_alias_is_persistent(schema):
-            mtype = self.material_type(schema)
+            schema, mtype = self.material_type(schema)
         else:
             mtype = self
 
@@ -143,9 +143,14 @@ class ObjectType(
         return self.issubclass(schema, other)
 
     def find_common_implicitly_castable_type(
-            self, other: s_types.Type,
-            schema) -> Optional[s_types.Type]:
-        return utils.get_class_nearest_common_ancestor(schema, [self, other])
+        self,
+        other: s_types.Type,
+        schema: s_schema.Schema,
+    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
+        return (
+            schema,
+            utils.get_class_nearest_common_ancestor(schema, [self, other]),
+        )
 
     @classmethod
     def get_root_classes(cls):
@@ -206,23 +211,6 @@ class ObjectType(
                 )
 
         return False
-
-    def as_create_delta_for_compound_type(
-        self,
-        schema: s_schema.Schema,
-    ) -> Optional[CreateObjectType]:
-
-        if (not self.get_union_of(schema)
-                and not self.get_intersection_of(schema)):
-            return None
-        else:
-            return type(self).delta(
-                None,
-                self,
-                old_schema=schema,
-                new_schema=schema,
-                context=so.ComparisonContext(),
-            )
 
     def allow_ref_propagation(
         self,

@@ -586,7 +586,9 @@ def compile_type_check_op(
                 f'type checks on non-primitive collections are not supported'
             )
 
-        test_type = irtyputils.ir_typeref_to_type(ctx.env.schema, typeref)
+        ctx.env.schema, test_type = (
+            irtyputils.ir_typeref_to_type(ctx.env.schema, typeref)
+        )
         result = ltype.issubclass(ctx.env.schema, test_type)
 
     return irast.TypeCheckOp(

@@ -179,8 +179,12 @@ def try_bind_call_args(
             if resolved_poly_base_type == resolved:
                 return s_types.MAX_TYPE_DISTANCE if is_abstract else 0
 
-            ct = resolved_poly_base_type.find_common_implicitly_castable_type(
-                resolved, ctx.env.schema)
+            ctx.env.schema, ct = (
+                resolved_poly_base_type.find_common_implicitly_castable_type(
+                    resolved,
+                    ctx.env.schema,
+                )
+            )
 
             if ct is not None:
                 # If we found a common implicitly castable type, we
@@ -445,8 +449,8 @@ def try_bind_call_args(
 
     if return_type.is_polymorphic(schema):
         if resolved_poly_base_type is not None:
-            return_type = return_type.to_nonpolymorphic(
-                schema, resolved_poly_base_type)
+            ctx.env.schema, return_type = return_type.to_nonpolymorphic(
+                ctx.env.schema, resolved_poly_base_type)
         elif not in_polymorphic_func:
             return None
 
@@ -455,10 +459,11 @@ def try_bind_call_args(
     if resolved_poly_base_type is not None:
         for i, barg in enumerate(bound_param_args):
             if barg.param_type.is_polymorphic(schema):
+                ctx.env.schema, ptype = barg.param_type.to_nonpolymorphic(
+                    ctx.env.schema, resolved_poly_base_type)
                 bound_param_args[i] = BoundArg(
                     barg.param,
-                    barg.param_type.to_nonpolymorphic(
-                        schema, resolved_poly_base_type),
+                    ptype,
                     barg.val,
                     barg.valtype,
                     barg.cast_distance,

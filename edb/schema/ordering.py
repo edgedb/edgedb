@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import *
 
 import collections
-import uuid
 
 from edb.common import topological
 
@@ -368,11 +367,13 @@ def get_object(
 ) -> so.Object:
     metaclass = op.get_schema_metaclass()
 
-    if issubclass(metaclass, s_types.SchemaCollection):
+    if issubclass(metaclass, s_types.Collection):
         if sn.Name.is_qualified(name):
             return schema.get(name)
         else:
-            return schema.get_by_id(uuid.UUID(name))
+            t_id = s_types.type_id_from_name(name)
+            assert t_id is not None
+            return schema.get_by_id(t_id)
     elif not issubclass(metaclass, so.QualifiedObject):
         return schema.get_global(metaclass, name)
     else:

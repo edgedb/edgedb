@@ -232,7 +232,7 @@ def cast_const_to_python(
         ir: irast.TypeCast,
         schema: s_schema.Schema) -> Any:
 
-    stype = irtyputils.ir_typeref_to_type(schema, ir.to_type)
+    schema, stype = irtyputils.ir_typeref_to_type(schema, ir.to_type)
     pytype = scalar_type_to_python_type(stype, schema)
     sval = evaluate_to_python_val(ir.expr, schema=schema)
     return pytype(sval)

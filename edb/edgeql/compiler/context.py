@@ -150,6 +150,9 @@ class Environment:
     schema: s_schema.Schema
     """A Schema instance to use for class resolution."""
 
+    orig_schema: s_schema.Schema
+    """A Schema as it was at the start of the compilation."""
+
     parent_object_type: Optional[s_obj.ObjectMeta]
     """The type of a schema object, if the expression is part of its def."""
 
@@ -231,6 +234,7 @@ class Environment:
         func_params: Optional[s_func.ParameterLikeList]=None,
     ) -> None:
         self.schema = schema
+        self.orig_schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
         self.query_parameters = {}

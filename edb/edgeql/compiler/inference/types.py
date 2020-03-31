@@ -100,8 +100,12 @@ def _infer_common_type(
             next_type = next(it, None)
             if next_type is None:
                 break
-            common_type = common_type.find_common_implicitly_castable_type(
-                next_type, env.schema)
+            env.schema, common_type = (
+                common_type.find_common_implicitly_castable_type(
+                    next_type,
+                    env.schema,
+                )
+            )
             if common_type is None:
                 break
     else:
@@ -180,7 +184,8 @@ def __infer_func_call(
     ir: irast.FunctionCall,
     env: context.Environment,
 ) -> s_types.Type:
-    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    env.schema, t = irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    return t
 
 
 @_infer_type.register
@@ -188,7 +193,8 @@ def __infer_oper_call(
     ir: irast.OperatorCall,
     env: context.Environment,
 ) -> s_types.Type:
-    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    env.schema, t = irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    return t
 
 
 @_infer_type.register
@@ -196,7 +202,8 @@ def __infer_const(
     ir: irast.BaseConstant,
     env: context.Environment,
 ) -> s_types.Type:
-    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    env.schema, t = irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    return t
 
 
 @_infer_type.register
@@ -204,7 +211,8 @@ def __infer_const_set(
     ir: irast.ConstantSet,
     env: context.Environment,
 ) -> s_types.Type:
-    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    env.schema, t = irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    return t
 
 
 @_infer_type.register
@@ -212,7 +220,8 @@ def __infer_param(
     ir: irast.Parameter,
     env: context.Environment,
 ) -> s_types.Type:
-    return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    env.schema, t = irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    return t
 
 
 def _infer_binop_args(
@@ -293,10 +302,10 @@ def __infer_typeref(
                 eltypes = {str(i): infer_type(st, env)
                            for i, st in enumerate(ir.subtypes)}
 
-            result = coll.create(
+            env.schema, result = coll.create(
                 env.schema, element_types=eltypes, named=named)
         else:
-            result = coll.from_subtypes(
+            env.schema, result = coll.from_subtypes(
                 env.schema, [infer_type(t, env) for t in ir.subtypes])
     else:
         t = env.schema.get_by_id(ir.id)
@@ -465,7 +474,8 @@ def __infer_array(
     env: context.Environment,
 ) -> s_types.Type:
     if ir.typeref is not None:
-        return irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+        env.schema, t = irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+        return t
     elif ir.elements:
         element_type = _infer_common_type(ir.elements, env)
         if element_type is None:
@@ -474,7 +484,12 @@ def __infer_array(
     else:
         element_type = s_pseudo.Any.get(env.schema)
 
-    return s_types.Array.create(env.schema, element_type=element_type)
+    env.schema, arr_t = s_types.Array.create(
+        env.schema,
+        element_type=element_type,
+    )
+
+    return arr_t
 
 
 @_infer_type.register
@@ -483,8 +498,9 @@ def __infer_tuple(
     env: context.Environment,
 ) -> s_types.Type:
     element_types = {el.name: infer_type(el.val, env) for el in ir.elements}
-    return s_types.Tuple.create(
+    env.schema, tup = s_types.Tuple.create(
         env.schema, element_types=element_types, named=ir.named)
+    return tup
 
 
 def infer_type(ir: irast.Base, env: context.Environment) -> s_types.Type:

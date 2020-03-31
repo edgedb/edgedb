@@ -505,6 +505,7 @@ def compile_func_to_ir(
     )
 
     assert isinstance(ir, irast.Statement)
+    schema = ir.schema
 
     return_type = func.get_return_type(schema)
     if (not ir.stype.issubclass(schema, return_type)

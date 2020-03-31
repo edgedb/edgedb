@@ -33,6 +33,7 @@ from . import context
 from . import dispatch
 from . import inference
 from . import polyres
+from . import schemactx
 from . import setgen
 from . import stmtctx
 
@@ -97,8 +98,8 @@ def compile_orderby_clause(
                     kwargs={},
                     ctx=exprctx)
                 if len(matched) != 1:
-                    sort_type_name = sort_type.material_type(env.schema) \
-                                              .get_displayname(env.schema)
+                    sort_type_name = schemactx.get_material_type(
+                        sort_type, ctx=ctx).get_displayname(env.schema)
                     if len(matched) == 0:
                         raise errors.QueryError(
                             f'type {sort_type_name!r} cannot be used in '

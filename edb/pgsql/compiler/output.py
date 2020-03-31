@@ -88,7 +88,7 @@ def array_as_json_object(
 
             json_args.append(val)
 
-            if not el_type.in_schema:
+            if not irtyputils.is_persistent_tuple(el_type):
                 # Column definition list is only allowed for functions
                 # returning "record", i.e. an anonymous tuple, which
                 # would not be the case for schema-persistent tuple types.
@@ -168,7 +168,7 @@ def unnamed_tuple_as_json_object(
 ) -> pgast.BaseExpr:
     vals: List[pgast.BaseExpr] = []
 
-    if styperef.in_schema:
+    if irtyputils.is_persistent_tuple(styperef):
         for el_idx, el_type in enumerate(styperef.subtypes):
             val: pgast.BaseExpr = pgast.Indirection(
                 arg=expr,
@@ -243,7 +243,7 @@ def named_tuple_as_json_object(
 ) -> pgast.BaseExpr:
     keyvals: List[pgast.BaseExpr] = []
 
-    if styperef.in_schema:
+    if irtyputils.is_persistent_tuple(styperef):
         for el_type in styperef.subtypes:
             keyvals.append(pgast.StringConstant(val=el_type.element_name))
             val: pgast.BaseExpr = pgast.Indirection(
@@ -370,7 +370,7 @@ def output_as_value(
 
         if (expr.typeref is not None
                 and not env.singleton_mode
-                and expr.typeref.in_schema):
+                and irtyputils.is_persistent_tuple(expr.typeref)):
             pg_type = pgtypes.pg_type_from_ir_typeref(expr.typeref)
             val = pgast.TypeCast(
                 arg=val,

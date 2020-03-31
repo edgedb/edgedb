@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 # Cannot import * from typing because of name conflicts in this file.
-from typing import Optional, TypeVar, TYPE_CHECKING
+from typing import Optional, TypeVar, Tuple, TYPE_CHECKING
 
 from . import name as sn
 from . import objects as so
@@ -53,8 +53,17 @@ class PseudoType(so.InheritingObject, s_types.Type):
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return True
 
-    def material_type(self, schema: s_schema.Schema) -> s_types.Type:
-        return self
+    def material_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[s_schema.Schema, s_types.Type]:
+        return schema, self
+
+
+class PseudoTypeShell(s_types.TypeShell):
+
+    def is_polymorphic(self, schema: s_schema.Schema) -> bool:
+        return True
 
 
 class Any(PseudoType):
@@ -85,8 +94,8 @@ class Any(PseudoType):
         self,
         schema: s_schema.Schema,
         concrete_type: s_types.Type
-    ) -> s_types.Type:
-        return concrete_type
+    ) -> Tuple[s_schema.Schema, s_types.Type]:
+        return schema, concrete_type
 
     def _test_polymorphic(
         self,
@@ -105,10 +114,12 @@ class Any(PseudoType):
     def find_common_implicitly_castable_type(
         self,
         other: s_types.Type,
-        schema: s_schema.Schema
-    ) -> Optional[s_types.Type]:
+        schema: s_schema.Schema,
+    ) -> Tuple[s_schema.Schema, Optional[s_types.Type]]:
         if self == other:
-            return self
+            return schema, self
+        else:
+            return schema, None
 
     def get_common_parent_type_distance(
         self,
@@ -124,10 +135,10 @@ class Any(PseudoType):
         return AnyTypeShell()
 
 
-class AnyTypeShell(s_types.TypeShell):
+class AnyTypeShell(PseudoTypeShell):
 
     def __init__(self, *, name=sn.UnqualifiedName('anytype')):
-        super().__init__(name=name)
+        super().__init__(name=name, schemaclass=Any)
 
     def resolve(self, schema: s_schema.Schema) -> Any:
         return Any.get(schema)
@@ -167,17 +178,17 @@ class AnyTuple(PseudoType):
         self,
         schema: s_schema.Schema,
         concrete_type: s_types.Type
-    ) -> s_types.Type:
-        return concrete_type
+    ) -> Tuple[s_schema.Schema, s_types.Type]:
+        return schema, concrete_type
 
     def as_shell(self, schema):
         return AnyTupleShell()
 
 
-class AnyTupleShell(s_types.TypeShell):
+class AnyTupleShell(PseudoTypeShell):
 
     def __init__(self, *, name=sn.UnqualifiedName('anytuple')):
-        super().__init__(name=name)
+        super().__init__(name=name, schemaclass=AnyTuple)
 
     def resolve(self, schema: s_schema.Schema) -> AnyTuple:
         return AnyTuple.get(schema)

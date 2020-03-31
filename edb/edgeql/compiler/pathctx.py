@@ -53,8 +53,10 @@ def get_tuple_indirection_path_id(
         element_type: s_types.Type, *,
         ctx: context.ContextLevel) -> irast.PathId:
 
+    ctx.env.schema, src_t = irtyputils.ir_typeref_to_type(
+        ctx.env.schema, tuple_path_id.target)
     ptrcls = irast.TupleIndirectionLink(
-        irtyputils.ir_typeref_to_type(ctx.env.schema, tuple_path_id.target),
+        src_t,
         element_type,
         element_name=element_name,
     )

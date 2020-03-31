@@ -63,8 +63,8 @@ def get_global_dep_order() -> Tuple[Type[so.Object], ...]:
         constraints.Constraint,
         scalars.ScalarType,
         # schema arrays and tuples are UnqualifiedObject
-        types.SchemaArray,
-        types.SchemaTuple,
+        types.Array,
+        types.Tuple,
         # aliases are treated separately because they are not UnqualifiedObject
         types.ArrayExprAlias,
         types.TupleExprAlias,

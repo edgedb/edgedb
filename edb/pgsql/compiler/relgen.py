@@ -597,13 +597,13 @@ def finalize_optional_rel(
 
 def get_set_rel_alias(ir_set: irast.Set, *,
                       ctx: context.CompilerContextLevel) -> str:
+    _, _, dname = ir_set.path_id.target_name_hint.rpartition('::')
     if ir_set.rptr is not None and ir_set.rptr.source.typeref is not None:
         alias_hint = '{}_{}'.format(
-            ir_set.rptr.source.typeref.name_hint.name,
+            dname,
             ir_set.rptr.ptrref.shortname.name
         )
     else:
-        _, _, dname = ir_set.path_id.target_name_hint.rpartition('::')
         alias_hint = dname.replace('~', '-')
 
     return alias_hint
