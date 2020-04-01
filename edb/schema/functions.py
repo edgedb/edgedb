@@ -154,6 +154,7 @@ class ParameterDesc(ParameterLike):
                 subtypes=[paramt_ast],
             )
 
+        assert isinstance(paramt_ast, qlast.TypeName)
         paramt = utils.ast_to_type_shell(
             paramt_ast,
             modaliases=modaliases,
@@ -198,10 +199,9 @@ class ParameterDesc(ParameterLike):
         cls,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        cmd: sd.Command
+        cmd: CreateParameter
     ) -> Tuple[s_schema.Schema, ParameterDesc]:
-        assert isinstance(cmd, sd.ObjectCommand)
-        props = cmd.get_resolved_attributes(schema, context)
+        props = cmd.get_attributes(schema, context)
         props['name'] = Parameter.paramname_from_fullname(props['name'])
         if not isinstance(props['type'], s_types.TypeShell):
             paramt = props['type'].as_shell(schema)
@@ -264,7 +264,7 @@ class ParameterDesc(ParameterLike):
         cmd = DeleteParameter(classname=param_name)
 
         if isinstance(self.type, s_types.CollectionTypeShell):
-            param = schema.get(param_name)
+            param = schema.get(param_name, type=Parameter)
             s_types.cleanup_schema_collection(
                 schema,
                 self.type.resolve(schema),
@@ -644,8 +644,9 @@ class CallableObject(
     ) -> Tuple[str, ...]:
         pgp = PgParams.from_params(schema, params)
 
-        quals = []
+        quals: List[str] = []
         for param in pgp.params:
+            assert isinstance(param, ParameterDesc)
             pt = param.get_type_shell(schema)
             if isinstance(pt, s_types.CollectionTypeShell):
                 quals.append(pt.get_schema_class_displayname())
