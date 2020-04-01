@@ -112,7 +112,7 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 [[package]]
 name = "edb-graphql-parser"
 version = "0.3.0"
-source = "git+https://github.com/edgedb/graphql-parser#12607994ccba9ac655ce0397749402659b21f7e7"
+source = "git+https://github.com/edgedb/graphql-parser#0aa4ba2ebcd77c61c80d9b59092568213acf4673"
 dependencies = [
  "combine 3.8.1",
  "num-bigint",

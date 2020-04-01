@@ -1,16 +1,18 @@
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 use combine::stream::{Positioned, StreamOnce};
 
 use edb_graphql_parser::position::Pos;
-use edb_graphql_parser::query::Definition;
+use edb_graphql_parser::query::{Definition, Directive};
 use edb_graphql_parser::query::{Operation, InsertVars, InsertVarsKind};
 use edb_graphql_parser::query::{Document, parse_query, ParseError};
 use edb_graphql_parser::tokenizer::Kind::{StringValue, BlockString};
 use edb_graphql_parser::tokenizer::Kind::{IntValue, FloatValue};
 use edb_graphql_parser::tokenizer::Kind::{Punctuator, Name};
 use edb_graphql_parser::tokenizer::{TokenStream, Token};
-use edb_graphql_parser::common::{unquote_string, Type};
+use edb_graphql_parser::common::{unquote_string, Type, Value as GqlValue};
+use edb_graphql_parser::visitor::Visit;
 
 use crate::pytoken::{PyToken, PyTokenKind};
 use crate::token_vec::TokenVec;
@@ -43,6 +45,7 @@ pub enum Error {
 #[derive(Debug)]
 pub struct Entry {
     pub key: String,
+    pub key_vars: BTreeSet<String>,
     pub variables: Vec<Variable>,
     pub defaults: BTreeMap<String, Variable>,
     pub tokens: Vec<PyToken>,
@@ -163,6 +166,23 @@ fn push_var_definition(args: &mut Vec<PyToken>, var_name: &str,
     });
 }
 
+pub fn visit_directives<'x>(key_vars: &mut BTreeSet<String>,
+    oper: &'x Operation<'x, &'x str>)
+{
+    for dir in oper.selection_set.visit::<Directive<_>>() {
+        if dir.name == "include" || dir.name == "skip" {
+            for (_, value) in &dir.arguments {
+                match value {
+                    GqlValue::Variable(vname) => {
+                        key_vars.insert(vname.to_string());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     use edb_graphql_parser::query::Value as G;
     use Value::*;
@@ -196,6 +216,9 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
 
     let mut variables = Vec::new();
     let mut defaults = BTreeMap::new();
+    let mut key_vars = BTreeSet::new();
+
+    visit_directives(&mut key_vars, &oper);
 
     for var in &oper.variable_definitions {
         if let Some(ref dvalue) = var.default_value {
@@ -357,6 +380,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
 
     return Ok(Entry {
         key: join_tokens(&tokens),
+        key_vars,
         variables,
         defaults,
         tokens,

@@ -12,12 +12,16 @@ use crate::entry_point;
 
 py_class!(pub class Entry |py| {
     data _key: PyString;
+    data _key_vars: PyList;
     data _variables: PyDict;
     data _substitutions: PyDict;
     data _tokens: Vec<PyToken>;
     data _end_pos: Pos;
     def key(&self) -> PyResult<PyString> {
         Ok(self._key(py).clone_ref(py))
+    }
+    def key_vars(&self) -> PyResult<PyList> {
+        Ok(self._key_vars(py).clone_ref(py))
     }
     def variables(&self) -> PyResult<PyDict> {
         Ok(self._variables(py).clone_ref(py))
@@ -187,8 +191,13 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
                         _ => todo!(),
                     })?;
             }
+            let key_vars = PyList::new(py,
+                &entry.key_vars.iter()
+                .map(|v| v.to_py_object(py).into_object())
+                .collect::<Vec<_>>());
             Entry::create_instance(py,
                 PyString::new(py, &entry.key),
+                key_vars,
                 vars,
                 substitutions,
                 entry.tokens,
