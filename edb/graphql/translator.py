@@ -377,10 +377,7 @@ class GraphQLTranslator:
 
                 if isinstance(cond, gql_ast.VariableNode):
                     varname = cond.name.value
-                    var = self._context.vars[varname]
-                    # mark the variable as critical
-                    self._context.vars[varname] = var._replace(critical=True)
-                    value = var.val
+                    value = self._context.vars[varname].val
 
                     if value is None:
                         raise g_errors.GraphQLValidationError(
