@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 
 def param_as_str(
     schema: s_schema.Schema,
-    param: Union[ParameterDesc, Parameter]
+    param: Union[ParameterDesc, Parameter],
 ) -> str:
     ret = []
     kind = param.get_kind(schema)
@@ -134,7 +134,7 @@ class ParameterDesc(ParameterLike):
         schema: s_schema.Schema,
         modaliases: Mapping[Optional[str], str],
         num: int,
-        astnode: qlast.FuncParam
+        astnode: qlast.FuncParam,
     ) -> ParameterDesc:
 
         paramd = None
@@ -199,7 +199,7 @@ class ParameterDesc(ParameterLike):
         cls,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        cmd: CreateParameter
+        cmd: CreateParameter,
     ) -> Tuple[s_schema.Schema, ParameterDesc]:
         props = cmd.get_attributes(schema, context)
         props['name'] = Parameter.paramname_from_fullname(props['name'])
@@ -221,7 +221,7 @@ class ParameterDesc(ParameterLike):
         schema: s_schema.Schema,
         func_fqname: sn.Name,
         *,
-        context: sd.CommandContext
+        context: sd.CommandContext,
     ) -> sd.Command:
         CreateParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.CreateObject, Parameter)
@@ -250,7 +250,7 @@ class ParameterDesc(ParameterLike):
         schema: s_schema.Schema,
         func_fqname: sn.Name,
         *,
-        context: sd.CommandContext
+        context: sd.CommandContext,
     ) -> sd.Command:
         DeleteParameter = sd.ObjectCommandMeta.get_command_class_or_die(
             sd.DeleteObject, Parameter)
@@ -309,7 +309,7 @@ class Parameter(so.ObjectFragment, ParameterLike):
         self,
         schema: s_schema.Schema,
         *,
-        with_parent: bool=False
+        with_parent: bool = False,
     ) -> str:
         vn = super().get_verbosename(schema)
         if with_parent:
@@ -406,7 +406,7 @@ class PgParams(NamedTuple):
     def from_params(
         cls,
         schema: s_schema.Schema,
-        params: Union[Sequence[ParameterLike], ParameterLikeList]
+        params: Union[Sequence[ParameterLike], ParameterLikeList],
     ) -> PgParams:
         pg_params = []
         named = []
@@ -450,7 +450,7 @@ class ParameterLikeList(abc.ABC):
     def get_by_name(
         self,
         schema: s_schema.Schema,
-        name: str
+        name: str,
     ) -> Optional[ParameterLike]:
         raise NotImplementedError
 
@@ -465,7 +465,7 @@ class ParameterLikeList(abc.ABC):
     @abc.abstractmethod
     def find_named_only(
         self,
-        schema: s_schema.Schema
+        schema: s_schema.Schema,
     ) -> Mapping[str, ParameterLike]:
         raise NotImplementedError
 
@@ -508,7 +508,7 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
 
     def find_named_only(
         self,
-        schema: s_schema.Schema
+        schema: s_schema.Schema,
     ) -> Mapping[str, Parameter]:
         named = {}
         for param in self.objects(schema):
@@ -696,7 +696,7 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
     def _get_params(
         self,
         schema: s_schema.Schema,
-        context: sd.CommandContext
+        context: sd.CommandContext,
     ) -> so.ObjectList[Parameter]:
         params = []
         for cr_param in self.get_subcommands(type=ParameterCommand):
@@ -711,7 +711,7 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
         modaliases: Mapping[Optional[str], str],
         astnode: qlast.ObjectDDL,
         *,
-        param_offset: int=0
+        param_offset: int=0,
     ) -> List[ParameterDesc]:
         params = []
         if not hasattr(astnode, 'params'):
@@ -732,7 +732,7 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
         cls,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        cmd: sd.Command
+        cmd: sd.Command,
     ) -> Tuple[s_schema.Schema, List[ParameterDesc]]:
         params = []
         for subcmd in cmd.get_subcommands(type=CreateParameter):
@@ -830,7 +830,7 @@ class DeleteCallableObject(CallableCommand,
         cls,
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
-        context: sd.CommandContext
+        context: sd.CommandContext,
     ) -> sd.Command:
         assert isinstance(astnode, qlast.ObjectDDL)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
@@ -893,7 +893,8 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
     def get_verbosename(
         self,
         schema: s_schema.Schema,
-        *, with_parent: bool=False,
+        *,
+        with_parent: bool=False,
     ) -> str:
         params = self.get_params(schema)
         sn = self.get_shortname(schema)
@@ -1124,7 +1125,7 @@ class CreateFunction(CreateCallableObject, FunctionCommand):
         cls,
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
-        context: sd.CommandContext
+        context: sd.CommandContext,
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(astnode, qlast.CreateFunction)
