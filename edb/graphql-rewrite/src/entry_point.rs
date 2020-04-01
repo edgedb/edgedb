@@ -7,7 +7,8 @@ use edb_graphql_parser::query::Definition;
 use edb_graphql_parser::query::{Operation, InsertVars, InsertVarsKind};
 use edb_graphql_parser::query::{Document, parse_query, ParseError};
 use edb_graphql_parser::tokenizer::Kind::{StringValue, BlockString};
-use edb_graphql_parser::tokenizer::Kind::{IntValue, Punctuator, Name};
+use edb_graphql_parser::tokenizer::Kind::{IntValue, FloatValue};
+use edb_graphql_parser::tokenizer::Kind::{Punctuator, Name};
 use edb_graphql_parser::tokenizer::{TokenStream, Token};
 use edb_graphql_parser::common::{unquote_string, Type};
 
@@ -130,6 +131,38 @@ fn type_name<'x>(var_type: &'x Type<'x, &'x str>) -> Option<&'x str> {
     }
 }
 
+fn push_var_definition(args: &mut Vec<PyToken>, var_name: &str,
+    var_type: &'static str)
+{
+    use crate::pytoken::PyTokenKind as P;
+
+    args.push(PyToken {
+        kind: P::Dollar,
+        value: "$".into(),
+        position: None,
+    });
+    args.push(PyToken {
+        kind: P::Name,
+        value: var_name.to_owned().into(),
+        position: None,
+    });
+    args.push(PyToken {
+        kind: P::Colon,
+        value: ":".into(),
+        position: None,
+    });
+    args.push(PyToken {
+        kind: P::Name,
+        value: var_type.into(),
+        position: None,
+    });
+    args.push(PyToken {
+        kind: P::Bang,
+        value: "!".into(),
+        position: None,
+    });
+}
+
 pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     use edb_graphql_parser::query::Value as G;
     use Value::*;
@@ -191,6 +224,9 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 (G::Int(ref s), Some("Bigint")) => {
                     BigInt(s.as_bigint().to_string())
                 }
+                (G::Float(s), Some("Float")) => {
+                    Float(*s)
+                }
                 // other types are unsupported
                 _ => continue,
             };
@@ -225,7 +261,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     for (token, pos) in src_tokens.drain_to(oper.selection_set.span.1.token) {
         match token.kind {
             StringValue | BlockString => {
-                let varname = format!("_edb_arg__{}", variables.len());
+                let var_name = format!("_edb_arg__{}", variables.len());
                 tmp.push(PyToken {
                     kind: P::Dollar,
                     value: "$".into(),
@@ -233,38 +269,14 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 });
                 tmp.push(PyToken {
                     kind: P::Name,
-                    value: varname.clone().into(),
+                    value: var_name.clone().into(),
                     position: None,
                 });
                 variables.push(Variable {
                     token: PyToken::new(&(*token, *pos))?,
                     value: Str(unquote_string(token.value)?),
                 });
-                args.push(PyToken {
-                    kind: P::Dollar,
-                    value: "$".into(),
-                    position: None,
-                });
-                args.push(PyToken {
-                    kind: P::Name,
-                    value: varname.into(),
-                    position: None,
-                });
-                args.push(PyToken {
-                    kind: P::Colon,
-                    value: ":".into(),
-                    position: None,
-                });
-                args.push(PyToken {
-                    kind: P::Name,
-                    value: "String".into(),
-                    position: None,
-                });
-                args.push(PyToken {
-                    kind: P::Bang,
-                    value: "!".into(),
-                    position: None,
-                });
+                push_var_definition(&mut args, &var_name, "String");
                 continue;
             }
             IntValue => {
@@ -282,7 +294,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                         continue;
                     }
                 }
-                let varname = format!("_edb_arg__{}", variables.len());
+                let var_name = format!("_edb_arg__{}", variables.len());
                 tmp.push(PyToken {
                     kind: P::Dollar,
                     value: "$".into(),
@@ -290,7 +302,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 });
                 tmp.push(PyToken {
                     kind: P::Name,
-                    value: varname.clone().into(),
+                    value: var_name.clone().into(),
                     position: None,
                 });
                 let (value, typ) = if let Ok(val) = token.value.parse::<i64>()
@@ -309,31 +321,27 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                     token: PyToken::new(&(*token, *pos))?,
                     value,
                 });
-                args.push(PyToken {
+                push_var_definition(&mut args, &var_name, typ);
+                continue;
+            }
+            FloatValue => {
+                let var_name = format!("_edb_arg__{}", variables.len());
+                tmp.push(PyToken {
                     kind: P::Dollar,
                     value: "$".into(),
                     position: None,
                 });
-                args.push(PyToken {
+                tmp.push(PyToken {
                     kind: P::Name,
-                    value: varname.into(),
+                    value: var_name.clone().into(),
                     position: None,
                 });
-                args.push(PyToken {
-                    kind: P::Colon,
-                    value: ":".into(),
-                    position: None,
+                variables.push(Variable {
+                    token: PyToken::new(&(*token, *pos))?,
+                    value: Value::Float(token.value.parse().map_err(
+                        |_| Error::Assertion("can't parse float".into()))?),
                 });
-                args.push(PyToken {
-                    kind: P::Name,
-                    value: typ.into(),
-                    position: None,
-                });
-                args.push(PyToken {
-                    kind: P::Bang,
-                    value: "!".into(),
-                    position: None,
-                });
+                push_var_definition(&mut args, &var_name, "Float");
                 continue;
             }
             _ => {}

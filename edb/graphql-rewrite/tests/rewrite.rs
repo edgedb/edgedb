@@ -448,3 +448,70 @@ fn test_defaults_int() {
     });
     assert_eq!(entry.defaults, defaults);
 }
+
+#[test]
+fn test_float() {
+    let entry = rewrite(None, r###"
+        query {
+            object(filter: {field: {eq: 17.25}}) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query($_edb_arg__0:Float!){\
+            object(filter:{field:{eq:$_edb_arg__0}}){\
+                field\
+            }\
+        }\
+    ");
+    assert_eq!(entry.variables, vec![
+        Variable {
+            token: PyToken {
+                kind: PyTokenKind::Float,
+                value: r#"17.25"#.into(),
+                position: Some(Pos { line: 3, column: 41,
+                                     character: 57, token: 12 }),
+            },
+            value: Value::Float(17.25),
+        }
+    ]);
+}
+
+#[test]
+fn test_defaults_float() {
+    let entry = rewrite(Some("Hello"), r###"
+        query Hello($x: Float = 123.25, $y: Float! = 1234.75) {
+            object(x: $x, y: $y) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query Hello($x:Float!$y:Float!){\
+            object(x:$x y:$y){\
+                field\
+            }\
+        }\
+    ");
+    let mut defaults = BTreeMap::new();
+    defaults.insert("x".to_owned(), Variable {
+        value: Value::Float(123.25),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 31,
+                                 character: 31, token: 7 }),
+        },
+    });
+    defaults.insert("y".to_owned(), Variable {
+        value: Value::Float(1234.75),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 52,
+                                 character: 52, token: 14 }),
+        }
+    });
+    assert_eq!(entry.defaults, defaults);
+}
