@@ -624,7 +624,7 @@ def finalize_args(
 
         if param_mod is not ft.TypeModifier.SET_OF:
             arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
-            param_shortname = param.get_shortname(ctx.env.schema)
+            param_shortname = param.get_parameter_name(ctx.env.schema)
 
             # Arg was wrapped for scope fencing purposes,
             # but that fence has been removed above, so unwrap it.
