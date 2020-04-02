@@ -183,6 +183,12 @@ cdef class Protocol(http.HttpProtocol):
     async def execute(self, query, operation_name, variables):
         dbver = self.server.get_dbver()
 
+        if variables:
+            for var_name in variables:
+                if var_name.startswith('_edb_arg__'):
+                    raise errors.QueryError(
+                        f"Variables starting with '_edb_arg__' are prohibited")
+
         if debug.flags.graphql_compile:
             debug.header('Input graphql')
             print(query)
@@ -196,6 +202,8 @@ cdef class Protocol(http.HttpProtocol):
                 vars.update(variables)
             # on bad queries the following line can trigger KeyError
             key_vars = tuple(vars[k] for k in rewritten.key_vars())
+        except _graphql_rewrite.QueryError as e:
+            raise errors.QueryError(e.args[0])
         except Exception as e:
             if isinstance(e, _USER_ERRORS):
                 logger.info("Error rewriting graphql query: %s", e)

@@ -39,6 +39,7 @@ pub enum Error {
     Syntax(ParseError),
     NotFound(String),
     Assertion(String),
+    Query(String),
 }
 
 
@@ -226,6 +227,10 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     visit_directives(&mut key_vars, &mut value_positions, &oper);
 
     for var in &oper.variable_definitions {
+        if var.name.starts_with("_edb_arg__") {
+            return Err(Error::Query(
+                "Variables starting with '_edb_arg__' are prohibited".into()));
+        }
         if let Some(ref dvalue) = var.default_value {
             let value = match (&dvalue.value, type_name(&var.var_type)) {
                 (G::String(ref s), Some("String")) => Str(s.clone()),

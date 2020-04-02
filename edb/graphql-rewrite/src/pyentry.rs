@@ -5,6 +5,7 @@ use edb_graphql_parser::common::{unquote_string, unquote_block_string};
 use edb_graphql_parser::position::Pos;
 
 use crate::pyerrors::{LexingError, SyntaxError, NotFoundError, AssertionError};
+use crate::pyerrors::{QueryError};
 use crate::entry_point::{Value, Error};
 use crate::pytoken::PyToken;
 use crate::entry_point;
@@ -207,6 +208,7 @@ fn rewrite(py: Python<'_>, operation: Option<&PyString>, text: &PyString)
         Err(Error::Lexing(e)) => Err(LexingError::new(py, e.to_string())),
         Err(Error::Syntax(e)) => Err(SyntaxError::new(py, e.to_string())),
         Err(Error::NotFound(e)) => Err(NotFoundError::new(py, e.to_string())),
+        Err(Error::Query(e)) => Err(QueryError::new(py, e.to_string())),
         Err(Error::Assertion(e))
         => Err(AssertionError::new(py, e.to_string())),
     }
@@ -224,5 +226,6 @@ py_module_initializer!(
         m.add(py, "SyntaxError", py.get_type::<SyntaxError>())?;
         m.add(py, "NotFoundError", py.get_type::<NotFoundError>())?;
         m.add(py, "AssertionError", py.get_type::<AssertionError>())?;
+        m.add(py, "QueryError", py.get_type::<QueryError>())?;
         Ok(())
     });

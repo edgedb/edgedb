@@ -2809,6 +2809,30 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_functional_variables_41(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Variables starting with '_edb_arg__' are prohibited"):
+            self.graphql_query(r"""
+                query($_edb_arg__1: Int!) {
+                    User(limit: $_edb_arg__1) {
+                        id,
+                    }
+                }
+            """, variables={'_edb_arg__1': 1})
+
+    def test_graphql_functional_variables_42(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Variables starting with '_edb_arg__' are prohibited"):
+            self.graphql_query(r"""
+                query($_edb_arg__1: Int = 1) {
+                    User(limit: $_edb_arg__1) {
+                        id,
+                    }
+                }
+            """)
+
     def test_graphql_functional_enum_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
