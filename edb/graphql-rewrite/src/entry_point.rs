@@ -171,8 +171,8 @@ pub fn visit_directives<'x>(key_vars: &mut BTreeSet<String>,
 {
     for dir in oper.selection_set.visit::<Directive<_>>() {
         if dir.name == "include" || dir.name == "skip" {
-            for (_, value) in &dir.arguments {
-                match value {
+            for arg in &dir.arguments {
+                match arg.value {
                     GqlValue::Variable(vname) => {
                         key_vars.insert(vname.to_string());
                     }
