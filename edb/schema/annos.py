@@ -301,6 +301,13 @@ class AlterAnnotationValue(
             super()._apply_field_ast(schema, context, node, op)
 
 
+class RebaseAnnotationValue(
+    AnnotationValueCommand,
+    referencing.RebaseReferencedInheritingObject[AnnotationValue],
+):
+    pass
+
+
 class DeleteAnnotationValue(
     AnnotationValueCommand,
     referencing.DeleteReferencedInheritingObject[AnnotationValue],

@@ -290,7 +290,10 @@ class RenameProperty(
     pass
 
 
-class RebaseProperty(PropertyCommand, inheriting.RebaseInheritingObject):
+class RebaseProperty(
+    PropertyCommand,
+    referencing.RebaseReferencedInheritingObject[Property],
+):
     pass
 
 

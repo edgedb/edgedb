@@ -18,13 +18,15 @@
 
 
 from __future__ import annotations
-
-import hashlib
 from typing import *
 
-from edb.edgeql import ast as qlast
+import hashlib
 
 from edb import errors
+
+from edb.common import struct
+
+from edb.edgeql import ast as qlast
 
 from . import delta as sd
 from . import inheriting
@@ -582,20 +584,20 @@ class ReferencedInheritingObjectCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         referrer: so.InheritingObject,
-        refdict: so.RefDict,
+        referrer_field: str,
         fq_name: sn.SchemaName,
     ) -> List[ReferencedInheritingObjectT]:
 
         assert isinstance(referrer, so.QualifiedObject)
         child_referrer_bases = referrer.get_bases(schema).objects(schema)
         implicit_bases = []
-        ref_field_type = type(referrer).get_field(refdict.attr).type
+        ref_field_type = type(referrer).get_field(referrer_field).type
 
         for ref_base in child_referrer_bases:
             fq_name_in_child = self._classname_from_name(
                 fq_name, ref_base.get_name(schema))
             refname = ref_field_type.get_key_for_name(schema, fq_name_in_child)
-            parent_coll = ref_base.get_field_value(schema, refdict.attr)
+            parent_coll = ref_base.get_field_value(schema, referrer_field)
             parent_item = parent_coll.get(schema, refname, default=None)
             if (parent_item is not None
                     and not parent_item.get_is_final(schema)):
@@ -603,17 +605,13 @@ class ReferencedInheritingObjectCommand(
 
         return implicit_bases
 
-    def _get_ref_rebase(
+    def get_ref_implicit_base_delta(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refcls: ReferencedInheritingObjectT,
         implicit_bases: List[ReferencedInheritingObjectT],
-    ) -> sd.Command:
-        mcls = type(self.scls)
-        ref_rebase_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
-            inheriting.RebaseInheritingObject, mcls)
-
+    ) -> inheriting.BaseDelta_T:
         child_bases = refcls.get_bases(schema).objects(schema)
 
         default_base = refcls.get_default_base_name()
@@ -623,18 +621,10 @@ class ReferencedInheritingObjectCommand(
         ]
 
         new_bases = implicit_bases + explicit_bases
-        removed_bases, added_bases = inheriting.delta_bases(
+        return inheriting.delta_bases(
             [b.get_name(schema) for b in child_bases],
             [b.get_name(schema) for b in new_bases],
         )
-
-        rebase_cmd = ref_rebase_cmd(
-            classname=refcls.get_name(schema),
-            added_bases=added_bases,
-            removed_bases=removed_bases,
-        )
-
-        return rebase_cmd
 
     def _validate(
         self,
@@ -802,7 +792,7 @@ class CreateReferencedInheritingObject(
                 refdict = referrer_class.get_refdict_for_class(objcls)
 
                 implicit_bases = self._get_implicit_ref_bases(
-                    schema, context, referrer, refdict, self.classname)
+                    schema, context, referrer, refdict.attr, self.classname)
 
                 if implicit_bases:
                     bases = self.get_attribute_value('bases')
@@ -861,7 +851,10 @@ class CreateReferencedInheritingObject(
         referrer_cls = type(referrer)
         alter_cmd = get_cmd(sd.AlterObject, referrer_cls)
         ref_create_cmd = get_cmd(sd.CreateObject, mcls)
+        ref_alter_cmd = get_cmd(sd.AlterObject, mcls)
+        ref_rebase_cmd = get_cmd(inheriting.RebaseInheritingObject, mcls)
         assert issubclass(ref_create_cmd, CreateReferencedInheritingObject)
+        assert issubclass(ref_rebase_cmd, RebaseReferencedInheritingObject)
         refdict = referrer_cls.get_refdict_for_class(mcls)
         parent_fq_refname = self.scls.get_name(schema)
 
@@ -881,52 +874,37 @@ class CreateReferencedInheritingObject(
                     schema, context, refname, self.scls)
                 fq_name = self._classname_from_ast(schema, astnode, context)
 
-                existing = schema.get(fq_name, None)
-                if existing is not None:
-                    # The child already has this ref, so do a rebase.
-                    cmd = self._implicit_ref_rebase(
-                        schema, context, child, existing, refdict, fq_name)
+                # We cannot check for ref existence in this child at this
+                # time, because it might get created in a sibling branch
+                # of the delta tree.  Instead, generate a command group
+                # containing Alter(if_exists) and Create(if_not_exists)
+                # to postpone that check until the application time.
+                ref_create = ref_create_cmd.as_inherited_ref_cmd(
+                    schema, context, astnode, [self.scls])
+                ref_create.if_not_exists = True
 
-                else:
-                    cmd = ref_create_cmd.as_inherited_ref_cmd(
-                        schema, context, astnode, [self.scls])
+                ref_create.set_attribute_value(refdict.backref_attr, child)
 
-                    cmd.set_attribute_value(refdict.backref_attr, child)
+                if child.get_is_derived(schema):
+                    # All references in a derived object must
+                    # also be marked as derived, to be consistent
+                    # with derive_subtype().
+                    ref_create.set_attribute_value('is_derived', True)
 
-                    if child.get_is_derived(schema):
-                        # All references in a derived object must
-                        # also be marked as derived, to be consistent
-                        # with derive_subtype().
-                        cmd.set_attribute_value('is_derived', True)
+                ref_alter = ref_alter_cmd(classname=fq_name, if_exists=True)
+                ref_alter.add(ref_rebase_cmd(
+                    classname=fq_name,
+                    implicit=True,
+                    added_bases=(),
+                    removed_bases=(),
+                ))
 
-                alter.add(cmd)
+                alter.add(ref_alter)
+                alter.add(ref_create)
 
             self.add(alter)
 
         return schema
-
-    def _implicit_ref_rebase(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        child: so.InheritingObject,
-        existing: ReferencedInheritingObjectT,
-        refdict: so.RefDict,
-        fq_name: sn.SchemaName,
-    ) -> sd.Command:
-        get_cmd = sd.ObjectCommandMeta.get_command_class_or_die
-        mcls = type(self.scls)
-
-        implicit_bases = self._get_implicit_ref_bases(
-            schema, context, child, refdict, fq_name)
-        rebase_cmd = self._get_ref_rebase(
-            schema, context, existing, implicit_bases)
-
-        ref_alter_cmd = get_cmd(sd.AlterObject, mcls)
-        cmd = ref_alter_cmd(classname=existing.get_name(schema))
-        cmd.add(rebase_cmd)
-
-        return cmd
 
     def get_implicit_bases(
         self,
@@ -993,6 +971,48 @@ class AlterReferencedInheritingObject(
         if not was_local and now_local:
             self._validate(schema, context)
         return schema
+
+
+class RebaseReferencedInheritingObject(
+    ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
+    inheriting.RebaseInheritingObject[ReferencedInheritingObjectT],
+):
+
+    implicit = struct.Field(bool, default=False)
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+
+        if not context.canonical and self.implicit:
+            mcls = self.get_schema_metaclass()
+            refctx = self.get_referrer_context_or_die(context)
+            referrer = refctx.scls
+            assert isinstance(referrer, so.InheritingObject)
+            refdict = type(referrer).get_refdict_for_class(mcls)
+
+            implicit_bases = self._get_implicit_ref_bases(
+                schema,
+                context,
+                referrer=referrer,
+                referrer_field=refdict.attr,
+                fq_name=self.classname,
+            )
+
+            scls = self.get_object(schema, context)
+            removed_bases, added_bases = self.get_ref_implicit_base_delta(
+                schema,
+                context,
+                scls,
+                implicit_bases=implicit_bases,
+            )
+
+            self.added_bases = added_bases
+            self.removed_bases = removed_bases
+
+        return super().apply(schema, context)
 
 
 class RenameReferencedInheritingObject(
@@ -1094,7 +1114,7 @@ class DeleteReferencedInheritingObject(
             if (not context.in_deletion(offset=1)
                     and not context.disable_dep_verification):
                 implicit_bases = set(self._get_implicit_ref_bases(
-                    schema, context, referrer, refdict, self_name))
+                    schema, context, referrer, refdict.attr, self_name))
 
                 deleted_bases = set()
                 for ctx in context.stack:
@@ -1156,15 +1176,23 @@ class DeleteReferencedInheritingObject(
         existing = child_coll.get(schema, refname)
 
         implicit_bases = self._get_implicit_ref_bases(
-            schema, context, child, refdict, parent_fq_refname)
+            schema, context, child, refdict.attr, parent_fq_refname)
 
         cmd: sd.Command
 
         if existing.get_is_local(schema) or implicit_bases:
+            name = existing.get_name(schema)
+
             # Child is either defined locally or is inherited
             # from another parent, so we need to do a rebase.
-            rebase_cmd = self._get_ref_rebase(
+            removed_bases, added_bases = self.get_ref_implicit_base_delta(
                 schema, context, existing, implicit_bases)
+            rebase_cmd_cls = get_cmd(inheriting.RebaseInheritingObject, mcls)
+            rebase_cmd = rebase_cmd_cls(
+                classname=name,
+                added_bases=added_bases,
+                removed_bases=removed_bases,
+            )
 
             ref_alter_cmd = get_cmd(sd.AlterObject, mcls)
             cmd = ref_alter_cmd(classname=existing.get_name(schema))

@@ -1057,6 +1057,14 @@ class AlterAnnotationValue(
     pass
 
 
+class RebaseAnnotationValue(
+    AnnotationValueCommand,
+    RebaseObject,
+    adapts=s_anno.RebaseAnnotationValue,
+):
+    pass
+
+
 class DeleteAnnotationValue(
         AnnotationValueCommand, DeleteObject,
         adapts=s_anno.DeleteAnnotationValue):

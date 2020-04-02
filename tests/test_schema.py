@@ -584,6 +584,31 @@ _123456789_123456789_123456789 -> str
             'there should be no constraints on alias links or properties',
         )
 
+    def test_schema_ref_diamond_inheritance(self):
+        schema = tb._load_std_schema()
+
+        schema = self.run_ddl(schema, '''
+            CREATE MODULE default;
+            CREATE TYPE default::A;
+            CREATE TYPE default::B EXTENDING A;
+            CREATE TYPE default::C EXTENDING A, B;
+        ''')
+
+        orig_get_children = type(schema).get_children
+
+        def stable_get_children(self, scls):
+            children = orig_get_children(self, scls)
+            return list(sorted(children, key=lambda obj: obj.get_name(schema)))
+
+        type(schema).get_children = stable_get_children
+
+        try:
+            schema = self.run_ddl(schema, '''
+                ALTER TYPE default::A CREATE PROPERTY foo -> str;
+            ''')
+        finally:
+            type(schema).get_children = orig_get_children
+
     def test_schema_object_verbosename(self):
         schema = self.load_schema("""
             abstract inheritable annotation attr;

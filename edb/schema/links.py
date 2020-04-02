@@ -419,7 +419,10 @@ class RenameLink(LinkCommand, sd.RenameObject):
     pass
 
 
-class RebaseLink(LinkCommand, inheriting.RebaseInheritingObject[Link]):
+class RebaseLink(
+    LinkCommand,
+    referencing.RebaseReferencedInheritingObject[Link],
+):
     pass
 
 

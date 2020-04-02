@@ -552,17 +552,13 @@ class ConstraintCommand(
 
         return nref
 
-    def _get_ref_rebase(
+    def get_ref_implicit_base_delta(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refcls: Constraint,
         implicit_bases: List[Constraint],
-    ) -> sd.Command:
-        mcls = type(self.scls)
-        ref_rebase_cmd = sd.ObjectCommandMeta.get_command_class_or_die(
-            inheriting.RebaseInheritingObject, mcls)
-
+    ) -> inheriting.BaseDelta_T:
         child_bases = refcls.get_bases(schema).objects(schema)
 
         default_base = refcls.get_default_base_name()
@@ -574,18 +570,10 @@ class ConstraintCommand(
         ]
 
         new_bases = implicit_bases + explicit_bases
-        removed_bases, added_bases = inheriting.delta_bases(
+        return inheriting.delta_bases(
             [b.get_name(schema) for b in child_bases],
             [b.get_name(schema) for b in new_bases],
         )
-
-        rebase_cmd = ref_rebase_cmd(
-            classname=refcls.get_name(schema),
-            added_bases=added_bases,
-            removed_bases=removed_bases,
-        )
-
-        return rebase_cmd
 
 
 class CreateConstraint(
@@ -924,6 +912,6 @@ class DeleteConstraint(
 
 class RebaseConstraint(
     ConstraintCommand,
-    inheriting.RebaseInheritingObject[Constraint],
+    referencing.RebaseReferencedInheritingObject[Constraint],
 ):
     pass

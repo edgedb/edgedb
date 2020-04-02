@@ -471,9 +471,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             super()._apply_field_ast(schema, context, node, op)
 
 
-def delta_bases(
-    old_bases: Iterable[str], new_bases: Iterable[str]
-) -> Tuple[
+BaseDelta_T = Tuple[
     Tuple[so.ObjectShell, ...],
     Tuple[
         Tuple[
@@ -482,7 +480,13 @@ def delta_bases(
         ],
         ...,
     ],
-]:
+]
+
+
+def delta_bases(
+    old_bases: Iterable[str],
+    new_bases: Iterable[str],
+) -> BaseDelta_T:
     dropped = frozenset(old_bases) - frozenset(new_bases)
     removed_bases = [so.ObjectShell(name=b) for b in dropped]
     common_bases = [b for b in old_bases if b not in dropped]

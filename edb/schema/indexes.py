@@ -254,6 +254,8 @@ class DeleteIndex(
         return cmd
 
 
-class RebaseIndex(IndexCommand,
-                  inheriting.RebaseInheritingObject):
+class RebaseIndex(
+    IndexCommand,
+    referencing.RebaseReferencedInheritingObject[Index],
+):
     pass

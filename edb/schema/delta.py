@@ -1498,11 +1498,14 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         dummy = cast(so.Object_T, _dummy_object)
         with self.new_context(schema, context, dummy):
             if self.if_not_exists:
-                try:
-                    self.scls = self.get_object(schema, context)
-                except errors.InvalidReferenceError:
-                    pass
-                else:
+                scls = self.get_object(schema, context, default=None)
+
+                if scls is not None:
+                    parent_ctx = context.parent()
+                    if parent_ctx is not None and not self.canonical:
+                        parent_ctx.op.discard(self)
+
+                    self.scls = scls
                     return schema
 
             schema = self._create_begin(schema, context)
@@ -1702,6 +1705,9 @@ class RenameQualifiedObject(AlterObjectFragment, Generic[so.Object_T]):
 class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     _delta_action = 'alter'
 
+    #: If True, apply the command only if the object exists.
+    if_exists = struct.Field(bool, default=False)
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,
@@ -1828,7 +1834,15 @@ class AlterObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        scls = self.get_object(schema, context)
+
+        if not context.canonical and self.if_exists:
+            scls = self.get_object(schema, context, default=None)
+            if scls is None:
+                context.current().op.discard(self)
+                return schema
+        else:
+            scls = self.get_object(schema, context)
+
         self.scls = scls
 
         with self.new_context(schema, context, scls):
