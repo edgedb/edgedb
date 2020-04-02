@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use combine::stream::{Positioned, StreamOnce};
 
@@ -25,6 +24,7 @@ pub enum Value {
     Int64(i64),
     BigInt(String),
     Float(f64),
+    Boolean(bool),
 }
 
 #[derive(Debug, PartialEq)]
@@ -167,6 +167,7 @@ fn push_var_definition(args: &mut Vec<PyToken>, var_name: &str,
 }
 
 pub fn visit_directives<'x>(key_vars: &mut BTreeSet<String>,
+    value_positions: &mut HashSet<usize>,
     oper: &'x Operation<'x, &'x str>)
 {
     for dir in oper.selection_set.visit::<Directive<_>>() {
@@ -175,6 +176,9 @@ pub fn visit_directives<'x>(key_vars: &mut BTreeSet<String>,
                 match arg.value {
                     GqlValue::Variable(vname) => {
                         key_vars.insert(vname.to_string());
+                    }
+                    GqlValue::Boolean(_) => {
+                        value_positions.insert(arg.value_position.token);
                     }
                     _ => {}
                 }
@@ -217,8 +221,9 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     let mut variables = Vec::new();
     let mut defaults = BTreeMap::new();
     let mut key_vars = BTreeSet::new();
+    let mut value_positions = HashSet::new();
 
-    visit_directives(&mut key_vars, &oper);
+    visit_directives(&mut key_vars, &mut value_positions, &oper);
 
     for var in &oper.variable_definitions {
         if let Some(ref dvalue) = var.default_value {
@@ -249,6 +254,9 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                 }
                 (G::Float(s), Some("Float")) => {
                     Float(*s)
+                }
+                (G::Boolean(s), Some("Boolean")) => {
+                    Boolean(*s)
                 }
                 // other types are unsupported
                 _ => continue,
@@ -365,6 +373,28 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
                         |_| Error::Assertion("can't parse float".into()))?),
                 });
                 push_var_definition(&mut args, &var_name, "Float");
+                continue;
+            }
+            Name if token.value == "true" || token.value == "false" => {
+                let var_name = format!("_edb_arg__{}", variables.len());
+                if value_positions.contains(&pos.token) {
+                    key_vars.insert(var_name.clone());
+                }
+                tmp.push(PyToken {
+                    kind: P::Dollar,
+                    value: "$".into(),
+                    position: None,
+                });
+                tmp.push(PyToken {
+                    kind: P::Name,
+                    value: var_name.clone().into(),
+                    position: None,
+                });
+                variables.push(Variable {
+                    token: PyToken::new(&(*token, *pos))?,
+                    value: Value::Boolean(token.value == "true"),
+                });
+                push_var_definition(&mut args, &var_name, "Boolean");
                 continue;
             }
             _ => {}

@@ -515,3 +515,85 @@ fn test_defaults_float() {
     });
     assert_eq!(entry.defaults, defaults);
 }
+
+#[test]
+fn test_defaults_bool() {
+    let entry = rewrite(Some("Hello"), r###"
+        query Hello($x: Boolean = true, $y: Boolean! = false) {
+            object(x: $x, y: $y) {
+                field
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query Hello($x:Boolean!$y:Boolean!){\
+            object(x:$x y:$y){\
+                field\
+            }\
+        }\
+    ");
+    let mut defaults = BTreeMap::new();
+    defaults.insert("x".to_owned(), Variable {
+        value: Value::Boolean(true),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 33,
+                                 character: 33, token: 7 }),
+        },
+    });
+    defaults.insert("y".to_owned(), Variable {
+        value: Value::Boolean(false),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 54,
+                                 character: 54, token: 14 }),
+        }
+    });
+    assert_eq!(entry.defaults, defaults);
+}
+
+#[test]
+fn test_include_skip() {
+    let entry = rewrite(Some("Hello"), r###"
+        query Hello($x: Boolean = true) {
+            object {
+                hello @include(if: $x)
+                world @skip(if: true)
+            }
+        }
+    "###).unwrap();
+    assert_eq!(entry.key, "\
+        query Hello($x:Boolean!$_edb_arg__0:Boolean!){\
+            object{\
+                hello@include(if:$x)\
+                world@skip(if:$_edb_arg__0)\
+            }\
+        }\
+    ");
+    let mut defaults = BTreeMap::new();
+    defaults.insert("x".to_owned(), Variable {
+        value: Value::Boolean(true),
+        token: PyToken {
+            kind: PyTokenKind::Equals,
+            value: "=".into(),
+            position: Some(Pos { line: 2, column: 33,
+                                 character: 33, token: 7 }),
+        },
+    });
+    assert_eq!(entry.defaults, defaults);
+    assert_eq!(entry.key_vars,
+        vec!["x".into(), "_edb_arg__0".into()].into_iter().collect());
+    assert_eq!(entry.variables, vec![
+        Variable {
+            token: PyToken {
+                kind: PyTokenKind::Name,
+                value: r#"true"#.into(),
+                position: Some(Pos { line: 5, column: 33,
+                                     character: 135, token: 28 }),
+            },
+            value: Value::Boolean(true),
+        }
+    ]);
+}
