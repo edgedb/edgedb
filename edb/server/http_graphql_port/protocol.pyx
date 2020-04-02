@@ -212,6 +212,7 @@ cdef class Protocol(http.HttpProtocol):
             if debug.flags.graphql_compile:
                 debug.header('GraphQL optimized query')
                 print(rewritten.key())
+                print(f'key_vars: {key_vars}')
                 print(f'variables: {vars}')
 
         cache_key = (prepared_query, key_vars, operation_name, dbver)
