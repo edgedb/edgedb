@@ -264,7 +264,7 @@ def try_bind_call_args(
 
         pi += 1
 
-        param_shortname = param.get_shortname(schema)
+        param_shortname = param.get_parameter_name(schema)
         param_type = param.get_type(schema)
         if param_shortname in kwargs:
             matched_kwargs += 1
@@ -376,7 +376,7 @@ def try_bind_call_args(
                         f'failed to resolve the parameter for the arg #{i}')
 
                 param = barg.param
-                param_shortname = param.get_shortname(schema)
+                param_shortname = param.get_parameter_name(schema)
                 null_args.add(param_shortname)
 
                 defaults_mask |= 1 << i

@@ -57,7 +57,7 @@ def param_as_str(
         ret.append(kind.to_edgeql())
         ret.append(' ')
 
-    ret.append(f'{param.get_shortname(schema)}: ')
+    ret.append(f'{param.get_parameter_name(schema)}: ')
 
     if typemod is not ft.TypeModifier.SINGLETON:
         ret.append(typemod.to_edgeql())
@@ -79,7 +79,7 @@ def param_as_str(
 
 class ParameterLike(s_abc.Parameter):
 
-    def get_shortname(self, schema: s_schema.Schema) -> str:
+    def get_parameter_name(self, schema: s_schema.Schema) -> str:
         raise NotImplementedError
 
     def get_name(self, schema: s_schema.Schema) -> str:
@@ -170,7 +170,7 @@ class ParameterDesc(ParameterLike):
             default=paramd
         )
 
-    def get_shortname(self, schema: s_schema.Schema) -> str:
+    def get_parameter_name(self, schema: s_schema.Schema) -> str:
         return self.name
 
     def get_name(self, schema: s_schema.Schema) -> str:
@@ -323,10 +323,16 @@ class Parameter(so.ObjectFragment, ParameterLike):
         else:
             return vn
 
-    # type ignore below, because `get_shortname` in objects.QualifiedObject
-    # has return type of sn.Name; the following method instead *needs* to
-    # return a str
-    def get_shortname(self, schema: s_schema.Schema) -> str:  # type: ignore
+    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
+        return sn.Name(
+            module=self.get_name(schema).module,
+            name=self.get_parameter_name(schema),
+        )
+
+    def get_displayname(self, schema: s_schema.Schema) -> str:
+        return self.get_parameter_name(schema)
+
+    def get_parameter_name(self, schema: s_schema.Schema) -> str:
         fullname = self.get_name(schema)
         return self.paramname_from_fullname(fullname)
 
@@ -492,7 +498,7 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
         name: str,
     ) -> Optional[Parameter]:
         for param in self.objects(schema):
-            if param.get_shortname(schema) == name:
+            if param.get_parameter_name(schema) == name:
                 return param
         return None
 
@@ -513,7 +519,7 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
         named = {}
         for param in self.objects(schema):
             if param.get_kind(schema) is ft.ParameterKind.NAMED_ONLY:
-                named[param.get_shortname(schema)] = param
+                named[param.get_parameter_name(schema)] = param
 
         return types.MappingProxyType(named)
 
@@ -590,7 +596,7 @@ class CallableObject(
             param: ParameterLike
         ) -> bool:
             qualname = sn.get_specialized_name(
-                param.get_shortname(schema), func.get_name(schema))
+                param.get_parameter_name(schema), func.get_name(schema))
             param_name = param.get_name(schema)
             assert isinstance(param_name, sn.Name)
             return qualname != param_name.name

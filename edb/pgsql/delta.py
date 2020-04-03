@@ -581,7 +581,7 @@ class FunctionCommand:
             if compile_defaults and param_default is not None:
                 default = self.compile_default(func, param_default, schema)
 
-            args.append((param.get_shortname(schema), pg_at, default))
+            args.append((param.get_parameter_name(schema), pg_at, default))
 
         return args
 
@@ -733,7 +733,7 @@ class OperatorCommand(FunctionCommand):
 
         for param in pg_params.params:
             pg_at = self.get_pgtype(oper, param.get_type(schema), schema)
-            args.append((param.get_shortname(schema), pg_at))
+            args.append((param.get_parameter_name(schema), pg_at))
 
         return args
 

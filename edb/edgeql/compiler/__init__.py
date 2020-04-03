@@ -603,7 +603,7 @@ def get_param_anchors_for_callable(
 
     pg_params = s_func.PgParams.from_params(schema, params)
     for pi, p in enumerate(pg_params.params):
-        p_shortname = p.get_shortname(schema)
+        p_shortname = p.get_parameter_name(schema)
         anchors[p_shortname] = irast.Parameter(
             name=p_shortname,
             typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
