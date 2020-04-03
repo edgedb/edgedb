@@ -40,6 +40,11 @@ from . import compiler
 
 
 logger = logging.getLogger(__name__)
+_USER_ERRORS = (
+    _graphql_rewrite.LexingError,
+    _graphql_rewrite.SyntaxError,
+    _graphql_rewrite.NotFoundError,
+)
 
 
 cdef class Protocol(http.HttpProtocol):
@@ -186,7 +191,10 @@ cdef class Protocol(http.HttpProtocol):
         try:
             rewritten = _graphql_rewrite.rewrite(operation_name, query)
         except Exception as e:
-            logger.warning("Error rewriting graphql query", e)
+            if isinstance(e, _USER_ERRORS):
+                logger.info("Error rewriting graphql query: %s", e)
+            else:
+                logger.warning("Error rewriting graphql query: %s", e)
             rewritten = None
             rewrite_error = e
             prepared_query = query
