@@ -2083,7 +2083,7 @@ def ensure_schema_collection(
 def cleanup_schema_collection(
     schema: s_schema.Schema,
     coll_type: Type,
-    parent: Type,
+    parent: so.Object,
     parent_cmd: sd.Command,
     *,
     src_context: Optional[parsing.ParserContext] = None,

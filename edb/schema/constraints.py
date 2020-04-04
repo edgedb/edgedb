@@ -500,9 +500,14 @@ class ConstraintCommand(
             params = self._get_params(schema, context)
 
             anchors: Dict[str, Any] = {}
+            # type ignore below, because so.ObjectList[Parameter]
+            # is in practice s_func.ParameterLikeList
             param_anchors, _ = (
                 qlcompiler.get_param_anchors_for_callable(
-                    params, schema, inlined_defaults=False)
+                    params,  # type: ignore
+                    schema,
+                    inlined_defaults=False
+                )
             )
             anchors.update(param_anchors)
             referrer_ctx = self.get_referrer_context(context)
@@ -511,12 +516,14 @@ class ConstraintCommand(
                 assert isinstance(referrer_ctx.op, sd.ObjectCommand)
                 anchors['__subject__'] = referrer_ctx.op.scls
 
+            # type ignore below, because so.ObjectList[Parameter]
+            # is in practice s_func.ParameterLikeList
             return s_expr.Expression.compiled(
                 value,
                 schema=schema,
                 modaliases=context.modaliases,
                 anchors=anchors,
-                func_params=params,
+                func_params=params,  # type: ignore
                 allow_generic_type_output=True,
                 parent_object_type=self.get_schema_metaclass(),
             )
