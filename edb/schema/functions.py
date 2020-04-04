@@ -751,7 +751,6 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
 
 class AlterCallableObject(CallableCommand,
                           sd.AlterObject[CallableObject]):
-    astnode = qlast.AlterCallableObject
 
     def _alter_innards(
         self,
@@ -1224,7 +1223,8 @@ class RenameFunction(sd.RenameObject, FunctionCommand):
     pass
 
 
-class AlterFunction(sd.AlterObject[Function], FunctionCommand):
+class AlterFunction(AlterCallableObject,
+                    FunctionCommand):
     astnode = qlast.AlterFunction
 
 
