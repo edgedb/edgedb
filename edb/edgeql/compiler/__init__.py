@@ -150,8 +150,6 @@ from . import inference
 from . import setgen
 from . import stmtctx
 
-from .config import get_config_type_shape  # NOQA
-
 from . import expr as _expr_compiler  # NOQA
 from . import config as _config_compiler  # NOQA
 from . import stmt as _stmt_compiler  # NOQA
