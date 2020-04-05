@@ -37,15 +37,13 @@ from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
 from . import context
 from . import dispatch
 from . import setgen
-
-if TYPE_CHECKING:
-    from edb.schema import schema as s_schema
 
 
 class SettingInfo(NamedTuple):
@@ -111,7 +109,7 @@ def compile_ConfigReset(
         select = qlast.SelectQuery(
             result=qlast.Shape(
                 expr=qlast.Path(steps=[param_type_ref]),
-                elements=get_config_type_shape(
+                elements=s_utils.get_config_type_shape(
                     ctx.env.schema, info.param_type, path=[param_type_ref]),
             ),
             where=filter_expr,
@@ -334,75 +332,3 @@ def _validate_op(
                        cardinality=cardinality,
                        requires_restart=requires_restart,
                        backend_setting=backend_setting)
-
-
-def get_config_type_shape(
-    schema: s_schema.Schema,
-    stype: s_objtypes.ObjectType,
-    path: List[qlast.Base],
-) -> List[qlast.ShapeElement]:
-    shape = []
-    seen: Set[str] = set()
-
-    stypes = [stype] + list(stype.descendants(schema))
-
-    for t in stypes:
-        t_name = t.get_name(schema)
-
-        for pn, p in t.get_pointers(schema).items(schema):
-            if pn in ('id', '__type__') or pn in seen:
-                continue
-
-            elem_path: List[qlast.Base] = []
-
-            if t is not stype:
-                elem_path.append(
-                    qlast.TypeIntersection(
-                        type=qlast.TypeName(
-                            maintype=qlast.ObjectRef(
-                                module=t_name.module,
-                                name=t_name.name,
-                            ),
-                        ),
-                    ),
-                )
-
-            elem_path.append(qlast.Ptr(ptr=qlast.ObjectRef(name=pn)))
-
-            ptype = p.get_target(schema)
-
-            if ptype.is_object_type():
-                subshape = get_config_type_shape(
-                    schema, ptype, path + elem_path)
-                subshape.append(
-                    qlast.ShapeElement(
-                        expr=qlast.Path(
-                            steps=[
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='_tname'),
-                                ),
-                            ],
-                        ),
-                        compexpr=qlast.Path(
-                            steps=path + elem_path + [
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='__type__')),
-                                qlast.Ptr(
-                                    ptr=qlast.ObjectRef(name='name')),
-                            ],
-                        ),
-                    ),
-                )
-            else:
-                subshape = []
-
-            shape.append(
-                qlast.ShapeElement(
-                    expr=qlast.Path(steps=elem_path),
-                    elements=subshape,
-                ),
-            )
-
-            seen.add(pn)
-
-    return shape
