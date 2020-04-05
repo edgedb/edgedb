@@ -20,11 +20,13 @@ from __future__ import annotations
 
 from typing import *
 
-from edb.edgeql import ast as qlast
-from edb.edgeql import qltypes
+from edb import errors
+
 from edb.common import enum
 
-from edb import errors
+from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -653,10 +655,12 @@ class PointerCommandOrFragment(sd.ObjectCommand[Pointer]):
         expr = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr, schema, context.modaliases),
             schema=schema,
-            modaliases=context.modaliases,
-            anchors={qlast.Source().name: source},
-            path_prefix_anchor=qlast.Source().name,
-            singletons=[source],
+            options=qlcompiler.CompilerOptions(
+                modaliases=context.modaliases,
+                anchors={qlast.Source().name: source},
+                path_prefix_anchor=qlast.Source().name,
+                singletons=[source],
+            ),
         )
 
         base = None
@@ -942,11 +946,13 @@ class PointerCommand(
             return type(value).compiled(
                 value,
                 schema=schema,
-                modaliases=context.modaliases,
-                parent_object_type=self.get_schema_metaclass(),
-                anchors=anchors,
-                path_prefix_anchor=path_prefix_anchor,
-                singletons=singletons,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=context.modaliases,
+                    schema_object_context=self.get_schema_metaclass(),
+                    anchors=anchors,
+                    path_prefix_anchor=path_prefix_anchor,
+                    singletons=singletons,
+                ),
             )
         else:
             return super().compile_expr_field(schema, context, field, value)

@@ -128,55 +128,61 @@ dispatch.py
 from __future__ import annotations
 from typing import *
 
+# WARNING: this package is in a tight import loop with various modules
+# in edb.schema, so no direct imports from either this package or
+# edb.schema are allowed at the top-level.  If absolutely necessary,
+# use the lazy-loading mechanism.
+
+import functools
+
 from edb import errors
 
-from edb.edgeql import parser as ql_parser
+from edb.edgeql import ast as qlast
+from edb.edgeql import parser as qlparser
 
 from edb.common import debug
-from edb.common import markup  # NOQA
 
-from edb.schema import functions as s_func
-from edb.schema import types as s_types
-
-from edb.edgeql import ast as qlast
-from edb.ir import ast as irast
-from edb.ir import staeval as ireval
-
-from . import dispatch
-from . import inference
-from . import setgen
-from . import stmtctx
-
-from . import expr as _expr_compiler  # NOQA
-from . import config as _config_compiler  # NOQA
-from . import stmt as _stmt_compiler  # NOQA
+from .options import CompilerOptions as CompilerOptions  # "as" for reexport
 
 if TYPE_CHECKING:
-    from edb.schema import name as s_name
-    from edb.schema import objects as s_obj
     from edb.schema import schema as s_schema
+    from edb.schema import types as s_types
+
+    from edb.ir import ast as irast
+    from edb.ir import staeval as ireval
+
+    from . import dispatch as dispatch_mod
+    from . import inference as inference_mod
+    from . import stmtctx as stmtctx_mod
+else:
+    # Modules will be loaded lazily in _load().
+    dispatch_mod = None
+    inference_mod = None
+    irast = None
+    ireval = None
+    stmtctx_mod = None
 
 
+#: Compiler modules lazy-load guard.
+_LOADED = False
+
+
+def compiler_entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        if not _LOADED:
+            _load()
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@compiler_entrypoint
 def compile_ast_to_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
     *,
-    modaliases: Optional[Mapping[Optional[str], str]] = None,
-    anchors: Optional[Mapping[str, Any]] = None,
-    path_prefix_anchor: Optional[str] = None,
-    singletons: Sequence[s_types.Type] = (),
-    func_params: Optional[s_func.ParameterLikeList] = None,
-    result_view_name: Optional[s_name.SchemaName] = None,
-    derived_target_module: Optional[str] = None,
-    parent_object_type: Optional[s_obj.ObjectMeta] = None,
-    implicit_limit: int = 0,
-    implicit_id_in_shapes: bool = False,
-    implicit_tid_in_shapes: bool = False,
-    schema_view_mode: bool = False,
-    session_mode: bool = False,
-    disable_constant_folding: bool = False,
-    json_parameters: bool = False,
-    allow_generic_type_output: bool = False,
+    options: Optional[CompilerOptions] = None,
 ) -> irast.Command:
     """Compile given EdgeQL AST into EdgeDB IR.
 
@@ -191,114 +197,27 @@ def compile_ast_to_ir(
             Schema instance.  Must contain definitions for objects
             referenced by the AST *tree*.
 
-        modaliases:
-            Module name resolution table.  Useful when this EdgeQL
-            expression is part of some other construct, such as a
-            DDL statement.
-
-        anchors:
-            Predefined symbol table.  Maps identifiers
-            (or ``qlast.SpecialAnchor`` instances) to specified
-            schema objects or IR fragments.
-
-        path_prefix_anchor:
-            Symbol name used to resolve the prefix of abbreviated
-            path expressions by default.  The symbol must be present
-            in *anchors*.
-
-        singletons:
-            An optional set of schema types that should be treated
-            as singletons in the context of this compilation.
-
-        func_params:
-            When compiling a function body, specifies function parameter
-            definitions.
-
-        result_view_name:
-            Optionally defines the name of the topmost generated view type.
-            Useful when compiling schema views.
-
-        derived_target_module:
-            The name of the module where derived types and pointers should
-            be placed.  When compiling a schema view, this would be the
-            name of the module where the view is defined.  By default,
-            the special ``__derived__`` module is used.
-
-        parent_object_type:
-            Optionaly specifies the class of the schema object, in the
-            context of which this expression is compiled.  Used in schema
-            definitions.
-
-        implicit_limit:
-            If set to a non-zero integer value, this will be injected
-            as an implicit `LIMIT` clause into each read query.
-
-        implicit_id_in_shapes:
-            Whether to include object id property in shapes by default.
-
-        implicit_tid_in_shapes:
-            Whether to implicitly include object type id in shapes as
-            the ``__tid__`` computable.
-
-        schema_view_mode:
-            When compiling a schema view, set this to ``True``.
-
-        session_mode:
-            When ``True``, assumes that the expression is compiled in
-            the presence of a persistent database session.  Otherwise,
-            the use of functions and other constructs that require a
-            persistent session will trigger an error.
-
-        disable_constant_folding:
-            When ``True``, the compile-time evaluation and substitution
-            of constant expressions is disabled.
-
-        json_parameters:
-            When ``True``, the argument values are assumed to be in JSON
-            format.
-
-        allow_generic_type_output:
-            If ``True``, allows the expression to return a generic type.
-            By default, expressions must resolve into concrete types.
+        options:
+            An optional :class:`edgeql.compiler.options.CompilerOptions`
+            instance specifying compilation options.
 
     Returns:
         An instance of :class:`ir.ast.Command`.  Most frequently, this
         would be an instance of :class:`ir.ast.Statement`.
     """
+    if options is None:
+        options = CompilerOptions()
 
     if debug.flags.edgeql_compile:
         debug.header('EdgeQL AST')
         debug.dump(tree, schema=schema)
+        debug.header('Compiler Options')
+        debug.dump(options.__dict__)
 
-    ctx = stmtctx.init_context(
-        schema=schema,
-        anchors=anchors,
-        singletons=singletons,
-        modaliases=modaliases,
-        func_params=func_params,
-        derived_target_module=derived_target_module,
-        result_view_name=result_view_name,
-        implicit_limit=implicit_limit,
-        implicit_id_in_shapes=implicit_id_in_shapes,
-        implicit_tid_in_shapes=implicit_tid_in_shapes,
-        schema_view_mode=schema_view_mode,
-        disable_constant_folding=disable_constant_folding,
-        json_parameters=json_parameters,
-        session_mode=session_mode,
-        allow_generic_type_output=allow_generic_type_output,
-        parent_object_type=parent_object_type,
-    )
+    ctx = stmtctx_mod.init_context(schema=schema, options=options)
 
-    if path_prefix_anchor is not None:
-        assert anchors is not None
-        path_prefix = anchors[path_prefix_anchor]
-        assert isinstance(path_prefix, s_types.Type)
-        ctx.partial_path_prefix = setgen.class_set(path_prefix, ctx=ctx)
-        ctx.partial_path_prefix.anchor = path_prefix_anchor
-        ctx.partial_path_prefix.show_as_anchor = path_prefix_anchor
-
-    ir_set = dispatch.compile(tree, ctx=ctx)
-    ir_expr = stmtctx.fini_expression(ir_set, ctx=ctx)
+    ir_set = dispatch_mod.compile(tree, ctx=ctx)
+    ir_expr = stmtctx_mod.fini_expression(ir_set, ctx=ctx)
 
     if ctx.env.query_parameters:
         first_argname = next(iter(ctx.env.query_parameters))
@@ -324,13 +243,12 @@ def compile_ast_to_ir(
     return ir_expr
 
 
+@compiler_entrypoint
 def compile_ast_fragment_to_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
     *,
-    modaliases: Optional[Mapping[Optional[str], str]] = None,
-    anchors: Optional[Mapping[str, Any]] = None,
-    path_prefix_anchor: Optional[str] = None,
+    options: Optional[CompilerOptions] = None,
 ) -> irast.Statement:
     """Compile given EdgeQL AST fragment into EdgeDB IR.
 
@@ -346,46 +264,32 @@ def compile_ast_fragment_to_ir(
             Schema instance.  Must contain definitions for objects
             referenced by the AST *tree*.
 
-        modaliases:
-            Module name resolution table.  Useful when this EdgeQL
-            expression is part of some other construct, such as a
-            DDL statement.
-
-        anchors:
-            Predefined symbol table.  Maps identifiers
-            (or ``qlast.SpecialAnchor`` instances) to specified
-            schema objects or IR fragments.
-
-        path_prefix_anchor:
-            Symbol name used to resolve the prefix of abbreviated
-            path expressions by default.  The symbol must be present
-            in *anchors*.
+        options:
+            An optional :class:`edgeql.compiler.options.CompilerOptions`
+            instance specifying compilation options.
 
     Returns:
         An instance of :class:`ir.ast.Statement`.
     """
-    ctx = stmtctx.init_context(
-        schema=schema, anchors=anchors, modaliases=modaliases)
-    if path_prefix_anchor is not None:
-        assert anchors is not None
-        path_prefix = anchors[path_prefix_anchor]
-        assert isinstance(path_prefix, s_types.Type)
-        ctx.partial_path_prefix = setgen.class_set(path_prefix, ctx=ctx)
-        ctx.partial_path_prefix.anchor = path_prefix_anchor
-        ctx.partial_path_prefix.show_as_anchor = path_prefix_anchor
+    if options is None:
+        options = CompilerOptions()
 
-    ir_set = dispatch.compile(tree, ctx=ctx)
+    ctx = stmtctx_mod.init_context(schema=schema, options=options)
+    ir_set = dispatch_mod.compile(tree, ctx=ctx)
 
     result_type: Optional[s_types.Type]
     try:
-        result_type = inference.infer_type(ir_set, ctx.env)
+        result_type = inference_mod.infer_type(ir_set, ctx.env)
     except errors.QueryError:
         # Not all fragments can be resolved into a concrete type,
         # that's OK.
         result_type = None
 
-    return irast.Statement(expr=ir_set, schema=ctx.env.schema,
-                           stype=result_type)
+    return irast.Statement(
+        expr=ir_set,
+        schema=ctx.env.schema,
+        stype=result_type,
+    )
 
 
 def evaluate_to_python_val(
@@ -417,7 +321,7 @@ def evaluate_to_python_val(
         the const evaluator, the function will raise
         :exc:`ir.staeval.UnsupportedExpressionError`.
     """
-    tree = ql_parser.parse_fragment(expr)
+    tree = qlparser.parse_fragment(expr)
     return evaluate_ast_to_python_val(tree, schema, modaliases=modaliases)
 
 
@@ -450,16 +354,24 @@ def evaluate_ast_to_python_val(
         the const evaluator, the function will raise
         :exc:`ir.staeval.UnsupportedExpressionError`.
     """
-    ir = compile_ast_fragment_to_ir(tree, schema, modaliases=modaliases)
+    if modaliases is None:
+        modaliases = {}
+    ir = compile_ast_fragment_to_ir(
+        tree,
+        schema,
+        options=CompilerOptions(
+            modaliases=modaliases,
+        ),
+    )
     return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)
 
 
+@compiler_entrypoint
 def compile_constant_tree_to_ir(
     const: qlast.BaseConstant,
     schema: s_schema.Schema,
     *,
     styperef: Optional[irast.TypeRef] = None,
-    modaliases: Optional[Mapping[Optional[str], str]] = None,
 ) -> irast.Expr:
     """Compile an EdgeQL constant into an IR ConstExpr.
 
@@ -476,24 +388,15 @@ def compile_constant_tree_to_ir(
             ConstExpr.  If not specified, the inferred type of the constant
             is used.
 
-        modaliases:
-            Module name resolution table.  Useful when this EdgeQL
-            expression is part of some other construct, such as a
-            DDL statement.
-
     Returns:
         An instance of :class:`ir.ast.ConstExpr` representing the
         constant.
     """
-    ctx = stmtctx.init_context(
-        schema=schema,
-        modaliases=modaliases,
-    )
-
+    ctx = stmtctx_mod.init_context(schema=schema, options=CompilerOptions())
     if not isinstance(const, qlast.BaseConstant):
         raise ValueError(f'unexpected input: {const!r} is not a constant')
 
-    ir_set = dispatch.compile(const, ctx=ctx)
+    ir_set = dispatch_mod.compile(const, ctx=ctx)
     assert isinstance(ir_set, irast.Set)
     result = ir_set.expr
     assert isinstance(result, irast.BaseConstant)
@@ -501,3 +404,28 @@ def compile_constant_tree_to_ir(
         result = type(result)(value=result.value, typeref=styperef)
 
     return result
+
+
+def _load() -> None:
+    """Load the compiler modules.  This is done once per process."""
+
+    global _LOADED
+    global dispatch_mod, inference_mod, irast, ireval, stmtctx_mod
+
+    from edb.ir import ast as _irast
+    from edb.ir import staeval as _ireval
+
+    from . import expr as _expr_compiler  # NOQA
+    from . import config as _config_compiler  # NOQA
+    from . import stmt as _stmt_compiler  # NOQA
+
+    from . import dispatch
+    from . import inference
+    from . import stmtctx
+
+    dispatch_mod = dispatch
+    inference_mod = inference
+    irast = _irast
+    ireval = _ireval
+    stmtctx_mod = stmtctx
+    _LOADED = True

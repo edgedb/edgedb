@@ -24,6 +24,7 @@ from edb import errors
 
 from edb import edgeql
 from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 
 from . import abc as s_abc
@@ -239,8 +240,10 @@ class Constraint(referencing.ReferencedInheritingObject,
         final_expr = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr_ql, schema, module_aliases),
             schema=schema,
-            modaliases=module_aliases,
-            anchors={qlast.Subject().name: subject},
+            options=qlcompiler.CompilerOptions(
+                modaliases=module_aliases,
+                anchors={qlast.Subject().name: subject},
+            ),
         )
 
         bool_t: s_scalars.ScalarType = schema.get('std::bool')
@@ -514,11 +517,13 @@ class ConstraintCommand(
             return s_expr.Expression.compiled(
                 value,
                 schema=schema,
-                modaliases=context.modaliases,
-                anchors=anchors,
-                func_params=params,
-                allow_generic_type_output=True,
-                parent_object_type=self.get_schema_metaclass(),
+                options=qlcompiler.CompilerOptions(
+                    modaliases=context.modaliases,
+                    anchors=anchors,
+                    func_params=params,
+                    allow_generic_type_output=True,
+                    schema_object_context=self.get_schema_metaclass(),
+                ),
             )
         else:
             return super().compile_expr_field(schema, context, field, value)

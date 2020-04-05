@@ -63,8 +63,12 @@ def compile_FunctionCall(
     env = ctx.env
 
     if isinstance(expr.func, str):
-        if (ctx.env.func_params is not None
-                and ctx.env.func_params.get_by_name(env.schema, expr.func)):
+        if (
+            ctx.env.options.func_params is not None
+            and ctx.env.options.func_params.get_by_name(
+                env.schema, expr.func
+            )
+        ):
             raise errors.QueryError(
                 f'parameter `{expr.func}` is not callable',
                 context=expr.context)
@@ -81,13 +85,13 @@ def compile_FunctionCall(
             context=expr.context)
 
     in_polymorphic_func = (
-        ctx.env.func_params is not None and
-        ctx.env.func_params.has_polymorphic(env.schema)
+        ctx.env.options.func_params is not None and
+        ctx.env.options.func_params.has_polymorphic(env.schema)
     )
 
     in_abstract_constraint = (
         in_polymorphic_func and
-        ctx.env.parent_object_type is s_constr.Constraint
+        ctx.env.options.schema_object_context is s_constr.Constraint
     )
 
     args, kwargs = compile_call_args(expr, funcname, ctx=ctx)
@@ -110,7 +114,7 @@ def compile_FunctionCall(
     assert isinstance(func, s_func.Function)
     func_name = func.get_shortname(env.schema)
 
-    if not ctx.env.session_mode and func.get_session_only(env.schema):
+    if not ctx.env.options.session_mode and func.get_session_only(env.schema):
         raise errors.QueryError(
             f'{func_name}() cannot be called in a non-session context',
             context=expr.context)
@@ -356,13 +360,13 @@ def compile_operator(
         matched = polyres.find_callable(opers, args=args, kwargs={}, ctx=ctx)
 
     in_polymorphic_func = (
-        ctx.env.func_params is not None and
-        ctx.env.func_params.has_polymorphic(env.schema)
+        ctx.env.options.func_params is not None and
+        ctx.env.options.func_params.has_polymorphic(env.schema)
     )
 
     in_abstract_constraint = (
         in_polymorphic_func and
-        ctx.env.parent_object_type is s_constr.Constraint
+        ctx.env.options.schema_object_context is s_constr.Constraint
     )
 
     if not in_polymorphic_func:

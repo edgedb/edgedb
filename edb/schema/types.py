@@ -31,6 +31,7 @@ from edb.common import checked
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
 from . import abc as s_abc
@@ -1742,8 +1743,6 @@ class TypeCommand(sd.ObjectCommand[Type]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> irast.Statement:
-        from edb.edgeql import compiler as qlcompiler
-
         cached: Optional[irast.Statement] = (
             context.get_cached((expr, classname)))
         if cached is not None:
@@ -1753,11 +1752,14 @@ class TypeCommand(sd.ObjectCommand[Type]):
             expr = qlast.SelectQuery(result=expr)
 
         ir = qlcompiler.compile_ast_to_ir(
-            expr, schema,
-            derived_target_module=classname.module,
-            result_view_name=classname,
-            modaliases=context.modaliases,
-            schema_view_mode=True,
+            expr,
+            schema,
+            options=qlcompiler.CompilerOptions(
+                derived_target_module=classname.module,
+                result_view_name=classname,
+                modaliases=context.modaliases,
+                schema_view_mode=True,
+            ),
         )
 
         context.cache_value((expr, classname), ir)

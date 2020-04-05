@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import *
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
 from . import delta as sd
@@ -216,7 +217,6 @@ class CreateAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> CreateAnnotationValue:
-        from edb.edgeql import compiler as qlcompiler
 
         assert isinstance(astnode, qlast.CreateAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
@@ -265,8 +265,6 @@ class AlterAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> AlterAnnotationValue:
-        from edb.edgeql import compiler as qlcompiler
-
         assert isinstance(astnode, qlast.AlterAnnotationValue)
 
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)

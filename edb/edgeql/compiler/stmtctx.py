@@ -33,7 +33,6 @@ from edb.common import parsing
 from edb.ir import ast as irast
 from edb.ir import typeutils
 
-from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
@@ -52,69 +51,57 @@ from . import astutils
 from . import context
 from . import dispatch
 from . import inference
+from . import options as coptions
 from . import pathctx
 from . import setgen
 from . import schemactx
 
 
 def init_context(
-        *,
-        schema: s_schema.Schema,
-        func_params: Optional[s_func.ParameterLikeList]=None,
-        parent_object_type: Optional[s_obj.ObjectMeta]=None,
-        modaliases: Optional[Mapping[Optional[str], str]]=None,
-        anchors: Optional[Mapping[str, Any]]=None,
-        singletons: Optional[Iterable[s_types.Type]]=None,
-        security_context: Optional[str]=None,
-        derived_target_module: Optional[str]=None,
-        result_view_name: Optional[s_name.SchemaName]=None,
-        schema_view_mode: bool=False,
-        disable_constant_folding: bool=False,
-        allow_generic_type_output: bool=False,
-        implicit_limit: int=0,
-        implicit_id_in_shapes: bool=False,
-        implicit_tid_in_shapes: bool=False,
-        json_parameters: bool=False,
-        session_mode: bool=False) -> \
-        context.ContextLevel:
+    *,
+    schema: s_schema.Schema,
+    options: coptions.CompilerOptions,
+) -> context.ContextLevel:
+
     if not schema.get_global(s_mod.Module, '__derived__', None):
         schema, _ = s_mod.Module.create_in_schema(schema, name='__derived__')
     env = context.Environment(
         schema=schema,
         path_scope=irast.new_scope_tree(),
-        constant_folding=not disable_constant_folding,
-        func_params=func_params,
-        parent_object_type=parent_object_type,
-        schema_view_mode=schema_view_mode,
-        json_parameters=json_parameters,
-        session_mode=session_mode,
-        allow_generic_type_output=allow_generic_type_output)
+        options=options,
+    )
     ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
     _ = context.CompilerContext(initial=ctx)
 
-    if singletons:
+    if options.singletons:
         # The caller wants us to treat these type references
         # as singletons for the purposes of the overall expression
         # cardinality inference, so we set up the scope tree in
         # the necessary fashion.
-        for singleton in singletons:
+        for singleton in options.singletons:
             path_id = pathctx.get_path_id(singleton, ctx=ctx)
             ctx.env.path_scope.attach_path(path_id)
 
         ctx.path_scope = ctx.env.path_scope.attach_fence()
 
-    if modaliases:
-        ctx.modaliases.update(modaliases)
+    ctx.modaliases.update(options.modaliases)
 
-    if anchors:
+    if options.anchors:
         with ctx.newscope(fenced=True) as subctx:
-            populate_anchors(anchors, ctx=subctx)
+            populate_anchors(options.anchors, ctx=subctx)
 
-    ctx.derived_target_module = derived_target_module
-    ctx.toplevel_result_view_name = result_view_name
-    ctx.implicit_id_in_shapes = implicit_id_in_shapes
-    ctx.implicit_tid_in_shapes = implicit_tid_in_shapes
-    ctx.implicit_limit = implicit_limit
+    if options.path_prefix_anchor is not None:
+        path_prefix = options.anchors[options.path_prefix_anchor]
+        assert isinstance(path_prefix, s_types.Type)
+        ctx.partial_path_prefix = setgen.class_set(path_prefix, ctx=ctx)
+        ctx.partial_path_prefix.anchor = options.path_prefix_anchor
+        ctx.partial_path_prefix.show_as_anchor = options.path_prefix_anchor
+
+    ctx.derived_target_module = options.derived_target_module
+    ctx.toplevel_result_view_name = options.result_view_name
+    ctx.implicit_id_in_shapes = options.implicit_id_in_shapes
+    ctx.implicit_tid_in_shapes = options.implicit_tid_in_shapes
+    ctx.implicit_limit = options.implicit_limit
 
     return ctx
 
@@ -150,7 +137,7 @@ def fini_expression(
     else:
         cardinality = qltypes.Cardinality.AT_MOST_ONE
 
-    if ctx.env.schema_view_mode:
+    if ctx.env.options.schema_view_mode:
         for view in ctx.view_nodes.values():
             if view.is_collection():
                 continue
@@ -185,11 +172,14 @@ def fini_expression(
     expr_type = inference.infer_type(ir, ctx.env)
 
     in_polymorphic_func = (
-        ctx.env.func_params is not None and
-        ctx.env.func_params.has_polymorphic(ctx.env.schema)
+        ctx.env.options.func_params is not None and
+        ctx.env.options.func_params.has_polymorphic(ctx.env.schema)
     )
 
-    if not in_polymorphic_func and not ctx.env.allow_generic_type_output:
+    if (
+        not in_polymorphic_func
+        and not ctx.env.options.allow_generic_type_output
+    ):
         anytype = expr_type.find_any(ctx.env.schema)
         if anytype is not None:
             raise errors.QueryError(

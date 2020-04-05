@@ -23,6 +23,7 @@ from typing import *
 from edb import edgeql
 from edb import errors
 from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -208,11 +209,13 @@ class CreateIndex(
             return type(value).compiled(
                 value,
                 schema=schema,
-                modaliases=context.modaliases,
-                parent_object_type=self.get_schema_metaclass(),
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=path_prefix_anchor,
-                singletons=singletons,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=context.modaliases,
+                    schema_object_context=self.get_schema_metaclass(),
+                    anchors={qlast.Subject().name: subject},
+                    path_prefix_anchor=path_prefix_anchor,
+                    singletons=singletons,
+                ),
             )
         else:
             return super().compile_expr_field(schema, context, field, value)

@@ -24,9 +24,10 @@ from typing import *
 from typing_extensions import Protocol  # type: ignore
 
 import collections
-import dataclasses
 import enum
 import uuid
+
+from dataclasses import dataclass
 
 from edb.common import compiler
 from edb.common import parsing
@@ -41,6 +42,8 @@ from edb.schema import objects as s_obj
 from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+
+from .options import GlobalCompilerOptions
 
 if TYPE_CHECKING:
     from edb.schema import objtypes as s_objtypes
@@ -82,7 +85,7 @@ class ViewRPtr:
         self.is_update = is_update
 
 
-@dataclasses.dataclass
+@dataclass
 class StatementMetadata:
     is_unnest_fence: bool = False
     iterator_target: bool = False
@@ -153,8 +156,8 @@ class Environment:
     orig_schema: s_schema.Schema
     """A Schema as it was at the start of the compilation."""
 
-    parent_object_type: Optional[s_obj.ObjectMeta]
-    """The type of a schema object, if the expression is part of its def."""
+    options: GlobalCompilerOptions
+    """Compiler options."""
 
     path_scope: irast.ScopeTreeNode
     """Overrall expression path scope tree."""
@@ -165,9 +168,6 @@ class Environment:
     query_parameters: Dict[str, s_types.Type]
     """A mapping of query parameters to their types.  Gets populated during
     the compilation."""
-
-    schema_view_mode: bool
-    """Use material types for pointer targets in schema views."""
 
     set_types: Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
@@ -187,9 +187,6 @@ class Environment:
         qltypes.Cardinality]
     """A dictionary of all expressions and their inferred cardinality."""
 
-    constant_folding: bool
-    """Enables constant folding optimization (enabled by default)."""
-
     view_shapes: Dict[
         Union[s_types.Type, s_pointers.PointerLike],
         List[s_pointers.Pointer]
@@ -198,23 +195,11 @@ class Environment:
 
     view_shapes_metadata: Dict[s_types.Type, irast.ViewShapeMetadata]
 
-    func_params: Optional[s_func.ParameterLikeList]
-    """If compiling a function body, a list of function parameters."""
-
-    json_parameters: bool
-    """Force types of all parameters to std::json"""
-
-    session_mode: bool
-    """Whether there is a specific session."""
-
     schema_refs: Set[s_obj.Object]
     """A set of all schema objects referenced by an expression."""
 
     created_schema_objects: Set[s_obj.Object]
     """A set of all schema objects derived by this compilation."""
-
-    allow_generic_type_output: bool
-    """Whether to allow the expression to be of a generic type."""
 
     # Caches for costly operations in edb.ir.typeutils
     ptr_ref_cache: PointerRefCache
@@ -225,35 +210,26 @@ class Environment:
         *,
         schema: s_schema.Schema,
         path_scope: irast.ScopeTreeNode,
-        parent_object_type: Optional[s_obj.ObjectMeta]=None,
-        schema_view_mode: bool=False,
-        constant_folding: bool=True,
-        json_parameters: bool=False,
-        session_mode: bool=False,
-        allow_generic_type_output: bool=False,
-        func_params: Optional[s_func.ParameterLikeList]=None,
+        options: Optional[GlobalCompilerOptions]=None,
     ) -> None:
+        if options is None:
+            options = GlobalCompilerOptions()
+
+        self.options = options
         self.schema = schema
         self.orig_schema = schema
         self.path_scope = path_scope
         self.schema_view_cache = {}
         self.query_parameters = {}
-        self.schema_view_mode = schema_view_mode
         self.set_types = {}
         self.type_origins = {}
         self.inferred_types = {}
         self.inferred_cardinality = {}
-        self.constant_folding = constant_folding
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)
-        self.json_parameters = json_parameters
-        self.session_mode = session_mode
-        self.allow_generic_type_output = allow_generic_type_output
         self.schema_refs = set()
         self.created_schema_objects = set()
-        self.func_params = func_params
-        self.parent_object_type = parent_object_type
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
 

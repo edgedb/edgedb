@@ -28,11 +28,16 @@ import uuid
 from edb import errors
 
 from edb.common import adapter
+from edb.common import checked
+from edb.common import markup
+from edb.common import ordered
 from edb.common import parsing
+from edb.common import struct
+
 from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
-from edb.common import checked, markup, ordered, struct
 
 from . import expr as s_expr
 from . import name as sn
@@ -434,8 +439,6 @@ class Command(struct.MixedStruct, metaclass=CommandMeta):
         astnode: qlast.DDLOperation,
         name: str,
     ) -> Optional[str]:
-        from edb.edgeql import compiler as qlcompiler
-
         orig_text_expr = qlast.get_ddl_field_value(astnode, f'orig_{name}')
         if orig_text_expr:
             orig_text = qlcompiler.evaluate_ast_to_python_val(
@@ -2043,7 +2046,6 @@ class AlterObjectProperty(Command):
         astnode: qlast.DDLOperation,
         context: CommandContext,
     ) -> AlterObjectProperty:
-        from edb.edgeql import compiler as qlcompiler
         assert isinstance(astnode, qlast.BaseSetField)
 
         propname = astnode.name

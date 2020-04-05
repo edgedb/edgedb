@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     import uuid
 
     from edb.schema import schema as s_schema
-    from edb.edgeql.compiler import context as ql_compiler_ctx
+    from edb.edgeql.compiler import context as qlcompiler_ctx
 
 
 class WeakNamespace(str):
@@ -132,7 +132,7 @@ class PathId:
         schema: s_schema.Schema,
         t: s_types.Type,
         *,
-        env: Optional[ql_compiler_ctx.Environment] = None,
+        env: Optional[qlcompiler_ctx.Environment] = None,
         namespace: AbstractSet[AnyNamespace] = frozenset(),
         typename: Optional[s_name.Name] = None,
     ) -> PathId:

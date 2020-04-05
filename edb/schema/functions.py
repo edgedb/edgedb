@@ -26,6 +26,7 @@ from typing import *
 from edb import errors
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 
@@ -175,7 +176,13 @@ class ParameterDesc(ParameterLike):
             defexpr = expr.Expression.from_ast(
                 astnode.default, schema, modaliases, as_fragment=True)
             paramd = expr.Expression.compiled(
-                defexpr, schema, modaliases=modaliases, as_fragment=True)
+                defexpr,
+                schema,
+                as_fragment=True,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=modaliases,
+                )
+            )
 
         paramt_ast = astnode.type
 
@@ -966,8 +973,10 @@ class FunctionCommand(CallableCommand,
             return type(value).compiled(
                 value,
                 schema=schema,
-                allow_generic_type_output=True,
-                parent_object_type=self.get_schema_metaclass(),
+                options=qlcompiler.CompilerOptions(
+                    allow_generic_type_output=True,
+                    schema_object_context=self.get_schema_metaclass(),
+                ),
             )
         elif field.name == 'nativecode':
             return self.compile_function(schema, context, value)
@@ -1023,11 +1032,13 @@ class FunctionCommand(CallableCommand,
         compiled = type(body).compiled(
             body,
             schema,
-            anchors=param_anchors,
-            func_params=params,
-            # the body of a session_only function can contain calls to
-            # other session_only functions
-            session_mode=session_only,
+            options=qlcompiler.CompilerOptions(
+                anchors=param_anchors,
+                func_params=params,
+                # the body of a session_only function can contain calls to
+                # other session_only functions
+                session_mode=session_only,
+            ),
         )
 
         ir = compiled.irast

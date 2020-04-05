@@ -203,8 +203,8 @@ def try_bind_call_args(
     schema = ctx.env.schema
 
     in_polymorphic_func = (
-        ctx.env.func_params is not None and
-        ctx.env.func_params.has_polymorphic(schema)
+        ctx.env.options.func_params is not None and
+        ctx.env.options.func_params.has_polymorphic(schema)
     )
 
     has_empty_variadic = False

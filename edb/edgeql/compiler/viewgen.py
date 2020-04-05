@@ -101,7 +101,7 @@ def _process_view(
         is_update: bool=False,
         ctx: context.ContextLevel) -> s_objtypes.ObjectType:
 
-    if (view_name is None and ctx.env.schema_view_mode
+    if (view_name is None and ctx.env.options.schema_view_mode
             and view_rptr is not None):
         # Make sure persistent schema expression aliases have properly formed
         # names as opposed to the usual mangled form of the ephemeral

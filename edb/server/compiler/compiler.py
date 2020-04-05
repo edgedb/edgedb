@@ -42,7 +42,7 @@ from edb.common import debug
 from edb.common import uuidgen
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import compiler as ql_compiler
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
 from edb.ir import staeval as ireval
@@ -345,16 +345,19 @@ class Compiler(BaseCompiler):
         # commands indicates that session mode is available
         session_mode = ctx.state.capability & (enums.Capability.TRANSACTION |
                                                enums.Capability.SESSION)
-        ir = ql_compiler.compile_ast_to_ir(
+        ir = qlcompiler.compile_ast_to_ir(
             ql,
             schema=current_tx.get_schema(),
-            modaliases=current_tx.get_modaliases(),
-            implicit_tid_in_shapes=implicit_fields,
-            implicit_id_in_shapes=implicit_fields,
-            disable_constant_folding=disable_constant_folding,
-            json_parameters=ctx.json_parameters,
-            implicit_limit=ctx.implicit_limit,
-            session_mode=session_mode)
+            options=qlcompiler.CompilerOptions(
+                modaliases=current_tx.get_modaliases(),
+                implicit_tid_in_shapes=implicit_fields,
+                implicit_id_in_shapes=implicit_fields,
+                constant_folding=not disable_constant_folding,
+                json_parameters=ctx.json_parameters,
+                implicit_limit=ctx.implicit_limit,
+                session_mode=session_mode,
+            ),
+        )
 
         if ir.cardinality.is_single():
             result_cardinality = enums.ResultCardinality.ONE
@@ -800,10 +803,12 @@ class Compiler(BaseCompiler):
                 'CONFIGURE SYSTEM cannot be executed in a '
                 'transaction block')
 
-        ir = ql_compiler.compile_ast_to_ir(
+        ir = qlcompiler.compile_ast_to_ir(
             ql,
             schema=schema,
-            modaliases=modaliases,
+            options=qlcompiler.CompilerOptions(
+                modaliases=modaliases,
+            ),
         )
 
         is_backend_setting = bool(getattr(ir, 'backend_setting', None))

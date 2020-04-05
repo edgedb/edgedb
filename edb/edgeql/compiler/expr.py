@@ -78,7 +78,7 @@ def compile_BinOp(
     op_node = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
 
-    if ctx.env.constant_folding:
+    if ctx.env.options.constant_folding:
         op_node.expr = typing.cast(irast.OperatorCall, op_node.expr)
         folded = try_fold_binop(op_node.expr, ctx=ctx)
         if folded is not None:
@@ -98,8 +98,8 @@ def compile_IsOp(
 def compile_Parameter(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
 
-    if ctx.env.func_params is not None:
-        if ctx.env.parent_object_type is s_constr.Constraint:
+    if ctx.env.options.func_params is not None:
+        if ctx.env.options.schema_object_context is s_constr.Constraint:
             raise errors.InvalidConstraintDefinitionError(
                 f'dollar-prefixed "$parameters" cannot be used here',
                 context=expr.context)
@@ -408,7 +408,10 @@ def compile_TypeCast(
     elif isinstance(expr.expr, qlast.Parameter):
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
-        if (pt.is_tuple() or pt.is_anytuple()) and not ctx.env.func_params:
+        if (
+            (pt.is_tuple() or pt.is_anytuple())
+            and not ctx.env.options.func_params
+        ):
             raise errors.QueryError(
                 'cannot pass tuples as query parameters',
                 context=expr.expr.context,
@@ -417,7 +420,7 @@ def compile_TypeCast(
         if (
             isinstance(pt, s_types.Collection)
             and pt.contains_array_of_tuples(ctx.env.schema)
-            and not ctx.env.func_params
+            and not ctx.env.options.func_params
         ):
             raise errors.QueryError(
                 'cannot pass collections with tuple elements'
@@ -450,7 +453,7 @@ def compile_TypeCast(
                     f'{pt.get_displayname(ctx.env.schema)}',
                     context=expr.expr.context)
 
-        if ctx.env.json_parameters:
+        if ctx.env.options.json_parameters:
             if param_name.isdecimal():
                 raise errors.QueryError(
                     'queries compiled to accept JSON parameters do not '

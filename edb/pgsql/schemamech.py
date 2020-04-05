@@ -27,7 +27,7 @@ from edb.ir import ast as irast
 from edb.ir import astexpr as irastexpr
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as ir_utils
-from edb.edgeql import compiler as ql_compiler
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as ql_parser
 from edb.edgeql.compiler import astutils as ql_astutils
@@ -211,10 +211,12 @@ class ConstraintMech:
             cls, subject, constraint, schema):
         assert constraint.get_subject(schema) is not None
 
-        ir = ql_compiler.compile_ast_to_ir(
+        ir = qlcompiler.compile_ast_to_ir(
             constraint.get_finalexpr(schema).qlast,
             schema,
-            anchors={qlast.Subject().name: subject},
+            options=qlcompiler.CompilerOptions(
+                anchors={qlast.Subject().name: subject},
+            ),
         )
 
         terminal_refs = ir_utils.get_longest_paths(ir.expr.expr.result)
@@ -414,7 +416,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
                 expr=eql,
             )
         )
-        ir = ql_compiler.compile_ast_to_ir(eql, schema)
+        ir = qlcompiler.compile_ast_to_ir(eql, schema)
     except errors.SchemaError:
         # Reference errors mean that is is a non-constant default
         # referring to a not-yet-existing objects.

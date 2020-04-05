@@ -31,7 +31,7 @@ from edb import errors
 
 from edb.common import uuidgen
 from edb.edgeql import ast as qlast
-from edb.edgeql import compiler as ql_compiler
+from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
@@ -145,7 +145,7 @@ def evaluate_OperatorCall(
     # in question is always a StringConstant.
     qlconst = qlast.StringConstant.from_python(value)
 
-    result = ql_compiler.compile_constant_tree_to_ir(
+    result = qlcompiler.compile_constant_tree_to_ir(
         qlconst, styperef=opcall.typeref, schema=schema)
 
     assert isinstance(result, irast.ConstExpr), 'expected ConstExpr'
@@ -317,7 +317,7 @@ def object_type_to_python_type(
             if p.get_required(schema):
                 default = dataclasses.MISSING
         else:
-            default = ql_compiler.evaluate_to_python_val(
+            default = qlcompiler.evaluate_to_python_val(
                 default.text, schema=schema)
             if is_multi and not isinstance(default, frozenset):
                 default = frozenset((default,))

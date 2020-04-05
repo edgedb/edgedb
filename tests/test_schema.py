@@ -3643,7 +3643,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             stmt = qlcompiler.compile_ast_to_ir(
                 qltree,
                 schema,
-                modaliases={None: 'test'},
+                options=qlcompiler.CompilerOptions(
+                    modaliases={None: 'test'},
+                ),
             )
 
             output = self.uuid_re.sub(

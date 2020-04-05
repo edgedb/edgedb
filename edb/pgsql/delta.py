@@ -29,6 +29,7 @@ from edb import errors
 
 from edb.edgeql import ast as ql_ast
 from edb.edgeql import qltypes as ql_ft
+from edb.edgeql import compiler as qlcompiler
 
 from edb.schema import annos as s_anno
 from edb.schema import casts as s_casts
@@ -1790,11 +1791,13 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
             index_expr = type(index_expr).compiled(
                 index_expr,
                 schema=schema,
-                modaliases=context.modaliases,
-                parent_object_type=self.get_schema_metaclass(),
-                anchors={ql_ast.Subject().name: subject},
-                path_prefix_anchor=path_prefix_anchor,
-                singletons=singletons,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=context.modaliases,
+                    schema_object_context=self.get_schema_metaclass(),
+                    anchors={ql_ast.Subject().name: subject},
+                    path_prefix_anchor=path_prefix_anchor,
+                    singletons=singletons,
+                ),
             )
             ir = index_expr.irast
 
