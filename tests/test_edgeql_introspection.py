@@ -18,7 +18,6 @@
 
 
 import os.path
-import textwrap
 
 from edb.testbase import server as tb
 from edb.tools import test
@@ -1327,56 +1326,3 @@ class TestIntrospection(tb.QueryTestCase):
         """)
 
         self.assertGreater(res, 0)
-
-    async def test_edgeql_introspection_describe_01(self):
-        # Test that things like "\1" are serialized correctly
-        # by the DESCRIBE command as they would in a raw string.
-        async with self.con.transaction():
-            await self.con.execute(r'''
-                CREATE FUNCTION bad() -> str
-                    USING ( SELECT r'\1' );
-            ''')
-
-            desc = await self.con.fetchone('''
-                DESCRIBE OBJECT bad AS TEXT
-            ''')
-
-        self.assertEqual(
-            desc,
-            r"function default::bad() ->  std::str "
-            r"using ( SELECT r'\1' );"
-        )
-
-    async def test_edgeql_introspection_describe_02(self):
-        # Test that things like "\1" are serialized correctly
-        # by the DESCRIBE command as they would in a raw string.
-
-        output = await self.con.fetchone('''
-            DESCRIBE OBJECT test::User AS TEXT VERBOSE
-        ''')
-
-        expected = textwrap.dedent('''\
-            type test::User extending test::Dictionary {
-                index on (__subject__.name);
-                required single link __type__ -> schema::Type {
-                    readonly := true;
-                };
-                multi link todo -> test::Issue {
-                    single property rank -> std::int64 {
-                        default := 42;
-                    };
-                };
-                required single property id -> std::uuid {
-                    readonly := true;
-                    constraint std::exclusive;
-                };
-                required single property name -> std::str {
-                    constraint std::exclusive;
-                };
-            };''')
-
-        self.assertEqual(
-            output,
-            expected,
-            f'output:\n\n{output}\n\nIS NOT EQUAL TO EXPECTED:\n\n{expected}'
-        )

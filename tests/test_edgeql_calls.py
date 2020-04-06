@@ -212,7 +212,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 VARIADIC a: int64
             ) -> int64
                 USING EdgeQL $$
-                    SELECT <int64>sum(array_unpack(a));;
+                    SELECT <int64>sum(array_unpack(a))
                 $$;
         ''')
 
@@ -520,16 +520,16 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
             CREATE FUNCTION test::inner(
                 a: anytype
             ) -> int64
-                USING EdgeQL $$
-                    SELECT 1;
-                $$;
+                USING (
+                    SELECT 1
+                );
 
             CREATE FUNCTION test::call13(
                 a: anytype
             ) -> int64
-                USING EdgeQL $$
+                USING (
                     SELECT test::inner(a)
-                $$;
+                );
         ''')
 
         await self.assert_query_result(
@@ -557,7 +557,7 @@ class TestEdgeQLFuncCalls(tb.QueryTestCase):
                 a: str
             ) -> int64
                 USING EdgeQL $$
-                    SELECT 2;
+                    SELECT 2
                 $$;
 
             CREATE FUNCTION test::call13_2(

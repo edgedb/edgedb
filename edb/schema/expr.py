@@ -138,6 +138,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
         allow_generic_type_output: bool = False,
         func_params: Optional[s_func.ParameterLikeList] = None,
         singletons: Sequence[s_types.Type] = (),
+        session_mode: bool = False,
     ) -> Expression:
 
         from edb.edgeql import compiler as qlcompiler
@@ -162,6 +163,7 @@ class Expression(struct.MixedStruct, s_abc.ObjectContainer, s_abc.Expression):
                 parent_object_type=parent_object_type,
                 allow_generic_type_output=allow_generic_type_output,
                 singletons=singletons,
+                session_mode=session_mode,
             )
 
         assert isinstance(ir, irast_.Statement)
@@ -222,11 +224,13 @@ class ExpressionShell(so.Shell):
         origtext: Optional[str],
         refs: Optional[Iterable[so.ObjectShell]],
         _qlast: Optional[qlast_.Base] = None,
+        _irast: Optional[irast_.Command] = None,
     ) -> None:
         self.text = text
         self.origtext = origtext
         self.refs = tuple(refs) if refs is not None else None
         self._qlast = _qlast
+        self._irast = _irast
 
     def resolve(self, schema: s_schema.Schema) -> Expression:
         return Expression(
@@ -237,6 +241,7 @@ class ExpressionShell(so.Shell):
                 (s.resolve(schema) for s in self.refs),
             ) if self.refs is not None else None,
             _qlast=self._qlast,
+            _irast=self._irast,
         )
 
     @property

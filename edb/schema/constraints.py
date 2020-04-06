@@ -810,10 +810,7 @@ class CreateConstraint(
 
             node.params = [p[1] for p in params]
 
-    def get_ast_attr_for_field(
-        self,
-        field: so.Field[str],
-    ) -> Optional[str]:
+    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
         if field == 'subjectexpr':
             return 'subjectexpr'
         else:

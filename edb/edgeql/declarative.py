@@ -377,6 +377,7 @@ def trace_SetField(node: qlast.SetField, *, ctx: DepTraceContext):
         schema=ctx.schema,
         module=ctx.module,
         objects=ctx.objects,
+        params={},
     ):
         # ignore std module dependencies
         if not STD_PREFIX_RE.match(dep):
@@ -468,6 +469,17 @@ def trace_Function(node: qlast.CreateFunction, *, ctx: DepTraceContext):
     # before the function.
     deps = [param.type for param in node.params]
     deps.append(node.returning)
+
+    params = {}
+    for param in node.params:
+        if not param.type.subtypes:
+            param_t = ctx.get_ref_name(param.type.maintype)
+            params[param.name] = param_t
+        else:
+            params[param.name] = 'std::Object'
+
+    if node.nativecode is not None:
+        deps.append((node.nativecode, params))
 
     # XXX: hard_dep_expr is used because it ultimately calls the
     # _get_hard_deps helper that extracts the proper dependency list
@@ -597,14 +609,21 @@ def _register_item(
             if isinstance(expr, qlast.TypeExpr):
                 deps |= _get_hard_deps(expr, ctx=ctx)
             else:
+                if isinstance(expr, tuple):
+                    qlexpr, params = expr
+                else:
+                    qlexpr = expr
+                    params = {}
+
                 tdeps = qltracer.trace_refs(
-                    expr,
+                    qlexpr,
                     schema=ctx.schema,
                     module=ctx.module,
                     source=source,
                     path_prefix=source,
                     subject=subject or fq_name,
                     objects=ctx.objects,
+                    params=params,
                 )
 
                 for dep in tdeps:

@@ -1084,7 +1084,7 @@ class ObjectCommand(
             if subnode is not None:
                 node.commands.append(subnode)
 
-    def get_ast_attr_for_field(self, field: so.Field[Any]) -> Optional[str]:
+    def get_ast_attr_for_field(self, field: str) -> Optional[str]:
         return None
 
     @classmethod
