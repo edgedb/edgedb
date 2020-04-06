@@ -15,6 +15,6 @@ version = "0.4.1"
 features = ["extension-module"]
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["lib", "cdylib"]
 name = "edgeql_rust"
 path = "src/lib.rs"
