@@ -587,9 +587,8 @@ def init_stmt(
     ctx.stmt = irstmt
     if ctx.toplevel_stmt is None:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
-        ctx.path_scope = parent_ctx.path_scope
-    else:
-        ctx.path_scope = parent_ctx.path_scope.attach_fence()
+
+    ctx.path_scope = parent_ctx.path_scope.attach_fence()
 
     pending_own_ns = parent_ctx.pending_stmt_own_path_id_namespace
     if pending_own_ns:
