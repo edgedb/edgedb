@@ -27,6 +27,7 @@ from edb import errors
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
+from edb.edgeql import parser as qlparser
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -909,6 +910,70 @@ class Function(CallableObject, VolatilitySubject, s_abc.Function,
         params = self.get_params(schema)
         sn = self.get_shortname(schema)
         return f'function {sn}{params.as_str(schema)}'
+
+    def compile_to_ir(self, schema: s_schema.Schema) -> irast.Statement:
+        """Compile an EdgeQL function into EdgeDB IR.
+
+        Args:
+            schema:
+                A schema instance where the function is defined.
+
+        Returns:
+            An instance of :class:`ir.ast.Statement` representing the
+            function body.
+        """
+        from edb.edgeql import compiler as qlcompiler
+        from edb.ir import ast as irast
+
+        code = self.get_code(schema)
+        assert code is not None
+        trees = qlparser.parse_block(code + ';')
+        if len(trees) != 1:
+            raise errors.InvalidFunctionDefinitionError(
+                'functions can only contain one statement')
+
+        tree = trees[0]
+
+        param_anchors = get_params_symtable(
+            self.get_params(schema), schema,
+            inlined_defaults=self.has_inlined_defaults(schema))
+
+        ir = qlcompiler.compile_ast_to_ir(
+            tree, schema,
+            anchors=param_anchors,
+            func_params=self.get_params(schema),
+            # the body of a session_only function can contain calls to
+            # other session_only functions
+            session_mode=self.get_session_only(schema),
+        )
+
+        assert isinstance(ir, irast.Statement)
+        schema = ir.schema
+
+        return_type = self.get_return_type(schema)
+        if (not ir.stype.issubclass(schema, return_type)
+                and not ir.stype.implicitly_castable_to(return_type, schema)):
+            raise errors.InvalidFunctionDefinitionError(
+                f'return type mismatch in function declared to return '
+                f'{return_type.get_verbosename(schema)}',
+                details=f'Actual return type is '
+                        f'{ir.stype.get_verbosename(schema)}',
+                context=tree.context,
+            )
+
+        return_typemod = self.get_return_typemod(schema)
+        if (return_typemod is not ft.TypeModifier.SET_OF
+                and ir.cardinality.is_multi()):
+            raise errors.InvalidFunctionDefinitionError(
+                f'return cardinality mismatch in function declared to return '
+                f'a singleton',
+                details=(
+                    f'Function may return a set with more than one element.'
+                ),
+                context=tree.context,
+            )
+
+        return ir
 
 
 class FunctionCommandContext(CallableCommandContext):

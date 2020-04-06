@@ -28,7 +28,6 @@ from typing import *
 from edb import errors
 
 from edb.edgeql import ast as ql_ast
-from edb.edgeql import compiler as ql_compiler
 from edb.edgeql import qltypes as ql_ft
 
 from edb.schema import annos as s_anno
@@ -605,7 +604,7 @@ class CreateFunction(FunctionCommand, CreateObject,
         return self.make_function(func, func.get_code(schema), schema)
 
     def compile_edgeql_function(self, func: s_funcs.Function, schema):
-        body_ir = ql_compiler.compile_func_to_ir(func, schema)
+        body_ir = func.compile_to_ir(schema)
 
         sql_text, _ = compiler.compile_ir_to_sql(
             body_ir,
