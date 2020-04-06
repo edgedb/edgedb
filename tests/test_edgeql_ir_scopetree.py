@@ -45,9 +45,19 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         qltree = qlparser.parse(source)
         ir = compiler.compile_ast_to_ir(qltree, self.schema)
 
+        root = ir.scope_tree
+        if len(root.children) != 1:
+            self.fail(
+                f'Scope tree root is expected to have only one child, got'
+                f' {len(root.children)}'
+                f' \n{root.pformat()}'
+            )
+
+        scope_tree = next(iter(root.children))
+
         path_scope = self.UUID_RE.sub(
             '@SID@',
-            textwrap.indent(ir.scope_tree.pformat(), '    '),
+            textwrap.indent(scope_tree.pformat(), '    '),
         )
         expected_scope = textwrap.indent(
             textwrap.dedent(expected).strip(' \n'), '    ')
