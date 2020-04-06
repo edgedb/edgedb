@@ -237,6 +237,15 @@ class CastParamListWrapper(s_func.ParameterLikeList):
     ) -> Tuple[s_func.ParameterDesc, ...]:
         return self._params
 
+    def has_required_params(self, schema: s_schema.Schema) -> bool:
+        return True
+
+    def get_in_canonical_order(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[s_func.ParameterDesc, ...]:
+        return self._params
+
 
 class CastCallableWrapper(s_func.CallableLike):
     # A wrapper around a cast object to make it quack like a callable

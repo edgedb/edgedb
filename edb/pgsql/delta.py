@@ -560,7 +560,6 @@ class FunctionCommand:
 
     def compile_args(self, func: s_funcs.Function, schema):
         func_params = func.get_params(schema)
-        pg_params = s_funcs.PgParams.from_params(schema, func_params)
         has_inlined_defaults = func.has_inlined_defaults(schema)
 
         args = []
@@ -571,7 +570,7 @@ class FunctionCommand:
             has_inlined_defaults or func_params.find_named_only(schema)
         )
 
-        for param in pg_params.params:
+        for param in func_params.get_in_canonical_order(schema):
             param_type = param.get_type(schema)
             param_default = param.get_default(schema)
 
@@ -729,9 +728,8 @@ class OperatorCommand(FunctionCommand):
     def compile_args(self, oper: s_opers.Operator, schema):
         args = []
         oper_params = oper.get_params(schema)
-        pg_params = s_funcs.PgParams.from_params(schema, oper_params)
 
-        for param in pg_params.params:
+        for param in oper_params.get_in_canonical_order(schema):
             pg_at = self.get_pgtype(oper, param.get_type(schema), schema)
             args.append((param.get_parameter_name(schema), pg_at))
 
