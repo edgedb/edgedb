@@ -520,7 +520,7 @@ def compile_func_to_ir(
 
     return_typemod = func.get_return_typemod(schema)
     if (return_typemod is not qltypes.TypeModifier.SET_OF
-            and ir.cardinality is qltypes.Cardinality.MANY):
+            and ir.cardinality.is_multi()):
         raise errors.InvalidFunctionDefinitionError(
             f'return cardinality mismatch in function declared to return '
             f'a singleton',

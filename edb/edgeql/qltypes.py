@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *
 
 from edb.common import enum as s_enum
 
@@ -27,7 +28,7 @@ class ParameterKind(s_enum.StrEnum):
     NAMED_ONLY = 'NAMED ONLY'
     POSITIONAL = 'POSITIONAL'
 
-    def to_edgeql(self):
+    def to_edgeql(self) -> str:
         if self is ParameterKind.VARIADIC:
             return 'VARIADIC'
         elif self is ParameterKind.NAMED_ONLY:
@@ -41,7 +42,7 @@ class TypeModifier(s_enum.StrEnum):
     OPTIONAL = 'OPTIONAL'
     SINGLETON = 'SINGLETON'
 
-    def to_edgeql(self):
+    def to_edgeql(self) -> str:
         if self is TypeModifier.SET_OF:
             return 'SET OF'
         elif self is TypeModifier.OPTIONAL:
@@ -72,15 +73,59 @@ class TransactionDeferMode(s_enum.StrEnum):
     NOT_DEFERRABLE = 'NOT DEFERRABLE'
 
 
-class Cardinality(s_enum.StrEnum):
+class SchemaCardinality(s_enum.StrEnum):
+    '''This enum is used to store cardinality in the schema.'''
     ONE = 'ONE'
     MANY = 'MANY'
 
-    def as_ptr_qual(self):
-        if self is Cardinality.ONE:
+    def as_ptr_qual(self) -> str:
+        if self is SchemaCardinality.ONE:
             return 'single'
         else:
             return 'multi'
+
+
+class Cardinality(s_enum.StrEnum):
+    '''This enum is used in cardinality inference internally.'''
+    # [0, 1]
+    AT_MOST_ONE = 'AT_MOST_ONE'
+    # [1, 1]
+    ONE = 'ONE'
+    # [0, inf)
+    MANY = 'MANY'
+    # [1, inf)
+    AT_LEAST_ONE = 'AT_LEAST_ONE'
+
+    def is_single(self) -> bool:
+        return self in {Cardinality.AT_MOST_ONE, Cardinality.ONE}
+
+    def is_multi(self) -> bool:
+        return not self.is_single()
+
+    def to_schema_value(self) -> Tuple[bool, SchemaCardinality]:
+        return _CARD_TO_TUPLE[self]
+
+    @classmethod
+    def from_schema_value(
+        cls,
+        required: bool,
+        card: SchemaCardinality
+    ) -> Cardinality:
+        return _TUPLE_TO_CARD[(required, card)]
+
+
+_CARD_TO_TUPLE = {
+    Cardinality.AT_MOST_ONE: (False, SchemaCardinality.ONE),
+    Cardinality.ONE: (True, SchemaCardinality.ONE),
+    Cardinality.MANY: (False, SchemaCardinality.MANY),
+    Cardinality.AT_LEAST_ONE: (True, SchemaCardinality.MANY),
+}
+_TUPLE_TO_CARD = {
+    (False, SchemaCardinality.ONE): Cardinality.AT_MOST_ONE,
+    (True, SchemaCardinality.ONE): Cardinality.ONE,
+    (False, SchemaCardinality.MANY): Cardinality.MANY,
+    (True, SchemaCardinality.MANY): Cardinality.AT_LEAST_ONE,
+}
 
 
 class Volatility(s_enum.StrEnum):

@@ -308,7 +308,7 @@ def object_type_to_python_type(
         else:
             pytype = scalar_type_to_python_type(ptype, schema)
 
-        is_multi = p.get_cardinality(schema) is qltypes.Cardinality.MANY
+        is_multi = p.get_cardinality(schema) is qltypes.SchemaCardinality.MANY
         if is_multi:
             pytype = FrozenSet[pytype]  # type: ignore
 

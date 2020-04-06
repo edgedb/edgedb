@@ -353,7 +353,7 @@ class Compiler(BaseCompiler):
             implicit_limit=ctx.implicit_limit,
             session_mode=session_mode)
 
-        if ir.cardinality is qltypes.Cardinality.ONE:
+        if ir.cardinality.is_single():
             result_cardinality = enums.ResultCardinality.ONE
         else:
             result_cardinality = enums.ResultCardinality.MANY

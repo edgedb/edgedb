@@ -1710,8 +1710,13 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                 "description": None,
                                 "type": {
                                     "__typename": "__Type",
-                                    "name": "String",
-                                    "kind": "SCALAR"
+                                    "name": None,
+                                    "kind": "NON_NULL",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": "String",
+                                        "kind": "SCALAR"
+                                    }
                                 },
                                 "isDeprecated": False,
                                 "deprecationReason": None

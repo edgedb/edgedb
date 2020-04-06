@@ -47,6 +47,10 @@ class Constraint(NamedObject):
     pass
 
 
+class ConcreteConstraint(NamedObject):
+    pass
+
+
 class Annotation(NamedObject):
     pass
 

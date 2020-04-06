@@ -373,7 +373,8 @@ class CreateLink(
         src_prop.set_attribute_value('readonly', True)
         src_prop.set_attribute_value('is_final', True)
         src_prop.set_attribute_value('is_local', True)
-        src_prop.set_attribute_value('cardinality', qltypes.Cardinality.ONE)
+        src_prop.set_attribute_value('cardinality',
+                                     qltypes.SchemaCardinality.ONE)
 
         cmd.prepend(src_prop)
 
@@ -405,7 +406,8 @@ class CreateLink(
         tgt_prop.set_attribute_value('readonly', True)
         tgt_prop.set_attribute_value('is_final', True)
         tgt_prop.set_attribute_value('is_local', True)
-        tgt_prop.set_attribute_value('cardinality', qltypes.Cardinality.ONE)
+        tgt_prop.set_attribute_value('cardinality',
+                                     qltypes.SchemaCardinality.ONE)
 
         cmd.prepend(tgt_prop)
 

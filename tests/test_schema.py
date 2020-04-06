@@ -206,7 +206,7 @@ _123456789_123456789_123456789 -> str
         obj = schema.get('test::Object')
         self.assertEqual(
             obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
-            qltypes.Cardinality.ONE)
+            qltypes.SchemaCardinality.ONE)
 
     def test_schema_computable_cardinality_inference_02(self):
         schema = self.load_schema("""
@@ -220,7 +220,7 @@ _123456789_123456789_123456789 -> str
         obj = schema.get('test::Object')
         self.assertEqual(
             obj.getptr(schema, 'foo_plus_bar').get_cardinality(schema),
-            qltypes.Cardinality.MANY)
+            qltypes.SchemaCardinality.MANY)
 
     def test_schema_refs_01(self):
         schema = self.load_schema("""
@@ -4411,7 +4411,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 LIMIT
                     1
                 );
-                CREATE SINGLE PROPERTY compprop := ('foo');
+                CREATE REQUIRED SINGLE PROPERTY compprop := ('foo');
             };
             """
         )
@@ -4458,7 +4458,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 LIMIT
                     1
                 );
-                CREATE SINGLE PROPERTY compprop := ('foo');
+                CREATE REQUIRED SINGLE PROPERTY compprop := ('foo');
             };
             """
         )

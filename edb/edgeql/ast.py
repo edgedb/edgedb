@@ -467,7 +467,7 @@ class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     expr: Path
     elements: typing.List[ShapeElement]
     compexpr: Expr
-    cardinality: qltypes.Cardinality
+    cardinality: qltypes.SchemaCardinality
     required: bool = False
 
 
@@ -743,7 +743,7 @@ class CreateConcretePointer(CreateObject, BasesMixin):
     is_required: bool = False
     declared_overloaded: bool = False
     target: typing.Optional[typing.Union[Expr, TypeExpr]]
-    cardinality: qltypes.Cardinality
+    cardinality: qltypes.SchemaCardinality
 
 
 class CreateConcreteProperty(CreateConcretePointer):

@@ -735,7 +735,7 @@ def type_intersection_set(
         # The type intersection cannot increase the cardinality
         # of the input set, so semantically, the cardinality
         # of the type intersection "link" is, at most, ONE.
-        cardinality=qltypes.Cardinality.ONE,
+        cardinality=qltypes.SchemaCardinality.ONE,
     )
 
     ptrref = irtyputils.ptrref_from_ptrcls(

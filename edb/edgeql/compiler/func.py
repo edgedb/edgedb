@@ -689,7 +689,8 @@ def finalize_args(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
         if param_mod is not ft.TypeModifier.SET_OF:
-            call_arg = irast.CallArg(expr=arg, cardinality=ft.Cardinality.ONE)
+            call_arg = irast.CallArg(expr=arg,
+                                     cardinality=ft.Cardinality.ONE)
         else:
             call_arg = irast.CallArg(expr=arg, cardinality=None)
             stmtctx.get_expr_cardinality_later(
