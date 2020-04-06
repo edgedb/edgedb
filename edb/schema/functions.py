@@ -1235,3 +1235,54 @@ class AlterFunction(AlterCallableObject,
 
 class DeleteFunction(DeleteCallableObject, FunctionCommand):
     astnode = qlast.DropFunction
+
+
+def get_params_symtable(
+    params: FuncParameterList,
+    schema: s_schema.Schema,
+    *,
+    inlined_defaults: bool,
+) -> Dict[str, qlast.Expr]:
+
+    anchors: Dict[str, qlast.Expr] = {}
+
+    defaults_mask = qlast.TypeCast(
+        expr=qlast.Parameter(name='__defaults_mask__'),
+        type=qlast.TypeName(
+            maintype=qlast.ObjectRef(
+                module='std',
+                name='bytes',
+            ),
+        ),
+    )
+
+    for pi, p in enumerate(params.get_in_canonical_order(schema)):
+        p_shortname = p.get_parameter_name(schema)
+        anchors[p_shortname] = qlast.TypeCast(
+            expr=qlast.Parameter(name=p_shortname),
+            type=utils.typeref_to_ast(schema, p.get_type(schema)),
+        )
+
+        p_default = p.get_default(schema)
+        if p_default is None:
+            continue
+
+        if not inlined_defaults:
+            continue
+
+        anchors[p_shortname] = qlast.IfElse(
+            condition=qlast.BinOp(
+                left=qlast.FunctionCall(
+                    func=('std', 'bytes_get_bit'),
+                    args=[
+                        defaults_mask,
+                        qlast.IntegerConstant(value=str(pi)),
+                    ]),
+                op='=',
+                right=qlast.IntegerConstant(value='0'),
+            ),
+            if_expr=anchors[p_shortname],
+            else_expr=qlast._Optional(expr=p_default.qlast),
+        )
+
+    return anchors

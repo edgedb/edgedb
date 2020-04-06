@@ -137,13 +137,11 @@ from edb.common import debug
 from edb.common import markup  # NOQA
 
 from edb.schema import functions as s_func
-from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
 from edb.ir import staeval as ireval
-from edb.ir import typeutils as irtyputils
 
 from . import dispatch
 from . import inference
@@ -487,11 +485,9 @@ def compile_func_to_ir(
 
     tree = trees[0]
 
-    param_anchors, param_aliases = get_param_anchors_for_callable(
+    param_anchors = s_func.get_params_symtable(
         func.get_params(schema), schema,
         inlined_defaults=func.has_inlined_defaults(schema))
-
-    tree.aliases.extend(param_aliases)
 
     ir = compile_ast_to_ir(
         tree, schema,
@@ -576,60 +572,3 @@ def compile_constant_tree_to_ir(
         result = type(result)(value=result.value, typeref=styperef)
 
     return result
-
-
-def get_param_anchors_for_callable(
-    params: s_func.FuncParameterList,
-    schema: s_schema.Schema,
-    *,
-    inlined_defaults: bool,
-) -> Tuple[
-    Dict[str, irast.Parameter],
-    List[qlast.AliasedExpr],
-]:
-    anchors = {}
-    aliases = []
-
-    if inlined_defaults:
-        anchors['__defaults_mask__'] = irast.Parameter(
-            name='__defaults_mask__',
-            typeref=irtyputils.type_to_typeref(  # note: no cache
-                schema,
-                cast(s_scalars.ScalarType, schema.get('std::bytes')),
-            ),
-        )
-
-    for pi, p in enumerate(params.get_in_canonical_order(schema)):
-        p_shortname = p.get_parameter_name(schema)
-        anchors[p_shortname] = irast.Parameter(
-            name=p_shortname,
-            typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
-
-        p_default = p.get_default(schema)
-        if p_default is None:
-            continue
-
-        if not inlined_defaults:
-            continue
-
-        aliases.append(
-            qlast.AliasedExpr(
-                alias=p_shortname,
-                expr=qlast.IfElse(
-                    condition=qlast.BinOp(
-                        left=qlast.FunctionCall(
-                            func=('std', 'bytes_get_bit'),
-                            args=[
-                                qlast.Path(steps=[
-                                    qlast.ObjectRef(
-                                        name='__defaults_mask__')
-                                ]),
-                                qlast.IntegerConstant(value=str(pi)),
-                            ]),
-                        right=qlast.IntegerConstant(value='0'),
-                        op='='),
-                    if_expr=qlast.Path(
-                        steps=[qlast.ObjectRef(name=p_shortname)]),
-                    else_expr=qlast._Optional(expr=p_default.qlast))))
-
-    return anchors, aliases

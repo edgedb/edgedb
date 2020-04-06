@@ -408,7 +408,7 @@ def compile_TypeCast(
     elif isinstance(expr.expr, qlast.Parameter):
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
-        if pt.is_tuple() or pt.is_anytuple():
+        if (pt.is_tuple() or pt.is_anytuple()) and not ctx.env.func_params:
             raise errors.QueryError(
                 'cannot pass tuples as query parameters',
                 context=expr.expr.context,
@@ -417,6 +417,7 @@ def compile_TypeCast(
         if (
             isinstance(pt, s_types.Collection)
             and pt.contains_array_of_tuples(ctx.env.schema)
+            and not ctx.env.func_params
         ):
             raise errors.QueryError(
                 'cannot pass collections with tuple elements'

@@ -491,7 +491,6 @@ class ConstraintCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
     ) -> s_expr.Expression:
-        from edb.edgeql import compiler as qlcompiler
 
         if field.name in ('expr', 'subjectexpr'):
             if not isinstance(self, CreateConstraint):
@@ -500,12 +499,10 @@ class ConstraintCommand(
             params = self._get_params(schema, context)
 
             anchors: Dict[str, Any] = {}
-            param_anchors, _ = (
-                qlcompiler.get_param_anchors_for_callable(
-                    params,
-                    schema,
-                    inlined_defaults=False
-                )
+            param_anchors = s_func.get_params_symtable(
+                params,
+                schema,
+                inlined_defaults=False,
             )
             anchors.update(param_anchors)
             referrer_ctx = self.get_referrer_context(context)
