@@ -42,7 +42,7 @@ from . import typegen
 
 class BoundArg(NamedTuple):
 
-    param: Optional[s_func.Parameter]
+    param: Optional[s_func.ParameterLike]
     param_type: s_types.Type
     val: irast.Set
     valtype: s_types.Type
@@ -51,7 +51,7 @@ class BoundArg(NamedTuple):
 
 class MissingArg(NamedTuple):
 
-    param: Optional[s_func.Parameter]
+    param: Optional[s_func.ParameterLike]
     param_type: s_types.Type
 
 
@@ -234,17 +234,16 @@ def try_bind_call_args(
             # being called with some arguments.
             return None
 
-    pg_params = s_func.PgParams.from_params(schema, func_params)
     named_only = func_params.find_named_only(schema)
 
-    if no_args_call and pg_params.has_param_wo_default:
+    if no_args_call and func_params.has_required_params(schema):
         # A call without arguments and there is at least
         # one parameter without default.
         return None
 
     bound_args_prep: List[Union[MissingArg, BoundArg]] = []
 
-    params = pg_params.params
+    params = func_params.get_in_canonical_order(schema)
     nparams = len(params)
     nargs = len(args)
     has_missing_args = False
@@ -382,8 +381,9 @@ def try_bind_call_args(
                 defaults_mask |= 1 << i
 
                 if not has_inlined_defaults:
-                    ql_default = param.get_ql_default(schema)
-                    default = dispatch.compile(ql_default, ctx=ctx)
+                    param_default = param.get_default(schema)
+                    assert param_default is not None
+                    default = dispatch.compile(param_default.qlast, ctx=ctx)
 
                 empty_default = (
                     has_inlined_defaults or

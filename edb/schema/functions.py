@@ -43,6 +43,8 @@ if TYPE_CHECKING:
     from edb.ir import ast as irast
     from . import schema as s_schema
 
+    ParameterLike_T = TypeVar("ParameterLike_T", bound="ParameterLike")
+
 
 def param_as_str(
     schema: s_schema.Schema,
@@ -75,6 +77,36 @@ def param_as_str(
         ret.append(f'={default.origtext}')
 
     return ''.join(ret)
+
+
+def canonical_param_sort(
+    schema: s_schema.Schema,
+    params: Iterable[ParameterLike_T],
+) -> Tuple[ParameterLike_T, ...]:
+
+    canonical_order = []
+    named = []
+    variadic = None
+
+    for param in params:
+        param_kind = param.get_kind(schema)
+
+        if param_kind is ft.ParameterKind.POSITIONAL:
+            canonical_order.append(param)
+        elif param_kind is ft.ParameterKind.NAMED_ONLY:
+            named.append(param)
+        else:
+            variadic = param
+
+    if variadic is not None:
+        canonical_order.append(variadic)
+
+    if named:
+        named.sort(key=lambda p: p.get_name(schema))
+        named.extend(canonical_order)
+        canonical_order = named
+
+    return tuple(canonical_order)
 
 
 class ParameterLike(s_abc.Parameter):
@@ -336,11 +368,6 @@ class Parameter(so.ObjectFragment, ParameterLike):
         fullname = self.get_name(schema)
         return self.paramname_from_fullname(fullname)
 
-    def get_ql_default(self, schema: s_schema.Schema) -> qlast.Base:
-        ql_default = self.get_default(schema)
-        assert ql_default is not None
-        return ql_default.qlast
-
     def get_ir_default(self, *, schema: s_schema.Schema) -> irast.Base:
         from edb.ir import ast as irast
         from edb.ir import utils as irutils
@@ -403,53 +430,6 @@ class DeleteParameter(ParameterCommand, sd.DeleteObject[Parameter]):
     pass
 
 
-class PgParams(NamedTuple):
-
-    params: Tuple[Parameter, ...]
-    has_param_wo_default: bool
-
-    @classmethod
-    def from_params(
-        cls,
-        schema: s_schema.Schema,
-        params: Union[Sequence[ParameterLike], ParameterLikeList],
-    ) -> PgParams:
-        pg_params = []
-        named = []
-        variadic = None
-        has_param_wo_default = False
-
-        if isinstance(params, ParameterLikeList):
-            params = params.objects(schema)
-
-        for param in params:
-            param_kind = param.get_kind(schema)
-            param_default = param.get_default(schema)
-
-            if param_kind is ft.ParameterKind.POSITIONAL:
-                if param_default is None:
-                    has_param_wo_default = True
-                pg_params.append(param)
-            elif param_kind is ft.ParameterKind.NAMED_ONLY:
-                if param_default is None:
-                    has_param_wo_default = True
-                named.append(param)
-            else:
-                variadic = param
-
-        if variadic is not None:
-            pg_params.append(variadic)
-
-        if named:
-            named.sort(key=lambda p: p.get_name(schema))
-            named.extend(pg_params)
-            pg_params = named
-
-        return cls(
-            params=tuple(cast(List[Parameter], pg_params)),
-            has_param_wo_default=has_param_wo_default)
-
-
 class ParameterLikeList(abc.ABC):
 
     @abc.abstractmethod
@@ -483,7 +463,21 @@ class ParameterLikeList(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def has_required_params(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def objects(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[ParameterLike, ...]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_in_canonical_order(
         self,
         schema: s_schema.Schema,
     ) -> Tuple[ParameterLike, ...]:
@@ -528,6 +522,19 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
             if param.get_kind(schema) is ft.ParameterKind.VARIADIC:
                 return param
         return None
+
+    def has_required_params(self, schema: s_schema.Schema) -> bool:
+        return any(
+            param.get_kind(schema) is not ft.ParameterKind.VARIADIC
+            and param.get_default(schema) is None
+            for param in self.objects(schema)
+        )
+
+    def get_in_canonical_order(
+        self,
+        schema: s_schema.Schema,
+    ) -> Tuple[Parameter, ...]:
+        return canonical_param_sort(schema, self.objects(schema))
 
 
 class VolatilitySubject(so.Object):
@@ -648,11 +655,9 @@ class CallableObject(
         schema: s_schema.Schema,
         params: List[ParameterDesc],
     ) -> Tuple[str, ...]:
-        pgp = PgParams.from_params(schema, params)
-
         quals: List[str] = []
-        for param in pgp.params:
-            assert isinstance(param, ParameterDesc)
+        canonical_order = canonical_param_sort(schema, params)
+        for param in canonical_order:
             pt = param.get_type_shell(schema)
             if isinstance(pt, s_types.CollectionTypeShell):
                 quals.append(pt.get_schema_class_displayname())
@@ -703,12 +708,12 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObject]):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> so.ObjectList[Parameter]:
+    ) -> FuncParameterList:
         params = []
         for cr_param in self.get_subcommands(type=ParameterCommand):
             param = schema.get(cr_param.classname, type=Parameter)
             params.append(param)
-        return FuncParameterList.create(schema, params)
+        return FuncParameterList.create(schema, params)  # type: ignore
 
     @classmethod
     def _get_param_desc_from_ast(

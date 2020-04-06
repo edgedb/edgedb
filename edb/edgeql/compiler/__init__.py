@@ -579,7 +579,7 @@ def compile_constant_tree_to_ir(
 
 
 def get_param_anchors_for_callable(
-    params: s_func.ParameterLikeList,
+    params: s_func.FuncParameterList,
     schema: s_schema.Schema,
     *,
     inlined_defaults: bool,
@@ -599,14 +599,14 @@ def get_param_anchors_for_callable(
             ),
         )
 
-    pg_params = s_func.PgParams.from_params(schema, params)
-    for pi, p in enumerate(pg_params.params):
+    for pi, p in enumerate(params.get_in_canonical_order(schema)):
         p_shortname = p.get_parameter_name(schema)
         anchors[p_shortname] = irast.Parameter(
             name=p_shortname,
             typeref=irtyputils.type_to_typeref(schema, p.get_type(schema)))
 
-        if p.get_default(schema) is None:
+        p_default = p.get_default(schema)
+        if p_default is None:
             continue
 
         if not inlined_defaults:
@@ -630,6 +630,6 @@ def get_param_anchors_for_callable(
                         op='='),
                     if_expr=qlast.Path(
                         steps=[qlast.ObjectRef(name=p_shortname)]),
-                    else_expr=qlast._Optional(expr=p.get_ql_default(schema)))))
+                    else_expr=qlast._Optional(expr=p_default.qlast))))
 
     return anchors, aliases
