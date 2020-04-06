@@ -3122,7 +3122,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
 
             function str_upper(val: str) -> str {
-                using (SELECT '^^' ++ str_upper(val) ++ '^^');
+                using (SELECT '^^' ++ std::str_upper(val) ++ '^^');
             }
         """)
 

@@ -108,19 +108,38 @@ def trace_refs(
     path_prefix: typing.Optional[sn.Name] = None,
     module: typing.Optional[str] = None,
     objects: typing.Dict[str, object],
+    params: typing.Dict[str, str],
 ) -> typing.FrozenSet[sn.Name]:
 
     """Return a list of schema item names used in an expression."""
 
-    ctx = TracerContext(schema, module, objects,
-                        source, subject, path_prefix, {})
+    ctx = TracerContext(
+        schema=schema,
+        module=module,
+        objects=objects,
+        source=source,
+        subject=subject,
+        path_prefix=path_prefix,
+        modaliases={},
+        params=params,
+    )
     trace(qltree, ctx=ctx)
     return frozenset(ctx.refs)
 
 
 class TracerContext:
-    def __init__(self, schema, module, objects, source, subject, path_prefix,
-                 modaliases):
+    def __init__(
+        self,
+        *,
+        schema,
+        module,
+        objects,
+        source,
+        subject,
+        path_prefix,
+        modaliases,
+        params,
+    ):
         self.schema = schema
         self.refs = set()
         self.module = module
@@ -129,12 +148,15 @@ class TracerContext:
         self.subject = subject
         self.path_prefix = path_prefix
         self.modaliases = modaliases
+        self.params = params
 
     def get_ref_name(self, ref: qlast.ObjectRef) -> sn.Name:
         if ref.module:
             # replace the module alias with the real name
             module = self.modaliases.get(ref.module, ref.module)
             return sn.Name(module=module, name=ref.name)
+        elif ref.name in self.params:
+            return self.params[ref.name]
         elif f'{self.module}::{ref.name}' in self.objects:
             return sn.Name(module=self.module, name=ref.name)
         else:
@@ -182,9 +204,16 @@ def alias_context(ctx, aliases):
             trace(alias.expr, ctx=ctx)
 
     if module or modaliases:
-        nctx = TracerContext(ctx.schema, module or ctx.module, ctx.objects,
-                             ctx.source, ctx.subject, ctx.path_prefix,
-                             modaliases or ctx.modaliases)
+        nctx = TracerContext(
+            schema=ctx.schema,
+            module=module or ctx.module,
+            objects=ctx.objects,
+            source=ctx.source,
+            subject=ctx.subject,
+            path_prefix=ctx.path_prefix,
+            modaliases=modaliases or ctx.modaliases,
+            params=ctx.params,
+        )
         # use the same refs set
         nctx.refs = ctx.refs
     else:
@@ -350,7 +379,13 @@ def trace_Path(node: qlast.Path, *,
                     return
 
                 if isinstance(lprop, Pointer):
-                    source_name = lprop.source.get_name(ctx.schema)
+                    src = lprop.source
+                    src_name = src.get_name(ctx.schema)
+                    if isinstance(src, Pointer) and src.source is not None:
+                        src_src_name = src.source.get_name(ctx.schema)
+                        source_name = f'{src_src_name}@{src_name}'
+                    else:
+                        source_name = src_name
                     ctx.refs.add(f'{source_name}@{step.ptr.name}')
             else:
                 if step.direction == '<':
@@ -372,9 +407,8 @@ def trace_Path(node: qlast.Path, *,
                         # Invalid pointer reference, bail.
                         return
 
-                    if ptr.source == tip:
-                        tip_name = tip.get_name(ctx.schema)
-                        ctx.refs.add(f'{tip_name}@{step.ptr.name}')
+                    source_name = ptr.source.get_name(ctx.schema)
+                    ctx.refs.add(f'{source_name}@{step.ptr.name}')
 
                     tip = ptr.get_target(ctx.schema)
 

@@ -301,17 +301,9 @@ class FunctionType(Nonterm):
 class FromFunction(Nonterm):
     def reduce_USING_ParenExpr(self, *kids):
         lang = qlast.Language.EdgeQL
-
-        # Now that we know that we were able to parse the expression
-        # inside "USING (...)", we want to get the original text of it.
-        # Sadly we have to discard the parsed AST as there's no way we
-        # can pass it to the schema constructor yet.
-        ctx = kids[1].context
-        code = ctx.buffer[ctx.start.pointer + 1:ctx.end.pointer - 1]
-
         self.val = qlast.FunctionCode(
             language=lang,
-            code=code)
+            nativecode=kids[1].val)
 
     def reduce_USING_Identifier_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])
@@ -344,6 +336,7 @@ class ProcessFunctionBlockMixin:
 
         commands = []
         code = None
+        nativecode = None
         language = qlast.Language.SQL
         from_expr = False
         from_function = None
@@ -357,8 +350,16 @@ class ProcessFunctionBlockMixin:
                             context=node.context)
                     from_function = node.from_function
 
+                elif node.nativecode:
+                    if code is not None or nativecode is not None:
+                        raise EdgeQLSyntaxError(
+                            'more than one USING <code> clause',
+                            context=node.context)
+                    nativecode = node.nativecode
+                    language = node.language
+
                 elif node.code:
-                    if code is not None:
+                    if code is not None or nativecode is not None:
                         raise EdgeQLSyntaxError(
                             'more than one USING <code> clause',
                             context=node.context)
@@ -371,7 +372,12 @@ class ProcessFunctionBlockMixin:
             else:
                 commands.append(node)
 
-        if (code is None and from_function is None and not from_expr):
+        if (
+            nativecode is None and
+            code is None and
+            from_function is None and
+            not from_expr
+        ):
             raise EdgeQLSyntaxError(
                 'CREATE FUNCTION requires at least one USING clause',
                 context=block.context)
@@ -389,6 +395,8 @@ class ProcessFunctionBlockMixin:
                 from_expr=from_expr,
                 code=code,
             )
+
+            props['nativecode'] = nativecode
 
         if commands:
             props['commands'] = commands

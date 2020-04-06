@@ -610,7 +610,7 @@ _123456789_123456789_123456789 -> str
 
         schema = self.run_ddl(schema, '''
             CREATE FUNCTION test::foo (a: int64) -> int64
-            USING EdgeQL $$ SELECT a; $$;
+            USING ( SELECT a );
         ''')
 
         self.assertEqual(
@@ -1073,11 +1073,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             function get_ingredients(
                 recipe: Recipe
-            ) -> tuple<name: str, quantity: decimal> {
+            ) -> set of tuple<name: str, quantity: decimal> {
                 using (
                     SELECT (
                         name := recipe.ingredients.name,
-                        quantity := recipe.ingredients.quantity,
+                        quantity := recipe.ingredients@quantity,
                     )
                 )
             }
@@ -1399,7 +1399,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         }
 
         function str_upper(val: str) -> str {
-            using (SELECT '^^' ++ str_upper(val) ++ '^^');
+            using (SELECT '^^' ++ std::str_upper(val) ++ '^^');
         }
         '''
 
@@ -3627,6 +3627,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         r'[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}'
         r'-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}'
     )
+    maxDiff = 10000
 
     def _assert_describe(
         self,
@@ -3789,13 +3790,19 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             r"""
             function stdgraphql::short_name(name: std::str) -> std::str {
+                orig_nativecode :=
+                    r"SELECT (((name)[5:] IF (name LIKE 'std::%') ELSE
+                      ((name)[9:] IF (name LIKE 'default::%') ELSE
+                      re_replace('(.+?)::(.+$)', r'\1__\2', name)))
+                      ++ '_Type')";
                 volatility := 'IMMUTABLE';
                 using (
                     SELECT (
-                        name[5:] IF name LIKE 'std::%' ELSE
-                        name[9:] IF name LIKE 'default::%' ELSE
-                        re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
-                    ) ++ '_Type'
+                       ((name)[5:] IF (name LIKE 'std::%') ELSE
+                       ((name)[9:] IF (name LIKE 'default::%') ELSE
+                        re_replace('(.+?)::(.+$)', r'\1__\2', name)))
+                      ++ '_Type'
+                    )
                 )
             ;};
             """,
@@ -4574,4 +4581,16 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 };
             };
             """,
+        )
+
+    def test_describe_escape(self):
+        self._assert_describe(
+            r"""
+            function foo() -> str using ( SELECT r'\1' );
+            """,
+
+            'DESCRIBE OBJECT foo AS TEXT',
+
+            r"function test::foo() ->  std::str "
+            r"using (SELECT r'\1');"
         )
